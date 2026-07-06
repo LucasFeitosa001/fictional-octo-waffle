@@ -1,0 +1,306 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../api';
+
+// ===================== Types =====================
+export type TransactionKind = 'income' | 'expense';
+export type PaymentStatus = 'pending' | 'paid' | 'reversed';
+export type FinancialAccountType = 'cash' | 'bank';
+export type FinancialCategoryKind = 'debit' | 'credit';
+
+export interface FinancialSummary {
+  period: { from: string | null; to: string | null };
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+  byPaymentMethod: {
+    paymentMethodId: string | null;
+    paymentMethodName: string;
+    total: number;
+  }[];
+}
+
+export interface TransactionRow {
+  id: string;
+  companyId: string;
+  kind: TransactionKind;
+  accountId?: string | null;
+  categoryId?: string | null;
+  paymentMethodId?: string | null;
+  description?: string | null;
+  grossAmount: string;
+  dueDate?: string | null;
+  paidAt?: string | null;
+  status: PaymentStatus;
+  createdAt: string;
+  account?: { id: string; name: string } | null;
+  category?: { id: string; name: string } | null;
+  paymentMethod?: { id: string; name: string } | null;
+}
+
+export interface FinancialAccount {
+  id: string;
+  companyId: string;
+  name: string;
+  type: FinancialAccountType;
+  initialBalance: string;
+  active: boolean;
+}
+
+export interface PaymentMethod {
+  id: string;
+  companyId: string;
+  name: string;
+  feePercent: string;
+  settlementDays: number;
+  defaultAccountId?: string | null;
+  goesToCash: boolean;
+}
+
+export interface FinancialCategory {
+  id: string;
+  companyId: string;
+  name: string;
+  kind: FinancialCategoryKind;
+  countsAsCommission: boolean;
+  isExpense: boolean;
+  active: boolean;
+}
+
+export interface TransactionFilters {
+  type?: TransactionKind;
+  status?: PaymentStatus;
+  from?: string;
+  to?: string;
+}
+
+export interface CreateTransactionBody {
+  kind: TransactionKind;
+  grossAmount: number;
+  accountId?: string;
+  categoryId?: string;
+  paymentMethodId?: string;
+  description?: string;
+  dueDate?: string;
+  paidAt?: string;
+  status?: PaymentStatus;
+}
+
+export interface CreateFinancialAccountBody {
+  name: string;
+  type?: FinancialAccountType;
+  initialBalance?: number;
+}
+
+export interface CreatePaymentMethodBody {
+  name: string;
+  feePercent?: number;
+  settlementDays?: number;
+  defaultAccountId?: string;
+  goesToCash?: boolean;
+}
+
+export interface CreateFinancialCategoryBody {
+  name: string;
+  kind: FinancialCategoryKind;
+  countsAsCommission?: boolean;
+  isExpense?: boolean;
+}
+
+export type UpdateTransactionBody = Partial<CreateTransactionBody>;
+export type UpdateFinancialAccountBody = Partial<CreateFinancialAccountBody> & {
+  active?: boolean;
+};
+export type UpdatePaymentMethodBody = Partial<CreatePaymentMethodBody>;
+export type UpdateFinancialCategoryBody = Partial<CreateFinancialCategoryBody> & {
+  active?: boolean;
+};
+
+type Deleted = { id: string; deleted: boolean };
+
+interface Paginated<T> {
+  data: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+// ===================== Summary =====================
+export function useFinancialSummary(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ['financial-summary', from ?? null, to ?? null],
+    queryFn: () =>
+      api.get<FinancialSummary>('/financial/summary', {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+  });
+}
+
+// ===================== Transactions =====================
+export function useTransactions(filters: TransactionFilters = {}) {
+  return useQuery({
+    queryKey: ['transactions', filters],
+    queryFn: () =>
+      api.get<Paginated<TransactionRow>>('/transactions', {
+        type: filters.type,
+        status: filters.status,
+        from: filters.from,
+        to: filters.to,
+      }),
+  });
+}
+
+export function useCreateTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateTransactionBody) =>
+      api.post<TransactionRow>('/transactions', body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+    },
+  });
+}
+
+export function useUpdateTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateTransactionBody }) =>
+      api.patch<TransactionRow>(`/transactions/${id}`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+    },
+  });
+}
+
+export function useDeleteTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<TransactionRow>(`/transactions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+    },
+  });
+}
+
+// ===================== Financial accounts =====================
+export function useFinancialAccounts() {
+  return useQuery({
+    queryKey: ['financial-accounts'],
+    queryFn: () => api.get<FinancialAccount[]>('/financial-accounts'),
+  });
+}
+
+export function useCreateFinancialAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateFinancialAccountBody) =>
+      api.post<FinancialAccount>('/financial-accounts', body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+    },
+  });
+}
+
+export function useUpdateFinancialAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateFinancialAccountBody }) =>
+      api.patch<FinancialAccount>(`/financial-accounts/${id}`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+    },
+  });
+}
+
+export function useDeleteFinancialAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<Deleted>(`/financial-accounts/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+    },
+  });
+}
+
+// ===================== Payment methods =====================
+export function usePaymentMethods() {
+  return useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: () => api.get<PaymentMethod[]>('/payment-methods'),
+  });
+}
+
+export function useCreatePaymentMethod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreatePaymentMethodBody) =>
+      api.post<PaymentMethod>('/payment-methods', body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+    },
+  });
+}
+
+export function useUpdatePaymentMethod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdatePaymentMethodBody }) =>
+      api.patch<PaymentMethod>(`/payment-methods/${id}`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+    },
+  });
+}
+
+export function useDeletePaymentMethod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<Deleted>(`/payment-methods/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+    },
+  });
+}
+
+// ===================== Financial categories =====================
+export function useFinancialCategories() {
+  return useQuery({
+    queryKey: ['financial-categories'],
+    queryFn: () => api.get<FinancialCategory[]>('/financial-categories'),
+  });
+}
+
+export function useCreateFinancialCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateFinancialCategoryBody) =>
+      api.post<FinancialCategory>('/financial-categories', body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+    },
+  });
+}
+
+export function useUpdateFinancialCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateFinancialCategoryBody }) =>
+      api.patch<FinancialCategory>(`/financial-categories/${id}`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+    },
+  });
+}
+
+export function useDeleteFinancialCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<Deleted>(`/financial-categories/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+    },
+  });
+}

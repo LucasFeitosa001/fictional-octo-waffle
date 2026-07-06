@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Design tokens do Silvia Hair ERP — rosa sofisticado + lilás suave + grafite,
+   detalhes champagne. Tema claro, visual SaaS profissional. */
+@theme {
+  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Rosa principal (marca) */
+  --color-brand-50: #fdf2f7;
+  --color-brand-100: #fce7f1;
+  --color-brand-200: #f9cfe3;
+  --color-brand-300: #f5a8cc;
+  --color-brand-400: #ee75ac;
+  --color-brand-500: #e1478d;
+  --color-brand-600: #c92d72;
+  --color-brand-700: #a9205c;
+  --color-brand-800: #8c1d4e;
+  --color-brand-900: #751b44;
+
+  /* Lilás/roxo suave (apoio) */
+  --color-accent-50: #f7f5fd;
+  --color-accent-100: #efeafb;
+  --color-accent-200: #ded4f7;
+  --color-accent-300: #c3aff0;
+  --color-accent-400: #a683e6;
+  --color-accent-500: #8b5cf6;
+  --color-accent-600: #7c3aed;
+  --color-accent-700: #6d28d9;
+  --color-accent-800: #5b21b6;
+  --color-accent-900: #4c1d95;
+
+  /* Champagne/dourado (detalhes) */
+  --color-gold-100: #f7edda;
+  --color-gold-300: #e8cfa8;
+  --color-gold-500: #c9a15e;
+  --color-gold-700: #a67c3b;
+
+  /* Grafite e neutros */
+  --color-ink-900: #1f2028;
+  --color-ink-700: #3a3b47;
+  --color-ink-500: #6b6875;
+  --color-ink-300: #a7a4b0;
+  --color-ink-100: #e8e6ee;
+  --color-paper: #faf8fb;
+}
+
+body {
+  @apply bg-paper text-ink-900 antialiased;
+  font-family: var(--font-sans);
+}
+
+/* Scrollbar discreta no desktop */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink-100);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-300);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

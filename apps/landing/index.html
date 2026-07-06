@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Salonpass — A gestão completa do seu salão</title>
+    <meta name="description" content="Salonpass é a plataforma de gestão para salões e estúdios: agenda online, comandas, financeiro e uma recepcionista de IA que agenda e confirma sozinha no WhatsApp." />
+    <meta name="theme-color" content="#0a0a0a" />
+    <link rel="icon" type="image/png" href="/brand/salonpass-mark.png" />
+    <meta property="og:title" content="Salonpass — A gestão completa do seu salão" />
+    <meta property="og:description" content="Agenda online, comandas, financeiro e IA no WhatsApp. Feito para salões e estúdios que querem crescer." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://salonpass.com.br" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #0a0a0a;
+        --bg-soft: #111111;
+        --gold: #f2b33d;
+        --gold-strong: #e0a01f;
+        --pink: #f08ca5;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-2: rgba(255, 255, 255, 0.14);
+        --text: #f5f3ef;
+        --muted: rgba(245, 243, 239, 0.58);
+        --muted-2: rgba(245, 243, 239, 0.42);
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.5;
+        overflow-x: hidden;
+      }
+      a { color: inherit; text-decoration: none; }
+      .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 22px; }
+
+      /* ── Nav ─────────────────────────────────────────────────────── */
+      header {
+        position: sticky; top: 0; z-index: 50;
+        background: rgba(10, 10, 10, 0.72);
+        backdrop-filter: saturate(160%) blur(14px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+      .nav img { height: 24px; width: auto; display: block; }
+      .nav-actions { display: flex; align-items: center; gap: 10px; }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        height: 44px; padding: 0 20px; border-radius: 999px;
+        font-size: 14px; font-weight: 600; white-space: nowrap;
+        transition: transform .15s ease, background .2s ease, border-color .2s ease, color .2s ease;
+        cursor: pointer; border: 1px solid transparent;
+      }
+      .btn:active { transform: scale(.97); }
+      .btn-gold { background: var(--gold); color: #111; box-shadow: 0 10px 30px rgba(242, 179, 61, .22); }
+      .btn-gold:hover { background: var(--gold-strong); }
+      .btn-ghost { border-color: var(--line-2); color: var(--text); background: transparent; }
+      .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+      .btn-sm { height: 38px; padding: 0 16px; font-size: 13px; }
+      .nav .btn-ghost.hide-mobile { display: none; }
+
+      /* ── Hero ────────────────────────────────────────────────────── */
+      .hero { position: relative; padding: 84px 0 64px; text-align: center; overflow: hidden; }
+      .hero::before, .hero::after {
+        content: ""; position: absolute; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0;
+      }
+      .hero::before { width: 520px; height: 520px; background: rgba(242, 179, 61, .14); top: -200px; left: 50%; transform: translateX(-50%); }
+      .hero::after { width: 420px; height: 420px; background: rgba(240, 140, 165, .10); bottom: -220px; right: -120px; }
+      .hero .wrap { position: relative; z-index: 1; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        height: 32px; padding: 0 14px; border-radius: 999px;
+        border: 1px solid var(--line-2); background: rgba(255,255,255,.03);
+        font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--muted);
+        margin-bottom: 26px;
+      }
+      .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px rgba(242,179,61,.18); }
+      h1 {
+        font-size: clamp(34px, 8.5vw, 64px); line-height: 1.04; font-weight: 700; letter-spacing: -0.02em;
+        max-width: 16ch; margin: 0 auto;
+      }
+      h1 .grad { color: var(--gold); }
+      .sub { margin: 22px auto 0; max-width: 56ch; font-size: clamp(15px, 4vw, 18px); color: var(--muted); }
+      .cta-row { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+      .cta-row .btn { height: 52px; padding: 0 26px; font-size: 15px; }
+      .micro { margin-top: 16px; font-size: 12.5px; color: var(--muted-2); }
+
+      /* mock device */
+      .device {
+        margin: 56px auto 0; max-width: 320px; position: relative; z-index: 1;
+        border: 1px solid var(--line-2); border-radius: 34px; padding: 10px;
+        background: linear-gradient(180deg, #161616, #0e0e0e);
+        box-shadow: 0 40px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.02) inset;
+      }
+      .device .screen {
+        border-radius: 26px; overflow: hidden; background: #fdfaf7; aspect-ratio: 320 / 540; position: relative;
+      }
+      .scr-top { background: #0e0e0e; color: #fff; padding: 14px 16px 10px; }
+      .scr-top .brand { font-weight: 700; font-size: 13px; }
+      .scr-top .brand span { color: var(--gold); }
+      .scr-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px; }
+      .scr-kpi { background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 12px; padding: 10px; }
+      .scr-kpi b { display: block; color: #111; font-size: 18px; }
+      .scr-kpi small { color: #8a847c; font-size: 10px; }
+      .scr-kpi .up { color: #10b981; font-size: 10px; font-weight: 700; }
+      .scr-list { padding: 0 12px 12px; }
+      .scr-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(0,0,0,.05); }
+      .scr-row .t { font-weight: 700; color: #111; font-size: 12px; width: 38px; }
+      .scr-row .n { color: #111; font-size: 12px; font-weight: 600; }
+      .scr-row .s { color: #8a847c; font-size: 10px; }
+
+      /* ── Logos / trust ───────────────────────────────────────────── */
+      .trust { padding: 30px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+      .trust p { text-align: center; color: var(--muted-2); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+
+      /* ── Sections ────────────────────────────────────────────────── */
+      section.block { padding: 76px 0; }
+      .eyebrow { color: var(--gold); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+      h2 { font-size: clamp(26px, 6.5vw, 40px); line-height: 1.12; letter-spacing: -0.02em; font-weight: 700; margin-top: 12px; max-width: 18ch; }
+      .lead { margin-top: 14px; color: var(--muted); font-size: 16px; max-width: 52ch; }
+
+      .features { margin-top: 40px; display: grid; gap: 14px; grid-template-columns: 1fr; }
+      .card {
+        border: 1px solid var(--line); border-radius: 20px; padding: 24px;
+        background: linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.005));
+      }
+      .card .ic {
+        width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+        background: rgba(242,179,61,.14); color: var(--gold); margin-bottom: 16px;
+      }
+      .card.pink .ic { background: rgba(240,140,165,.14); color: var(--pink); }
+      .card h3 { font-size: 17px; font-weight: 600; }
+      .card p { margin-top: 8px; color: var(--muted); font-size: 14px; }
+      .card svg { width: 22px; height: 22px; }
+
+      /* split */
+      .split { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: center; }
+      .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 28px; }
+      .stat { border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+      .stat b { display: block; font-size: clamp(28px, 8vw, 40px); font-weight: 700; letter-spacing: -.02em; }
+      .stat b .u { color: var(--gold); }
+      .stat span { color: var(--muted); font-size: 13px; }
+
+      /* CTA band */
+      .band { margin: 0 0 0; }
+      .band .inner {
+        border: 1px solid var(--line-2); border-radius: 28px; padding: 48px 28px; text-align: center;
+        background:
+          radial-gradient(120% 140% at 50% 0%, rgba(242,179,61,.16), transparent 60%),
+          linear-gradient(180deg, #141414, #0d0d0d);
+      }
+      .band h2 { margin: 0 auto; max-width: 20ch; }
+      .band p { margin: 14px auto 0; color: var(--muted); max-width: 46ch; }
+
+      /* footer */
+      footer { border-top: 1px solid var(--line); padding: 44px 0 40px; }
+      .foot { display: flex; flex-direction: column; gap: 24px; }
+      .foot-top { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: center; justify-content: space-between; }
+      .foot img { height: 22px; }
+      .foot-links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+      .foot-links a { color: var(--muted); font-size: 14px; transition: color .2s ease; }
+      .foot-links a:hover { color: var(--text); }
+      .foot-bottom { color: var(--muted-2); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 22px; }
+
+      @media (min-width: 760px) {
+        .nav .btn-ghost.hide-mobile { display: inline-flex; }
+        .features { grid-template-columns: repeat(2, 1fr); }
+        .split { grid-template-columns: 1.05fr 1fr; gap: 48px; }
+        section.block { padding: 100px 0; }
+        .hero { padding: 110px 0 80px; }
+      }
+      @media (min-width: 1000px) {
+        .features { grid-template-columns: repeat(4, 1fr); }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap nav">
+        <a href="/" aria-label="Salonpass"><img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" /></a>
+        <div class="nav-actions">
+          <a class="btn btn-ghost btn-sm hide-mobile" href="https://agenda.salonpass.com.br">Sou cliente</a>
+          <a class="btn btn-gold btn-sm" href="https://app.salonpass.com.br">Entrar</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap">
+        <span class="pill"><span class="dot"></span> Gestão completa + IA no WhatsApp</span>
+        <h1>A gestão completa do seu <span class="grad">salão</span>.</h1>
+        <p class="sub">
+          Agenda online, comandas, financeiro e uma recepcionista de IA que atende, agenda e
+          confirma sozinha no WhatsApp. Tudo num só lugar, feito para profissionais.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-gold" href="https://app.salonpass.com.br">Começar agora</a>
+          <a class="btn btn-ghost" href="https://agenda.salonpass.com.br">Quero agendar um horário</a>
+        </div>
+        <p class="micro">Sem cartão de crédito para começar · Suporte por WhatsApp</p>
+
+        <!-- Phone mock -->
+        <div class="device">
+          <div class="screen">
+            <div class="scr-top">
+              <div class="brand">salon<span>pass</span> · Painel</div>
+            </div>
+            <div class="scr-kpis">
+              <div class="scr-kpi"><small>Agendamentos</small><b>24</b><span class="up">+12%</span></div>
+              <div class="scr-kpi"><small>Faturamento</small><b>R$ 3,4k</b><span class="up">+18%</span></div>
+              <div class="scr-kpi"><small>Novos clientes</small><b>8</b><span class="up">+14%</span></div>
+              <div class="scr-kpi"><small>Comandas</small><b>11</b><span class="up">+5%</span></div>
+            </div>
+            <div class="scr-list">
+              <div class="scr-row"><span class="t">09:00</span><span><span class="n">Marina Silva</span><br /><span class="s">Corte feminino</span></span></div>
+              <div class="scr-row"><span class="t">10:30</span><span><span class="n">Júlia Costa</span><br /><span class="s">Coloração</span></span></div>
+              <div class="scr-row"><span class="t">13:00</span><span><span class="n">Renata Souza</span><br /><span class="s">Spa dos pés</span></span></div>
+              <div class="scr-row"><span class="t">15:30</span><span><span class="n">Patrícia Lima</span><br /><span class="s">Esmaltação em gel</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="trust"><div class="wrap"><p>Feito para salões, barbearias, estúdios de unha e clínicas de estética</p></div></div>
+
+    <!-- Features -->
+    <section class="block">
+      <div class="wrap">
+        <span class="eyebrow">Tudo num só app</span>
+        <h2>Menos planilha, mais clientes na cadeira.</h2>
+        <p class="lead">Da primeira mensagem no WhatsApp ao fechamento da comanda — o Salonpass cuida da operação inteira do seu salão.</p>
+
+        <div class="features">
+          <div class="card">
+            <div class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </div>
+            <h3>Agenda online</h3>
+            <p>Visões por dia, mês e ano, encaixes, recorrência e lembretes automáticos. Seus clientes agendam sozinhos.</p>
+          </div>
+          <div class="card pink">
+            <div class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </div>
+            <h3>IA no WhatsApp</h3>
+            <p>Uma recepcionista de IA que responde, agenda e confirma horários no WhatsApp — 24 horas por dia.</p>
+          </div>
+          <div class="card">
+            <div class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2z"/><path d="M8 8h8M8 12h6"/></svg>
+            </div>
+            <h3>Comandas & financeiro</h3>
+            <p>Abra comandas, registre vendas e produtos, controle caixa, comissões e relatórios em tempo real.</p>
+          </div>
+          <div class="card">
+            <div class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+            </div>
+            <h3>Marketing & cashback</h3>
+            <p>Promoções, avaliações, programa de cashback e link de agendamento para fidelizar e vender mais.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Split: numbers -->
+    <section class="block" style="border-top:1px solid var(--line)">
+      <div class="wrap split">
+        <div>
+          <span class="eyebrow">Para profissionais</span>
+          <h2>Sua gestão, seus resultados.</h2>
+          <p class="lead">Acompanhe faturamento, ocupação e os serviços mais realizados num painel pensado para o celular. Decisões melhores, todo dia.</p>
+          <div style="margin-top:28px">
+            <a class="btn btn-gold" href="https://app.salonpass.com.br">Acessar o painel</a>
+          </div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><b>+30<span class="u">%</span></b><span>menos faltas com lembretes automáticos</span></div>
+          <div class="stat"><b>24<span class="u">/7</span></b><span>atendimento no WhatsApp com IA</span></div>
+          <div class="stat"><b>1<span class="u">×</span></b><span>app para agenda, caixa e relatórios</span></div>
+          <div class="stat"><b>0<span class="u">R$</span></b><span>para começar a usar hoje</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA band -->
+    <section class="block" style="padding-top:0">
+      <div class="wrap">
+        <div class="band">
+          <div class="inner">
+            <span class="eyebrow">Comece hoje</span>
+            <h2>Coloque o seu salão no Salonpass.</h2>
+            <p>Crie sua conta em minutos e tenha agenda, comandas e a IA do WhatsApp trabalhando por você.</p>
+            <div class="cta-row" style="margin-top:26px">
+              <a class="btn btn-gold" href="https://app.salonpass.com.br">Criar minha conta</a>
+              <a class="btn btn-ghost" href="https://agenda.salonpass.com.br">Sou cliente</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap foot">
+        <div class="foot-top">
+          <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" />
+          <div class="foot-links">
+            <a href="https://app.salonpass.com.br">Entrar</a>
+            <a href="https://agenda.salonpass.com.br">Agendar</a>
+            <a href="https://agenda.salonpass.com.br/sobre">Sobre</a>
+            <a href="https://agenda.salonpass.com.br/privacidade">Privacidade</a>
+            <a href="https://agenda.salonpass.com.br/termos">Termos</a>
+          </div>
+        </div>
+        <div class="foot-bottom">© <span id="y"></span> Salonpass · Gestão para salões e estúdios.</div>
+      </div>
+    </footer>
+    <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+  </body>
+</html>

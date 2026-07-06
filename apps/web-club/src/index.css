@@ -1,0 +1,135 @@
+@import "@heroui/styles";
+
+/* Fonts: Poppins drives brand + UI (400/500/600/700/800); Inter as fallback. */
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+@import "@fontsource/poppins/700.css";
+@import "@fontsource/poppins/800.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+
+/* ── Salonpass design tokens (Tailwind v4) ───────────────────────────────────
+   Warm, premium identity: black surfaces, gold CTA, cream canvas. Shadows are
+   soft and professional (large blur, low opacity) — never harsh SaaS drops. */
+@theme {
+  --color-ink: #111111;
+  --color-ink-soft: #1a1a1a;
+  --color-gold: #f2b33d;
+  --color-gold-strong: #e0a01f;
+  --color-pink: #f08ca5;
+  --color-cream: #f7f3ea;
+  --color-warm-white: #fffdf8;
+  --color-beige: #e9d9c3;
+  --color-beige-deep: #bfaf9e;
+  --color-muted-ink: #6f6a63;
+  --color-soft-border: rgba(26, 26, 26, 0.08);
+
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+
+  /* Soft, layered shadows — the house style. */
+  --shadow-soft: 0 12px 32px rgba(26, 26, 26, 0.08);
+  --shadow-card: 0 1px 2px rgba(26, 26, 26, 0.04), 0 12px 32px rgba(26, 26, 26, 0.07);
+  --shadow-gold: 0 8px 24px rgba(242, 179, 61, 0.22);
+  --shadow-pink: 0 8px 24px rgba(240, 140, 165, 0.28);
+  --shadow-pop: 0 16px 40px rgba(26, 26, 26, 0.12);
+}
+
+/* HeroUI accent tokens: gold CTA (#F2B33D) with dark ink text; cream canvas. */
+@layer base {
+  :root,
+  .light,
+  .default,
+  [data-theme="light"],
+  [data-theme="default"] {
+    --accent: oklch(0.8 0.143 82); /* ~ #F2B33D gold */
+    --accent-foreground: oklch(0.1776 0 89.88); /* ~ #111111 ink */
+    --focus: var(--accent);
+    --background: oklch(0.9568 0.0123 84); /* ~ #F7F3EA cream */
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--foreground);
+  font-family:
+    "Poppins", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Cream canvas with two faint radial washes (pink + gold) for warmth/depth. */
+  background-color: #f7f3ea;
+  background-image:
+    radial-gradient(820px 480px at 50% -10%, rgba(242, 179, 61, 0.12), transparent 60%),
+    radial-gradient(720px 520px at 100% 6%, rgba(240, 140, 165, 0.1), transparent 62%);
+  background-attachment: fixed;
+}
+
+/* Headings/brand: Poppins SemiBold. */
+h1, h2, h3, h4, h5, h6,
+.font-brand {
+  font-family: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The sticky top bar paints into the iOS status-bar safe area with the brand
+   black (with a subtle sheen), so the notification bar reads black. */
+.club-topbar {
+  background: #111111;
+  background-image: linear-gradient(180deg, #1a1a1a 0%, #111111 100%);
+  color: #fff;
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Focus ring: gold, soft. */
+*:focus-visible {
+  outline: 2px solid rgba(242, 179, 61, 0.9);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.club-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Booking wizard: gentle slide-up + fade when a new step mounts. */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-step {
+  animation: step-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Mobile bottom tab bar: brand black, paints into the home-indicator safe area
+   so the bar reads solid black down to the screen edge. */
+.club-bottomnav {
+  background: #111111;
+  background-image: linear-gradient(0deg, #111111 0%, #1a1a1a 100%);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Swipeable photo carousel track: keep the native scroll-snap behavior but hide
+   the scrollbar so the gallery reads as a clean image strip. */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}

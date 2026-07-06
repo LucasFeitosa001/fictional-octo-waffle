@@ -1,0 +1,200 @@
+@import "@heroui/styles";
+
+/* Brand typeface: Poppins for everything (per Salonpass brand guide —
+   Poppins SemiBold for display, Poppins Regular for body). */
+@import "@fontsource/poppins/300.css";
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+@import "@fontsource/poppins/700.css";
+
+/* ============================================================================
+   SALONPASS — aerospace-grade monochrome control panel.
+   True black canvas, near-black panels separated by hairlines (not gray fills),
+   white as the single decisive accent. Depth comes from borders + a faint fixed
+   grid and top glow, never from muddy gray slabs.
+   ========================================================================== */
+@layer base {
+  :root,
+  .light,
+  .dark,
+  .default,
+  [data-theme="light"],
+  [data-theme="dark"],
+  [data-theme="default"] {
+    --background: #060606;
+    --foreground: #f4f4f5;
+    --accent: #ffffff;
+    --accent-foreground: #0a0a0a;
+    --focus: var(--accent);
+
+    /* Control-panel tokens */
+    --sp-canvas: #060606;
+    --sp-panel: #0c0c0d;
+    --sp-panel-raised: #121214;
+    --sp-hairline: rgba(255, 255, 255, 0.08);
+    --sp-hairline-strong: rgba(255, 255, 255, 0.16);
+    --sp-muted: #8b8b90;
+    --sp-muted-dim: #5a5a5f;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+/* Guarantee a true-black canvas even before/independently of body painting. */
+html {
+  background-color: #060606;
+}
+
+body {
+  background-color: var(--sp-canvas);
+  /* top glow + fine fixed grid for atmosphere */
+  background-image:
+    radial-gradient(125% 80% at 50% -12%, rgba(255, 255, 255, 0.06), transparent 58%),
+    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    72px 72px,
+    72px 72px;
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings / brand — Poppins SemiBold, optically tightened */
+h1, h2, h3, h4, h5, h6,
+.font-brand {
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+/* Uppercase eyebrow label (section kicker) */
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--sp-muted-dim);
+}
+
+/* Tabular numerics for any metric/figure */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+::selection {
+  background: #ffffff;
+  color: #000000;
+}
+
+/* ----- Dashboard chrome ----- */
+.db-sidebar {
+  background: #080809;
+  border-right: 1px solid var(--sp-hairline);
+}
+.db-nav-active {
+  background: #ffffff;
+  color: #0a0a0a;
+  box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.4);
+}
+/* content area is transparent so the canvas grid/glow shows through */
+.db-surface {
+  background: transparent;
+}
+
+/* Panels: near-black with a hairline border and a whisper of top-light.
+   No gray fills — separation reads as a drawn line, the way a control panel does. */
+.db-card {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0) 38%);
+  background-color: var(--sp-panel);
+  border: 1px solid var(--sp-hairline);
+  border-radius: 16px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.db-card:hover {
+  border-color: var(--sp-hairline-strong);
+}
+
+.text-muted {
+  color: var(--sp-muted);
+}
+
+/* ----- HeroUI Table → dense control-panel readout ----- */
+.table-root,
+.table__content {
+  background: transparent;
+  border: none;
+}
+.table__header,
+.table__column {
+  background: transparent !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--sp-muted-dim);
+  border-bottom: 1px solid var(--sp-hairline);
+}
+.table__column {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.table__cell {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+}
+.table__row {
+  transition: background-color 0.15s ease;
+}
+.table__row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+.table__row:last-child .table__cell {
+  border-bottom: none;
+}
+
+/* ----- Thin monochrome scrollbars ----- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
+}
+
+/* Modals: cap height so HeroUI's scroll="inside" engages on tall dialogs. */
+.modal__dialog {
+  max-height: 100%;
+}
+.modal__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}

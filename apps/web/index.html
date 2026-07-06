@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#111111" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Salonpass" />
+    <title>Salonpass Gestão</title>
+  </head>
+  <body>
+    <div id="root">
+      <!-- Splash shown instantly while JS loads; React replaces this on mount -->
+      <div id="splash" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#111111;z-index:9999">
+        <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" width="160" height="40" style="margin-bottom:24px" />
+        <div style="width:32px;height:32px;border:3px solid rgba(242,179,61,0.25);border-top-color:#f2b33d;border-radius:50%;animation:sp-spin .7s linear infinite"></div>
+        <style>@keyframes sp-spin{to{transform:rotate(360deg)}}</style>
+      </div>
+    </div>
+    <script>
+      // Kill ALL service workers and caches BEFORE the app loads.
+      // If any SW was active, force a clean reload after nuking it.
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
+        var hadSW = false;
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          var promises = regs.map(function(r) { hadSW = true; return r.unregister(); });
+          return Promise.all(promises);
+        }).then(function() {
+          if ('caches' in window) {
+            return caches.keys().then(function(names) {
+              return Promise.all(names.map(function(n) { return caches.delete(n); }));
+            });
+          }
+        }).then(function() {
+          // If we killed a SW, reload once to escape its cached responses.
+          // Use a flag in sessionStorage so we only reload once per tab.
+          if (hadSW && !sessionStorage.getItem('sw_nuked')) {
+            sessionStorage.setItem('sw_nuked', '1');
+            location.reload();
+          }
+        });
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,207 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../api';
+import type { Paginated } from '../types';
+
+// =====================================================================
+// Types — CONTROLE / cadastros (produtos, categorias, marcas)
+// Money/decimal fields come from the API as Decimal strings.
+// =====================================================================
+
+export interface ProductCategory {
+  id: string;
+  companyId: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Brand {
+  id: string;
+  companyId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  /** present on GET /brands */
+  productCount?: number;
+}
+
+export interface Product {
+  id: string;
+  companyId: string;
+  categoryId?: string | null;
+  brandId?: string | null;
+  name: string;
+  imageUrl?: string | null;
+  salePrice: string;
+  costPrice: string;
+  stock: string;
+  minStock: string;
+  cashbackPercent: string;
+  favorite: boolean;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  category?: ProductCategory | null;
+  brand?: Brand | null;
+}
+
+export type StockMovementType = 'in' | 'out' | 'adjust';
+
+export interface CreateProductBody {
+  name: string;
+  categoryId?: string;
+  brandId?: string;
+  imageUrl?: string | null;
+  salePrice: number;
+  costPrice?: number;
+  stock?: number;
+  minStock?: number;
+  cashbackPercent?: number;
+  favorite?: boolean;
+  active?: boolean;
+}
+
+export type UpdateProductBody = Partial<CreateProductBody> & { active?: boolean };
+
+export interface StockMovementBody {
+  type: StockMovementType;
+  quantity: number;
+  reason?: string;
+}
+
+// =====================================================================
+// Products
+// =====================================================================
+
+export function useProducts(filters: {
+  categoryId?: string;
+  search?: string;
+  lowStock?: boolean;
+} = {}) {
+  return useQuery({
+    queryKey: ['products', filters],
+    queryFn: () =>
+      api.get<Paginated<Product>>('/products', {
+        categoryId: filters.categoryId || undefined,
+        search: filters.search || undefined,
+        lowStock: filters.lowStock ? 'true' : undefined,
+      }),
+  });
+}
+
+export function useProduct(id: string | undefined) {
+  return useQuery({
+    queryKey: ['product', id],
+    enabled: Boolean(id),
+    queryFn: () => api.get<Product>(`/products/${id}`),
+  });
+}
+
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateProductBody) => api.post<Product>('/products', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useUpdateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateProductBody }) =>
+      api.patch<Product>(`/products/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<Product>(`/products/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useStockMovement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: StockMovementBody }) =>
+      api.post<Product>(`/products/${id}/movements`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+// =====================================================================
+// Product categories
+// =====================================================================
+
+export function useProductCategories() {
+  return useQuery({
+    queryKey: ['product-categories'],
+    queryFn: () => api.get<ProductCategory[]>('/product-categories'),
+  });
+}
+
+export function useCreateProductCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; active?: boolean }) =>
+      api.post<ProductCategory>('/product-categories', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-categories'] }),
+  });
+}
+
+export function useUpdateProductCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { name?: string; active?: boolean } }) =>
+      api.patch<ProductCategory>(`/product-categories/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-categories'] }),
+  });
+}
+
+export function useDeleteProductCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<ProductCategory>(`/product-categories/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-categories'] }),
+  });
+}
+
+// =====================================================================
+// Brands
+// =====================================================================
+
+export function useBrands() {
+  return useQuery({
+    queryKey: ['brands'],
+    queryFn: () => api.get<Brand[]>('/brands'),
+  });
+}
+
+export function useCreateBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string }) => api.post<Brand>('/brands', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
+  });
+}
+
+export function useUpdateBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { name?: string } }) =>
+      api.patch<Brand>(`/brands/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
+  });
+}
+
+export function useDeleteBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<Brand>(`/brands/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
+  });
+}

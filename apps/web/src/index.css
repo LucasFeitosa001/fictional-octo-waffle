@@ -1,0 +1,221 @@
+@import "@heroui/styles";
+
+/* Fonts: Poppins drives brand + UI (400/500/600/700/800); Inter as fallback. */
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+@import "@fontsource/poppins/700.css";
+@import "@fontsource/poppins/800.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+
+/* ── Salonpass design tokens (Tailwind v4) ───────────────────────────────────
+   Warm, premium identity: black surfaces, gold CTA, cream canvas. Shadows are
+   soft and professional (large blur, low opacity) — never harsh SaaS drops. */
+@theme {
+  --color-ink: #111111;
+  --color-ink-soft: #1a1a1a;
+  --color-gold: #f2b33d;
+  --color-gold-strong: #e0a01f;
+  --color-pink: #f08ca5;
+  --color-cream: #f7f3ea;
+  --color-warm-white: #fffdf8;
+  --color-beige: #e9d9c3;
+  --color-beige-deep: #bfaf9e;
+  --color-muted-ink: #6f6a63;
+  --color-soft-border: rgba(26, 26, 26, 0.08);
+
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+
+  /* Soft, layered shadows — the house style. */
+  --shadow-soft: 0 12px 32px rgba(26, 26, 26, 0.08);
+  --shadow-card: 0 1px 2px rgba(26, 26, 26, 0.04), 0 12px 32px rgba(26, 26, 26, 0.07);
+  --shadow-gold: 0 8px 24px rgba(242, 179, 61, 0.22);
+  --shadow-pop: 0 16px 40px rgba(26, 26, 26, 0.12);
+}
+
+/* HeroUI accent tokens: gold CTA (#F2B33D) with dark ink text; cream canvas. */
+@layer base {
+  :root,
+  .light,
+  .default,
+  [data-theme="light"],
+  [data-theme="default"] {
+    --accent: oklch(0.8 0.143 82); /* ~ #F2B33D gold */
+    --accent-foreground: oklch(0.1776 0 89.88); /* ~ #111111 ink */
+    --focus: var(--accent);
+    --background: oklch(0.9568 0.0123 84); /* ~ #F7F3EA cream */
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    "Poppins", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings/brand: Poppins SemiBold. */
+h1, h2, h3, h4, h5, h6,
+.font-brand {
+  font-family: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Modals: cap the dialog at the visual viewport so tall forms scroll internally
+   (HeroUI's .modal__dialog has no max-height by default). */
+.modal__dialog {
+  max-height: 100%;
+}
+.modal__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Auth (login) inputs: outlined, no fill, hairline border — "bem fino".
+   Overrides HeroUI's filled .input look. !important to beat the component CSS. */
+.auth-field {
+  background-color: transparent !important;
+  border-width: 1px !important;
+  border-color: rgba(26, 26, 26, 0.16) !important;
+  box-shadow: none !important;
+  border-radius: 10px;
+  padding-top: 0.78rem;
+  padding-bottom: 0.78rem;
+}
+.auth-field::placeholder {
+  color: rgba(26, 26, 26, 0.35);
+}
+@media (hover: hover) {
+  .auth-field:hover:not(:focus):not([data-focused="true"]) {
+    background-color: transparent !important;
+    border-color: rgba(26, 26, 26, 0.3) !important;
+  }
+}
+.auth-field:focus,
+.auth-field[data-focused="true"] {
+  background-color: transparent !important;
+  border-color: #111111 !important;
+  box-shadow: none !important;
+}
+.auth-field[data-invalid="true"] {
+  background-color: transparent !important;
+  border-color: #e5484d !important;
+}
+
+/* Mobile: modals become full-screen drawers that SLIDE up from the bottom — no
+   fade, no zoom. The slide is a keyframe that plays when the dialog mounts (this
+   is reliable; react-aria's data-entering flips off too fast for a transition to
+   catch). On close, data-exiting stays set for the whole exit, so the slide-down
+   keyframe plays in full while the backdrop is held mounted to match. */
+@media (max-width: 639px) {
+  /* The slide lives on the CONTAINER — that's the element react-aria watches to
+     decide how long to keep the modal mounted on close. Animating the inner
+     dialog instead made react-aria unmount instantly (the instant-exit bug). */
+  .modal__container {
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    will-change: transform;
+    /* Enter: longer + decelerate (iOS/Vaul curve). */
+    animation: sp-drawer-up 360ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+  }
+  .modal__container[data-exiting="true"] {
+    /* Exit: shorter, same curve — native sheets leave faster than they enter. */
+    animation: sp-drawer-down 260ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+  }
+
+  .modal__dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    animation: none !important;
+  }
+
+  /* Scrim fades in/out in lockstep with the sheet (same curve + duration). We
+     animate background-color, NOT opacity — the backdrop wraps the sheet, so
+     opacity would fade the sheet too. This keeps the sheet solid while only the
+     dim tracks the motion. */
+  .modal__backdrop,
+  .modal__backdrop[data-entering="true"] {
+    animation: sp-scrim-in 360ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+  }
+  .modal__backdrop[data-exiting="true"] {
+    animation: sp-scrim-out 260ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+  }
+
+  .modal__body {
+    flex: 1;
+    max-height: none !important;
+  }
+}
+
+@keyframes sp-drawer-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes sp-drawer-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+@keyframes sp-scrim-in {
+  from { background-color: rgba(0, 0, 0, 0); }
+  to { background-color: rgba(0, 0, 0, 0.45); }
+}
+@keyframes sp-scrim-out {
+  from { background-color: rgba(0, 0, 0, 0.45); }
+  to { background-color: rgba(0, 0, 0, 0); }
+}
+
+/* ── Sidebar (the hero surface) ──────────────────────────────────────────────
+   Deep black with a barely-there top sheen so it reads as a crafted panel, not
+   a flat fill. Hairline divider on the right edge. */
+.db-sidebar {
+  background-color: #111111;
+  background-image: linear-gradient(180deg, #1a1a1a 0%, #111111 22%, #0e0e0e 100%);
+  color: #fff;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Active nav item: gold fill, ink text, soft gold glow. */
+.db-nav-active {
+  background: #f2b33d;
+  color: #111111;
+  box-shadow: 0 8px 24px rgba(242, 179, 61, 0.22);
+}
+
+.db-canvas {
+  background-color: #FDFAF7;
+}
+
+/* Mobile bottom tab bar: brand black, paints into the home-indicator safe area
+   so the bar reads solid black down to the screen edge. (Mirrors the club.) */
+.club-bottomnav {
+  background: #111111;
+  background-image: linear-gradient(0deg, #111111 0%, #1a1a1a 100%);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Focus ring: gold, soft, never clipped. */
+*:focus-visible {
+  outline: 2px solid rgba(242, 179, 61, 0.9);
+  outline-offset: 2px;
+  border-radius: 6px;
+}

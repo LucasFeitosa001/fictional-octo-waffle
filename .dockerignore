@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/.turbo
+.git
+.gstack
+**/*.log
+apps/web/dist
+apps/mobile/.expo
+**/.env

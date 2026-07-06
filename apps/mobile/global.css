@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+@import 'uniwind';
+@import 'heroui-native/styles';
+
+@source './node_modules/heroui-native/lib';
+
+/* Salonpass feminino: amarelo (#E6B23C) primary accent com texto escuro, applied to both themes. */
+@layer theme {
+  :root {
+    @variant light {
+      --accent: oklch(0.7912 0.1423 83.82);
+      --accent-foreground: oklch(0.1776 0 89.88);
+      --radius: 0.625rem;
+    }
+
+    @variant dark {
+      --accent: oklch(0.7912 0.1423 83.82);
+      --accent-foreground: oklch(0.1776 0 89.88);
+      --radius: 0.625rem;
+    }
+  }
+}
