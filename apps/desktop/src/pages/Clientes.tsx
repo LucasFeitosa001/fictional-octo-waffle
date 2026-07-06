@@ -17,9 +17,10 @@ import { ActiveBadge, StatusBadge, appointmentStatusTones } from '../components/
 import { EmptyState } from '../components/EmptyState';
 import type { FieldDef, FormValues } from '../components/form';
 
-const UFS = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'CE', 'GO', 'DF', 'ES', 'MT', 'MS', 'AM', 'PA'].map(
-  (uf) => ({ value: uf, label: uf }),
-);
+const UFS = [
+  'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA',
+  'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+].map((uf) => ({ value: uf, label: uf }));
 
 const fields: FieldDef[] = [
   { kind: 'text', name: 'name', label: 'Nome completo', required: true, span: 2 },
@@ -132,9 +133,13 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
     .filter((a) => a.clientId === client.id)
     .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
   const upcoming = clientAppointments.filter((a) => a.date >= hoje && a.status !== 'cancelado' && a.status !== 'finalizado');
-  const history = clientAppointments.filter((a) => a.status === 'finalizado' || a.date < hoje);
+  // Cancelados (mesmo futuros) ficam no histórico; sem isso um agendamento de
+  // amanhã cancelado não aparece em nenhuma das duas abas.
+  const history = clientAppointments.filter(
+    (a) => a.status === 'finalizado' || a.status === 'cancelado' || a.date < hoje,
+  );
   const purchases = commands.items
-    .filter((c) => c.clientId === client.id)
+    .filter((c) => c.clientId === client.id && c.status !== 'cancelada')
     .flatMap((c) => c.items.map((item) => ({ command: c, item })));
 
   return (

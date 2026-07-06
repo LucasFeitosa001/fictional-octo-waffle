@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { addDaysISO, commandItemTotal, formatBRL, formatDate, todayISO } from '@silvia/core';
+import { addDaysISO, commandItemTotal, formatBRL, formatDate, localDayOfISO, todayISO } from '@silvia/core';
 import { commissionForItem, repos, useStaffSession } from '../../lib/silvia';
 import { silvia } from '../../theme/silvia';
 import { MobileHeader } from '../../components/silvia/MobileHeader';
@@ -40,7 +40,7 @@ export default function ComissoesScreen() {
     const paid = cmds.filter((c) => c.status === 'paga' && c.closedAt);
     const list: CommissionRow[] = [];
     for (const command of paid) {
-      const date = (command.closedAt ?? command.openedAt).slice(0, 10);
+      const date = localDayOfISO(command.closedAt ?? command.openedAt);
       for (const item of command.items) {
         if (item.professionalId !== session.professionalId) continue;
         list.push({

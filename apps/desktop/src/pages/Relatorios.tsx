@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { BarChart3, CircleDollarSign, Package, Percent, Sparkles, Users } from 'lucide-react';
-import { commandItemTotal, formatBRL, todayISO } from '@silvia/core';
+import { commandItemTotal, formatBRL, localDayOfISO, todayISO } from '@silvia/core';
 import { repos } from '../lib/repos';
 import { useCollection, useLookups } from '../lib/hooks';
 import { PageHeader } from '../components/PageHeader';
@@ -63,25 +63,34 @@ const REPORTS: { key: string; label: string; icon: LucideIcon; description: stri
 
 export function RelatoriosPage() {
   const [report, setReport] = useState('produtividade');
+  /** Mês selecionado (YYYY-MM); vazio = todo o período. */
+  const [month, setMonth] = useState('');
   const appointments = useCollection(repos.appointments);
   const commands = useCollection(repos.commands);
   const clients = useCollection(repos.clients);
   const financial = useCollection(repos.financialAccounts);
   const lookups = useLookups();
 
+  const inMonth = (dateISO?: string) => !month || (dateISO ?? '').startsWith(month);
+
   const paidItems = useMemo(
-    () => commands.items.filter((c) => c.status === 'paga').flatMap((c) => c.items),
-    [commands.items],
+    () =>
+      commands.items
+        .filter((c) => c.status === 'paga' && (!month || localDayOfISO(c.closedAt).startsWith(month)))
+        .flatMap((c) => c.items),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [commands.items, month],
   );
 
   const produtividade = useMemo(() => {
     const map = new Map<string, { count: number; minutes: number }>();
-    for (const a of appointments.items.filter((x) => x.status === 'finalizado')) {
+    for (const a of appointments.items.filter((x) => x.status === 'finalizado' && inMonth(x.date))) {
       const cur = map.get(a.professionalId) ?? { count: 0, minutes: 0 };
       map.set(a.professionalId, { count: cur.count + 1, minutes: cur.minutes + a.durationMinutes });
     }
     return [...map.entries()].sort((a, b) => b[1].count - a[1].count);
-  }, [appointments.items]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointments.items, month]);
 
   const comissoes = useMemo(() => {
     const map = new Map<string, number>();
@@ -117,7 +126,7 @@ export function RelatoriosPage() {
 
   const categorias = useMemo(() => {
     const map = new Map<string, { in: number; out: number }>();
-    for (const a of financial.items.filter((x) => x.status !== 'cancelado')) {
+    for (const a of financial.items.filter((x) => x.status !== 'cancelado' && inMonth(x.dueDate))) {
       const key = a.category ?? 'Sem categoria';
       const cur = map.get(key) ?? { in: 0, out: 0 };
       if (a.kind === 'receber') cur.in += a.amount;
@@ -125,13 +134,42 @@ export function RelatoriosPage() {
       map.set(key, cur);
     }
     return [...map.entries()];
-  }, [financial.items]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [financial.items, month]);
+
+  // Últimos 12 meses para o filtro de período (select — o input type="month"
+  // nativo trava a janela no WebKitGTK/Tauri).
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      return { value, label: label.charAt(0).toUpperCase() + label.slice(1) };
+    });
+  }, []);
 
   const active = REPORTS.find((r) => r.key === report) ?? REPORTS[0];
 
   return (
     <div>
-      <PageHeader title="Relatórios" description={`Gerado em ${todayISO().split('-').reverse().join('/')} a partir dos dados locais.`} />
+      <PageHeader title="Relatórios" description={`Gerado em ${todayISO().split('-').reverse().join('/')} a partir dos dados locais.`}>
+        <label className="flex items-center gap-2 text-sm text-ink-500">
+          Período
+          <select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-300 focus:outline-none"
+          >
+            <option value="">Todo o período</option>
+            {monthOptions.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </PageHeader>
       <div className="mb-5">
         <Tabs tabs={REPORTS.map((r) => ({ key: r.key, label: r.label }))} active={report} onChange={setReport} />
       </div>

@@ -43,7 +43,7 @@ export function ConsultasPage() {
             { key: 'aniversariantes', label: 'Aniversariantes' },
             { key: 'estoque', label: 'Estoque baixo' },
             { key: 'pendencias', label: 'Contas em aberto' },
-            { key: 'saldos', label: 'Cartões e bônus' },
+            { key: 'saldos', label: 'Cartões e bônus (em breve)' },
           ]}
           active={tab}
           onChange={setTab}

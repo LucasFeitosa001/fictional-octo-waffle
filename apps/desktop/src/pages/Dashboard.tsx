@@ -15,6 +15,7 @@ import {
   commandTotal,
   formatBRL,
   formatDate,
+  localDayOfISO,
   monthOfISO,
   todayISO,
 } from '@silvia/core';
@@ -51,7 +52,7 @@ export function DashboardPage() {
     .sort((a, b) => a.time.localeCompare(b.time));
   const openCommands = commands.items.filter((c) => c.status === 'aberta');
   const paidTodayTotal = commands.items
-    .filter((c) => c.status === 'paga' && c.closedAt?.startsWith(hoje))
+    .filter((c) => c.status === 'paga' && localDayOfISO(c.closedAt) === hoje)
     .reduce((sum, c) => sum + commandTotal(c), 0);
   const lowStock = products.items.filter((p) => p.trackStock && p.active && p.stock <= p.reorderLevel);
   const dueSoon = financial.items.filter(

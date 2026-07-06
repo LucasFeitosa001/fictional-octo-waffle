@@ -1,0 +1,39 @@
+# Roda o app desktop Tauri (Silvia Hair ERP) dentro de Docker,
+# com a janela aparecendo no Windows via WSLg (X11).
+#
+#   docker compose -f docker-compose.tauri.yml up tauri-dev    # janela de desenvolvimento
+#   docker compose -f docker-compose.tauri.yml run tauri-build # gera binário/bundles em src-tauri/target
+services:
+  tauri-dev:
+    build:
+      context: ./docker # contexto mínimo: nada é copiado do repo (tudo entra por volume)
+      dockerfile: tauri.Dockerfile
+    image: silvia-tauri
+    container_name: silvia-tauri-dev
+    network_mode: host # vite (1420) e HMR direto no host
+    ipc: host          # memória compartilhada para o WebKit
+    working_dir: /app/apps/desktop
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+      # WSLg/containers não expõem GPU ao WebKitGTK: força renderização por software
+      WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+      WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      CARGO_HOME: /cargo
+      # dbus não existe no container; evita warnings/travas do GTK
+      NO_AT_BRIDGE: "1"
+    volumes:
+      - .:/app
+      - tauri_cargo:/cargo
+      - tauri_target:/app/apps/desktop/src-tauri/target
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    command: pnpm tauri dev
+
+  tauri-build:
+    extends: tauri-dev
+    container_name: silvia-tauri-build
+    command: pnpm tauri build
+
+volumes:
+  tauri_cargo:
+  tauri_target:

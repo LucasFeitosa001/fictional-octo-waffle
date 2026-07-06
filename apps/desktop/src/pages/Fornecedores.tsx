@@ -48,7 +48,7 @@ export function FornecedoresPage() {
       searchPlaceholder="Buscar por razão social, fantasia ou CNPJ..."
       newLabel="Novo fornecedor"
       repo={repos.suppliers}
-      searchText={(s) => `${s.legalName} ${s.tradeName ?? ''} ${s.cnpjCpf ?? ''} ${s.city ?? ''}`}
+      searchText={(s) => `${s.legalName} ${s.tradeName ?? ''} ${s.cnpjCpf ?? ''} ${(s.cnpjCpf ?? '').replace(/\D/g, '')} ${s.city ?? ''}`}
       columns={[
         {
           key: 'name',
@@ -63,7 +63,7 @@ export function FornecedoresPage() {
         { key: 'cnpj', header: 'CNPJ/CPF', render: (s) => s.cnpjCpf ?? '—' },
         { key: 'contact', header: 'Contato', render: (s) => s.contactName ?? '—' },
         { key: 'phone', header: 'Telefone', render: (s) => s.phone ?? s.mobile ?? '—' },
-        { key: 'city', header: 'Cidade', render: (s) => (s.city ? `${s.city}/${s.state ?? ''}` : '—') },
+        { key: 'city', header: 'Cidade', render: (s) => (s.city ? (s.state ? `${s.city}/${s.state}` : s.city) : '—') },
         { key: 'status', header: 'Status', render: (s) => <ActiveBadge active={s.active} /> },
       ]}
       fields={fields}

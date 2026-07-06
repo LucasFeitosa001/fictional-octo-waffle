@@ -68,7 +68,9 @@ function SkillPicker({
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initial));
 
   useEffect(() => {
-    void repos.services.list().then((list) => setServices(list.filter((s) => s.active)));
+    // Mantém serviços inativos que já fazem parte das habilidades — senão a
+    // habilidade fica invisível e impossível de remover pelo formulário.
+    void repos.services.list().then((list) => setServices(list.filter((s) => s.active || initial.includes(s.id))));
   }, []);
 
   useEffect(() => {
@@ -100,6 +102,7 @@ function SkillPicker({
               }`}
             >
               {s.name}
+              {!s.active ? ' (inativo)' : ''}
             </button>
           );
         })}

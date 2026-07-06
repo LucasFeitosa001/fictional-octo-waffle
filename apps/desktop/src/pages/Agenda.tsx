@@ -15,6 +15,7 @@ import { FormModal } from '../components/FormModal';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge, appointmentStatusTones } from '../components/StatusBadge';
 import { Tabs } from '../components/Tabs';
+import { DateTextInput } from '../components/form';
 import type { FieldDef, FormValues } from '../components/form';
 
 const NEXT_STATUS: Partial<Record<AppointmentStatus, { to: AppointmentStatus; label: string; icon: typeof Play }>> = {
@@ -80,7 +81,7 @@ export function AgendaPage() {
       options: [{ value: '', label: 'Selecione...' }, ...professionals.map((p) => ({ value: p.id, label: p.name }))],
     },
     { kind: 'date', name: 'date', label: 'Data', required: true },
-    { kind: 'text', name: 'time', label: 'Horário (HH:mm)', required: true, placeholder: '14:30' },
+    { kind: 'time', name: 'time', label: 'Horário', required: true },
     { kind: 'number', name: 'durationMinutes', label: 'Duração (min)' },
     {
       kind: 'select',
@@ -145,11 +146,10 @@ export function AgendaPage() {
           >
             <ChevronLeft className="size-4" />
           </button>
-          <input
-            type="date"
+          <DateTextInput
             value={date}
-            onChange={(e) => setDate(e.target.value || todayISO())}
-            className="border-0 bg-transparent px-1 text-sm font-medium text-ink-900 focus:outline-none"
+            onChange={(iso) => setDate(iso || todayISO())}
+            className="w-28 border-0 bg-transparent px-1 text-center text-sm font-medium text-ink-900 focus:outline-none"
           />
           <button
             type="button"

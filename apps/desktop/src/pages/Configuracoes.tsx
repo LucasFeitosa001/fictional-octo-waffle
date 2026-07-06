@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Database, DownloadCloud, ShieldCheck, UploadCloud, UserCog } from 'lucide-react';
 import type { Role, User } from '@silvia/core';
-import { resetAll } from '@silvia/core';
+import { resetAll, todayISO } from '@silvia/core';
 import { repos, storage } from '../lib/repos';
 import { useCollection } from '../lib/hooks';
 import { PageHeader } from '../components/PageHeader';
@@ -47,6 +47,7 @@ export function ConfiguracoesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  const [deleting, setDeleting] = useState<User | null>(null);
   const [message, setMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +61,7 @@ export function ConfiguracoesPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `silvia-erp-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `silvia-erp-backup-${todayISO()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     setMessage('Backup exportado com sucesso.');
@@ -81,7 +82,7 @@ export function ConfiguracoesPage() {
 
   return (
     <div>
-      <PageHeader title="Configurações" description="Usuários, permissões, indicadores e utilitários do sistema." />
+      <PageHeader title="Configurações" description="Usuários, permissões, backup e utilitários do sistema." />
 
       {message ? (
         <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>
@@ -186,7 +187,7 @@ export function ConfiguracoesPage() {
           setEditing(u);
           setFormOpen(true);
         }}
-        onDelete={(u) => users.remove(u.id)}
+        onDelete={(u) => setDeleting(u)}
         emptyTitle="Nenhum usuário cadastrado"
       />
 
@@ -212,6 +213,18 @@ export function ConfiguracoesPage() {
           };
           if (editing) await users.update(editing.id, data);
           else await users.create(data);
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Excluir usuário"
+        message={`Excluir o usuário "${deleting?.name ?? ''}"? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        onCancel={() => setDeleting(null)}
+        onConfirm={async () => {
+          if (deleting) await users.remove(deleting.id);
+          setDeleting(null);
         }}
       />
 

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-/** Painel lateral de detalhes (ficha da cliente, comanda aberta...). */
+/** Painel de detalhes centralizado (ficha da cliente, comanda aberta...). */
 export function Drawer({
   open,
   onClose,
@@ -31,10 +31,10 @@ export function Drawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-[2px]" onClick={onClose} />
       <div
-        className={`absolute inset-y-0 right-0 flex w-full ${wide ? 'max-w-2xl' : 'max-w-xl'} flex-col bg-white shadow-2xl`}
+        className={`relative flex max-h-[90vh] w-full ${wide ? 'max-w-3xl' : 'max-w-2xl'} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4">
           <div>

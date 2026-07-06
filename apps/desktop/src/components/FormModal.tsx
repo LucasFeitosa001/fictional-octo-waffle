@@ -19,7 +19,8 @@ export function FormModal({
   subtitle?: string;
   fields: FieldDef[];
   initialValues: FormValues;
-  onSubmit: (values: FormValues) => void | Promise<void>;
+  /** Retornar false mantém o modal aberto (validação reprovada). */
+  onSubmit: (values: FormValues) => void | boolean | Promise<void | boolean>;
   onClose: () => void;
   size?: 'md' | 'lg' | 'xl';
   /** Conteúdo extra renderizado abaixo do grid (ex.: seleção de habilidades). */
@@ -39,8 +40,8 @@ export function FormModal({
     if (missing.length > 0) return;
     setSaving(true);
     try {
-      await onSubmit(values);
-      onClose();
+      const result = await onSubmit(values);
+      if (result !== false) onClose();
     } finally {
       setSaving(false);
     }

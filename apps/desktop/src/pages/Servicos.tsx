@@ -73,7 +73,8 @@ export function ServicosPage() {
           key: 'profit',
           header: 'Lucro estimado',
           render: (s) => {
-            const costs = s.cost + (s.avgPrice * (s.materialCostPercent + s.fixedCostPercent + s.commissionPercent)) / 100;
+            const iss = s.taxable ? (s.avgPrice * s.issRatePercent) / 100 : 0;
+            const costs = s.cost + iss + (s.avgPrice * (s.materialCostPercent + s.fixedCostPercent + s.commissionPercent)) / 100;
             return <span className={s.avgPrice - costs >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatBRL(s.avgPrice - costs)}</span>;
           },
           className: 'text-right',

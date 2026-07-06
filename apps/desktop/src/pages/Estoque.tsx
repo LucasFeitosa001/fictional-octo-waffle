@@ -66,6 +66,14 @@ export function EstoquePage() {
   async function handleSubmit(values: FormValues) {
     const productId = String(values.productId);
     const quantity = Number(values.quantity) || 0;
+    // Saída não pode exceder o saldo: senão o razão de movimentações diverge do estoque.
+    const target = products.items.find((p) => p.id === productId);
+    if (formKind === 'saida' && target?.trackStock && quantity > target.stock) {
+      window.alert(
+        `Saída de ${quantity} un é maior que o saldo atual de ${target.stock} un de "${target.name}". Ajuste a quantidade.`,
+      );
+      return false;
+    }
     await movements.create({
       productId,
       kind: formKind,

@@ -72,10 +72,10 @@ export function GruposPage() {
         name: String(values.name),
         kind: values.kind === 'produtos' ? 'produtos' : 'servicos',
         perishable: Boolean(values.perishable),
-        subgroups: String(values.subgroups)
+        subgroups: [...new Set(String(values.subgroups)
           .split(',')
           .map((s) => s.trim())
-          .filter(Boolean),
+          .filter(Boolean))],
       })}
     />
   );

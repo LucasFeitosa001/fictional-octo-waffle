@@ -8,7 +8,9 @@ import {
   commandTotal,
   formatBRL,
   formatDateTime,
+  localDayOfISO,
   newId,
+  nowLocalISO,
   paymentMethodLabels,
   todayISO,
 } from '@silvia/core';
@@ -75,12 +77,26 @@ function CommandDetail({
     await onChange(command.id, {
       discountPercent: discount,
       status: 'paga',
-      closedAt: new Date().toISOString(),
+      closedAt: nowLocalISO(),
       payments: [
         ...command.payments,
-        { id: newId('pay'), method, amount: total - paid, paidAt: new Date().toISOString() },
+        { id: newId('pay'), method, amount: total - paid, paidAt: nowLocalISO() },
       ],
     });
+    // Baixa de estoque dos produtos vendidos: registra a movimentação e decrementa o saldo.
+    for (const item of command.items.filter((i) => i.kind === 'produto')) {
+      const product = lookups.products.get(item.refId);
+      if (!product?.trackStock) continue;
+      await repos.stockMovements.create({
+        productId: product.id,
+        kind: 'saida',
+        quantity: item.quantity,
+        date: todayISO(),
+        reason: `Venda comanda #${command.number}`,
+        unitPrice: item.unitPrice,
+      });
+      await repos.products.update(product.id, { stock: Math.max(0, product.stock - item.quantity) });
+    }
     onClose();
   }
 
@@ -251,7 +267,7 @@ export function CaixaPage() {
   );
   const detail = detailId ? commands.items.find((c) => c.id === detailId) ?? null : null;
 
-  const paidToday = commands.items.filter((c) => c.status === 'paga' && c.closedAt?.startsWith(hoje));
+  const paidToday = commands.items.filter((c) => c.status === 'paga' && localDayOfISO(c.closedAt) === hoje);
   const totalToday = paidToday.reduce((s, c) => s + commandTotal(c), 0);
   const byMethod = paidToday
     .flatMap((c) => c.payments)
@@ -266,7 +282,7 @@ export function CaixaPage() {
     const created = await commands.create({
       number: maxNumber + 1,
       clientId: newClientId,
-      openedAt: new Date().toISOString(),
+      openedAt: nowLocalISO(),
       status: 'aberta',
       items: [],
       discountPercent: 0,

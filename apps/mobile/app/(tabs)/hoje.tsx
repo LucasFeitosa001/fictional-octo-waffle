@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { Appointment, Client, Command, Product, Professional, Service } from '@silvia/core';
-import { formatDate, todayISO } from '@silvia/core';
+import { formatDate, localDayOfISO, todayISO } from '@silvia/core';
 import { commissionForItem, repos, useStaffSession } from '../../lib/silvia';
 import { silvia } from '../../theme/silvia';
 import { MobileHeader } from '../../components/silvia/MobileHeader';
@@ -41,7 +41,7 @@ export default function HojeScreen() {
     const productMap: Map<string, Product> = new Map(prds.map((p) => [p.id, p]));
     const me: Professional | undefined = pros.find((p) => p.id === session.professionalId);
     const total = cmds
-      .filter((c: Command) => c.status === 'paga' && c.closedAt?.startsWith(hoje))
+      .filter((c: Command) => c.status === 'paga' && localDayOfISO(c.closedAt) === hoje)
       .flatMap((c) => c.items)
       .filter((i) => i.professionalId === session.professionalId)
       .reduce((sum, i) => sum + commissionForItem(i, me, serviceMap, productMap), 0);

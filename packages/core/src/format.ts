@@ -35,6 +35,25 @@ export function todayISO(): string {
   return toISODate(new Date());
 }
 
+/** Data/hora atual em ISO local (YYYY-MM-DDTHH:mm:ss), sem conversão para UTC.
+ *  Usar para carimbos comparados com todayISO() — new Date().toISOString() vira
+ *  o dia seguinte após as 21h no fuso do Brasil. */
+export function nowLocalISO(): string {
+  const d = new Date();
+  const hh = d.getHours().toString().padStart(2, '0');
+  const mm = d.getMinutes().toString().padStart(2, '0');
+  const ss = d.getSeconds().toString().padStart(2, '0');
+  return `${toISODate(d)}T${hh}:${mm}:${ss}`;
+}
+
+/** Dia local (YYYY-MM-DD) de um carimbo ISO, aceitando tanto local quanto UTC (sufixo Z). */
+export function localDayOfISO(iso?: string): string {
+  if (!iso) return '';
+  if (!iso.endsWith('Z') && !iso.includes('+')) return iso.split('T')[0];
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso.split('T')[0] : toISODate(date);
+}
+
 export function toISODate(date: Date): string {
   const y = date.getFullYear();
   const m = (date.getMonth() + 1).toString().padStart(2, '0');
