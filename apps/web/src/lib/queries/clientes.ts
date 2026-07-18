@@ -52,6 +52,98 @@ export interface PayDebtBody {
   method?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Views de dados relacionados do cliente (abas do perfil)
+// ---------------------------------------------------------------------------
+
+export interface CustomerAppointmentView {
+  id: string;
+  status: string;
+  start: string;
+  end: string;
+  notes: string | null;
+  professional: { id: string; name: string } | null;
+  items: Array<{
+    id: string;
+    price: string;
+    durationMin: number;
+    service: { id: string; name: string } | null;
+  }>;
+}
+
+export interface CustomerOrderView {
+  id: string;
+  number: number;
+  status: string;
+  date: string;
+  grossTotal: string;
+  discountTotal: string;
+  netTotal: string;
+  professional: { id: string; name: string } | null;
+  items: Array<{
+    id: string;
+    kind: string;
+    quantity: string;
+    unitPrice: string;
+    grossValue: string;
+    discount: string;
+  }>;
+}
+
+export interface CustomerPackageView {
+  id: string;
+  number: number;
+  status: string;
+  price: string;
+  expiresAt: string | null;
+  createdAt: string;
+  template: { id: string; name: string } | null;
+  items: Array<{
+    id: string;
+    sessionsTotal: number;
+    sessionsUsed: number;
+    service: { id: string; name: string } | null;
+  }>;
+}
+
+export interface CustomerNoteView {
+  id: string;
+  text: string;
+  createdAt: string;
+  author: { id: string; name: string } | null;
+}
+
+export interface CustomerCashbackEntry {
+  id: string;
+  amount: string;
+  sourceType: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface CustomerCashbackResponse {
+  cashback: CustomerCashbackEntry[];
+  saldo: number;
+}
+
+export interface CustomerAnamnesisView {
+  id: string;
+  templateId: string | null;
+  answersJson: Record<string, unknown> | null;
+  signedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateNoteBody {
+  text: string;
+}
+
+export interface CreateAnamnesisBody {
+  templateId?: string;
+  answersJson?: Record<string, unknown>;
+  signedAt?: string;
+}
+
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
@@ -130,5 +222,79 @@ export function useCustomerCredits(id: string | null | undefined) {
     queryKey: ['customer-credits', id],
     queryFn: () => api.get<CustomerCreditsResponse>(`/customers/${id}/credits`),
     enabled: Boolean(id),
+  });
+}
+
+/** GET /customers/:id/cashback — cashback ledger + balance. */
+export function useCustomerCashback(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer-cashback', id],
+    queryFn: () => api.get<CustomerCashbackResponse>(`/customers/${id}/cashback`),
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /customers/:id/appointments — appointment history for the customer. */
+export function useCustomerAppointments(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer-appointments', id],
+    queryFn: () => api.get<CustomerAppointmentView[]>(`/customers/${id}/appointments`),
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /customers/:id/orders — orders (comandas) of the customer. */
+export function useCustomerOrders(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer-orders', id],
+    queryFn: () => api.get<CustomerOrderView[]>(`/customers/${id}/orders`),
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /customers/:id/packages — packages purchased by the customer. */
+export function useCustomerPackages(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer-packages', id],
+    queryFn: () => api.get<CustomerPackageView[]>(`/customers/${id}/packages`),
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /customers/:id/notes — free-form notes about the customer. */
+export function useCustomerNotes(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer-notes', id],
+    queryFn: () => api.get<CustomerNoteView[]>(`/customers/${id}/notes`),
+    enabled: Boolean(id),
+  });
+}
+
+/** POST /customers/:id/notes — add a note. */
+export function useCreateNote(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateNoteBody) =>
+      api.post<CustomerNoteView>(`/customers/${id}/notes`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-notes', id] }),
+  });
+}
+
+/** GET /customers/:id/anamneses — anamnesis records of the customer. */
+export function useCustomerAnamneses(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer-anamneses', id],
+    queryFn: () => api.get<CustomerAnamnesisView[]>(`/customers/${id}/anamneses`),
+    enabled: Boolean(id),
+  });
+}
+
+/** POST /customers/:id/anamneses — create an anamnesis record. */
+export function useCreateAnamnesis(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateAnamnesisBody) =>
+      api.post<CustomerAnamnesisView>(`/customers/${id}/anamneses`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-anamneses', id] }),
   });
 }

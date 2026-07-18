@@ -19,6 +19,7 @@ export class CreateProfessionalDto {
   @IsOptional() @IsString() avatarUrl?: string;
   @IsOptional() @IsISO8601() birthday?: string;
   @IsOptional() @IsBoolean() onlineBookable?: boolean;
+  @IsOptional() @IsBoolean() notifyWhatsapp?: boolean;
   @IsOptional() @IsBoolean() active?: boolean;
 }
 

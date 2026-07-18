@@ -14,6 +14,7 @@ import {
   CreateCashbackRuleDto,
   CreatePromotionDto,
   UpdateBookingLinkDto,
+  UpdateBusinessHoursDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
   UpdateReviewSettingsDto,
@@ -38,6 +39,20 @@ export class MarketingController {
     @Body() dto: UpdateBookingLinkDto,
   ) {
     return this.service.updateBookingLink(companyId, dto);
+  }
+
+  // ---- business hours (salão: dias e horários de atendimento) ----
+  @Get('booking-link/business-hours')
+  getBusinessHours(@CurrentUser('companyId') companyId: string) {
+    return this.service.getBusinessHours(companyId);
+  }
+
+  @Patch('booking-link/business-hours')
+  updateBusinessHours(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: UpdateBusinessHoursDto,
+  ) {
+    return this.service.updateBusinessHours(companyId, dto);
   }
 
   // ---- promotions ----

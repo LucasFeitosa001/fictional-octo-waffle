@@ -1,13 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateCashbackRuleDto,
   CreatePromotionDto,
   UpdateBookingLinkDto,
+  UpdateBusinessHoursDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
   UpdateReviewSettingsDto,
 } from './dto';
+
+// One normalized row of the salon's weekly opening hours.
+export interface BusinessHoursDay {
+  weekday: number; // 0 = Sunday … 6 = Saturday
+  open: boolean;
+  start: string; // "HH:MM"
+  end: string; // "HH:MM"
+}
 
 const REVIEW_SETTINGS_KEY = 'review_config';
 
@@ -76,6 +86,53 @@ export class MarketingService {
     if (dto.slug !== undefined) data.slug = slugify(dto.slug);
     if (dto.active !== undefined) data.active = dto.active;
     return this.prisma.client.bookingLink.update({ where: { id: link.id }, data });
+  }
+
+  // ---- business hours (Company.businessHoursJson) ----
+  // Reads the salon's weekly opening hours, always returning a normalized
+  // Sunday→Saturday array so the editor can render 7 fixed rows. When the salon
+  // has never configured hours, every day comes back closed (honest empty state)
+  // with a neutral 09:00–18:00 placeholder for when the manager opens a day.
+  async getBusinessHours(companyId: string): Promise<{ days: BusinessHoursDay[] }> {
+    const company = await this.prisma.client.company.findUnique({
+      where: { id: companyId },
+      select: { businessHoursJson: true },
+    });
+    return { days: this.normalizeBusinessHours(company?.businessHoursJson) };
+  }
+
+  async updateBusinessHours(
+    companyId: string,
+    dto: UpdateBusinessHoursDto,
+  ): Promise<{ days: BusinessHoursDay[] }> {
+    const days = this.normalizeBusinessHours(dto.days);
+    await this.prisma.client.company.update({
+      where: { id: companyId },
+      data: { businessHoursJson: days as unknown as Prisma.InputJsonValue },
+    });
+    return { days };
+  }
+
+  // Coerces any stored/incoming value into exactly 7 rows (weekday 0..6), so both
+  // reads and writes are consistent regardless of what legacy shape was saved.
+  private normalizeBusinessHours(raw: unknown): BusinessHoursDay[] {
+    const list = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [];
+    const byWeekday = new Map<number, Record<string, unknown>>();
+    for (const row of list) {
+      const wd = Number(row?.weekday);
+      if (Number.isInteger(wd) && wd >= 0 && wd <= 6) byWeekday.set(wd, row);
+    }
+    const hhmm = (v: unknown, fallback: string) =>
+      typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : fallback;
+    return Array.from({ length: 7 }, (_, weekday) => {
+      const row = byWeekday.get(weekday);
+      return {
+        weekday,
+        open: Boolean(row?.open),
+        start: hhmm(row?.start, '09:00'),
+        end: hhmm(row?.end, '18:00'),
+      };
+    });
   }
 
   // ---- promotions ----

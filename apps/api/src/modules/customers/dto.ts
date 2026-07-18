@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsISO8601,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Max,
@@ -113,4 +114,14 @@ export class CreateCustomerDebtDto {
 export class CreateCustomerDebtPaymentDto {
   @IsNumber() @Min(0.01) amount: number;
   @IsOptional() @IsString() method?: string;
+}
+
+export class CreateCustomerNoteDto {
+  @IsString() @MinLength(1) text: string;
+}
+
+export class CreateCustomerAnamnesisDto {
+  @IsOptional() @IsString() templateId?: string;
+  @IsOptional() @IsObject() answersJson?: Record<string, unknown>;
+  @IsOptional() @IsISO8601() signedAt?: string;
 }

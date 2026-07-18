@@ -85,4 +85,13 @@ export class ProfessionalsController {
   ) {
     return this.service.addCommissionRule(companyId, id, dto);
   }
+
+  @Put(':id/commission-rules')
+  setCommissionRules(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() rules: CommissionRuleDto[],
+  ) {
+    return this.service.setCommissionRules(companyId, id, rules);
+  }
 }

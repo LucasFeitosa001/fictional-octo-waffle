@@ -1,9 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  CreateCustomerAnamnesisDto,
   CreateCustomerDebtDto,
   CreateCustomerDebtPaymentDto,
   CreateCustomerDto,
+  CreateCustomerNoteDto,
   UpdateCustomerDto,
 } from './dto';
 
@@ -348,5 +351,113 @@ export class CustomersService {
     const creditosSaldo = credits.reduce((acc, c) => acc + num(c.amount), 0);
     const cashbackSaldo = cashback.reduce((acc, c) => acc + num(c.amount), 0);
     return { credits, cashback, creditosSaldo, cashbackSaldo };
+  }
+
+  // ===== Cashback (extrato dedicado) =====
+
+  async listCashback(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    const cashback = await this.prisma.client.customerCashback.findMany({
+      where: { customerId: id, customer: { companyId } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const saldo = cashback.reduce((acc, c) => acc + num(c.amount), 0);
+    return { cashback, saldo };
+  }
+
+  // ===== Agendamentos =====
+
+  async listAppointments(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.appointment.findMany({
+      where: { companyId, customerId: id },
+      orderBy: { start: 'desc' },
+      take: 100,
+      include: {
+        items: { include: { service: { select: { id: true, name: true } } } },
+        professional: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  // ===== Vendas / Comandas =====
+
+  async listOrders(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.order.findMany({
+      where: { companyId, customerId: id },
+      orderBy: { date: 'desc' },
+      take: 100,
+      include: {
+        items: true,
+        professional: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  // ===== Pacotes =====
+
+  async listPackages(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.customerPackage.findMany({
+      where: { companyId, customerId: id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        template: { select: { id: true, name: true } },
+        items: { include: { service: { select: { id: true, name: true } } } },
+      },
+    });
+  }
+
+  // ===== Anotações =====
+
+  async listNotes(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.customerNote.findMany({
+      where: { customerId: id, customer: { companyId } },
+      orderBy: { createdAt: 'desc' },
+      include: { author: { select: { id: true, name: true } } },
+    });
+  }
+
+  async createNote(
+    companyId: string,
+    id: string,
+    authorId: string | undefined,
+    dto: CreateCustomerNoteDto,
+  ) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.customerNote.create({
+      data: { customerId: id, text: dto.text, authorId: authorId ?? null },
+      include: { author: { select: { id: true, name: true } } },
+    });
+  }
+
+  // ===== Anamneses =====
+
+  async listAnamneses(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.customerAnamnesis.findMany({
+      where: { customerId: id, customer: { companyId } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createAnamnesis(
+    companyId: string,
+    id: string,
+    dto: CreateCustomerAnamnesisDto,
+  ) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.customerAnamnesis.create({
+      data: {
+        customerId: id,
+        templateId: dto.templateId ?? null,
+        ...(dto.answersJson
+          ? { answersJson: dto.answersJson as Prisma.InputJsonValue }
+          : {}),
+        ...(dto.signedAt ? { signedAt: new Date(dto.signedAt) } : {}),
+      },
+    });
   }
 }

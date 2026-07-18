@@ -18,8 +18,11 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconCalendar,
   IconCash,
+  IconFolder,
   IconGift,
   IconInfo,
+  IconLayers,
+  IconMessage,
   IconPlus,
   IconReceipt,
   IconTrash,
@@ -29,10 +32,18 @@ import {
 import { formatDate, formatDateTime, formatMoney, initials, toDateInput } from '../lib/format';
 import { useCustomers } from '../lib/queries';
 import {
+  useCreateAnamnesis,
   useCreateCustomer,
   useCreateDebt,
+  useCreateNote,
+  useCustomerAnamneses,
+  useCustomerAppointments,
+  useCustomerCashback,
   useCustomerCredits,
   useCustomerDebts,
+  useCustomerNotes,
+  useCustomerOrders,
+  useCustomerPackages,
   useCustomerPanel,
   usePayDebt,
   useUpdateCustomer,
@@ -959,6 +970,469 @@ function CreditosTab({ customerId }: { customerId: string }) {
 }
 
 // =====================================================================
+// Aba Cashback — extrato dedicado
+// =====================================================================
+
+function CashbackTab({ customerId }: { customerId: string }) {
+  const q = useCustomerCashback(customerId);
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
+  const data = q.data;
+  if (!data) return <EmptyState title="Sem dados de cashback" />;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 gap-3">
+        <MetricCard
+          icon={<IconGift size={14} />}
+          label="Saldo de cashback"
+          value={formatMoney(data.saldo)}
+          tone={data.saldo > 0 ? 'success' : undefined}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <SectionTitle>Extrato de cashback</SectionTitle>
+        {data.cashback.length === 0 ? (
+          <EmptyState
+            icon={<IconGift size={28} />}
+            title="Nenhum cashback"
+            description="Os lançamentos de cashback aparecerão aqui."
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {data.cashback.map((c) => (
+              <Card key={c.id} className="border border-[var(--color-soft-border)] bg-white">
+                <Card.Content className="flex items-center justify-between gap-2 p-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-foreground">
+                      {c.sourceType ?? 'Cashback'}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {formatDate(c.createdAt)}
+                      {c.expiresAt ? ` · expira ${formatDate(c.expiresAt)}` : ''}
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-success">
+                    {formatMoney(c.amount)}
+                  </span>
+                </Card.Content>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Aba Agendamentos — histórico do cliente
+// =====================================================================
+
+const APPOINTMENT_STATUS_LABEL: Record<string, string> = {
+  scheduled: 'Agendado',
+  confirmed: 'Confirmado',
+  unconfirmed: 'Não confirmado',
+  waiting: 'Aguardando',
+  in_progress: 'Em atendimento',
+  done: 'Concluído',
+  finished: 'Finalizado',
+  canceled: 'Cancelado',
+};
+
+function AgendamentosTab({ customerId }: { customerId: string }) {
+  const q = useCustomerAppointments(customerId);
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
+  const list = q.data ?? [];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SectionTitle>Agendamentos</SectionTitle>
+      {list.length === 0 ? (
+        <EmptyState
+          icon={<IconCalendar size={28} />}
+          title="Nenhum agendamento"
+          description="Os agendamentos deste cliente aparecerão aqui."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {list.map((a) => {
+            const canceled = a.status === 'canceled';
+            const finished = a.status === 'finished' || a.status === 'done';
+            return (
+              <Card key={a.id} className="border border-[var(--color-soft-border)] bg-white">
+                <Card.Content className="flex flex-col gap-2 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground">
+                        {formatDateTime(a.start)}
+                      </div>
+                      {a.professional && (
+                        <div className="text-xs text-muted">{a.professional.name}</div>
+                      )}
+                    </div>
+                    <Chip
+                      variant="soft"
+                      color={canceled ? 'danger' : finished ? 'success' : 'warning'}
+                      size="sm"
+                    >
+                      {APPOINTMENT_STATUS_LABEL[a.status] ?? a.status}
+                    </Chip>
+                  </div>
+                  {a.items.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                      {a.items.map((it) => (
+                        <div
+                          key={it.id}
+                          className="flex items-center justify-between text-sm text-foreground"
+                        >
+                          <span className="min-w-0 truncate">
+                            {it.service?.name ?? 'Serviço'}
+                          </span>
+                          <span className="font-medium">{formatMoney(it.price)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {a.notes && <div className="text-xs text-muted">{a.notes}</div>}
+                </Card.Content>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// Aba Vendas / Comandas — comandas do cliente
+// =====================================================================
+
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  open: 'Em aberto',
+  finished: 'Finalizada',
+  canceled: 'Cancelada',
+};
+
+function VendasTab({ customerId }: { customerId: string }) {
+  const q = useCustomerOrders(customerId);
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
+  const list = q.data ?? [];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SectionTitle>Vendas / Comandas</SectionTitle>
+      {list.length === 0 ? (
+        <EmptyState
+          icon={<IconReceipt size={28} />}
+          title="Nenhuma comanda"
+          description="As comandas deste cliente aparecerão aqui."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {list.map((o) => {
+            const canceled = o.status === 'canceled';
+            const finished = o.status === 'finished';
+            return (
+              <Card key={o.id} className="border border-[var(--color-soft-border)] bg-white">
+                <Card.Content className="flex flex-col gap-2 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground">
+                        Comanda #{o.number}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {formatDate(o.date)}
+                        {o.professional ? ` · ${o.professional.name}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-sm font-semibold text-foreground">
+                        {formatMoney(o.netTotal)}
+                      </span>
+                      <Chip
+                        variant="soft"
+                        color={canceled ? 'danger' : finished ? 'success' : 'warning'}
+                        size="sm"
+                      >
+                        {ORDER_STATUS_LABEL[o.status] ?? o.status}
+                      </Chip>
+                    </div>
+                  </div>
+                  {o.items.length > 0 && (
+                    <div className="flex flex-col gap-1 border-t border-[var(--color-soft-border)] pt-2">
+                      {o.items.map((it) => (
+                        <div
+                          key={it.id}
+                          className="flex items-center justify-between text-sm text-foreground"
+                        >
+                          <span className="min-w-0 truncate">
+                            {it.kind === 'product' ? 'Produto' : 'Serviço'}
+                            {Number(it.quantity) > 1 ? ` ×${Number(it.quantity)}` : ''}
+                          </span>
+                          <span className="font-medium">{formatMoney(it.grossValue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card.Content>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// Aba Pacotes — pacotes comprados pelo cliente
+// =====================================================================
+
+const PACKAGE_STATUS_LABEL: Record<string, string> = {
+  active: 'Ativo',
+  expired: 'Expirado',
+  finished: 'Finalizado',
+};
+
+function PacotesTab({ customerId }: { customerId: string }) {
+  const q = useCustomerPackages(customerId);
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
+  const list = q.data ?? [];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SectionTitle>Pacotes</SectionTitle>
+      {list.length === 0 ? (
+        <EmptyState
+          icon={<IconLayers size={28} />}
+          title="Nenhum pacote"
+          description="Os pacotes comprados por este cliente aparecerão aqui."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {list.map((p) => {
+            const active = p.status === 'active';
+            return (
+              <Card key={p.id} className="border border-[var(--color-soft-border)] bg-white">
+                <Card.Content className="flex flex-col gap-2 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground">
+                        {p.template?.name ?? `Pacote #${p.number}`}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {formatDate(p.createdAt)}
+                        {p.expiresAt ? ` · validade ${formatDate(p.expiresAt)}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-sm font-semibold text-foreground">
+                        {formatMoney(p.price)}
+                      </span>
+                      <Chip variant="soft" color={active ? 'success' : 'default'} size="sm">
+                        {PACKAGE_STATUS_LABEL[p.status] ?? p.status}
+                      </Chip>
+                    </div>
+                  </div>
+                  {p.items.length > 0 && (
+                    <div className="flex flex-col gap-1 border-t border-[var(--color-soft-border)] pt-2">
+                      {p.items.map((it) => (
+                        <div
+                          key={it.id}
+                          className="flex items-center justify-between text-sm text-foreground"
+                        >
+                          <span className="min-w-0 truncate">
+                            {it.service?.name ?? 'Serviço'}
+                          </span>
+                          <span className="text-xs text-muted">
+                            {it.sessionsUsed}/{it.sessionsTotal} sessões
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card.Content>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// Aba Anotações — listar / criar
+// =====================================================================
+
+function AnotacoesTab({ customerId }: { customerId: string }) {
+  const q = useCustomerNotes(customerId);
+  const createNote = useCreateNote(customerId);
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    if (!text.trim()) {
+      setError('Digite uma anotação.');
+      return;
+    }
+    try {
+      await createNote.mutateAsync({ text: text.trim() });
+      setText('');
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível salvar a anotação.',
+      );
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SectionTitle>Anotações</SectionTitle>
+
+      <Card className="border border-[var(--color-soft-border)] bg-white">
+        <Card.Content className="flex flex-col gap-2 p-3">
+          <TextField value={text} onChange={setText} aria-label="Nova anotação">
+            <Input placeholder="Escreva uma anotação…" />
+          </TextField>
+          {error && <div className="text-xs text-danger">{error}</div>}
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="sm"
+              isDisabled={createNote.isPending || !text.trim()}
+              onClick={submit}
+            >
+              <IconPlus size={14} /> {createNote.isPending ? 'Salvando…' : 'Adicionar'}
+            </Button>
+          </div>
+        </Card.Content>
+      </Card>
+
+      {q.isLoading ? (
+        <LoadingState />
+      ) : q.isError ? (
+        <ErrorState onRetry={() => q.refetch()} />
+      ) : (q.data ?? []).length === 0 ? (
+        <EmptyState
+          icon={<IconMessage size={28} />}
+          title="Nenhuma anotação"
+          description="As anotações sobre este cliente aparecerão aqui."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {(q.data ?? []).map((n) => (
+            <Card key={n.id} className="border border-[var(--color-soft-border)] bg-white">
+              <Card.Content className="flex flex-col gap-1 p-3">
+                <div className="whitespace-pre-wrap text-sm text-foreground">{n.text}</div>
+                <div className="text-xs text-muted">
+                  {formatDateTime(n.createdAt)}
+                  {n.author ? ` · ${n.author.name}` : ''}
+                </div>
+              </Card.Content>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// Aba Anamneses — listar / criar
+// =====================================================================
+
+function AnamnesesTab({ customerId }: { customerId: string }) {
+  const q = useCustomerAnamneses(customerId);
+  const createAnamnesis = useCreateAnamnesis(customerId);
+  const [error, setError] = useState<string | null>(null);
+
+  async function addBlank() {
+    setError(null);
+    try {
+      await createAnamnesis.mutateAsync({});
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível criar a ficha.',
+      );
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <SectionTitle>Anamneses</SectionTitle>
+        <Button
+          variant="primary"
+          size="sm"
+          isDisabled={createAnamnesis.isPending}
+          onClick={addBlank}
+        >
+          <IconPlus size={14} /> {createAnamnesis.isPending ? 'Criando…' : 'Nova ficha'}
+        </Button>
+      </div>
+
+      {error && (
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </div>
+      )}
+
+      {q.isLoading ? (
+        <LoadingState />
+      ) : q.isError ? (
+        <ErrorState onRetry={() => q.refetch()} />
+      ) : (q.data ?? []).length === 0 ? (
+        <EmptyState
+          icon={<IconFolder size={28} />}
+          title="Nenhuma anamnese"
+          description="As fichas de anamnese deste cliente aparecerão aqui."
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {(q.data ?? []).map((a) => {
+            const fields = a.answersJson ? Object.keys(a.answersJson).length : 0;
+            return (
+              <Card key={a.id} className="border border-[var(--color-soft-border)] bg-white">
+                <Card.Content className="flex items-center justify-between gap-2 p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">
+                      Ficha de {formatDate(a.createdAt)}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {fields > 0 ? `${fields} campo(s) preenchido(s)` : 'Sem respostas'}
+                      {a.signedAt ? ` · assinada ${formatDate(a.signedAt)}` : ''}
+                    </div>
+                  </div>
+                  <Chip
+                    variant="soft"
+                    color={a.signedAt ? 'success' : 'default'}
+                    size="sm"
+                  >
+                    {a.signedAt ? 'Assinada' : 'Aberta'}
+                  </Chip>
+                </Card.Content>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
 // Modal de criação — "Novo cliente"
 // =====================================================================
 
@@ -1038,8 +1512,14 @@ export function ClientePerfilModal({
                   <Tabs.List className="w-full overflow-x-auto">
                     <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
                     <Tabs.Tab id="painel">Painel</Tabs.Tab>
+                    <Tabs.Tab id="agendamentos">Agendamentos</Tabs.Tab>
+                    <Tabs.Tab id="vendas">Vendas</Tabs.Tab>
+                    <Tabs.Tab id="pacotes">Pacotes</Tabs.Tab>
                     <Tabs.Tab id="debitos">Débitos</Tabs.Tab>
                     <Tabs.Tab id="creditos">Créditos</Tabs.Tab>
+                    <Tabs.Tab id="cashback">Cashback</Tabs.Tab>
+                    <Tabs.Tab id="anotacoes">Anotações</Tabs.Tab>
+                    <Tabs.Tab id="anamneses">Anamneses</Tabs.Tab>
                   </Tabs.List>
 
                   <Tabs.Panel id="cadastro" className="pt-4">
@@ -1053,11 +1533,29 @@ export function ClientePerfilModal({
                   <Tabs.Panel id="painel" className="pt-4">
                     <PainelTab customerId={customer.id} />
                   </Tabs.Panel>
+                  <Tabs.Panel id="agendamentos" className="pt-4">
+                    <AgendamentosTab customerId={customer.id} />
+                  </Tabs.Panel>
+                  <Tabs.Panel id="vendas" className="pt-4">
+                    <VendasTab customerId={customer.id} />
+                  </Tabs.Panel>
+                  <Tabs.Panel id="pacotes" className="pt-4">
+                    <PacotesTab customerId={customer.id} />
+                  </Tabs.Panel>
                   <Tabs.Panel id="debitos" className="pt-4">
                     <DebitosTab customerId={customer.id} />
                   </Tabs.Panel>
                   <Tabs.Panel id="creditos" className="pt-4">
                     <CreditosTab customerId={customer.id} />
+                  </Tabs.Panel>
+                  <Tabs.Panel id="cashback" className="pt-4">
+                    <CashbackTab customerId={customer.id} />
+                  </Tabs.Panel>
+                  <Tabs.Panel id="anotacoes" className="pt-4">
+                    <AnotacoesTab customerId={customer.id} />
+                  </Tabs.Panel>
+                  <Tabs.Panel id="anamneses" className="pt-4">
+                    <AnamnesesTab customerId={customer.id} />
                   </Tabs.Panel>
                 </Tabs>
               )}

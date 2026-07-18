@@ -21,10 +21,34 @@ export interface ProfessionalScheduleRow {
   endTime: string; // "HH:mm"
 }
 
+/** A single individual commission rule (Belasis "Configurar comissões"). */
+export interface ProfessionalCommissionRuleRow {
+  id?: string;
+  scopeType: 'service' | 'product' | 'category' | 'all';
+  scopeId?: string | null;
+  type: 'percent' | 'fixed';
+  /** Decimal serialized as string on read; number accepted on write. */
+  value: string | number;
+}
+
 /** Professional with its included relations (GET /professionals/:id). */
 export interface ProfessionalDetail extends Professional {
   schedules?: ProfessionalScheduleRow[];
   services?: { serviceId: string }[];
+  commissionRules?: ProfessionalCommissionRuleRow[];
+}
+
+/** Replaces the professional's individual commission rules (PUT /professionals/:id/commission-rules). */
+export function useSetProfessionalCommissionRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, rules }: { id: string; rules: ProfessionalCommissionRuleRow[] }) =>
+      api.put<ProfessionalDetail>(`/professionals/${id}/commission-rules`, rules),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['professionals'] });
+      qc.invalidateQueries({ queryKey: ['professional', id] });
+    },
+  });
 }
 
 /** Replaces the full set of services a professional performs (PUT /professionals/:id/services). */

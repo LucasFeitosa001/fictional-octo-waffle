@@ -100,4 +100,26 @@ export class ProfessionalsService {
       },
     });
   }
+
+  // Replace the professional's entire set of individual commission rules in one
+  // call (Belasis "Configurar comissões" tab). Empty array clears all rules,
+  // falling the professional back to the salon's default commission config.
+  async setCommissionRules(companyId: string, id: string, rules: CommissionRuleDto[]) {
+    await this.findOne(companyId, id);
+    await this.prisma.client.professionalCommissionRule.deleteMany({
+      where: { professionalId: id },
+    });
+    if (rules.length > 0) {
+      await this.prisma.client.professionalCommissionRule.createMany({
+        data: rules.map((r) => ({
+          professionalId: id,
+          scopeType: r.scopeType,
+          scopeId: r.scopeId,
+          type: r.type,
+          value: r.value,
+        })),
+      });
+    }
+    return this.findOne(companyId, id);
+  }
 }
