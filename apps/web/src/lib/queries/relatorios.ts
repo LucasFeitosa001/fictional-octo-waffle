@@ -66,3 +66,150 @@ export function useReportsOverview(from: string, to: string) {
       }),
   });
 }
+
+/* ---------------------------------------------------------------- DRE ---- */
+
+export interface DreLinha {
+  categoria: string;
+  tipo: 'receita' | 'despesa';
+  valor: number;
+}
+
+export interface ReportsDre {
+  period: { from: string | null; to: string | null };
+  linhas: DreLinha[];
+  receitas: { linhas: DreLinha[]; total: number };
+  despesas: { linhas: DreLinha[]; total: number };
+  totalReceitas: number;
+  totalDespesas: number;
+  resultado: number;
+  comandas: {
+    ordersCount: number;
+    receitaComandas: number;
+    receitaServicos: number;
+    receitaProdutos: number;
+  };
+}
+
+export function useReportsDre(from: string, to: string) {
+  return useQuery({
+    queryKey: ['reports-dre', from, to],
+    queryFn: () =>
+      api.get<ReportsDre>('/reports/dre', {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+  });
+}
+
+/* -------------------------------------------------- inventory (estoque) -- */
+
+export interface InventorySuggestionItem {
+  productId: string;
+  name: string;
+  stock: number;
+  minStock: number;
+  deficit: number;
+}
+
+export interface ReportsInventorySuggestion {
+  count: number;
+  items: InventorySuggestionItem[];
+}
+
+export function useReportsInventorySuggestion() {
+  return useQuery({
+    queryKey: ['reports-inventory-suggestion'],
+    queryFn: () =>
+      api.get<ReportsInventorySuggestion>('/reports/inventory-suggestion'),
+  });
+}
+
+/* --------------------------------------------------------- mensagens ----- */
+
+export interface MessageChannelItem {
+  channel: string;
+  label: string;
+  count: number;
+}
+
+export interface MessageTypeItem {
+  type: string;
+  label: string;
+  count: number;
+}
+
+export interface ReportsMessages {
+  period: { from: string | null; to: string | null };
+  totalSent: number;
+  byChannel: MessageChannelItem[];
+  byType: MessageTypeItem[];
+  sources: {
+    whatsappOutbox: number;
+    campaignMessages: number;
+    appointmentNotifications: number;
+    notifications: number;
+  };
+}
+
+export function useReportsMessages(from: string, to: string) {
+  return useQuery({
+    queryKey: ['reports-messages', from, to],
+    queryFn: () =>
+      api.get<ReportsMessages>('/reports/messages', {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+  });
+}
+
+/* ----------------------------------------------------- aniversariantes --- */
+
+export interface ReportsBirthdays {
+  month: number;
+  count: number;
+  customers: BirthdayItem[];
+}
+
+export function useReportsBirthdays(month: number) {
+  return useQuery({
+    queryKey: ['reports-birthdays', month],
+    queryFn: () =>
+      api.get<ReportsBirthdays>('/reports/birthdays', {
+        month: String(month),
+      }),
+  });
+}
+
+/* -------------------------------------------------------------- vendas --- */
+
+export interface SalesByProfessionalItem {
+  id: string;
+  name: string;
+  total: number;
+}
+
+export interface SalesByCategoryItem {
+  category: string;
+  total: number;
+}
+
+export interface ReportsSales {
+  period: { from: string | null; to: string | null };
+  salesTotal: number;
+  ordersCount: number;
+  byDay: SalesByDayItem[];
+  byProfessional: SalesByProfessionalItem[];
+  byCategory: SalesByCategoryItem[];
+}
+
+export function useReportsSales(from: string, to: string) {
+  return useQuery({
+    queryKey: ['reports-sales', from, to],
+    queryFn: () =>
+      api.get<ReportsSales>('/reports/sales', {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+  });
+}

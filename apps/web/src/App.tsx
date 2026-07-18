@@ -40,6 +40,14 @@ import { ProdutosPage } from './pages/ProdutosPage';
 import { CategoriasPage } from './pages/CategoriasPage';
 import { MarcasPage } from './pages/MarcasPage';
 import { RelatoriosPage } from './pages/RelatoriosPage';
+import { VendasPage } from './pages/relatorios/VendasPage';
+import { DrePage } from './pages/relatorios/DrePage';
+import { EstoquePage } from './pages/relatorios/EstoquePage';
+import { MensagensPage } from './pages/relatorios/MensagensPage';
+import { AniversariantesPage } from './pages/relatorios/AniversariantesPage';
+import { AgendamentosPage as RelAgendamentosPage } from './pages/relatorios/AgendamentosPage';
+import { ClientesPage as RelClientesPage } from './pages/relatorios/ClientesPage';
+import { RankingPage } from './pages/relatorios/RankingPage';
 import { MetasPage } from './pages/metas/MetasPage';
 import { LinkAgendamentoPage } from './pages/marketing/LinkAgendamentoPage';
 import { PromocoesPage } from './pages/marketing/PromocoesPage';
@@ -93,6 +101,14 @@ function ProtectedRoutes() {
         <Route path="/comissoes" element={<ComissoesResumoPage />} />
         <Route path="/comissoes/config" element={<ComissoesConfigPage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
+        <Route path="/relatorios/vendas" element={<VendasPage />} />
+        <Route path="/relatorios/financeiro/dre" element={<DrePage />} />
+        <Route path="/relatorios/agendamentos" element={<RelAgendamentosPage />} />
+        <Route path="/relatorios/clientes" element={<RelClientesPage />} />
+        <Route path="/relatorios/aniversariantes" element={<AniversariantesPage />} />
+        <Route path="/relatorios/estoque" element={<EstoquePage />} />
+        <Route path="/relatorios/ranking" element={<RankingPage />} />
+        <Route path="/relatorios/mensagens" element={<MensagensPage />} />
         <Route path="/metas" element={<MetasPage />} />
         <Route path="/marketing/agendamento-online" element={<AgendamentoOnlinePage />} />
         <Route path="/marketing/link" element={<LinkAgendamentoPage />} />

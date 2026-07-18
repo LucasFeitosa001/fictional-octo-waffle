@@ -45,12 +45,13 @@ type IconType = ComponentType<{ size?: number }>;
 
 type NavItem = { to: string; label: string; icon: IconType; end?: boolean };
 
-type NavGroup = { key: string; title: string; items: NavItem[] };
+type NavGroup = { key: string; title: string; icon: IconType; items: NavItem[] };
 
 const GROUPS: NavGroup[] = [
   {
     key: 'principal',
     title: 'Principal',
+    icon: IconHome,
     items: [
       { to: '/', label: 'Painel', icon: IconHome, end: true },
       { to: '/agenda', label: 'Agenda', icon: IconCalendar },
@@ -63,6 +64,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'ia',
     title: 'Inteligência',
+    icon: IconSparkles,
     items: [
       { to: '/ia-atendimento', label: 'IA Atendimento', icon: IconSparkles },
     ],
@@ -70,6 +72,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'financeiro',
     title: 'Financeiro',
+    icon: IconDollar,
     items: [
       { to: '/financeiro', label: 'Painel financeiro', icon: IconChart, end: true },
       { to: '/financeiro/transacoes', label: 'Transações', icon: IconDollar },
@@ -84,6 +87,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'comissoes',
     title: 'Comissões',
+    icon: IconPercent,
     items: [
       { to: '/comissoes', label: 'Resumo', icon: IconPercent, end: true },
       { to: '/comissoes/config', label: 'Configurações', icon: IconSettings },
@@ -92,6 +96,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'cadastros',
     title: 'Cadastros',
+    icon: IconUsers,
     items: [
       { to: '/clientes', label: 'Clientes', icon: IconUsers },
       { to: '/profissionais', label: 'Profissionais', icon: IconScissors },
@@ -103,6 +108,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'controle',
     title: 'Controle',
+    icon: IconLayers,
     items: [
       { to: '/servicos', label: 'Serviços', icon: IconScissors },
       { to: '/produtos', label: 'Produtos', icon: IconBox },
@@ -116,6 +122,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'relatorios',
     title: 'Relatórios',
+    icon: IconChart,
     items: [
       { to: '/relatorios', label: 'Relatórios', icon: IconChart, end: true },
       { to: '/metas', label: 'Metas', icon: IconTarget },
@@ -124,6 +131,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'marketing',
     title: 'Marketing',
+    icon: IconMegaphone,
     items: [
       { to: '/marketing/agendamento-online', label: 'Agendamento Online', icon: IconCalendar },
       { to: '/marketing/link', label: 'Link de Agendamento', icon: IconLink },
@@ -136,6 +144,7 @@ const GROUPS: NavGroup[] = [
   {
     key: 'outros',
     title: 'Outros',
+    icon: IconSettings,
     items: [
       { to: '/configuracoes', label: 'Configurações', icon: IconSettings },
       { to: '/ajuda', label: 'Ajuda', icon: IconInfo },
@@ -369,15 +378,21 @@ export function Sidebar({
         <nav className="flex flex-col gap-5">
           {GROUPS.map((group) => {
             const groupOpen = !collapsedGroups.has(group.key);
+            const GroupIcon = group.icon;
             return (
             <div key={group.key}>
               {!isCollapsed && (
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.key)}
-                  className="flex w-full items-center justify-between px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white/60"
+                  className="flex min-h-10 w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-semibold text-white/75 transition-colors hover:bg-white/[0.08] hover:text-white"
                 >
-                  {group.title}
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center text-white/65">
+                      <GroupIcon size={18} />
+                    </span>
+                    <span className="truncate">{group.title}</span>
+                  </span>
                   <IconChevron
                     size={14}
                     className={'transition-transform duration-200 ' + (groupOpen ? '' : '-rotate-90')}
