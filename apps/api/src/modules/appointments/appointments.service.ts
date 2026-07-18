@@ -98,6 +98,11 @@ export class AppointmentsService {
       throw new BadRequestException('Data de início inválida');
     }
 
+    // Validate FK references up-front so a missing customer/professional surfaces
+    // as a clean 404 instead of a raw Prisma FK-violation 500.
+    if (dto.customerId) await this.assertCustomerExists(companyId, dto.customerId);
+    if (dto.professionalId) await this.assertProfessionalExists(companyId, dto.professionalId);
+
     // Resolve the services selected (from items) to snapshot price + duration.
     const serviceIds = (dto.items ?? []).map((it) => it.serviceId);
     const services = await this.loadServices(companyId, serviceIds);
@@ -117,37 +122,49 @@ export class AppointmentsService {
       throw new BadRequestException('O término deve ser depois do início');
     }
 
-    // Schedule + collision validation (only when a professional is set).
-    if (dto.professionalId) {
-      await this.assertWithinSchedule(companyId, dto.professionalId, start, end);
-      await this.assertNoOverlap(companyId, dto.professionalId, start, end);
+    // Schedule validation (read-only, safe outside the transaction).
+    const professionalId = dto.professionalId;
+    if (professionalId) {
+      await this.assertWithinSchedule(companyId, professionalId, start, end);
     }
 
-    const created = await this.prisma.client.appointment.create({
-      data: {
-        companyId,
-        customerId: dto.customerId,
-        professionalId: dto.professionalId,
-        start,
-        end,
-        notes: dto.notes,
-        source: opts?.source ?? AppointmentSource.admin,
-        ...(opts?.status ? { status: opts.status } : {}),
-        items: dto.items
-          ? {
-              create: dto.items.map((it) => {
-                const svc = services.find((s) => s.id === it.serviceId);
-                return {
-                  serviceId: it.serviceId,
-                  professionalId: it.professionalId ?? dto.professionalId,
-                  durationMin: svc?.durationMin ?? DEFAULT_DURATION_MIN,
-                  price: svc?.price ?? new Prisma.Decimal(0),
-                };
-              }),
-            }
-          : undefined,
-      },
-      include: { items: true },
+    const itemsData = dto.items
+      ? {
+          create: dto.items.map((it) => {
+            const svc = services.find((s) => s.id === it.serviceId);
+            return {
+              serviceId: it.serviceId,
+              professionalId: it.professionalId ?? professionalId,
+              durationMin: svc?.durationMin ?? DEFAULT_DURATION_MIN,
+              price: svc?.price ?? new Prisma.Decimal(0),
+            };
+          }),
+        }
+      : undefined;
+
+    // Collision check + create run in a single transaction guarded by a Postgres
+    // advisory lock keyed on (companyId, professionalId). Two concurrent creates
+    // for the same professional serialize: the second waits for the first to
+    // commit and then sees its row in assertNoOverlap, preventing double-booking.
+    const created = await this.prisma.client.$transaction(async (tx) => {
+      if (professionalId) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${professionalId}))`;
+        await this.assertNoOverlap(companyId, professionalId, start, end, undefined, tx);
+      }
+      return tx.appointment.create({
+        data: {
+          companyId,
+          customerId: dto.customerId,
+          professionalId,
+          start,
+          end,
+          notes: dto.notes,
+          source: opts?.source ?? AppointmentSource.admin,
+          ...(opts?.status ? { status: opts.status } : {}),
+          items: itemsData,
+        },
+        include: { items: true },
+      });
     });
 
     void this.notifications.notifyAppointment('created', companyId, created.id);
@@ -157,6 +174,10 @@ export class AppointmentsService {
 
   async update(companyId: string, id: string, dto: UpdateAppointmentDto) {
     const current = await this.findOne(companyId, id);
+
+    // Validate FK references up-front (clean 404 instead of a raw FK-violation 500).
+    if (dto.customerId) await this.assertCustomerExists(companyId, dto.customerId);
+    if (dto.professionalId) await this.assertProfessionalExists(companyId, dto.professionalId);
 
     const professionalId = dto.professionalId ?? current.professionalId ?? undefined;
     const start = dto.start ? new Date(dto.start) : current.start;
@@ -198,13 +219,33 @@ export class AppointmentsService {
 
   async setStatus(companyId: string, id: string, dto: StatusDto, byUserId?: string) {
     const current = await this.findOne(companyId, id);
+    const statusChanged = dto.status !== current.status;
+
+    // Re-entering an ACTIVE status (e.g. reactivating a canceled appointment) makes
+    // it occupy the agenda again — re-check for overlaps to prevent double-booking
+    // by way of a status flip.
+    if (
+      statusChanged &&
+      current.professionalId &&
+      ACTIVE_STATUSES.includes(dto.status)
+    ) {
+      await this.assertNoOverlap(
+        companyId,
+        current.professionalId,
+        current.start,
+        current.end,
+        id,
+      );
+    }
+
     const updated = await this.prisma.client.appointment.update({
       where: { id },
       data: {
         status: dto.status,
-        statusHistory: {
-          create: { fromStatus: current.status, toStatus: dto.status, byUserId },
-        },
+        // Only record history on an actual transition (skip no-op re-sets).
+        statusHistory: statusChanged
+          ? { create: { fromStatus: current.status, toStatus: dto.status, byUserId } }
+          : undefined,
       },
     });
 
@@ -505,14 +546,34 @@ export class AppointmentsService {
     }
   }
 
+  // Validate the referenced customer exists within the company (avoids a raw FK
+  // violation surfacing as a 500 on create/update).
+  private async assertCustomerExists(companyId: string, customerId: string) {
+    const found = await this.prisma.client.customer.findFirst({
+      where: { id: customerId, companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!found) throw new NotFoundException('Cliente não encontrado');
+  }
+
+  // Validate the referenced professional exists within the company.
+  private async assertProfessionalExists(companyId: string, professionalId: string) {
+    const found = await this.prisma.client.professional.findFirst({
+      where: { id: professionalId, companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!found) throw new NotFoundException('Profissional não encontrado');
+  }
+
   private async assertNoOverlap(
     companyId: string,
     professionalId: string,
     start: Date,
     end: Date,
     ignoreId?: string,
+    db: Prisma.TransactionClient = this.prisma.client,
   ) {
-    const conflict = await this.prisma.client.appointment.findFirst({
+    const conflict = await db.appointment.findFirst({
       where: {
         companyId,
         professionalId,

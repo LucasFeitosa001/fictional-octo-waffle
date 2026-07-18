@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateProfessionalDto,
@@ -64,6 +64,14 @@ export class ProfessionalsService {
 
   async setSchedules(companyId: string, id: string, schedules: ScheduleDto[]) {
     await this.findOne(companyId, id);
+    // Reject inverted or zero-length windows (endTime must be strictly after startTime).
+    for (const s of schedules) {
+      if (s.endTime <= s.startTime) {
+        throw new BadRequestException(
+          `Horário inválido (weekday ${s.weekday}): o término (${s.endTime}) deve ser depois do início (${s.startTime})`,
+        );
+      }
+    }
     await this.prisma.client.professionalSchedule.deleteMany({ where: { professionalId: id } });
     await this.prisma.client.professionalSchedule.createMany({
       data: schedules.map((s) => ({ ...s, professionalId: id })),

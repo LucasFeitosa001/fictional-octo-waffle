@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateCustomerDebtDto,
@@ -42,7 +42,26 @@ export class CustomersService {
     return customer;
   }
 
-  create(companyId: string, dto: CreateCustomerDto) {
+  // Valida indicação: o referredById precisa existir, pertencer à mesma empresa
+  // e não pode ser o próprio cliente (auto-indicação).
+  private async assertValidReferral(
+    companyId: string,
+    referredById?: string,
+    selfId?: string,
+  ) {
+    if (!referredById) return;
+    if (selfId && referredById === selfId) {
+      throw new BadRequestException('Cliente não pode indicar a si mesmo');
+    }
+    const referrer = await this.prisma.client.customer.findFirst({
+      where: { id: referredById, companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!referrer) throw new NotFoundException('Cliente indicador não encontrado');
+  }
+
+  async create(companyId: string, dto: CreateCustomerDto) {
+    await this.assertValidReferral(companyId, dto.referredById);
     const { birthday, tags, dependents, socialProfiles, ...rest } = dto;
     return this.prisma.client.customer.create({
       data: {
@@ -80,6 +99,7 @@ export class CustomersService {
 
   async update(companyId: string, id: string, dto: UpdateCustomerDto) {
     await this.findOne(companyId, id);
+    await this.assertValidReferral(companyId, dto.referredById, id);
     const { birthday, tags, dependents, socialProfiles, ...rest } = dto;
     return this.prisma.client.customer.update({
       where: { id },
@@ -137,7 +157,7 @@ export class CustomersService {
 
     const [
       faturamentoAgg,
-      debitosAgg,
+      debitosAbertos,
       creditosAgg,
       cashbackAgg,
       pacotesEmAberto,
@@ -149,20 +169,20 @@ export class CustomersService {
         _sum: { netTotal: true },
         where: { companyId, customerId: id, status: 'finished' },
       }),
-      // Débitos em aberto.
-      this.prisma.client.customerDebt.aggregate({
-        _sum: { amount: true },
+      // Débitos em aberto — com pagamentos para calcular o saldo real.
+      this.prisma.client.customerDebt.findMany({
         where: { companyId, customerId: id, status: 'open' },
+        include: { payments: { select: { amount: true } } },
       }),
-      // Saldo de créditos.
+      // Saldo de créditos (escopado pela empresa via relação do cliente).
       this.prisma.client.customerCredit.aggregate({
         _sum: { amount: true },
-        where: { customerId: id },
+        where: { customerId: id, customer: { companyId } },
       }),
-      // Saldo de cashback.
+      // Saldo de cashback (escopado pela empresa via relação do cliente).
       this.prisma.client.customerCashback.aggregate({
         _sum: { amount: true },
-        where: { customerId: id },
+        where: { customerId: id, customer: { companyId } },
       }),
       // Pacotes ativos em aberto.
       this.prisma.client.customerPackage.count({
@@ -223,12 +243,19 @@ export class CustomersService {
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, 10);
 
+    // Débitos: saldo real (amount - pagamentos) de cada débito em aberto,
+    // alinhado com a aba Débitos.
+    const debitosTotal = debitosAbertos.reduce((acc, debt) => {
+      const paid = debt.payments.reduce((sum, pmt) => sum + num(pmt.amount), 0);
+      return acc + Math.max(num(debt.amount) - paid, 0);
+    }, 0);
+
     return {
       customer,
       faturamento: num(faturamentoAgg._sum.netTotal),
       lastVisitAt,
       diasSemVir,
-      debitosTotal: num(debitosAgg._sum.amount),
+      debitosTotal,
       creditosSaldo: num(creditosAgg._sum.amount),
       cashbackSaldo: num(cashbackAgg._sum.amount),
       pacotesEmAberto,
@@ -274,16 +301,27 @@ export class CustomersService {
     });
     if (!debt) throw new NotFoundException('Débito não encontrado');
 
+    // Trava de overpayment: pagamento não pode exceder o saldo devedor restante.
+    const prevPaidAgg = await this.prisma.client.customerDebtPayment.aggregate({
+      _sum: { amount: true },
+      where: { debtId },
+    });
+    const saldo = num(debt.amount) - num(prevPaidAgg._sum.amount);
+    if (saldo <= 0) {
+      throw new BadRequestException('Débito já está quitado');
+    }
+    if (dto.amount > saldo) {
+      throw new BadRequestException(
+        'Pagamento excede o saldo devedor restante do débito',
+      );
+    }
+
     await this.prisma.client.customerDebtPayment.create({
       data: { debtId, amount: dto.amount, method: dto.method },
     });
 
     // Recalcula status: paid quando o total pago cobre o valor do débito.
-    const paidAgg = await this.prisma.client.customerDebtPayment.aggregate({
-      _sum: { amount: true },
-      where: { debtId },
-    });
-    const totalPaid = num(paidAgg._sum.amount);
+    const totalPaid = num(prevPaidAgg._sum.amount) + dto.amount;
     const status = totalPaid >= num(debt.amount) ? 'paid' : 'open';
 
     return this.prisma.client.customerDebt.update({
@@ -299,11 +337,11 @@ export class CustomersService {
     await this.findOne(companyId, id);
     const [credits, cashback] = await Promise.all([
       this.prisma.client.customerCredit.findMany({
-        where: { customerId: id },
+        where: { customerId: id, customer: { companyId } },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.client.customerCashback.findMany({
-        where: { customerId: id },
+        where: { customerId: id, customer: { companyId } },
         orderBy: { createdAt: 'desc' },
       }),
     ]);

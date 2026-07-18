@@ -40,7 +40,7 @@ export function PacotePerfilModal({
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
+      <Modal.Backdrop className="z-[60]">
         <Modal.Container
           placement="center"
           className="w-full max-w-lg max-h-[90vh] overflow-y-auto"

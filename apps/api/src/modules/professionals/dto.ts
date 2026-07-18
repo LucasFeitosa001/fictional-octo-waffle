@@ -36,8 +36,8 @@ export class UpdateProfessionalDto {
 
 export class ScheduleDto {
   @IsInt() @Min(0) @Max(6) weekday: number;
-  @Matches(/^\d{2}:\d{2}$/) startTime: string;
-  @Matches(/^\d{2}:\d{2}$/) endTime: string;
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) startTime: string;
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) endTime: string;
 }
 
 export class SetServicesDto {

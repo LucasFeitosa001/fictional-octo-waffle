@@ -132,6 +132,15 @@ export class PackagesService {
   }
 
   async createCustomerPackage(companyId: string, dto: CreateCustomerPackageDto) {
+    // The customer must exist and belong to this company — otherwise the
+    // create() would fail with a foreign-key 500 (or silently attach a package
+    // to a customer from another tenant).
+    const customer = await this.prisma.client.customer.findFirst({
+      where: { id: dto.customerId, companyId },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+
     let price = dto.price ?? 0;
     let expiresAt: Date | null = null;
     let itemsCreate: { serviceId: string; sessionsTotal: number }[] = [];
@@ -228,7 +237,17 @@ export class PackagesService {
       const item = pkg.items.find((i) => i.id === itemId);
       if (!item) throw new NotFoundException('Item do pacote não encontrado');
 
-      if (item.sessionsUsed >= item.sessionsTotal) {
+      // Atomic compare-and-set: only bump sessionsUsed when there is still
+      // balance. The conditional updateMany runs as a single locking UPDATE, so
+      // its WHERE is re-evaluated against the committed row — two concurrent
+      // consumes on the same item can never push sessionsUsed past
+      // sessionsTotal (no negative balance). If nothing was updated, the item
+      // was already exhausted.
+      const consumed = await tx.customerPackageItem.updateMany({
+        where: { id: item.id, sessionsUsed: { lt: item.sessionsTotal } },
+        data: { sessionsUsed: { increment: 1 } },
+      });
+      if (consumed.count === 0) {
         throw new BadRequestException('Sem saldo: todas as sessões deste item já foram utilizadas.');
       }
 
@@ -237,10 +256,6 @@ export class PackagesService {
           customerPackageItemId: item.id,
           orderId: dto?.orderId ?? null,
         },
-      });
-      await tx.customerPackageItem.update({
-        where: { id: item.id },
-        data: { sessionsUsed: { increment: 1 } },
       });
 
       // If every item is now exhausted, finish the package.

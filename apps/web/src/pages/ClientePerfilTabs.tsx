@@ -45,9 +45,17 @@ import type { CustomerDebt, CustomerFull } from '../lib/types';
 // Helpers de layout (mobile-first)
 // =====================================================================
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className={`flex flex-col gap-1${className ? ` ${className}` : ''}`}>
       <label className="text-xs font-medium text-muted">{label}</label>
       {children}
     </div>
@@ -570,7 +578,14 @@ function PainelTab({ customerId }: { customerId: string }) {
                 <Card.Content className="flex items-center justify-between gap-2 p-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-foreground">
-                      {s.name ?? (s.source === 'order' ? `Item (${s.kind ?? 'comanda'})` : 'Serviço')}
+                      {s.name ??
+                        (s.source === 'order'
+                          ? s.kind === 'product'
+                            ? 'Produto'
+                            : s.kind === 'service'
+                              ? 'Serviço'
+                              : 'Item da comanda'
+                          : 'Serviço')}
                     </div>
                     <div className="text-xs text-muted">{formatDate(s.date)}</div>
                   </div>
@@ -672,23 +687,33 @@ function DebitosTab({ customerId }: { customerId: string }) {
         <Card className="border border-[var(--color-soft-border)] bg-white">
           <Card.Content className="flex flex-col gap-3 p-3">
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Valor">
-                <TextField value={amount} onChange={setAmount} aria-label="Valor do débito">
+              <Field label="Valor" className="min-w-0">
+                <TextField
+                  value={amount}
+                  onChange={setAmount}
+                  className="min-w-0"
+                  aria-label="Valor do débito"
+                >
                   <Input type="number" placeholder="0,00" />
                 </TextField>
               </Field>
-              <Field label="Origem">
-                <TextField value={origin} onChange={setOrigin} aria-label="Origem">
+              <Field label="Origem" className="min-w-0">
+                <TextField
+                  value={origin}
+                  onChange={setOrigin}
+                  className="min-w-0"
+                  aria-label="Origem"
+                >
                   <Input placeholder="Ex.: serviço, produto" />
                 </TextField>
               </Field>
-              <Field label="Vencimento">
+              <Field label="Vencimento" className="min-w-0">
                 <input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
                   aria-label="Vencimento"
-                  className="w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
+                  className="w-full min-w-0 rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
                 />
               </Field>
             </div>
@@ -785,19 +810,21 @@ function DebitosTab({ customerId }: { customerId: string }) {
                     (payingId === debt.id ? (
                       <div className="flex flex-col gap-2 rounded-md border border-[var(--color-soft-border)] p-2">
                         <div className="grid gap-2 sm:grid-cols-2">
-                          <Field label="Valor do pagamento">
+                          <Field label="Valor do pagamento" className="min-w-0">
                             <TextField
                               value={payAmount}
                               onChange={setPayAmount}
+                              className="min-w-0"
                               aria-label="Valor do pagamento"
                             >
                               <Input type="number" placeholder="0,00" />
                             </TextField>
                           </Field>
-                          <Field label="Forma">
+                          <Field label="Forma" className="min-w-0">
                             <TextField
                               value={payMethod}
                               onChange={setPayMethod}
+                              className="min-w-0"
                               aria-label="Forma de pagamento"
                             >
                               <Input placeholder="Ex.: dinheiro, pix" />

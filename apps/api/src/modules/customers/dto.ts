@@ -7,6 +7,8 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -39,7 +41,7 @@ export class CreateCustomerDto {
   @IsOptional() @IsString() rg?: string;
   @IsOptional() @IsString() avatarUrl?: string;
   @IsOptional() @IsString() referredById?: string;
-  @IsOptional() @IsNumber() defaultDiscountPercent?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) defaultDiscountPercent?: number;
   @IsOptional() @IsBoolean() notificationsEnabled?: boolean;
   @IsOptional() @IsBoolean() whatsappOptIn?: boolean;
   @IsOptional() @IsBoolean() smsOptIn?: boolean;
@@ -78,7 +80,7 @@ export class UpdateCustomerDto {
   @IsOptional() @IsString() rg?: string;
   @IsOptional() @IsString() avatarUrl?: string;
   @IsOptional() @IsString() referredById?: string;
-  @IsOptional() @IsNumber() defaultDiscountPercent?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) defaultDiscountPercent?: number;
   @IsOptional() @IsBoolean() notificationsEnabled?: boolean;
   @IsOptional() @IsBoolean() whatsappOptIn?: boolean;
   @IsOptional() @IsBoolean() smsOptIn?: boolean;
@@ -103,12 +105,12 @@ export class UpdateCustomerDto {
 }
 
 export class CreateCustomerDebtDto {
-  @IsNumber() amount: number;
+  @IsNumber() @Min(0.01) amount: number;
   @IsOptional() @IsString() origin?: string;
   @IsOptional() @IsISO8601() dueDate?: string;
 }
 
 export class CreateCustomerDebtPaymentDto {
-  @IsNumber() amount: number;
+  @IsNumber() @Min(0.01) amount: number;
   @IsOptional() @IsString() method?: string;
 }
