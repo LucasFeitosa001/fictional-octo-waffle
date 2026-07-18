@@ -15,8 +15,8 @@ export class PurchaseItemDto {
   @IsNumber() @Min(0.001) quantity: number;
   @IsNumber() @Min(0) unitCost: number;
   /**
-   * Desconto por item. O schema (PurchaseItem) NÃO tem coluna de desconto,
-   * então o valor é usado apenas no cálculo do total e NÃO é persistido.
+   * Desconto por item (Onda 7: PurchaseItem.discount). Entra no cálculo do
+   * total da linha (PurchaseItem.total) e é persistido.
    */
   @IsOptional() @IsNumber() @Min(0) discount?: number;
 }
@@ -31,7 +31,7 @@ export class CreatePurchaseDto {
   @Type(() => PurchaseItemDto)
   items: PurchaseItemDto[];
 
-  /** Frete e desconto geral entram no cálculo do total (não têm coluna própria). */
+  /** Frete e desconto geral (Onda 7: Purchase.freight/discount) — persistidos. */
   @IsOptional() @IsNumber() @Min(0) freight?: number;
   @IsOptional() @IsNumber() @Min(0) discount?: number;
 
@@ -40,7 +40,7 @@ export class CreatePurchaseDto {
   /** Forma de pagamento (Purchase.paymentMethodId). */
   @IsOptional() @IsString() paymentMethodId?: string;
 
-  /** Sem coluna no schema — aceito para paridade, não persistido. */
+  /** Observações (Onda 7: Purchase.notes) — persistidas. */
   @IsOptional() @IsString() notes?: string;
 }
 

@@ -3,12 +3,14 @@ import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateCashbackRuleDto,
+  CreateGalleryPhotoDto,
   CreatePromotionDto,
   UpdateBookingLinkDto,
   UpdateBusinessHoursDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
   UpdateReviewSettingsDto,
+  UpdateWebProfileDto,
 } from './dto';
 
 // One normalized row of the salon's weekly opening hours.
@@ -133,6 +135,91 @@ export class MarketingService {
         end: hhmm(row?.end, '18:00'),
       };
     });
+  }
+
+  // ---- web profile (SalonWebProfile: um por empresa, upsert por companyId) ----
+  // Lê o perfil público do salão sempre com a forma completa/normalizada, para o
+  // editor renderizar campos previsíveis. Quando o salão nunca configurou nada,
+  // devolve os padrões honestos (strings vazias, comodidades desligadas) sem
+  // persistir uma linha vazia — o registro só nasce no primeiro PATCH.
+  async getWebProfile(companyId: string) {
+    const p = await this.prisma.client.salonWebProfile.findUnique({
+      where: { companyId },
+    });
+    return {
+      description: p?.description ?? '',
+      website: p?.website ?? '',
+      facebook: p?.facebook ?? '',
+      instagram: p?.instagram ?? '',
+      wifi: p?.wifi ?? false,
+      snackBar: p?.snackBar ?? false,
+      parkingLot: p?.parkingLot ?? false,
+      kids: p?.kids ?? false,
+      accessibility: p?.accessibility ?? false,
+      themePreference: p?.themePreference ?? 'auto',
+      schedulingFlow: p?.schedulingFlow ?? 'service',
+      requiredLogin: p?.requiredLogin ?? false,
+    };
+  }
+
+  async updateWebProfile(companyId: string, dto: UpdateWebProfileDto) {
+    const data = {
+      ...(dto.description !== undefined ? { description: dto.description } : {}),
+      ...(dto.website !== undefined ? { website: dto.website } : {}),
+      ...(dto.facebook !== undefined ? { facebook: dto.facebook } : {}),
+      ...(dto.instagram !== undefined ? { instagram: dto.instagram } : {}),
+      ...(dto.wifi !== undefined ? { wifi: dto.wifi } : {}),
+      ...(dto.snackBar !== undefined ? { snackBar: dto.snackBar } : {}),
+      ...(dto.parkingLot !== undefined ? { parkingLot: dto.parkingLot } : {}),
+      ...(dto.kids !== undefined ? { kids: dto.kids } : {}),
+      ...(dto.accessibility !== undefined ? { accessibility: dto.accessibility } : {}),
+      ...(dto.themePreference !== undefined ? { themePreference: dto.themePreference } : {}),
+      ...(dto.schedulingFlow !== undefined ? { schedulingFlow: dto.schedulingFlow } : {}),
+      ...(dto.requiredLogin !== undefined ? { requiredLogin: dto.requiredLogin } : {}),
+    };
+    await this.prisma.client.salonWebProfile.upsert({
+      where: { companyId },
+      create: { companyId, ...data },
+      update: data,
+    });
+    return this.getWebProfile(companyId);
+  }
+
+  // ---- gallery (GalleryPhoto: fotos do perfil público) ----
+  listGallery(companyId: string) {
+    return this.prisma.client.galleryPhoto.findMany({
+      where: { companyId },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async addGalleryPhoto(companyId: string, dto: CreateGalleryPhotoDto) {
+    let order = dto.displayOrder;
+    if (order === undefined) {
+      const last = await this.prisma.client.galleryPhoto.findFirst({
+        where: { companyId },
+        orderBy: { displayOrder: 'desc' },
+        select: { displayOrder: true },
+      });
+      order = last ? last.displayOrder + 1 : 0;
+    }
+    return this.prisma.client.galleryPhoto.create({
+      data: {
+        companyId,
+        url: dto.url,
+        caption: dto.caption,
+        displayOrder: order,
+      },
+    });
+  }
+
+  async removeGalleryPhoto(companyId: string, id: string) {
+    const found = await this.prisma.client.galleryPhoto.findFirst({
+      where: { id, companyId },
+    });
+    if (!found) throw new NotFoundException('Foto não encontrada');
+    await this.prisma.client.galleryPhoto.delete({ where: { id } });
+    return { id, deleted: true };
   }
 
   // ---- promotions ----

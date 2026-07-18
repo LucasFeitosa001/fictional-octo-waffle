@@ -60,3 +60,84 @@ export function useToggleServiceOnline() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['services'] }),
   });
 }
+
+// ===================== Web profile (perfil público) =====================
+// Perfil público do salão (SalonWebProfile), persistido pelo módulo de marketing.
+// Guarda descrição, redes sociais, comodidades e preferências de fluxo/tema.
+export type ThemePreference = 'light' | 'dark' | 'auto';
+export type SchedulingFlow = 'service' | 'professional';
+
+export interface WebProfile {
+  description: string;
+  website: string;
+  facebook: string;
+  instagram: string;
+  wifi: boolean;
+  snackBar: boolean;
+  parkingLot: boolean;
+  kids: boolean;
+  accessibility: boolean;
+  themePreference: ThemePreference;
+  schedulingFlow: SchedulingFlow;
+  requiredLogin: boolean;
+}
+
+const WEB_PROFILE_KEY = ['web-profile'] as const;
+
+export function useWebProfile() {
+  return useQuery({
+    queryKey: WEB_PROFILE_KEY,
+    queryFn: () => api.get<WebProfile>('/booking-link/web-profile'),
+  });
+}
+
+export function useUpdateWebProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<WebProfile>) =>
+      api.patch<WebProfile>('/booking-link/web-profile', patch),
+    onSuccess: (data) => {
+      queryClient.setQueryData(WEB_PROFILE_KEY, data);
+      void queryClient.invalidateQueries({ queryKey: WEB_PROFILE_KEY });
+    },
+  });
+}
+
+// ===================== Gallery (galeria de fotos) =====================
+// Fotos do perfil público do salão (GalleryPhoto). Cada foto é uma linha com url
+// e ordem de exibição; adicionar/remover são operações individuais.
+export interface GalleryPhoto {
+  id: string;
+  companyId: string;
+  url: string;
+  caption: string | null;
+  displayOrder: number;
+  createdAt: string;
+}
+
+const GALLERY_KEY = ['gallery'] as const;
+
+export function useGallery() {
+  return useQuery({
+    queryKey: GALLERY_KEY,
+    queryFn: () => api.get<GalleryPhoto[]>('/booking-link/gallery'),
+  });
+}
+
+export function useAddGalleryPhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { url: string; caption?: string }) =>
+      api.post<GalleryPhoto>('/booking-link/gallery', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: GALLERY_KEY }),
+  });
+}
+
+export function useRemoveGalleryPhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<{ id: string; deleted: boolean }>(`/booking-link/gallery/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: GALLERY_KEY }),
+  });
+}

@@ -28,13 +28,12 @@ export class PurchasesController {
   }
 
   /**
-   * Não existe model ImportedXml no schema. Mantemos a rota para o front tratar
-   * a aba "XMLs Importados" com um estado honesto de "em breve" (204 sem dados),
-   * sem inventar persistência inexistente.
+   * Aba "XMLs Importados": lista os ImportedXml reais da empresa (Onda 7).
+   * Fica antes de :id para não ser capturada pela rota de detalhe.
    */
   @Get('xmls')
-  listXmls() {
-    return { data: [], available: false as const };
+  listXmls(@CurrentUser('companyId') companyId: string) {
+    return this.service.listXmls(companyId);
   }
 
   @Get(':id')

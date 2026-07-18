@@ -305,6 +305,12 @@ function emptyWeek(): DayState[] {
   return Array.from({ length: 7 }, () => ({ enabled: false, start: '09:00', end: '18:00' }));
 }
 
+// CEP display mask (00000-000) — presentation only; the value is persisted as digits.
+function maskCep(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 8);
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+}
+
 type CommissionState = { enabled: boolean; type: 'percent' | 'fixed'; value: string };
 
 // The individual commission rule we support today is a single salon-wide (scope
@@ -348,6 +354,21 @@ function ProfessionalModal({
   const [active, setActive] = useState(true);
   const [onlineBookable, setOnlineBookable] = useState(true);
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(true);
+  // Dados cadastrais adicionais (Onda 7).
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [rg, setRg] = useState('');
+  const [position, setPosition] = useState('');
+  const [notes, setNotes] = useState('');
+  const [receivesCommission, setReceivesCommission] = useState(true);
+  const [generateSchedule, setGenerateSchedule] = useState(true);
+  // Endereço embutido (Onda 7).
+  const [zip, setZip] = useState('');
+  const [street, setStreet] = useState('');
+  const [number, setNumber] = useState('');
+  const [complement, setComplement] = useState('');
+  const [district, setDistrict] = useState('');
+  const [city, setCity] = useState('');
+  const [uf, setUf] = useState('');
   const [days, setDays] = useState<DayState[]>(emptyWeek);
   const [serviceIds, setServiceIds] = useState<Set<string>>(new Set());
   const [commission, setCommission] = useState<CommissionState>({
@@ -386,6 +407,22 @@ function ProfessionalModal({
     setDays(next);
     setServiceIds(new Set((detail.data?.services ?? []).map((s) => s.serviceId)));
     setCommission(pickAllScopeRule(detail.data?.commissionRules));
+    // Onda-7 cadastral + address fields come from the detail endpoint (undefined in
+    // create mode → honest empty defaults).
+    const d = detail.data;
+    setDocumentNumber(d?.document ?? '');
+    setRg(d?.rg ?? '');
+    setPosition(d?.position ?? '');
+    setNotes(d?.notes ?? '');
+    setReceivesCommission(d?.receivesCommission ?? true);
+    setGenerateSchedule(d?.generateSchedule ?? true);
+    setZip(maskCep(d?.zip ?? ''));
+    setStreet(d?.street ?? '');
+    setNumber(d?.number ?? '');
+    setComplement(d?.complement ?? '');
+    setDistrict(d?.district ?? '');
+    setCity(d?.city ?? '');
+    setUf(d?.state ?? '');
   }, [isOpen, detail.data]);
 
   function updateDay(idx: number, patch: Partial<DayState>) {
@@ -460,6 +497,20 @@ function ProfessionalModal({
       active,
       onlineBookable,
       notifyWhatsapp,
+      document: documentNumber.trim() || undefined,
+      rg: rg.trim() || undefined,
+      position: position.trim() || undefined,
+      notes: notes.trim() || undefined,
+      receivesCommission,
+      generateSchedule,
+      street: street.trim() || undefined,
+      number: number.trim() || undefined,
+      complement: complement.trim() || undefined,
+      district: district.trim() || undefined,
+      city: city.trim() || undefined,
+      state: uf.trim() || undefined,
+      // Persist the CEP unmasked (digits only); the mask lives only in the UI.
+      zip: zip.replace(/\D/g, '') || undefined,
     };
     try {
       const saved =
@@ -495,6 +546,7 @@ function ProfessionalModal({
             <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
               <Tabs.List className="w-full overflow-x-auto">
                 <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
+                <Tabs.Tab id="endereco">Endereço</Tabs.Tab>
                 <Tabs.Tab id="servicos">Serviços</Tabs.Tab>
                 <Tabs.Tab id="expediente">Expediente</Tabs.Tab>
                 <Tabs.Tab id="comissoes">Comissões</Tabs.Tab>
@@ -534,6 +586,25 @@ function ProfessionalModal({
                       <Input placeholder="Ex: Cabeleireira" />
                     </TextField>
                   </Field>
+                  <Field label="Cargo">
+                    <TextField value={position} onChange={setPosition} aria-label="Cargo">
+                      <Input placeholder="Ex: Sócia, Recepção" />
+                    </TextField>
+                  </Field>
+                  <Field label="CPF / CNPJ">
+                    <TextField
+                      value={documentNumber}
+                      onChange={setDocumentNumber}
+                      aria-label="CPF ou CNPJ"
+                    >
+                      <Input inputMode="numeric" placeholder="000.000.000-00" />
+                    </TextField>
+                  </Field>
+                  <Field label="RG">
+                    <TextField value={rg} onChange={setRg} aria-label="RG">
+                      <Input placeholder="Documento de identidade" />
+                    </TextField>
+                  </Field>
                   <Field label="Aniversário">
                     <input
                       type="date"
@@ -544,6 +615,17 @@ function ProfessionalModal({
                     />
                   </Field>
                 </div>
+
+                <Field label="Anotações">
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    aria-label="Anotações"
+                    rows={3}
+                    placeholder="Observações internas sobre a profissional…"
+                    className="w-full resize-y rounded-lg border border-[var(--color-soft-border)] bg-[#fffdf8] px-3 py-2 text-sm text-foreground focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/25"
+                  />
+                </Field>
 
                 <div className="flex flex-col gap-1 border-t border-[var(--color-soft-border)] pt-4">
                   <h3 className="mb-1 text-sm font-semibold text-foreground">Configurações</h3>
@@ -565,6 +647,70 @@ function ProfessionalModal({
                     checked={notifyWhatsapp}
                     onChange={setNotifyWhatsapp}
                   />
+                  <ToggleRow
+                    label="Recebe comissão"
+                    hint="Gera lançamentos de comissão sobre os atendimentos e vendas."
+                    checked={receivesCommission}
+                    onChange={setReceivesCommission}
+                  />
+                  <ToggleRow
+                    label="Gerar agenda"
+                    hint="Cria a agenda desta profissional para receber agendamentos."
+                    checked={generateSchedule}
+                    onChange={setGenerateSchedule}
+                  />
+                </div>
+              </Tabs.Panel>
+
+              {/* ---- Endereço ---- */}
+              <Tabs.Panel id="endereco" className="flex flex-col gap-4 pt-4">
+                <p className="text-xs text-muted">
+                  Endereço da profissional. Todos os campos são opcionais.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="CEP">
+                    <TextField
+                      value={zip}
+                      onChange={(v) => setZip(maskCep(v))}
+                      aria-label="CEP"
+                    >
+                      <Input inputMode="numeric" placeholder="00000-000" />
+                    </TextField>
+                  </Field>
+                  <Field label="Logradouro">
+                    <TextField value={street} onChange={setStreet} aria-label="Logradouro">
+                      <Input placeholder="Rua, avenida…" />
+                    </TextField>
+                  </Field>
+                  <Field label="Número">
+                    <TextField value={number} onChange={setNumber} aria-label="Número">
+                      <Input placeholder="Nº" />
+                    </TextField>
+                  </Field>
+                  <Field label="Complemento">
+                    <TextField
+                      value={complement}
+                      onChange={setComplement}
+                      aria-label="Complemento"
+                    >
+                      <Input placeholder="Apto, bloco, sala…" />
+                    </TextField>
+                  </Field>
+                  <Field label="Bairro">
+                    <TextField value={district} onChange={setDistrict} aria-label="Bairro">
+                      <Input placeholder="Bairro" />
+                    </TextField>
+                  </Field>
+                  <Field label="Cidade">
+                    <TextField value={city} onChange={setCity} aria-label="Cidade">
+                      <Input placeholder="Cidade" />
+                    </TextField>
+                  </Field>
+                  <Field label="Estado">
+                    <TextField value={uf} onChange={setUf} aria-label="Estado">
+                      <Input placeholder="UF" />
+                    </TextField>
+                  </Field>
                 </div>
               </Tabs.Panel>
 

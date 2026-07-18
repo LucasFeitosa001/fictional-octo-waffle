@@ -16,6 +16,7 @@ import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
   IconClock,
+  IconDownload,
   IconEye,
   IconPlus,
   IconReceipt,
@@ -38,9 +39,27 @@ import {
 
 const NONE = '';
 
-/** Compras não têm número no schema — derivamos um ticket curto do id. */
+/** Fallback para compras legadas sem número: ticket curto derivado do id. */
 function ticket(id: string) {
   return `#${id.slice(-6).toUpperCase()}`;
+}
+
+/** Número real da compra (Onda 7). Compras legadas caem no ticket do id. */
+function purchaseLabel(p: { number?: number | null; id: string }) {
+  return p.number != null ? `#${p.number}` : ticket(p.id);
+}
+
+const STATUS_META: Record<
+  string,
+  { label: string; color: 'success' | 'warning' | 'danger' | 'default' }
+> = {
+  lancada: { label: 'Lançada', color: 'success' },
+  rascunho: { label: 'Rascunho', color: 'warning' },
+  cancelada: { label: 'Cancelada', color: 'danger' },
+};
+
+function statusMeta(status: string) {
+  return STATUS_META[status] ?? { label: status, color: 'default' as const };
 }
 
 export function ComprasPage() {
@@ -64,7 +83,7 @@ export function ComprasPage() {
   async function handleDelete(p: PurchaseRow) {
     if (
       !window.confirm(
-        `Excluir a compra ${ticket(p.id)}? A entrada de estoque será estornada.`,
+        `Excluir a compra ${purchaseLabel(p)}? A entrada de estoque será estornada.`,
       )
     )
       return;
@@ -90,7 +109,9 @@ export function ComprasPage() {
             <IconReceipt size={18} />
           </div>
           <div>
-            <div className="font-semibold text-foreground">{ticket(p.id)}</div>
+            <div className="font-semibold text-foreground">
+              {purchaseLabel(p)}
+            </div>
             <div className="text-xs text-muted">{formatDate(p.date)}</div>
           </div>
         </div>
@@ -120,11 +141,14 @@ export function ComprasPage() {
     {
       key: 'status',
       header: 'Status',
-      render: () => (
-        <Chip color="success" variant="soft" size="sm">
-          Lançada
-        </Chip>
-      ),
+      render: (p) => {
+        const meta = statusMeta(p.status);
+        return (
+          <Chip color={meta.color} variant="soft" size="sm">
+            {meta.label}
+          </Chip>
+        );
+      },
     },
     {
       key: 'actions',
@@ -263,20 +287,85 @@ export function ComprasPage() {
 // Aba XMLs Importados — estado honesto (sem model ImportedXml no schema)
 // =====================================================================
 
+const XML_STATUS_META: Record<
+  string,
+  { label: string; color: 'success' | 'warning' | 'danger' | 'default' }
+> = {
+  pending: { label: 'Pendente', color: 'warning' },
+  processed: { label: 'Processado', color: 'success' },
+  error: { label: 'Com erro', color: 'danger' },
+};
+
+function xmlStatusMeta(status: string) {
+  return XML_STATUS_META[status] ?? { label: status, color: 'default' as const };
+}
+
 function XmlsTab() {
   const xmls = useImportedXmls();
+  const rows = xmls.data?.data ?? [];
+
+  function handleImport() {
+    // Ainda não há parser de NF-e (XML) → entrada de estoque manual continua
+    // sendo o caminho oficial. Mensagem honesta, sem simular processamento.
+    window.alert(
+      'A importação automática de NF-e (XML) ainda não está disponível. ' +
+        'Por enquanto, registre a compra manualmente na aba Compras.',
+    );
+  }
 
   return (
     <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
       <Card.Content className="p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              XMLs importados
+            </h3>
+            <p className="text-xs text-muted">
+              Notas fiscais (NF-e) recebidas para gerar compras.
+            </p>
+          </div>
+          <Button variant="primary" size="sm" onClick={handleImport}>
+            <IconDownload size={14} /> Importar XML
+          </Button>
+        </div>
+
         {xmls.isLoading ? (
           <LoadingState />
-        ) : (
+        ) : xmls.isError ? (
+          <ErrorState onRetry={() => xmls.refetch()} />
+        ) : rows.length === 0 ? (
           <EmptyState
             icon={<IconClock size={32} />}
-            title="Importação de XML em breve"
-            description="A importação de NF-e (XML) para gerar compras automaticamente ainda não está disponível. Por enquanto, registre as compras manualmente na aba Compras."
+            title="Nenhum XML importado"
+            description="Ainda não há notas fiscais (XML) importadas. A importação automática de NF-e ainda não está disponível — registre as compras manualmente na aba Compras."
           />
+        ) : (
+          <div className="rounded-lg border border-[var(--color-soft-border)]">
+            <ul className="divide-y divide-[var(--color-soft-border)]">
+              {rows.map((x) => {
+                const meta = xmlStatusMeta(x.status);
+                return (
+                  <li
+                    key={x.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-foreground">
+                        {x.accessKey ?? 'NF-e sem chave de acesso'}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {formatDate(x.createdAt)}
+                      </div>
+                    </div>
+                    <Chip color={meta.color} variant="soft" size="sm">
+                      {meta.label}
+                    </Chip>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </Card.Content>
     </Card>
@@ -304,7 +393,7 @@ function DetalheCompraModal({
           <Modal.Dialog className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <Modal.Header>
               <Modal.Heading>
-                {id ? `Compra ${ticket(id)}` : 'Compra'}
+                {p ? `Compra ${purchaseLabel(p)}` : id ? `Compra ${ticket(id)}` : 'Compra'}
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-4">
@@ -314,6 +403,17 @@ function DetalheCompraModal({
                 <ErrorState onRetry={() => detail.refetch()} />
               ) : (
                 <>
+                  {(() => {
+                    const meta = statusMeta(p.status);
+                    return (
+                      <div className="flex items-center gap-2">
+                        <Chip color={meta.color} variant="soft" size="sm">
+                          {meta.label}
+                        </Chip>
+                      </div>
+                    );
+                  })()}
+
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <Info label="Fornecedor" value={p.supplier?.name ?? '—'} />
                     <Info label="Data" value={formatDate(p.date)} />
@@ -329,29 +429,54 @@ function DetalheCompraModal({
                       Itens
                     </div>
                     <ul className="divide-y divide-[var(--color-soft-border)]">
-                      {p.items.map((it) => (
-                        <li
-                          key={it.id}
-                          className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate font-medium text-foreground">
-                              {it.product?.name ?? 'Produto'}
+                      {p.items.map((it) => {
+                        const itemDiscount = Number(it.discount) || 0;
+                        return (
+                          <li
+                            key={it.id}
+                            className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-foreground">
+                                {it.product?.name ?? 'Produto'}
+                              </div>
+                              <div className="text-xs text-muted">
+                                {formatNumber(Number(it.quantity))} ×{' '}
+                                {formatMoney(it.unitCost)}
+                                {itemDiscount > 0 && (
+                                  <> · desc. {formatMoney(itemDiscount)}</>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-xs text-muted">
-                              {formatNumber(Number(it.quantity))} ×{' '}
-                              {formatMoney(it.unitCost)}
+                            <div className="shrink-0 font-medium text-foreground">
+                              {formatMoney(it.total)}
                             </div>
-                          </div>
-                          <div className="shrink-0 font-medium text-foreground">
-                            {formatMoney(
-                              Number(it.quantity) * Number(it.unitCost),
-                            )}
-                          </div>
-                        </li>
-                      ))}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
+
+                  {(Number(p.freight) > 0 || Number(p.discount) > 0) && (
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {Number(p.freight) > 0 && (
+                        <div className="flex items-center justify-between rounded-md bg-default-100 px-3 py-1.5">
+                          <span className="text-muted">Frete</span>
+                          <span className="font-medium text-foreground">
+                            {formatMoney(p.freight)}
+                          </span>
+                        </div>
+                      )}
+                      {Number(p.discount) > 0 && (
+                        <div className="flex items-center justify-between rounded-md bg-default-100 px-3 py-1.5">
+                          <span className="text-muted">Desconto</span>
+                          <span className="font-medium text-foreground">
+                            − {formatMoney(p.discount)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between rounded-lg bg-default-100 px-3 py-2">
                     <span className="text-sm font-medium text-muted">Total</span>
@@ -359,6 +484,17 @@ function DetalheCompraModal({
                       {formatMoney(p.total)}
                     </span>
                   </div>
+
+                  {p.notes && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium text-muted">
+                        Observações
+                      </span>
+                      <p className="whitespace-pre-wrap rounded-md border border-[var(--color-soft-border)] bg-white px-3 py-2 text-sm text-foreground">
+                        {p.notes}
+                      </p>
+                    </div>
+                  )}
 
                   <p className="text-xs text-muted">
                     A entrada de estoque desta compra já foi lançada. Excluir a

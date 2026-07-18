@@ -12,6 +12,38 @@ export interface ProfessionalBody {
   onlineBookable?: boolean;
   notifyWhatsapp?: boolean;
   active?: boolean;
+  // Dados cadastrais adicionais (Onda 7).
+  document?: string;
+  rg?: string;
+  notes?: string;
+  position?: string;
+  receivesCommission?: boolean;
+  generateSchedule?: boolean;
+  // Endereço embutido (Onda 7).
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}
+
+/** Read shape for the Onda-7 cadastral + address fields the detail endpoint returns. */
+export interface ProfessionalExtraFields {
+  document?: string | null;
+  rg?: string | null;
+  notes?: string | null;
+  position?: string | null;
+  receivesCommission?: boolean;
+  generateSchedule?: boolean;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 }
 
 /** A single weekly working-hours row. weekday: 0=domingo … 6=sábado. */
@@ -32,7 +64,7 @@ export interface ProfessionalCommissionRuleRow {
 }
 
 /** Professional with its included relations (GET /professionals/:id). */
-export interface ProfessionalDetail extends Professional {
+export interface ProfessionalDetail extends Professional, ProfessionalExtraFields {
   schedules?: ProfessionalScheduleRow[];
   services?: { serviceId: string }[];
   commissionRules?: ProfessionalCommissionRuleRow[];

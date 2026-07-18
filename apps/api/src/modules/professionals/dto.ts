@@ -21,6 +21,21 @@ export class CreateProfessionalDto {
   @IsOptional() @IsBoolean() onlineBookable?: boolean;
   @IsOptional() @IsBoolean() notifyWhatsapp?: boolean;
   @IsOptional() @IsBoolean() active?: boolean;
+  // Dados cadastrais adicionais (Onda 7).
+  @IsOptional() @IsString() document?: string;
+  @IsOptional() @IsString() rg?: string;
+  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() position?: string;
+  @IsOptional() @IsBoolean() receivesCommission?: boolean;
+  @IsOptional() @IsBoolean() generateSchedule?: boolean;
+  // Endereço embutido (Onda 7).
+  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() number?: string;
+  @IsOptional() @IsString() complement?: string;
+  @IsOptional() @IsString() district?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() zip?: string;
 }
 
 export class UpdateProfessionalDto {
@@ -33,6 +48,21 @@ export class UpdateProfessionalDto {
   @IsOptional() @IsBoolean() onlineBookable?: boolean;
   @IsOptional() @IsBoolean() notifyWhatsapp?: boolean;
   @IsOptional() @IsBoolean() active?: boolean;
+  // Dados cadastrais adicionais (Onda 7).
+  @IsOptional() @IsString() document?: string;
+  @IsOptional() @IsString() rg?: string;
+  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() position?: string;
+  @IsOptional() @IsBoolean() receivesCommission?: boolean;
+  @IsOptional() @IsBoolean() generateSchedule?: boolean;
+  // Endereço embutido (Onda 7).
+  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() number?: string;
+  @IsOptional() @IsString() complement?: string;
+  @IsOptional() @IsString() district?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() zip?: string;
 }
 
 export class ScheduleDto {

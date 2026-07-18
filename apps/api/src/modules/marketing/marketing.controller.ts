@@ -12,12 +12,14 @@ import {
 import { MarketingService } from './marketing.service';
 import {
   CreateCashbackRuleDto,
+  CreateGalleryPhotoDto,
   CreatePromotionDto,
   UpdateBookingLinkDto,
   UpdateBusinessHoursDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
   UpdateReviewSettingsDto,
+  UpdateWebProfileDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
@@ -53,6 +55,42 @@ export class MarketingController {
     @Body() dto: UpdateBusinessHoursDto,
   ) {
     return this.service.updateBusinessHours(companyId, dto);
+  }
+
+  // ---- web profile (perfil público do salão) ----
+  @Get('booking-link/web-profile')
+  getWebProfile(@CurrentUser('companyId') companyId: string) {
+    return this.service.getWebProfile(companyId);
+  }
+
+  @Patch('booking-link/web-profile')
+  updateWebProfile(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: UpdateWebProfileDto,
+  ) {
+    return this.service.updateWebProfile(companyId, dto);
+  }
+
+  // ---- gallery (galeria de fotos do perfil público) ----
+  @Get('booking-link/gallery')
+  listGallery(@CurrentUser('companyId') companyId: string) {
+    return this.service.listGallery(companyId);
+  }
+
+  @Post('booking-link/gallery')
+  addGalleryPhoto(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: CreateGalleryPhotoDto,
+  ) {
+    return this.service.addGalleryPhoto(companyId, dto);
+  }
+
+  @Delete('booking-link/gallery/:id')
+  removeGalleryPhoto(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.removeGalleryPhoto(companyId, id);
   }
 
   // ---- promotions ----

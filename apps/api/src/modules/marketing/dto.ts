@@ -2,6 +2,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -64,6 +65,32 @@ export class UpdatePromotionDto {
   @IsOptional() @IsString() validTo?: string;
   @IsOptional() @IsInt() @Min(0) usageLimit?: number;
   @IsOptional() @IsBoolean() appliesOnline?: boolean;
+}
+
+// ---- perfil público do salão (SalonWebProfile, onda 7) ----
+export type ThemePreferenceDto = 'light' | 'dark' | 'auto';
+export type SchedulingFlowDto = 'service' | 'professional';
+
+export class UpdateWebProfileDto {
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() website?: string;
+  @IsOptional() @IsString() facebook?: string;
+  @IsOptional() @IsString() instagram?: string;
+  @IsOptional() @IsBoolean() wifi?: boolean;
+  @IsOptional() @IsBoolean() snackBar?: boolean;
+  @IsOptional() @IsBoolean() parkingLot?: boolean;
+  @IsOptional() @IsBoolean() kids?: boolean;
+  @IsOptional() @IsBoolean() accessibility?: boolean;
+  @IsOptional() @IsIn(['light', 'dark', 'auto']) themePreference?: ThemePreferenceDto;
+  @IsOptional() @IsIn(['service', 'professional']) schedulingFlow?: SchedulingFlowDto;
+  @IsOptional() @IsBoolean() requiredLogin?: boolean;
+}
+
+// ---- galeria de fotos do perfil público (GalleryPhoto, onda 7) ----
+export class CreateGalleryPhotoDto {
+  @IsString() @MinLength(1) url: string;
+  @IsOptional() @IsString() caption?: string;
+  @IsOptional() @IsInt() @Min(0) displayOrder?: number;
 }
 
 export class UpdateReviewSettingsDto {

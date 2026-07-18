@@ -9,11 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePurchaseDto, PurchaseItemDto, UpdatePurchaseDto } from './dto';
 
 /**
- * O schema NÃO possui coluna de status/rascunho em Purchase: toda compra, ao ser
- * criada, já dá entrada no estoque — portanto é sempre uma compra "lançada".
- * Expomos esse status sintético para a UI ter uma única fonte de verdade.
+ * Onda 7: Purchase.status é uma coluna real. Toda compra, ao ser criada, já dá
+ * entrada no estoque — portanto nasce "lançada". O valor persistido é a fonte
+ * de verdade exposta à UI.
  */
-const PURCHASE_STATUS = 'lancada' as const;
+const DEFAULT_STATUS = 'lancada' as const;
 
 type TxClient = Prisma.TransactionClient;
 
@@ -23,6 +23,8 @@ export class PurchasesService {
 
   // ---- listagem / detalhe ----
   async list(companyId: string, search?: string) {
+    const searchDigits = search ? search.replace(/\D/g, '') : '';
+    const searchNumber = searchDigits ? Number(searchDigits) : NaN;
     const where: Prisma.PurchaseWhereInput = {
       companyId,
       ...(search
@@ -34,6 +36,9 @@ export class PurchasesService {
                   name: { contains: search, mode: 'insensitive' },
                 },
               },
+              ...(Number.isInteger(searchNumber)
+                ? [{ number: searchNumber } as Prisma.PurchaseWhereInput]
+                : []),
             ],
           }
         : {}),
@@ -58,10 +63,14 @@ export class PurchasesService {
       supplier: p.supplier,
       accountId: p.accountId,
       paymentMethodId: p.paymentMethodId,
+      number: p.number,
+      freight: p.freight,
+      discount: p.discount,
+      notes: p.notes,
       total: p.total,
       date: p.date,
       itemsCount: p._count.items,
-      status: PURCHASE_STATUS,
+      status: p.status,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     }));
@@ -84,7 +93,7 @@ export class PurchasesService {
       },
     });
     if (!purchase) throw new NotFoundException('Compra não encontrada');
-    return { ...purchase, status: PURCHASE_STATUS };
+    return purchase;
   }
 
   // ---- criação ----
@@ -95,12 +104,25 @@ export class PurchasesService {
     const total = this.computeTotal(dto.items, dto.freight, dto.discount);
 
     return this.prisma.client.$transaction(async (tx) => {
+      // Número sequencial por empresa (maior number + 1), como Order.number.
+      // _max ignora registros legados com number NULL.
+      const agg = await tx.purchase.aggregate({
+        where: { companyId },
+        _max: { number: true },
+      });
+      const number = (agg._max.number ?? 0) + 1;
+
       const purchase = await tx.purchase.create({
         data: {
           companyId,
           supplierId: dto.supplierId ?? null,
           accountId: dto.accountId ?? null,
           paymentMethodId: dto.paymentMethodId ?? null,
+          status: DEFAULT_STATUS,
+          number,
+          freight: new Prisma.Decimal(dto.freight ?? 0),
+          discount: new Prisma.Decimal(dto.discount ?? 0),
+          notes: dto.notes ?? null,
           total,
           date: dto.date ? new Date(dto.date) : undefined,
           items: {
@@ -108,6 +130,8 @@ export class PurchasesService {
               productId: it.productId,
               quantity: new Prisma.Decimal(it.quantity),
               unitCost: new Prisma.Decimal(it.unitCost),
+              discount: new Prisma.Decimal(it.discount ?? 0),
+              total: this.lineTotal(it),
             })),
           },
         },
@@ -154,21 +178,31 @@ export class PurchasesService {
             productId: it.productId,
             quantity: new Prisma.Decimal(it.quantity),
             unitCost: new Prisma.Decimal(it.unitCost),
+            discount: new Prisma.Decimal(it.discount ?? 0),
+            total: this.lineTotal(it),
           })),
         });
         // 3) aplica a nova entrada
         await this.applyStockEntry(tx, id, dto.items, products);
       }
 
-      // Recalcula o total quando itens/frete/desconto mudam.
+      // Recalcula o total quando itens/frete/desconto mudam. Frete e desconto
+      // não enviados usam o valor já persistido (não zeram o total).
       const itemsForTotal: PurchaseItemDto[] =
         dto.items ??
         existing.items.map((i) => ({
           productId: i.productId,
           quantity: Number(i.quantity),
           unitCost: Number(i.unitCost),
+          discount: Number(i.discount),
         }));
-      const total = this.computeTotal(itemsForTotal, dto.freight, dto.discount);
+      const freightForTotal = dto.freight ?? Number(existing.freight);
+      const discountForTotal = dto.discount ?? Number(existing.discount);
+      const total = this.computeTotal(
+        itemsForTotal,
+        freightForTotal,
+        discountForTotal,
+      );
 
       await tx.purchase.update({
         where: { id },
@@ -179,6 +213,13 @@ export class PurchasesService {
             ? { paymentMethodId: dto.paymentMethodId || null }
             : {}),
           ...(dto.date ? { date: new Date(dto.date) } : {}),
+          ...(dto.freight !== undefined
+            ? { freight: new Prisma.Decimal(dto.freight) }
+            : {}),
+          ...(dto.discount !== undefined
+            ? { discount: new Prisma.Decimal(dto.discount) }
+            : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes || null } : {}),
           total,
         },
       });
@@ -217,21 +258,36 @@ export class PurchasesService {
   // Helpers
   // =====================================================================
 
-  /** total = Σ(qtd·custo − descItem) + frete − descontoGeral, nunca < 0. */
+  /** total da linha = qtd·custo − descItem, nunca < 0 (PurchaseItem.total). */
+  private lineTotal(it: PurchaseItemDto): Prisma.Decimal {
+    const line = new Prisma.Decimal(it.quantity)
+      .times(it.unitCost)
+      .minus(it.discount ?? 0);
+    return line.lessThan(0) ? new Prisma.Decimal(0) : line;
+  }
+
+  /** total = Σ(total da linha) + frete − descontoGeral, nunca < 0. */
   private computeTotal(
     items: PurchaseItemDto[],
     freight?: number,
     discount?: number,
   ): Prisma.Decimal {
-    let total = items.reduce((acc, it) => {
-      const line = new Prisma.Decimal(it.quantity)
-        .times(it.unitCost)
-        .minus(it.discount ?? 0);
-      return acc.plus(line);
-    }, new Prisma.Decimal(0));
+    let total = items.reduce(
+      (acc, it) => acc.plus(this.lineTotal(it)),
+      new Prisma.Decimal(0),
+    );
 
     total = total.plus(freight ?? 0).minus(discount ?? 0);
     return total.lessThan(0) ? new Prisma.Decimal(0) : total;
+  }
+
+  /** Aba "XMLs Importados": lista os ImportedXml reais da empresa. */
+  async listXmls(companyId: string) {
+    const data = await this.prisma.client.importedXml.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { data, available: true as const };
   }
 
   /** Dá entrada no estoque: +Product.stock e InventoryMovement tipo `in`. */
@@ -360,6 +416,6 @@ export class PurchasesService {
         },
       },
     });
-    return { ...purchase!, status: PURCHASE_STATUS };
+    return purchase!;
   }
 }

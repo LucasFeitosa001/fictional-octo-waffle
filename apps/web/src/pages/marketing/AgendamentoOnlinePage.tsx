@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Chip, Input, Switch, TextField } from '@heroui/react';
+import { Button, Card, Chip, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, LoadingState } from '../../components/States';
+import { ImageUpload } from '../../components/ImageUpload';
 import {
   IconCalendar,
   IconCheck,
@@ -20,6 +21,7 @@ import {
   IconSettings,
   IconShare,
   IconSparkles,
+  IconTrash,
   IconWhatsApp,
 } from '../../components/icons';
 import { useBookingLink, useUpdateBookingLink } from '../../lib/queries/marketing';
@@ -27,10 +29,18 @@ import { useServices } from '../../lib/queries';
 import { useEmpresa } from '../../lib/queries/empresa';
 import {
   WEEKDAY_LABELS,
+  useAddGalleryPhoto,
   useBusinessHours,
+  useGallery,
+  useRemoveGalleryPhoto,
   useToggleServiceOnline,
   useUpdateBusinessHours,
+  useUpdateWebProfile,
+  useWebProfile,
   type BusinessHoursDay,
+  type SchedulingFlow,
+  type ThemePreference,
+  type WebProfile,
 } from '../../lib/queries/agendamento-online';
 import { CLUB_ORIGIN } from '../../lib/config';
 
@@ -135,6 +145,12 @@ export function AgendamentoOnlinePage() {
   const updateHours = useUpdateBusinessHours();
   const empresa = useEmpresa();
 
+  const profile = useWebProfile();
+  const updateProfile = useUpdateWebProfile();
+  const gallery = useGallery();
+  const addPhoto = useAddGalleryPhoto();
+  const removePhoto = useRemoveGalleryPhoto();
+
   const [open, setOpen] = useState<string | null>('links');
 
   // Booking-link editor state.
@@ -147,6 +163,15 @@ export function AgendamentoOnlinePage() {
   const [hoursDraft, setHoursDraft] = useState<BusinessHoursDay[]>([]);
   const [hoursMsg, setHoursMsg] = useState<{ ok?: string; error?: string }>({});
 
+  // Web-profile editor state (site/redes, benefícios e configurações compartilham
+  // um único rascunho; cada seção salva apenas os seus próprios campos).
+  const [profileDraft, setProfileDraft] = useState<WebProfile | null>(null);
+  const [redesMsg, setRedesMsg] = useState<{ ok?: string; error?: string }>({});
+  const [benefMsg, setBenefMsg] = useState<{ ok?: string; error?: string }>({});
+  const [configMsg, setConfigMsg] = useState<{ ok?: string; error?: string }>({});
+  const [galeriaMsg, setGaleriaMsg] = useState<{ ok?: string; error?: string }>({});
+  const [photoUrl, setPhotoUrl] = useState('');
+
   useEffect(() => {
     if (link.data) {
       setSlug(link.data.slug);
@@ -157,6 +182,10 @@ export function AgendamentoOnlinePage() {
   useEffect(() => {
     if (hours.data) setHoursDraft(hours.data.days);
   }, [hours.data]);
+
+  useEffect(() => {
+    if (profile.data) setProfileDraft(profile.data);
+  }, [profile.data]);
 
   const savedSlug = link.data?.slug ?? '';
   const liveUrl = savedSlug ? `${PUBLIC_BASE}${savedSlug}` : '';
@@ -235,6 +264,73 @@ export function AgendamentoOnlinePage() {
     }
   }
 
+  // ---- web profile helpers ----
+  function setProfileField<K extends keyof WebProfile>(key: K, value: WebProfile[K]) {
+    setProfileDraft((cur) => (cur ? { ...cur, [key]: value } : cur));
+  }
+
+  const REDES_FIELDS = ['description', 'website', 'facebook', 'instagram'] as const;
+  const BENEF_FIELDS = ['wifi', 'snackBar', 'parkingLot', 'kids', 'accessibility'] as const;
+  const CONFIG_FIELDS = ['themePreference', 'schedulingFlow', 'requiredLogin'] as const;
+
+  function sectionDirty(fields: readonly (keyof WebProfile)[]): boolean {
+    if (!profile.data || !profileDraft) return false;
+    return fields.some((f) => profileDraft[f] !== profile.data![f]);
+  }
+
+  async function saveProfileSection(
+    fields: readonly (keyof WebProfile)[],
+    setMsg: (m: { ok?: string; error?: string }) => void,
+  ) {
+    if (!profileDraft) return;
+    setMsg({});
+    try {
+      const patch: Partial<WebProfile> = {};
+      for (const f of fields) {
+        (patch as Record<string, unknown>)[f] = profileDraft[f];
+      }
+      await updateProfile.mutateAsync(patch);
+      setMsg({ ok: 'Alterações salvas!' });
+    } catch (err) {
+      setMsg({ error: err instanceof ApiClientError ? err.message : 'Não foi possível salvar.' });
+    }
+  }
+
+  function resetProfileSection(fields: readonly (keyof WebProfile)[]) {
+    if (!profile.data) return;
+    setProfileDraft((cur) => {
+      if (!cur) return cur;
+      const next = { ...cur };
+      for (const f of fields) {
+        (next as Record<string, unknown>)[f] = profile.data![f];
+      }
+      return next;
+    });
+  }
+
+  // ---- gallery helpers ----
+  async function onAddPhoto(url: string | null) {
+    const clean = (url ?? '').trim();
+    if (!clean) return;
+    setGaleriaMsg({});
+    try {
+      await addPhoto.mutateAsync({ url: clean });
+      setPhotoUrl('');
+      setGaleriaMsg({ ok: 'Foto adicionada!' });
+    } catch (err) {
+      setGaleriaMsg({ error: err instanceof ApiClientError ? err.message : 'Não foi possível adicionar a foto.' });
+    }
+  }
+
+  async function onRemovePhoto(id: string) {
+    setGaleriaMsg({});
+    try {
+      await removePhoto.mutateAsync(id);
+    } catch (err) {
+      setGaleriaMsg({ error: err instanceof ApiClientError ? err.message : 'Não foi possível remover a foto.' });
+    }
+  }
+
   const address = empresa.data?.addressJson ?? null;
 
   return (
@@ -247,8 +343,10 @@ export function AgendamentoOnlinePage() {
           services.refetch();
           hours.refetch();
           empresa.refetch();
+          profile.refetch();
+          gallery.refetch();
         }}
-        isRefreshing={link.isFetching || hours.isFetching}
+        isRefreshing={link.isFetching || hours.isFetching || profile.isFetching}
         actions={
           <Button variant="outline" onClick={openPortal} isDisabled={!liveUrl}>
             <IconExternalLink size={16} /> Abrir página
@@ -530,7 +628,76 @@ export function AgendamentoOnlinePage() {
             open={open === 'redes'}
             onToggle={() => toggle('redes')}
           >
-            <ComingSoon description="Ainda não há campos de site, Facebook e Instagram no cadastro da empresa. Assim que o backend expuser esses dados eles poderão ser editados aqui." />
+            {profile.isLoading || !profileDraft ? (
+              <LoadingState />
+            ) : (
+              <div className="flex flex-col gap-4">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted">Descrição do estabelecimento</span>
+                  <textarea
+                    value={profileDraft.description}
+                    rows={3}
+                    onChange={(e) => setProfileField('description', e.target.value)}
+                    placeholder="Conte um pouco sobre o seu salão para os clientes."
+                    className="w-full rounded-xl border border-[var(--color-soft-border)] bg-white px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/20"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted">Site</span>
+                  <TextField
+                    value={profileDraft.website}
+                    onChange={(v) => setProfileField('website', v)}
+                    aria-label="Site"
+                  >
+                    <Input placeholder="https://www.seusalao.com.br" />
+                  </TextField>
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted">Facebook</span>
+                  <TextField
+                    value={profileDraft.facebook}
+                    onChange={(v) => setProfileField('facebook', v)}
+                    aria-label="Facebook"
+                  >
+                    <Input placeholder="https://facebook.com/seusalao" />
+                  </TextField>
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted">Instagram</span>
+                  <TextField
+                    value={profileDraft.instagram}
+                    onChange={(v) => setProfileField('instagram', v)}
+                    aria-label="Instagram"
+                  >
+                    <Input placeholder="https://instagram.com/seusalao" />
+                  </TextField>
+                </label>
+
+                <Feedback error={redesMsg.error} ok={redesMsg.ok} />
+
+                <div className="flex justify-end gap-2">
+                  {sectionDirty(REDES_FIELDS) && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => resetProfileSection(REDES_FIELDS)}
+                      isDisabled={updateProfile.isPending}
+                    >
+                      Descartar
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={() => saveProfileSection(REDES_FIELDS, setRedesMsg)}
+                    isDisabled={updateProfile.isPending || !sectionDirty(REDES_FIELDS)}
+                  >
+                    {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* 5. Benefícios */}
@@ -541,7 +708,57 @@ export function AgendamentoOnlinePage() {
             open={open === 'beneficios'}
             onToggle={() => toggle('beneficios')}
           >
-            <ComingSoon description="Wi-Fi, estacionamento, lanchonete, espaço kids e acessibilidade ainda não são armazenados pelo sistema. Nada é exibido para não passar informação incorreta ao cliente." />
+            {profile.isLoading || !profileDraft ? (
+              <LoadingState />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {(
+                  [
+                    { key: 'wifi', label: 'Wi-Fi', hint: 'Internet sem fio para os clientes.' },
+                    { key: 'snackBar', label: 'Lanchonete', hint: 'Café, água ou lanches disponíveis.' },
+                    { key: 'parkingLot', label: 'Estacionamento', hint: 'Vagas para os clientes.' },
+                    { key: 'kids', label: 'Espaço kids', hint: 'Área ou atividades para crianças.' },
+                    { key: 'accessibility', label: 'Acessibilidade', hint: 'Acesso adaptado para todos.' },
+                  ] as { key: keyof WebProfile; label: string; hint: string }[]
+                ).map((b) => (
+                  <Switch
+                    key={b.key}
+                    isSelected={Boolean(profileDraft[b.key])}
+                    onChange={(v: boolean) => setProfileField(b.key, v as WebProfile[typeof b.key])}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white px-4 py-3"
+                  >
+                    <span className="min-w-0 text-sm text-foreground">
+                      {b.label}
+                      <span className="block text-xs text-muted">{b.hint}</span>
+                    </span>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch>
+                ))}
+
+                <Feedback error={benefMsg.error} ok={benefMsg.ok} />
+
+                <div className="flex justify-end gap-2">
+                  {sectionDirty(BENEF_FIELDS) && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => resetProfileSection(BENEF_FIELDS)}
+                      isDisabled={updateProfile.isPending}
+                    >
+                      Descartar
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={() => saveProfileSection(BENEF_FIELDS, setBenefMsg)}
+                    isDisabled={updateProfile.isPending || !sectionDirty(BENEF_FIELDS)}
+                  >
+                    {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* 6. Galeria de fotos */}
@@ -549,10 +766,83 @@ export function AgendamentoOnlinePage() {
             icon={<IconEye size={18} />}
             title="Galeria de fotos"
             subtitle="Fotos do seu trabalho na página de agendamento."
+            status={
+              <Chip variant="soft" color={(gallery.data?.length ?? 0) > 0 ? 'success' : 'default'} size="sm">
+                {gallery.data?.length ?? 0} foto{(gallery.data?.length ?? 0) === 1 ? '' : 's'}
+              </Chip>
+            }
             open={open === 'galeria'}
             onToggle={() => toggle('galeria')}
           >
-            <ComingSoon description="A galeria de fotos do perfil público ainda não tem armazenamento próprio. Enquanto isso, cada serviço pode ter suas próprias imagens em Serviços." />
+            {gallery.isLoading ? (
+              <LoadingState />
+            ) : (
+              <div className="flex flex-col gap-4">
+                {gallery.data && gallery.data.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {gallery.data.map((photo) => (
+                      <div
+                        key={photo.id}
+                        className="group relative aspect-square overflow-hidden rounded-[14px] border border-[var(--color-soft-border)] bg-[#f7f3ea]"
+                      >
+                        <img src={photo.url} alt={photo.caption ?? ''} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => onRemovePhoto(photo.id)}
+                          disabled={removePhoto.isPending}
+                          aria-label="Remover foto"
+                          className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white transition-colors hover:bg-red-500 disabled:opacity-60"
+                        >
+                          <IconTrash size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={<IconEye size={28} />}
+                    title="Nenhuma foto ainda"
+                    description="Adicione fotos do seu trabalho para aparecerem na página pública de agendamento."
+                  />
+                )}
+
+                {/* Adicionar por upload */}
+                <div className="flex flex-col gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white p-4">
+                  <span className="text-xs font-medium text-muted">Enviar uma foto</span>
+                  <ImageUpload
+                    value={null}
+                    onChange={(url) => onAddPhoto(url)}
+                    kind="misc"
+                    shape="square"
+                    size={88}
+                    placeholder="Foto"
+                  />
+                  {/* Adicionar por URL */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted">Ou adicionar por URL</span>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <TextField
+                        value={photoUrl}
+                        onChange={(v) => setPhotoUrl(v)}
+                        aria-label="URL da foto"
+                        className="min-w-0 flex-1"
+                      >
+                        <Input placeholder="https://…/foto.jpg" />
+                      </TextField>
+                      <Button
+                        variant="outline"
+                        onClick={() => onAddPhoto(photoUrl)}
+                        isDisabled={addPhoto.isPending || photoUrl.trim().length === 0}
+                      >
+                        {addPhoto.isPending ? 'Adicionando…' : 'Adicionar'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <Feedback error={galeriaMsg.error} ok={galeriaMsg.ok} />
+              </div>
+            )}
           </Section>
 
           {/* 7. Serviços */}
@@ -613,7 +903,107 @@ export function AgendamentoOnlinePage() {
             open={open === 'config'}
             onToggle={() => toggle('config')}
           >
-            <ComingSoon description="As opções de tema, fluxo de agendamento e exigência de login ainda não têm persistência no backend. O portal público usa o comportamento padrão por enquanto." />
+            {profile.isLoading || !profileDraft ? (
+              <LoadingState />
+            ) : (
+              <div className="flex flex-col gap-4">
+                {/* Tema */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Tema da página</label>
+                  <Select
+                    aria-label="Tema da página"
+                    selectedKey={profileDraft.themePreference}
+                    onSelectionChange={(k) =>
+                      k && setProfileField('themePreference', String(k) as ThemePreference)
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        <ListBox.Item id="auto" textValue="Automático (sistema)">
+                          Automático (sistema)
+                        </ListBox.Item>
+                        <ListBox.Item id="light" textValue="Claro">
+                          Claro
+                        </ListBox.Item>
+                        <ListBox.Item id="dark" textValue="Escuro">
+                          Escuro
+                        </ListBox.Item>
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+
+                {/* Fluxo de agendamento */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Fluxo de agendamento</label>
+                  <Select
+                    aria-label="Fluxo de agendamento"
+                    selectedKey={profileDraft.schedulingFlow}
+                    onSelectionChange={(k) =>
+                      k && setProfileField('schedulingFlow', String(k) as SchedulingFlow)
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        <ListBox.Item id="service" textValue="Escolher serviço primeiro">
+                          Escolher serviço primeiro
+                        </ListBox.Item>
+                        <ListBox.Item id="professional" textValue="Escolher profissional primeiro">
+                          Escolher profissional primeiro
+                        </ListBox.Item>
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                  <p className="text-xs text-muted">
+                    Define se o cliente começa escolhendo o serviço ou o profissional.
+                  </p>
+                </div>
+
+                {/* Login obrigatório */}
+                <Switch
+                  isSelected={profileDraft.requiredLogin}
+                  onChange={(v: boolean) => setProfileField('requiredLogin', v)}
+                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white px-4 py-3"
+                >
+                  <span className="min-w-0 text-sm text-foreground">
+                    Exigir login para agendar
+                    <span className="block text-xs text-muted">
+                      Quando ativo, o cliente precisa entrar antes de confirmar o agendamento.
+                    </span>
+                  </span>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
+
+                <Feedback error={configMsg.error} ok={configMsg.ok} />
+
+                <div className="flex justify-end gap-2">
+                  {sectionDirty(CONFIG_FIELDS) && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => resetProfileSection(CONFIG_FIELDS)}
+                      isDisabled={updateProfile.isPending}
+                    >
+                      Descartar
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={() => saveProfileSection(CONFIG_FIELDS, setConfigMsg)}
+                    isDisabled={updateProfile.isPending || !sectionDirty(CONFIG_FIELDS)}
+                  >
+                    {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* 9. Pagamentos */}

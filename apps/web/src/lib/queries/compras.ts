@@ -8,10 +8,11 @@ import type { Paginated } from '../types';
 // =====================================================================
 
 /**
- * O schema não persiste status de compra. Toda compra já dá entrada no estoque
- * ao ser criada, então a API expõe um status sintético fixo: "lancada".
+ * Onda 7: Purchase.status é uma coluna real. Compras nascem "lancada" (já dão
+ * entrada no estoque). Mantemos a união conhecida, mas aceitamos qualquer
+ * string persistida para não quebrar com dados legados.
  */
-export type PurchaseStatus = 'lancada';
+export type PurchaseStatus = 'lancada' | 'cancelada' | 'rascunho' | (string & {});
 
 export interface PurchaseRow {
   id: string;
@@ -20,6 +21,11 @@ export interface PurchaseRow {
   supplier?: { id: string; name: string } | null;
   accountId?: string | null;
   paymentMethodId?: string | null;
+  /** Número sequencial por empresa (Onda 7). Nulo em compras legadas. */
+  number?: number | null;
+  freight?: string;
+  discount?: string;
+  notes?: string | null;
   total: string;
   date: string;
   itemsCount: number;
@@ -34,6 +40,9 @@ export interface PurchaseItemDetail {
   productId: string;
   quantity: string;
   unitCost: string;
+  /** Onda 7: desconto e total da linha (Decimal strings). */
+  discount: string;
+  total: string;
   product?: { id: string; name: string; unit?: string | null } | null;
 }
 
@@ -46,6 +55,10 @@ export interface PurchaseDetail {
   account?: { id: string; name: string } | null;
   paymentMethodId?: string | null;
   paymentMethod?: { id: string; name: string } | null;
+  number?: number | null;
+  freight: string;
+  discount: string;
+  notes?: string | null;
   total: string;
   date: string;
   status: PurchaseStatus;
@@ -74,9 +87,19 @@ export interface CreatePurchaseBody {
 
 export type UpdatePurchaseBody = Partial<CreatePurchaseBody>;
 
+export interface ImportedXmlRow {
+  id: string;
+  companyId: string;
+  accessKey?: string | null;
+  fileUrl?: string | null;
+  status: string;
+  purchaseId?: string | null;
+  createdAt: string;
+}
+
 export interface ImportedXmlsResponse {
-  data: unknown[];
-  /** false enquanto não houver model ImportedXml no schema. */
+  data: ImportedXmlRow[];
+  /** true (Onda 7: model ImportedXml existe e é listado de verdade). */
   available: boolean;
 }
 
@@ -142,8 +165,8 @@ export function useDeletePurchase() {
 }
 
 /**
- * Aba "XMLs Importados": não há model ImportedXml no schema, então a API
- * responde `available: false`. A UI mostra um estado honesto de "em breve".
+ * Aba "XMLs Importados": lista os ImportedXml reais da empresa (Onda 7).
+ * Pode vir vazio — a UI mostra um estado vazio honesto.
  */
 export function useImportedXmls() {
   return useQuery({
