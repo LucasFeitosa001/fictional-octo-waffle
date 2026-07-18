@@ -5,8 +5,10 @@ import type {
   AvailabilityResponse,
   CashRegisterRow,
   CompanyInfo,
+  ConsumePackageItemBody,
   CreateAppointmentBody,
   Customer,
+  CustomerPackageDetail,
   DashboardOverview,
   OrderDetail,
   OrderRow,
@@ -343,5 +345,45 @@ export function useCompany() {
   return useQuery({
     queryKey: ['company'],
     queryFn: () => api.get<CompanyInfo>('/companies/current'),
+  });
+}
+
+// =====================================================================
+// Customer package DETAIL (consumo/saldo). The list hooks live in
+// ./queries/pacotes; these drive the per-package profile view.
+// =====================================================================
+
+/** Shared invalidation for package-detail mutations. */
+function invalidatePackage(queryClient: ReturnType<typeof useQueryClient>, id: string) {
+  queryClient.invalidateQueries({ queryKey: ['customer-package', id] });
+  queryClient.invalidateQueries({ queryKey: ['customer-packages'] });
+}
+
+export function useCustomerPackage(id: string | undefined) {
+  return useQuery({
+    queryKey: ['customer-package', id],
+    enabled: Boolean(id),
+    queryFn: () => api.get<CustomerPackageDetail>(`/customer-packages/${id}`),
+  });
+}
+
+export function useConsumePackageItem(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, body }: { itemId: string; body?: ConsumePackageItemBody }) =>
+      api.post<CustomerPackageDetail>(
+        `/customer-packages/${id}/items/${itemId}/consume`,
+        body ?? {},
+      ),
+    onSuccess: () => invalidatePackage(queryClient, id),
+  });
+}
+
+export function useUndoPackageUsage(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (usageId: string) =>
+      api.delete<CustomerPackageDetail>(`/customer-packages/${id}/usages/${usageId}`),
+    onSuccess: () => invalidatePackage(queryClient, id),
   });
 }

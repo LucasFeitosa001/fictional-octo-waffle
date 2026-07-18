@@ -1,11 +1,32 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  ConsumePackageItemDto,
   CreateCustomerPackageDto,
   CreatePackageTemplateDto,
   UpdatePackageTemplateDto,
 } from './dto';
+
+// Full include used to build the enriched detail view (item balances + usages).
+const customerPackageDetailInclude = {
+  customer: { select: { id: true, name: true } },
+  template: { select: { id: true, name: true } },
+  items: {
+    include: {
+      service: { select: { id: true, name: true } },
+      usages: { orderBy: { usedAt: 'desc' as const } },
+    },
+  },
+} satisfies Prisma.CustomerPackageInclude;
+
+type CustomerPackageDetail = Prisma.CustomerPackageGetPayload<{
+  include: typeof customerPackageDetailInclude;
+}>;
 
 @Injectable()
 export class PackagesService {
@@ -104,14 +125,10 @@ export class PackagesService {
   async findCustomerPackage(companyId: string, id: string) {
     const found = await this.prisma.client.customerPackage.findFirst({
       where: { id, companyId },
-      include: {
-        customer: { select: { id: true, name: true } },
-        template: { select: { id: true, name: true } },
-        items: { include: { service: { select: { id: true, name: true } } } },
-      },
+      include: customerPackageDetailInclude,
     });
     if (!found) throw new NotFoundException('Pacote do cliente não encontrado');
-    return this.withSessionStats(found);
+    return this.enrichDetail(found);
   }
 
   async createCustomerPackage(companyId: string, dto: CreateCustomerPackageDto) {
@@ -167,11 +184,157 @@ export class PackagesService {
       where: { id, companyId },
     });
     if (!found) throw new NotFoundException('Pacote do cliente não encontrado');
+
+    // Preserve history: refuse to hard-delete a package that already has
+    // consumption registered. The caller must undo the usages first.
+    const usageCount = await this.prisma.client.packageUsage.count({
+      where: { customerPackageItem: { customerPackageId: id } },
+    });
+    if (usageCount > 0) {
+      throw new BadRequestException(
+        'Não é possível excluir um pacote com consumos registrados. Desfaça os consumos primeiro para preservar o histórico.',
+      );
+    }
+
     await this.prisma.client.$transaction(async (tx) => {
       await tx.customerPackageItem.deleteMany({ where: { customerPackageId: id } });
       await tx.customerPackage.delete({ where: { id } });
     });
     return { id, deleted: true };
+  }
+
+  // ---- consumption cycle ----
+
+  // Consume one session of a package item: records a PackageUsage and increments
+  // sessionsUsed. Blocks on expired/vencido packages and on zero balance.
+  async consumePackageItem(
+    companyId: string,
+    id: string,
+    itemId: string,
+    dto: ConsumePackageItemDto,
+  ) {
+    return this.prisma.client.$transaction(async (tx) => {
+      const pkg = await tx.customerPackage.findFirst({
+        where: { id, companyId },
+        include: { items: true },
+      });
+      if (!pkg) throw new NotFoundException('Pacote do cliente não encontrado');
+
+      const isExpired = pkg.expiresAt ? pkg.expiresAt.getTime() < Date.now() : false;
+      if (pkg.status === 'expired' || isExpired) {
+        throw new BadRequestException('Pacote vencido: não é possível consumir sessões.');
+      }
+
+      const item = pkg.items.find((i) => i.id === itemId);
+      if (!item) throw new NotFoundException('Item do pacote não encontrado');
+
+      if (item.sessionsUsed >= item.sessionsTotal) {
+        throw new BadRequestException('Sem saldo: todas as sessões deste item já foram utilizadas.');
+      }
+
+      await tx.packageUsage.create({
+        data: {
+          customerPackageItemId: item.id,
+          orderId: dto?.orderId ?? null,
+        },
+      });
+      await tx.customerPackageItem.update({
+        where: { id: item.id },
+        data: { sessionsUsed: { increment: 1 } },
+      });
+
+      // If every item is now exhausted, finish the package.
+      const allExhausted = pkg.items.every((i) => {
+        const used = i.id === item.id ? i.sessionsUsed + 1 : i.sessionsUsed;
+        return used >= i.sessionsTotal;
+      });
+      if (allExhausted && pkg.status !== 'finished') {
+        await tx.customerPackage.update({
+          where: { id: pkg.id },
+          data: { status: 'finished' },
+        });
+      }
+
+      const refreshed = await tx.customerPackage.findFirstOrThrow({
+        where: { id, companyId },
+        include: customerPackageDetailInclude,
+      });
+      return this.enrichDetail(refreshed);
+    });
+  }
+
+  // Undo a consumption: remove the PackageUsage, decrement sessionsUsed (min 0),
+  // and reactivate the package if it had been marked finished.
+  async removePackageUsage(companyId: string, id: string, usageId: string) {
+    return this.prisma.client.$transaction(async (tx) => {
+      const pkg = await tx.customerPackage.findFirst({
+        where: { id, companyId },
+      });
+      if (!pkg) throw new NotFoundException('Pacote do cliente não encontrado');
+
+      const usage = await tx.packageUsage.findFirst({
+        where: { id: usageId, customerPackageItem: { customerPackageId: id } },
+        include: { customerPackageItem: true },
+      });
+      if (!usage) throw new NotFoundException('Consumo não encontrado');
+
+      await tx.packageUsage.delete({ where: { id: usageId } });
+
+      if (usage.customerPackageItem.sessionsUsed > 0) {
+        await tx.customerPackageItem.update({
+          where: { id: usage.customerPackageItemId },
+          data: { sessionsUsed: { decrement: 1 } },
+        });
+      }
+
+      // Undoing a usage frees at least one session, so a finished package is
+      // no longer exhausted — revert it to active.
+      if (pkg.status === 'finished') {
+        await tx.customerPackage.update({
+          where: { id: pkg.id },
+          data: { status: 'active' },
+        });
+      }
+
+      const refreshed = await tx.customerPackage.findFirstOrThrow({
+        where: { id, companyId },
+        include: customerPackageDetailInclude,
+      });
+      return this.enrichDetail(refreshed);
+    });
+  }
+
+  // Enriched detail view: per-item serviceName/saldo/usages plus package-level
+  // customerName, isExpired and effective status.
+  private enrichDetail(pkg: CustomerPackageDetail) {
+    const isExpired = pkg.expiresAt ? pkg.expiresAt.getTime() < Date.now() : false;
+    const effectiveStatus =
+      pkg.status === 'finished' ? 'finished' : isExpired ? 'expired' : pkg.status;
+
+    const items = pkg.items.map((i) => ({
+      ...i,
+      serviceName: i.service?.name ?? null,
+      saldo: i.sessionsTotal - i.sessionsUsed,
+      usages: i.usages.map((u) => ({
+        id: u.id,
+        usedAt: u.usedAt,
+        orderId: u.orderId,
+      })),
+    }));
+
+    const sessionsTotal = pkg.items.reduce((acc, i) => acc + i.sessionsTotal, 0);
+    const sessionsUsed = pkg.items.reduce((acc, i) => acc + i.sessionsUsed, 0);
+
+    return {
+      ...pkg,
+      customerName: pkg.customer?.name ?? null,
+      isExpired,
+      effectiveStatus,
+      sessionsTotal,
+      sessionsUsed,
+      sessionsRemaining: sessionsTotal - sessionsUsed,
+      items,
+    };
   }
 
   // Derive sessions used/remaining + validity flags for the UI.

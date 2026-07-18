@@ -8,6 +8,7 @@ import { IconDownload, IconLayers, IconPlus } from '../components/icons';
 import { formatDate, formatMoney } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
 import { useCustomers, useServices } from '../lib/queries';
+import { PacotePerfilModal } from './PacotePerfilModal';
 import {
   useCreatePackageTemplate,
   useCustomerPackages,
@@ -80,6 +81,7 @@ export function PacotesPage() {
   const [sellOpen, setSellOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<SoldFilter>('all');
   const [search, setSearch] = useState('');
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const sold = useCustomerPackages();
   const templates = usePackageTemplates();
@@ -149,7 +151,13 @@ export function PacotesPage() {
       header: 'Cliente',
       isRowHeader: true,
       render: (p) => (
-        <span className="font-medium text-foreground">{p.customer?.name ?? '—'}</span>
+        <button
+          type="button"
+          onClick={() => setDetailId(p.id)}
+          className="text-left font-medium text-foreground underline-offset-2 hover:text-[#a67c1e] hover:underline"
+        >
+          {p.customer?.name ?? '—'}
+        </button>
       ),
     },
     { key: 'number', header: 'Nº', render: (p) => `#${p.number}` },
@@ -181,14 +189,19 @@ export function PacotesPage() {
       key: 'actions',
       header: 'Ações',
       render: (p) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          isDisabled={delSold.isPending}
-          onClick={() => handleRemoveSold(p)}
-        >
-          Remover
-        </Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => setDetailId(p.id)}>
+            Detalhes
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            isDisabled={delSold.isPending}
+            onClick={() => handleRemoveSold(p)}
+          >
+            Remover
+          </Button>
+        </div>
       ),
     },
   ];
@@ -322,6 +335,11 @@ export function PacotesPage() {
         onClose={() => setTemplateModalOpen(false)}
       />
       <SellPackageModal isOpen={sellOpen} onClose={() => setSellOpen(false)} />
+      <PacotePerfilModal
+        packageId={detailId ?? undefined}
+        isOpen={detailId !== null}
+        onClose={() => setDetailId(null)}
+      />
     </div>
   );
 }

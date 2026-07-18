@@ -39,3 +39,10 @@ export class CreateCustomerPackageDto {
   /** override price; defaults to template price when omitted */
   @IsOptional() @IsNumber() @Min(0) price?: number;
 }
+
+export class ConsumePackageItemDto {
+  /** optional order this consumption is tied to */
+  @IsOptional() @IsString() orderId?: string;
+  /** optional appointment this consumption is tied to (informational) */
+  @IsOptional() @IsString() appointmentId?: string;
+}

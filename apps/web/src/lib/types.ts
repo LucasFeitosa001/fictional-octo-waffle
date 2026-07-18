@@ -309,4 +309,61 @@ export interface CreateAppointmentBody {
   items?: { serviceId: string; professionalId?: string }[];
 }
 
+// =====================================================================
+// Customer package DETAIL (GET /customer-packages/:id) — enriched view with
+// per-item balance (saldo) + usages and package-level effective status.
+// Money/date fields are serialized as strings by the API.
+// =====================================================================
+
+export type PackageStatusEffective = 'active' | 'expired' | 'finished';
+
+/** One recorded consumption of a package item. */
+export interface PackageUsage {
+  id: string;
+  usedAt: string;
+  orderId: string | null;
+}
+
+/** One item of the package detail, with computed saldo + usages. */
+export interface CustomerPackageDetailItem {
+  id: string;
+  customerPackageId: string;
+  serviceId: string;
+  sessionsTotal: number;
+  sessionsUsed: number;
+  service?: { id: string; name: string } | null;
+  serviceName: string | null;
+  saldo: number;
+  usages: PackageUsage[];
+}
+
+/** GET /customer-packages/:id — enriched package detail. */
+export interface CustomerPackageDetail {
+  id: string;
+  companyId: string;
+  customerId: string;
+  templateId?: string | null;
+  number: number;
+  price: string;
+  status: PackageStatusEffective;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: { id: string; name: string } | null;
+  template?: { id: string; name: string } | null;
+  customerName: string | null;
+  isExpired: boolean;
+  effectiveStatus: PackageStatusEffective;
+  sessionsTotal: number;
+  sessionsUsed: number;
+  sessionsRemaining: number;
+  items: CustomerPackageDetailItem[];
+}
+
+/** Body for POST /customer-packages/:id/items/:itemId/consume. */
+export interface ConsumePackageItemBody {
+  orderId?: string;
+  appointmentId?: string;
+}
+
 export type { Service, Customer };

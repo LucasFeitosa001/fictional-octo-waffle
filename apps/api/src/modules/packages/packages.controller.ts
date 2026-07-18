@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { PackagesService } from './packages.service';
 import {
+  ConsumePackageItemDto,
   CreateCustomerPackageDto,
   CreatePackageTemplateDto,
   UpdatePackageTemplateDto,
@@ -78,6 +79,25 @@ export class PackagesController {
     @Body() dto: CreateCustomerPackageDto,
   ) {
     return this.service.createCustomerPackage(companyId, dto);
+  }
+
+  @Post('customer-packages/:id/items/:itemId/consume')
+  consumePackageItem(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: ConsumePackageItemDto,
+  ) {
+    return this.service.consumePackageItem(companyId, id, itemId, dto);
+  }
+
+  @Delete('customer-packages/:id/usages/:usageId')
+  removePackageUsage(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('usageId') usageId: string,
+  ) {
+    return this.service.removePackageUsage(companyId, id, usageId);
   }
 
   @Delete('customer-packages/:id')
