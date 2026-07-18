@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Card, Input, Modal, TextField } from '@heroui/react';
-import { ApiClientError } from '@beautypass/shared';
+import { useMemo, useState } from 'react';
+import { Avatar, Button, Card, Input, TextField } from '@heroui/react';
 import { PageHeader } from '../components/PageHeader';
 import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
@@ -8,16 +7,12 @@ import { ActiveChip } from '../components/StatusChip';
 import { MonthField } from '../components/DateRangeFilter';
 import { IconDownload, IconPencil, IconPlus, IconTrash, IconUsers } from '../components/icons';
 import { useCustomers } from '../lib/queries';
-import {
-  useCreateCustomer,
-  useDeleteCustomer,
-  useUpdateCustomer,
-  type CustomerBody,
-} from '../lib/queries/clientes';
-import { formatDate, initials, toDateInput } from '../lib/format';
+import { useDeleteCustomer } from '../lib/queries/clientes';
+import { formatDate, initials } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
 import type { CustomerFull } from '../lib/types';
 import { useAutoCreate } from '../lib/useAutoCreate';
+import { ClientePerfilModal, CustomerCreateModal } from './ClientePerfilTabs';
 
 type ContactFilter = 'all' | 'phone' | 'email';
 
@@ -31,7 +26,7 @@ export function ClientesPage() {
   const [birthdayMonth, setBirthdayMonth] = useState(''); // YYYY-MM
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<CustomerFull | null>(null);
+  const [perfil, setPerfil] = useState<CustomerFull | null>(null);
   useAutoCreate(() => setCreateOpen(true));
 
   const customers = useCustomers(search, page, pageSize);
@@ -90,15 +85,20 @@ export function ClientesPage() {
       header: 'Cliente',
       isRowHeader: true,
       render: (c) => (
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setPerfil(c)}
+          className="flex items-center gap-3 text-left"
+        >
           <Avatar size="sm">
+            {c.avatarUrl && <Avatar.Image src={c.avatarUrl} alt={c.name} />}
             <Avatar.Fallback>{initials(c.name)}</Avatar.Fallback>
           </Avatar>
           <div>
-            <div className="font-medium text-foreground">{c.name}</div>
+            <div className="font-medium text-foreground hover:text-[#a97e18]">{c.name}</div>
             {c.nickname && <div className="text-xs text-muted">{c.nickname}</div>}
           </div>
-        </div>
+        </button>
       ),
     },
     { key: 'phone', header: 'Celular', render: (c) => c.phone ?? '—' },
@@ -113,7 +113,7 @@ export function ClientesPage() {
             variant="outline"
             size="sm"
             aria-label="Editar"
-            onClick={() => setEditing(c)}
+            onClick={() => setPerfil(c)}
           >
             <IconPencil size={14} />
           </Button>
@@ -280,173 +280,12 @@ export function ClientesPage() {
         </Card.Content>
       </Card>
 
-      <CustomerModal mode="create" isOpen={createOpen} onClose={() => setCreateOpen(false)} />
-      <CustomerModal
-        mode="edit"
-        customer={editing}
-        isOpen={Boolean(editing)}
-        onClose={() => setEditing(null)}
+      <CustomerCreateModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
+      <ClientePerfilModal
+        customer={perfil}
+        isOpen={Boolean(perfil)}
+        onClose={() => setPerfil(null)}
       />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------
-
-function CustomerModal({
-  mode,
-  customer,
-  isOpen,
-  onClose,
-}: {
-  mode: 'create' | 'edit';
-  customer?: CustomerFull | null;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const create = useCreateCustomer();
-  const update = useUpdateCustomer();
-
-  const [name, setName] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [phone, setPhone] = useState('');
-  const [secondaryPhone, setSecondaryPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [birthday, setBirthday] = useState('');
-  const [active, setActive] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      setName(customer?.name ?? '');
-      setNickname(customer?.nickname ?? '');
-      setPhone(customer?.phone ?? '');
-      setSecondaryPhone(customer?.secondaryPhone ?? '');
-      setEmail(customer?.email ?? '');
-      setBirthday(toDateInput(customer?.birthday));
-      setActive(customer?.active ?? true);
-      setError(null);
-    }
-  }, [isOpen, customer]);
-
-  const pending = create.isPending || update.isPending;
-  const canSave = name.trim().length >= 2 && !pending;
-
-  async function handleSave() {
-    setError(null);
-    const body: CustomerBody = {
-      name: name.trim(),
-      nickname: nickname.trim() || undefined,
-      phone: phone.trim() || undefined,
-      secondaryPhone: secondaryPhone.trim() || undefined,
-      email: email.trim() || undefined,
-      birthday: birthday || undefined,
-      active,
-    };
-    try {
-      if (mode === 'edit' && customer) {
-        await update.mutateAsync({ id: customer.id, body });
-      } else {
-        await create.mutateAsync(body);
-      }
-      onClose();
-    } catch (err) {
-      setError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível salvar o cliente.',
-      );
-    }
-  }
-
-  return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
-      <Modal.Container size="lg" placement="center">
-        <Modal.Dialog className="w-full max-w-lg">
-          <Modal.Header>
-            <Modal.Heading>{mode === 'edit' ? 'Editar cliente' : 'Novo cliente'}</Modal.Heading>
-          </Modal.Header>
-          <Modal.Body className="flex max-h-[75vh] flex-col gap-4 overflow-y-auto">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Nome">
-                <TextField value={name} onChange={setName} aria-label="Nome">
-                  <Input placeholder="Nome completo" />
-                </TextField>
-              </Field>
-              <Field label="Apelido">
-                <TextField value={nickname} onChange={setNickname} aria-label="Apelido">
-                  <Input placeholder="Como é chamado(a)" />
-                </TextField>
-              </Field>
-              <Field label="Celular">
-                <TextField value={phone} onChange={setPhone} aria-label="Celular">
-                  <Input placeholder="(00) 00000-0000" />
-                </TextField>
-              </Field>
-              <Field label="Telefone secundário">
-                <TextField
-                  value={secondaryPhone}
-                  onChange={setSecondaryPhone}
-                  aria-label="Telefone secundário"
-                >
-                  <Input placeholder="(00) 0000-0000" />
-                </TextField>
-              </Field>
-              <Field label="E-mail">
-                <TextField value={email} onChange={setEmail} aria-label="E-mail">
-                  <Input type="email" placeholder="email@exemplo.com" />
-                </TextField>
-              </Field>
-              <Field label="Aniversário">
-                <input
-                  type="date"
-                  value={birthday}
-                  onChange={(e) => setBirthday(e.target.value)}
-                  aria-label="Aniversário"
-                  className="w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
-                />
-              </Field>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-              />
-              Ativo
-            </label>
-
-            {error && (
-              <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                {error}
-              </div>
-            )}
-          </Modal.Body>
-          <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              variant="primary"
-              className="w-full sm:w-auto"
-              isDisabled={!canSave}
-              onClick={handleSave}
-            >
-              {pending ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted">{label}</label>
-      {children}
     </div>
   );
 }

@@ -10,7 +10,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
-import { CreateCustomerDto, UpdateCustomerDto } from './dto';
+import {
+  CreateCustomerDebtDto,
+  CreateCustomerDebtPaymentDto,
+  CreateCustomerDto,
+  UpdateCustomerDto,
+} from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 
@@ -37,6 +42,35 @@ export class CustomersController {
   @Get(':id/panel')
   panel(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.panel(companyId, id);
+  }
+
+  @Get(':id/debts')
+  listDebts(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
+    return this.service.listDebts(companyId, id);
+  }
+
+  @Post(':id/debts')
+  createDebt(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: CreateCustomerDebtDto,
+  ) {
+    return this.service.createDebt(companyId, id, dto);
+  }
+
+  @Post(':id/debts/:debtId/payments')
+  addDebtPayment(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('debtId') debtId: string,
+    @Body() dto: CreateCustomerDebtPaymentDto,
+  ) {
+    return this.service.addDebtPayment(companyId, id, debtId, dto);
+  }
+
+  @Get(':id/credits')
+  listCredits(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
+    return this.service.listCredits(companyId, id);
   }
 
   @Post()

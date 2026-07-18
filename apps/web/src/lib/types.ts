@@ -12,11 +12,114 @@ export interface Professional extends SharedProfessional {
   birthday?: string | null;
 }
 
-/** API returns secondaryPhone + birthday on customers; extend the shared type. */
+export interface CustomerTag {
+  id: string;
+  companyId: string;
+  name: string;
+}
+
+export interface CustomerDependent {
+  id: string;
+  customerId: string;
+  name: string;
+  relationship?: string | null;
+}
+
+export interface CustomerSocialProfile {
+  id: string;
+  customerId: string;
+  platform: string;
+  url: string;
+}
+
+/** API returns secondaryPhone + birthday + P0 depth fields on customers. */
 export interface CustomerFull extends Customer {
   secondaryPhone?: string | null;
   birthday?: string | null;
   cnpj?: string | null;
+  rg?: string | null;
+  avatarUrl?: string | null;
+  referredById?: string | null;
+  defaultDiscountPercent?: number | string | null;
+  notificationsEnabled?: boolean | null;
+  whatsappOptIn?: boolean | null;
+  smsOptIn?: boolean | null;
+  onlineAccessBlocked?: boolean | null;
+  tags?: CustomerTag[];
+  dependents?: CustomerDependent[];
+  socialProfiles?: CustomerSocialProfile[];
+}
+
+/** One item in the customer's recent-services feed (GET /customers/:id/panel). */
+export interface PanelServiceItem {
+  source: 'appointment' | 'order';
+  date: string;
+  status: string;
+  name: string | null;
+  serviceId?: string;
+  kind?: string;
+  refId?: string;
+  price: number;
+}
+
+/** GET /customers/:id/panel — real customer metrics. */
+export interface CustomerPanel {
+  customer: CustomerFull;
+  faturamento: number;
+  lastVisitAt: string | null;
+  diasSemVir: number | null;
+  debitosTotal: number;
+  creditosSaldo: number;
+  cashbackSaldo: number;
+  pacotesEmAberto: number;
+  ultimosServicos: PanelServiceItem[];
+}
+
+export interface CustomerDebtPayment {
+  id: string;
+  debtId: string;
+  amount: string;
+  paidAt: string;
+  method?: string | null;
+}
+
+export interface CustomerDebt {
+  id: string;
+  companyId: string;
+  customerId: string;
+  amount: string;
+  origin?: string | null;
+  dueDate?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  payments: CustomerDebtPayment[];
+}
+
+export interface CustomerCredit {
+  id: string;
+  customerId: string;
+  amount: string;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface CustomerCashback {
+  id: string;
+  customerId: string;
+  amount: string;
+  expiresAt?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  createdAt: string;
+}
+
+/** GET /customers/:id/credits — credit + cashback ledger with balances. */
+export interface CustomerCreditsResponse {
+  credits: CustomerCredit[];
+  cashback: CustomerCashback[];
+  creditosSaldo: number;
+  cashbackSaldo: number;
 }
 
 export type ChipColor = 'accent' | 'danger' | 'default' | 'success' | 'warning';

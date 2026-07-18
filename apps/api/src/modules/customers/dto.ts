@@ -1,4 +1,25 @@
-import { IsBoolean, IsEmail, IsISO8601, IsOptional, IsString, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsISO8601,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
+export class CustomerDependentDto {
+  @IsString() @MinLength(1) name: string;
+  @IsOptional() @IsString() relationship?: string;
+}
+
+export class CustomerSocialProfileDto {
+  @IsString() @MinLength(1) platform: string;
+  @IsString() @MinLength(1) url: string;
+}
 
 export class CreateCustomerDto {
   @IsString()
@@ -13,6 +34,33 @@ export class CreateCustomerDto {
   @IsOptional() @IsString() cpf?: string;
   @IsOptional() @IsString() cnpj?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+
+  // Cliente — profundidade (P0)
+  @IsOptional() @IsString() rg?: string;
+  @IsOptional() @IsString() avatarUrl?: string;
+  @IsOptional() @IsString() referredById?: string;
+  @IsOptional() @IsNumber() defaultDiscountPercent?: number;
+  @IsOptional() @IsBoolean() notificationsEnabled?: boolean;
+  @IsOptional() @IsBoolean() whatsappOptIn?: boolean;
+  @IsOptional() @IsBoolean() smsOptIn?: boolean;
+  @IsOptional() @IsBoolean() onlineAccessBlocked?: boolean;
+  @IsOptional() @IsString() legacyId?: string;
+  @IsOptional() @IsString() legacySource?: string;
+
+  // Coleções aninhadas opcionais
+  @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerDependentDto)
+  dependents?: CustomerDependentDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerSocialProfileDto)
+  socialProfiles?: CustomerSocialProfileDto[];
 }
 
 export class UpdateCustomerDto {
@@ -25,4 +73,42 @@ export class UpdateCustomerDto {
   @IsOptional() @IsString() cpf?: string;
   @IsOptional() @IsString() cnpj?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+
+  // Cliente — profundidade (P0)
+  @IsOptional() @IsString() rg?: string;
+  @IsOptional() @IsString() avatarUrl?: string;
+  @IsOptional() @IsString() referredById?: string;
+  @IsOptional() @IsNumber() defaultDiscountPercent?: number;
+  @IsOptional() @IsBoolean() notificationsEnabled?: boolean;
+  @IsOptional() @IsBoolean() whatsappOptIn?: boolean;
+  @IsOptional() @IsBoolean() smsOptIn?: boolean;
+  @IsOptional() @IsBoolean() onlineAccessBlocked?: boolean;
+  @IsOptional() @IsString() legacyId?: string;
+  @IsOptional() @IsString() legacySource?: string;
+
+  // Coleções aninhadas opcionais
+  @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerDependentDto)
+  dependents?: CustomerDependentDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerSocialProfileDto)
+  socialProfiles?: CustomerSocialProfileDto[];
+}
+
+export class CreateCustomerDebtDto {
+  @IsNumber() amount: number;
+  @IsOptional() @IsString() origin?: string;
+  @IsOptional() @IsISO8601() dueDate?: string;
+}
+
+export class CreateCustomerDebtPaymentDto {
+  @IsNumber() amount: number;
+  @IsOptional() @IsString() method?: string;
 }
