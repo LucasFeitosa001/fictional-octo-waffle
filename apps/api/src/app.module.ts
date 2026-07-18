@@ -16,6 +16,7 @@ import { HealthModule } from './modules/health/health.module';
 import { FinancialModule } from './modules/financial/financial.module';
 import { ProductsModule } from './modules/products/products.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { PurchasesModule } from './modules/purchases/purchases.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
 import { PackagesModule } from './modules/packages/packages.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
@@ -44,6 +45,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
     FinancialModule,
     ProductsModule,
     SuppliersModule,
+    PurchasesModule,
     CommissionsModule,
     PackagesModule,
     MembershipsModule,
