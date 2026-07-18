@@ -20,6 +20,19 @@ import { AssinaturasPage } from './pages/AssinaturasPage';
 import { FinanceiroPainelPage } from './pages/financeiro/FinanceiroPainelPage';
 import { TransacoesPage } from './pages/financeiro/TransacoesPage';
 import { ContasPage } from './pages/financeiro/ContasPage';
+import { CaixasAbertosPage } from './pages/financeiro/CaixasAbertosPage';
+import { CaixaHistoricoPage } from './pages/financeiro/CaixaHistoricoPage';
+import { NotasFiscaisPage } from './pages/financeiro/NotasFiscaisPage';
+import { FinanceiroConfiguracoesPage } from './pages/financeiro/FinanceiroConfiguracoesPage';
+import { AnamnesesPage } from './pages/cadastros/AnamnesesPage';
+import { ConvidarProfissionaisPage } from './pages/cadastros/ConvidarProfissionaisPage';
+import { PacotesPredefinidosPage } from './pages/controle/PacotesPredefinidosPage';
+import { ComprasPage } from './pages/controle/ComprasPage';
+import { GeradorDocumentoPage } from './pages/controle/GeradorDocumentoPage';
+import { AgendamentoOnlinePage } from './pages/marketing/AgendamentoOnlinePage';
+import { CampanhasPage } from './pages/marketing/CampanhasPage';
+import { AjudaPage } from './pages/AjudaPage';
+import { IndiquePage } from './pages/IndiquePage';
 import { ComissoesResumoPage } from './pages/comissoes/ComissoesResumoPage';
 import { ComissoesConfigPage } from './pages/comissoes/ComissoesConfigPage';
 import { FornecedoresPage } from './pages/FornecedoresPage';
@@ -57,27 +70,40 @@ function ProtectedRoutes() {
         <Route path="/comandas/:id" element={<ComandaDetalhePage />} />
         <Route path="/clientes" element={<ClientesPage />} />
         <Route path="/profissionais" element={<ProfissionaisPage />} />
+        <Route path="/cadastros/anamneses" element={<AnamnesesPage />} />
+        <Route path="/cadastros/convidar" element={<ConvidarProfissionaisPage />} />
         <Route path="/servicos" element={<ServicosPage />} />
         <Route path="/produtos" element={<ProdutosPage />} />
         <Route path="/categorias" element={<CategoriasPage />} />
         <Route path="/marcas" element={<MarcasPage />} />
+        <Route path="/controle/pacotes-predefinidos" element={<PacotesPredefinidosPage />} />
+        <Route path="/controle/compras" element={<ComprasPage />} />
+        <Route path="/controle/gerador-documento" element={<GeradorDocumentoPage />} />
         <Route path="/fornecedores" element={<FornecedoresPage />} />
         <Route path="/pacotes" element={<PacotesPage />} />
         <Route path="/assinaturas" element={<AssinaturasPage />} />
         <Route path="/financeiro" element={<FinanceiroPainelPage />} />
         <Route path="/financeiro/transacoes" element={<TransacoesPage />} />
         <Route path="/financeiro/contas" element={<ContasPage />} />
+        <Route path="/financeiro/caixas" element={<CaixasAbertosPage />} />
+        <Route path="/financeiro/caixas/historico" element={<CaixaHistoricoPage />} />
+        <Route path="/financeiro/notas-fiscais" element={<NotasFiscaisPage />} />
+        <Route path="/financeiro/configuracoes" element={<FinanceiroConfiguracoesPage />} />
         <Route path="/caixa" element={<CaixaPage />} />
         <Route path="/comissoes" element={<ComissoesResumoPage />} />
         <Route path="/comissoes/config" element={<ComissoesConfigPage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
         <Route path="/metas" element={<MetasPage />} />
+        <Route path="/marketing/agendamento-online" element={<AgendamentoOnlinePage />} />
         <Route path="/marketing/link" element={<LinkAgendamentoPage />} />
         <Route path="/marketing/promocoes" element={<PromocoesPage />} />
+        <Route path="/marketing/campanhas" element={<CampanhasPage />} />
         <Route path="/marketing/avaliacoes" element={<AvaliacoesPage />} />
         <Route path="/marketing/cashback" element={<CashbackPage />} />
         <Route path="/ia-atendimento" element={<IAAtendimentoPage />} />
         <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+        <Route path="/ajuda" element={<AjudaPage />} />
+        <Route path="/indique" element={<IndiquePage />} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
