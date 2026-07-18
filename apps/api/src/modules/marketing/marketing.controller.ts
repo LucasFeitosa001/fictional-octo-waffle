@@ -16,6 +16,7 @@ import {
   UpdateBookingLinkDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
+  UpdateReviewSettingsDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
@@ -78,6 +79,28 @@ export class MarketingController {
     @Query('to') to?: string,
   ) {
     return this.service.listReviews(companyId, from, to);
+  }
+
+  @Get('reviews/dashboard')
+  reviewsDashboard(
+    @CurrentUser('companyId') companyId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.getReviewsDashboard(companyId, from, to);
+  }
+
+  @Get('reviews/settings')
+  getReviewSettings(@CurrentUser('companyId') companyId: string) {
+    return this.service.getReviewSettings(companyId);
+  }
+
+  @Patch('reviews/settings')
+  updateReviewSettings(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: UpdateReviewSettingsDto,
+  ) {
+    return this.service.updateReviewSettings(companyId, dto);
   }
 
   // ---- cashback rules ----

@@ -6,7 +6,32 @@ import {
   UpdateBookingLinkDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
+  UpdateReviewSettingsDto,
 } from './dto';
+
+const REVIEW_SETTINGS_KEY = 'review_config';
+
+// Salonpass defaults for the review-request texts (generic salon copy — no
+// third-party branding). Placeholders %NOME% / %LINK% are filled at send time.
+const REVIEW_SETTINGS_DEFAULTS = {
+  moduleActive: true,
+  headerTitle: 'Nós adoraríamos o seu feedback!',
+  headerText:
+    'Ficamos felizes por você ter nos escolhido. Avalie o atendimento dos nossos profissionais abaixo — leva menos de um minuto e será de grande ajuda!',
+  successText: 'A sua opinião é muito importante para nós :)',
+  footerText:
+    'A sua opinião nos ajuda a sempre entregar os melhores serviços. Agradecemos a sua participação!',
+  requestMessage:
+    'Olá %NOME%! Adoraríamos saber como foi o seu atendimento. Avalie em: %LINK%',
+};
+
+type ReviewSettings = typeof REVIEW_SETTINGS_DEFAULTS;
+
+type ReviewAggInput = {
+  rating: number;
+  comment: string | null;
+  professional: { id: string; name: string } | null;
+};
 
 function slugify(value: string) {
   return value
@@ -134,6 +159,127 @@ export class MarketingService {
       if (r.rating >= 1 && r.rating <= 5) distribution[r.rating] += 1;
     }
     return { data: reviews, count, average, distribution };
+  }
+
+  // ---- reviews dashboard (Painel: métricas + comparativo + ranking) ----
+  private async fetchReviewsForRange(
+    companyId: string,
+    gte?: Date,
+    lt?: Date,
+    lte?: Date,
+  ): Promise<ReviewAggInput[]> {
+    const createdAt: { gte?: Date; lt?: Date; lte?: Date } = {};
+    if (gte) createdAt.gte = gte;
+    if (lt) createdAt.lt = lt;
+    if (lte) createdAt.lte = lte;
+    const where = {
+      companyId,
+      ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
+    };
+    return this.prisma.client.review.findMany({
+      where,
+      select: {
+        rating: true,
+        comment: true,
+        professional: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  private aggregate(reviews: ReviewAggInput[]) {
+    const count = reviews.length;
+    const average = count > 0 ? reviews.reduce((a, r) => a + r.rating, 0) / count : 0;
+    const withComment = reviews.filter(
+      (r) => r.comment != null && r.comment.trim().length > 0,
+    ).length;
+    const commentRate = count > 0 ? withComment / count : 0;
+    return { count, average, commentRate };
+  }
+
+  private rankProfessionals(current: ReviewAggInput[], previous: ReviewAggInput[]) {
+    const collect = (list: ReviewAggInput[]) => {
+      const map = new Map<string, { id: string; name: string; sum: number; count: number }>();
+      for (const r of list) {
+        if (!r.professional) continue;
+        const cur = map.get(r.professional.id) ?? {
+          id: r.professional.id,
+          name: r.professional.name,
+          sum: 0,
+          count: 0,
+        };
+        cur.sum += r.rating;
+        cur.count += 1;
+        map.set(r.professional.id, cur);
+      }
+      return map;
+    };
+    const curMap = collect(current);
+    const prevMap = collect(previous);
+    return [...curMap.values()]
+      .map((p) => {
+        const prev = prevMap.get(p.id);
+        return {
+          id: p.id,
+          name: p.name,
+          rating: p.count > 0 ? p.sum / p.count : 0,
+          count: p.count,
+          oldRating: prev && prev.count > 0 ? prev.sum / prev.count : 0,
+        };
+      })
+      .sort((a, b) => b.rating - a.rating || b.count - a.count);
+  }
+
+  async getReviewsDashboard(companyId: string, from?: string, to?: string) {
+    const fromD = from ? new Date(from) : undefined;
+    const toD = to ? new Date(to) : undefined;
+    const current = await this.fetchReviewsForRange(companyId, fromD, undefined, toD);
+
+    // Comparativo com o período anterior de mesma duração (só quando há intervalo).
+    let previous: ReviewAggInput[] = [];
+    if (fromD && toD) {
+      const span = Math.max(0, toD.getTime() - fromD.getTime());
+      const prevFrom = new Date(fromD.getTime() - span);
+      previous = await this.fetchReviewsForRange(companyId, prevFrom, fromD);
+    }
+
+    const cur = this.aggregate(current);
+    const prev = this.aggregate(previous);
+    const professionals = this.rankProfessionals(current, previous);
+    const best = professionals[0] ?? null;
+
+    return {
+      current: cur,
+      previous: prev,
+      best: best ? { id: best.id, name: best.name, rating: best.rating } : null,
+      professionals,
+    };
+  }
+
+  // ---- review settings (Configurações: textos de solicitação) ----
+  async getReviewSettings(companyId: string): Promise<ReviewSettings> {
+    const row = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: REVIEW_SETTINGS_KEY } },
+    });
+    const stored = (row?.valueJson as Partial<ReviewSettings> | null) ?? {};
+    return { ...REVIEW_SETTINGS_DEFAULTS, ...stored };
+  }
+
+  async updateReviewSettings(companyId: string, dto: UpdateReviewSettingsDto): Promise<ReviewSettings> {
+    const current = await this.getReviewSettings(companyId);
+    const patch: Partial<ReviewSettings> = {};
+    if (dto.moduleActive !== undefined) patch.moduleActive = dto.moduleActive;
+    if (dto.headerTitle !== undefined) patch.headerTitle = dto.headerTitle;
+    if (dto.headerText !== undefined) patch.headerText = dto.headerText;
+    if (dto.successText !== undefined) patch.successText = dto.successText;
+    if (dto.footerText !== undefined) patch.footerText = dto.footerText;
+    if (dto.requestMessage !== undefined) patch.requestMessage = dto.requestMessage;
+    const merged = { ...current, ...patch };
+    await this.prisma.client.setting.upsert({
+      where: { companyId_key: { companyId, key: REVIEW_SETTINGS_KEY } },
+      create: { companyId, key: REVIEW_SETTINGS_KEY, valueJson: merged },
+      update: { valueJson: merged },
+    });
+    return merged;
   }
 
   // ---- cashback rules ----

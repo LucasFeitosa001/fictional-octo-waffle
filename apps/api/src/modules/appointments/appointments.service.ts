@@ -43,17 +43,45 @@ export class AppointmentsService {
 
   async list(
     companyId: string,
-    filters: { from?: string; to?: string; professionalId?: string; status?: string },
+    filters: {
+      from?: string;
+      to?: string;
+      professionalId?: string;
+      status?: string;
+      serviceId?: string;
+      q?: string;
+    },
   ) {
-    const where: Record<string, unknown> = { companyId };
-    if (filters.professionalId) where.professionalId = filters.professionalId;
-    if (filters.status) where.status = filters.status;
+    const where: Prisma.AppointmentWhereInput = { companyId };
+
+    // professionalId + status accept a single id OR a comma-separated list, so
+    // the agenda can filter by several professionals/statuses at once.
+    const professionalIds = this.splitCsv(filters.professionalId);
+    if (professionalIds.length === 1) where.professionalId = professionalIds[0];
+    else if (professionalIds.length > 1) where.professionalId = { in: professionalIds };
+
+    const statuses = this.splitCsv(filters.status) as AppointmentStatus[];
+    if (statuses.length === 1) where.status = statuses[0];
+    else if (statuses.length > 1) where.status = { in: statuses };
+
     if (filters.from || filters.to) {
       where.start = {
         ...(filters.from ? { gte: new Date(filters.from) } : {}),
         ...(filters.to ? { lte: new Date(filters.to) } : {}),
       };
     }
+
+    // Filter by an appointment that includes a given service.
+    if (filters.serviceId) {
+      where.items = { some: { serviceId: filters.serviceId } };
+    }
+
+    // Free-text search by customer name.
+    const q = filters.q?.trim();
+    if (q) {
+      where.customer = { is: { name: { contains: q, mode: 'insensitive' } } };
+    }
+
     const data = await this.prisma.client.appointment.findMany({
       where,
       include: { customer: true, professional: true, items: true },
@@ -501,6 +529,15 @@ export class AppointmentsService {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  // Split a comma-separated query value ("a,b,c") into a trimmed, non-empty list.
+  private splitCsv(value?: string): string[] {
+    if (!value) return [];
+    return value
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
 
   private async loadServices(companyId: string, serviceIds: string[]) {
     const unique = [...new Set(serviceIds)];

@@ -8,14 +8,16 @@ import {
   Spinner,
   TextField,
 } from '@heroui/react';
-import { ApiClientError } from '@beautypass/shared';
+import { ApiClientError, APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import {
   useAvailability,
   useCreateAppointment,
   useCreateCustomer,
+  useCreateOrder,
   useCustomers,
   useProfessionals,
   useServices,
+  useSetAppointmentStatus,
 } from '../lib/queries';
 import { formatDuration, formatMoney, formatSlotTime, isoDate } from '../lib/format';
 import type { AvailabilitySlot } from '../lib/types';
@@ -110,6 +112,7 @@ export function NewAppointmentModal({
 }: NewAppointmentModalProps) {
   const [serviceId, setServiceId] = useState('');
   const [professionalId, setProfessionalId] = useState('');
+  const [status, setStatus] = useState<AppointmentStatus>('confirmed');
   const [date, setDate] = useState(() => isoDate(new Date()));
   const [slotStart, setSlotStart] = useState('');
   const [durationMin, setDurationMin] = useState(0);
@@ -138,6 +141,8 @@ export function NewAppointmentModal({
   );
   const createAppointment = useCreateAppointment();
   const createCustomer = useCreateCustomer();
+  const setAppointmentStatus = useSetAppointmentStatus();
+  const createOrder = useCreateOrder();
 
   const serviceItems = services.data?.data ?? [];
   const professionalItems = professionals.data?.data ?? [];
@@ -149,6 +154,7 @@ export function NewAppointmentModal({
     if (isOpen) {
       setServiceId('');
       setProfessionalId('');
+      setStatus('confirmed');
       setDate(initialDate || isoDate(new Date()));
       setSlotStart('');
       setDurationMin(0);
@@ -191,21 +197,28 @@ export function NewAppointmentModal({
   }, [selectedService, durationMin]);
 
   const canPickSlot = Boolean(serviceId && professionalId && date);
-  const isBusy = createAppointment.isPending || createCustomer.isPending;
+  const isBusy =
+    createAppointment.isPending ||
+    createCustomer.isPending ||
+    setAppointmentStatus.isPending ||
+    createOrder.isPending;
   const canConfirm = Boolean(serviceId && professionalId && slotStart) && !isBusy;
 
   const selectedCustomerName = customerItems.find((c) => c.id === customerId)?.name;
 
-  async function handleConfirm() {
+  // Create the appointment(s) and apply the chosen status. Returns the primary
+  // appointment (+ resolved customer) so callers can chain a comanda, or null on
+  // validation/creation failure.
+  async function submit(): Promise<{ id: string; customerId?: string } | null> {
     setFormError(null);
     const slot = slots.find((s: AvailabilitySlot) => s.start === slotStart);
     if (!slot) {
       setFormError('Selecione um horário disponível.');
-      return;
+      return null;
     }
     if (creatingNew && !newName.trim()) {
       setFormError('Informe o nome do cliente.');
-      return;
+      return null;
     }
     try {
       let resolvedCustomerId = customerId || undefined;
@@ -223,7 +236,8 @@ export function NewAppointmentModal({
       const endFor = (startIso: string) =>
         new Date(new Date(startIso).getTime() + dur * 60000).toISOString();
 
-      await createAppointment.mutateAsync({
+      const createdIds: string[] = [];
+      const main = await createAppointment.mutateAsync({
         customerId: resolvedCustomerId,
         professionalId,
         start: slot.start,
@@ -231,6 +245,7 @@ export function NewAppointmentModal({
         notes: combinedNotes,
         items: [{ serviceId, professionalId }],
       });
+      createdIds.push(main.id);
 
       // Recurrence: create the extra occurrences client-side (best-effort).
       if (freq !== 'none' && repeatMore > 0) {
@@ -238,7 +253,7 @@ export function NewAppointmentModal({
         for (let i = 1; i <= repeatMore; i++) {
           const start = nextDate(base, freq, i).toISOString();
           try {
-            await createAppointment.mutateAsync({
+            const extra = await createAppointment.mutateAsync({
               customerId: resolvedCustomerId,
               professionalId,
               start,
@@ -246,30 +261,64 @@ export function NewAppointmentModal({
               notes: combinedNotes,
               items: [{ serviceId, professionalId }],
             });
+            createdIds.push(extra.id);
           } catch {
             /* skip occurrences that fall outside working hours, etc. */
           }
         }
       }
 
-      setSuccess(true);
+      // Apply the chosen status when it differs from the created default.
+      if (status !== main.status) {
+        for (const id of createdIds) {
+          try {
+            await setAppointmentStatus.mutateAsync({ id, status });
+          } catch {
+            /* keep the created default if the transition is rejected */
+          }
+        }
+      }
+
       onCreated?.();
+      return { id: main.id, customerId: resolvedCustomerId };
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.statusCode === 409) {
           setFormError('Esse horário acabou de ficar indisponível. Escolha outro horário.');
           availability.refetch();
           setSlotStart('');
-          return;
+          return null;
         }
         if (err.statusCode === 400) {
           setFormError(err.message || 'Horário fora do horário de trabalho do profissional.');
-          return;
+          return null;
         }
         setFormError(err.message || 'Não foi possível criar o agendamento.');
-        return;
+        return null;
       }
       setFormError('Não foi possível criar o agendamento. Tente novamente.');
+      return null;
+    }
+  }
+
+  async function handleConfirm() {
+    const result = await submit();
+    if (result) setSuccess(true);
+  }
+
+  // Create the appointment, then open a comanda (order) for the same client.
+  async function handleComanda() {
+    const result = await submit();
+    if (!result) return;
+    try {
+      await createOrder.mutateAsync({
+        customerId: result.customerId,
+        professionalId,
+        notes: notes.trim() || undefined,
+      });
+      setSuccess(true);
+    } catch {
+      setFormError('Agendamento criado, mas não foi possível criar a comanda.');
     }
   }
 
@@ -370,6 +419,28 @@ export function NewAppointmentModal({
                         />
                       </label>
                     </div>
+                  </Section>
+
+                  {/* ── Status ──────────────────────────────────────────── */}
+                  <Section title="Status">
+                    <Select
+                      aria-label="Status"
+                      selectedKey={status}
+                      onSelectionChange={(k) => setStatus(String(k) as AppointmentStatus)}
+                    >
+                      <Select.Trigger><Select.Value /></Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {(Object.entries(APPOINTMENT_STATUS_LABELS) as [AppointmentStatus, string][]).map(
+                            ([id, label]) => (
+                              <ListBox.Item key={id} id={id} textValue={label}>
+                                {label}
+                              </ListBox.Item>
+                            ),
+                          )}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
                   </Section>
 
                   {/* ── Serviço ─────────────────────────────────────────── */}
@@ -596,6 +667,9 @@ export function NewAppointmentModal({
                 <>
                   <Button variant="outline" onClick={() => onOpenChange(false)}>
                     Cancelar
+                  </Button>
+                  <Button variant="outline" isDisabled={!canConfirm} onClick={handleComanda}>
+                    Criar comanda
                   </Button>
                   <Button variant="primary" isDisabled={!canConfirm} onClick={handleConfirm}>
                     {isBusy ? 'Salvando…' : 'Confirmar agendamento'}

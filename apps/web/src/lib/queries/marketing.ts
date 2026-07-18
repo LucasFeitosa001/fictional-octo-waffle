@@ -61,6 +61,38 @@ export interface ReviewsResponse {
   distribution: Record<string, number>;
 }
 
+export interface ReviewMetrics {
+  count: number;
+  average: number;
+  commentRate: number;
+}
+
+export interface ProfessionalRating {
+  id: string;
+  name: string;
+  rating: number;
+  count: number;
+  oldRating: number;
+}
+
+export interface ReviewsDashboard {
+  current: ReviewMetrics;
+  previous: ReviewMetrics;
+  best: { id: string; name: string; rating: number } | null;
+  professionals: ProfessionalRating[];
+}
+
+export interface ReviewSettings {
+  moduleActive: boolean;
+  headerTitle: string;
+  headerText: string;
+  successText: string;
+  footerText: string;
+  requestMessage: string;
+}
+
+export type UpdateReviewSettingsBody = Partial<ReviewSettings>;
+
 export interface UpdateBookingLinkBody {
   slug?: string;
   active?: boolean;
@@ -151,6 +183,33 @@ export function useReviews(from?: string, to?: string) {
         from: from || undefined,
         to: to || undefined,
       }),
+  });
+}
+
+export function useReviewsDashboard(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ['reviews-dashboard', from ?? null, to ?? null],
+    queryFn: () =>
+      api.get<ReviewsDashboard>('/reviews/dashboard', {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+  });
+}
+
+export function useReviewSettings() {
+  return useQuery({
+    queryKey: ['review-settings'],
+    queryFn: () => api.get<ReviewSettings>('/reviews/settings'),
+  });
+}
+
+export function useUpdateReviewSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateReviewSettingsBody) =>
+      api.patch<ReviewSettings>('/reviews/settings', body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['review-settings'] }),
   });
 }
 

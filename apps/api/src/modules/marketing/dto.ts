@@ -42,6 +42,15 @@ export class UpdatePromotionDto {
   @IsOptional() @IsBoolean() appliesOnline?: boolean;
 }
 
+export class UpdateReviewSettingsDto {
+  @IsOptional() @IsBoolean() moduleActive?: boolean;
+  @IsOptional() @IsString() headerTitle?: string;
+  @IsOptional() @IsString() headerText?: string;
+  @IsOptional() @IsString() successText?: string;
+  @IsOptional() @IsString() footerText?: string;
+  @IsOptional() @IsString() requestMessage?: string;
+}
+
 export class CreateCashbackRuleDto {
   @IsEnum(['service', 'product', 'category', 'all']) scopeType: ScopeType;
   @IsOptional() @IsString() scopeId?: string;

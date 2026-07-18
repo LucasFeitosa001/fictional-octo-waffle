@@ -1,16 +1,44 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Label, ListBox, Modal, Select, TextField } from '@heroui/react';
-import { APPOINTMENT_STATUS_LABELS } from '@beautypass/shared';
+import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { colorForAppointment, layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
 import { IconCalendar, IconCalendarPlus, IconChevron } from '../components/icons';
-import { useAppointments, useProfessionals, useServices, useSetAppointmentStatus } from '../lib/queries';
+import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
+import { useAgendaAppointments } from '../lib/queries/agenda';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
 import type { AppointmentRow } from '../lib/types';
+
+const STATUS_ORDER: AppointmentStatus[] = [
+  'scheduled',
+  'confirmed',
+  'unconfirmed',
+  'waiting',
+  'in_progress',
+  'done',
+  'finished',
+  'canceled',
+];
+
+// Local glyphs (the shared icon set has no filter/bolt icon).
+function IconFilter({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+    </svg>
+  );
+}
+function IconBolt({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  );
+}
 
 type View = 'day' | 'week' | 'month' | 'year';
 
@@ -77,9 +105,50 @@ export function AgendaPage() {
     try { localStorage.setItem(VIEW_KEY, view); } catch { /* ignore */ }
   }, [view]);
   const [anchor, setAnchor] = useState(() => new Date());
-  const [professionalId, setProfessionalId] = useState<string>('all');
+
+  // ── Filters (Belasis "Filtrar" panel): professional (multi), status (multi),
+  // service, and a customer search.
+  const [showFilters, setShowFilters] = useState(false);
+  const [professionalIds, setProfessionalIds] = useState<string[]>([]);
+  const [statuses, setStatuses] = useState<AppointmentStatus[]>([]);
+  const [serviceFilter, setServiceFilter] = useState<string>('');
+  const [customerQuery, setCustomerQuery] = useState('');
+
+  // ── Batch selection (Belasis "Ações" menu).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [showActions, setShowActions] = useState(false);
+
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [newApptDate, setNewApptDate] = useState<string | undefined>(undefined);
+
+  const activeFilterCount =
+    professionalIds.length + statuses.length + (serviceFilter ? 1 : 0) + (customerQuery.trim() ? 1 : 0);
+
+  function clearFilters() {
+    setProfessionalIds([]);
+    setStatuses([]);
+    setServiceFilter('');
+    setCustomerQuery('');
+  }
+  function toggleProfessional(id: string) {
+    setProfessionalIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
+  }
+  function toggleStatus(s: AppointmentStatus) {
+    setStatuses((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  }
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
 
   function openNew(date?: string) {
     setNewApptDate(date);
@@ -145,12 +214,23 @@ export function AgendaPage() {
     [services.data],
   );
   const statusMutation = useSetAppointmentStatus();
-  const appts = useAppointments({
+  const createOrder = useCreateOrder();
+  const appts = useAgendaAppointments({
     from: isoDate(fetchFrom),
     to: isoDate(addDays(fetchTo, 1)),
-    professionalId: professionalId === 'all' ? undefined : professionalId,
+    professionalIds,
+    statuses,
+    serviceId: serviceFilter || undefined,
   });
-  const rows = appts.data?.data ?? [];
+
+  // The professional/status/service filters run server-side; the customer search
+  // filters the fetched rows client-side so typing is instant.
+  const rows = useMemo(() => {
+    const all = appts.data?.data ?? [];
+    const q = customerQuery.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((a) => (a.customer?.name ?? '').toLowerCase().includes(q));
+  }, [appts.data, customerQuery]);
 
   // appointments grouped per ISO day (for the month preview chips), each list
   // sorted by start time.
@@ -177,10 +257,8 @@ export function AgendaPage() {
     return arr;
   }, [rows, anchor]);
 
-  const profItems = useMemo(
-    () => [{ id: 'all', name: 'Todos' }, ...(professionals.data?.data ?? [])],
-    [professionals.data],
-  );
+  const profList = professionals.data?.data ?? [];
+  const serviceList = services.data?.data ?? [];
 
   function navigate(dir: -1 | 1) {
     setAnchor((a) =>
@@ -239,12 +317,80 @@ export function AgendaPage() {
     setCancelReason('');
   }
 
+  // ── Batch actions on the current selection ────────────────────────────────
+  async function batchStatus(status: AppointmentStatus) {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        await statusMutation.mutateAsync({ id, status });
+        ok += 1;
+      } catch {
+        /* skip conflicts (e.g. re-confirming an overlapping slot) */
+      }
+    }
+    exitSelectMode();
+    flash(
+      status === 'confirmed'
+        ? `${ok} agendamento(s) confirmado(s).`
+        : `${ok} agendamento(s) cancelado(s).`,
+    );
+  }
+
+  // ── Per-appointment: create a comanda (order) from the appointment ────────
+  async function createComanda(a: AppointmentRow) {
+    try {
+      await createOrder.mutateAsync({
+        customerId: a.customer?.id ?? a.customerId ?? undefined,
+        professionalId: a.professionalId ?? a.professional?.id ?? undefined,
+        notes: a.notes ?? undefined,
+      });
+      flash('Comanda criada. Abra em Comandas para faturar.');
+    } catch {
+      flash('Erro ao criar comanda.');
+    }
+  }
+
+  // ── Per-appointment: reschedule (keeps duration, moves start) ─────────────
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [reDate, setReDate] = useState('');
+  const [reTime, setReTime] = useState('');
+  function openReschedule(a: AppointmentRow) {
+    const d = new Date(a.start);
+    setReDate(isoDate(d));
+    setReTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    setShowReschedule(true);
+  }
+  async function confirmReschedule() {
+    if (!selected || !reDate || !reTime) return;
+    const [h, m] = reTime.split(':').map(Number);
+    const [y, mo, d] = reDate.split('-').map(Number);
+    const newStart = new Date(y, (mo ?? 1) - 1, d ?? 1, h ?? 0, m ?? 0);
+    try {
+      await api.patch(`/appointments/${selected.id}`, { start: newStart.toISOString() });
+      setShowReschedule(false);
+      setSelected(null);
+      appts.refetch();
+      flash('Agendamento reagendado.');
+    } catch {
+      flash('Não foi possível reagendar (horário indisponível).');
+    }
+  }
+
   function openDetail(a: AppointmentRow) {
     setSelected(a);
     setShowSuggest(false);
     setSuggestion('');
     setShowCancel(false);
     setCancelReason('');
+    setShowReschedule(false);
+  }
+
+  // In selection mode a block toggles selection; otherwise it opens the detail.
+  function onBlockClick(a: AppointmentRow) {
+    if (selectMode) toggleSelected(a.id);
+    else openDetail(a);
   }
 
   const now = new Date();
@@ -253,17 +399,154 @@ export function AgendaPage() {
   const nowVisible = nowMin >= 0 && nowMin <= TOTAL_MIN;
   const bodyHeight = (END_HOUR - START_HOUR) * HOUR_H;
 
-  const profSelect = (
-    <Select aria-label="Profissional" selectedKey={professionalId}
-      onSelectionChange={(k) => setProfessionalId(String(k ?? 'all'))}
-      className="min-w-32">
-      <Select.Trigger><Select.Value /></Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          {profItems.map((p) => <ListBox.Item key={p.id} id={p.id}>{p.name}</ListBox.Item>)}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+  const filterBtn = (
+    <button
+      type="button"
+      onClick={() => { setShowFilters((v) => !v); setShowActions(false); }}
+      className={[
+        'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors lg:h-8',
+        showFilters || activeFilterCount > 0
+          ? 'border-[#f2b33d] bg-[#f2b33d]/12 text-[#8a6517]'
+          : 'border-[var(--color-soft-border)] bg-white text-[#6B6F76] hover:bg-[#f7f3ea]',
+      ].join(' ')}
+    >
+      <IconFilter size={14} />
+      Filtrar
+      {activeFilterCount > 0 && (
+        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#f2b33d] px-1 text-[10px] font-bold text-[#3b2d09]">
+          {activeFilterCount}
+        </span>
+      )}
+    </button>
+  );
+
+  const actionsBtn = (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => { setShowActions((v) => !v); setShowFilters(false); }}
+        className={[
+          'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors',
+          selectMode
+            ? 'border-[#f2b33d] bg-[#f2b33d]/12 text-[#8a6517]'
+            : 'border-[var(--color-soft-border)] bg-white text-[#6B6F76] hover:bg-[#f7f3ea]',
+        ].join(' ')}
+      >
+        <IconBolt size={14} />
+        Ações
+      </button>
+      {showActions && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)} />
+          <div className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-xl border border-black/[0.08] bg-white py-1 shadow-[var(--shadow-pop)]">
+            <button type="button" onClick={() => { setSelectMode(true); setShowActions(false); }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+              Selecionar agendamentos
+            </button>
+            <button type="button" disabled title="Sem suporte no backend ainda"
+              className="flex w-full cursor-not-allowed items-center gap-2 px-3 py-2.5 text-left text-sm text-[#c9ccd1]">
+              Bloquear horários
+            </button>
+            <div className="my-1 border-t border-black/[0.06]" />
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#bfaf9e]">Visualização</div>
+            {(['day', 'week', 'month'] as View[]).map((v) => (
+              <button key={v} type="button" onClick={() => { setView(v); setShowActions(false); }}
+                className={[
+                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f7f3ea]',
+                  view === v ? 'font-semibold text-[#8a6517]' : 'text-foreground',
+                ].join(' ')}>
+                {v === 'day' ? 'Diário' : v === 'week' ? 'Semanal' : 'Mensal'}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const filtersPanel = showFilters && (
+    <div className="border-t border-[var(--color-soft-border)] bg-white px-3 py-3">
+      <div className="grid gap-4 lg:grid-cols-4">
+        {/* Profissionais (multi) */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Profissionais</span>
+            {professionalIds.length > 0 && (
+              <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
+                Desmarcar
+              </button>
+            )}
+          </div>
+          <div className="flex max-h-32 flex-col gap-1 overflow-auto">
+            {profList.length === 0 ? (
+              <span className="text-xs text-muted">Nenhum profissional.</span>
+            ) : profList.map((p) => (
+              <label key={p.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
+                <input type="checkbox" checked={professionalIds.includes(p.id)} onChange={() => toggleProfessional(p.id)}
+                  className="h-4 w-4 accent-[#f2b33d]" />
+                <span className="truncate">{p.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Status (multi) */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Status</span>
+            {statuses.length > 0 && (
+              <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
+                Desmarcar
+              </button>
+            )}
+          </div>
+          <div className="flex max-h-32 flex-col gap-1 overflow-auto">
+            {STATUS_ORDER.map((s) => (
+              <label key={s} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
+                <input type="checkbox" checked={statuses.includes(s)} onChange={() => toggleStatus(s)}
+                  className="h-4 w-4 accent-[#f2b33d]" />
+                <span className="truncate">{APPOINTMENT_STATUS_LABELS[s]}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Serviço (single) */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Serviço</span>
+          <Select aria-label="Serviço" selectedKey={serviceFilter || 'all'}
+            onSelectionChange={(k) => setServiceFilter(String(k) === 'all' ? '' : String(k))}>
+            <Select.Trigger><Select.Value /></Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item id="all" textValue="Todos os serviços">Todos os serviços</ListBox.Item>
+                {serviceList.map((s) => (
+                  <ListBox.Item key={s.id} id={s.id} textValue={s.name}>{s.name}</ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </div>
+
+        {/* Busca por cliente */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Cliente</span>
+          <TextField value={customerQuery} onChange={setCustomerQuery} aria-label="Buscar cliente">
+            <Input placeholder="Buscar por nome…" />
+          </TextField>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-xs text-muted">{rows.length} agendamento(s)</span>
+        <div className="flex gap-2">
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setShowFilters(false)}>Fechar</Button>
+        </div>
+      </div>
+    </div>
   );
 
   return (
@@ -287,7 +570,8 @@ export function AgendaPage() {
           </Button>
           <span className="truncate text-sm font-semibold capitalize text-foreground">{periodLabel}</span>
           <div className="ml-auto flex items-center gap-2">
-            {profSelect}
+            {filterBtn}
+            {actionsBtn}
             <div className="flex overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
               {(['week', 'day', 'month'] as View[]).map((v) => (
                 <button key={v} type="button" onClick={() => setView(v)}
@@ -326,23 +610,28 @@ export function AgendaPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-            <div className="flex h-11 overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white p-1">
+          <div className="flex items-center gap-2">
+            <div className="flex h-11 shrink-0 overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white p-1">
               {(['day', 'month'] as View[]).map((v) => (
                 <button key={v} type="button" onClick={() => setView(v)}
                   className={[
-                    'min-w-14 rounded-lg px-3 text-xs font-semibold transition-colors',
+                    'min-w-12 rounded-lg px-3 text-xs font-semibold transition-colors',
                     effectiveView === v ? 'bg-[#f2b33d] text-[#3b2d09]' : 'text-[#6B6F76] active:bg-[#f7f3ea]',
                   ].join(' ')}>
                   {v === 'day' ? 'Dia' : 'Mês'}
                 </button>
               ))}
             </div>
-            <div className="min-w-0 [&_.select]:w-full [&_.select__trigger]:min-h-11">
-              {profSelect}
+            <div className="ml-auto flex items-center gap-2">
+              {filterBtn}
+              {actionsBtn}
+              <Button variant="primary" size="sm" onClick={() => openNew()}>
+                <IconCalendarPlus size={14} /> Novo
+              </Button>
             </div>
           </div>
         </div>
+        {filtersPanel}
       </div>
 
       {/* Grid — the only scroller; full width, pads past the mobile bottom nav. */}
@@ -431,8 +720,9 @@ export function AgendaPage() {
                       const label = a.customer?.name ?? 'Sem cliente';
                       const profName = a.professional?.name;
                       const svcNames = profName;
+                      const isSelected = selectMode && selectedIds.has(a.id);
                       return (
-                        <button key={a.id} type="button" onClick={() => openDetail(a)}
+                        <button key={a.id} type="button" onClick={() => onBlockClick(a)}
                           style={{
                             top,
                             height: Math.max(height, 22),
@@ -441,8 +731,19 @@ export function AgendaPage() {
                             backgroundColor: canceled ? '#f3f4f6' : c.bg,
                             borderLeftColor: canceled ? '#d1d5db' : c.bar,
                           }}
-                          className="absolute z-10 flex flex-col overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left transition-shadow hover:z-30 hover:shadow-md"
+                          className={[
+                            'absolute z-10 flex flex-col overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left transition-shadow hover:z-30 hover:shadow-md',
+                            isSelected ? 'z-30 ring-2 ring-[#f2b33d] ring-offset-1' : '',
+                          ].join(' ')}
                         >
+                          {selectMode && (
+                            <span className={[
+                              'absolute right-1 top-1 grid h-3.5 w-3.5 place-items-center rounded-full border text-[8px] font-bold',
+                              isSelected ? 'border-[#f2b33d] bg-[#f2b33d] text-white' : 'border-black/20 bg-white/70',
+                            ].join(' ')}>
+                              {isSelected ? '✓' : ''}
+                            </span>
+                          )}
                           <span className="truncate text-[10px] font-bold" style={{ color: canceled ? '#9ca3af' : c.text }}>
                             {timeFmt.format(new Date(a.start))} {label}
                           </span>
@@ -467,6 +768,25 @@ export function AgendaPage() {
         </div>
       )}
 
+      {/* Selection action bar (batch Ações) */}
+      {selectMode && (
+        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-black/[0.08] bg-[#fffdf8] px-3 py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:bottom-0">
+          <span className="text-sm font-semibold text-foreground">{selectedIds.size} selecionado(s)</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="primary" size="sm" isDisabled={selectedIds.size === 0 || statusMutation.isPending}
+              onClick={() => batchStatus('confirmed')}>
+              Confirmar
+            </Button>
+            <Button variant="outline" size="sm" className="border-danger/30 text-danger"
+              isDisabled={selectedIds.size === 0 || statusMutation.isPending}
+              onClick={() => batchStatus('canceled')}>
+              Cancelar
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exitSelectMode}>Sair</Button>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#111111] px-5 py-3 text-sm font-medium text-white shadow-lg">
@@ -487,7 +807,7 @@ export function AgendaPage() {
       )}
 
       {/* Detail modal */}
-      <Modal isOpen={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setShowSuggest(false); setShowCancel(false); } }}>
+      <Modal isOpen={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setShowSuggest(false); setShowCancel(false); setShowReschedule(false); } }}>
         <Modal.Backdrop>
           <Modal.Container size="md" placement="center">
             <Modal.Dialog>
@@ -548,6 +868,41 @@ export function AgendaPage() {
                       </Select.Popover>
                     </Select>
                   </div>
+
+                  {/* Per-appointment actions */}
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openReschedule(selected)}>
+                      Reagendar
+                    </Button>
+                    <Button variant="outline" size="sm" isDisabled={createOrder.isPending}
+                      onClick={() => createComanda(selected)}>
+                      Criar comanda
+                    </Button>
+                  </div>
+
+                  {showReschedule && (
+                    <div className="flex flex-col gap-2 rounded-xl border border-[#f2b33d]/30 bg-[#faf6ec] p-3">
+                      <span className="text-xs font-semibold text-[#a67c1e]">Reagendar</span>
+                      <div className="flex flex-wrap gap-2">
+                        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                          Data
+                          <input type="date" value={reDate} onChange={(e) => setReDate(e.target.value)}
+                            className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
+                        </label>
+                        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                          Horário
+                          <input type="time" value={reTime} onChange={(e) => setReTime(e.target.value)}
+                            className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
+                        </label>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="primary" size="sm" isDisabled={!reDate || !reTime} onClick={confirmReschedule}>
+                          Confirmar novo horário
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setShowReschedule(false)}>Voltar</Button>
+                      </div>
+                    </div>
+                  )}
 
                   {(selected.status === 'unconfirmed' || selected.status === 'scheduled') && (
                     <div className="flex flex-col gap-2 rounded-xl border border-[#f2b33d]/30 bg-[#faf6ec] p-3">

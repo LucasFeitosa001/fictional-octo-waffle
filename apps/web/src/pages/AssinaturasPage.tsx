@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Chip, Input, ListBox, Modal, Select, TextField } from '@heroui/react';
+import { Button, Card, Chip, Input, ListBox, Modal, Select, Tabs, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../components/PageHeader';
 import { DataTable, type Column } from '../components/DataTable';
@@ -33,6 +33,13 @@ const STATUS_COLOR: Record<MembershipStatus, 'success' | 'default' | 'danger'> =
 };
 
 const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+
+type MainTab = 'subscribers' | 'plans' | 'settings';
+const MAIN_TABS: { id: MainTab; label: string }[] = [
+  { id: 'subscribers', label: 'Assinaturas' },
+  { id: 'plans', label: 'Modelos de assinatura' },
+  { id: 'settings', label: 'Configurações' },
+];
 
 type SubFilter = 'all' | MembershipStatus;
 const SUB_FILTERS: { id: SubFilter; label: string }[] = [
@@ -75,6 +82,7 @@ function SegmentedFilter<T extends string>({
 }
 
 export function AssinaturasPage() {
+  const [tab, setTab] = useState<MainTab>('subscribers');
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
   const [createSubscriberOpen, setCreateSubscriberOpen] = useState(false);
@@ -186,19 +194,38 @@ export function AssinaturasPage() {
         }}
         isRefreshing={memberships.isFetching}
         actions={
-          <Button variant="primary" onClick={() => setCreateSubscriberOpen(true)}>
-            <IconPlus size={16} /> Novo assinante
-          </Button>
+          tab === 'subscribers' ? (
+            <Button variant="primary" onClick={() => setCreateSubscriberOpen(true)}>
+              <IconPlus size={16} /> Nova assinatura
+            </Button>
+          ) : tab === 'plans' ? (
+            <Button variant="primary" onClick={openCreatePlan}>
+              <IconPlus size={16} /> Novo modelo
+            </Button>
+          ) : undefined
         }
       />
 
-      <Card className={`mb-4 ${CARD}`}>
+      <div className="mb-4 -mx-1 overflow-x-auto px-1">
+        <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(k as MainTab)}>
+          <Tabs.List className="w-max">
+            {MAIN_TABS.map((t) => (
+              <Tabs.Tab key={t.id} id={t.id}>
+                {t.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </div>
+
+      {tab === 'subscribers' && (
+      <Card className={CARD}>
         <Card.Content className="p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-foreground">Assinantes</h3>
+              <h3 className="text-sm font-semibold text-foreground">Assinaturas</h3>
               <p className="text-xs text-muted">
-                {subRows.length} de {allSubRows.length} assinante(s)
+                {subRows.length} de {allSubRows.length} assinatura(s)
               </p>
             </div>
             <Button
@@ -241,16 +268,16 @@ export function AssinaturasPage() {
           ) : subRows.length === 0 ? (
             <EmptyState
               icon={<IconRepeat size={32} />}
-              title={allSubRows.length === 0 ? 'Nenhum assinante' : 'Nenhum assinante encontrado'}
+              title={allSubRows.length === 0 ? 'Nenhuma assinatura' : 'Nenhuma assinatura encontrada'}
               description={
                 allSubRows.length === 0
-                  ? 'Cadastre um assinante vinculando um cliente a um plano.'
+                  ? 'Crie uma assinatura vinculando um cliente a um modelo.'
                   : 'Tente ajustar os filtros.'
               }
             />
           ) : (
             <DataTable
-              aria-label="Assinantes"
+              aria-label="Assinaturas"
               columns={subColumns}
               rows={subRows}
               getKey={(m) => m.id}
@@ -258,16 +285,18 @@ export function AssinaturasPage() {
           )}
         </Card.Content>
       </Card>
+      )}
 
+      {tab === 'plans' && (
       <Card className={CARD}>
         <Card.Content className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">
               Modelos de assinatura
-              <span className="ml-2 text-xs font-normal text-muted">{planRows.length} plano(s)</span>
+              <span className="ml-2 text-xs font-normal text-muted">{planRows.length} modelo(s)</span>
             </h3>
             <Button variant="outline" size="sm" onClick={openCreatePlan}>
-              <IconPlus size={14} /> Novo plano
+              <IconPlus size={14} /> Novo modelo
             </Button>
           </div>
           {plans.isLoading ? (
@@ -277,8 +306,8 @@ export function AssinaturasPage() {
           ) : planRows.length === 0 ? (
             <EmptyState
               icon={<IconRepeat size={32} />}
-              title="Nenhum plano de assinatura"
-              description="Crie planos com serviços incluídos e preço recorrente."
+              title="Nenhum modelo de assinatura"
+              description="Crie modelos com serviços incluídos e preço recorrente."
             />
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -289,6 +318,11 @@ export function AssinaturasPage() {
           )}
         </Card.Content>
       </Card>
+      )}
+
+      {tab === 'settings' && (
+        <SettingsTab subscribers={allSubRows} plans={planRows} />
+      )}
 
       <PlanModal
         isOpen={planModalOpen}
@@ -591,7 +625,7 @@ function CreateSubscriberModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
       >
         <Modal.Dialog>
           <Modal.Header>
-            <Modal.Heading>Novo assinante</Modal.Heading>
+            <Modal.Heading>Nova assinatura</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-4">
             <Field label="Cliente">
@@ -666,6 +700,68 @@ function CreateSubscriberModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
       </Modal.Container>
       </Modal.Backdrop>
     </Modal>
+  );
+}
+
+function SettingsTab({
+  subscribers,
+  plans,
+}: {
+  subscribers: CustomerMembership[];
+  plans: MembershipPlan[];
+}) {
+  const activeSubs = subscribers.filter((s) => s.status === 'active');
+  const overdueSubs = subscribers.filter((s) => s.status === 'overdue');
+  const recurringRevenue = activeSubs.reduce(
+    (sum, s) => sum + Number(s.membershipPlan?.recurringPrice ?? 0),
+    0,
+  );
+
+  const stats: { label: string; value: string }[] = [
+    { label: 'Modelos cadastrados', value: String(plans.length) },
+    { label: 'Assinaturas ativas', value: String(activeSubs.length) },
+    { label: 'Assinaturas inadimplentes', value: String(overdueSubs.length) },
+    { label: 'Receita recorrente ativa', value: formatMoney(recurringRevenue) },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className={CARD}>
+        <Card.Content className="p-4">
+          <h3 className="mb-1 text-sm font-semibold text-foreground">Visão geral</h3>
+          <p className="mb-4 text-xs text-muted">
+            Números calculados a partir das assinaturas e modelos cadastrados.
+          </p>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className="rounded-xl border border-[var(--color-soft-border)] bg-white p-3 shadow-[var(--shadow-soft)]"
+              >
+                <div className="text-lg font-semibold text-foreground">{s.value}</div>
+                <div className="mt-0.5 text-xs text-muted">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </Card.Content>
+      </Card>
+
+      <Card className={CARD}>
+        <Card.Content className="p-4">
+          <h3 className="mb-1 text-sm font-semibold text-foreground">Página pública de assinaturas</h3>
+          <p className="text-xs text-muted">
+            O link público para venda de assinaturas online ainda não está disponível no Salonpass.
+          </p>
+          <div className="mt-4">
+            <EmptyState
+              icon={<IconRepeat size={32} />}
+              title="Venda online em breve"
+              description="Quando disponível, você poderá publicar um link para clientes assinarem seus modelos diretamente."
+            />
+          </div>
+        </Card.Content>
+      </Card>
+    </div>
   );
 }
 

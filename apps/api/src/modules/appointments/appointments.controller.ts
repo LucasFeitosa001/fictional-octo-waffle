@@ -26,8 +26,10 @@ export class AppointmentsController {
     @Query('to') to?: string,
     @Query('professionalId') professionalId?: string,
     @Query('status') status?: string,
+    @Query('serviceId') serviceId?: string,
+    @Query('q') q?: string,
   ) {
-    return this.service.list(companyId, { from, to, professionalId, status });
+    return this.service.list(companyId, { from, to, professionalId, status, serviceId, q });
   }
 
   @Get('appointments/calendar')
