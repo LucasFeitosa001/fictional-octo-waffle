@@ -254,6 +254,9 @@ model Company {
   settings            Setting[]
   goals               Goal[]
   reportsCache        ReportCache[]
+  importedXmls        ImportedXml[]
+  salonWebProfile     SalonWebProfile?
+  galleryPhotos       GalleryPhoto[]
 }
 
 model Branch {
@@ -669,26 +672,42 @@ model CustomerDebtPayment {
 // =====================================================================
 
 model Professional {
-  id             String    @id @default(cuid())
-  companyId      String
-  userId         String?   @unique
-  name           String
-  nickname       String?
-  phone          String?
-  profession     String?
-  birthday       DateTime?
-  avatarUrl      String?
-  onlineBookable Boolean   @default(true)
-  notifyWhatsapp Boolean   @default(true)
-  active         Boolean   @default(true)
+  id                 String    @id @default(cuid())
+  companyId          String
+  userId             String?   @unique
+  name               String
+  nickname           String?
+  phone              String?
+  profession         String?
+  birthday           DateTime?
+  avatarUrl          String?
+  onlineBookable     Boolean   @default(true)
+  notifyWhatsapp     Boolean   @default(true)
+  active             Boolean   @default(true)
+  // Dados cadastrais adicionais (Onda 7): documento (CPF/CNPJ), RG, cargo,
+  // observações e flags operacionais.
+  document           String?
+  rg                 String?
+  notes              String?
+  position           String?
+  receivesCommission Boolean   @default(true)
+  generateSchedule   Boolean   @default(true)
+  // Endereço embutido (Onda 7 — sem model ProfessionalAddress separado).
+  street             String?
+  number             String?
+  complement         String?
+  district           String?
+  city               String?
+  state              String?
+  zip                String?
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
-  legacyId       String?
-  legacySource   String?
+  legacyId           String?
+  legacySource       String?
   // Soft-delete marker (see Customer.deletedAt). Hidden everywhere when set;
   // `active` remains an independent enable/disable toggle.
-  deletedAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   company            Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user               User?                        @relation(fields: [userId], references: [id])
@@ -948,6 +967,13 @@ model Purchase {
   supplierId      String?
   accountId       String?
   paymentMethodId String?
+  // Onda 7: status da nota, número (sem unique — dados legados podem colidir),
+  // frete, desconto no total e observações.
+  status          String   @default("lancada")
+  number          Int?
+  freight         Decimal  @default(0) @db.Decimal(12, 2)
+  discount        Decimal  @default(0) @db.Decimal(12, 2)
+  notes           String?
   total           Decimal  @default(0) @db.Decimal(12, 2)
   date            DateTime @default(now())
   createdAt       DateTime @default(now())
@@ -961,6 +987,7 @@ model Purchase {
 
   @@index([companyId])
   @@index([supplierId])
+  @@index([companyId, number])
 }
 
 model PurchaseItem {
@@ -969,6 +996,9 @@ model PurchaseItem {
   productId  String
   quantity   Decimal @db.Decimal(12, 3)
   unitCost   Decimal @db.Decimal(12, 2)
+  // Onda 7: desconto por item e total calculado do item.
+  discount   Decimal @default(0) @db.Decimal(12, 2)
+  total      Decimal @default(0) @db.Decimal(12, 2)
 
   purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id])
@@ -990,6 +1020,8 @@ model Appointment {
   start          DateTime
   end            DateTime
   notes          String?
+  // Onda 7: cor de exibição do agendamento na agenda.
+  color          String?
   source         AppointmentSource @default(admin)
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
   legacyId       String?
@@ -1873,4 +1905,65 @@ model WhatsappOutbox {
   createdAt     DateTime  @default(now())
 
   @@index([status, nextAttemptAt])
+}
+
+// =====================================================================
+// DOMÍNIO: Importação de XML (NF-e de compra)
+// =====================================================================
+
+// Onda 7: registro de XMLs (NF-e) importados para gerar compras. Cada linha
+// referencia a chave de acesso da nota e, quando processada, a compra criada.
+model ImportedXml {
+  id         String   @id @default(cuid())
+  companyId  String
+  accessKey  String?
+  fileUrl    String?
+  status     String   @default("pending")
+  purchaseId String?
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+// =====================================================================
+// DOMÍNIO: Agendamento online (perfil público & galeria)
+// =====================================================================
+
+// Onda 7: perfil público do salão para o agendamento online (descrição,
+// redes sociais, comodidades e preferências de fluxo/tema).
+model SalonWebProfile {
+  id              String   @id @default(cuid())
+  companyId       String   @unique
+  description     String?
+  website         String?
+  facebook        String?
+  instagram       String?
+  wifi            Boolean  @default(false)
+  snackBar        Boolean  @default(false)
+  parkingLot      Boolean  @default(false)
+  kids            Boolean  @default(false)
+  accessibility   Boolean  @default(false)
+  themePreference String?
+  schedulingFlow  String?
+  requiredLogin   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+// Onda 7: fotos da galeria pública do salão para o agendamento online.
+model GalleryPhoto {
+  id           String   @id @default(cuid())
+  companyId    String
+  url          String
+  caption      String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
