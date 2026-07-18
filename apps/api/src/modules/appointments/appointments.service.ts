@@ -120,6 +120,7 @@ export class AppointmentsService {
     // Schedule + collision validation (only when a professional is set).
     if (dto.professionalId) {
       await this.assertWithinSchedule(companyId, dto.professionalId, start, end);
+      await this.assertNoOverlap(companyId, dto.professionalId, start, end);
     }
 
     const created = await this.prisma.client.appointment.create({
@@ -178,6 +179,7 @@ export class AppointmentsService {
     const timeChanged = Boolean(dto.start || dto.end || dto.professionalId);
     if (professionalId && timeChanged) {
       await this.assertWithinSchedule(companyId, professionalId, start, end);
+      await this.assertNoOverlap(companyId, professionalId, start, end, id);
     }
 
     return this.prisma.client.appointment.update({
