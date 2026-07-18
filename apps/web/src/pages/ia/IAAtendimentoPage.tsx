@@ -305,7 +305,7 @@ export function IAAtendimentoPage() {
   return (
     <div>
       <PageHeader
-        title="IA Atendimento"
+        title="WhatsApp API Oficial"
         subtitle="Recepcionista virtual no WhatsApp — agenda, confirma e tira dúvidas sozinha"
         actions={
           <div className="flex flex-wrap items-center gap-2">

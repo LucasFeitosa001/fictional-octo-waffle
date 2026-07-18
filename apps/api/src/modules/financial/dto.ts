@@ -41,8 +41,23 @@ export enum PartyTypeDto {
 export class ListTransactionsQueryDto {
   @IsOptional() @IsEnum(TransactionKindDto) type?: TransactionKindDto;
   @IsOptional() @IsEnum(PaymentStatusDto) status?: PaymentStatusDto;
+  @IsOptional() @IsString() paymentMethodId?: string;
+  @IsOptional() @IsString() accountId?: string;
+  @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() from?: string;
   @IsOptional() @IsString() to?: string;
+}
+
+// Transferência entre contas (gera um par de lançamentos: saída na conta de
+// origem + entrada na conta de destino). O schema não possui TransactionKind
+// dedicado a transferência, por isso o par usa expense/income.
+export class CreateTransferDto {
+  @IsNumber() @Min(0) amount: number;
+  @IsString() fromAccountId: string;
+  @IsString() toAccountId: string;
+  @IsOptional() @IsString() categoryId?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() date?: string;
 }
 
 export class CreateTransactionDto {

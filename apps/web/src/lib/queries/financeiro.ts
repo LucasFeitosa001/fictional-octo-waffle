@@ -6,6 +6,7 @@ export type TransactionKind = 'income' | 'expense';
 export type PaymentStatus = 'pending' | 'paid' | 'reversed';
 export type FinancialAccountType = 'cash' | 'bank';
 export type FinancialCategoryKind = 'debit' | 'credit';
+export type PartyType = 'customer' | 'professional' | 'supplier';
 
 export interface FinancialSummary {
   period: { from: string | null; to: string | null };
@@ -17,6 +18,33 @@ export interface FinancialSummary {
     paymentMethodName: string;
     total: number;
   }[];
+  receivableToday: number;
+  payableToday: number;
+  totals: {
+    received: number;
+    toReceive: number;
+    paid: number;
+    toPay: number;
+  };
+  accounts: {
+    id: string;
+    name: string;
+    type: FinancialAccountType;
+    active: boolean;
+    initialBalance: number;
+    currentBalance: number;
+  }[];
+  cashFlow: {
+    date: string;
+    inflow: number;
+    outflow: number;
+    balance: number;
+  }[];
+  salesByDay: {
+    date: string;
+    total: number;
+    count: number;
+  }[];
 }
 
 export interface TransactionRow {
@@ -26,6 +54,8 @@ export interface TransactionRow {
   accountId?: string | null;
   categoryId?: string | null;
   paymentMethodId?: string | null;
+  partyType?: PartyType | null;
+  partyId?: string | null;
   description?: string | null;
   grossAmount: string;
   dueDate?: string | null;
@@ -35,6 +65,11 @@ export interface TransactionRow {
   account?: { id: string; name: string } | null;
   category?: { id: string; name: string } | null;
   paymentMethod?: { id: string; name: string } | null;
+  order?: {
+    id: string;
+    number: number;
+    customer?: { id: string; name: string } | null;
+  } | null;
 }
 
 export interface FinancialAccount {
@@ -69,6 +104,9 @@ export interface FinancialCategory {
 export interface TransactionFilters {
   type?: TransactionKind;
   status?: PaymentStatus;
+  paymentMethodId?: string;
+  accountId?: string;
+  categoryId?: string;
   from?: string;
   to?: string;
 }
@@ -79,10 +117,21 @@ export interface CreateTransactionBody {
   accountId?: string;
   categoryId?: string;
   paymentMethodId?: string;
+  partyType?: PartyType;
+  partyId?: string;
   description?: string;
   dueDate?: string;
   paidAt?: string;
   status?: PaymentStatus;
+}
+
+export interface CreateTransferBody {
+  amount: number;
+  fromAccountId: string;
+  toAccountId: string;
+  categoryId?: string;
+  description?: string;
+  date?: string;
 }
 
 export interface CreateFinancialAccountBody {
@@ -144,6 +193,9 @@ export function useTransactions(filters: TransactionFilters = {}) {
       api.get<Paginated<TransactionRow>>('/transactions', {
         type: filters.type,
         status: filters.status,
+        paymentMethodId: filters.paymentMethodId,
+        accountId: filters.accountId,
+        categoryId: filters.categoryId,
         from: filters.from,
         to: filters.to,
       }),
@@ -178,6 +230,38 @@ export function useDeleteTransaction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<TransactionRow>(`/transactions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+    },
+  });
+}
+
+/** Estorno: preserva a original (marca `reversed`) e cria a contrapartida. */
+export function useReverseTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ reversed: TransactionRow; counter: TransactionRow }>(
+        `/transactions/${id}/reverse`,
+        {},
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+    },
+  });
+}
+
+/** Transferência entre contas (par de lançamentos). */
+export function useCreateTransfer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateTransferBody) =>
+      api.post<{ out: TransactionRow; income: TransactionRow }>(
+        '/transactions/transfer',
+        body,
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });

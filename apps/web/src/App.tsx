@@ -100,6 +100,7 @@ function ProtectedRoutes() {
         <Route path="/marketing/campanhas" element={<CampanhasPage />} />
         <Route path="/marketing/avaliacoes" element={<AvaliacoesPage />} />
         <Route path="/marketing/cashback" element={<CashbackPage />} />
+        <Route path="/whatsapp" element={<IAAtendimentoPage />} />
         <Route path="/ia-atendimento" element={<IAAtendimentoPage />} />
         <Route path="/configuracoes" element={<ConfiguracoesPage />} />
         <Route path="/ajuda" element={<AjudaPage />} />

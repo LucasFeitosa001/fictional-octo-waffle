@@ -3,35 +3,39 @@ import {
   Button,
   Card,
   Chip,
+  Dropdown,
   Input,
   ListBox,
   Modal,
   Select,
+  Switch,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
-import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
+  IconChevron,
   IconDollar,
   IconDownload,
   IconPencil,
   IconPlus,
-  IconTrash,
+  IconRepeat,
   IconWallet,
 } from '../../components/icons';
 import { DateField, DateRangeFilter } from '../../components/DateRangeFilter';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
+import { useCustomers, useProfessionals } from '../../lib/queries';
 import {
   useCreateTransaction,
-  useDeleteTransaction,
+  useCreateTransfer,
   useFinancialAccounts,
   useFinancialCategories,
   usePaymentMethods,
+  useReverseTransaction,
   useTransactions,
   useUpdateTransaction,
   type CreateTransactionBody,
@@ -44,6 +48,16 @@ const CARD_CLASS =
   'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
 
 const ALL = '__all__';
+
+/** Tipo de lançamento (UI). Vale = despesa p/ profissional; Transferência = par. */
+type LancamentoMode = 'recebimento' | 'despesa' | 'vale' | 'transferencia';
+
+const MODE_LABEL: Record<LancamentoMode, string> = {
+  recebimento: 'Recebimento',
+  despesa: 'Despesa',
+  vale: 'Vale',
+  transferencia: 'Transferência',
+};
 
 const KIND_LABEL: Record<TransactionKind, string> = {
   income: 'Receita',
@@ -62,47 +76,51 @@ const STATUS_COLOR: Record<PaymentStatus, 'success' | 'warning' | 'danger'> = {
   reversed: 'danger',
 };
 
+/** Descrição automática referenciando comanda/cliente quando houver. */
+function describe(t: TransactionRow): string {
+  if (t.description && t.description.trim()) return t.description.trim();
+  if (t.order) {
+    const who = t.order.customer?.name;
+    return who
+      ? `Referente à comanda #${t.order.number} para ${who}`
+      : `Referente à comanda #${t.order.number}`;
+  }
+  return t.kind === 'income' ? 'Recebimento' : 'Despesa';
+}
+
 export function TransacoesPage() {
-  const [typeFilter, setTypeFilter] = useState<'all' | TransactionKind>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | PaymentStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>(
+    'all',
+  );
+  const [showReversed, setShowReversed] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [accountFilter, setAccountFilter] = useState(ALL);
   const [methodFilter, setMethodFilter] = useState(ALL);
-  const [categoryFilter, setCategoryFilter] = useState(ALL);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<LancamentoMode | null>(null);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
 
-  const accounts = useFinancialAccounts();
   const paymentMethods = usePaymentMethods();
-  const categories = useFinancialCategories();
 
-  // Server supports type/status/from/to. Account/method/category are filtered
-  // client-side below since the API doesn't accept those params.
   const transactions = useTransactions({
-    type: typeFilter === 'all' ? undefined : typeFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
+    paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
     from: from || undefined,
     to: to || undefined,
   });
-  const del = useDeleteTransaction();
+  const reverse = useReverseTransaction();
 
   const serverRows = transactions.data?.data ?? [];
   const rows = useMemo(
     () =>
-      serverRows.filter(
-        (t) =>
-          (accountFilter === ALL || t.accountId === accountFilter) &&
-          (methodFilter === ALL || t.paymentMethodId === methodFilter) &&
-          (categoryFilter === ALL || t.categoryId === categoryFilter),
-      ),
-    [serverRows, accountFilter, methodFilter, categoryFilter],
+      serverRows.filter((t) => showReversed || t.status !== 'reversed'),
+    [serverRows, showReversed],
   );
 
   const totals = useMemo(() => {
     let income = 0;
     let expense = 0;
     for (const t of rows) {
+      if (t.status === 'reversed') continue;
       const v = Number(t.grossAmount) || 0;
       if (t.kind === 'income') income += v;
       else expense += v;
@@ -111,29 +129,25 @@ export function TransacoesPage() {
   }, [rows]);
 
   const hasFilters =
-    typeFilter !== 'all' ||
     statusFilter !== 'all' ||
+    showReversed ||
     Boolean(from) ||
     Boolean(to) ||
-    accountFilter !== ALL ||
-    methodFilter !== ALL ||
-    categoryFilter !== ALL;
+    methodFilter !== ALL;
 
   function clearFilters() {
-    setTypeFilter('all');
     setStatusFilter('all');
+    setShowReversed(false);
     setFrom('');
     setTo('');
-    setAccountFilter(ALL);
     setMethodFilter(ALL);
-    setCategoryFilter(ALL);
   }
 
   function exportCsv() {
     downloadCsv<TransactionRow>(
       `transacoes-${isoDate(new Date())}`,
       [
-        { header: 'Descrição', value: (t) => t.description ?? '' },
+        { header: 'Descrição', value: (t) => describe(t) },
         { header: 'Tipo', value: (t) => KIND_LABEL[t.kind] },
         { header: 'Categoria', value: (t) => t.category?.name ?? '' },
         { header: 'Forma', value: (t) => t.paymentMethod?.name ?? '' },
@@ -146,119 +160,42 @@ export function TransacoesPage() {
     );
   }
 
-  function openCreate() {
+  function openForm(mode: LancamentoMode) {
     setEditing(null);
-    setModalOpen(true);
+    setFormMode(mode);
   }
   function openEdit(t: TransactionRow) {
     setEditing(t);
-    setModalOpen(true);
+    setFormMode(t.kind === 'income' ? 'recebimento' : 'despesa');
   }
-  async function handleRemove(t: TransactionRow) {
-    if (!window.confirm('Remover esta transação?')) return;
+  function closeForm() {
+    setFormMode(null);
+    setEditing(null);
+  }
+
+  async function handleReverse(t: TransactionRow) {
+    if (
+      !window.confirm(
+        'Estornar esta transação? A original será preservada e marcada como estornada.',
+      )
+    )
+      return;
     try {
-      await del.mutateAsync(t.id);
-    } catch {
-      window.alert('Não foi possível remover a transação.');
+      await reverse.mutateAsync(t.id);
+    } catch (err) {
+      window.alert(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível estornar a transação.',
+      );
     }
   }
-
-  const columns: Column<TransactionRow>[] = [
-    {
-      key: 'description',
-      header: 'Descrição',
-      isRowHeader: true,
-      render: (t) => (
-        <span className="font-medium text-foreground">
-          {t.description ?? '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'kind',
-      header: 'Tipo',
-      render: (t) => (
-        <Chip
-          variant="soft"
-          color={t.kind === 'income' ? 'success' : 'danger'}
-          size="sm"
-        >
-          {KIND_LABEL[t.kind]}
-        </Chip>
-      ),
-    },
-    {
-      key: 'category',
-      header: 'Categoria',
-      render: (t) =>
-        t.category ? (
-          <Chip variant="soft" color="accent" size="sm">
-            {t.category.name}
-          </Chip>
-        ) : (
-          <span className="text-muted">—</span>
-        ),
-    },
-    {
-      key: 'method',
-      header: 'Forma',
-      render: (t) => t.paymentMethod?.name ?? '—',
-    },
-    {
-      key: 'amount',
-      header: 'Valor',
-      render: (t) => (
-        <span
-          className={
-            t.kind === 'income' ? 'font-semibold text-success' : 'font-semibold text-danger'
-          }
-        >
-          {formatMoney(t.grossAmount)}
-        </span>
-      ),
-    },
-    { key: 'due', header: 'Vencimento', render: (t) => formatDate(t.dueDate) },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (t) => (
-        <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
-          {STATUS_LABEL[t.status]}
-        </Chip>
-      ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      render: (t) => (
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => openEdit(t)}>
-            <IconPencil size={15} /> Editar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            isDisabled={del.isPending}
-            onClick={() => handleRemove(t)}
-          >
-            <IconTrash size={15} /> Remover
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
-  const typeSegments: { id: 'all' | TransactionKind; label: string }[] = [
-    { id: 'all', label: 'Todas' },
-    { id: 'income', label: 'Receitas' },
-    { id: 'expense', label: 'Despesas' },
-  ];
 
   return (
     <div>
       <PageHeader
         title="Transações"
-        subtitle="Lançamentos de receitas e despesas"
+        subtitle="Recebimentos, despesas, vales e transferências"
         onRefresh={() => transactions.refetch()}
         isRefreshing={transactions.isFetching}
         actions={
@@ -270,9 +207,38 @@ export function TransacoesPage() {
             >
               <IconDownload size={16} /> Exportar CSV
             </Button>
-            <Button variant="primary" onClick={openCreate}>
-              <IconPlus size={16} /> Nova transação
-            </Button>
+            <Dropdown>
+              <Dropdown.Trigger>
+                <Button variant="primary">
+                  <IconPlus size={16} /> Novo <IconChevron size={14} />
+                </Button>
+              </Dropdown.Trigger>
+              <Dropdown.Popover>
+                <Dropdown.Menu aria-label="Tipo de lançamento">
+                  <Dropdown.Item
+                    textValue="Recebimento"
+                    onAction={() => openForm('recebimento')}
+                  >
+                    Recebimento
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    textValue="Despesa"
+                    onAction={() => openForm('despesa')}
+                  >
+                    Despesa
+                  </Dropdown.Item>
+                  <Dropdown.Item textValue="Vale" onAction={() => openForm('vale')}>
+                    Vale
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    textValue="Transferência"
+                    onAction={() => openForm('transferencia')}
+                  >
+                    Transferência
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
           </>
         }
       />
@@ -289,51 +255,17 @@ export function TransacoesPage() {
                 setTo(t);
               }}
             />
-            {/* Type segmented control */}
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted">Tipo</span>
-              <div className="inline-flex h-10 items-center gap-1 rounded-lg border border-[var(--color-soft-border)] bg-white p-1">
-                {typeSegments.map((s) => {
-                  const active = typeFilter === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setTypeFilter(s.id)}
-                      className={
-                        'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
-                        (active
-                          ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]'
-                          : 'text-muted hover:text-foreground')
-                      }
-                    >
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <FilterSelect
-              label="Status"
+              label="Status de pagamento"
               value={statusFilter}
-              onChange={(v) => setStatusFilter(v as 'all' | PaymentStatus)}
+              onChange={(v) => setStatusFilter(v as 'all' | 'paid' | 'pending')}
               options={[
-                { id: 'all', name: 'Todos os status' },
+                { id: 'all', name: 'Todos' },
                 { id: 'paid', name: 'Pago' },
                 { id: 'pending', name: 'Pendente' },
-                { id: 'reversed', name: 'Estornado' },
-              ]}
-            />
-            <FilterSelect
-              label="Conta"
-              value={accountFilter}
-              onChange={setAccountFilter}
-              options={[
-                { id: ALL, name: 'Todas as contas' },
-                ...(accounts.data ?? []).map((a) => ({ id: a.id, name: a.name })),
               ]}
             />
             <FilterSelect
@@ -342,18 +274,27 @@ export function TransacoesPage() {
               onChange={setMethodFilter}
               options={[
                 { id: ALL, name: 'Todas as formas' },
-                ...(paymentMethods.data ?? []).map((m) => ({ id: m.id, name: m.name })),
+                ...(paymentMethods.data ?? []).map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                })),
               ]}
             />
-            <FilterSelect
-              label="Categoria"
-              value={categoryFilter}
-              onChange={setCategoryFilter}
-              options={[
-                { id: ALL, name: 'Todas as categorias' },
-                ...(categories.data ?? []).map((c) => ({ id: c.id, name: c.name })),
-              ]}
-            />
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted">Estornadas</span>
+              <Switch
+                isSelected={showReversed}
+                onChange={setShowReversed}
+                className="flex h-10 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
+              >
+                <span className="text-sm text-foreground">
+                  Mostrar estornadas
+                </span>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch>
+            </div>
           </div>
 
           {hasFilters && (
@@ -392,9 +333,7 @@ export function TransacoesPage() {
         <Card.Content className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Lançamentos</h3>
-            <span className="text-xs text-muted">
-              {rows.length} resultado(s)
-            </span>
+            <span className="text-xs text-muted">{rows.length} resultado(s)</span>
           </div>
           {transactions.isLoading ? (
             <LoadingState />
@@ -411,22 +350,116 @@ export function TransacoesPage() {
               description={
                 hasFilters
                   ? 'Ajuste os filtros para ver mais lançamentos.'
-                  : 'Lance receitas e despesas para acompanhar o caixa.'
+                  : 'Lance recebimentos e despesas para acompanhar o caixa.'
               }
             />
           ) : (
-            <DataTable
-              aria-label="Transações"
-              columns={columns}
-              rows={rows}
-              getKey={(t) => t.id}
-            />
+            <ul className="flex flex-col gap-2">
+              {rows.map((t) => (
+                <TransactionItem
+                  key={t.id}
+                  t={t}
+                  onEdit={() => openEdit(t)}
+                  onReverse={() => handleReverse(t)}
+                  reversing={reverse.isPending}
+                />
+              ))}
+            </ul>
           )}
         </Card.Content>
       </Card>
 
-      <NovaTransacaoModal isOpen={modalOpen} onOpenChange={setModalOpen} editing={editing} />
+      {formMode === 'transferencia' ? (
+        <TransferenciaModal isOpen onClose={closeForm} />
+      ) : formMode ? (
+        <LancamentoModal
+          mode={formMode}
+          editing={editing}
+          onClose={closeForm}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/** Item de transação com fundo tingido pela natureza (receita verde / despesa rosa). */
+function TransactionItem({
+  t,
+  onEdit,
+  onReverse,
+  reversing,
+}: {
+  t: TransactionRow;
+  onEdit: () => void;
+  onReverse: () => void;
+  reversing: boolean;
+}) {
+  const isReversed = t.status === 'reversed';
+  const tint =
+    t.kind === 'income'
+      ? 'border-success/20 bg-success/5'
+      : 'border-danger/20 bg-danger/5';
+  return (
+    <li
+      className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${tint} ${
+        isReversed ? 'opacity-60' : ''
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <p
+          className={`truncate text-sm font-medium text-foreground ${
+            isReversed ? 'line-through' : ''
+          }`}
+        >
+          {describe(t)}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+          <span>{formatDate(t.dueDate)}</span>
+          {t.category && (
+            <Chip variant="soft" color="accent" size="sm">
+              {t.category.name}
+            </Chip>
+          )}
+          {t.paymentMethod && <span>· {t.paymentMethod.name}</span>}
+          {t.account && <span>· {t.account.name}</span>}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 sm:justify-end">
+        <div className="flex flex-col items-start sm:items-end">
+          <span
+            className={
+              t.kind === 'income'
+                ? 'text-sm font-semibold text-success'
+                : 'text-sm font-semibold text-danger'
+            }
+          >
+            {t.kind === 'income' ? '+' : '−'}
+            {formatMoney(t.grossAmount)}
+          </span>
+          <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
+            {STATUS_LABEL[t.status]}
+          </Chip>
+        </div>
+        <div className="flex gap-2">
+          {!isReversed && (
+            <>
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                <IconPencil size={15} /> Editar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                isDisabled={reversing}
+                onClick={onReverse}
+              >
+                <IconRepeat size={15} /> Estornar
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -506,21 +539,73 @@ function TotalCard({
 
 const NONE = '';
 
-function NovaTransacaoModal({
-  isOpen,
-  onOpenChange,
-  editing,
+/** Wrapper de campo Select para os formulários de lançamento. */
+function FieldSelect({
+  label,
+  placeholder,
+  value,
+  onChange,
+  options,
 }: {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  editing: TransactionRow | null;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; name: string }[];
 }) {
-  const [kind, setKind] = useState<TransactionKind>('income');
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-muted">{label}</label>
+      <Select
+        aria-label={label}
+        selectedKey={value || null}
+        onSelectionChange={(k) => onChange(k ? String(k) : NONE)}
+      >
+        <Select.Trigger>
+          <Select.Value>
+            {({ isPlaceholder, selectedText }) =>
+              isPlaceholder ? placeholder : selectedText
+            }
+          </Select.Value>
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {options.map((o) => (
+              <ListBox.Item key={o.id} id={o.id} textValue={o.name}>
+                {o.name}
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
+    </div>
+  );
+}
+
+/**
+ * Formulário de Recebimento / Despesa / Vale.
+ * - recebimento: receita, com "Recebido de" (cliente).
+ * - despesa: despesa, com "Pago para" (profissional) opcional.
+ * - vale: despesa p/ profissional (obrigatório).
+ */
+function LancamentoModal({
+  mode,
+  editing,
+  onClose,
+}: {
+  mode: LancamentoMode;
+  editing: TransactionRow | null;
+  onClose: () => void;
+}) {
+  const isVale = mode === 'vale';
+  const kind: TransactionKind = mode === 'recebimento' ? 'income' : 'expense';
+
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [partyId, setPartyId] = useState('');
   const [status, setStatus] = useState<PaymentStatus>('paid');
   const [dueDate, setDueDate] = useState(() => isoDate(new Date()));
   const [formError, setFormError] = useState<string | null>(null);
@@ -529,43 +614,69 @@ function NovaTransacaoModal({
   const categories = useFinancialCategories();
   const paymentMethods = usePaymentMethods();
   const accounts = useFinancialAccounts();
+  const customers = useCustomers('', 1, 50);
+  const professionals = useProfessionals(1, 50);
   const createTransaction = useCreateTransaction();
   const updateTransaction = useUpdateTransaction();
 
   useEffect(() => {
-    if (isOpen) {
-      if (editing) {
-        setKind(editing.kind);
-        setAmount(String(editing.grossAmount));
-        setDescription(editing.description ?? '');
-        setCategoryId(editing.categoryId ?? '');
-        setPaymentMethodId(editing.paymentMethodId ?? '');
-        setAccountId(editing.accountId ?? '');
-        setStatus(editing.status);
-        setDueDate(editing.dueDate ? isoDate(new Date(editing.dueDate)) : isoDate(new Date()));
-      } else {
-        setKind('income');
-        setAmount('');
-        setDescription('');
-        setCategoryId('');
-        setPaymentMethodId('');
-        setAccountId('');
-        setStatus('paid');
-        setDueDate(isoDate(new Date()));
-      }
-      setFormError(null);
-      setSuccess(false);
+    if (editing) {
+      setAmount(String(editing.grossAmount));
+      setDescription(editing.description ?? '');
+      setCategoryId(editing.categoryId ?? '');
+      setPaymentMethodId(editing.paymentMethodId ?? '');
+      setAccountId(editing.accountId ?? '');
+      setPartyId(editing.partyId ?? '');
+      setStatus(editing.status === 'reversed' ? 'paid' : editing.status);
+      setDueDate(
+        editing.dueDate ? isoDate(new Date(editing.dueDate)) : isoDate(new Date()),
+      );
+    } else {
+      setAmount('');
+      setDescription('');
+      setCategoryId('');
+      setPaymentMethodId('');
+      setAccountId('');
+      setPartyId('');
+      setStatus('paid');
+      setDueDate(isoDate(new Date()));
     }
-  }, [isOpen, editing]);
+    setFormError(null);
+    setSuccess(false);
+  }, [editing, mode]);
 
   const isPending = createTransaction.isPending || updateTransaction.isPending;
   const numericAmount = useMemo(() => Number(amount.replace(',', '.')), [amount]);
-  const canConfirm = Number.isFinite(numericAmount) && numericAmount > 0 && !isPending;
+  const canConfirm =
+    Number.isFinite(numericAmount) &&
+    numericAmount > 0 &&
+    (!isVale || Boolean(partyId)) &&
+    !isPending;
+
+  const customerName = (id: string) =>
+    (customers.data?.data ?? []).find((c) => c.id === id)?.name ?? '';
+  const professionalName = (id: string) =>
+    (professionals.data?.data ?? []).find((p) => p.id === id)?.name ?? '';
+
+  function autoDescription(): string {
+    const typed = description.trim();
+    if (typed) return typed;
+    if (mode === 'recebimento' && partyId)
+      return `Recebimento de ${customerName(partyId)}`;
+    if (mode === 'vale' && partyId) return `Vale para ${professionalName(partyId)}`;
+    if (mode === 'despesa' && partyId)
+      return `Pagamento para ${professionalName(partyId)}`;
+    return MODE_LABEL[mode];
+  }
 
   async function handleConfirm() {
     setFormError(null);
     if (!canConfirm) {
-      setFormError('Informe um valor válido.');
+      setFormError(
+        isVale && !partyId
+          ? 'Selecione o profissional do vale.'
+          : 'Informe um valor válido.',
+      );
       return;
     }
     const body: CreateTransactionBody = {
@@ -574,249 +685,402 @@ function NovaTransacaoModal({
       status,
       dueDate,
       ...(status === 'paid' ? { paidAt: new Date().toISOString() } : {}),
-      description: description.trim() || undefined,
+      description: autoDescription(),
       categoryId: categoryId || undefined,
       paymentMethodId: paymentMethodId || undefined,
       accountId: accountId || undefined,
+      ...(partyId
+        ? {
+            partyId,
+            partyType: mode === 'recebimento' ? 'customer' : 'professional',
+          }
+        : {}),
     };
     try {
       if (editing) {
         await updateTransaction.mutateAsync({ id: editing.id, body });
-        onOpenChange(false);
+        onClose();
       } else {
         await createTransaction.mutateAsync(body);
         setSuccess(true);
       }
     } catch (err) {
-      if (err instanceof ApiClientError) {
-        setFormError(err.message || 'Não foi possível salvar a transação.');
-        return;
-      }
-      setFormError('Não foi possível salvar a transação. Tente novamente.');
+      setFormError(
+        err instanceof ApiClientError
+          ? err.message || 'Não foi possível salvar o lançamento.'
+          : 'Não foi possível salvar o lançamento. Tente novamente.',
+      );
+    }
+  }
+
+  const title = editing
+    ? `Editar ${mode === 'recebimento' ? 'recebimento' : 'despesa'}`
+    : `Novo ${MODE_LABEL[mode].toLowerCase()}`;
+
+  return (
+    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
+      <Modal.Backdrop>
+        <Modal.Container
+          placement="center"
+          className="w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        >
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>{title}</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="flex flex-col gap-4">
+              {success ? (
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2b33d]/15 text-2xl text-[#a67c1e]">
+                    ✓
+                  </div>
+                  <p className="text-base font-semibold text-foreground">
+                    Lançamento registrado com sucesso!
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Valor */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted">
+                      Valor (R$)
+                    </label>
+                    <TextField value={amount} onChange={setAmount} aria-label="Valor">
+                      <Input placeholder="0,00" inputMode="decimal" />
+                    </TextField>
+                  </div>
+
+                  {/* Recebido de (cliente) */}
+                  {mode === 'recebimento' && (
+                    <FieldSelect
+                      label="Recebido de (cliente)"
+                      placeholder="Selecione (opcional)"
+                      value={partyId}
+                      onChange={setPartyId}
+                      options={(customers.data?.data ?? []).map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                      }))}
+                    />
+                  )}
+
+                  {/* Profissional (vale / despesa) */}
+                  {(mode === 'vale' || mode === 'despesa') && (
+                    <FieldSelect
+                      label={
+                        isVale
+                          ? 'Profissional (obrigatório)'
+                          : 'Pago para (profissional)'
+                      }
+                      placeholder={isVale ? 'Selecione' : 'Selecione (opcional)'}
+                      value={partyId}
+                      onChange={setPartyId}
+                      options={(professionals.data?.data ?? []).map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                      }))}
+                    />
+                  )}
+
+                  {/* Descrição */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted">
+                      Descrição
+                    </label>
+                    <TextField
+                      value={description}
+                      onChange={setDescription}
+                      aria-label="Descrição"
+                    >
+                      <Input placeholder="Gerada automaticamente se vazio" />
+                    </TextField>
+                  </div>
+
+                  {/* Categoria (oculto no vale) */}
+                  {!isVale && (
+                    <FieldSelect
+                      label="Categoria"
+                      placeholder="Selecione (opcional)"
+                      value={categoryId}
+                      onChange={setCategoryId}
+                      options={(categories.data ?? []).map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                      }))}
+                    />
+                  )}
+
+                  {/* Forma de pagamento */}
+                  <FieldSelect
+                    label="Forma de pagamento"
+                    placeholder="Selecione (opcional)"
+                    value={paymentMethodId}
+                    onChange={setPaymentMethodId}
+                    options={(paymentMethods.data ?? []).map((m) => ({
+                      id: m.id,
+                      name: m.name,
+                    }))}
+                  />
+
+                  {/* Conta */}
+                  <FieldSelect
+                    label="Conta"
+                    placeholder="Selecione (opcional)"
+                    value={accountId}
+                    onChange={setAccountId}
+                    options={(accounts.data ?? []).map((a) => ({
+                      id: a.id,
+                      name: a.name,
+                    }))}
+                  />
+
+                  {/* Vencimento + Status */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <DateField
+                      label="Vencimento"
+                      value={dueDate}
+                      onChange={setDueDate}
+                      className="min-w-0"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted">Status</label>
+                      <Select
+                        aria-label="Status"
+                        selectedKey={status}
+                        onSelectionChange={(k) =>
+                          setStatus(String(k) as PaymentStatus)
+                        }
+                      >
+                        <Select.Trigger>
+                          <Select.Value>
+                            {({ selectedText }) => selectedText}
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            <ListBox.Item id="paid" textValue="Pago">
+                              Pago
+                            </ListBox.Item>
+                            <ListBox.Item id="pending" textValue="Pendente">
+                              Pendente
+                            </ListBox.Item>
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {formError && (
+                    <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                      {formError}
+                    </div>
+                  )}
+                </>
+              )}
+            </Modal.Body>
+            <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              {success ? (
+                <Button
+                  variant="primary"
+                  className="w-full sm:w-auto"
+                  onClick={onClose}
+                >
+                  Fechar
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={onClose}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    className="w-full sm:w-auto"
+                    isDisabled={!canConfirm}
+                    onClick={handleConfirm}
+                  >
+                    {isPending ? 'Salvando…' : 'Salvar'}
+                  </Button>
+                </>
+              )}
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
+  );
+}
+
+/** Transferência entre contas (gera um par de lançamentos). */
+function TransferenciaModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [fromAccountId, setFromAccountId] = useState('');
+  const [toAccountId, setToAccountId] = useState('');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState(() => isoDate(new Date()));
+  const [formError, setFormError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const accounts = useFinancialAccounts();
+  const transfer = useCreateTransfer();
+
+  const numericAmount = useMemo(() => Number(amount.replace(',', '.')), [amount]);
+  const canConfirm =
+    Number.isFinite(numericAmount) &&
+    numericAmount > 0 &&
+    Boolean(fromAccountId) &&
+    Boolean(toAccountId) &&
+    fromAccountId !== toAccountId &&
+    !transfer.isPending;
+
+  const accountOptions = (accounts.data ?? []).map((a) => ({
+    id: a.id,
+    name: a.name,
+  }));
+
+  async function handleConfirm() {
+    setFormError(null);
+    if (!canConfirm) {
+      setFormError(
+        fromAccountId && fromAccountId === toAccountId
+          ? 'Origem e destino devem ser diferentes.'
+          : 'Preencha valor e contas de origem/destino.',
+      );
+      return;
+    }
+    try {
+      await transfer.mutateAsync({
+        amount: numericAmount,
+        fromAccountId,
+        toAccountId,
+        description: description.trim() || undefined,
+        date,
+      });
+      setSuccess(true);
+    } catch (err) {
+      setFormError(
+        err instanceof ApiClientError
+          ? err.message || 'Não foi possível transferir.'
+          : 'Não foi possível transferir. Tente novamente.',
+      );
     }
   }
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Modal.Backdrop>
-      <Modal.Container
-        placement="center"
-        className="w-full max-w-lg max-h-[90vh] overflow-y-auto"
-      >
-        <Modal.Dialog>
-          <Modal.Header>
-            <Modal.Heading>{editing ? 'Editar transação' : 'Nova transação'}</Modal.Heading>
-          </Modal.Header>
-          <Modal.Body className="flex flex-col gap-4">
-            {success ? (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2b33d]/15 text-2xl text-[#a67c1e]">
-                  ✓
-                </div>
-                <p className="text-base font-semibold text-foreground">
-                  Transação registrada com sucesso!
-                </p>
-              </div>
-            ) : (
-              <>
-                {/* Tipo */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">Tipo</label>
-                  <div className="flex gap-2">
-                    {(['income', 'expense'] as TransactionKind[]).map((k) => (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => setKind(k)}
-                        className={
-                          'flex-1 rounded-md border px-3 py-2 text-sm transition-colors ' +
-                          (kind === k
-                            ? 'border-[#f2b33d] bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]'
-                            : 'border-default-200 text-foreground hover:border-[#f2b33d]')
-                        }
-                      >
-                        {KIND_LABEL[k]}
-                      </button>
-                    ))}
+        <Modal.Container
+          placement="center"
+          className="w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        >
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>Nova transferência</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="flex flex-col gap-4">
+              {success ? (
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2b33d]/15 text-2xl text-[#a67c1e]">
+                    ✓
                   </div>
+                  <p className="text-base font-semibold text-foreground">
+                    Transferência registrada com sucesso!
+                  </p>
                 </div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted">
+                      Valor (R$)
+                    </label>
+                    <TextField value={amount} onChange={setAmount} aria-label="Valor">
+                      <Input placeholder="0,00" inputMode="decimal" />
+                    </TextField>
+                  </div>
 
-                {/* Valor */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">Valor (R$)</label>
-                  <TextField value={amount} onChange={setAmount} aria-label="Valor">
-                    <Input placeholder="0,00" inputMode="decimal" />
-                  </TextField>
-                </div>
+                  <FieldSelect
+                    label="Conta de origem"
+                    placeholder="Selecione"
+                    value={fromAccountId}
+                    onChange={setFromAccountId}
+                    options={accountOptions}
+                  />
+                  <FieldSelect
+                    label="Conta de destino"
+                    placeholder="Selecione"
+                    value={toAccountId}
+                    onChange={setToAccountId}
+                    options={accountOptions}
+                  />
 
-                {/* Descrição */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">Descrição</label>
-                  <TextField
-                    value={description}
-                    onChange={setDescription}
-                    aria-label="Descrição"
-                  >
-                    <Input placeholder="Ex.: Pagamento de fornecedor" />
-                  </TextField>
-                </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted">
+                      Descrição
+                    </label>
+                    <TextField
+                      value={description}
+                      onChange={setDescription}
+                      aria-label="Descrição"
+                    >
+                      <Input placeholder="Gerada automaticamente se vazio" />
+                    </TextField>
+                  </div>
 
-                {/* Categoria */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">Categoria</label>
-                  <Select
-                    aria-label="Categoria"
-                    selectedKey={categoryId || null}
-                    onSelectionChange={(k) => setCategoryId(k ? String(k) : NONE)}
-                  >
-                    <Select.Trigger>
-                      <Select.Value>
-                        {({ isPlaceholder, selectedText }) =>
-                          isPlaceholder ? 'Selecione (opcional)' : selectedText
-                        }
-                      </Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {(categories.data ?? []).map((c) => (
-                          <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                            {c.name}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-
-                {/* Forma de pagamento */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">
-                    Forma de pagamento
-                  </label>
-                  <Select
-                    aria-label="Forma de pagamento"
-                    selectedKey={paymentMethodId || null}
-                    onSelectionChange={(k) => setPaymentMethodId(k ? String(k) : NONE)}
-                  >
-                    <Select.Trigger>
-                      <Select.Value>
-                        {({ isPlaceholder, selectedText }) =>
-                          isPlaceholder ? 'Selecione (opcional)' : selectedText
-                        }
-                      </Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {(paymentMethods.data ?? []).map((m) => (
-                          <ListBox.Item key={m.id} id={m.id} textValue={m.name}>
-                            {m.name}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-
-                {/* Conta */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">Conta</label>
-                  <Select
-                    aria-label="Conta"
-                    selectedKey={accountId || null}
-                    onSelectionChange={(k) => setAccountId(k ? String(k) : NONE)}
-                  >
-                    <Select.Trigger>
-                      <Select.Value>
-                        {({ isPlaceholder, selectedText }) =>
-                          isPlaceholder ? 'Selecione (opcional)' : selectedText
-                        }
-                      </Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {(accounts.data ?? []).map((a) => (
-                          <ListBox.Item key={a.id} id={a.id} textValue={a.name}>
-                            {a.name}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-
-                {/* Vencimento + Status */}
-                <div className="grid gap-3 sm:grid-cols-2">
                   <DateField
-                    label="Vencimento"
-                    value={dueDate}
-                    onChange={setDueDate}
+                    label="Data"
+                    value={date}
+                    onChange={setDate}
                     className="min-w-0"
                   />
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted">Status</label>
-                    <Select
-                      aria-label="Status"
-                      selectedKey={status}
-                      onSelectionChange={(k) => setStatus(String(k) as PaymentStatus)}
-                    >
-                      <Select.Trigger>
-                        <Select.Value>
-                          {({ selectedText }) => selectedText}
-                        </Select.Value>
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          <ListBox.Item id="paid" textValue="Pago">
-                            Pago
-                          </ListBox.Item>
-                          <ListBox.Item id="pending" textValue="Pendente">
-                            Pendente
-                          </ListBox.Item>
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-                  </div>
-                </div>
 
-                {formError && (
-                  <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                    {formError}
-                  </div>
-                )}
-              </>
-            )}
-          </Modal.Body>
-          <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            {success ? (
-              <Button
-                variant="primary"
-                className="w-full sm:w-auto"
-                onClick={() => onOpenChange(false)}
-              >
-                Fechar
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={() => onOpenChange(false)}
-                >
-                  Cancelar
-                </Button>
+                  {formError && (
+                    <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                      {formError}
+                    </div>
+                  )}
+                </>
+              )}
+            </Modal.Body>
+            <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              {success ? (
                 <Button
                   variant="primary"
                   className="w-full sm:w-auto"
-                  isDisabled={!canConfirm}
-                  onClick={handleConfirm}
+                  onClick={onClose}
                 >
-                  {isPending ? 'Salvando…' : 'Salvar transação'}
+                  Fechar
                 </Button>
-              </>
-            )}
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={onClose}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    className="w-full sm:w-auto"
+                    isDisabled={!canConfirm}
+                    onClick={handleConfirm}
+                  >
+                    {transfer.isPending ? 'Salvando…' : 'Transferir'}
+                  </Button>
+                </>
+              )}
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
       </Modal.Backdrop>
     </Modal>
   );

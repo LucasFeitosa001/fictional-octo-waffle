@@ -15,6 +15,7 @@ import {
   CreateFinancialCategoryDto,
   CreatePaymentMethodDto,
   CreateTransactionDto,
+  CreateTransferDto,
   ListTransactionsQueryDto,
   SummaryQueryDto,
   UpdateFinancialAccountDto,
@@ -54,6 +55,22 @@ export class FinancialController {
     @Body() dto: CreateTransactionDto,
   ) {
     return this.service.createTransaction(companyId, dto);
+  }
+
+  @Post('transactions/transfer')
+  createTransfer(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: CreateTransferDto,
+  ) {
+    return this.service.createTransfer(companyId, dto);
+  }
+
+  @Post('transactions/:id/reverse')
+  reverseTransaction(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.reverseTransaction(companyId, id);
   }
 
   @Patch('transactions/:id')

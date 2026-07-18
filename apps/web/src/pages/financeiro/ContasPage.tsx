@@ -7,6 +7,8 @@ import {
   ListBox,
   Modal,
   Select,
+  Switch,
+  Tabs,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
@@ -47,16 +49,60 @@ import {
 } from '../../lib/queries/financeiro';
 
 const ACCOUNT_TYPE_LABEL: Record<FinancialAccountType, string> = {
-  cash: 'Dinheiro',
+  cash: 'Caixa',
   bank: 'Banco',
 };
 
 const CATEGORY_KIND_LABEL: Record<FinancialCategoryKind, string> = {
-  credit: 'Entrada',
-  debit: 'Saída',
+  credit: 'Crédito',
+  debit: 'Débito',
 };
 
+type TabKey = 'contas' | 'formas' | 'categorias';
+type StatusFilter = 'all' | 'active' | 'inactive';
+
+function StatusSeg({
+  value,
+  onChange,
+}: {
+  value: StatusFilter;
+  onChange: (v: StatusFilter) => void;
+}) {
+  return (
+    <div className="inline-flex h-10 items-center gap-1 rounded-lg border border-[var(--color-soft-border)] bg-white p-1">
+      {(
+        [
+          { id: 'all', label: 'Todos' },
+          { id: 'active', label: 'Ativados' },
+          { id: 'inactive', label: 'Desativados' },
+        ] as const
+      ).map((s) => {
+        const active = value === s.id;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onChange(s.id)}
+            className={
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
+              (active
+                ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]'
+                : 'text-muted hover:text-foreground')
+            }
+          >
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ContasPage() {
+  const [tab, setTab] = useState<TabKey>('contas');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
   const [accountModal, setAccountModal] = useState(false);
   const [methodModal, setMethodModal] = useState(false);
   const [categoryModal, setCategoryModal] = useState(false);
@@ -64,32 +110,46 @@ export function ContasPage() {
   const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null);
   const [editingCategory, setEditingCategory] = useState<FinancialCategory | null>(null);
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>(
-    'all',
-  );
-
   const accounts = useFinancialAccounts();
   const methods = usePaymentMethods();
   const categories = useFinancialCategories();
 
   const allAccounts = accounts.data ?? [];
+  const allMethods = methods.data ?? [];
   const allCategories = categories.data ?? [];
 
+  const accountNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of allAccounts) map.set(a.id, a.name);
+    return map;
+  }, [allAccounts]);
+
+  const q = search.trim().toLowerCase();
+  function matchSearch(name: string) {
+    return !q || name.toLowerCase().includes(q);
+  }
   function matchActive(active: boolean) {
     return (
-      activeFilter === 'all' ||
-      (activeFilter === 'active' && active) ||
-      (activeFilter === 'inactive' && !active)
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && active) ||
+      (statusFilter === 'inactive' && !active)
     );
   }
 
+  // Status filter só se aplica onde o backend expõe `active` (contas e categorias).
+  const supportsStatus = tab !== 'formas';
+
   const filteredAccounts = useMemo(
-    () => allAccounts.filter((a) => matchActive(a.active)),
-    [allAccounts, activeFilter],
+    () => allAccounts.filter((a) => matchActive(a.active) && matchSearch(a.name)),
+    [allAccounts, statusFilter, q],
   );
   const filteredCategories = useMemo(
-    () => allCategories.filter((c) => matchActive(c.active)),
-    [allCategories, activeFilter],
+    () => allCategories.filter((c) => matchActive(c.active) && matchSearch(c.name)),
+    [allCategories, statusFilter, q],
+  );
+  const filteredMethods = useMemo(
+    () => allMethods.filter((m) => matchSearch(m.name)),
+    [allMethods, q],
   );
 
   const totalBalance = useMemo(
@@ -148,13 +208,13 @@ export function ContasPage() {
   const accountColumns: Column<FinancialAccount>[] = [
     {
       key: 'name',
-      header: 'Conta',
+      header: 'Nome',
       isRowHeader: true,
       render: (a) => <span className="font-medium text-foreground">{a.name}</span>,
     },
     {
-      key: 'type',
-      header: 'Tipo',
+      key: 'details',
+      header: 'Detalhes',
       render: (a) => (
         <Chip variant="soft" color="accent" size="sm">
           {ACCOUNT_TYPE_LABEL[a.type]}
@@ -163,7 +223,7 @@ export function ContasPage() {
     },
     {
       key: 'initial',
-      header: 'Saldo inicial',
+      header: 'Saldo',
       render: (a) => formatMoney(a.initialBalance),
     },
     { key: 'active', header: 'Status', render: (a) => <ActiveChip active={a.active} /> },
@@ -198,7 +258,7 @@ export function ContasPage() {
   const methodColumns: Column<PaymentMethod>[] = [
     {
       key: 'name',
-      header: 'Forma',
+      header: 'Nome',
       isRowHeader: true,
       render: (m) => <span className="font-medium text-foreground">{m.name}</span>,
     },
@@ -208,16 +268,26 @@ export function ContasPage() {
       render: (m) => `${Number(m.feePercent).toFixed(2)}%`,
     },
     {
+      key: 'account',
+      header: 'Conta',
+      render: (m) =>
+        m.defaultAccountId ? (
+          accountNameById.get(m.defaultAccountId) ?? '—'
+        ) : (
+          <span className="text-muted">—</span>
+        ),
+    },
+    {
       key: 'settlement',
-      header: 'Liquidação',
-      render: (m) => `${m.settlementDays} dia(s)`,
+      header: 'Prazo de recebimento',
+      render: (m) => (m.settlementDays > 0 ? `${m.settlementDays} dia(s)` : 'À vista'),
     },
     {
       key: 'cash',
-      header: 'Vai p/ caixa',
+      header: 'Baixa no financeiro',
       render: (m) => (
         <Chip variant="soft" color={m.goesToCash ? 'success' : 'default'} size="sm">
-          {m.goesToCash ? 'Sim' : 'Não'}
+          {m.goesToCash ? 'Automática' : 'Manual'}
         </Chip>
       ),
     },
@@ -252,13 +322,13 @@ export function ContasPage() {
   const categoryColumns: Column<FinancialCategory>[] = [
     {
       key: 'name',
-      header: 'Categoria',
+      header: 'Nome',
       isRowHeader: true,
       render: (c) => <span className="font-medium text-foreground">{c.name}</span>,
     },
     {
       key: 'kind',
-      header: 'Natureza',
+      header: 'Crédito/Débito',
       render: (c) => (
         <Chip
           variant="soft"
@@ -303,11 +373,28 @@ export function ContasPage() {
     },
   ];
 
+  const searchPlaceholder =
+    tab === 'contas'
+      ? 'Buscar conta…'
+      : tab === 'formas'
+        ? 'Buscar forma de pagamento…'
+        : 'Buscar categoria…';
+
+  const onNew =
+    tab === 'contas'
+      ? openCreateAccount
+      : tab === 'formas'
+        ? openCreateMethod
+        : openCreateCategory;
+
+  const newLabel =
+    tab === 'contas' ? 'Nova conta' : tab === 'formas' ? 'Nova forma' : 'Nova categoria';
+
   return (
     <div>
       <PageHeader
-        title="Contas e formas de pagamento"
-        subtitle="Contas financeiras, formas de pagamento e categorias"
+        title="Cadastros financeiros"
+        subtitle="Contas, formas de pagamento e categorias"
         onRefresh={() => {
           accounts.refetch();
           methods.refetch();
@@ -342,140 +429,106 @@ export function ContasPage() {
         <Card className={CARD_CLASS}>
           <Card.Content className="flex items-center justify-between p-4">
             <span className="text-sm font-medium text-muted">Formas de pagamento</span>
-            <span className="text-lg font-bold text-foreground">
-              {(methods.data ?? []).length}
-            </span>
+            <span className="text-lg font-bold text-foreground">{allMethods.length}</span>
           </Card.Content>
         </Card>
       </div>
 
-      {/* Active/inactive filter */}
-      <Card className={`mb-4 ${CARD_CLASS}`}>
-        <Card.Content className="flex flex-wrap items-center gap-3 p-4">
-          <span className="text-xs font-medium text-muted">Status</span>
-          <div className="inline-flex h-10 items-center gap-1 rounded-lg border border-[var(--color-soft-border)] bg-white p-1">
-            {(
-              [
-                { id: 'all', label: 'Todos' },
-                { id: 'active', label: 'Ativos' },
-                { id: 'inactive', label: 'Inativos' },
-              ] as const
-            ).map((s) => {
-              const active = activeFilter === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setActiveFilter(s.id)}
-                  className={
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
-                    (active
-                      ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]'
-                      : 'text-muted hover:text-foreground')
-                  }
-                >
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-          <span className="text-xs text-muted">
-            Aplica-se a contas e categorias.
-          </span>
-        </Card.Content>
-      </Card>
-
-      {/* Contas financeiras */}
-      <Card className={`mb-4 ${CARD_CLASS}`}>
-        <Card.Content className="p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground">Contas financeiras</h3>
-              <span className="text-xs text-muted">
-                {filteredAccounts.length} resultado(s)
-              </span>
-            </div>
-            <Button variant="primary" size="sm" onClick={openCreateAccount}>
-              <IconPlus size={15} /> Nova conta
-            </Button>
-          </div>
-          {accounts.isLoading ? (
-            <LoadingState />
-          ) : filteredAccounts.length === 0 ? (
-            <EmptyState
-              icon={<IconFolder size={32} />}
-              title="Nenhuma conta cadastrada"
-              description="Cadastre caixa ou contas bancárias para registrar movimentações."
-            />
-          ) : (
-            <DataTable
-              aria-label="Contas financeiras"
-              columns={accountColumns}
-              rows={filteredAccounts}
-              getKey={(a) => a.id}
-            />
-          )}
-        </Card.Content>
-      </Card>
-
-      {/* Formas de pagamento */}
-      <Card className={`mb-4 ${CARD_CLASS}`}>
-        <Card.Content className="p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-foreground">Formas de pagamento</h3>
-            <Button variant="primary" size="sm" onClick={openCreateMethod}>
-              <IconPlus size={15} /> Nova forma
-            </Button>
-          </div>
-          {methods.isLoading ? (
-            <LoadingState />
-          ) : (methods.data ?? []).length === 0 ? (
-            <EmptyState
-              icon={<IconCreditCard size={32} />}
-              title="Nenhuma forma de pagamento"
-              description="Cadastre dinheiro, pix, crédito ou débito com taxa e liquidação."
-            />
-          ) : (
-            <DataTable
-              aria-label="Formas de pagamento"
-              columns={methodColumns}
-              rows={methods.data ?? []}
-              getKey={(m) => m.id}
-            />
-          )}
-        </Card.Content>
-      </Card>
-
-      {/* Categorias financeiras */}
       <Card className={CARD_CLASS}>
         <Card.Content className="p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground">Categorias financeiras</h3>
-              <span className="text-xs text-muted">
-                {filteredCategories.length} resultado(s)
-              </span>
+          <Tabs
+            selectedKey={tab}
+            onSelectionChange={(k) => {
+              setTab(String(k) as TabKey);
+              setSearch('');
+              setStatusFilter('all');
+            }}
+          >
+            <Tabs.List className="w-full overflow-x-auto">
+              <Tabs.Tab id="contas">Contas</Tabs.Tab>
+              <Tabs.Tab id="formas">Formas de pagamento</Tabs.Tab>
+              <Tabs.Tab id="categorias">Categorias</Tabs.Tab>
+            </Tabs.List>
+
+            {/* Toolbar: busca + filtrar por aba + novo */}
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <TextField
+                  value={search}
+                  onChange={setSearch}
+                  className="min-w-0 flex-1 sm:max-w-xs"
+                  aria-label="Buscar"
+                >
+                  <Input placeholder={searchPlaceholder} />
+                </TextField>
+                {supportsStatus && (
+                  <StatusSeg value={statusFilter} onChange={setStatusFilter} />
+                )}
+                <div className="ms-auto">
+                  <Button variant="primary" size="sm" onClick={onNew}>
+                    <IconPlus size={15} /> {newLabel}
+                  </Button>
+                </div>
+              </div>
             </div>
-            <Button variant="primary" size="sm" onClick={openCreateCategory}>
-              <IconPlus size={15} /> Nova categoria
-            </Button>
-          </div>
-          {categories.isLoading ? (
-            <LoadingState />
-          ) : filteredCategories.length === 0 ? (
-            <EmptyState
-              icon={<IconFolder size={32} />}
-              title="Nenhuma categoria cadastrada"
-              description="Organize receitas e despesas por categoria."
-            />
-          ) : (
-            <DataTable
-              aria-label="Categorias financeiras"
-              columns={categoryColumns}
-              rows={filteredCategories}
-              getKey={(c) => c.id}
-            />
-          )}
+
+            <Tabs.Panel id="contas" className="pt-4">
+              {accounts.isLoading ? (
+                <LoadingState />
+              ) : filteredAccounts.length === 0 ? (
+                <EmptyState
+                  icon={<IconFolder size={32} />}
+                  title="Nenhuma conta encontrada"
+                  description="Cadastre caixa ou contas bancárias para registrar movimentações."
+                />
+              ) : (
+                <DataTable
+                  aria-label="Contas financeiras"
+                  columns={accountColumns}
+                  rows={filteredAccounts}
+                  getKey={(a) => a.id}
+                />
+              )}
+            </Tabs.Panel>
+
+            <Tabs.Panel id="formas" className="pt-4">
+              {methods.isLoading ? (
+                <LoadingState />
+              ) : filteredMethods.length === 0 ? (
+                <EmptyState
+                  icon={<IconCreditCard size={32} />}
+                  title="Nenhuma forma de pagamento"
+                  description="Cadastre dinheiro, pix, crédito ou débito com taxa e prazo de recebimento."
+                />
+              ) : (
+                <DataTable
+                  aria-label="Formas de pagamento"
+                  columns={methodColumns}
+                  rows={filteredMethods}
+                  getKey={(m) => m.id}
+                />
+              )}
+            </Tabs.Panel>
+
+            <Tabs.Panel id="categorias" className="pt-4">
+              {categories.isLoading ? (
+                <LoadingState />
+              ) : filteredCategories.length === 0 ? (
+                <EmptyState
+                  icon={<IconFolder size={32} />}
+                  title="Nenhuma categoria encontrada"
+                  description="Organize o plano de contas por categoria de crédito e débito."
+                />
+              ) : (
+                <DataTable
+                  aria-label="Categorias financeiras"
+                  columns={categoryColumns}
+                  rows={filteredCategories}
+                  getKey={(c) => c.id}
+                />
+              )}
+            </Tabs.Panel>
+          </Tabs>
         </Card.Content>
       </Card>
 
@@ -597,6 +650,7 @@ function NovaContaModal({
   const [name, setName] = useState('');
   const [type, setType] = useState<FinancialAccountType>('cash');
   const [initialBalance, setInitialBalance] = useState('');
+  const [active, setActive] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const create = useCreateFinancialAccount();
@@ -609,10 +663,12 @@ function NovaContaModal({
         setName(editing.name);
         setType(editing.type);
         setInitialBalance(String(editing.initialBalance));
+        setActive(editing.active);
       } else {
         setName('');
         setType('cash');
         setInitialBalance('');
+        setActive(true);
       }
       setFormError(null);
       setSuccess(false);
@@ -623,17 +679,17 @@ function NovaContaModal({
 
   async function handleConfirm() {
     setFormError(null);
-    const body = {
+    const base = {
       name: name.trim(),
       type,
       initialBalance: initialBalance ? Number(initialBalance.replace(',', '.')) : undefined,
     };
     try {
       if (editing) {
-        await update.mutateAsync({ id: editing.id, body });
+        await update.mutateAsync({ id: editing.id, body: { ...base, active } });
         onOpenChange(false);
       } else {
-        await create.mutateAsync(body);
+        await create.mutateAsync(base);
         setSuccess(true);
       }
     } catch (err) {
@@ -647,7 +703,7 @@ function NovaContaModal({
     <ModalShell
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      title={editing ? 'Editar conta financeira' : 'Nova conta financeira'}
+      title={editing ? 'Editar conta' : 'Nova conta'}
       success={success}
       successText="Conta criada com sucesso!"
       canConfirm={canConfirm}
@@ -673,8 +729,8 @@ function NovaContaModal({
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              <ListBox.Item id="cash" textValue="Dinheiro">
-                Dinheiro
+              <ListBox.Item id="cash" textValue="Caixa">
+                Caixa
               </ListBox.Item>
               <ListBox.Item id="bank" textValue="Banco">
                 Banco
@@ -689,6 +745,22 @@ function NovaContaModal({
           <Input placeholder="0,00" inputMode="decimal" />
         </TextField>
       </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-muted">Acesso</label>
+        <div className="rounded-md border border-[var(--color-soft-border)] bg-white px-3 py-2 text-sm text-foreground">
+          Qualquer usuário pode acessar
+        </div>
+      </div>
+      <Switch
+        isSelected={active}
+        onChange={setActive}
+        className="flex w-full items-center justify-between gap-3 py-1.5"
+      >
+        <span className="text-sm text-foreground">Ativa</span>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
     </ModalShell>
   );
 }
@@ -786,20 +858,20 @@ function NovaFormaModal({
           </TextField>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted">Liquidação (dias)</label>
+          <label className="text-xs font-medium text-muted">Prazo de recebimento (dias)</label>
           <TextField
             value={settlementDays}
             onChange={setSettlementDays}
-            aria-label="Liquidação"
+            aria-label="Prazo de recebimento"
           >
             <Input placeholder="0" inputMode="numeric" />
           </TextField>
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Conta padrão</label>
+        <label className="text-xs font-medium text-muted">Conta</label>
         <Select
-          aria-label="Conta padrão"
+          aria-label="Conta"
           selectedKey={defaultAccountId || null}
           onSelectionChange={(k) => setDefaultAccountId(k ? String(k) : NONE)}
         >
@@ -821,14 +893,18 @@ function NovaFormaModal({
           </Select.Popover>
         </Select>
       </div>
-      <label className="flex items-center gap-2 text-sm text-foreground">
-        <input
-          type="checkbox"
-          checked={goesToCash}
-          onChange={(e) => setGoesToCash(e.target.checked)}
-        />
-        Entra no caixa
-      </label>
+      <Switch
+        isSelected={goesToCash}
+        onChange={setGoesToCash}
+        className="flex w-full items-center justify-between gap-3 py-1.5"
+      >
+        <span className="text-sm text-foreground">
+          Baixa automática no financeiro
+        </span>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
     </ModalShell>
   );
 }
@@ -845,6 +921,7 @@ function NovaCategoriaModal({
   const [name, setName] = useState('');
   const [kind, setKind] = useState<FinancialCategoryKind>('credit');
   const [countsAsCommission, setCountsAsCommission] = useState(false);
+  const [active, setActive] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const create = useCreateFinancialCategory();
@@ -857,10 +934,12 @@ function NovaCategoriaModal({
         setName(editing.name);
         setKind(editing.kind);
         setCountsAsCommission(editing.countsAsCommission);
+        setActive(editing.active);
       } else {
         setName('');
         setKind('credit');
         setCountsAsCommission(false);
+        setActive(true);
       }
       setFormError(null);
       setSuccess(false);
@@ -871,7 +950,7 @@ function NovaCategoriaModal({
 
   async function handleConfirm() {
     setFormError(null);
-    const body = {
+    const base = {
       name: name.trim(),
       kind,
       countsAsCommission,
@@ -879,10 +958,10 @@ function NovaCategoriaModal({
     };
     try {
       if (editing) {
-        await update.mutateAsync({ id: editing.id, body });
+        await update.mutateAsync({ id: editing.id, body: { ...base, active } });
         onOpenChange(false);
       } else {
-        await create.mutateAsync(body);
+        await create.mutateAsync(base);
         setSuccess(true);
       }
     } catch (err) {
@@ -896,7 +975,7 @@ function NovaCategoriaModal({
     <ModalShell
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      title={editing ? 'Editar categoria financeira' : 'Nova categoria financeira'}
+      title={editing ? 'Editar categoria' : 'Nova categoria'}
       success={success}
       successText="Categoria criada com sucesso!"
       canConfirm={canConfirm}
@@ -911,9 +990,9 @@ function NovaCategoriaModal({
         </TextField>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Natureza</label>
+        <label className="text-xs font-medium text-muted">Crédito/Débito</label>
         <Select
-          aria-label="Natureza"
+          aria-label="Crédito/Débito"
           selectedKey={kind}
           onSelectionChange={(k) => setKind(String(k) as FinancialCategoryKind)}
         >
@@ -922,24 +1001,36 @@ function NovaCategoriaModal({
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              <ListBox.Item id="credit" textValue="Entrada">
-                Entrada
+              <ListBox.Item id="credit" textValue="Crédito">
+                Crédito
               </ListBox.Item>
-              <ListBox.Item id="debit" textValue="Saída">
-                Saída
+              <ListBox.Item id="debit" textValue="Débito">
+                Débito
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
         </Select>
       </div>
-      <label className="flex items-center gap-2 text-sm text-foreground">
-        <input
-          type="checkbox"
-          checked={countsAsCommission}
-          onChange={(e) => setCountsAsCommission(e.target.checked)}
-        />
-        Conta como comissão
-      </label>
+      <Switch
+        isSelected={countsAsCommission}
+        onChange={setCountsAsCommission}
+        className="flex w-full items-center justify-between gap-3 py-1.5"
+      >
+        <span className="text-sm text-foreground">Conta como comissão</span>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+      <Switch
+        isSelected={active}
+        onChange={setActive}
+        className="flex w-full items-center justify-between gap-3 py-1.5"
+      >
+        <span className="text-sm text-foreground">Ativa</span>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
     </ModalShell>
   );
 }

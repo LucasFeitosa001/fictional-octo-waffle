@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Card, Chip } from '@heroui/react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Card, Chip } from '@heroui/react';
 import { PageHeader } from '../components/PageHeader';
 import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
@@ -17,6 +18,7 @@ function monthRange() {
 }
 
 export function CaixaPage() {
+  const navigate = useNavigate();
   const history = useCashHistory();
   const open = useOpenCash();
   const allRows = history.data?.data ?? [];
@@ -74,6 +76,16 @@ export function CaixaPage() {
           open.refetch();
         }}
         isRefreshing={history.isFetching}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" onClick={() => navigate('/financeiro/caixas')}>
+              <IconCash size={16} /> Caixas abertos
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/financeiro/caixas/historico')}>
+              <IconClock size={16} /> Histórico
+            </Button>
+          </div>
+        }
       />
 
       {/* KPI cards */}

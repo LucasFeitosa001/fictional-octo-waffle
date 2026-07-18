@@ -5,9 +5,8 @@ import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateField } from '../../components/DateRangeFilter';
 import { IconCash, IconWallet } from '../../components/icons';
-import { useCashHistory } from '../../lib/queries';
+import { useCashRegisters, type CashHistoryRow } from '../../lib/queries/caixa';
 import { formatDateTime, formatMoney, isoDate } from '../../lib/format';
-import type { CashRegisterRow } from '../../lib/types';
 
 const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
 
@@ -19,7 +18,7 @@ function monthRange() {
 }
 
 export function CaixaHistoricoPage() {
-  const history = useCashHistory();
+  const history = useCashRegisters();
   const allRows = history.data?.data ?? [];
 
   // The cash-registers endpoint has no date param, so filter loaded history
@@ -41,12 +40,17 @@ export function CaixaHistoricoPage() {
     [rows],
   );
 
-  const columns: Column<CashRegisterRow>[] = [
+  const columns: Column<CashHistoryRow>[] = [
     {
       key: 'number',
       header: 'Caixa',
       isRowHeader: true,
       render: (c) => <span className="font-semibold text-foreground">#{c.number}</span>,
+    },
+    {
+      key: 'openedBy',
+      header: 'Quem abriu',
+      render: (c) => c.responsibleUser?.name ?? '—',
     },
     { key: 'opened', header: 'Abertura', render: (c) => formatDateTime(c.openedAt) },
     { key: 'closed', header: 'Fechamento', render: (c) => formatDateTime(c.closedAt) },
