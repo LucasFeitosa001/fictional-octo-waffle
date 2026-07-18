@@ -9,6 +9,7 @@ import { PainelPage } from './pages/PainelPage';
 import { AgendaPage } from './pages/AgendaPage';
 import { AgendamentosPage } from './pages/AgendamentosPage';
 import { ComandasPage } from './pages/ComandasPage';
+import { ComandaDetalhePage } from './pages/ComandaDetalhePage';
 import { ClientesPage } from './pages/ClientesPage';
 import { ProfissionaisPage } from './pages/ProfissionaisPage';
 import { ServicosPage } from './pages/ServicosPage';
@@ -53,6 +54,7 @@ function ProtectedRoutes() {
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/agendamentos" element={<AgendamentosPage />} />
         <Route path="/comandas" element={<ComandasPage />} />
+        <Route path="/comandas/:id" element={<ComandaDetalhePage />} />
         <Route path="/clientes" element={<ClientesPage />} />
         <Route path="/profissionais" element={<ProfissionaisPage />} />
         <Route path="/servicos" element={<ServicosPage />} />

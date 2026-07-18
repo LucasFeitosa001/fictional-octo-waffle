@@ -8,6 +8,7 @@ import type {
   CreateAppointmentBody,
   Customer,
   DashboardOverview,
+  OrderDetail,
   OrderRow,
   Paginated,
   Professional,
@@ -224,6 +225,103 @@ export function useDeleteOrder() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
+  });
+}
+
+export function useOrder(id: string | undefined) {
+  return useQuery({
+    queryKey: ['order', id],
+    enabled: Boolean(id),
+    queryFn: () => api.get<OrderDetail>(`/orders/${id}`),
+  });
+}
+
+export interface AddOrderItemBody {
+  kind: 'service' | 'product';
+  refId: string;
+  professionalId?: string;
+  quantity?: number;
+  unitPrice: number;
+  discount?: number;
+}
+
+export interface AddOrderDiscountBody {
+  type: 'percent' | 'value';
+  value: number;
+  reason?: string;
+}
+
+export interface AddOrderPaymentBody {
+  paymentMethodId?: string;
+  accountId?: string;
+  amount: number;
+  dueDate?: string;
+  description?: string;
+}
+
+/** Shared invalidation for every order-detail mutation. */
+function invalidateOrder(queryClient: ReturnType<typeof useQueryClient>, id: string) {
+  queryClient.invalidateQueries({ queryKey: ['order', id] });
+  queryClient.invalidateQueries({ queryKey: ['orders'] });
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+}
+
+export function useAddOrderItem(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AddOrderItemBody) => api.post<OrderRow>(`/orders/${id}/items`, body),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export function useRemoveOrderItem(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => api.delete<OrderRow>(`/orders/${id}/items/${itemId}`),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export function useAddOrderDiscount(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AddOrderDiscountBody) =>
+      api.post<OrderRow>(`/orders/${id}/discounts`, body),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export function useAddOrderPayment(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AddOrderPaymentBody) =>
+      api.post<OrderRow>(`/orders/${id}/payments`, body),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export function useReverseOrderPayment(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentId: string) =>
+      api.post<OrderRow>(`/orders/${id}/payments/${paymentId}/reverse`, {}),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export function useFinishOrder(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<OrderRow>(`/orders/${id}/finish`, {}),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export function useReopenOrder(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<OrderRow>(`/orders/${id}/reopen`, {}),
+    onSuccess: () => invalidateOrder(queryClient, id),
   });
 }
 

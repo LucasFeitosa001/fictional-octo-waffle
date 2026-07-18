@@ -94,6 +94,15 @@ export class OrdersController {
     return this.service.finish(companyId, id, userId);
   }
 
+  @Post(':id/reopen')
+  reopen(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.reopen(companyId, id, userId);
+  }
+
   @Patch(':id')
   update(
     @CurrentUser('companyId') companyId: string,

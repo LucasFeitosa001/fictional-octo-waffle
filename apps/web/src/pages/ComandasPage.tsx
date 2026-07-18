@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -54,6 +55,7 @@ const STATUS_OPTIONS = [
 ] as const;
 
 export function ComandasPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<string>('all');
   const status = TABS.find((t) => t.id === tab)?.status;
   const orders = useOrders(status);
@@ -127,7 +129,15 @@ export function ComandasPage() {
       key: 'number',
       header: 'Nº',
       isRowHeader: true,
-      render: (o) => <span className="font-semibold text-foreground">#{o.number}</span>,
+      render: (o) => (
+        <button
+          type="button"
+          onClick={() => navigate(`/comandas/${o.id}`)}
+          className="font-semibold text-accent hover:underline"
+        >
+          #{o.number}
+        </button>
+      ),
     },
     { key: 'customer', header: 'Cliente', render: (o) => o.customer?.name ?? 'Avulso' },
     { key: 'date', header: 'Data', render: (o) => formatDate(o.date) },
@@ -144,6 +154,9 @@ export function ComandasPage() {
       header: 'Ações',
       render: (o) => (
         <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/comandas/${o.id}`)}>
+            Detalhes
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setEditing(o)}>
             Editar
           </Button>

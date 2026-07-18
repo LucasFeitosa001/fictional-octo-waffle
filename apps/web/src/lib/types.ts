@@ -1,6 +1,8 @@
 import type {
   AppointmentStatus,
   OrderStatus,
+  OrderItemKind,
+  PaymentStatus,
   Customer,
   Professional as SharedProfessional,
   Service,
@@ -184,6 +186,82 @@ export interface OrderRow {
   netTotal: string;
   date: string;
   customer?: Customer | null;
+}
+
+/** One item of an order detail (GET /orders/:id) with resolved names. */
+export interface OrderItemDetail {
+  id: string;
+  orderId: string;
+  kind: OrderItemKind;
+  refId: string;
+  professionalId?: string | null;
+  quantity: string;
+  unitPrice: string;
+  grossValue: string;
+  discount: string;
+  itemName: string | null;
+  professionalName: string | null;
+}
+
+/** A manual discount applied to an order. */
+export interface OrderDiscountDetail {
+  id: string;
+  orderId: string;
+  type: 'percent' | 'value';
+  value: string;
+  reason?: string | null;
+}
+
+/** A payment registered on an order, with resolved method/account names. */
+export interface OrderPaymentDetail {
+  id: string;
+  orderId: string;
+  paymentMethodId?: string | null;
+  accountId?: string | null;
+  amount: string;
+  dueDate?: string | null;
+  paidAt?: string | null;
+  status: PaymentStatus;
+  description?: string | null;
+  paymentMethodName: string | null;
+  accountName: string | null;
+}
+
+/** One transition recorded in the order status history. */
+export interface OrderStatusHistoryEntry {
+  id: string;
+  orderId: string;
+  fromStatus?: OrderStatus | null;
+  toStatus: OrderStatus;
+  at: string;
+  byUserId?: string | null;
+  byUser?: { id: string; name: string } | null;
+}
+
+/** GET /orders/:id — enriched order detail. */
+export interface OrderDetail {
+  id: string;
+  companyId: string;
+  number: number;
+  customerId?: string | null;
+  professionalId?: string | null;
+  status: OrderStatus;
+  grossTotal: string;
+  discountTotal: string;
+  creditUsed: string;
+  cashbackUsed: string;
+  netTotal: string;
+  notes?: string | null;
+  date: string;
+  createdAt: string;
+  updatedAt: string;
+  customer?: Customer | null;
+  customerName: string | null;
+  professionalName: string | null;
+  items: OrderItemDetail[];
+  discounts: OrderDiscountDetail[];
+  payments: OrderPaymentDetail[];
+  statusHistory: OrderStatusHistoryEntry[];
 }
 
 export interface CashRegisterRow {
