@@ -337,7 +337,10 @@ export function useCashHistory() {
 export function useOpenCash() {
   return useQuery({
     queryKey: ['cash-open'],
-    queryFn: () => api.get<CashRegisterRow | null>('/cash-registers/open'),
+    // React Query proíbe queryFn retornar undefined; o backend devolve vazio
+    // quando não há caixa aberto, então normalizamos para null.
+    queryFn: async () =>
+      (await api.get<CashRegisterRow | null>('/cash-registers/open')) ?? null,
   });
 }
 
