@@ -7,6 +7,7 @@ import {
   ListBox,
   Modal,
   Select,
+  Tabs,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
@@ -17,9 +18,11 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { ActiveChip } from '../components/StatusChip';
 import {
   IconDownload,
+  IconGift,
   IconPencil,
   IconPlus,
   IconScissors,
+  IconStar,
   IconTrash,
 } from '../components/icons';
 import {
@@ -28,6 +31,7 @@ import {
   useServiceCategories,
   useServices,
   useUpdateService,
+  type ServiceBody,
   type ServiceRow,
 } from '../lib/queries';
 import { formatDuration, formatMoney } from '../lib/format';
@@ -48,6 +52,14 @@ export function ServicosPage() {
   const services = useServices();
   const categories = useServiceCategories();
   const deleteService = useDeleteService();
+  const updateService = useUpdateService();
+
+  async function toggleFavorite(s: ServiceRow) {
+    await updateService.mutateAsync({
+      id: s.id,
+      body: { favorite: !s.favorite },
+    });
+  }
 
   const catName = useMemo(() => {
     const m = new Map<string, string>();
@@ -104,6 +116,21 @@ export function ServicosPage() {
       isRowHeader: true,
       render: (s) => (
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            aria-label={s.favorite ? 'Remover dos favoritos' : 'Marcar como favorito'}
+            aria-pressed={s.favorite}
+            onClick={() => toggleFavorite(s)}
+            disabled={updateService.isPending}
+            className={`shrink-0 rounded-md p-1 transition-colors disabled:opacity-50 ${
+              s.favorite
+                ? 'text-[#f2b33d]'
+                : 'text-[var(--color-soft-border)] hover:text-[#f2b33d]'
+            }`}
+            title={s.favorite ? 'Favorito' : 'Marcar como favorito'}
+          >
+            <IconStar size={18} />
+          </button>
           {s.imageUrl ? (
             <img
               src={s.imageUrl}
@@ -117,7 +144,11 @@ export function ServicosPage() {
           )}
           <div>
             <span className="font-medium text-foreground">{s.name}</span>
-            {s.favorite && <div className="text-xs text-accent">Favorito</div>}
+            {Number(s.cashbackPercent) > 0 && (
+              <div className="flex items-center gap-1 text-xs text-accent">
+                <IconGift size={12} /> Cashback {Number(s.cashbackPercent)}%
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -335,12 +366,15 @@ function ServiceModal({
 }) {
   const create = useCreateService();
   const update = useUpdateService();
+  const [tab, setTab] = useState('cadastro');
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [price, setPrice] = useState('');
+  const [additionalCost, setAdditionalCost] = useState('');
   const [durationMin, setDurationMin] = useState('30');
   const [description, setDescription] = useState('');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [cashbackEnabled, setCashbackEnabled] = useState(false);
   const [cashbackPercent, setCashbackPercent] = useState('');
   const [onlineBookable, setOnlineBookable] = useState(true);
   const [favorite, setFavorite] = useState(false);
@@ -350,9 +384,14 @@ function ServiceModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    setTab('cadastro');
     setName(service?.name ?? '');
     setCategoryId(service?.categoryId ?? '');
     setPrice(service ? String(service.price) : '');
+    // additionalCost is a serialized Decimal not present on the shared Service type.
+    const addCost = (service as { additionalCost?: string | number } | null | undefined)
+      ?.additionalCost;
+    setAdditionalCost(addCost != null && Number(addCost) > 0 ? String(addCost) : '');
     setDurationMin(service ? String(service.durationMin) : '30');
     setDescription(service?.description ?? '');
     setImageUrls(
@@ -362,7 +401,9 @@ function ServiceModal({
           ? [service.imageUrl]
           : [],
     );
-    setCashbackPercent(service?.cashbackPercent ? String(service.cashbackPercent) : '');
+    const cb = service?.cashbackPercent ? Number(service.cashbackPercent) : 0;
+    setCashbackEnabled(cb > 0);
+    setCashbackPercent(cb > 0 ? String(cb) : '');
     setOnlineBookable(service?.onlineBookable ?? true);
     setFavorite(service?.favorite ?? false);
     setVisible(service?.visible ?? true);
@@ -380,14 +421,18 @@ function ServiceModal({
 
   async function handleSave() {
     setError(null);
-    const body = {
+    // additionalCost lives on the Service schema but not on the shared ServiceBody type;
+    // widen locally so we can persist it without editing shared types.
+    const body: ServiceBody & { additionalCost?: number } = {
       name: name.trim(),
       categoryId: categoryId || undefined,
       price: Number(price),
+      additionalCost: additionalCost ? Number(additionalCost) : 0,
       durationMin: Number(durationMin),
       description: description.trim() || undefined,
       imageUrls,
-      cashbackPercent: cashbackPercent ? Number(cashbackPercent) : undefined,
+      // Cashback próprio do serviço (separado da comissão). Zera quando desativado.
+      cashbackPercent: cashbackEnabled && cashbackPercent ? Number(cashbackPercent) : 0,
       onlineBookable,
       favorite,
       visible,
@@ -419,92 +464,139 @@ function ServiceModal({
             </Modal.Heading>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-4">
-            <Field label="Fotos do serviço (opcional)">
-              <ImageGalleryUpload
-                value={imageUrls}
-                onChange={setImageUrls}
-                kind="service"
-                max={12}
-              />
-            </Field>
+            <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
+              <Tabs.List className="w-full overflow-x-auto">
+                <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
+                <Tabs.Tab id="config">Configurações</Tabs.Tab>
+                <Tabs.Tab id="cashback">Cashback</Tabs.Tab>
+              </Tabs.List>
 
-            <Field label="Nome">
-              <TextField value={name} onChange={setName} aria-label="Nome">
-                <Input placeholder="Nome do serviço" />
-              </TextField>
-            </Field>
+              {/* ---- Cadastro ---- */}
+              <Tabs.Panel id="cadastro" className="flex flex-col gap-4 pt-4">
+                <Field label="Fotos do serviço (opcional)">
+                  <ImageGalleryUpload
+                    value={imageUrls}
+                    onChange={setImageUrls}
+                    kind="service"
+                    max={12}
+                  />
+                </Field>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Categoria (opcional)">
-                <Select
-                  aria-label="Categoria"
-                  selectedKey={categoryId || null}
-                  onSelectionChange={(k) => setCategoryId(k ? String(k) : NONE)}
-                >
-                  <Select.Trigger>
-                    <Select.Value>
-                      {({ isPlaceholder, selectedText }) =>
-                        isPlaceholder ? 'Selecione' : selectedText
-                      }
-                    </Select.Value>
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {categories.map((c) => (
-                        <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                          {c.name}
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              </Field>
-              <Field label="Comissão / cashback (%)">
-                <TextField
-                  value={cashbackPercent}
-                  onChange={setCashbackPercent}
-                  aria-label="Comissão"
-                >
-                  <Input type="number" placeholder="0" />
-                </TextField>
-              </Field>
-            </div>
+                <Field label="Nome">
+                  <TextField value={name} onChange={setName} aria-label="Nome">
+                    <Input placeholder="Nome do serviço" />
+                  </TextField>
+                </Field>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Preço">
-                <TextField value={price} onChange={setPrice} aria-label="Preço">
-                  <Input type="number" placeholder="0,00" />
-                </TextField>
-              </Field>
-              <Field label="Duração (min)">
-                <TextField value={durationMin} onChange={setDurationMin} aria-label="Duração">
-                  <Input type="number" placeholder="30" />
-                </TextField>
-              </Field>
-            </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Categoria (opcional)">
+                    <Select
+                      aria-label="Categoria"
+                      selectedKey={categoryId || null}
+                      onSelectionChange={(k) => setCategoryId(k ? String(k) : NONE)}
+                    >
+                      <Select.Trigger>
+                        <Select.Value>
+                          {({ isPlaceholder, selectedText }) =>
+                            isPlaceholder ? 'Selecione' : selectedText
+                          }
+                        </Select.Value>
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {categories.map((c) => (
+                            <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                              {c.name}
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </Field>
+                  <Field label="Tipo de preço">
+                    <div className="flex h-full items-center">
+                      <Chip variant="soft" color="default" size="sm">
+                        Fixo
+                      </Chip>
+                    </div>
+                  </Field>
+                </div>
 
-            <Field label="Descrição (opcional)">
-              <TextField
-                value={description}
-                onChange={setDescription}
-                aria-label="Descrição"
-              >
-                <Input placeholder="Detalhes do serviço" />
-              </TextField>
-            </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Preço de venda (R$)">
+                    <TextField value={price} onChange={setPrice} aria-label="Preço de venda">
+                      <Input type="number" placeholder="0,00" />
+                    </TextField>
+                  </Field>
+                  <Field label="Custo adicional (R$)">
+                    <TextField
+                      value={additionalCost}
+                      onChange={setAdditionalCost}
+                      aria-label="Custo adicional"
+                    >
+                      <Input type="number" placeholder="0,00" />
+                    </TextField>
+                  </Field>
+                </div>
 
-            <div className="flex flex-wrap gap-4">
-              <Toggle
-                label="Agendamento online"
-                checked={onlineBookable}
-                onChange={setOnlineBookable}
-              />
-              <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
-              <Toggle label="Visível" checked={visible} onChange={setVisible} />
-              {mode === 'edit' && (
-                <Toggle label="Ativo" checked={active} onChange={setActive} />
-              )}
-            </div>
+                <Field label="Duração (min)">
+                  <TextField value={durationMin} onChange={setDurationMin} aria-label="Duração">
+                    <Input type="number" placeholder="30" />
+                  </TextField>
+                </Field>
+
+                <Field label="Descrição (opcional)">
+                  <TextField
+                    value={description}
+                    onChange={setDescription}
+                    aria-label="Descrição"
+                  >
+                    <Input placeholder="Detalhes do serviço" />
+                  </TextField>
+                  <p className="text-xs text-muted">
+                    Esta descrição aparece no agendamento online.
+                  </p>
+                </Field>
+              </Tabs.Panel>
+
+              {/* ---- Configurações ---- */}
+              <Tabs.Panel id="config" className="flex flex-col gap-3 pt-4">
+                <Toggle
+                  label="Agendamento online"
+                  checked={onlineBookable}
+                  onChange={setOnlineBookable}
+                />
+                <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
+                <Toggle label="Visível no catálogo" checked={visible} onChange={setVisible} />
+                {mode === 'edit' && (
+                  <Toggle label="Ativo" checked={active} onChange={setActive} />
+                )}
+              </Tabs.Panel>
+
+              {/* ---- Cashback ---- */}
+              <Tabs.Panel id="cashback" className="flex flex-col gap-4 pt-4">
+                <div className="rounded-md border border-[var(--color-soft-border)] bg-[#fffdf8] px-3 py-2 text-xs text-muted">
+                  O cashback é próprio do serviço e independente da comissão do
+                  profissional.
+                </div>
+                <Toggle
+                  label="Ativar cashback neste serviço"
+                  checked={cashbackEnabled}
+                  onChange={setCashbackEnabled}
+                />
+                {cashbackEnabled && (
+                  <Field label="Cashback (%)">
+                    <TextField
+                      value={cashbackPercent}
+                      onChange={setCashbackPercent}
+                      aria-label="Cashback"
+                    >
+                      <Input type="number" placeholder="0" />
+                    </TextField>
+                  </Field>
+                )}
+              </Tabs.Panel>
+            </Tabs>
 
             {error && (
               <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">

@@ -15,6 +15,12 @@ interface SummaryFilters {
   status?: string;
 }
 
+interface DetailFilters {
+  from?: string;
+  to?: string;
+  status?: string;
+}
+
 @Injectable()
 export class CommissionsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -104,6 +110,173 @@ export class CommissionsService {
     );
 
     return { data, totals };
+  }
+
+  // ---- overview (totais agregados por status: em aberto / a liberar / pagas) ----
+  // "a liberar" = lançamento em aberto cuja data de disponibilidade ainda não
+  // chegou. "em aberto" = disponível para pagamento (sem availableDate ou já
+  // vencida). "pagas" = status paid. Estornados são ignorados nos totais.
+  async overview(companyId: string, filters: SummaryFilters) {
+    const where: Prisma.CommissionEntryWhereInput = { companyId };
+    if (filters.professionalId) where.professionalId = filters.professionalId;
+    if (filters.from || filters.to) {
+      where.competenceDate = {
+        ...(filters.from ? { gte: new Date(filters.from) } : {}),
+        ...(filters.to ? { lte: new Date(filters.to) } : {}),
+      };
+    }
+
+    const entries = await this.prisma.client.commissionEntry.findMany({
+      where,
+      select: {
+        commissionAmount: true,
+        bonusAmount: true,
+        status: true,
+        availableDate: true,
+      },
+    });
+
+    const now = new Date();
+    const mk = () => ({ total: 0, count: 0 });
+    const emAberto = mk();
+    const aLiberar = mk();
+    const pagas = mk();
+
+    for (const e of entries) {
+      const value = Number(e.commissionAmount) + Number(e.bonusAmount);
+      if (e.status === 'paid') {
+        pagas.total += value;
+        pagas.count += 1;
+      } else if (e.status === 'open') {
+        if (e.availableDate && new Date(e.availableDate) > now) {
+          aLiberar.total += value;
+          aLiberar.count += 1;
+        } else {
+          emAberto.total += value;
+          emAberto.count += 1;
+        }
+      }
+      // 'reversed' não entra em nenhum bucket
+    }
+
+    return { emAberto, aLiberar, pagas };
+  }
+
+  // ---- detail (itens que geraram comissão de um profissional no período) ----
+  // Cada lançamento aponta para uma comanda (Order); trazemos cliente, número
+  // da comanda, data e os itens (serviço/produto + qtd) que a compõem.
+  async detail(companyId: string, professionalId: string, filters: DetailFilters) {
+    const professional = await this.prisma.client.professional.findFirst({
+      where: { id: professionalId, companyId },
+      select: { id: true, name: true },
+    });
+    if (!professional) throw new NotFoundException('Profissional não encontrado');
+
+    const where: Prisma.CommissionEntryWhereInput = { companyId, professionalId };
+    if (filters.status === 'open' || filters.status === 'paid' || filters.status === 'reversed') {
+      where.status = filters.status;
+    }
+    if (filters.from || filters.to) {
+      where.competenceDate = {
+        ...(filters.from ? { gte: new Date(filters.from) } : {}),
+        ...(filters.to ? { lte: new Date(filters.to) } : {}),
+      };
+    }
+
+    const entries = await this.prisma.client.commissionEntry.findMany({
+      where,
+      orderBy: [{ competenceDate: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const orderIds = [...new Set(entries.map((e) => e.orderId).filter((id): id is string => !!id))];
+    const orders = orderIds.length
+      ? await this.prisma.client.order.findMany({
+          where: { id: { in: orderIds }, companyId },
+          select: {
+            id: true,
+            number: true,
+            date: true,
+            customer: { select: { name: true } },
+            items: {
+              select: { kind: true, refId: true, quantity: true, unitPrice: true, grossValue: true },
+            },
+          },
+        })
+      : [];
+    const orderById = new Map(orders.map((o) => [o.id, o]));
+
+    // Nomes de serviços/produtos referenciados pelos itens
+    const serviceIds = new Set<string>();
+    const productIds = new Set<string>();
+    for (const o of orders) {
+      for (const it of o.items) {
+        if (it.kind === 'service') serviceIds.add(it.refId);
+        else if (it.kind === 'product') productIds.add(it.refId);
+      }
+    }
+    const [services, products] = await Promise.all([
+      serviceIds.size
+        ? this.prisma.client.service.findMany({
+            where: { id: { in: [...serviceIds] } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+      productIds.size
+        ? this.prisma.client.product.findMany({
+            where: { id: { in: [...productIds] } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const nameByRef = new Map<string, string>();
+    for (const s of services) nameByRef.set(`service:${s.id}`, s.name);
+    for (const p of products) nameByRef.set(`product:${p.id}`, p.name);
+
+    const items = entries.map((e) => {
+      const order = e.orderId ? orderById.get(e.orderId) : undefined;
+      return {
+        id: e.id,
+        orderId: e.orderId ?? null,
+        orderNumber: order?.number ?? null,
+        customerName: order?.customer?.name ?? null,
+        date: (e.competenceDate ?? order?.date ?? e.createdAt).toISOString(),
+        baseAmount: Number(e.baseAmount),
+        commissionAmount: Number(e.commissionAmount),
+        bonusAmount: Number(e.bonusAmount),
+        status: e.status,
+        signed: e.signed,
+        orderItems: (order?.items ?? []).map((it) => ({
+          kind: it.kind,
+          name: nameByRef.get(`${it.kind}:${it.refId}`) ?? '—',
+          quantity: Number(it.quantity),
+          unitPrice: Number(it.unitPrice),
+          grossValue: Number(it.grossValue),
+        })),
+      };
+    });
+
+    const totals = items.reduce(
+      (acc, it) => {
+        acc.base += it.baseAmount;
+        acc.comissao += it.commissionAmount;
+        acc.bonus += it.bonusAmount;
+        acc.total += it.commissionAmount + it.bonusAmount;
+        if (it.status === 'paid') acc.pago += it.commissionAmount + it.bonusAmount;
+        return acc;
+      },
+      { base: 0, comissao: 0, bonus: 0, total: 0, pago: 0 },
+    );
+
+    const signed = entries.length > 0 && entries.every((e) => e.signed);
+
+    return {
+      professional,
+      period: { from: filters.from ?? null, to: filters.to ?? null },
+      totals,
+      signed,
+      count: items.length,
+      items,
+    };
   }
 
   // ---- entries ----

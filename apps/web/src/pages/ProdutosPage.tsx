@@ -7,6 +7,7 @@ import {
   ListBox,
   Modal,
   Select,
+  Tabs,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
@@ -14,7 +15,14 @@ import { PageHeader } from '../components/PageHeader';
 import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { ImageUpload } from '../components/ImageUpload';
-import { IconBox, IconDownload, IconPencil, IconPlus, IconTrash } from '../components/icons';
+import {
+  IconBox,
+  IconDownload,
+  IconPencil,
+  IconPlus,
+  IconStar,
+  IconTrash,
+} from '../components/icons';
 import { formatMoney, formatNumber } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
 import {
@@ -91,6 +99,7 @@ export function ProdutosPage() {
         { header: 'Custo', value: (p) => Number(p.costPrice).toFixed(2) },
         { header: 'Estoque', value: (p) => p.stock },
         { header: 'Estoque mínimo', value: (p) => p.minStock },
+        { header: 'Cashback %', value: (p) => Number(p.cashbackPercent).toFixed(2) },
         { header: 'Favorito', value: (p) => (p.favorite ? 'Sim' : 'Não') },
         { header: 'Status', value: (p) => (p.active ? 'Ativo' : 'Inativo') },
       ],
@@ -126,8 +135,21 @@ export function ProdutosPage() {
             </div>
           )}
           <div>
-            <div className="font-medium text-foreground">{p.name}</div>
-            {p.favorite && <div className="text-xs text-accent">Favorito</div>}
+            <div className="flex items-center gap-1.5 font-medium text-foreground">
+              {p.favorite && (
+                <IconStar
+                  size={14}
+                  className="fill-[#f2b33d] text-[#f2b33d]"
+                  aria-label="Favorito"
+                />
+              )}
+              {p.name}
+            </div>
+            {Number(p.cashbackPercent) > 0 && (
+              <div className="text-xs text-muted">
+                Cashback {formatNumber(Number(p.cashbackPercent))}%
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -159,11 +181,9 @@ export function ProdutosPage() {
         return (
           <span
             className={
-              low
+              qty === 0
                 ? 'font-semibold text-danger'
-                : qty === 0
-                  ? 'text-muted'
-                  : 'text-foreground'
+                : 'font-semibold text-success'
             }
           >
             {formatNumber(qty)}
@@ -387,8 +407,10 @@ function ProductModal({
   const [costPrice, setCostPrice] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
+  const [cashbackPercent, setCashbackPercent] = useState('');
   const [active, setActive] = useState(true);
   const [favorite, setFavorite] = useState(false);
+  const [tab, setTab] = useState('cadastro');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -401,8 +423,10 @@ function ProductModal({
     setCostPrice(product ? String(product.costPrice) : '');
     setStock(product ? String(product.stock) : '');
     setMinStock(product ? String(product.minStock) : '');
+    setCashbackPercent(product ? String(product.cashbackPercent) : '');
     setActive(product?.active ?? true);
     setFavorite(product?.favorite ?? false);
+    setTab('cadastro');
     setError(null);
   }, [isOpen, product]);
 
@@ -420,6 +444,7 @@ function ProductModal({
       salePrice: Number(salePrice),
       costPrice: costPrice ? Number(costPrice) : undefined,
       minStock: minStock ? Number(minStock) : undefined,
+      cashbackPercent: cashbackPercent !== '' ? Number(cashbackPercent) : undefined,
       favorite,
     };
     try {
@@ -455,73 +480,111 @@ function ProductModal({
             </Modal.Heading>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-4">
-            <ImageUpload
-              value={imageUrl}
-              onChange={setImageUrl}
-              kind="product"
-              shape="square"
-              size={88}
-              label="Imagem do produto"
-              placeholder="Foto"
-            />
+            <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
+              <Tabs.List className="w-full overflow-x-auto">
+                <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
+                <Tabs.Tab id="config">Configurações</Tabs.Tab>
+              </Tabs.List>
 
-            <Field label="Nome">
-              <TextField value={name} onChange={setName} aria-label="Nome">
-                <Input placeholder="Nome do produto" />
-              </TextField>
-            </Field>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Categoria (opcional)">
-                <SelectField
-                  ariaLabel="Categoria"
-                  value={categoryId}
-                  onChange={setCategoryId}
-                  options={categories}
+              <Tabs.Panel id="cadastro" className="flex flex-col gap-4 pt-4">
+                <ImageUpload
+                  value={imageUrl}
+                  onChange={setImageUrl}
+                  kind="product"
+                  shape="square"
+                  size={88}
+                  label="Imagem do produto"
+                  placeholder="Foto"
                 />
-              </Field>
-              <Field label="Marca (opcional)">
-                <SelectField
-                  ariaLabel="Marca"
-                  value={brandId}
-                  onChange={setBrandId}
-                  options={brands}
-                />
-              </Field>
-            </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Preço de venda">
-                <TextField value={salePrice} onChange={setSalePrice} aria-label="Preço de venda">
-                  <Input type="number" placeholder="0,00" />
-                </TextField>
-              </Field>
-              <Field label="Preço de custo">
-                <TextField value={costPrice} onChange={setCostPrice} aria-label="Preço de custo">
-                  <Input type="number" placeholder="0,00" />
-                </TextField>
-              </Field>
-            </div>
+                <Field label="Nome">
+                  <TextField value={name} onChange={setName} aria-label="Nome">
+                    <Input placeholder="Nome do produto" />
+                  </TextField>
+                </Field>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Estoque">
-                <TextField value={stock} onChange={setStock} aria-label="Estoque">
-                  <Input type="number" placeholder="0" />
-                </TextField>
-              </Field>
-              <Field label="Estoque mínimo">
-                <TextField value={minStock} onChange={setMinStock} aria-label="Estoque mínimo">
-                  <Input type="number" placeholder="0" />
-                </TextField>
-              </Field>
-            </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Categoria (opcional)">
+                    <SelectField
+                      ariaLabel="Categoria"
+                      value={categoryId}
+                      onChange={setCategoryId}
+                      options={categories}
+                    />
+                  </Field>
+                  <Field label="Marca (opcional)">
+                    <SelectField
+                      ariaLabel="Marca"
+                      value={brandId}
+                      onChange={setBrandId}
+                      options={brands}
+                    />
+                  </Field>
+                </div>
 
-            <div className="flex flex-wrap gap-4">
-              <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
-              {mode === 'edit' && (
-                <Toggle label="Ativo" checked={active} onChange={setActive} />
-              )}
-            </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Preço de venda">
+                    <TextField value={salePrice} onChange={setSalePrice} aria-label="Preço de venda">
+                      <Input type="number" placeholder="0,00" />
+                    </TextField>
+                  </Field>
+                  <Field label="Preço de custo">
+                    <TextField value={costPrice} onChange={setCostPrice} aria-label="Preço de custo">
+                      <Input type="number" placeholder="0,00" />
+                    </TextField>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Estoque">
+                    <TextField value={stock} onChange={setStock} aria-label="Estoque">
+                      <Input type="number" placeholder="0" />
+                    </TextField>
+                  </Field>
+                  <Field label="Estoque mínimo">
+                    <TextField value={minStock} onChange={setMinStock} aria-label="Estoque mínimo">
+                      <Input type="number" placeholder="0" />
+                    </TextField>
+                  </Field>
+                </div>
+              </Tabs.Panel>
+
+              <Tabs.Panel id="config" className="flex flex-col gap-4 pt-4">
+                <Field label="Cashback (%)">
+                  <TextField
+                    value={cashbackPercent}
+                    onChange={setCashbackPercent}
+                    aria-label="Cashback"
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      placeholder="0"
+                    />
+                  </TextField>
+                  <span className="text-xs text-muted">
+                    Percentual de cashback concedido ao cliente nas compras deste produto.
+                  </span>
+                </Field>
+
+                <div className="flex flex-col gap-3 rounded-md border border-[var(--color-soft-border)] bg-[#fffdf8] p-3">
+                  <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
+                  <span className="text-xs text-muted">
+                    Produtos favoritos aparecem no topo da listagem.
+                  </span>
+                  {mode === 'edit' && (
+                    <>
+                      <Toggle label="Ativo" checked={active} onChange={setActive} />
+                      <span className="text-xs text-muted">
+                        Produtos inativos ficam ocultos nas vendas, mas mantêm o histórico.
+                      </span>
+                    </>
+                  )}
+                </div>
+              </Tabs.Panel>
+            </Tabs>
 
             {error && (
               <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">

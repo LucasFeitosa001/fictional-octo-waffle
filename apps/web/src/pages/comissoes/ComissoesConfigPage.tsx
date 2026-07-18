@@ -7,6 +7,7 @@ import {
   IconPencil,
   IconPercent,
   IconPlus,
+  IconReceipt,
   IconSettings,
   IconTrash,
 } from '../../components/icons';
@@ -16,6 +17,7 @@ import {
   useDeleteCommissionRule,
   useUpdateCommissionRule,
   type AmountType,
+  type CommissionPayer,
   type CommissionRule,
   type CommissionRuleSettings,
   type CommissionScopeType,
@@ -38,9 +40,31 @@ const SCOPE_FILTERS: { id: 'all' | CommissionScopeType; label: string }[] = [
   { id: 'category', label: 'Categoria' },
 ];
 
-const PAYER_OPTIONS = [
-  { id: 'company', name: 'Empresa' },
-  { id: 'professional', name: 'Profissional' },
+const PAYER_OPTIONS: { id: CommissionPayer; name: string }[] = [
+  { id: 'proportional', name: 'Proporcional' },
+  { id: 'company', name: 'Estabelecimento (100%)' },
+  { id: 'professional', name: 'Profissional (100%)' },
+];
+
+const PAYER_LABEL: Record<string, string> = {
+  proportional: 'Proporcional',
+  company: 'Estabelecimento (100%)',
+  professional: 'Profissional (100%)',
+};
+
+const BASIS_OPTIONS = [
+  { id: 'competence', name: 'Competência (data da venda)' },
+  { id: 'availability', name: 'Disponibilidade (data de recebimento)' },
+];
+
+const CONSIDER_OPTIONS = [
+  { id: 'all', name: 'Todas as comandas' },
+  { id: 'finished', name: 'Somente finalizadas' },
+];
+
+const CONSUMED_OPTIONS = [
+  { id: 'ignore', name: 'Ignorar' },
+  { id: 'deduct', name: 'Descontar da comissão' },
 ];
 
 export function ComissoesConfigPage() {
@@ -51,12 +75,17 @@ export function ComissoesConfigPage() {
   const [scopeFilter, setScopeFilter] = useState<'all' | CommissionScopeType>('all');
 
   const allRules = rules.data ?? [];
+  // The scope="all" rule carries the default/global configuration and is edited
+  // through the form above — it is not shown as a per-scope override card.
+  const defaultRule = useMemo(() => allRules.find((r) => r.scopeType === 'all') ?? null, [allRules]);
+  const scopedRules = useMemo(() => allRules.filter((r) => r.scopeType !== 'all'), [allRules]);
+
   const data = useMemo(
     () =>
       scopeFilter === 'all'
-        ? allRules
-        : allRules.filter((r) => r.scopeType === scopeFilter),
-    [allRules, scopeFilter],
+        ? scopedRules
+        : scopedRules.filter((r) => r.scopeType === scopeFilter),
+    [scopedRules, scopeFilter],
   );
 
   async function handleRemove(rule: CommissionRule) {
@@ -82,8 +111,22 @@ export function ComissoesConfigPage() {
         }
       />
 
+      {/* Configuração padrão (global) */}
+      {rules.isLoading ? (
+        <LoadingState />
+      ) : rules.isError ? (
+        <ErrorState onRetry={() => rules.refetch()} />
+      ) : (
+        <DefaultConfigForm rule={defaultRule} />
+      )}
+
+      <div className="mb-3 mt-6 flex items-center gap-2">
+        <IconSettings size={16} />
+        <h2 className="text-base font-semibold text-foreground">Regras por escopo</h2>
+      </div>
+
       {/* Scope filter — shown once there are enough rules to warrant it */}
-      {allRules.length > 3 && (
+      {scopedRules.length > 3 && (
         <Card className={`mb-4 ${CARD_CLASS}`}>
           <Card.Content className="flex flex-wrap items-center gap-3 p-4">
             <span className="text-xs font-medium text-muted">Aplica-se a</span>
@@ -112,21 +155,17 @@ export function ComissoesConfigPage() {
         </Card>
       )}
 
-      {rules.isLoading ? (
-        <LoadingState />
-      ) : rules.isError ? (
-        <ErrorState onRetry={() => rules.refetch()} />
-      ) : data.length === 0 ? (
+      {rules.isLoading ? null : rules.isError ? null : data.length === 0 ? (
         <Card className={CARD_CLASS}>
           <Card.Content className="p-4">
             <EmptyState
               icon={<IconSettings size={32} />}
               title={
-                allRules.length === 0
-                  ? 'Nenhuma regra de comissão'
+                scopedRules.length === 0
+                  ? 'Nenhuma regra por escopo'
                   : 'Nenhuma regra para este escopo'
               }
-              description="Crie regras para definir percentuais e quem paga taxas e descontos."
+              description="Crie regras específicas por serviço, produto ou categoria além da configuração padrão."
             />
           </Card.Content>
         </Card>
@@ -195,9 +234,171 @@ export function ComissoesConfigPage() {
   );
 }
 
+// =====================================================================
+// Configuração padrão (rule scope="all") — formulário completo
+// =====================================================================
+
+function DefaultConfigForm({ rule }: { rule: CommissionRule | null }) {
+  const create = useCreateCommissionRule();
+  const update = useUpdateCommissionRule();
+
+  const [type, setType] = useState<AmountType>('percent');
+  const [value, setValue] = useState('');
+  const [basis, setBasis] = useState('competence');
+  const [consider, setConsider] = useState('all');
+  const [cardFeePaidBy, setCardFeePaidBy] = useState('proportional');
+  const [discountPaidBy, setDiscountPaidBy] = useState('proportional');
+  const [additionalCostPaidBy, setAdditionalCostPaidBy] = useState('company');
+  const [consumedProducts, setConsumedProducts] = useState('ignore');
+  const [receiptText, setReceiptText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const s = rule?.settingsJson;
+    setType(rule?.type ?? 'percent');
+    setValue(rule?.value ?? '');
+    setBasis(s?.basis ?? 'competence');
+    setConsider(s?.consider ?? 'all');
+    setCardFeePaidBy(s?.cardFeePaidBy ?? 'proportional');
+    setDiscountPaidBy(s?.discountPaidBy ?? 'proportional');
+    setAdditionalCostPaidBy(s?.additionalCostPaidBy ?? 'company');
+    setConsumedProducts(s?.consumedProducts ?? 'ignore');
+    setReceiptText(s?.receiptText ?? '');
+    setSaved(false);
+  }, [rule]);
+
+  const pending = create.isPending || update.isPending;
+  const canSave = value !== '' && Number(value) >= 0;
+
+  async function handleSave() {
+    setError(null);
+    setSaved(false);
+    const settingsJson: CommissionRuleSettings = {
+      basis: basis as CommissionRuleSettings['basis'],
+      consider: consider as CommissionRuleSettings['consider'],
+      cardFeePaidBy: cardFeePaidBy as CommissionPayer,
+      discountPaidBy: discountPaidBy as CommissionPayer,
+      additionalCostPaidBy: additionalCostPaidBy as CommissionPayer,
+      consumedProducts: consumedProducts as CommissionRuleSettings['consumedProducts'],
+      receiptText: receiptText || undefined,
+    };
+    try {
+      if (rule) {
+        await update.mutateAsync({
+          id: rule.id,
+          body: { scopeType: 'all', type, value: Number(value), settingsJson },
+        });
+      } else {
+        await create.mutateAsync({ scopeType: 'all', type, value: Number(value), settingsJson });
+      }
+      setSaved(true);
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível salvar a configuração.',
+      );
+    }
+  }
+
+  return (
+    <Card className={CARD_CLASS}>
+      <Card.Content className="p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
+            <IconReceipt size={16} />
+          </span>
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Configuração padrão</h2>
+            <p className="text-xs text-muted">Aplicada quando não há regra específica.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <SelectField
+            label="Tipo de comissão"
+            value={type}
+            onChange={(v) => setType(v as AmountType)}
+            options={[
+              { id: 'percent', name: 'Percentual (%)' },
+              { id: 'fixed', name: 'Valor fixo (R$)' },
+            ]}
+          />
+          <Field label={type === 'percent' ? 'Percentual padrão (%)' : 'Valor padrão (R$)'}>
+            <TextField value={value} onChange={setValue} aria-label="Valor padrão">
+              <Input type="number" placeholder="0" />
+            </TextField>
+          </Field>
+
+          <SelectField
+            label="Base de cálculo (competência × disponibilidade)"
+            value={basis}
+            onChange={setBasis}
+            options={BASIS_OPTIONS}
+          />
+          <SelectField
+            label="Comandas consideradas (todas × finalizadas)"
+            value={consider}
+            onChange={setConsider}
+            options={CONSIDER_OPTIONS}
+          />
+
+          <SelectField
+            label="Taxa de cartão paga por"
+            value={cardFeePaidBy}
+            onChange={setCardFeePaidBy}
+            options={PAYER_OPTIONS}
+          />
+          <SelectField
+            label="Desconto pago por"
+            value={discountPaidBy}
+            onChange={setDiscountPaidBy}
+            options={PAYER_OPTIONS}
+          />
+          <SelectField
+            label="Custo adicional pago por"
+            value={additionalCostPaidBy}
+            onChange={setAdditionalCostPaidBy}
+            options={PAYER_OPTIONS}
+          />
+          <SelectField
+            label="Produtos consumidos"
+            value={consumedProducts}
+            onChange={setConsumedProducts}
+            options={CONSUMED_OPTIONS}
+          />
+        </div>
+
+        <div className="mt-4">
+          <Field label="Texto do recibo">
+            <textarea
+              value={receiptText}
+              onChange={(e) => setReceiptText(e.target.value)}
+              rows={3}
+              placeholder="Texto impresso no recibo de comissão…"
+              className="resize-none rounded-xl border border-default-200 bg-transparent px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-[#f2b33d]"
+            />
+          </Field>
+        </div>
+
+        {error && (
+          <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center justify-end gap-3">
+          {saved && <span className="text-sm text-success">Configuração salva.</span>}
+          <Button variant="primary" isDisabled={!canSave || pending} onClick={handleSave}>
+            {pending ? 'Salvando…' : 'Salvar configuração'}
+          </Button>
+        </div>
+      </Card.Content>
+    </Card>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
-  const text =
-    value === 'company' ? 'Empresa' : value === 'professional' ? 'Profissional' : '—';
+  const text = value ? PAYER_LABEL[value] ?? value : '—';
   return (
     <div className="flex items-center justify-between gap-4">
       <dt>{label}</dt>
@@ -222,8 +423,8 @@ function RuleModal({
   const [scopeType, setScopeType] = useState<CommissionScopeType>('service');
   const [type, setType] = useState<AmountType>('percent');
   const [value, setValue] = useState('');
-  const [cardFeePaidBy, setCardFeePaidBy] = useState('company');
-  const [discountPaidBy, setDiscountPaidBy] = useState('company');
+  const [cardFeePaidBy, setCardFeePaidBy] = useState('proportional');
+  const [discountPaidBy, setDiscountPaidBy] = useState('proportional');
   const [additionalCostPaidBy, setAdditionalCostPaidBy] = useState('company');
   const [error, setError] = useState<string | null>(null);
 
@@ -234,15 +435,15 @@ function RuleModal({
       setScopeType(rule.scopeType);
       setType(rule.type);
       setValue(rule.value);
-      setCardFeePaidBy(rule.settingsJson?.cardFeePaidBy ?? 'company');
-      setDiscountPaidBy(rule.settingsJson?.discountPaidBy ?? 'company');
+      setCardFeePaidBy(rule.settingsJson?.cardFeePaidBy ?? 'proportional');
+      setDiscountPaidBy(rule.settingsJson?.discountPaidBy ?? 'proportional');
       setAdditionalCostPaidBy(rule.settingsJson?.additionalCostPaidBy ?? 'company');
     } else {
       setScopeType('service');
       setType('percent');
       setValue('');
-      setCardFeePaidBy('company');
-      setDiscountPaidBy('company');
+      setCardFeePaidBy('proportional');
+      setDiscountPaidBy('proportional');
       setAdditionalCostPaidBy('company');
     }
   }, [isOpen, rule]);
@@ -253,9 +454,9 @@ function RuleModal({
   async function handleSave() {
     setError(null);
     const settingsJson: CommissionRuleSettings = {
-      cardFeePaidBy: cardFeePaidBy as 'company' | 'professional',
-      discountPaidBy: discountPaidBy as 'company' | 'professional',
-      additionalCostPaidBy: additionalCostPaidBy as 'company' | 'professional',
+      cardFeePaidBy: cardFeePaidBy as CommissionPayer,
+      discountPaidBy: discountPaidBy as CommissionPayer,
+      additionalCostPaidBy: additionalCostPaidBy as CommissionPayer,
     };
     try {
       if (mode === 'edit' && rule) {
@@ -301,7 +502,6 @@ function RuleModal({
                       <ListBox.Item id="service" textValue="Serviços">Serviços</ListBox.Item>
                       <ListBox.Item id="product" textValue="Produtos">Produtos</ListBox.Item>
                       <ListBox.Item id="category" textValue="Categoria">Categoria</ListBox.Item>
-                      <ListBox.Item id="all" textValue="Tudo">Tudo</ListBox.Item>
                     </ListBox>
                   </Select.Popover>
                 </Select>
@@ -331,12 +531,13 @@ function RuleModal({
               </TextField>
             </Field>
 
-            <PayerField label="Taxa de cartão paga por" value={cardFeePaidBy} onChange={setCardFeePaidBy} />
-            <PayerField label="Desconto pago por" value={discountPaidBy} onChange={setDiscountPaidBy} />
-            <PayerField
+            <SelectField label="Taxa de cartão paga por" value={cardFeePaidBy} onChange={setCardFeePaidBy} options={PAYER_OPTIONS} />
+            <SelectField label="Desconto pago por" value={discountPaidBy} onChange={setDiscountPaidBy} options={PAYER_OPTIONS} />
+            <SelectField
               label="Custo adicional pago por"
               value={additionalCostPaidBy}
               onChange={setAdditionalCostPaidBy}
+              options={PAYER_OPTIONS}
             />
 
             {error && (
@@ -365,28 +566,31 @@ function RuleModal({
   );
 }
 
-function PayerField({
+function SelectField({
   label,
   value,
   onChange,
+  options,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  options: { id: string; name: string }[];
 }) {
+  const fallback = options[0]?.id ?? '';
   return (
     <Field label={label}>
       <Select
         aria-label={label}
         selectedKey={value}
-        onSelectionChange={(k) => onChange(k ? String(k) : 'company')}
+        onSelectionChange={(k) => onChange(k ? String(k) : fallback)}
       >
         <Select.Trigger>
           <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
         </Select.Trigger>
         <Select.Popover>
           <ListBox>
-            {PAYER_OPTIONS.map((o) => (
+            {options.map((o) => (
               <ListBox.Item key={o.id} id={o.id} textValue={o.name}>
                 {o.name}
               </ListBox.Item>

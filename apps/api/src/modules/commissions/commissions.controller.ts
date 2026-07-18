@@ -35,6 +35,27 @@ export class CommissionsController {
     return this.service.summary(companyId, { from, to, professionalId, status });
   }
 
+  @Get('commissions/overview')
+  overview(
+    @CurrentUser('companyId') companyId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('professionalId') professionalId?: string,
+  ) {
+    return this.service.overview(companyId, { from, to, professionalId });
+  }
+
+  @Get('commissions/detail')
+  detail(
+    @CurrentUser('companyId') companyId: string,
+    @Query('professionalId') professionalId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.service.detail(companyId, professionalId, { from, to, status });
+  }
+
   @Get('commissions')
   list(
     @CurrentUser('companyId') companyId: string,

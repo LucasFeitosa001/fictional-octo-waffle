@@ -1,18 +1,26 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Chip, ListBox, Select } from '@heroui/react';
+import { Button, Card, Chip, ListBox, Modal, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateField } from '../../components/DateRangeFilter';
-import { IconDollar, IconDownload, IconPercent, IconWallet } from '../../components/icons';
+import {
+  IconDownload,
+  IconReceipt,
+  IconPercent,
+  IconWallet,
+} from '../../components/icons';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useProfessionals } from '../../lib/queries';
 import {
+  useCommissionDetail,
   useCommissionEntries,
+  useCommissionOverview,
   useCommissionSummary,
   useCreateCommissionPayment,
+  type CommissionDetailItem,
   type CommissionEntry,
   type CommissionSummaryRow,
 } from '../../lib/queries/comissoes';
@@ -38,8 +46,14 @@ export function ComissoesResumoPage() {
   const [professionalId, setProfessionalId] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [detailFor, setDetailFor] = useState<CommissionSummaryRow | null>(null);
 
   const professionals = useProfessionals();
+  const overview = useCommissionOverview({
+    from: from || undefined,
+    to: to || undefined,
+    professionalId: professionalId || undefined,
+  });
   const summary = useCommissionSummary({
     from: from || undefined,
     to: to || undefined,
@@ -81,7 +95,7 @@ export function ComissoesResumoPage() {
   );
 
   const rows = summary.data?.data ?? [];
-  const totals = summary.data?.totals;
+  const ov = overview.data;
 
   async function handlePay(row: CommissionSummaryRow) {
     setError(null);
@@ -134,14 +148,19 @@ export function ComissoesResumoPage() {
       key: 'actions',
       header: '',
       render: (r) => (
-        <Button
-          variant="primary"
-          size="sm"
-          isDisabled={r.status === 'paid' || r.total <= 0 || pay.isPending}
-          onClick={() => handlePay(r)}
-        >
-          <IconWallet size={15} /> Pagar
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" size="sm" onClick={() => setDetailFor(r)}>
+            <IconReceipt size={15} /> Detalhes
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            isDisabled={r.status === 'paid' || r.total <= 0 || pay.isPending}
+            onClick={() => handlePay(r)}
+          >
+            <IconWallet size={15} /> Pagar
+          </Button>
+        </div>
       ),
     },
   ];
@@ -152,10 +171,11 @@ export function ComissoesResumoPage() {
         title="Comissões"
         subtitle="Resumo por profissional"
         onRefresh={() => {
+          overview.refetch();
           summary.refetch();
           entries.refetch();
         }}
-        isRefreshing={summary.isFetching || entries.isFetching}
+        isRefreshing={overview.isFetching || summary.isFetching || entries.isFetching}
         actions={
           <Button
             variant="outline"
@@ -167,26 +187,32 @@ export function ComissoesResumoPage() {
         }
       />
 
-      {totals && (
-        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <SummaryCard
-            icon={<IconDollar size={16} />}
-            label="Valor vendido"
-            value={formatMoney(totals.valorVendido)}
-          />
-          <SummaryCard
-            icon={<IconPercent size={16} />}
-            label="Comissão"
-            value={formatMoney(totals.comissao)}
-          />
-          <SummaryCard
-            icon={<IconWallet size={16} />}
-            label="Total a pagar"
-            value={formatMoney(totals.total)}
-            highlight
-          />
-        </div>
-      )}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatusCard
+          label="Em aberto"
+          hint="Disponível para pagamento"
+          value={formatMoney(ov?.emAberto.total ?? 0)}
+          count={ov?.emAberto.count ?? 0}
+          tone="warning"
+          loading={overview.isLoading}
+        />
+        <StatusCard
+          label="A liberar"
+          hint="Aguardando disponibilidade"
+          value={formatMoney(ov?.aLiberar.total ?? 0)}
+          count={ov?.aLiberar.count ?? 0}
+          tone="muted"
+          loading={overview.isLoading}
+        />
+        <StatusCard
+          label="Pagas"
+          hint="Comissões já quitadas"
+          value={formatMoney(ov?.pagas.total ?? 0)}
+          count={ov?.pagas.count ?? 0}
+          tone="success"
+          loading={overview.isLoading}
+        />
+      </div>
 
       <Card className={CARD_CLASS}>
         <Card.Content className="p-4">
@@ -272,39 +298,198 @@ export function ComissoesResumoPage() {
           )}
         </Card.Content>
       </Card>
+
+      <DetailModal
+        row={detailFor}
+        from={from}
+        to={to}
+        status={status}
+        onClose={() => setDetailFor(null)}
+      />
     </div>
   );
 }
 
-function SummaryCard({
-  icon,
+function StatusCard({
   label,
+  hint,
   value,
-  highlight,
+  count,
+  tone,
+  loading,
 }: {
-  icon: React.ReactNode;
   label: string;
+  hint: string;
   value: string;
-  highlight?: boolean;
+  count: number;
+  tone: 'warning' | 'success' | 'muted';
+  loading?: boolean;
 }) {
+  const accent =
+    tone === 'success'
+      ? 'text-success'
+      : tone === 'warning'
+        ? 'text-[#a67c1e]'
+        : 'text-foreground';
   return (
     <Card className={CARD_CLASS}>
       <Card.Content className="p-5">
-        <div className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
-            {icon}
-          </span>
+        <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-muted">{label}</span>
+          <Chip
+            color={tone === 'success' ? 'success' : tone === 'warning' ? 'warning' : 'default'}
+            variant="soft"
+            size="sm"
+          >
+            {count}
+          </Chip>
         </div>
-        <div
-          className={`mt-2 text-2xl font-bold ${
-            highlight ? 'text-[#a67c1e]' : 'text-foreground'
-          }`}
-        >
-          {value}
+        <div className={`mt-2 text-2xl font-bold ${accent}`}>
+          {loading ? '—' : value}
         </div>
+        <div className="mt-1 text-xs text-muted">{hint}</div>
       </Card.Content>
     </Card>
+  );
+}
+
+const DETAIL_COLUMNS: Column<CommissionDetailItem>[] = [
+  {
+    key: 'date',
+    header: 'Data',
+    isRowHeader: true,
+    render: (it) => <span className="font-medium text-foreground">{formatDate(it.date)}</span>,
+  },
+  {
+    key: 'comanda',
+    header: 'Comanda',
+    render: (it) => (it.orderNumber != null ? `#${it.orderNumber}` : '—'),
+  },
+  { key: 'cliente', header: 'Cliente', render: (it) => it.customerName ?? '—' },
+  {
+    key: 'servico',
+    header: 'Serviço',
+    render: (it) =>
+      it.orderItems.length === 0
+        ? '—'
+        : it.orderItems.map((oi) => oi.name).join(', '),
+  },
+  {
+    key: 'qtd',
+    header: 'Qtd',
+    render: (it) => {
+      const q = it.orderItems.reduce((s, oi) => s + oi.quantity, 0);
+      return q > 0 ? String(q) : '—';
+    },
+  },
+  {
+    key: 'valor',
+    header: 'Comissão',
+    render: (it) => (
+      <span className="font-semibold text-foreground">
+        {formatMoney(it.commissionAmount + it.bonusAmount)}
+      </span>
+    ),
+  },
+];
+
+function DetailModal({
+  row,
+  from,
+  to,
+  status,
+  onClose,
+}: {
+  row: CommissionSummaryRow | null;
+  from: string;
+  to: string;
+  status: string;
+  onClose: () => void;
+}) {
+  const detail = useCommissionDetail(row?.professionalId ?? null, {
+    from: from || undefined,
+    to: to || undefined,
+    status: status || undefined,
+  });
+  const d = detail.data;
+
+  return (
+    <Modal isOpen={row != null} onOpenChange={(open) => !open && onClose()}>
+      <Modal.Backdrop>
+        <Modal.Container
+          placement="center"
+          className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        >
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>Comissão — {row?.professionalName}</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="flex flex-col gap-4">
+              {/* Card de comissão do profissional */}
+              <div className="rounded-lg border border-[var(--color-soft-border)] bg-white p-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <Metric label="Bonificações" value={formatMoney(d?.totals.bonus ?? 0)} />
+                  <Metric label="Comissão" value={formatMoney(d?.totals.comissao ?? 0)} />
+                  <Metric
+                    label="Total"
+                    value={formatMoney(d?.totals.total ?? 0)}
+                    strong
+                  />
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted">Assinatura digital</span>
+                  <Chip color={d?.signed ? 'success' : 'default'} variant="soft" size="sm">
+                    {d?.signed ? 'Assinado' : 'Não assinado'}
+                  </Chip>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-foreground">
+                  Itens que geraram comissão
+                </h4>
+                <span className="text-xs text-muted">{d?.count ?? 0} item(ns)</span>
+              </div>
+
+              {detail.isLoading ? (
+                <LoadingState />
+              ) : detail.isError ? (
+                <ErrorState onRetry={() => detail.refetch()} />
+              ) : (d?.items ?? []).length === 0 ? (
+                <EmptyState
+                  icon={<IconReceipt size={32} />}
+                  title="Nenhum item no período"
+                  description="Não há lançamentos de comissão para este profissional no filtro atual."
+                />
+              ) : (
+                <DataTable
+                  aria-label="Itens que geraram comissão"
+                  columns={DETAIL_COLUMNS}
+                  rows={d?.items ?? []}
+                  getKey={(it) => it.id}
+                />
+              )}
+            </Modal.Body>
+            <Modal.Footer className="flex justify-end">
+              <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+                Fechar
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
+  );
+}
+
+function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs font-medium text-muted">{label}</span>
+      <span className={strong ? 'text-lg font-bold text-[#a67c1e]' : 'text-base font-semibold text-foreground'}>
+        {value}
+      </span>
+    </div>
   );
 }
 

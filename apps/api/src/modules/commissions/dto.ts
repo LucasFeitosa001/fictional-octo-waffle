@@ -23,13 +23,21 @@ export enum AmountTypeDto {
 /**
  * settingsJson shape (mirrors schema comment: quem paga taxa/desconto, custo,
  * competência×disponibilidade, todas×finalizadas).
+ * "paidBy": proportional = rateado; company = estabelecimento 100%;
+ * professional = profissional 100%.
  */
+export type CommissionPayer = 'proportional' | 'company' | 'professional';
+
 export class CommissionRuleSettingsDto {
-  @IsOptional() @IsString() cardFeePaidBy?: 'company' | 'professional';
-  @IsOptional() @IsString() discountPaidBy?: 'company' | 'professional';
-  @IsOptional() @IsString() additionalCostPaidBy?: 'company' | 'professional';
+  @IsOptional() @IsString() cardFeePaidBy?: CommissionPayer;
+  @IsOptional() @IsString() discountPaidBy?: CommissionPayer;
+  @IsOptional() @IsString() additionalCostPaidBy?: CommissionPayer;
   @IsOptional() @IsString() basis?: 'competence' | 'availability';
   @IsOptional() @IsString() consider?: 'all' | 'finished';
+  /** produtos consumidos: descontar da comissão ou ignorar */
+  @IsOptional() @IsString() consumedProducts?: 'deduct' | 'ignore';
+  /** texto padrão de recibo de comissão */
+  @IsOptional() @IsString() receiptText?: string;
 }
 
 export class CreateCommissionRuleDto {

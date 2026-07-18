@@ -47,12 +47,58 @@ export interface CommissionEntry {
   professional?: { id: string; name: string };
 }
 
+export type CommissionPayer = 'proportional' | 'company' | 'professional';
+
 export interface CommissionRuleSettings {
-  cardFeePaidBy?: 'company' | 'professional';
-  discountPaidBy?: 'company' | 'professional';
-  additionalCostPaidBy?: 'company' | 'professional';
+  cardFeePaidBy?: CommissionPayer;
+  discountPaidBy?: CommissionPayer;
+  additionalCostPaidBy?: CommissionPayer;
   basis?: 'competence' | 'availability';
   consider?: 'all' | 'finished';
+  consumedProducts?: 'deduct' | 'ignore';
+  receiptText?: string;
+}
+
+export interface CommissionBucket {
+  total: number;
+  count: number;
+}
+
+export interface CommissionOverview {
+  emAberto: CommissionBucket;
+  aLiberar: CommissionBucket;
+  pagas: CommissionBucket;
+}
+
+export interface CommissionDetailOrderItem {
+  kind: 'service' | 'product';
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  grossValue: number;
+}
+
+export interface CommissionDetailItem {
+  id: string;
+  orderId: string | null;
+  orderNumber: number | null;
+  customerName: string | null;
+  date: string;
+  baseAmount: number;
+  commissionAmount: number;
+  bonusAmount: number;
+  status: CommissionEntryStatus;
+  signed: boolean;
+  orderItems: CommissionDetailOrderItem[];
+}
+
+export interface CommissionDetail {
+  professional: { id: string; name: string };
+  period: { from: string | null; to: string | null };
+  totals: { base: number; comissao: number; bonus: number; total: number; pago: number };
+  signed: boolean;
+  count: number;
+  items: CommissionDetailItem[];
 }
 
 export interface CommissionRule {
@@ -103,6 +149,37 @@ export function useCommissionSummary(filters: SummaryFilters = {}) {
         from: filters.from || undefined,
         to: filters.to || undefined,
         professionalId: filters.professionalId || undefined,
+        status: filters.status || undefined,
+      }),
+  });
+}
+
+export function useCommissionOverview(
+  filters: { from?: string; to?: string; professionalId?: string } = {},
+) {
+  return useQuery({
+    queryKey: ['commission-overview', filters],
+    queryFn: () =>
+      api.get<CommissionOverview>('/commissions/overview', {
+        from: filters.from || undefined,
+        to: filters.to || undefined,
+        professionalId: filters.professionalId || undefined,
+      }),
+  });
+}
+
+export function useCommissionDetail(
+  professionalId: string | null,
+  filters: { from?: string; to?: string; status?: string } = {},
+) {
+  return useQuery({
+    queryKey: ['commission-detail', professionalId, filters],
+    enabled: !!professionalId,
+    queryFn: () =>
+      api.get<CommissionDetail>('/commissions/detail', {
+        professionalId: professionalId as string,
+        from: filters.from || undefined,
+        to: filters.to || undefined,
         status: filters.status || undefined,
       }),
   });
