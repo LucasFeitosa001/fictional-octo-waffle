@@ -221,9 +221,9 @@ __typename: "CashAccounting"
 
 ---
 
-## 6. Belasis Pay / Pagamentos online (`fin-pay`) — captura parcial
+## 6. Belasis Pay / Pagamentos online (`fin-pay`) — CONFIRMADO (re-captura 18/07/2026)
 
-**1. Rota real Belasis**: a captura **caiu em `https://belasis.app/calendar`** com o **modal "Belasis Pay" aberto por cima** (onboarding de gateway). URL não navegou para a rota própria — **captura parcial da rota, mas o formulário foi capturado no DOM/shot**.
+**1. Rota real Belasis**: **não há rota própria navegável pelo menu mobile** — o item "Belasis Pay" (Financeiro) **abre um modal de onboarding por cima de `/calendar`**; a URL permanece `/calendar`. Re-captura confirma: o modal **é** a UX (não é um bug da captura). O formulário completo foi capturado no DOM/shot.
 **Nossa tela equivalente**: **inexistente** (sem rota `/financeiro/pagamentos-online`, sem model `PaymentAccount`).
 
 **2. Operations GraphQL**: nenhuma específica de "Pay"; a única extra além do bootstrap foi `CompanyAddressQuery`.
@@ -240,8 +240,8 @@ __typename: "CashAccounting"
 **7. Gap vs nosso app** (refina #218–230): **TUDO AUSENTE — DEPENDE DE CONTRATAÇÃO/INTEGRAÇÃO EXTERNA (PSP)**.
 - Não existe `PaymentAccount`, rota, nem gateway. Ao integrar um PSP real: modelar onboarding cadastral (tipo pessoa PF/PJ, razão social, tipo empresa, CNPJ, faturamento, contato, endereço via CEP, meios PIX/Cartão) **sem simular processamento**.
 - **Nunca** reproduzir marca/nome "Belasis Pay" — usar identidade Salonpass/HeroUI.
-- Reaproveitar `CompanyAddressQuery`-equivalente (dados do salão) para pré-preencher endereço.
-- **Recomendação: re-capturar** navegando de fato até a rota do Pay (a captura pegou o modal sobre `/calendar`).
+- Reaproveitar `CompanyAddressQuery`-equivalente (dados do salão) para pré-preencher endereço (confirmado: `current_company { zip_code:"64600430", address:"Rua Eliseu Pereira Bezerra", number:"52", district:"Passagem das Pedras", state_id:"17", city_id:"3155" }`).
+- **Re-captura concluída**: confirmado que o Pay é um **modal de onboarding** (não uma rota) — o mobile abre o formulário sobre `/calendar`. Nada mais a re-capturar aqui sem contratar o PSP.
 
 ---
 
@@ -279,5 +279,5 @@ __typename: "CashAccounting"
 | `/finance/accounts` (tabs) | `/financeiro/contas` (`ContasPage`) | Parcial (falta Tabs, busca, campo `cash`/`admin_only`) |
 | `/finance/cash-accounting` | — (só `/caixa` histórico) | Ausente a visão de caixa aberto + Resumido/Detalhado + sangria/suprimento |
 | `/finance/cash-accounting/history` | `/caixa` (`CaixaPage`) | Parcial (falta aberto/fechado por, Reabrir, filtros server-side, cards mobile) |
-| `/finance/pay` (modal Belasis Pay) | — | Ausente — depende de PSP; **re-capturar rota** |
+| Belasis Pay (modal sobre `/calendar`, sem rota própria) | — | Ausente — depende de PSP; onboarding é modal (confirmado ao vivo) |
 | `/invoices/invoice` | — | Ausente — depende de integração fiscal; gating por plano |

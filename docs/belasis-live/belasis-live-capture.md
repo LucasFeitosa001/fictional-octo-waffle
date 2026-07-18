@@ -2,15 +2,15 @@
 
 > Índice mestre das capturas mobile ao vivo do Belasis (conta real `ESPAÇO FATIMA LACERDA`, salon_id 44983, viewport iPhone/mobile, app v5.7.12). Consolida os 7 documentos por módulo em `docs/belasis-live/`. Base exclusiva: os `.md` deste diretório — nada aqui é inventado. Alvo do nosso app é **HeroUI/Salonpass, mobile-first** — nunca copiar marca/cores/nome Belasis.
 >
-> **Total de operations GraphQL distintas coletadas: 58** (19 de bootstrap/shell + 39 específicas de página, incluindo as duas grafias observadas de document-templates).
+> **Total de operations GraphQL distintas coletadas: 62** (19 de bootstrap/shell + 43 específicas de página/ação, incluindo as duas grafias observadas de document-templates e as 4 novas da re-captura de 18/07/2026: `SummaryCommissions`, `BatchPayments`, `EmployeesList` e a mutation `UserOnvoardingSaveSalon`).
 
 ## Documentos-fonte (por módulo)
 
 | Módulo | Arquivo | Cobertura |
 |---|---|---|
 | Principal (Painel · Agenda · Comandas · Pacotes · Assinaturas) | [principal.md](./principal.md) | 5 telas capturadas |
-| Cadastros (Clientes · Anamneses · Convidar · Fornecedores) | [cadastros.md](./cadastros.md) | 2 completas, 2 incompletas |
-| Comissões | [comissoes.md](./comissoes.md) | **INCOMPLETA — captura caiu em /calendar** |
+| Cadastros (Clientes · Anamneses · Convidar · Profissionais · Fornecedores) | [cadastros.md](./cadastros.md) | 4 completas (Convidar+Profissionais re-capturados 18/07), 1 incompleta (Anamneses — gated) |
+| Comissões (Resumo · Pagas · Configurações) | [comissoes.md](./comissoes.md) | **COMPLETA (re-captura 18/07: 3 subtelas + ops reais)** |
 | Controle (Serviços · Produtos · Categorias · Marcas · Pacotes Pré · Compras · Documentos) | [controle.md](./controle.md) | 7 telas capturadas |
 | Financeiro (Painel · Transações · Cadastros · Caixas · Histórico · Pay · NF) | [financeiro.md](./financeiro.md) | 5 completas, 2 incompletas |
 | Marketing (Link · Online · Automação · Promoções · Avaliações · Cashback) | [marketing.md](./marketing.md) | 3 completas, 3 incompletas |
@@ -36,14 +36,16 @@
 |---|---|---|
 | `/clients` | `/clientes` → `ClientesPage.tsx` | EXISTENTE/PARCIAL (falta avatar real, seleção múltipla, variante card mobile) |
 | `/anamnesis` | — | AUSENTE (sem rota/model; captura vazia + gating) |
-| Convidar profissionais (modal; caiu em `/calendar`) | — | AUSENTE (fluxo de convite por link) |
-| Profissionais | (`/profissionais`) | NÃO CAPTURADO neste módulo |
+| Convidar profissionais (modal sobre `/calendar`; mutation `UserOnvoardingSaveSalon`) | — | AUSENTE (convite por link/`uuid`; rotacionar link = `salon_employee_invitation.uuid`) |
+| Profissionais → `/employees` (op `EmployeesList`) | `/profissionais` → `ProfissionaisPage.tsx` | EXISTENTE (add chip Admin `is_admin`, avatar+blurhash, abas Ativos/Inativos, `fake_email`) |
 | `/vendors` | `/fornecedores` → `FornecedoresPage.tsx` | EXISTENTE (falta seleção múltipla, card mobile, avaliar 2º telefone) |
 
 ### Módulo Comissões — [comissoes.md](./comissoes.md)
 | Rota real Belasis | Nossa tela | Status |
 |---|---|---|
-| Item "Comissões" no drawer (submenu não expandido; caiu em `/calendar`) | `/comissoes` → `ComissoesResumoPage.tsx`; `/comissoes/config` → `ComissoesConfigPage.tsx` | **NÃO OBSERVADO** — nenhuma subtela/op de comissão capturada |
+| `/finance/commissions/summary` (Resumo, op `SummaryCommissions`) | `/comissoes` → `ComissoesResumoPage.tsx` | PARCIAL (3 cards em aberto/pagas/a liberar; validado ao vivo) |
+| `/finance/commissions/batch_payments` (Pagas, op `BatchPayments`) | (falta aba/página "Pagas") | AUSENTE (Vales/adiantamentos, Bonificações, assinatura digital, Excluir lote) |
+| `/finance/commissions/settings` (Configurações) | `/comissoes/config` → `ComissoesConfigPage.tsx` | PARCIAL (faltam Taxas/Descontos, custo adicional, base desconto produtos, valor bruto, texto de impressão) |
 
 ### Módulo Controle — [controle.md](./controle.md)
 | Rota real Belasis | Nossa tela | Status |
@@ -64,13 +66,13 @@
 | `/finance/accounts` (tabs) | `/financeiro/contas` → `ContasPage.tsx` | PARCIAL (falta Tabs Contas/Formas/Categorias, busca, campos `cash`/`admin_only`) |
 | `/finance/cash-accounting` | — (só `/caixa` histórico) | AUSENTE (visão caixa aberto + Resumido/Detalhado + sangria/suprimento) |
 | `/finance/cash-accounting/history` | `/caixa` → `CaixaPage.tsx` | PARCIAL (falta aberto/fechado por, Reabrir, filtros server-side, cards mobile) |
-| `/finance/pay` (modal "Belasis Pay"; caiu em `/calendar`) | — | AUSENTE (depende de PSP) |
+| Belasis Pay (modal onboarding sobre `/calendar`, sem rota própria; `CompanyAddressQuery`) | — | AUSENTE (depende de PSP; confirmado ao vivo que é modal, não rota) |
 | `/invoices/invoice` | — | AUSENTE / GATED (depende de integração fiscal) |
 
 ### Módulo Marketing — [marketing.md](./marketing.md)
 | Rota real Belasis | Nossa tela | Status |
 |---|---|---|
-| Link de Agendamento (menu; caiu em `/calendar`) | `/marketing/link` → `LinkAgendamentoPage.tsx` | EXISTENTE (re-capturar tela real) |
+| Link de Agendamento (menu → só modal de compartilhar, sem rota/op própria no mobile) | `/marketing/link` → `LinkAgendamentoPage.tsx` | EXISTENTE (confirmado ao vivo: atalho de compartilhar; edição real fica em Agendamento Online → Links) |
 | `/online-booking` | — | AUSENTE (criar hub de 9 sub-seções) |
 | Automação de Marketing (não navegada) | — | AUSENTE (add-on WhatsApp/SMS) |
 | `/promotions` | `/marketing/promocoes` → `PromocoesPage.tsx` | EXISTENTE / GATED (add gating "Contratar") |
@@ -114,7 +116,11 @@ Toda página faz um bootstrap idêntico de contexto + sync offline antes da quer
 
 **Fornecedores** (`/vendors`): `VendorsList`.
 
-**Comissões**: **nenhuma operation específica observada** (captura caiu em `/calendar`; só bootstrap).
+**Profissionais** (`/employees`): `EmployeesList` (→ `employees[]` com `is_admin`, `avatar_url`/`avatar_blurhash`, `cellphone`, `user.fake_email`).
+
+**Convidar profissionais** (modal sobre `/calendar`): mutation **`UserOnvoardingSaveSalon`** (POST persisted query, grafia real do Belasis) com `salon_employee_invitation_attributes.uuid` — rotaciona o link de convite.
+
+**Comissões** (re-captura 18/07): **Resumo** (`/finance/commissions/summary`) → `SummaryCommissions` (→ `finance_commission_items[]{available_value, blocked_value}`); **Pagas** (`/finance/commissions/batch_payments`) → `BatchPayments` (→ `commissions_batch_payments[]` = BatchPayment com `advances_total_value`=Vales, `bonifications_total_value`, `total_paid_value`, `digital_signature`); **Configurações** (`/finance/commissions/settings`): nenhuma op no load (defaults vêm do shell; Salvar dispara mutation não acionada).
 
 **Serviços** (`/services`): `ServicesList`.
 
@@ -152,34 +158,37 @@ Toda página faz um bootstrap idêntico de contexto + sync offline antes da quer
 
 **Cashback** (`/cashback`): `ProductsList` (com atributos `cashback_active`/`cashback_value`/`cashback_value_type`).
 
-**Link de Agendamento / Automação de Marketing**: **nenhuma** op específica observada (não navegadas).
+**Link de Agendamento**: **nenhuma** op específica — no mobile é só um atalho de compartilhar (modal, sem rota/query própria). **Automação de Marketing**: não navegada. **Campanhas**: item inexistente no menu Marketing (slug de captura errado).
 
 **Relatórios (Hub / Metas / DRE)** (`/reports/favorites`, `/goals`, `/reports/financial/dre`): **nenhuma** op específica — só bootstrap. No mobile o Belasis não renderiza dados de relatório (aviso "acesse pelo computador"); Metas e DRE bloqueados/em branco.
 
-> **Contagem: 19 shell + 20 (11 Wow + 9 restantes: InventorySalesList, FetchDocumentTemplates, PackagesList, CustomerSubscriptions, ClientsList, AnamnesisList, VendorsList, ServicesList, ProductsList) + ... = 58 distintas.** Lista canônica de todas: veja abaixo.
+> **Contagem: 62 distintas** = 58 anteriores + 4 da re-captura 18/07 (`SummaryCommissions`, `BatchPayments`, `EmployeesList`, mutation `UserOnvoardingSaveSalon`). Lista canônica de todas: veja abaixo.
 
-### Lista canônica das 58 operations distintas
+### Lista canônica das 62 operations distintas
 Shell (19): `GlobalCurrentUserContext`, `findMultiSalons`, `Notifications`, `BirthdayClientsQuery`, `Banners`, `WebookStatusMessage`, `FetchWhatsappStatus`, `WebookAddons`, `TutorialCategories`, `CalendarsCalendar`, `WebookAllEmployees`, `WebookAllInventoryProducts`, `WebookAllInventoryBrands`, `WebookAllInventoryGroups`, `WebookFinanceAccounts`, `WebookFinancePayments`, `WebookFinanceCharts`, `WebookScheduleColors`, `WebookMessageModelsGroups`.
 
 Wow/Painel (11): `WebookWowTotalSales`, `WebookWowSalesPerDay`, `WebookWowSchedulesPerDay`, `WebookWowAverageTicket`, `WebookWowRankings`, `WebookWowCalendarsFunnel`, `WebookWowSalonsComparison`, `WebookWowHeatMap`, `WebookWowEmployeesAttending`, `WebookWowSalesByCategory`, `WebookWowCacheCreatedAt`.
 
-Listas/detalhe (28): `InventorySalesList`, `FetchDocumentTemplates`, `fetchDocumentTemplates`, `PackagesList`, `CustomerSubscriptions`, `ClientsList`, `AnamnesisList`, `VendorsList`, `ServicesList`, `ProductsList`, `GroupsList`, `BrandsList`, `PacakageTemplatesList`, `PurchasesList`, `FinanceDashboardAccounts`, `AvailableBills`, `FinanceDashboardTotals`, `FinanceTransactions`, `AccountsList`, `AllOpenedCashAccountings`, `FinanceCashAccountings`, `CompanyAddressQuery`, `OnlineBookingMobileSettings`, `subscriptionDrawerSalonData`, `PromotionList`, `SalonInformation`, `ReviewsDashboardEmployees`, `MetricsSalon`.
+Listas/detalhe/ações (32): `InventorySalesList`, `FetchDocumentTemplates`, `fetchDocumentTemplates`, `PackagesList`, `CustomerSubscriptions`, `ClientsList`, `AnamnesisList`, `VendorsList`, `EmployeesList`, `ServicesList`, `ProductsList`, `GroupsList`, `BrandsList`, `PacakageTemplatesList`, `PurchasesList`, `FinanceDashboardAccounts`, `AvailableBills`, `FinanceDashboardTotals`, `FinanceTransactions`, `AccountsList`, `AllOpenedCashAccountings`, `FinanceCashAccountings`, `SummaryCommissions`, `BatchPayments`, `CompanyAddressQuery`, `OnlineBookingMobileSettings`, `subscriptionDrawerSalonData`, `PromotionList`, `SalonInformation`, `ReviewsDashboardEmployees`, `MetricsSalon`, e a mutation `UserOnvoardingSaveSalon`.
 
-**Total = 19 + 11 + 28 = 58.**
+**Total = 19 + 11 + 32 = 62.**
 
 ---
 
 ## 3. Capturas incompletas a re-capturar
 
+> **Atualização 18/07/2026 — re-captura concluída dos itens 1, 2, 4 e 6** (ver linhas ✅ abaixo). Restam pendentes os bloqueados por **conta sem dados/plano** (3, 5, 8–15) e os que exigem **desktop** (11, 16), além de **Automação de Marketing** (7).
+
 | # | Alvo | Problema na captura | O que falta observar | Onde re-capturar |
 |---|---|---|---|---|
-| 1 | **Comissões (módulo inteiro)** | Captura caiu em `/calendar`; submenu não expandido; nenhuma op de comissão disparada | Rotas reais, operations (Resumo/Em aberto/Pagas/Config), campos de comissão, UI/labels, layout mobile | Navegar de fato às subtelas — **prioritária** |
-| 2 | **Convidar profissionais** | Abriu como modal sobre `/calendar`; mutation não observada | Mutation de gerar/rotacionar link de convite | Acionar "Alterar o link"/"Copiar" |
+| 1 | ✅ **Comissões (módulo inteiro)** | **RESOLVIDO** — submenu expandido; 3 subtelas navegadas (`/finance/commissions/summary`,`/batch_payments`,`/settings`) | — capturado: ops `SummaryCommissions`/`BatchPayments`, campos (Vales/Bonif./assinatura), config completa, layout | — |
+| 2 | ✅ **Convidar profissionais** | **RESOLVIDO** — modal capturado; "Alterar o link" acionado | — capturado: mutation `UserOnvoardingSaveSalon` (`salon_employee_invitation.uuid`) | — |
 | 3 | **Anamneses** | Funcionalidade não contratada → lista vazia | Schema do item de anamnese | Conta com "Anamneses Adicional Pro" |
-| 4 | **Belasis Pay** (`/finance/pay`) | Modal aberto sobre `/calendar`; URL não navegou | Rota própria + operations do Pay | Navegar até a rota do Pay |
+| 4 | ✅ **Belasis Pay** | **RESOLVIDO** — confirmado que é **modal de onboarding**, não rota; `CompanyAddressQuery` pré-preenche endereço; form completo capturado | — (só falta as ops do PSP, que dependem de contratação) | Depende do PSP |
 | 5 | **Notas Fiscais** (`/invoices/invoice`) | Bloqueado por plano; nenhuma query disparada | Campos e queries de NFS-e/NF-e/NFC-e | Conta com addon fiscal |
-| 6 | **Link de Agendamento** | Captura caiu em `/calendar`; só drawer aberto | Layout mobile real, se há N links por plataforma | Navegar à tela de Link |
+| 6 | ✅ **Link de Agendamento** | **RESOLVIDO** — confirmado que no mobile é só **atalho de compartilhar** (modal sobre `/calendar`), sem rota/op própria; edição real fica em Agendamento Online → aba Links | — | — |
 | 7 | **Automação de Marketing** | Não navegada; sem pasta `mkt-automacao` | Rota, operations, campos, UI | Navegar ao item de menu |
+| — | ~~Campanhas~~ | **NÃO EXISTE** no menu Marketing (slug de captura errado) — descartar | — | — |
 | 8 | **Promoções** | Conta vazia (`total_count: 0`) + gating | Campos de uma promoção real | Conta com promoções contratadas |
 | 9 | **Cashback** | Conta vazia + gating por plano | Campos das abas Clientes/Configurações | Conta com Cashback contratado |
 | 10 | **Metas** (`/goals`) | Bloqueado por plano antes do fetch | Query real de goals e seus campos | Conta com módulo Metas contratado |
@@ -190,7 +199,7 @@ Listas/detalhe (28): `InventorySalesList`, `FetchDocumentTemplates`, `fetchDocum
 | 15 | **Gerador de Documento** (`/document-templates`) | Lista vazia + gating | Campos de template de documento | Conta com o recurso contratado |
 | 16 | **Relatórios (detalhe/categorias)** | Mobile não renderiza dados de relatório | Dados/gráficos reais das categorias | **Desktop** |
 
-> **Padrão recorrente:** várias capturas caíram em `/calendar` (Comissões, Convidar, Belasis Pay, Link de Agendamento) porque o item abre modal/submenu sem navegar para rota própria. Outras vêm vazias por **conta sem dados** ou **feature-gating** (modal "Você ainda não possui essa funcionalidade contratada" / Fechar / Contratar).
+> **Padrão recorrente (confirmado na re-captura):** o menu tem 3 comportamentos distintos — (a) **submenu que navega** para rota real (Comissões → `/finance/commissions/*`; Profissionais → `/employees`); (b) **item que abre modal sobre `/calendar` sem rota própria** (Convidar profissionais, Belasis Pay, Link de Agendamento) — o modal É a UX, não é bug de captura; (c) **telas vazias por conta sem dados ou feature-gating** (modal "Você ainda não possui essa funcionalidade contratada" / Fechar / Contratar). A captura original tratava (a) e (b) como "caiu em /calendar"; agora estão distinguidos.
 
 ---
 
@@ -236,4 +245,4 @@ Listas/detalhe (28): `InventorySalesList`, `FetchDocumentTemplates`, `fetchDocum
 
 ---
 
-> **Observação de escopo:** o módulo **Comissões** é o único **totalmente NÃO OBSERVADO** ao vivo — seu status permanece derivado do gap-analysis/vídeo (maturidade ~28%), não validado. Marcado como **re-captura prioritária**. Módulos com telas vazias/gated tiveram estrutura (envelope, `total_count`, UI) observada, mas **campos de item** ficaram `VISÍVEL/NÃO DETALHADO` — especificar antes de construir, sem fabricar campos.
+> **Observação de escopo (atualizada 18/07/2026):** o módulo **Comissões** — antes o único totalmente NÃO OBSERVADO — foi **capturado ao vivo** (Resumo/Pagas/Configurações, ops `SummaryCommissions`/`BatchPayments`, campos e UI reais); ver [comissoes.md](./comissoes.md). Também resolvidos ao vivo: Convidar profissionais (mutation `UserOnvoardingSaveSalon`), Profissionais (`EmployeesList`), Belasis Pay (modal onboarding) e Link de Agendamento (atalho de compartilhar). **Continuam NÃO detalhados** por conta sem dados/plano: Anamneses, Notas Fiscais, Promoções, Cashback (campos de item), Metas, Pacotes Predefinidos, Compras, Gerador de Documento; e por exigirem **desktop**: DRE e Relatórios (categorias). Automação de Marketing segue não navegada. Nesses casos a estrutura (envelope, `total_count`, UI) foi observada mas **campos de item** ficam `VISÍVEL/NÃO DETALHADO` — especificar antes de construir, sem fabricar campos.

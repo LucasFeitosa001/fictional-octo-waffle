@@ -8,16 +8,19 @@
 
 ## Menu Marketing (do screenshot `mkt-link/shot.png`, drawer aberto)
 
-O grupo **"Marketing"** (ícone megafone) no drawer lateral expõe 6 itens, nesta ordem:
+O grupo **"Marketing"** (ícone megafone) no drawer lateral expõe **7 itens** (confirmado na re-captura 18/07/2026), nesta ordem:
 
-1. **Link de Agendamento** (ícone share) → `/link-de-agendamento` (a captura caiu em `/calendar`)
+1. **Link de Agendamento** (ícone share) → **modal de compartilhamento** sobre `/calendar` (sem rota própria; ver §1)
 2. **Agendamento Online** → `/online-booking`
 3. **Automação de Marketing** → *(captura incompleta — não navegada; ver abaixo)*
 4. **Promoções** → `/promotions`
 5. **Avaliações** → `/reviews`
 6. **Cashback** → `/cashback`
+7. **Configurações** (do módulo Marketing)
 
-Abaixo de Marketing vem "Configurações" e "Ajuda". Nosso app expõe 4 rotas
+> **NÃO existe item "Campanhas" no menu Marketing** (o slug `mkt-campanhas` do mapa de captura estava errado — nunca existiu essa tela no Belasis mobile). O equivalente mais próximo de "campanha" é **Automação de Marketing** (WhatsApp/SMS) e **Promoções**.
+
+Abaixo de Marketing vem "Configurações" (global) e "Ajuda". Nosso app expõe 4 rotas
 (`/marketing/link`, `/marketing/promocoes`, `/marketing/avaliacoes`, `/marketing/cashback`);
 **faltam** rotas para **Agendamento Online** e **Automação de Marketing** como páginas próprias.
 
@@ -35,21 +38,26 @@ específicas por tela estão listadas em cada seção.
 
 ## 1. Link de Agendamento
 
-- **Rota real Belasis:** item de menu "Link de Agendamento" (a captura `mkt-link` caiu em
-  `https://belasis.app/calendar` — **captura incompleta / não navegou para a tela de link**;
-  o que temos é apenas o drawer aberto no screenshot). **Re-capturar a tela em si.**
+- **Rota real Belasis:** **não navega para rota própria** — clicar "Link de Agendamento" no menu
+  mantém a URL em `https://belasis.app/calendar` e aciona uma **ação de compartilhamento/modal**
+  (mesmo padrão de "Convidar profissionais" e "Belasis Pay", que abrem modal sobre o calendário).
+  Re-captura 18/07/2026 confirmou: o item **não é uma página** no mobile; ficou no drawer/estado de
+  compartilhamento e não disparou nenhuma operation específica nem renderizou conteúdo próprio
+  capturável (provável share sheet nativo / modal leve de copiar link).
 - **Nossa tela equivalente:** `/marketing/link` → `apps/web/src/pages/marketing/LinkAgendamentoPage.tsx`.
-- **Operations GraphQL específicas:** nenhuma capturada (a página não abriu). No nosso app o
-  fluxo usa `GET/PATCH /marketing/booking-link`.
-- **Campos/dados reais:** não observados nesta captura. Gap-analysis (itens 624–627, 683)
-  confirma modelo `BookingLink.slug` + editor de subdomínio/slug.
-- **UI/textos:** não capturados na tela; só o rótulo de menu "Link de Agendamento" (ícone share).
-- **Layout mobile:** não capturado.
+- **Operations GraphQL específicas:** **nenhuma** (nem no load nem no clique) — só o shell. O link
+  público é derivado do perfil web do salão (ver `OnlineBookingMobileSettings` em §2). No nosso app
+  o fluxo usa `GET/PATCH /marketing/booking-link`.
+- **Campos/dados reais:** não retornados por query própria. Gap-analysis (itens 624–627, 683)
+  confirma modelo `BookingLink.slug` + editor de subdomínio/slug. O editor de slug real do Belasis
+  vive na aba **"Links"** do hub **Agendamento Online** (§2), não numa tela separada de "Link de Agendamento".
+- **UI/textos:** rótulo de menu "Link de Agendamento" (ícone share); ação de copiar/compartilhar o
+  link público (não renderizou modal detalhado no mobile nesta captura).
 - **Gap vs nosso app:** já temos `LinkAgendamentoPage` com editor de slug, card do link geral,
   copiar/abrir e botão Salvar (gap-analysis 624/626/627 = EXISTENTE 100%). **PARCIAIS conhecidos:**
   sufixo de domínio somente-leitura (625), personalização de múltiplos links por plataforma (614,
-  AUSENTE). **Ação:** re-capturar a tela real de Link de Agendamento para validar layout mobile e
-  se há N links por plataforma; não fabricar campos.
+  AUSENTE). **Nota de arquitetura:** no Belasis mobile "Link de Agendamento" é só um atalho de
+  compartilhar; a edição real do link fica dentro do hub Agendamento Online → aba "Links".
 
 ---
 
@@ -246,7 +254,7 @@ específicas por tela estão listadas em cada seção.
 
 | Sub-tela | Rota Belasis | Nossa rota | Status refinado |
 |---|---|---|---|
-| Link de Agendamento | (menu) | `/marketing/link` ✓ | EXISTENTE; **re-capturar tela real** (caiu em /calendar) |
+| Link de Agendamento | (menu — só modal de compartilhar, sem rota) | `/marketing/link` ✓ | EXISTENTE; confirmado ao vivo que no mobile é só atalho de compartilhar (edição real fica em Agendamento Online → Links) |
 | Agendamento Online | `/online-booking` | **ausente** | Criar hub de 9 sub-seções; campos reais de `SalonWebProfile` mapeados |
 | Automação de Marketing | (menu) | **ausente** | AUSENTE + **captura incompleta — re-capturar**; add-on WhatsApp/SMS |
 | Promoções | `/promotions` | `/marketing/promocoes` ✓ | EXISTENTE; add gating "Contratar"; `PromotionList` vazio (detalhar campos) |
@@ -257,6 +265,8 @@ específicas por tela estão listadas em cada seção.
 `subscriptionDrawerSalonData`, `PromotionList`, `SalonInformation`, `ReviewsDashboardEmployees`,
 `MetricsSalon`, `ProductsList`.
 
-**Capturas incompletas a re-capturar:** Link de Agendamento (caiu em /calendar), Automação de
-Marketing (não navegada / sem pasta). Promoções e Cashback estão com conta vazia + gating —
-campos de registros reais ficam `VISÍVEL/NÃO DETALHADO` (especificar antes de construir).
+**Capturas incompletas a re-capturar:** Automação de Marketing (não navegada / sem pasta). Promoções
+e Cashback estão com conta vazia + gating — campos de registros reais ficam `VISÍVEL/NÃO DETALHADO`
+(especificar antes de construir). **Resolvidos na re-captura 18/07/2026:** Link de Agendamento
+(confirmado: modal de compartilhar, sem rota/op própria no mobile); **"Campanhas" não existe** no
+menu Marketing (slug de captura errado — descartar).

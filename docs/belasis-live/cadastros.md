@@ -8,8 +8,8 @@
 O item **Cadastros** do menu lateral tem 5 sub-itens, nesta ordem:
 1. Clientes → `/clients`
 2. Anamneses → `/anamnesis`
-3. Convidar profissionais → (modal/página; caiu em `/calendar` na captura)
-4. Profissionais → (não capturado neste módulo)
+3. Convidar profissionais → **modal** sobreposto (não navega; fica em `/calendar`)
+4. Profissionais → `/employees` (capturado — ver §5)
 5. Fornecedores → `/vendors`
 
 Grupos irmãos no menu: Principal, Financeiro, Comissões, **Cadastros**, Controle, Relatórios, WhatsApp API Oficial (novo), Marketing, Configurações, Ajuda, Indique e ganhe. Rodapé: `v5.7.12`. Topo do menu: "Olá, FATIMA / Meu perfil", botão "Novo", chip "IA Beta".
@@ -113,12 +113,14 @@ Tela coberta por modal de upsell. Por baixo: título "Anamneses", segmento de ab
 **Tela equivalente no nosso app:** NÃO EXISTE. Mais próximo: `/profissionais` (ProfissionaisPage) e `/marketing/link` (link de agendamento). AUSENTE como fluxo de convite por link.
 
 ### Operations GraphQL
-Nenhuma operation específica de convite foi capturada (só o boot padrão: `GlobalCurrentUserContext`, `findMultiSalons`, `CalendarsCalendar`, etc.). O modal parece usar link estático + geração/rotação de link (sem GraphQL observado). **Re-capturar a ação "Alterar o link"/"Copiar" para ver a mutation.**
+No **load** do modal: só o boot padrão (`GlobalCurrentUserContext`, `findMultiSalons`, `CalendarsCalendar`, etc.). Ao clicar **"Alterar o link"** (re-captura 18/07/2026) foi observada a mutation:
+- **`UserOnvoardingSaveSalon`** (grafia real do Belasis, com typo "Onvoarding") — `POST https://betasis.belasis.com.br/api/graph`, `variables.data.salon_employee_invitation_attributes.uuid = "<novo-uuid>"`. Rotaciona o link de convite gerando um novo `uuid`. Retorno seguido de toast **"Configuração salva com sucesso!"**. (Persisted query — sem query string; ver `belasis-capture/cad-convidar/mutations.json`.)
+- O toggle **Ativo/Inativo** e o **Copiar** não dispararam GraphQL adicional na captura (Copiar é clipboard local).
 
 ### Campos/dados reais
-- Link de convite: `https://app.belasis.app/register?in...` (query truncada — token de convite; **não expor**).
-- Contador de equipe: **"Na sua equipe, há 5 profissionais"**.
-- Toggle de status do link: **Ativo / Inativo**.
+- Link de convite: `https://app.belasis.app/register?in...` (query truncada — token/uuid de convite; **não expor**). O identificador rotacionado é um **`uuid`** (`salon_employee_invitation.uuid`).
+- Contador de equipe: **"Na sua equipe, há 5 profissionais"** (bate com `EmployeesList` = 5 ativos).
+- Toggle de status do link: **Ativo / Inativo** (switch verde quando Ativo).
 
 ### UI e textos exatos
 - Banner/hero ilustrado (mock desktop+mobile) com bullets: **"Pensado para levar seu negócio para o próximo nível!"**, **"Com o agendamento online seu cliente pode agendar, realizar o pagamento e você é notificado na mesma hora!"**, **"Sistema disponível 24 horas, 7 dias na semana!"**.
@@ -139,9 +141,9 @@ Modal full-screen fundo azul com ilustração no topo, título centralizado, con
 ### Gap vs nosso app
 **AUSENTE.** Não temos fluxo de "convidar profissional por link público de auto-registro". Temos cadastro manual de profissionais em `/profissionais`. Necessário (se priorizado):
 - Endpoint de geração de link de convite por empresa (token), com estados Ativo/Inativo e "rotacionar link".
-- Rota pública `/register?invite=<token>` para o profissional entrar na equipe.
+- Rota pública `/register?invite=<uuid>` para o profissional entrar na equipe.
 - Modal "Convidar profissionais" acessível pelo menu Cadastros, com contador da equipe, copiar link, alterar link, toggle ativo.
-- Mutation/lógica ainda **não observada ao vivo — re-capturar**.
+- Mutation confirmada: **`UserOnvoardingSaveSalon`** com `salon_employee_invitation_attributes.uuid` (rotaciona o link gerando novo `uuid`).
 
 ---
 
@@ -191,13 +193,51 @@ Já temos `/fornecedores` bem alinhado: busca (nome/CNPJ/telefone), filtro Ativo
 
 ---
 
+## 5. Profissionais (re-captura 18/07/2026)
+
+**Rota real Belasis:** `https://belasis.app/employees`
+**Tela equivalente no nosso app:** `/profissionais` → `ProfissionaisPage.tsx`.
+
+### Operations GraphQL
+- **`EmployeesList`** ← lista principal. Mesmo bloco de contexto/Webook.
+
+### Campos reais (corpo de `EmployeesList`)
+`data.employees[]` — cada **`Employee`**:
+- `id` (string, ex. "107369")
+- `name` (CAPS, ex. "FATIMA LACERDA")
+- `active` (bool)
+- `position` (null observado — cargo/função)
+- `email` (null observado no employee; e-mail real fica em `user.email`)
+- `avatar_url` (URL S3 `small_thumb_...` ou `/default_user.jpg`)
+- `avatar_blurhash` (string ou null)
+- `cellphone` (dígitos c/ DDI, ex. "5589994331471")
+- `user { id, email, fake_email (bool), current_access_rule_user_salon { id, is_admin (bool), __typename: AccessRuleUserSalonType } }`
+- `__typename: "Employee"`
+
+Observações reais: 5 profissionais — FATIMA LACERDA (`is_admin: true`, chip **"Admin"**), LAILA ARAUJO LUZ SOUSA, LARISSA SOUZA, ESHILEY SILVA COSTA, VIRLENE. Profissionais sem e-mail próprio têm `user.email` sintético `<telefone>@franciscodaschagassantos.com.br` com `fake_email: true`.
+
+### UI e textos exatos
+- Título: **"Profissionais"**.
+- Abas de status: **Ativos / Inativos**.
+- Cada linha: nome em CAPS; chip **"Admin"** quando `is_admin`; ação **"Excluir"** por linha.
+- Bottom nav: **Menu · Painel · Agenda · Criar**.
+
+### Ações visíveis
+Alternar Ativos/Inativos, **Criar**, **Excluir** por linha. (Config de comissão por profissional fica na aba "Configurar Comissões" do detalhe — ver `comissoes.md`.)
+
+### Gap vs nosso app
+Temos `/profissionais`. Confirmar/alinhar: chip **Admin** derivado de `current_access_rule_user_salon.is_admin`; **avatar real** (`avatar_url`+`blurhash`); `fake_email` (e-mail sintético a partir do telefone) — flag que talvez precisemos para clientes/profissionais sem e-mail; abas **Ativos/Inativos**; campo `position` (cargo). Vínculo com config de comissões por profissional.
+
+---
+
 ## Resumo de gaps do módulo (refino do gap-analysis)
 
 | Tela | Status atual doc | Evidência ao vivo | Ação |
 |---|---|---|---|
 | Clientes | EXISTENTE (parcial) | Card-first, avatar+blurhash, "Sem telefone", Selecionar/Excluir | Avatar real, seleção múltipla, variante card mobile |
 | Anamneses | AUSENTE (19 telas não detalhadas) | Abas Fichas×Modelos, empty state, gating "Contratar", schema do item NÃO visto | Modelar entidade+template; **re-capturar item em conta Pro** |
-| Convidar profissionais | AUSENTE | Modal link de auto-registro, "5 profissionais", Copiar/Alterar link, toggle Ativo | Novo fluxo de convite por token; **re-capturar mutation** |
+| Convidar profissionais | AUSENTE | Modal link auto-registro, "5 profissionais", Copiar/Alterar link, toggle Ativo, mutation `UserOnvoardingSaveSalon` (uuid) | Novo fluxo de convite por `uuid` |
+| Profissionais | EXISTENTE (`/employees` → `EmployeesList`) | Abas Ativos/Inativos, chip Admin (`is_admin`), avatar+blurhash, `cellphone`, `fake_email`, `position` | Chip Admin, avatar real, abas de status, flag fake_email |
 | Fornecedores | EXISTENTE | Card-first, phone1/phone2, Selecionar/Excluir, CNPJ opcional | Seleção múltipla, variante card mobile, avaliar 2º telefone |
 
-**Capturas incompletas:** Convidar profissionais (caiu em `/calendar`, só modal); Anamneses (funcionalidade não contratada → lista vazia, sem schema de item). Re-capturar ambas.
+**Capturas incompletas restantes:** Anamneses (funcionalidade não contratada → lista vazia, sem schema de item — re-capturar em conta Pro). Convidar profissionais e Profissionais agora **capturados ao vivo** (mutation e `EmployeesList` observados).
