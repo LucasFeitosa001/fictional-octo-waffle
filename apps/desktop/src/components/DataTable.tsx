@@ -50,8 +50,56 @@ export function DataTable<T extends { id: string }>({
   const hasActions = Boolean(onEdit || onDelete || rowActions);
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm">
-      <table className="w-full min-w-max text-left text-sm">
+    <>
+      <div className="space-y-3 md:hidden">
+        {items.map((item) => (
+          <article
+            key={item.id}
+            onClick={onRowClick ? () => onRowClick(item) : undefined}
+            className={`overflow-hidden rounded-2xl border border-ink-100 bg-white p-4 shadow-sm ${
+              onRowClick ? 'cursor-pointer active:border-brand-200 active:bg-brand-50/40' : ''
+            }`}
+          >
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">{columns[0]?.header}</p>
+            <div className="mb-3 text-base" aria-label={columns[0]?.header}>
+              {columns[0]?.render(item)}
+            </div>
+            <dl className="space-y-2.5">
+              {columns.slice(1).map((col) => (
+                <div key={col.key} className="flex items-start justify-between gap-4 border-t border-ink-100/70 pt-2.5 text-sm">
+                  <dt className="shrink-0 text-xs font-semibold uppercase tracking-wide text-ink-400">{col.header}</dt>
+                  <dd className="min-w-0 text-right text-ink-700">{col.render(item)}</dd>
+                </div>
+              ))}
+            </dl>
+            {hasActions ? (
+              <div className="mt-4 flex items-center justify-end gap-2 border-t border-ink-100 pt-3" onClick={(e) => e.stopPropagation()}>
+                {rowActions?.(item)}
+                {onEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(item)}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-accent-700 transition active:bg-accent-50"
+                  >
+                    <Pencil className="size-4" /> Editar
+                  </button>
+                ) : null}
+                {onDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(item)}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-rose-600 transition active:bg-rose-50"
+                  >
+                    <Trash2 className="size-4" /> Excluir
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm md:block">
+        <table className="w-full min-w-max text-left text-sm">
         <thead>
           <tr className="border-b border-ink-100 bg-paper/70">
             {columns.map((col) => (
@@ -104,7 +152,8 @@ export function DataTable<T extends { id: string }>({
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+    </>
   );
 }

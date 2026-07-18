@@ -19,32 +19,46 @@ export function SalonGate() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4">
-      <Card className="w-full max-w-md bg-white">
-        <Card.Content className="flex flex-col items-center gap-4 px-6 py-10 text-center">
+    <div className="club-page flex flex-col bg-[#111111]">
+      <header className="px-5 pb-12 pt-[calc(1.25rem+env(safe-area-inset-top))] text-white sm:pb-16">
+        <div className="mx-auto w-full max-w-md">
           <img
-            src="/brand/salonpass-wordmark.svg"
+            src="/brand/salonpass-wordmark-white.svg"
             alt="Salonpass"
-            className="h-9 w-auto object-contain"
+            className="h-7 w-auto object-contain"
           />
-          <div>
-            <h1 className="font-brand text-xl text-foreground">Agende seu horário</h1>
-            <p className="mt-1 text-sm text-muted">
-              Digite o link do salão para começar.
-            </p>
-          </div>
+          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.2em] text-[#f2b33d]">
+            Agendamento online
+          </p>
+          <h1 className="mt-2 max-w-sm font-brand text-3xl leading-tight text-white sm:text-4xl">
+            Encontre seu salão e agende em poucos toques.
+          </h1>
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/60">
+            Cole o link compartilhado pelo salão ou informe apenas o nome que aparece no final dele.
+          </p>
+        </div>
+      </header>
+
+      <main className="-mt-6 flex flex-1 rounded-t-[28px] bg-[#f7f3ea] px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-7 sm:rounded-t-[36px]">
+        <Card className="mx-auto h-fit w-full max-w-md border border-[var(--color-soft-border)] bg-white shadow-[var(--shadow-card)]">
+          <Card.Content className="flex flex-col gap-5 px-5 py-6 sm:px-7 sm:py-8">
+            <div>
+              <h2 className="font-brand text-xl text-foreground">Abrir página do salão</h2>
+              <p className="mt-1 text-sm text-muted">Você não precisa criar uma conta para consultar horários.</p>
+            </div>
           <form className="flex w-full flex-col gap-3" onSubmit={go}>
             <TextField value={slug} onChange={setSlug} isRequired>
-              <Label className="sr-only">Link do salão</Label>
-              <Input placeholder="ex.: salao-da-samya" />
+              <Label>Link ou identificador do salão</Label>
+              <Input placeholder="ex.: salao-da-samya" autoCapitalize="none" autoCorrect="off" />
             </TextField>
-            <Button type="submit" variant="primary" className="gap-1.5">
+            <Button type="submit" variant="primary" className="min-h-12 gap-1.5">
               <Magnifier width={18} height={18} />
               Abrir agendamento
             </Button>
           </form>
-        </Card.Content>
-      </Card>
+          </Card.Content>
+        </Card>
+      </main>
     </div>
   );
 }

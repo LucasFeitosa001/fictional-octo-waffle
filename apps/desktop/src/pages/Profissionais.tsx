@@ -95,7 +95,7 @@ function SkillPicker({
                   return next;
                 })
               }
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition ${
+              className={`min-h-11 rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition ${
                 on
                   ? 'bg-brand-600 text-white ring-brand-600'
                   : 'bg-white text-ink-700 ring-ink-100 hover:ring-brand-300'

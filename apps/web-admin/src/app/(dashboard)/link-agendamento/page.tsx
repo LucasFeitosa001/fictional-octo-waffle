@@ -115,7 +115,7 @@ export default function LinkAgendamentoPage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted">{PUBLIC_BASE}</span>
                 <TextField value={slug} onChange={setSlug} aria-label="Slug" className="flex-1">
-                  <Input placeholder="minha-salão" />
+                  <Input placeholder="meu-salao" />
                 </TextField>
               </div>
               <p className="text-xs text-muted">Apenas letras minúsculas, números e hífens.</p>

@@ -165,7 +165,7 @@ export default function IaAtendimentoPage() {
             <Card.Content className="p-5">
               <SectionTitle icon={<IconSparkles size={18} />} title="Canal WhatsApp" />
               <p className="mb-4 text-sm text-muted">
-                Conecte o número do WhatsApp da salão para a IA atender e agendar 24h por dia.
+                Conecte o número do WhatsApp do salão para a IA atender e agendar 24h por dia.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="flex-1">

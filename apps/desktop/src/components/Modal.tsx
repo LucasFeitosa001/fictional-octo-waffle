@@ -36,25 +36,25 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`relative flex max-h-[90vh] w-full ${SIZES[size]} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}>
-        <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-ink-900">{title}</h2>
+      <div className={`relative flex max-h-[calc(100dvh-1rem)] w-full ${SIZES[size]} flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-2xl`}>
+        <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold leading-tight text-ink-900">{title}</h2>
             {subtitle ? <p className="text-sm text-ink-500">{subtitle}</p> : null}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-ink-500 transition hover:bg-ink-100/60 hover:text-ink-900"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-ink-500 transition hover:bg-ink-100/60 hover:text-ink-900"
             title="Fechar"
           >
             <X className="size-5" />
           </button>
         </div>
-        <div className="overflow-y-auto px-6 py-5">{children}</div>
-        {footer ? <div className="flex justify-end gap-3 border-t border-ink-100 bg-paper/60 px-6 py-4">{footer}</div> : null}
+        <div className="overscroll-contain overflow-y-auto px-4 py-5 sm:px-6">{children}</div>
+        {footer ? <div className="mobile-safe-bottom flex flex-col-reverse gap-2 border-t border-ink-100 bg-paper/80 px-4 py-3 sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:py-4">{footer}</div> : null}
       </div>
     </div>
   );
@@ -73,7 +73,7 @@ export function ModalButton({
     <button
       type="button"
       {...props}
-      className={`rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-50 ${styles[variant]}`}
+      className={`min-h-11 w-full rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-50 sm:w-auto ${styles[variant]}`}
     />
   );
 }

@@ -157,6 +157,20 @@ export function ConfiguracoesPage() {
     <div>
       <PageHeader title="Configurações" subtitle="Dados da empresa e identidade visual" />
 
+      <nav aria-label="Seções das configurações" className="-mx-4 mb-4 overflow-x-auto px-4 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-max gap-2">
+          {SECTIONS.map((s) => (
+            <a
+              key={s.id}
+              href={`#${s.id}`}
+              className="inline-flex min-h-11 items-center rounded-full border border-[var(--color-soft-border)] bg-[#fffdf8] px-4 text-sm font-medium text-muted shadow-[var(--shadow-soft)] active:bg-[#f2b33d]/15 active:text-[#8a6517]"
+            >
+              {s.label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 lg:flex-row lg:items-start">
         {/* Section nav */}
         <nav className="hidden w-48 shrink-0 lg:block">

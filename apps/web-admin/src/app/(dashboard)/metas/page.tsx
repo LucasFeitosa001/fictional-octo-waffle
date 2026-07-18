@@ -36,7 +36,7 @@ function currentPeriod() {
 }
 
 const monthFieldClass =
-  'h-10 rounded-lg border border-white/15 bg-[#1a1a1a] px-3 text-sm text-foreground ' +
+  'h-11 w-full rounded-xl border border-white/15 bg-[#1a1a1a] px-3 text-sm text-foreground ' +
   'shadow-sm outline-none transition-colors ' +
   'focus:border-white focus:ring-2 focus:ring-white/30 ' +
   '[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer ' +
@@ -55,7 +55,7 @@ function MonthField({
   className?: string;
 }) {
   return (
-    <label className={`flex min-w-[9.5rem] flex-col gap-1 ${className ?? ''}`}>
+    <label className={`flex min-w-0 flex-1 flex-col gap-1 ${className ?? ''}`}>
       {label && <span className="text-xs font-medium text-muted">{label}</span>}
       <input
         type="month"

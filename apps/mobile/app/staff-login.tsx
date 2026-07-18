@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, SafeAreaView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { Professional } from '@silvia/core';
@@ -26,8 +26,8 @@ export default function StaffLoginScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: silvia.paper }}>
-      <View style={{ alignItems: 'center', paddingTop: 96, paddingBottom: 8, gap: 10 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: silvia.paper }}>
+      <View style={{ alignItems: 'center', paddingTop: 36, paddingBottom: 8, gap: 10 }}>
         <View
           style={{
             width: 72,
@@ -62,7 +62,8 @@ export default function StaffLoginScreen() {
               borderRadius: 16,
               borderWidth: 1,
               borderColor: pressed ? silvia.brand : silvia.border,
-              padding: 16,
+              minHeight: 68,
+              padding: 14,
               marginHorizontal: 20,
               marginBottom: 10,
               flexDirection: 'row',
@@ -90,6 +91,6 @@ export default function StaffLoginScreen() {
           </Pressable>
         )}
       />
-    </View>
+    </SafeAreaView>
   );
 }

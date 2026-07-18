@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -43,12 +43,15 @@ export default function LoginScreen() {
       className="flex-1 bg-background"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 justify-center px-6">
-        <View className="mb-8 items-center gap-3">
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 32 }}
+      >
+        <View className="mb-7 items-center gap-3">
           <Image
             source={require('../assets/brand/beautypass-logo.png')}
             resizeMode="contain"
-            style={{ width: 240, height: 72 }}
+            style={{ width: 220, height: 66, maxWidth: '100%' }}
           />
           <Typography
             color="muted"
@@ -116,7 +119,7 @@ export default function LoginScreen() {
             </View>
           </Card.Body>
         </Card>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

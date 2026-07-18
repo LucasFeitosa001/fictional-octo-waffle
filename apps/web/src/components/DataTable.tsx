@@ -79,25 +79,25 @@ export function DataTable<T>({
         {rows.map((row) => (
           <li
             key={getKey(row)}
-            className="rounded-xl border border-default-200 bg-white p-4 shadow-sm"
+            className="overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white p-4 shadow-[var(--shadow-soft)]"
           >
             {titleCol && (
-              <div className="mb-2 text-sm font-medium text-foreground">
+              <div className="mb-3 text-[15px] font-semibold leading-snug text-foreground">
                 {titleCol.render(row)}
               </div>
             )}
             {detailCols.length > 0 && (
-              <dl className="flex flex-col gap-1.5">
+              <dl className="flex flex-col divide-y divide-[var(--color-soft-border)]">
                 {detailCols.map((c) => (
-                  <div key={c.key} className="flex items-start justify-between gap-3 text-sm">
-                    <dt className="shrink-0 text-muted">{c.header}</dt>
-                    <dd className="min-w-0 text-right text-foreground">{c.render(row)}</dd>
+                  <div key={c.key} className="flex min-h-10 items-center justify-between gap-4 py-2 text-sm">
+                    <dt className="shrink-0 text-xs font-medium text-muted">{c.header}</dt>
+                    <dd className="min-w-0 break-words text-right font-medium text-foreground">{c.render(row)}</dd>
                   </div>
                 ))}
               </dl>
             )}
             {actionCols.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-default-100 pt-3">
+              <div className="mobile-row-actions mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--color-soft-border)] pt-3">
                 {actionCols.map((c) => (
                   <div key={c.key}>{c.render(row)}</div>
                 ))}

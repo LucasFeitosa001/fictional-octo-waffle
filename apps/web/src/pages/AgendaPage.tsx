@@ -93,13 +93,13 @@ export function AgendaPage() {
   const [toast, setToast] = useState<string | null>(null);
   useAutoCreate(() => setIsNewOpen(true));
 
-  // Mobile keeps Day + Month (no Week); desktop has all three.
-  // Mobile shows only Month + Year; desktop keeps Day/Week/Month.
+  // Phones open on a focused day and can switch to a compact month overview.
+  // A seven-column weekly scheduler is intentionally kept for desktop only.
   const effectiveView: View = isDesktop
     ? view
-    : view === 'year'
-      ? 'year'
-      : 'month';
+    : view === 'month'
+      ? 'month'
+      : 'day';
 
   const days = useMemo(() => {
     if (effectiveView === 'week') {
@@ -305,32 +305,43 @@ export function AgendaPage() {
           </div>
         </div>
 
-        {/* Mobile toolbar: [←] período + Mês|Ano [→] */}
-        <div className="flex items-center justify-between gap-2 lg:hidden">
-          <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#6B6F76] hover:bg-[#f7f3ea]">
-            <IconChevron size={18} className="rotate-90" />
-          </button>
+        {/* Mobile toolbar: focused navigation first, filters on a second row. */}
+        <div className="flex flex-col gap-2 lg:hidden">
+          <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-1">
+            <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[#6B6F76] active:bg-[#f7f3ea]">
+              <IconChevron size={19} className="rotate-90" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnchor(new Date())}
+              className="min-w-0 rounded-xl px-2 py-2 text-center active:bg-[#f7f3ea]"
+            >
+              <span className="block truncate text-sm font-semibold capitalize text-foreground">{periodLabel}</span>
+              <span className="block text-[10px] font-medium text-[#8a6517]">Toque para voltar a hoje</span>
+            </button>
+            <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[#6B6F76] active:bg-[#f7f3ea]">
+              <IconChevron size={19} className="-rotate-90" />
+            </button>
+          </div>
 
-          <div className="flex min-w-0 flex-col items-center gap-1">
-            <span className="truncate text-sm font-semibold capitalize text-foreground">{periodLabel}</span>
-            <div className="flex overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
-              {(['month', 'year'] as View[]).map((v) => (
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+            <div className="flex h-11 overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white p-1">
+              {(['day', 'month'] as View[]).map((v) => (
                 <button key={v} type="button" onClick={() => setView(v)}
                   className={[
-                    'px-4 py-1 text-xs font-medium transition-colors',
-                    effectiveView === v ? 'bg-[#f2b33d] text-[#3b2d09]' : 'bg-white text-[#6B6F76] hover:bg-[#f7f3ea]',
+                    'min-w-14 rounded-lg px-3 text-xs font-semibold transition-colors',
+                    effectiveView === v ? 'bg-[#f2b33d] text-[#3b2d09]' : 'text-[#6B6F76] active:bg-[#f7f3ea]',
                   ].join(' ')}>
-                  {v === 'month' ? 'Mês' : 'Ano'}
+                  {v === 'day' ? 'Dia' : 'Mês'}
                 </button>
               ))}
             </div>
+            <div className="min-w-0 [&_.select]:w-full [&_.select__trigger]:min-h-11">
+              {profSelect}
+            </div>
           </div>
-
-          <button type="button" aria-label="Proximo" onClick={() => navigate(1)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#6B6F76] hover:bg-[#f7f3ea]">
-            <IconChevron size={18} className="-rotate-90" />
-          </button>
         </div>
       </div>
 
@@ -353,8 +364,12 @@ export function AgendaPage() {
           apptsByDay={apptsByDay}
           serviceById={serviceById}
           onNewForDay={(d) => openNew(isoDate(d))}
-          onSeeDay={(d) => setPeekDay(d)}
+          onSeeDay={(d) => {
+            if (isDesktop) setPeekDay(d);
+            else { setAnchor(d); setView('day'); }
+          }}
           onPickAppt={openDetail}
+          mobile={!isDesktop}
         />
       ) : (
         <div className="flex min-h-0 flex-1 overflow-auto bg-white pb-20 lg:pb-0">
@@ -617,6 +632,7 @@ function MonthView({
   onNewForDay,
   onSeeDay,
   onPickAppt,
+  mobile,
 }: {
   cells: Date[];
   anchorMonth: number;
@@ -625,6 +641,7 @@ function MonthView({
   onNewForDay: (d: Date) => void;
   onSeeDay: (d: Date) => void;
   onPickAppt: (a: AppointmentRow) => void;
+  mobile: boolean;
 }) {
   const todayIso = isoDate(new Date());
   return (
@@ -639,7 +656,7 @@ function MonthView({
       </div>
 
       {/* Day squares — tapping a day starts a new appointment for it. */}
-      <div className="grid grid-cols-7 auto-rows-[118px]">
+      <div className="grid auto-rows-[64px] grid-cols-7 sm:auto-rows-[82px] lg:auto-rows-[118px]">
         {cells.map((d) => {
           const iso = isoDate(d);
           const list = apptsByDay.get(iso) ?? [];
@@ -653,16 +670,16 @@ function MonthView({
               key={iso}
               role="button"
               tabIndex={0}
-              onClick={() => onNewForDay(d)}
-              title="Novo agendamento"
+              onClick={() => mobile ? onSeeDay(d) : onNewForDay(d)}
+              title={mobile ? 'Ver dia' : 'Novo agendamento'}
               className={[
-                'flex min-w-0 cursor-pointer flex-col gap-1 overflow-hidden border-b border-r border-black/[0.06] p-1 transition-colors',
+                'relative flex min-w-0 cursor-pointer flex-col items-center gap-1 overflow-hidden border-b border-r border-black/[0.06] p-1.5 transition-colors lg:items-start lg:p-1',
                 inMonth ? 'bg-white hover:bg-[#f7f3ea]' : 'bg-[#fafafa]',
               ].join(' ')}
             >
               <span
                 className={[
-                  'grid h-6 w-6 shrink-0 place-items-center self-start rounded-full text-xs font-semibold',
+                  'grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-semibold lg:h-6 lg:w-6 lg:self-start',
                   isCurrentDay
                     ? 'bg-[#f2b33d] text-[#3b2d09]'
                     : inMonth
@@ -673,7 +690,7 @@ function MonthView({
                 {d.getDate()}
               </span>
 
-              {first && (
+              {first && !mobile && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onPickAppt(first); }}
@@ -688,7 +705,12 @@ function MonthView({
                   )}
                 </button>
               )}
-              {extra > 0 && (
+              {list.length > 0 && mobile && (
+                <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-[#f2b33d]/18 px-1.5 text-[10px] font-bold text-[#8a6517]">
+                  {list.length}
+                </span>
+              )}
+              {extra > 0 && !mobile && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onSeeDay(d); }}

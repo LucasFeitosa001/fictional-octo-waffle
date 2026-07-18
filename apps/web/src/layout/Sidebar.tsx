@@ -223,6 +223,7 @@ export function Sidebar({
     <aside
       className={[
         'db-sidebar flex h-full shrink-0 flex-col py-5 transition-[width] duration-300 ease-out',
+        mobile ? 'db-sidebar-mobile' : '',
         isCollapsed ? 'w-[84px] px-3' : 'w-[296px] px-4',
       ].join(' ')}
     >

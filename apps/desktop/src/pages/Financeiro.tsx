@@ -197,7 +197,7 @@ export function FinanceiroPage() {
                 type="button"
                 onClick={() => accounts.update(a.id, { status: 'pago', paidAt: hoje })}
                 title={a.kind === 'pagar' ? 'Marcar como paga' : 'Marcar como recebida'}
-                className="rounded-lg p-2 text-ink-500 transition hover:bg-emerald-50 hover:text-emerald-600"
+                className="flex size-11 items-center justify-center rounded-lg text-ink-500 transition hover:bg-emerald-50 hover:text-emerald-600"
               >
                 <CheckCircle2 className="size-4" />
               </button>

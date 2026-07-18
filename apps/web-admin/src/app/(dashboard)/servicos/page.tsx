@@ -117,7 +117,7 @@ export default function ServicosPage() {
     <div>
       <PageHeader
         title="Serviços"
-        subtitle="Catálogo de serviços da salão"
+        subtitle="Catálogo de serviços do salão"
         onRefresh={() => services.refetch()}
         isRefreshing={services.isFetching}
         actions={

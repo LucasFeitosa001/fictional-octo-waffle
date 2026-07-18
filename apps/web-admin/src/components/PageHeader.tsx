@@ -22,18 +22,18 @@ export function PageHeader({
   actions,
 }: PageHeaderProps) {
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-header mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <div className="eyebrow mb-2 flex items-center gap-2 text-muted">
           <span className="inline-block h-px w-6 bg-white/25" />
           {eyebrow ?? 'Salonpass'}
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-[28px]">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-foreground sm:text-[28px]">
           {title}
         </h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="page-header-actions flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
         {actions}
         {onFilter && (
           <Button variant="outline" onClick={onFilter}>

@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
  * Salonpass brand on the dark surface.
  */
 const fieldClass =
-  'h-10 rounded-lg border border-white/15 bg-[#1a1a1a] px-3 text-sm text-foreground ' +
+  'h-11 w-full min-w-0 rounded-xl border border-white/15 bg-[#1a1a1a] px-3 text-sm text-foreground ' +
   'shadow-sm outline-none transition-colors ' +
   'focus:border-white focus:ring-2 focus:ring-white/30 ' +
   '[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer ' +
@@ -32,7 +32,7 @@ export function DateField({
   className?: string;
 }) {
   return (
-    <label className={`flex min-w-[9.5rem] flex-col gap-1 ${className ?? ''}`}>
+    <label className={`flex min-w-0 flex-col gap-1 ${className ?? ''}`}>
       {label && <span className="text-xs font-medium text-muted">{label}</span>}
       <input
         type="date"
@@ -66,7 +66,7 @@ export function DateRangeFilter({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-wrap items-end gap-3 ${className ?? ''}`}>
+    <div className={`grid w-full grid-cols-2 items-end gap-2 sm:flex sm:w-auto sm:gap-3 ${className ?? ''}`}>
       <DateField
         label={fromLabel}
         value={from}
@@ -84,5 +84,5 @@ export function DateRangeFilter({
 }
 
 export function FilterBar({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-end gap-3">{children}</div>;
+  return <div className="grid grid-cols-1 items-end gap-3 sm:flex sm:flex-wrap">{children}</div>;
 }

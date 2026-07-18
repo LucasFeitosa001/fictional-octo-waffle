@@ -4,8 +4,8 @@ import { Providers } from './providers';
 import { PwaRegister } from './PwaRegister';
 
 export const metadata: Metadata = {
-  title: 'Salonpass Gestão — Painel da salão',
-  description: 'Gestão da sua salão: agenda, profissionais, serviços e clientes.',
+  title: 'Salonpass Gestão — Painel do salão',
+  description: 'Gestão do seu salão: agenda, profissionais, serviços e clientes.',
   appleWebApp: {
     capable: true,
     title: 'Salonpass',

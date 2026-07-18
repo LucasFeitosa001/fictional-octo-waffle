@@ -36,7 +36,7 @@ import { PerfilPage } from './pages/PerfilPage';
 
 function FullScreenSpinner() {
   return (
-    <div className="flex h-screen w-screen items-center justify-center">
+    <div className="flex h-dvh w-full items-center justify-center">
       <Spinner size="lg" />
     </div>
   );

@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
  */
 
 const fieldClass =
-  'h-10 rounded-lg border border-default-200 bg-white px-3 text-sm text-foreground ' +
+  'h-11 w-full rounded-xl border border-default-200 bg-white px-3 text-base text-foreground sm:h-10 sm:text-sm ' +
   'shadow-sm outline-none transition-colors ' +
   'focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/30 ' +
   '[color-scheme:light] [&::-webkit-calendar-picker-indicator]:cursor-pointer ' +
@@ -34,7 +34,7 @@ export function DateField({
   className?: string;
 }) {
   return (
-    <label className={`flex min-w-[9.5rem] flex-col gap-1 ${className ?? ''}`}>
+    <label className={`flex w-full flex-col gap-1 sm:w-auto sm:min-w-[9.5rem] ${className ?? ''}`}>
       {label && (
         <span className="text-xs font-medium text-muted">{label}</span>
       )}
@@ -64,7 +64,7 @@ export function MonthField({
   className?: string;
 }) {
   return (
-    <label className={`flex min-w-[9.5rem] flex-col gap-1 ${className ?? ''}`}>
+    <label className={`flex w-full flex-col gap-1 sm:w-auto sm:min-w-[9.5rem] ${className ?? ''}`}>
       {label && <span className="text-xs font-medium text-muted">{label}</span>}
       <input
         type="month"

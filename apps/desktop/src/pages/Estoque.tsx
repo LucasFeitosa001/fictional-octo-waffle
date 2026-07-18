@@ -136,7 +136,7 @@ export function EstoquePage() {
         </div>
       ) : null}
 
-      <div className="mb-4 max-w-md">
+      <div className="mb-4 w-full sm:max-w-md">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por produto, motivo ou nota..." />
       </div>
 

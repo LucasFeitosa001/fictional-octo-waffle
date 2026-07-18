@@ -156,7 +156,7 @@ export default function PainelPage() {
   return (
     <div>
       <PageHeader
-        title="Painel da salão"
+        title="Painel do salão"
         onRefresh={refresh}
         isRefreshing={dashboard.isFetching}
       />

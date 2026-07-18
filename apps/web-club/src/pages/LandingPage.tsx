@@ -35,28 +35,29 @@ export function LandingPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="club-page flex flex-col">
       <header className="club-topbar sticky top-0 z-40 shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-5 py-4">
-          <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" className="h-7 w-auto" />
-          <a
-            href="#agendar"
-            className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-ink shadow-gold transition-transform hover:-translate-y-0.5"
+        <div className="mx-auto flex min-h-16 max-w-5xl items-center justify-between gap-3 px-4 py-2.5 sm:px-5 md:py-3">
+          <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" className="h-6 w-auto sm:h-7" />
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="min-h-11 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-ink shadow-gold transition-transform hover:-translate-y-0.5"
           >
             Agendar
-          </a>
+          </button>
         </div>
       </header>
 
       <main className="flex-1">
         {/* Hero */}
         <section className="relative overflow-hidden">
-          <div className="mx-auto max-w-5xl px-5 pb-16 pt-14 text-center sm:pt-20">
+          <div className="mx-auto max-w-5xl px-4 pb-12 pt-10 text-center sm:px-5 sm:pb-16 sm:pt-20">
             <span className="inline-flex items-center gap-2 rounded-full border border-soft-border bg-warm-white px-4 py-1.5 text-xs font-medium text-muted-ink shadow-card">
               <Scissors width={14} height={14} className="text-pink" />
               Plataforma de agendamento para salões de beleza
             </span>
-            <h1 className="font-brand mx-auto mt-6 max-w-3xl text-4xl leading-[1.08] text-ink sm:text-5xl">
+            <h1 className="font-brand mx-auto mt-5 max-w-3xl text-[2rem] leading-[1.08] text-ink min-[380px]:text-4xl sm:mt-6 sm:text-5xl">
               Seu próximo horário no salão,{' '}
               <span className="bg-gradient-to-r from-pink to-gold-strong bg-clip-text text-transparent">
                 a um toque de distância
@@ -66,11 +67,10 @@ export function LandingPage() {
               O Salonpass conecta você aos seus salões favoritos. Agende serviços de beleza online,
               receba lembretes no WhatsApp e tenha tudo organizado em um só lugar.
             </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mx-auto mt-8 flex max-w-sm flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:items-center">
               <a
-                id="agendar"
                 href="#como-funciona"
-                className="inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-warm-white shadow-pop transition-transform hover:-translate-y-0.5"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-warm-white shadow-pop transition-transform hover:-translate-y-0.5"
               >
                 Como funciona
                 <ArrowRight width={16} height={16} />
@@ -78,7 +78,7 @@ export function LandingPage() {
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="inline-flex items-center gap-2 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-ink shadow-gold transition-transform hover:-translate-y-0.5"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-ink shadow-gold transition-transform hover:-translate-y-0.5"
               >
                 Abrir um salão
               </button>
@@ -87,12 +87,12 @@ export function LandingPage() {
         </section>
 
         {/* Features */}
-        <section id="como-funciona" className="mx-auto max-w-5xl px-5 py-12">
+        <section id="como-funciona" className="mx-auto max-w-5xl scroll-mt-20 px-4 py-10 sm:px-5 sm:py-12">
           <div className="grid gap-4 sm:grid-cols-2">
             {FEATURES.map((f) => (
               <div
                 key={f.title}
-                className="rounded-2xl border border-soft-border bg-warm-white p-6 shadow-card"
+                className="rounded-2xl border border-soft-border bg-warm-white p-5 shadow-card sm:p-6"
               >
                 <div className="grid h-11 w-11 place-items-center rounded-xl bg-cream text-pink">
                   <f.icon width={22} height={22} />
@@ -105,8 +105,8 @@ export function LandingPage() {
         </section>
 
         {/* For salons */}
-        <section className="mx-auto max-w-5xl px-5 pb-12">
-          <div className="overflow-hidden rounded-2xl bg-ink p-8 text-warm-white shadow-pop sm:p-10">
+        <section className="mx-auto max-w-5xl px-4 pb-10 sm:px-5 sm:pb-12">
+          <div className="overflow-hidden rounded-2xl bg-ink p-5 text-warm-white shadow-pop min-[380px]:p-6 sm:p-10">
             <div className="flex items-center gap-2 text-gold">
               <ShieldCheck width={18} height={18} />
               <span className="text-xs font-semibold uppercase tracking-wide">Para salões</span>
@@ -123,16 +123,16 @@ export function LandingPage() {
       </main>
 
       <footer className="border-t border-soft-border">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-5 py-8 text-center sm:flex-row sm:justify-between sm:text-left">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-4 py-7 text-center sm:flex-row sm:justify-between sm:px-5 sm:py-8 sm:text-left">
           <img src="/brand/salonpass-wordmark.svg" alt="Salonpass" className="h-6 w-auto" />
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-ink">
-            <button type="button" onClick={() => navigate('/privacidade')} className="hover:text-ink">
+            <button type="button" onClick={() => navigate('/privacidade')} className="min-h-11 px-1 hover:text-ink">
               Privacidade
             </button>
-            <button type="button" onClick={() => navigate('/termos')} className="hover:text-ink">
+            <button type="button" onClick={() => navigate('/termos')} className="min-h-11 px-1 hover:text-ink">
               Termos
             </button>
-            <a href="mailto:contato@salonpass.com.br" className="hover:text-ink">
+            <a href="mailto:contato@salonpass.com.br" className="inline-flex min-h-11 items-center hover:text-ink">
               contato@salonpass.com.br
             </a>
           </div>

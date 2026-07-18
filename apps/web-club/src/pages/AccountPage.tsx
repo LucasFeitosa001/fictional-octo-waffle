@@ -69,18 +69,18 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
   // show a skeleton of the account layout instead of a giant centered spinner.
   if (isPending || !isLoggedIn) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="club-page flex flex-col">
         <header className="club-topbar sticky top-0 z-40 shadow-sm">
-          <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-5">
-            <span className="h-10 w-10 rounded-full bg-white/10" />
+          <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 py-2.5 md:py-3">
+            <span className="h-11 w-11 rounded-full bg-white/10" />
             <img
               src="/brand/salonpass-wordmark-white.svg"
               alt="Salonpass"
-              className="h-7 w-auto"
+              className="h-6 w-auto sm:h-7"
             />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-md flex-1 px-4 py-8">
+        <main className="club-page-main mx-auto w-full max-w-xl flex-1 py-6 sm:py-8">
           <Skeleton className="h-7 w-40 rounded-md" />
           <Skeleton className="mt-2 h-4 w-28 rounded-md" />
           <div className="mt-6 flex flex-col gap-4">
@@ -94,26 +94,26 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="club-page flex flex-col">
       <header className="club-topbar sticky top-0 z-40 shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-5">
+        <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 py-2.5 sm:gap-3 md:py-3">
           <button
             type="button"
             onClick={() => navigate(backTo)}
             aria-label="Voltar"
-            className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+            className="club-touch grid place-items-center rounded-full text-white transition-colors hover:bg-white/15"
           >
             <ArrowLeft width={22} height={22} />
           </button>
           <img
             src="/brand/salonpass-wordmark-white.svg"
             alt="Salonpass"
-            className="h-7 w-auto"
+            className="h-6 w-auto sm:h-7"
           />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-md flex-1 px-4 py-8">
+      <main className="club-page-main mx-auto w-full max-w-xl flex-1 py-6 sm:py-8">
         <div className="flex flex-col gap-0.5">
           <h1 className="font-brand text-2xl text-foreground">Minha conta</h1>
           {session?.user?.name && (
@@ -126,8 +126,8 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
           <ProfileEditor slug={slug} enabled={isLoggedIn} />
 
           {/* Web notifications toggle */}
-          <div className="flex items-center justify-between rounded-xl border border-default-200 bg-default-50 px-3 py-3">
-            <span className="flex items-center gap-2 text-sm">
+          <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 rounded-2xl border border-default-200 bg-white px-4 py-3 shadow-[var(--shadow-card)]">
+            <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">
               <span className="text-[#a67c1e]">
                 <Bell width={18} height={18} />
               </span>
@@ -140,7 +140,7 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
               </span>
             </span>
             {perm === 'default' && (
-              <Button size="sm" variant="primary" onPress={enableNotifications}>
+              <Button size="sm" variant="primary" onPress={enableNotifications} className="min-h-11">
                 Ativar
               </Button>
             )}
@@ -187,7 +187,7 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
               await signOut();
               navigate(backTo);
             }}
-            className="mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-default-200 py-3 text-sm text-muted transition-colors hover:border-danger hover:text-danger"
+            className="mt-2 flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-default-200 bg-white px-4 py-3 text-sm text-muted transition-colors hover:border-danger hover:text-danger"
           >
             <ArrowRightFromSquare width={16} height={16} />
             Sair da conta
@@ -237,7 +237,7 @@ function ProfileEditor({ slug, enabled }: { slug: string; enabled: boolean }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-default-200 bg-white px-3 py-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-default-200 bg-white px-4 py-5 shadow-[var(--shadow-card)]">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <span className="text-[#a67c1e]">
           <Person width={16} height={16} />
@@ -290,6 +290,7 @@ function ProfileEditor({ slug, enabled }: { slug: string; enabled: boolean }) {
           isPending={update.isPending}
           isDisabled={!canSave}
           onPress={save}
+          className="min-h-11 min-w-24"
         >
           Salvar
         </Button>
@@ -315,16 +316,16 @@ function AppointmentRow({
   const [reviewOpen, setReviewOpen] = useState(false);
   return (
     <li
-      className={`rounded-xl border px-3 py-3 ${
+      className={`rounded-2xl border px-4 py-4 shadow-[var(--shadow-card)] ${
         canceled ? 'border-default-200 bg-default-50 opacity-70' : 'border-default-200 bg-white'
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col items-stretch gap-3 min-[420px]:flex-row min-[420px]:items-start min-[420px]:justify-between">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">
+          <p className="break-words text-sm font-semibold text-foreground">
             {appt.serviceNames.join(', ') || 'Atendimento'}
           </p>
-          <p className="truncate text-xs text-muted">
+          <p className="mt-0.5 text-xs leading-relaxed text-muted">
             {appt.professionalName ? `${appt.professionalName} · ` : ''}
             {formatDay(appt.start)} às {formatTime(appt.start)}
           </p>
@@ -344,7 +345,7 @@ function AppointmentRow({
             variant="ghost"
             isPending={canceling}
             onPress={onCancel}
-            className="shrink-0 text-danger"
+            className="min-h-11 shrink-0 text-danger max-[419px]:w-full"
           >
             Cancelar
           </Button>
@@ -353,7 +354,7 @@ function AppointmentRow({
             size="sm"
             variant="ghost"
             onPress={() => setReviewOpen(true)}
-            className="shrink-0 text-[#a67c1e]"
+            className="min-h-11 shrink-0 text-[#a67c1e] max-[419px]:w-full"
           >
             Avaliar
           </Button>
@@ -414,9 +415,9 @@ function ReviewForm({
   const active = hover || rating;
 
   return (
-    <div className="mt-3 flex flex-col gap-2 rounded-lg bg-default-50 p-3">
+    <div className="mt-3 flex flex-col gap-3 rounded-xl bg-default-50 p-3">
       <p className="text-xs font-medium text-foreground">Como foi seu atendimento?</p>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between gap-1 sm:justify-start">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
@@ -425,7 +426,7 @@ function ReviewForm({
             onMouseEnter={() => setHover(n)}
             onMouseLeave={() => setHover(0)}
             onClick={() => setRating(n)}
-            className="text-[#f2b33d] transition-transform hover:scale-110"
+            className="grid h-11 w-11 place-items-center rounded-full text-[#f2b33d] transition-transform hover:scale-110"
           >
             {n <= active ? (
               <StarFill width={26} height={26} />
@@ -441,10 +442,10 @@ function ReviewForm({
         rows={2}
         maxLength={1000}
         placeholder="Conte como foi (opcional)"
-        className="w-full resize-none rounded-lg border border-default-200 bg-white px-2 py-1.5 text-sm text-foreground outline-none focus:border-[#f2b33d]"
+        className="w-full resize-none rounded-xl border border-default-200 bg-white px-3 py-2.5 text-sm text-foreground outline-none focus:border-[#f2b33d]"
       />
-      <div className="flex items-center justify-end gap-2">
-        <Button size="sm" variant="ghost" onPress={onCancel} className="text-muted">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+        <Button size="sm" variant="ghost" onPress={onCancel} className="min-h-11 text-muted">
           Cancelar
         </Button>
         <Button
@@ -453,6 +454,7 @@ function ReviewForm({
           isPending={submitting}
           isDisabled={rating < 1 || submitting}
           onPress={() => onSubmit(rating, comment.trim() || undefined)}
+          className="min-h-11"
         >
           Enviar avaliação
         </Button>

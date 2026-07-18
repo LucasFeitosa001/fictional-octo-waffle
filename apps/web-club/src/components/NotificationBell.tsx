@@ -110,7 +110,9 @@ export function NotificationBell({
         type="button"
         onClick={toggleOpen}
         aria-label={unread > 0 ? `Notificações, ${unread} não lidas` : 'Notificações'}
-        className="relative grid h-10 w-10 place-items-center rounded-full text-current transition-colors hover:bg-white/15"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className="club-touch relative grid place-items-center rounded-full text-current transition-colors hover:bg-white/15"
       >
         <Bell width={22} height={22} />
         {unread > 0 && (
@@ -123,6 +125,8 @@ export function NotificationBell({
       {open && pos && (
         <div
           style={{ top: pos.top, right: pos.right }}
+          role="dialog"
+          aria-label="Notificações"
           className="fixed z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-default-200 bg-white text-foreground shadow-xl"
         >
           <div className="flex items-center justify-between border-b border-default-100 px-4 py-3">
@@ -131,7 +135,7 @@ export function NotificationBell({
               <button
                 type="button"
                 onClick={() => markAll.mutate()}
-                className="text-xs font-medium text-primary hover:underline"
+                className="min-h-11 rounded-lg px-2 text-xs font-medium text-primary hover:bg-default-50 hover:underline"
               >
                 Marcar todas como lidas
               </button>
@@ -160,7 +164,7 @@ export function NotificationBell({
                     <button
                       type="button"
                       onClick={() => handleItemClick(n)}
-                      className={`flex w-full flex-col gap-0.5 px-4 py-3 text-left transition-colors hover:bg-default-50 ${
+                      className={`flex min-h-16 w-full flex-col justify-center gap-0.5 px-4 py-3 text-left transition-colors hover:bg-default-50 ${
                         n.readAt ? '' : 'bg-primary/5'
                       }`}
                     >

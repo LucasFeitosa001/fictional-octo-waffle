@@ -87,7 +87,7 @@ export function CrudPage<T extends Entity>({
       <PageHeader title={title} description={description} onNew={openNew} newLabel={newLabel}>
         {headerExtra}
       </PageHeader>
-      <div className="mb-4 max-w-md">
+      <div className="mb-4 w-full sm:max-w-md">
         <SearchInput value={search} onChange={setSearch} placeholder={searchPlaceholder} />
       </div>
       <DataTable

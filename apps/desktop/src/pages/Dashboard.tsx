@@ -27,7 +27,7 @@ import { EmptyState } from '../components/EmptyState';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm sm:p-5">
       <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-500">{title}</h3>
       {children}
     </section>
@@ -68,7 +68,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard icon={CalendarDays} label="Agendamentos de hoje" value={todayAppointments.length} tone="brand" onClick={() => navigate('/agenda')} />
         <StatCard icon={Users} label="Clientes cadastrados" value={clients.items.filter((c) => c.active).length} tone="accent" onClick={() => navigate('/clientes')} />
         <StatCard icon={Scissors} label="Profissionais ativos" value={professionals.items.filter((p) => p.active).length} tone="gold" onClick={() => navigate('/profissionais')} />
@@ -86,7 +86,7 @@ export function DashboardPage() {
           ) : (
             <ul className="divide-y divide-ink-100/70">
               {todayAppointments.slice(0, 6).map((a) => (
-                <li key={a.id} className="flex items-center gap-4 py-3">
+                <li key={a.id} className="flex flex-wrap items-center gap-3 py-3 sm:gap-4">
                   <span className="w-14 shrink-0 rounded-lg bg-brand-50 px-2 py-1 text-center text-sm font-semibold text-brand-700">
                     {a.time}
                   </span>
@@ -96,7 +96,7 @@ export function DashboardPage() {
                       {lookups.serviceName(a.serviceId)} · {lookups.professionalName(a.professionalId)}
                     </p>
                   </div>
-                  <StatusBadge tone={appointmentStatusTones[a.status]}>{appointmentStatusLabels[a.status]}</StatusBadge>
+                  <span className="ml-[4.25rem] sm:ml-0"><StatusBadge tone={appointmentStatusTones[a.status]}>{appointmentStatusLabels[a.status]}</StatusBadge></span>
                 </li>
               ))}
             </ul>
@@ -149,7 +149,7 @@ export function DashboardPage() {
         </Section>
 
         <Section title="Resumo financeiro">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4">
             <div className="rounded-xl bg-emerald-50 p-4">
               <p className="text-sm text-emerald-700">A receber (aberto)</p>
               <p className="mt-1 text-xl font-semibold text-emerald-800">{formatBRL(totalReceber)}</p>
@@ -158,7 +158,7 @@ export function DashboardPage() {
               <p className="text-sm text-rose-700">A pagar (aberto)</p>
               <p className="mt-1 text-xl font-semibold text-rose-800">{formatBRL(totalPagar)}</p>
             </div>
-            <div className="col-span-2 rounded-xl bg-paper p-4">
+            <div className="rounded-xl bg-paper p-4 min-[480px]:col-span-2">
               <p className="text-sm text-ink-500">Saldo projetado</p>
               <p className={`mt-1 text-xl font-semibold ${totalReceber - totalPagar >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                 {formatBRL(totalReceber - totalPagar)}

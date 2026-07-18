@@ -265,7 +265,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   const ctaDisabled = step === 'confirm' ? !canConfirm : !stepValid;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="club-page flex flex-col">
       <TopBar
         slug={slug}
         isLoggedIn={isLoggedIn}
@@ -288,12 +288,12 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                 'radial-gradient(560px 240px at 100% 0%, rgba(242,179,61,0.20), transparent 70%), linear-gradient(180deg, #1a1a1a 0%, #111111 100%)',
             }}
           >
-            <div className="mx-auto w-full max-w-2xl px-5 pt-7 pb-24">
+            <div className="mx-auto w-full max-w-2xl px-4 pb-20 pt-5 sm:px-6 sm:pb-24 sm:pt-7">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f2b33d]">
                 Agendamento online
               </p>
               {firstName && (
-                <h2 className="mt-1 font-brand text-2xl leading-tight text-white">
+                <h2 className="mt-1 font-brand text-xl leading-tight text-white sm:text-2xl">
                   Olá, {firstName} 👋
                 </h2>
               )}
@@ -307,7 +307,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
               page column, so it isn't capped by the max-w-2xl main). Its rounded
               top rides up over the dark backdrop; the content stays centered. */}
           <div
-            className="-mt-16 overflow-hidden rounded-t-[28px] border-b border-[var(--color-soft-border)] shadow-[var(--shadow-pop)]"
+            className="-mt-14 overflow-hidden rounded-t-[26px] border-b border-[var(--color-soft-border)] shadow-[var(--shadow-pop)] sm:-mt-16 sm:rounded-t-[32px]"
             style={{
               backgroundImage:
                 'radial-gradient(220px 120px at 12% 0%, rgba(242,179,61,0.12), transparent 70%), linear-gradient(180deg, #fffdf8 0%, #fbf3e3 100%)',
@@ -322,10 +322,10 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
         </>
       )}
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pt-5 pb-44 md:pb-24">
+      <main className="club-page-main mx-auto w-full max-w-2xl flex-1 pb-48 pt-5 sm:pt-7 md:pb-24">
         {done ? (
           <Card className="mx-auto mt-6 max-w-md border border-[var(--color-soft-border)] bg-[#fffdf8] text-center shadow-[var(--shadow-card)]">
-            <Card.Content className="flex flex-col items-center gap-3 px-6 py-10">
+            <Card.Content className="flex flex-col items-center gap-3 px-5 py-8 sm:px-8 sm:py-10">
               <span className="grid h-16 w-16 place-items-center rounded-full bg-[#FCE4EA] text-[#F08CA5] shadow-[var(--shadow-soft)]">
                 <CircleCheck width={36} height={36} />
               </span>
@@ -363,19 +363,21 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
           </Card>
         ) : (
           <div id="servicos" className="flex scroll-mt-24 flex-col gap-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
+            <StepProgress current={stepIndex} />
+
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
                 {stepIndex > 0 && (
                   <button
                     type="button"
                     onClick={goBack}
                     aria-label="Voltar"
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]"
+                    className="club-touch grid shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]"
                   >
                     <ArrowLeft width={18} height={18} />
                   </button>
                 )}
-                <h2 className="flex min-w-0 items-center gap-2 font-brand text-2xl leading-tight text-foreground">
+                <h2 className="flex min-w-0 items-center gap-2 font-brand text-xl leading-tight text-foreground sm:text-2xl">
                   {step === 'service' && (
                     <>
                       Escolha os serviços
@@ -392,7 +394,8 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                 <button
                   type="button"
                   onClick={() => setShowFilters((v) => !v)}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  aria-expanded={showFilters}
+                  className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
                     showFilters || categoryFilter || favoritesOnly
                       ? 'border-[var(--color-pink)] text-[var(--color-pink)]'
                       : 'border-[var(--color-soft-border)] text-foreground hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]'
@@ -405,7 +408,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
             </div>
 
             {step === 'service' && showFilters && (
-              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              <div className="club-scroll-row -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                 <FilterChip
                   label="Favoritos"
                   icon={<Heart width={14} height={14} />}
@@ -434,7 +437,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
 
             {/* Selection strip: shows count + total when >1 service selected */}
             {step === 'service' && selectedServices.length > 0 && (
-              <div className="flex items-center gap-2 rounded-xl bg-[#FCE4EA] px-3.5 py-2.5 text-sm">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[#FCE4EA] px-3.5 py-3 text-sm">
                 <CircleCheck width={16} height={16} className="shrink-0 text-[var(--color-pink)]" />
                 <span className="font-semibold text-foreground">
                   {selectedServices.length} {selectedServices.length === 1 ? 'serviço selecionado' : 'serviços selecionados'}
@@ -515,7 +518,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
 
               {step === 'datetime' && (
                 <>
-                  <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                  <div className="club-scroll-row -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                     {days.map((d) => {
                       const active = toDateInput(d) === toDateInput(date);
                       return (
@@ -526,7 +529,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                             setDate(d);
                             setSlot(null);
                           }}
-                          className={`flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-2 py-2 text-center transition-all ${
+                          className={`flex min-h-16 min-w-16 shrink-0 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition-all ${
                             active
                               ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
                               : 'border-[var(--color-soft-border)] bg-[#FFF1EE] text-foreground hover:border-[var(--color-pink)]'
@@ -556,7 +559,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                             key={s.start}
                             type="button"
                             onClick={() => setSlot(s.start)}
-                            className={`flex items-center justify-center gap-1 rounded-xl border py-2 text-sm font-medium transition-all ${
+                            className={`flex min-h-11 items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm font-medium transition-all ${
                               active
                                 ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
                                 : 'border-[var(--color-soft-border)] bg-[#FFF1EE] text-foreground hover:border-[var(--color-pink)]'
@@ -724,19 +727,15 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
           "Continuar" hugs its label and aligns right; the final "Confirmar
           agendamento" spans full width as the primary action. */}
       {!done && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 md:bottom-0 md:pb-4">
+        <div className="club-action-dock pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-3 pt-7 md:bottom-0 md:bg-transparent md:pb-4 md:pt-0">
           <div
-            className={`pointer-events-auto mx-auto flex max-w-2xl ${
-              step === 'confirm' ? '' : 'justify-end'
-            }`}
+            className="pointer-events-auto mx-auto flex max-w-2xl"
           >
             <button
               type="button"
               onClick={advance}
               disabled={ctaDisabled || book.isPending}
-              className={`flex items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-base font-semibold transition-all ${
-                step === 'confirm' ? 'w-full' : 'w-auto'
-              } ${
+              className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-base font-semibold transition-all sm:ml-auto sm:w-auto sm:min-w-52 ${
                 ctaDisabled || book.isPending
                   ? 'cursor-not-allowed bg-[#f0c2ce] text-white/80'
                   : 'bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)] hover:bg-[#e7799a] active:scale-[0.99]'
@@ -756,6 +755,29 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
         onHome={goHome}
         onFavorites={showFavorites}
       />
+    </div>
+  );
+}
+
+function StepProgress({ current }: { current: number }) {
+  return (
+    <div aria-label={`Passo ${current + 1} de ${STEPS.length}`} className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-pink)]">
+          Passo {current + 1} de {STEPS.length}
+        </span>
+        <span className="text-xs font-medium text-muted">{STEPS[current]?.label}</span>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5" aria-hidden="true">
+        {STEPS.map((item, index) => (
+          <span
+            key={item.id}
+            className={`h-1.5 rounded-full transition-colors ${
+              index <= current ? 'bg-[var(--color-pink)]' : 'bg-[#eadde0]'
+            }`}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -815,8 +837,8 @@ function SalonHero({
   // a "Carregando…" placeholder, so the salon identity fills in smoothly.
   if (isLoading && !portal) {
     return (
-      <div className="mx-auto flex w-full max-w-2xl items-start gap-3.5 px-4 py-5">
-        <Skeleton className="h-16 w-16 shrink-0 rounded-2xl" />
+      <div className="mx-auto flex w-full max-w-2xl items-start gap-3 px-4 py-5 sm:gap-3.5 sm:px-6">
+        <Skeleton className="h-14 w-14 shrink-0 rounded-2xl sm:h-16 sm:w-16" />
         <div className="flex min-w-0 flex-1 flex-col gap-2.5 pt-1">
           <Skeleton className="h-6 w-2/5 rounded-md" />
           <Skeleton className="h-4 w-3/5 rounded-md" />
@@ -827,16 +849,16 @@ function SalonHero({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl items-start gap-3.5 px-4 py-5">
+    <div className="mx-auto flex w-full max-w-2xl items-start gap-3 px-4 py-5 sm:gap-3.5 sm:px-6">
       {portal?.logoUrl ? (
         <img
           src={portal.logoUrl}
           alt={name}
-          className="h-16 w-16 shrink-0 rounded-2xl object-cover shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)]"
+          className="h-14 w-14 shrink-0 rounded-2xl object-cover shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)] sm:h-16 sm:w-16"
         />
       ) : (
         <span
-          className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl font-brand text-2xl text-[#a67c1e] shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)]"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl font-brand text-xl text-[#a67c1e] shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)] sm:h-16 sm:w-16 sm:text-2xl"
           style={{ backgroundImage: 'linear-gradient(160deg, #fbf3e3 0%, #f1ddc2 100%)' }}
           aria-hidden
         >
@@ -847,7 +869,7 @@ function SalonHero({
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <h1 className="truncate font-brand text-xl leading-tight text-foreground">
+            <h1 className="break-words font-brand text-lg leading-tight text-foreground sm:text-xl">
               {name}
             </h1>
             {plan && (
@@ -862,7 +884,7 @@ function SalonHero({
             to={agendaPath}
             aria-label="Ver disponibilidade"
             title="Ver disponibilidade"
-            className="shrink-0 text-[var(--color-pink)] transition-opacity hover:opacity-70"
+            className="club-touch grid shrink-0 place-items-center text-[var(--color-pink)] transition-opacity hover:opacity-70"
           >
             <span className="hidden whitespace-nowrap pt-1 text-sm font-semibold sm:inline">
               Ver disponibilidade
@@ -897,7 +919,7 @@ function SalonHero({
             )}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex w-fit items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-opacity hover:opacity-90"
+            className="mt-1 inline-flex min-h-11 w-fit items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-opacity hover:opacity-90"
           >
             <WhatsAppGlyph size={16} />
             Falar no WhatsApp
@@ -950,7 +972,7 @@ function ChoiceRow({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-between rounded-xl border px-3 py-3 text-left transition-all ${
+      className={`flex min-h-14 items-center justify-between rounded-xl border px-3.5 py-3 text-left transition-all ${
         selected
           ? 'border-[var(--color-pink)] bg-[#FCE4EA] shadow-[var(--shadow-pink)]'
           : 'border-[var(--color-soft-border)] bg-[#FFF1EE] hover:border-[var(--color-pink)]'
@@ -994,7 +1016,15 @@ function ServiceCard({
     <div
       onClick={onSelect}
       aria-pressed={selected}
-      className={`relative flex w-full cursor-pointer overflow-hidden rounded-2xl border bg-white text-left transition-all ${
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`club-no-touch-lift relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white text-left transition-all sm:flex-row ${
         selected
           ? 'border-[var(--color-pink)] shadow-[var(--shadow-soft)]'
           : 'border-[var(--color-soft-border)] shadow-[var(--shadow-card)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]'
@@ -1010,7 +1040,7 @@ function ServiceCard({
         }}
         aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
         aria-pressed={isFavorite}
-        className="absolute right-2.5 top-2.5 z-10 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-[var(--color-pink)] shadow-[var(--shadow-soft)] backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
+        className="absolute right-2.5 top-2.5 z-10 grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[var(--color-pink)] shadow-[var(--shadow-soft)] backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
       >
         {isFavorite ? (
           <HeartFill width={18} height={18} />
@@ -1023,7 +1053,7 @@ function ServiceCard({
           a single cover when there's one, and a camera placeholder otherwise. */}
       <ServicePhoto service={service} />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-4 sm:p-4">
         {badge && (
           <span
             className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.cls}`}
@@ -1060,7 +1090,7 @@ function ServiceCard({
               e.stopPropagation();
               onSelect();
             }}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-all ${
+            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
               selected
                 ? 'bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
                 : 'border border-[var(--color-pink)] text-[var(--color-pink)] hover:bg-[#FCE4EA]'
@@ -1090,7 +1120,7 @@ function ServicePhoto({ service }: { service: Service }) {
   if (images.length === 0) {
     return (
       <div
-        className="relative w-32 shrink-0 self-stretch sm:w-40"
+        className="relative aspect-[16/7] w-full shrink-0 self-stretch sm:aspect-auto sm:w-40"
         style={{
           backgroundImage:
             'radial-gradient(120px 120px at 30% 20%, rgba(240,140,165,0.22), transparent 70%), linear-gradient(160deg, #fbe2e8 0%, #f4cdd6 100%)',
@@ -1112,7 +1142,7 @@ function ServicePhoto({ service }: { service: Service }) {
   };
 
   return (
-    <div className="relative w-32 shrink-0 self-stretch sm:w-40">
+    <div className="relative aspect-[16/7] w-full shrink-0 self-stretch sm:aspect-auto sm:w-40">
       {images.length === 1 ? (
         <img
           src={images[0]}
@@ -1160,7 +1190,7 @@ function ServicePhoto({ service }: { service: Service }) {
       <button
         type="button"
         onClick={openGallery}
-        className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm transition-opacity hover:opacity-90"
+        className="absolute left-2 top-2 inline-flex min-h-10 items-center gap-1 rounded-full bg-black/60 px-3 py-2 text-[11px] font-semibold text-white backdrop-blur-sm transition-opacity hover:opacity-90"
       >
         <Camera width={12} height={12} />
         {images.length > 1 ? `${images.length} fotos` : 'Ver foto'}
@@ -1317,7 +1347,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+      className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
         active
           ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
           : 'border-[var(--color-soft-border)] bg-white text-foreground hover:border-[var(--color-pink)]'
@@ -1348,7 +1378,7 @@ function SummaryRow({
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</span>
-        <span className="truncate text-sm font-semibold text-foreground">
+        <span className="break-words text-sm font-semibold text-foreground">
           {value}
           {sub && <span className="ml-1.5 font-normal text-muted">· {sub}</span>}
         </span>

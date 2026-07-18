@@ -45,6 +45,23 @@ function SlugAgendaRoute() {
   return <AgendaPage slug={slug} backTo={`/${slug}`} />;
 }
 
+function RouteFallback() {
+  return (
+    <div className="club-page flex flex-col" role="status" aria-label="Carregando página">
+      <header className="club-topbar">
+        <div className="mx-auto flex min-h-16 max-w-5xl items-center px-4 py-2.5">
+          <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" className="h-6 w-auto" />
+        </div>
+      </header>
+      <main className="club-page-main mx-auto w-full max-w-2xl flex-1 py-7">
+        <div className="h-7 w-40 animate-pulse rounded-lg bg-black/10" />
+        <div className="mt-3 h-4 w-64 max-w-full animate-pulse rounded bg-black/10" />
+        <div className="mt-7 h-44 animate-pulse rounded-2xl bg-white/70" />
+      </main>
+    </div>
+  );
+}
+
 export function App() {
   const { data: session } = useCustomerSession();
   const queryClient = useQueryClient();
@@ -71,7 +88,7 @@ export function App() {
   const tenantSlug = getSubdomainSlug() || DEFAULT_BOOKING_SLUG;
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<RouteFallback />}>
       <Routes>
       <Route
         path="/"

@@ -35,7 +35,8 @@ function whatsappHref(number: string, salonName?: string): string {
 }
 
 /**
- * Black navbar (salonpass feminino) — scrolls away with the page (not sticky).
+ * Black navbar (salonpass feminino) — compact and sticky on mobile so the
+ * customer never loses navigation during a long service list.
  * Paints into the iOS status-bar safe area (black), so the notification bar is
  * never a bare white strip. Holds the
  * brand, section links, and the login button (logged out) or the account button
@@ -83,18 +84,18 @@ export function TopBar({
   }
 
   return (
-    <header className="club-topbar relative z-40 shadow-sm">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-5">
+    <header className="club-topbar sticky top-0 z-40 shadow-sm">
+      <div className="mx-auto flex min-h-16 max-w-5xl items-center justify-between gap-2 px-4 py-2.5 sm:gap-3 md:py-3">
         <button
           type="button"
           onClick={() => handleNav('inicio')}
           aria-label="Salonpass — início"
-          className="flex min-w-0 items-center text-left"
+          className="club-touch flex min-w-0 items-center text-left"
         >
           <img
             src="/brand/salonpass-wordmark-white.svg"
             alt="Salonpass"
-            className="h-7 w-auto shrink-0"
+            className="h-6 w-auto shrink-0 sm:h-7"
           />
         </button>
 
@@ -123,7 +124,7 @@ export function TopBar({
           )}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1">
           {isLoggedIn ? (
             <>
               <NotificationBell slug={slug} enabled={isLoggedIn} />
@@ -136,22 +137,13 @@ export function TopBar({
               >
                 <Person width={22} height={22} />
               </button>
-              {/* Mobile: a logout button (the account lives in the bottom nav). */}
-              <button
-                type="button"
-                onClick={handleLogout}
-                aria-label="Sair"
-                className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/15 md:hidden"
-              >
-                <ArrowRightFromSquare width={22} height={22} />
-              </button>
             </>
           ) : (
             <Button
               variant="outline"
               size="sm"
               onPress={onLogin}
-              className="hidden rounded-full border border-[#f2b33d] bg-transparent text-[#f2b33d] hover:bg-[#f2b33d]/10 md:inline-flex"
+              className="min-h-10 rounded-full border border-[#f2b33d] bg-transparent px-3 text-[#f2b33d] hover:bg-[#f2b33d]/10 sm:px-4"
             >
               Entrar
             </Button>
@@ -162,7 +154,9 @@ export function TopBar({
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
             aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
-            className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/15 md:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="club-mobile-menu"
+            className="club-touch grid place-items-center rounded-full text-white transition-colors hover:bg-white/15 md:hidden"
           >
             {menuOpen ? <Xmark width={22} height={22} /> : <Bars width={22} height={22} />}
           </button>
@@ -171,14 +165,14 @@ export function TopBar({
 
       {/* Mobile dropdown panel */}
       {menuOpen && (
-        <nav className="border-t border-white/10 px-4 pb-4 pt-2 md:hidden">
+        <nav id="club-mobile-menu" className="border-t border-white/10 px-3 pb-3 pt-2 md:hidden">
           <div className="mx-auto flex max-w-5xl flex-col gap-1">
             {NAV_LINKS.map((link) => (
               <button
                 key={link.id}
                 type="button"
                 onClick={() => handleNav(link.id)}
-                className="rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white/90 transition-colors hover:bg-white/10"
+                className="min-h-12 rounded-xl px-3 py-3 text-left text-sm font-medium text-white/90 transition-colors hover:bg-white/10"
               >
                 {link.label}
               </button>
@@ -189,11 +183,34 @@ export function TopBar({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#25D366] transition-colors hover:bg-white/10"
+                className="flex min-h-12 items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium text-[#25D366] transition-colors hover:bg-white/10"
               >
                 <WhatsAppGlyph size={16} />
                 WhatsApp
               </a>
+            )}
+            {isLoggedIn && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onAccount();
+                  }}
+                  className="flex min-h-12 items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium text-white/90 transition-colors hover:bg-white/10"
+                >
+                  <Person width={18} height={18} />
+                  Minha conta
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex min-h-12 items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <ArrowRightFromSquare width={18} height={18} />
+                  Sair
+                </button>
+              </>
             )}
           </div>
         </nav>

@@ -141,18 +141,18 @@ function KpiCard({
     accent === 'pink' ? 'bg-[#f08ca5]/15 text-[#c25d77]' : 'bg-[#f2b33d]/15 text-[#a67c1e]';
   return (
     <Card className={`min-w-0 ${CARD}`}>
-      <Card.Content className="flex flex-col items-center gap-0.5 p-1 text-center lg:gap-1.5 lg:p-4">
-        <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg lg:h-9 lg:w-9 lg:rounded-xl ${tones}`}>
+      <Card.Content className="flex min-h-32 flex-col items-start gap-1.5 p-4 text-left lg:min-h-0 lg:p-5">
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tones}`}>
           {icon}
         </span>
-        <p className="min-h-[2.4em] text-[8px] font-medium leading-tight tracking-tight text-muted [overflow-wrap:anywhere] lg:min-h-0 lg:text-xs">{label}</p>
-        <p className="max-w-full truncate text-sm font-bold leading-tight text-[#111111] lg:text-2xl">{value}</p>
+        <p className="text-xs font-medium leading-tight text-muted">{label}</p>
+        <p className="max-w-full truncate text-xl font-bold leading-tight text-[#111111] lg:text-2xl">{value}</p>
         {deltaPct != null && (
-          <div className="leading-none">
-            <span className={`text-[10px] font-semibold lg:text-sm ${up ? 'text-emerald-600' : 'text-red-500'}`}>
+          <div className="mt-auto flex flex-wrap items-baseline gap-1 leading-none">
+            <span className={`text-xs font-semibold lg:text-sm ${up ? 'text-emerald-600' : 'text-red-500'}`}>
               {up ? '+' : ''}{deltaPct}%
             </span>
-            <p className="mt-0.5 text-[8px] text-muted lg:text-[11px]">{deltaLabel}</p>
+            <p className="text-[10px] text-muted lg:text-[11px]">{deltaLabel}</p>
           </div>
         )}
       </Card.Content>
@@ -268,7 +268,7 @@ export function PainelPage() {
       />
 
       {/* Period selector */}
-      <div className="mb-5 inline-flex rounded-xl border border-[var(--color-soft-border)] bg-[#fffdf8] p-1 shadow-[var(--shadow-soft)]">
+      <div className="mb-5 grid w-full grid-cols-4 rounded-xl border border-[var(--color-soft-border)] bg-[#fffdf8] p-1 shadow-[var(--shadow-soft)] sm:inline-flex sm:w-auto">
         {PERIODS.map((p) => {
           const active = p.key === period;
           return (
@@ -277,7 +277,7 @@ export function PainelPage() {
               type="button"
               onClick={() => setPeriod(p.key)}
               className={[
-                'rounded-lg px-4 py-1.5 text-sm font-medium transition-all',
+                'min-h-10 rounded-lg px-2 py-1.5 text-sm font-medium transition-all sm:px-4',
                 active ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]' : 'text-[#6f6a63] hover:bg-[#f7f3ea]',
               ].join(' ')}
             >
@@ -291,8 +291,8 @@ export function PainelPage() {
         <LoadingState />
       ) : (
         <div className="flex flex-col gap-5">
-          {/* ── KPIs — all four in one compact row, with deltas ───────────── */}
-          <div className="grid grid-cols-4 gap-1.5 lg:gap-3">
+          {/* ── KPIs — readable cards on phones, one row on wide screens. ─── */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
               icon={<IconCalendar size={14} />}
               label="Agendamentos"
@@ -324,10 +324,10 @@ export function PainelPage() {
 
           {/* ── Faturamento do mês + gráfico em linha ─────────────────────── */}
           <Card className={`min-w-0 ${CARD}`}>
-            <Card.Content className="p-5">
+            <Card.Content className="p-4 sm:p-5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">Faturamento do mês</p>
-              <div className="mt-1 flex items-end gap-3">
-                <p className="text-3xl font-bold text-[#111111]">{formatMoney(monthTotal)}</p>
+              <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+                <p className="break-words text-2xl font-bold text-[#111111] sm:text-3xl">{formatMoney(monthTotal)}</p>
                 <span
                   className={`mb-1 inline-flex items-center gap-0.5 text-sm font-semibold ${up ? 'text-emerald-600' : 'text-red-500'}`}
                 >
@@ -358,7 +358,7 @@ export function PainelPage() {
 
           {/* ── Mais realizados ───────────────────────────────────────────── */}
           <Card className={`min-w-0 ${CARD}`}>
-            <Card.Content className="p-5">
+            <Card.Content className="p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-2">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f08ca5]/15 text-[#c25d77]">
                   <IconScissors size={18} />
@@ -412,18 +412,18 @@ export function PainelPage() {
                 {showAllShortcuts ? 'Ver menos' : 'Ver todos'}
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5 sm:gap-3">
               {shownShortcuts.map(({ to, label, icon: Icon }) => (
                 <button
                   key={to}
                   type="button"
                   onClick={() => navigate(to)}
-                  className={`flex flex-col items-center gap-2 rounded-2xl p-3 text-center transition-all active:scale-95 ${CARD}`}
+                  className={`flex min-h-24 min-w-0 flex-col items-center justify-center gap-2 rounded-2xl p-3 text-center transition-all active:scale-95 ${CARD}`}
                 >
                   <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#111111] text-[#f2b33d]">
                     <Icon size={20} />
                   </span>
-                  <span className="truncate text-xs font-semibold text-[#111111]">{label}</span>
+                  <span className="max-w-full text-xs font-semibold leading-tight text-[#111111]">{label}</span>
                 </button>
               ))}
             </div>
@@ -431,7 +431,7 @@ export function PainelPage() {
 
           {/* ── Agenda de hoje ────────────────────────────────────────────── */}
           <Card className={`min-w-0 ${CARD}`}>
-            <Card.Content className="p-5">
+            <Card.Content className="p-4 sm:p-5">
               <div className="mb-4 flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f2b33d]/15 text-[#a67c1e]">
@@ -445,9 +445,9 @@ export function PainelPage() {
                 <button
                   type="button"
                   onClick={() => navigate('/agenda')}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[#a67c1e] transition-colors hover:bg-[#f2b33d]/10"
+                  className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[#8a6517] transition-colors hover:bg-[#f2b33d]/10 sm:text-sm"
                 >
-                  Ver agenda completa <IconChevron size={15} className="-rotate-90" />
+                  Ver agenda <IconChevron size={15} className="-rotate-90" />
                 </button>
               </div>
               {agenda.isLoading ? (

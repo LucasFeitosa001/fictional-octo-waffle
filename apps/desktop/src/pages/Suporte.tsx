@@ -85,7 +85,7 @@ export function SuportePage() {
         />
       </div>
 
-      <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm sm:p-6">
         <p className="mb-2 flex items-center gap-2 font-semibold text-ink-900">
           <LifeBuoy className="size-4 text-brand-500" />
           Sobre esta versão

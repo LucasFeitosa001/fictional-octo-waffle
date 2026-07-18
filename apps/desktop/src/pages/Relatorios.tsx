@@ -13,9 +13,30 @@ interface Row {
 }
 
 function ReportTable({ headers, rows }: { headers: string[]; rows: Row[] }) {
+  if (rows.length === 0) {
+    return <div className="rounded-2xl border border-dashed border-ink-100 bg-white px-4 py-10 text-center text-sm text-ink-400">Sem dados para o período.</div>;
+  }
+
   return (
-    <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm">
-      <table className="w-full min-w-max text-left text-sm">
+    <>
+      <div className="space-y-3 md:hidden">
+        {rows.map((row) => (
+          <article key={row.id} className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">{headers[0]}</p>
+            <div className="mb-3 font-semibold text-ink-900">{row.cells[0]}</div>
+            <dl className="space-y-2.5">
+              {row.cells.slice(1).map((cell, index) => (
+                <div key={headers[index + 1]} className="flex items-start justify-between gap-4 border-t border-ink-100/70 pt-2.5 text-sm">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-ink-400">{headers[index + 1]}</dt>
+                  <dd className="text-right font-medium text-ink-700">{cell}</dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm md:block">
+        <table className="w-full min-w-max text-left text-sm">
         <thead>
           <tr className="border-b border-ink-100 bg-paper/70">
             {headers.map((h, i) => (
@@ -29,14 +50,7 @@ function ReportTable({ headers, rows }: { headers: string[]; rows: Row[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={headers.length} className="px-4 py-8 text-center text-ink-300">
-                Sem dados para o período.
-              </td>
-            </tr>
-          ) : (
-            rows.map((row) => (
+            {rows.map((row) => (
               <tr key={row.id} className="border-b border-ink-100/70 last:border-0">
                 {row.cells.map((cell, i) => (
                   <td key={i} className={`px-4 py-3 text-ink-700 ${i > 0 ? 'text-right' : ''}`}>
@@ -44,11 +58,11 @@ function ReportTable({ headers, rows }: { headers: string[]; rows: Row[] }) {
                   </td>
                 ))}
               </tr>
-            ))
-          )}
+            ))}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -154,12 +168,12 @@ export function RelatoriosPage() {
   return (
     <div>
       <PageHeader title="Relatórios" description={`Gerado em ${todayISO().split('-').reverse().join('/')} a partir dos dados locais.`}>
-        <label className="flex items-center gap-2 text-sm text-ink-500">
+        <label className="flex w-full flex-col gap-1.5 text-sm text-ink-500 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
           Período
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-300 focus:outline-none"
+            className="min-h-12 w-full rounded-xl border border-ink-100 bg-white px-3 py-2 text-base text-ink-900 focus:border-brand-300 focus:outline-none sm:min-h-11 sm:w-auto sm:text-sm"
           >
             <option value="">Todo o período</option>
             {monthOptions.map((m) => (

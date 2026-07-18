@@ -20,22 +20,30 @@ export function PageHeader({
   actions,
 }: PageHeaderProps) {
   return (
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{title}</h1>
-        {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
+        <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm leading-snug text-muted">{subtitle}</p>}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {actions}
-        {onFilter && (
-          <Button variant="outline" onClick={onFilter}>
-            <IconFilter size={16} /> Filtrar
-          </Button>
+      <div className="page-header-actions flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+        {actions && (
+          <div className="page-header-action-group grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            {actions}
+          </div>
         )}
-        {onRefresh && (
-          <Button variant="primary" onClick={onRefresh} isDisabled={isRefreshing}>
-            <IconRefresh size={16} /> Atualizar
-          </Button>
+        {(onFilter || onRefresh) && (
+          <div className="page-header-action-group grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            {onFilter && (
+              <Button variant="outline" onClick={onFilter}>
+                <IconFilter size={16} /> Filtrar
+              </Button>
+            )}
+            {onRefresh && (
+              <Button variant="primary" onClick={onRefresh} isDisabled={isRefreshing}>
+                <IconRefresh size={16} /> Atualizar
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </div>

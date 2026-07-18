@@ -14,7 +14,7 @@ export default defineConfig({
     // there's no CORS and the session cookie is first-party (mirrors prod).
     proxy: {
       '/api': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3334',
         changeOrigin: false,
       },
     },

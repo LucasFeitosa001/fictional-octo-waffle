@@ -110,36 +110,37 @@ export function LegalPage({ kind, backTo }: { kind: LegalKind; backTo: string })
   const sections = isPrivacy ? PRIVACY : TERMS;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="club-page flex flex-col">
       <header className="club-topbar sticky top-0 z-40 shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-5">
+        <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 py-2.5 sm:gap-3 md:py-3">
           <button
             type="button"
             onClick={() => navigate(backTo)}
             aria-label="Voltar"
-            className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+            className="club-touch grid place-items-center rounded-full text-white transition-colors hover:bg-white/15"
           >
             <ArrowLeft width={22} height={22} />
           </button>
           <img
             src="/brand/salonpass-wordmark-white.svg"
             alt="Salonpass"
-            className="h-7 w-auto"
+            className="h-6 w-auto sm:h-7"
           />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-5 py-10">
-        <h1 className="font-brand text-2xl text-foreground">{title}</h1>
+      <main className="club-page-main mx-auto w-full max-w-3xl flex-1 py-7 sm:py-10">
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-pink)]">Transparência e segurança</span>
+        <h1 className="mt-2 font-brand text-2xl text-foreground sm:text-3xl">{title}</h1>
         <p className="mt-1 text-sm text-muted">Última atualização: {LAST_UPDATED}</p>
 
-        <div className="mt-8 flex flex-col gap-7">
+        <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:gap-4">
           {sections.map((s) => (
-            <section key={s.title}>
+            <section key={s.title} className="rounded-2xl border border-[var(--color-soft-border)] bg-white p-4 shadow-[var(--shadow-card)] sm:p-5">
               <h2 className="font-semibold text-foreground">{s.title}</h2>
               <div className="mt-2 flex flex-col gap-2">
                 {s.body.map((p, i) => (
-                  <p key={i} className="text-sm leading-relaxed text-muted">
+                  <p key={i} className="text-[15px] leading-7 text-muted sm:text-sm sm:leading-relaxed">
                     {p}
                   </p>
                 ))}
@@ -148,9 +149,15 @@ export function LegalPage({ kind, backTo }: { kind: LegalKind; backTo: string })
           ))}
         </div>
 
-        <p className="mt-10 text-xs text-muted">
-          Salonpass — plataforma de agendamento para salões de beleza.
-        </p>
+        <div className="mt-8 rounded-2xl bg-[#111111] p-5 text-white sm:flex sm:items-center sm:justify-between sm:gap-4">
+          <div>
+            <p className="font-semibold">Ainda tem alguma dúvida?</p>
+            <p className="mt-1 text-sm text-white/60">Fale diretamente com a equipe Salonpass.</p>
+          </div>
+          <a href={`mailto:${CONTACT_EMAIL}`} className="mt-4 inline-flex min-h-11 items-center rounded-full bg-[#f2b33d] px-4 py-2 text-sm font-semibold text-[#111111] sm:mt-0">
+            Entrar em contato
+          </a>
+        </div>
       </main>
     </div>
   );

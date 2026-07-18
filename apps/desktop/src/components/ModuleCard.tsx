@@ -19,7 +19,7 @@ export function ModuleCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex items-start gap-4 rounded-2xl border border-ink-100 bg-white p-5 text-left shadow-sm transition hover:border-brand-200 hover:shadow-md"
+      className="group flex min-h-24 w-full items-start gap-3 rounded-2xl border border-ink-100 bg-white p-4 text-left shadow-sm transition hover:border-brand-200 hover:shadow-md sm:gap-4 sm:p-5"
     >
       <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600 transition group-hover:bg-brand-50 group-hover:text-brand-600">
         <Icon className="size-5" />

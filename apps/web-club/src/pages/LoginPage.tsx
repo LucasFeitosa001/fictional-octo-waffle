@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Input, Label, TextField } from '@heroui/react';
 import { ArrowLeft } from '@gravity-ui/icons';
 import { signIn, signUp } from '../lib/auth';
@@ -93,29 +93,29 @@ export function LoginPage({ backTo }: { backTo: string }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="club-page flex flex-col">
       {/* Black header, mirrors the club TopBar so the page reads as part of the
           same app (and paints the iOS status-bar safe area). */}
       <header className="club-topbar sticky top-0 z-40 shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-5">
+        <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 py-2.5 sm:gap-3 md:py-3">
           <button
             type="button"
             onClick={() => navigate(backTo)}
             aria-label="Voltar"
-            className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+            className="club-touch grid place-items-center rounded-full text-white transition-colors hover:bg-white/15"
           >
             <ArrowLeft width={22} height={22} />
           </button>
           <img
             src="/brand/salonpass-wordmark-white.svg"
             alt="Salonpass"
-            className="h-7 w-auto"
+            className="h-6 w-auto sm:h-7"
           />
         </div>
       </header>
 
-      <main className="flex flex-1 items-start justify-center px-4 py-10">
-        <div className="w-full max-w-sm">
+      <main className="club-page-main flex flex-1 items-start justify-center py-6 sm:py-10">
+        <div className="club-form-surface w-full max-w-md px-5 py-6 sm:px-8 sm:py-8">
           <div className="flex flex-col items-center gap-1 text-center">
             <h1 className="font-brand text-2xl text-foreground">
               {mode === 'login' ? 'Entrar' : 'Criar conta'}
@@ -127,7 +127,7 @@ export function LoginPage({ backTo }: { backTo: string }) {
             </p>
           </div>
 
-          <form className="mt-7 flex flex-col gap-4" onSubmit={onSubmit}>
+          <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
             {mode === 'signup' && (
               <TextField value={name} onChange={setName} autoComplete="name">
                 <Label>Nome</Label>
@@ -174,7 +174,7 @@ export function LoginPage({ backTo }: { backTo: string }) {
               type="submit"
               variant="primary"
               isPending={loading}
-              className="mt-1 w-full"
+              className="mt-1 min-h-12 w-full"
             >
               {mode === 'login' ? 'Entrar' : 'Criar conta'}
             </Button>
@@ -191,7 +191,7 @@ export function LoginPage({ backTo }: { backTo: string }) {
             variant="secondary"
             onPress={onGoogle}
             isPending={googleLoading}
-            className="w-full"
+            className="min-h-12 w-full"
           >
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
               <path
@@ -221,7 +221,7 @@ export function LoginPage({ backTo }: { backTo: string }) {
                 setError(null);
                 setMode((m) => (m === 'login' ? 'signup' : 'login'));
               }}
-              className="text-sm text-muted hover:text-foreground"
+              className="min-h-11 rounded-xl px-3 text-sm text-muted hover:bg-[#f7f3ea] hover:text-foreground"
             >
               {mode === 'login' ? (
                 <>
@@ -236,6 +236,18 @@ export function LoginPage({ backTo }: { backTo: string }) {
               )}
             </button>
           </div>
+
+          <p className="mt-5 text-center text-xs leading-relaxed text-muted">
+            Ao continuar, você concorda com os{' '}
+            <Link to="/termos" className="font-medium text-foreground underline underline-offset-2">
+              Termos
+            </Link>{' '}
+            e a{' '}
+            <Link to="/privacidade" className="font-medium text-foreground underline underline-offset-2">
+              Política de Privacidade
+            </Link>
+            .
+          </p>
         </div>
       </main>
     </div>

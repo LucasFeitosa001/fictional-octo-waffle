@@ -110,9 +110,9 @@ function fromValues(values: FormValues, existing: Client | null): Omit<Client, '
 
 function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-ink-100/60 py-2 text-sm last:border-0">
+    <div className="flex flex-col gap-1 border-b border-ink-100/60 py-2.5 text-sm last:border-0 min-[480px]:flex-row min-[480px]:justify-between min-[480px]:gap-4">
       <span className="text-ink-500">{label}</span>
-      <span className="text-right font-medium text-ink-900">{value || '—'}</span>
+      <span className="break-words font-medium text-ink-900 min-[480px]:text-right">{value || '—'}</span>
     </div>
   );
 }
@@ -191,7 +191,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         ) : (
           <ul className="divide-y divide-ink-100/70">
             {history.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+              <li key={a.id} className="flex flex-col items-start gap-2 py-3 text-sm min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
                 <div>
                   <p className="font-medium text-ink-900">{lookups.serviceName(a.serviceId)}</p>
                   <p className="text-ink-500">
@@ -211,7 +211,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         ) : (
           <ul className="divide-y divide-ink-100/70">
             {upcoming.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+              <li key={a.id} className="flex flex-col items-start gap-2 py-3 text-sm min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
                 <div>
                   <p className="font-medium text-ink-900">{lookups.serviceName(a.serviceId)}</p>
                   <p className="text-ink-500">
@@ -231,7 +231,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         ) : (
           <ul className="divide-y divide-ink-100/70">
             {purchases.map(({ command, item }) => (
-              <li key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+              <li key={item.id} className="flex flex-col items-start gap-2 py-3 text-sm min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
                 <div>
                   <p className="font-medium text-ink-900">{item.description}</p>
                   <p className="text-ink-500">

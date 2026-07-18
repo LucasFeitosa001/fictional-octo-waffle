@@ -37,7 +37,7 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
           )}
         </button>
       </Dropdown.Trigger>
-      <Dropdown.Popover className="w-[340px] border border-white/[0.1] bg-[#0c0c0d] p-0 shadow-2xl shadow-black/60">
+      <Dropdown.Popover className="w-[min(340px,calc(100vw-24px))] border border-white/[0.1] bg-[#0c0c0d] p-0 shadow-2xl shadow-black/60">
         <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
           <span className="eyebrow text-white/55">Notificações</span>
           {unread > 0 && (

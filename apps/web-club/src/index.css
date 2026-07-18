@@ -54,11 +54,21 @@
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
   margin: 0;
 }
 
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  scroll-padding-top: calc(4.5rem + env(safe-area-inset-top));
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
+  min-width: 320px;
+  min-height: 100dvh;
+  overflow-x: clip;
   color: var(--foreground);
   font-family:
     "Poppins", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
@@ -71,6 +81,31 @@ body {
     radial-gradient(820px 480px at 50% -10%, rgba(242, 179, 61, 0.12), transparent 60%),
     radial-gradient(720px 520px at 100% 6%, rgba(240, 140, 165, 0.1), transparent 62%);
   background-attachment: fixed;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Keep iOS from zooming the viewport while a customer fills a booking form. */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+img,
+svg {
+  max-width: 100%;
 }
 
 /* Headings/brand: Poppins SemiBold. */
@@ -88,6 +123,42 @@ h1, h2, h3, h4, h5, h6,
   background-image: linear-gradient(180deg, #1a1a1a 0%, #111111 100%);
   color: #fff;
   padding-top: env(safe-area-inset-top);
+}
+
+/* Shared mobile-first page primitives. These intentionally start compact and
+   acquire more breathing room only as the viewport grows. */
+.club-page {
+  min-height: 100dvh;
+}
+
+.club-page-main {
+  padding-inline: max(1rem, env(safe-area-inset-left));
+}
+
+.club-touch {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.club-scroll-row {
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.club-scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
+.club-scroll-row > * {
+  scroll-snap-align: start;
+}
+
+.club-form-surface {
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  border-radius: 24px;
+  background: rgba(255, 253, 248, 0.9);
+  box-shadow: var(--shadow-card);
 }
 
 /* Focus ring: gold, soft. */
@@ -124,6 +195,14 @@ h1, h2, h3, h4, h5, h6,
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+.club-bottomnav button {
+  min-height: 56px;
+}
+
+.club-action-dock {
+  background: linear-gradient(180deg, rgba(247, 243, 234, 0), rgba(247, 243, 234, 0.96) 26%);
+}
+
 /* Swipeable photo carousel track: keep the native scroll-snap behavior but hide
    the scrollbar so the gallery reads as a clean image strip. */
 .hide-scrollbar {
@@ -132,4 +211,32 @@ h1, h2, h3, h4, h5, h6,
 }
 .hide-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome/Safari */
+}
+
+@media (min-width: 640px) {
+  .club-page-main {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (hover: none) {
+  /* Hover transforms tend to feel like layout jitter on touch browsers. */
+  .club-no-touch-lift:hover {
+    transform: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

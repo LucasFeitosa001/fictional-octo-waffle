@@ -10,7 +10,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Salonpass Gestão',
     short_name: 'Salonpass',
-    description: 'Painel da salão: agenda, profissionais, serviços e clientes.',
+    description: 'Painel do salão: agenda, profissionais, serviços e clientes.',
     lang: 'pt-BR',
     start_url: `${base}/`,
     scope: `${base}/`,

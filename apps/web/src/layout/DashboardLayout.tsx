@@ -29,7 +29,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const fullBleed = pathname === '/agenda';
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
+    <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop static sidebar */}
       <div className="hidden lg:block">
         <Sidebar />
@@ -86,8 +86,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             {children}
           </main>
         ) : (
-          <main className="db-canvas flex-1 overflow-x-hidden overflow-y-auto">
-            <div className="mx-auto min-w-0 max-w-[1400px] px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-8 lg:pb-8">
+          <main className="db-canvas min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
+            <div className="mobile-page-content mx-auto min-w-0 max-w-[1400px] px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-6 lg:px-8 lg:py-8 lg:pb-8">
               {children}
             </div>
           </main>

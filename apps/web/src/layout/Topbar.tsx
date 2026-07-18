@@ -9,6 +9,7 @@ import { initials } from '../lib/format';
 /** Per-route header copy. Longest matching prefix wins. */
 const PAGE_META: { path: string; title: string; description: string }[] = [
   { path: '/agenda', title: 'Agenda', description: 'Seus horários e agendamentos' },
+  { path: '/agendamentos', title: 'Agendamentos', description: 'Histórico e confirmações de horários' },
   { path: '/comandas', title: 'Comandas', description: 'Vendas e atendimentos abertos' },
   { path: '/pacotes', title: 'Pacotes', description: 'Combos de serviços' },
   { path: '/assinaturas', title: 'Assinaturas', description: 'Planos recorrentes' },
@@ -33,6 +34,7 @@ const PAGE_META: { path: string; title: string; description: string }[] = [
   { path: '/marketing/avaliacoes', title: 'Avaliações', description: 'O feedback dos clientes' },
   { path: '/marketing/cashback', title: 'Cashback', description: 'Programa de recompensas' },
   { path: '/configuracoes', title: 'Configurações', description: 'Preferências do studio' },
+  { path: '/perfil', title: 'Meu perfil', description: 'Conta, acesso e plano' },
 ];
 
 function getPageMeta(pathname: string) {
@@ -78,7 +80,42 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 hidden h-[72px] items-center justify-between gap-4 border-b border-[var(--color-soft-border)] bg-[#fffdf8]/80 px-6 backdrop-blur-xl lg:flex">
+    <>
+      <header className="mobile-topbar z-30 flex shrink-0 items-center justify-between border-b border-[var(--color-soft-border)] bg-[#fffdf8]/92 px-4 backdrop-blur-xl lg:hidden">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          aria-label="Ir para o início"
+          className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl pr-2 text-left active:bg-black/[0.04]"
+        >
+          <img
+            src="/brand/salonpass-wordmark.svg"
+            alt="Salonpass"
+            className="h-6 w-auto max-w-[132px] object-contain"
+          />
+          <span className="rounded-full bg-[#f2b33d]/18 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#8a6517]">
+            Gestão
+          </span>
+        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <NotificationBell variant="ringed" />
+          <button
+            type="button"
+            onClick={() => navigate('/perfil')}
+            aria-label="Abrir meu perfil"
+            className="grid h-11 w-11 place-items-center rounded-full active:bg-black/[0.04]"
+          >
+            <Avatar size="sm">
+              {image && <Avatar.Image src={image} alt={name} />}
+              <Avatar.Fallback className="bg-[#111111] text-[#f2b33d]">
+                {initials(name)}
+              </Avatar.Fallback>
+            </Avatar>
+          </button>
+        </div>
+      </header>
+
+      <header className="sticky top-0 z-30 hidden h-[72px] items-center justify-between gap-4 border-b border-[var(--color-soft-border)] bg-[#fffdf8]/80 px-6 backdrop-blur-xl lg:flex">
       {/* Full-left: section title + description + pink sparkles */}
       <div className="flex min-w-0 items-center gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#f08ca5]/12 text-[#f08ca5] ring-1 ring-inset ring-[#f08ca5]/20">
@@ -179,6 +216,7 @@ export function Topbar() {
           )}
         </div>
       </div>
-    </header>
+      </header>
+    </>
   );
 }

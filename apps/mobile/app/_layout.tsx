@@ -40,7 +40,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider config={config}>
-        <StatusBar style="light" />
+        <StatusBar style="auto" />
         <AuthProvider>
           {/* Stack raiz: tabs/drawer cuidam da própria navegação; telas de
               detalhe (appointment/[id], client/[id]) ganham header nativo. */}

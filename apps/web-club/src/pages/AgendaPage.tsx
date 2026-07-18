@@ -80,28 +80,28 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="club-page flex flex-col">
       <header className="club-topbar sticky top-0 z-40 shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-5">
+        <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 py-2.5 sm:gap-3 md:py-3">
           <button
             type="button"
             onClick={() => navigate(backTo)}
             aria-label="Voltar"
-            className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+            className="club-touch grid place-items-center rounded-full text-white transition-colors hover:bg-white/15"
           >
             <ArrowLeft width={22} height={22} />
           </button>
           <img
             src="/brand/salonpass-wordmark-white.svg"
             alt="Salonpass"
-            className="h-7 w-auto"
+            className="h-6 w-auto sm:h-7"
           />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      <main className="club-page-main mx-auto w-full max-w-5xl flex-1 py-6 sm:py-8">
         <div className="flex flex-col gap-0.5">
-          <h1 className="font-brand text-2xl text-foreground">Disponibilidade</h1>
+          <h1 className="font-brand text-2xl text-foreground sm:text-3xl">Disponibilidade</h1>
           <p className="text-sm text-muted">
             Veja os horários livres de cada profissional{portal.data?.name ? ` na ${portal.data.name}` : ''}.
           </p>
@@ -109,7 +109,7 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
 
         {/* Professional selector */}
         {professionals.length > 0 && (
-          <div className="-mx-1 mt-5 flex gap-2 overflow-x-auto px-1 pb-1">
+          <div className="club-scroll-row -mx-1 mt-5 flex gap-2 overflow-x-auto px-1 pb-1">
             {professionals.map((p) => {
               const active = p.id === proId;
               return (
@@ -117,7 +117,7 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
                   key={p.id}
                   type="button"
                   onClick={() => setProId(p.id)}
-                  className={`shrink-0 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  className={`min-h-11 shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
                     active
                       ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-soft)]'
                       : 'border-[var(--color-soft-border)] bg-white text-foreground hover:border-[var(--color-pink)]'
@@ -132,12 +132,12 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
 
         {/* Week navigation + legend */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
             <button
               type="button"
               onClick={() => shiftWeek(-7)}
               aria-label="Semana anterior"
-              className="grid h-9 w-9 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]"
+              className="club-touch grid shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]"
             >
               <ChevronLeft width={18} height={18} />
             </button>
@@ -148,7 +148,7 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
               type="button"
               onClick={() => shiftWeek(7)}
               aria-label="Próxima semana"
-              className="grid h-9 w-9 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]"
+              className="club-touch grid shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]"
             >
               <ChevronRight width={18} height={18} />
             </button>
@@ -166,7 +166,8 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
         </div>
 
         {/* Grid */}
-        <div className="mt-4">
+        <p className="mt-4 text-xs text-muted sm:hidden">Deslize a grade para ver os outros dias da semana.</p>
+        <div className="mt-2 sm:mt-4">
           {agenda.isLoading ? (
             <AgendaGridSkeleton />
           ) : professionals.length === 0 ? (
@@ -179,10 +180,18 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
         </div>
 
         {selectedPro && (
-          <p className="mt-3 text-center text-xs text-muted">
-            Mostrando a agenda de <strong>{selectedPro.nickname || selectedPro.name}</strong>.
-            Para reservar, volte e inicie um agendamento.
-          </p>
+          <div className="mt-4 flex flex-col items-center gap-3 text-center">
+            <p className="text-xs text-muted">
+              Mostrando a agenda de <strong>{selectedPro.nickname || selectedPro.name}</strong>.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate(backTo)}
+              className="min-h-12 w-full rounded-2xl bg-[var(--color-pink)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-pink)] sm:w-auto"
+            >
+              Escolher serviço e agendar
+            </button>
+          </div>
         )}
       </main>
     </div>

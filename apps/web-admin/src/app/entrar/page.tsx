@@ -49,9 +49,9 @@ export default function EntrarPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
+    <div className="flex min-h-[100dvh] items-center justify-center px-4 py-8 sm:p-6">
       <Card className="db-card w-full max-w-md shadow-2xl shadow-black/60">
-        <Card.Header className="flex flex-col items-center gap-3 pt-9">
+        <Card.Header className="flex flex-col items-center gap-3 px-5 pt-8 sm:pt-9">
           <SalonpassMark size={46} />
           <div className="flex flex-col items-center gap-1.5">
             <span className="font-brand text-lg font-semibold tracking-tight text-white">
@@ -60,7 +60,7 @@ export default function EntrarPage() {
             <span className="eyebrow text-muted">Seu estilo. Seu passo à frente.</span>
           </div>
         </Card.Header>
-        <Card.Content className="px-8 py-6">
+        <Card.Content className="px-5 py-6 sm:px-8">
           <form className="flex flex-col gap-4" onSubmit={onSubmit}>
             <TextField value={email} onChange={setEmail} type="email" isRequired autoComplete="email">
               <Label>E-mail</Label>
@@ -82,7 +82,7 @@ export default function EntrarPage() {
               <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
             )}
 
-            <Button type="submit" variant="primary" isDisabled={loading} className="mt-2">
+            <Button type="submit" variant="primary" isDisabled={loading} className="mt-2 min-h-12 w-full">
               {loading ? <Spinner size="sm" /> : 'Entrar'}
             </Button>
           </form>

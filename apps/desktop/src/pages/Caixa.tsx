@@ -101,7 +101,7 @@ function CommandDetail({
   }
 
   const selectClass =
-    'rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-300 focus:outline-none';
+    'min-h-12 w-full rounded-xl border border-ink-100 bg-white px-3 py-2 text-base text-ink-900 focus:border-brand-300 focus:outline-none sm:min-h-11 sm:w-auto sm:text-sm';
 
   return (
     <Drawer
@@ -134,7 +134,7 @@ function CommandDetail({
           ) : (
             <ul className="divide-y divide-ink-100/70 rounded-xl border border-ink-100">
               {command.items.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                <li key={item.id} className="flex flex-wrap items-center gap-3 px-3 py-3 text-sm sm:flex-nowrap sm:px-4">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-ink-900">{item.description}</p>
                     <p className="text-xs text-ink-500">
@@ -148,7 +148,7 @@ function CommandDetail({
                     <button
                       type="button"
                       onClick={() => removeItem(item.id)}
-                      className="rounded-lg p-1.5 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                      className="flex size-11 items-center justify-center rounded-lg text-ink-300 hover:bg-rose-50 hover:text-rose-600"
                       title="Remover item"
                     >
                       <Trash2 className="size-4" />
@@ -161,14 +161,14 @@ function CommandDetail({
         </div>
 
         {open ? (
-          <div className="rounded-xl bg-paper p-4">
+          <div className="rounded-xl bg-paper p-3 sm:p-4">
             <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-500">Adicionar item</h4>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
               <select value={itemKind} onChange={(e) => { setItemKind(e.target.value as 'servico' | 'produto'); setRefId(''); }} className={selectClass}>
                 <option value="servico">Serviço</option>
                 <option value="produto">Produto</option>
               </select>
-              <select value={refId} onChange={(e) => setRefId(e.target.value)} className={`${selectClass} min-w-48 flex-1`}>
+              <select value={refId} onChange={(e) => setRefId(e.target.value)} className={`${selectClass} col-span-2 sm:min-w-48 sm:flex-1`}>
                 <option value="">Selecione...</option>
                 {options.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -181,10 +181,10 @@ function CommandDetail({
                 min={1}
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                className={`${selectClass} w-20`}
+                className={`${selectClass} sm:w-20`}
                 title="Quantidade"
               />
-              <select value={professionalId} onChange={(e) => setProfessionalId(e.target.value)} className={selectClass}>
+              <select value={professionalId} onChange={(e) => setProfessionalId(e.target.value)} className={`${selectClass} col-span-2`}>
                 <option value="">Sem profissional</option>
                 {[...lookups.professionals.values()]
                   .filter((p) => p.active)
@@ -198,7 +198,7 @@ function CommandDetail({
                 type="button"
                 onClick={addItem}
                 disabled={!refId}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
+                className="col-span-2 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
               >
                 <PlusCircle className="size-4" />
                 Adicionar
@@ -209,10 +209,10 @@ function CommandDetail({
 
         <div className="rounded-xl border border-ink-100 p-4">
           <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-500">Pagamento</h4>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             {open ? (
               <>
-                <label className="flex items-center justify-between gap-2">
+                <label className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-ink-500">Desconto geral (%)</span>
                   <input
                     type="number"
@@ -220,10 +220,10 @@ function CommandDetail({
                     max={100}
                     value={discount}
                     onChange={(e) => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
-                    className={`${selectClass} w-24 text-right`}
+                    className={`${selectClass} text-right sm:w-24`}
                   />
                 </label>
-                <label className="flex items-center justify-between gap-2">
+                <label className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-ink-500">Forma de pagamento</span>
                   <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className={selectClass}>
                     {METHODS.map((m) => (
@@ -236,12 +236,12 @@ function CommandDetail({
               </>
             ) : (
               command.payments.map((p) => (
-                <p key={p.id} className="col-span-2 text-ink-700">
+                <p key={p.id} className="text-ink-700 sm:col-span-2">
                   {paymentMethodLabels[p.method]} · {formatBRL(p.amount)} · {formatDateTime(p.paidAt)}
                 </p>
               ))
             )}
-            <div className="col-span-2 mt-2 flex items-center justify-between border-t border-ink-100 pt-3">
+            <div className="mt-2 flex items-center justify-between border-t border-ink-100 pt-3 sm:col-span-2">
               <span className="font-semibold text-ink-900">Total</span>
               <span className="text-xl font-bold text-brand-700">{formatBRL(total)}</span>
             </div>

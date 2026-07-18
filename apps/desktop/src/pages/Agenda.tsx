@@ -136,12 +136,12 @@ export function AgendaPage() {
         newLabel="Novo agendamento"
       />
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 rounded-xl border border-ink-100 bg-white p-1">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+        <div className="col-span-2 flex items-center justify-between gap-1 rounded-xl border border-ink-100 bg-white p-1 sm:col-span-1 sm:justify-start">
           <button
             type="button"
             onClick={() => setDate(addDaysISO(date, view === 'dia' ? -1 : -7))}
-            className="rounded-lg p-2 text-ink-500 hover:bg-paper hover:text-ink-900"
+            className="flex size-11 items-center justify-center rounded-lg text-ink-500 hover:bg-paper hover:text-ink-900"
             title="Anterior"
           >
             <ChevronLeft className="size-4" />
@@ -149,12 +149,12 @@ export function AgendaPage() {
           <DateTextInput
             value={date}
             onChange={(iso) => setDate(iso || todayISO())}
-            className="w-28 border-0 bg-transparent px-1 text-center text-sm font-medium text-ink-900 focus:outline-none"
+            className="flex-1 border-0 bg-transparent px-1 text-center text-sm font-medium text-ink-900 focus:outline-none sm:w-28 sm:flex-none"
           />
           <button
             type="button"
             onClick={() => setDate(addDaysISO(date, view === 'dia' ? 1 : 7))}
-            className="rounded-lg p-2 text-ink-500 hover:bg-paper hover:text-ink-900"
+            className="flex size-11 items-center justify-center rounded-lg text-ink-500 hover:bg-paper hover:text-ink-900"
             title="Próximo"
           >
             <ChevronRight className="size-4" />
@@ -163,7 +163,7 @@ export function AgendaPage() {
         <button
           type="button"
           onClick={() => setDate(todayISO())}
-          className="rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm font-medium text-ink-700 hover:border-brand-200"
+          className="min-h-11 rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm font-medium text-ink-700 hover:border-brand-200"
         >
           Hoje
         </button>
@@ -178,7 +178,7 @@ export function AgendaPage() {
         <select
           value={professionalFilter}
           onChange={(e) => setProfessionalFilter(e.target.value)}
-          className="rounded-xl border border-ink-100 bg-white px-3 py-2.5 text-sm text-ink-700 focus:border-brand-300 focus:outline-none"
+          className="col-span-2 min-h-12 w-full rounded-xl border border-ink-100 bg-white px-3 py-2.5 text-base text-ink-700 focus:border-brand-300 focus:outline-none sm:col-span-1 sm:min-h-11 sm:w-auto sm:text-sm"
         >
           <option value="">Todas as profissionais</option>
           {professionals.map((p) => (
@@ -208,9 +208,9 @@ export function AgendaPage() {
                   return (
                     <div
                       key={a.id}
-                      className="flex flex-wrap items-center gap-4 rounded-2xl border border-ink-100 bg-white px-5 py-3.5 shadow-sm"
+                      className="flex flex-col items-stretch gap-3 rounded-2xl border border-ink-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:px-5 sm:py-3.5"
                     >
-                      <div className="w-24 shrink-0">
+                      <div className="flex w-full shrink-0 items-baseline justify-between sm:block sm:w-24">
                         <p className="font-semibold text-ink-900">{a.time}</p>
                         <p className="text-xs text-ink-300">até {addMinutes(a.time, a.durationMinutes)}</p>
                       </div>
@@ -221,13 +221,13 @@ export function AgendaPage() {
                           {a.notes ? ` · ${a.notes}` : ''}
                         </p>
                       </div>
-                      <StatusBadge tone={appointmentStatusTones[a.status]}>{appointmentStatusLabels[a.status]}</StatusBadge>
-                      <div className="flex items-center gap-1.5">
+                      <span className="self-start"><StatusBadge tone={appointmentStatusTones[a.status]}>{appointmentStatusLabels[a.status]}</StatusBadge></span>
+                      <div className="grid w-full grid-cols-3 items-center gap-1.5 sm:flex sm:w-auto">
                         {next ? (
                           <button
                             type="button"
                             onClick={() => appointments.update(a.id, { status: next.to })}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
+                            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
                           >
                             <next.icon className="size-3.5" />
                             {next.label}
@@ -237,7 +237,7 @@ export function AgendaPage() {
                           <button
                             type="button"
                             onClick={() => appointments.update(a.id, { status: 'cancelado' })}
-                            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition hover:bg-rose-50 hover:text-rose-600"
+                            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition hover:bg-rose-50 hover:text-rose-600"
                           >
                             <XCircle className="size-3.5" />
                             Cancelar
@@ -249,7 +249,7 @@ export function AgendaPage() {
                             setEditing(a);
                             setFormOpen(true);
                           }}
-                          className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition hover:bg-paper hover:text-ink-900"
+                          className="min-h-10 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition hover:bg-paper hover:text-ink-900"
                         >
                           Editar
                         </button>

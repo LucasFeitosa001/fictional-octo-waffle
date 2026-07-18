@@ -213,6 +213,129 @@ h1, h2, h3, h4, h5, h6,
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* ── Mobile application shell ───────────────────────────────────────────────
+   Phone layouts are treated as a first-class app surface: safe areas, native
+   touch sizes, compact card rhythm and no accidental desktop-width controls. */
+.mobile-topbar {
+  min-height: calc(3.75rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+
+@media (max-width: 639px) {
+  body {
+    overscroll-behavior: none;
+  }
+
+  .mobile-page-content {
+    width: 100%;
+  }
+
+  .mobile-page-content .card {
+    border-radius: 18px;
+  }
+
+  .mobile-page-content .card__content {
+    min-width: 0;
+    padding: 1rem;
+  }
+
+  /* HeroUI's desktop breakpoint reduces controls to 36px. Phones keep the
+     recommended 44px hit area, including compact table actions. */
+  .mobile-page-content .button,
+  .modal__dialog .button {
+    min-height: 44px;
+  }
+
+  .mobile-page-content .input,
+  .mobile-page-content .select__trigger,
+  .modal__dialog .input,
+  .modal__dialog .select__trigger {
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  .page-header-action-group > .button,
+  .page-header-action-group > div,
+  .page-header-action-group > div > .button {
+    width: 100%;
+  }
+
+  .page-header-action-group > div {
+    grid-column: 1 / -1;
+  }
+
+  .page-header-action-group > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  .mobile-row-actions > div,
+  .mobile-row-actions > div > div {
+    min-width: 0;
+  }
+
+  .mobile-row-actions .button {
+    min-width: 44px;
+  }
+
+  .mobile-page-content button[class~="h-7"][class~="w-7"],
+  .mobile-page-content button[class~="h-8"][class~="w-8"],
+  .mobile-page-content button[class~="h-9"][class~="w-9"],
+  .mobile-page-content button[class~="h-10"][class~="w-10"],
+  .modal__dialog button[class~="h-7"][class~="w-7"],
+  .modal__dialog button[class~="h-8"][class~="w-8"],
+  .modal__dialog button[class~="h-9"][class~="w-9"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Period/category bars remain single-line, swipeable controls instead of
+     wrapping into uneven desktop toolbars. */
+  .mobile-page-content div.inline-flex {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .mobile-page-content div.inline-flex::-webkit-scrollbar {
+    display: none;
+  }
+
+  .modal__header {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  .modal__body {
+    padding-bottom: 1rem;
+  }
+
+  .modal__footer {
+    flex-wrap: wrap;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .modal__footer .button {
+    flex: 1 1 10rem;
+  }
+
+  .db-sidebar-mobile {
+    width: min(296px, calc(100vw - 3rem));
+    padding-top: max(1.25rem, env(safe-area-inset-top));
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Focus ring: gold, soft, never clipped. */
 *:focus-visible {
   outline: 2px solid rgba(242, 179, 61, 0.9);

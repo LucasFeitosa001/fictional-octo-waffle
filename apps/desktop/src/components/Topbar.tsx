@@ -6,6 +6,7 @@ import {
   Cake,
   ChevronDown,
   LifeBuoy,
+  Menu,
   Package,
   ReceiptText,
   RefreshCcw,
@@ -132,7 +133,7 @@ function NotificationsMenu() {
         title="Notificações"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="relative rounded-xl p-2 text-ink-500 transition hover:bg-paper hover:text-ink-900"
+        className="relative flex size-11 items-center justify-center rounded-xl text-ink-500 transition hover:bg-paper hover:text-ink-900"
       >
         <Bell className="size-5" />
         {notifications.length > 0 ? (
@@ -143,7 +144,7 @@ function NotificationsMenu() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-12 z-40 w-96 rounded-2xl border border-ink-100 bg-white p-2 shadow-xl">
+        <div className="fixed left-3 right-3 top-[4.5rem] z-40 rounded-2xl border border-ink-100 bg-white p-2 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-96">
           <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-400">
             Notificações {notifications.length > 0 ? `(${notifications.length})` : ''}
           </p>
@@ -159,7 +160,7 @@ function NotificationsMenu() {
                       setOpen(false);
                       navigate(n.to);
                     }}
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink-700 transition hover:bg-paper"
+                    className="flex min-h-12 w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink-700 transition hover:bg-paper"
                   >
                     <span className={`mt-0.5 rounded-lg p-1.5 ${toneClasses[n.tone]}`}>
                       <n.icon className="size-4" />
@@ -201,18 +202,18 @@ function ProfileMenu() {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition hover:bg-paper"
+        className="flex min-h-11 items-center gap-2 rounded-xl px-1.5 transition hover:bg-paper sm:px-2"
       >
         <UserCircle2 className="size-8 text-accent-500" />
-        <div className="leading-tight">
+        <div className="hidden leading-tight sm:block">
           <p className="text-left text-sm font-semibold text-ink-900">Silvia</p>
           <p className="text-xs text-ink-300">Administradora</p>
         </div>
-        <ChevronDown className={`size-4 text-ink-300 transition ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`hidden size-4 text-ink-300 transition sm:block ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-14 z-40 w-64 rounded-2xl border border-ink-100 bg-white p-2 shadow-xl">
+        <div className="fixed left-3 right-3 top-[4.5rem] z-40 rounded-2xl border border-ink-100 bg-white p-2 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-14 sm:w-64">
           <button type="button" className={item} onClick={() => { setOpen(false); navigate('/configuracoes'); }}>
             <Settings className="size-4 text-ink-400" /> Configurações
           </button>
@@ -229,14 +230,24 @@ function ProfileMenu() {
   );
 }
 
-export function Topbar({ title }: { title: string }) {
+export function Topbar({ title, onMenu }: { title: string; onMenu: () => void }) {
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-ink-100 bg-white px-8">
-      <div>
-        <h2 className="text-sm font-semibold text-ink-900">{title}</h2>
+    <header className="z-20 flex min-h-16 shrink-0 items-center justify-between border-b border-ink-100 bg-white/95 px-3 backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onMenu}
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl text-ink-500 transition hover:bg-paper lg:hidden"
+          aria-label="Abrir menu"
+        >
+          <Menu className="size-5" />
+        </button>
+        <div className="min-w-0">
+        <h2 className="truncate text-sm font-semibold text-ink-900">{title}</h2>
         <p className="text-xs text-ink-300">Hoje é {formatDate(todayISO())}</p>
+        </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-1 sm:gap-3">
         <NotificationsMenu />
         <ProfileMenu />
       </div>

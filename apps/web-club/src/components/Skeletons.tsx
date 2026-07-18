@@ -9,8 +9,8 @@ import { Skeleton } from '@heroui/react';
 // Mirrors a ServiceCard: photo column + title/desc/meta/price block.
 export function ServiceCardSkeleton() {
   return (
-    <div className="flex overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white shadow-[var(--shadow-card)]">
-      <Skeleton className="w-32 shrink-0 self-stretch rounded-none sm:w-40" />
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white shadow-[var(--shadow-card)] sm:flex-row">
+      <Skeleton className="aspect-[16/7] w-full shrink-0 rounded-none sm:aspect-auto sm:w-40" />
       <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
         <Skeleton className="h-5 w-2/3 rounded-md" />
         <Skeleton className="h-4 w-full rounded-md" />
@@ -42,7 +42,7 @@ export function ChoiceRowSkeleton() {
         <Skeleton className="h-4 w-1/2 rounded-md" />
         <Skeleton className="h-3 w-1/3 rounded-md" />
       </div>
-      <Skeleton className="ml-3 h-5 w-5 shrink-0 rounded-full" />
+      <Skeleton className="ml-3 h-6 w-6 shrink-0 rounded-full" />
     </div>
   );
 }
@@ -62,7 +62,7 @@ export function SlotGridSkeleton({ count = 9 }: { count?: number }) {
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className="h-10 rounded-xl" />
+        <Skeleton key={i} className="h-11 rounded-xl" />
       ))}
     </div>
   );
@@ -94,8 +94,8 @@ export function AppointmentListSkeleton({ count = 3 }: { count?: number }) {
 // Week availability grid placeholder (7 day columns of slots).
 export function AgendaGridSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white p-3">
-      <div className="grid grid-cols-7 gap-2">
+    <div className="overflow-x-auto rounded-2xl border border-[var(--color-soft-border)] bg-white p-3">
+      <div className="grid min-w-[42rem] grid-cols-7 gap-2">
         {Array.from({ length: 7 }, (_, col) => (
           <div key={col} className="flex flex-col gap-2">
             <Skeleton className="h-4 w-full rounded-md" />

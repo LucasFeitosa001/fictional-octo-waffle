@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   IconBox,
   IconCalendar,
+  IconHome,
   IconPlus,
   IconReceipt,
   IconScissors,
@@ -40,10 +41,9 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [createOpen, setCreateOpen] = useState(false);
 
   const left: { to: string; label: string; icon: IconType }[] = [
-    { to: '/agendamentos', label: 'Agendamentos', icon: IconReceipt },
+    { to: '/', label: 'Início', icon: IconHome },
   ];
   const right: { to: string; label: string; icon: IconType }[] = [
-    { to: '/comandas', label: 'Comandas', icon: IconReceipt },
     { to: '/clientes', label: 'Clientes', icon: IconUsers },
   ];
 
@@ -117,13 +117,12 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
       <nav className="club-bottomnav fixed inset-x-0 bottom-0 z-40 border-t border-white/10 lg:hidden">
         <div className="relative mx-auto grid max-w-md grid-cols-5 items-end px-2">
-          {/* Menu (opens sidebar drawer) */}
-          <TabButton label="Menu" icon={IconMenu} active={false} onPress={() => onMenuOpen?.()} />
-
           {/* Left tab */}
           {left.map((t) => (
             <TabButton key={t.to} {...t} active={isActive(t.to)} onPress={() => navigate(t.to)} />
           ))}
+
+          <TabButton label="Agenda" icon={IconCalendar} active={isActive('/agenda')} onPress={() => navigate('/agenda')} />
 
           {/* Center raised "Mais" FAB → opens the create sheet */}
           <div className="flex justify-center">
@@ -144,6 +143,9 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
           {right.map((t) => (
             <TabButton key={t.to} {...t} active={isActive(t.to)} onPress={() => navigate(t.to)} />
           ))}
+
+          {/* Menu (opens the complete navigation drawer) */}
+          <TabButton label="Menu" icon={IconMenu} active={false} onPress={() => onMenuOpen?.()} />
         </div>
       </nav>
     </>
@@ -165,12 +167,12 @@ function TabButton({
     <button
       type="button"
       onClick={onPress}
-      className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+      className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-2 text-[10px] font-medium transition-colors ${
         active ? 'text-[#f2b33d]' : 'text-white/55 hover:text-white/80'
       }`}
     >
       <Icon size={22} />
-      {label}
+      <span className="max-w-full truncate">{label}</span>
     </button>
   );
 }

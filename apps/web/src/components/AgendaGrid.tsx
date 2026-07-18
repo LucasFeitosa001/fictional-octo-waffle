@@ -28,7 +28,11 @@ function hashIndex(key: string, mod: number): number {
 }
 
 export function colorForAppointment(a: AppointmentRow): EventColor {
-  const key = a.professionalId ?? a.professional?.id ?? a.id;
+  // The list endpoint includes the nested professional at runtime. Keep the
+  // fallback explicit because Jest's Node resolver can see an older shared
+  // declaration that omits relational fields while the app build sees them.
+  const nestedId = (a.professional as { id?: string } | null | undefined)?.id;
+  const key = a.professionalId ?? nestedId ?? a.id;
   return PALETTE[hashIndex(key, PALETTE.length)];
 }
 
@@ -201,7 +205,9 @@ export function AgendaGrid({ days, appointments, onSelect, hourHeight = 56 }: Ag
                   const canceled = a.status === 'canceled';
                   const widthPct = 100 / cols;
                   const label = a.customer?.name ?? 'Sem cliente';
-                  const svc = a.items?.length ? `${a.items.length} serviço(s)` : a.professional?.name;
+                  const svc = a.items?.length
+                    ? `${a.items.length} serviço(s)`
+                    : (a.professional as { name?: string } | null | undefined)?.name;
                   return (
                     <button
                       key={a.id}

@@ -95,11 +95,11 @@ export function ConfiguracoesPage() {
             Backup dos dados
           </p>
           <p className="mb-4 text-sm text-ink-500">Exporta ou restaura todos os dados locais em JSON.</p>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={exportBackup}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
             >
               <DownloadCloud className="size-4" />
               Exportar
@@ -107,7 +107,7 @@ export function ConfiguracoesPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-ink-700 ring-1 ring-inset ring-ink-100 hover:bg-paper"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-ink-700 ring-1 ring-inset ring-ink-100 hover:bg-paper"
             >
               <UploadCloud className="size-4" />
               Restaurar
@@ -145,14 +145,14 @@ export function ConfiguracoesPage() {
           <button
             type="button"
             onClick={() => setResetOpen(true)}
-            className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-rose-600 ring-1 ring-inset ring-rose-200 hover:bg-rose-50"
+            className="min-h-11 w-full rounded-xl bg-white px-3 py-2 text-sm font-semibold text-rose-600 ring-1 ring-inset ring-rose-200 hover:bg-rose-50 sm:w-auto"
           >
             Restaurar dados iniciais
           </button>
         </div>
       </div>
 
-      <div className="mb-4 flex items-end justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-ink-900">Usuários e permissões</h2>
           <p className="text-sm text-ink-500">Perfis de acesso ao Silvia Hair ERP.</p>
@@ -163,7 +163,7 @@ export function ConfiguracoesPage() {
             setEditing(null);
             setFormOpen(true);
           }}
-          className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
+          className="min-h-11 w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 sm:w-auto"
         >
           Novo usuário
         </button>

@@ -34,7 +34,7 @@ export function BottomNav({
 
   const tabs = [
     { id: 'inicio', label: 'Início', icon: House },
-    { id: 'agendamentos', label: 'Agendamentos', icon: ListTimeline },
+    { id: 'agendamentos', label: 'Agenda', icon: ListTimeline },
     { id: 'favoritos', label: 'Favoritos', icon: Heart },
     { id: 'perfil', label: 'Perfil', icon: Person },
   ] as const;
@@ -64,8 +64,8 @@ export function BottomNav({
   }
 
   return (
-    <nav className="club-bottomnav fixed inset-x-0 bottom-0 z-40 border-t border-white/10 md:hidden">
-      <div className="relative mx-auto grid max-w-md grid-cols-5 items-end px-2">
+    <nav aria-label="Navegação principal" className="club-bottomnav fixed inset-x-0 bottom-0 z-40 border-t border-white/10 md:hidden">
+      <div className="relative mx-auto grid max-w-lg grid-cols-5 items-end px-1.5">
         {/* Left pair */}
         {tabs.slice(0, 2).map((t) => (
           <TabButton key={t.id} {...t} active={active === t.id} onPress={() => handleTab(t.id)} />
@@ -77,7 +77,7 @@ export function BottomNav({
             type="button"
             onClick={handleAgendar}
             aria-label="Agendar"
-            className="-mt-7 flex flex-col items-center"
+            className="-mt-7 flex min-w-0 flex-col items-center px-1"
           >
             <span className="grid h-14 w-14 place-items-center rounded-full bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)] ring-4 ring-[#111111] transition-transform active:scale-95">
               <Calendar width={24} height={24} />
@@ -110,7 +110,8 @@ function TabButton({
     <button
       type="button"
       onClick={onPress}
-      className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+      aria-current={active ? 'page' : undefined}
+      className={`flex min-w-0 flex-col items-center justify-end gap-0.5 px-0.5 py-2 text-[10px] font-medium transition-colors min-[360px]:text-[11px] ${
         active ? 'text-[#f2b33d]' : 'text-white/55 hover:text-white/80'
       }`}
     >

@@ -78,7 +78,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+    <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
       {/* ── Brand panel (desktop only) — floating rounded card ───────────── */}
       <aside className="relative m-4 hidden overflow-hidden rounded-[28px] bg-gradient-to-b from-[#2a2a30] via-[#222226] to-[#1b1b1f] ring-1 ring-white/5 lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-14">
         {/* Atmosphere: soft gold + pink glow over the dark gray */}
@@ -133,7 +133,7 @@ export function LoginPage() {
       {/* ── Form panel ───────────────────────────────────────────────────── */}
       {/* Mobile: form anchored toward the top (Fresha-style), not centered.
           Desktop (lg): vertically centered next to the brand panel. */}
-      <main className="db-canvas flex justify-center px-6 pb-10 pt-[12vh] sm:px-10 lg:items-center lg:pt-10">
+      <main className="db-canvas flex justify-center px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(3rem,calc(env(safe-area-inset-top)+6vh))] sm:px-10 lg:items-center lg:pt-10">
         <div className="w-full max-w-sm">
           {/* Header: logo + "para profissionais" na mesma linha */}
           <div className="mb-3 flex items-center gap-2.5">
@@ -261,7 +261,7 @@ export function LoginPage() {
               do Google.
             </p>
 
-            <div className="mt-5 flex items-center justify-center gap-2.5 text-xs text-muted">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-xs text-muted">
               <span>português (BR)</span>
               <span aria-hidden className="text-ink/25">·</span>
               <a href={`${CLUB_ORIGIN}/sobre`} target="_blank" rel="noreferrer noopener" className="hover:text-ink">

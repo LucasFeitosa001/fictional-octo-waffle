@@ -27,29 +27,49 @@ export function DataTable<T>({
   'aria-label': ariaLabel,
 }: DataTableProps<T>) {
   return (
-    <Table>
-      <Table.ScrollContainer>
-        <Table.Content aria-label={ariaLabel}>
-          <Table.Header>
-            {columns.map((c) => (
-              <Table.Column key={c.key} id={c.key} isRowHeader={c.isRowHeader}>
-                {c.header}
-              </Table.Column>
+    <>
+      <div className="mobile-data-list" role="list" aria-label={ariaLabel}>
+        {rows.map((row) => (
+          <article className="mobile-data-card" role="listitem" key={getKey(row)}>
+            {columns.map((column, index) => (
+              <div
+                key={column.key}
+                className={`mobile-data-field ${index === 0 ? 'mobile-data-primary' : ''}`}
+              >
+                {index > 0 && <div className="mobile-data-label">{column.header}</div>}
+                <div className="mobile-data-value">{column.render(row)}</div>
+              </div>
             ))}
-          </Table.Header>
-          <Table.Body>
-            {rows.map((row) => (
-              <Table.Row key={getKey(row)} id={getKey(row)}>
+          </article>
+        ))}
+      </div>
+
+      <div className="desktop-data-table">
+        <Table>
+          <Table.ScrollContainer>
+            <Table.Content aria-label={ariaLabel}>
+              <Table.Header>
                 {columns.map((c) => (
-                  <Table.Cell key={c.key} className={c.className}>
-                    {c.render(row)}
-                  </Table.Cell>
+                  <Table.Column key={c.key} id={c.key} isRowHeader={c.isRowHeader}>
+                    {c.header}
+                  </Table.Column>
                 ))}
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table.Content>
-      </Table.ScrollContainer>
-    </Table>
+              </Table.Header>
+              <Table.Body>
+                {rows.map((row) => (
+                  <Table.Row key={getKey(row)} id={getKey(row)}>
+                    {columns.map((c) => (
+                      <Table.Cell key={c.key} className={c.className}>
+                        {c.render(row)}
+                      </Table.Cell>
+                    ))}
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table>
+      </div>
+    </>
   );
 }

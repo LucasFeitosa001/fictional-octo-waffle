@@ -81,7 +81,12 @@ export function AvailabilityGrid({
   );
 
   return (
-    <div className="flex overflow-x-auto rounded-2xl border border-[var(--color-soft-border)] bg-white shadow-[var(--shadow-card)]">
+    <div
+      className="club-scroll-row flex overflow-x-auto overscroll-x-contain rounded-2xl border border-[var(--color-soft-border)] bg-white shadow-[var(--shadow-card)]"
+      role="region"
+      aria-label="Grade semanal de disponibilidade"
+      tabIndex={0}
+    >
       {/* Time gutter */}
       <div className="sticky left-0 z-10 w-12 shrink-0 bg-white">
         <div style={{ height: HEADER_H }} />
@@ -99,7 +104,7 @@ export function AvailabilityGrid({
       {/* Day columns */}
       <div
         className="grid flex-1"
-        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(96px, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(88px, 1fr))` }}
       >
         {days.map((day) => {
           const today = isToday(day);

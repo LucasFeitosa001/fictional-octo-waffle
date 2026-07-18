@@ -213,7 +213,7 @@ export type FieldDef =
   | (BaseField & { kind: 'checkbox' });
 
 const inputClass =
-  'w-full rounded-xl border border-ink-100 bg-white px-3 py-2.5 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100';
+  'min-h-12 w-full rounded-xl border border-ink-100 bg-white px-3 py-2.5 text-base text-ink-900 placeholder:text-ink-300 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100 sm:min-h-11 sm:text-sm';
 
 export function FieldInput({
   field,
@@ -226,12 +226,12 @@ export function FieldInput({
 }) {
   if (field.kind === 'checkbox') {
     return (
-      <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-ink-100 bg-white px-3 py-2.5">
+      <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-ink-100 bg-white px-3 py-2.5">
         <input
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="size-4 rounded accent-brand-600"
+          className="size-5 rounded accent-brand-600"
         />
         <span className="text-sm text-ink-700">{field.label}</span>
       </label>
