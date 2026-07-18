@@ -204,54 +204,56 @@ model Company {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  branches             Branch[]
-  users                User[]
-  roles                Role[]
-  userCompanies        UserCompany[]
-  subscriptions        Subscription[]
-  featureFlags         FeatureFlag[]
-  customers            Customer[]
-  professionals        Professional[]
-  professionalInvites  ProfessionalInvite[]
-  serviceCategories    ServiceCategory[]
-  services             Service[]
-  productCategories    ProductCategory[]
-  brands               Brand[]
-  products             Product[]
-  suppliers            Supplier[]
-  purchases            Purchase[]
-  appointments         Appointment[]
-  orders               Order[]
-  packageTemplates     PackageTemplate[]
-  customerPackages     CustomerPackage[]
-  membershipPlans      MembershipPlan[]
-  customerMemberships  CustomerMembership[]
-  financialAccounts    FinancialAccount[]
-  paymentMethods       PaymentMethod[]
-  financialCategories  FinancialCategory[]
-  transactions         Transaction[]
-  cashRegisters        CashRegister[]
-  commissionRules      CommissionRule[]
-  commissionEntries    CommissionEntry[]
-  commissionPayments   CommissionPayment[]
-  commissionClosings   CommissionClosing[]
-  fiscalSettings       FiscalSettings?
-  invoices             Invoice[]
-  taxProfiles          TaxProfile[]
-  bookingLinks         BookingLink[]
-  campaigns            Campaign[]
-  promotions           Promotion[]
-  coupons              Coupon[]
-  reviews              Review[]
-  cashbackRules        CashbackRule[]
-  notifications        Notification[]
-  auditLogs            AuditLog[]
-  files                File[]
-  documents            Document[]
-  documentTemplates    DocumentTemplate[]
-  settings             Setting[]
-  goals                Goal[]
-  reportsCache         ReportCache[]
+  branches            Branch[]
+  users               User[]
+  roles               Role[]
+  userCompanies       UserCompany[]
+  subscriptions       Subscription[]
+  featureFlags        FeatureFlag[]
+  customers           Customer[]
+  customerTags        CustomerTag[]
+  customerDebts       CustomerDebt[]
+  professionals       Professional[]
+  professionalInvites ProfessionalInvite[]
+  serviceCategories   ServiceCategory[]
+  services            Service[]
+  productCategories   ProductCategory[]
+  brands              Brand[]
+  products            Product[]
+  suppliers           Supplier[]
+  purchases           Purchase[]
+  appointments        Appointment[]
+  orders              Order[]
+  packageTemplates    PackageTemplate[]
+  customerPackages    CustomerPackage[]
+  membershipPlans     MembershipPlan[]
+  customerMemberships CustomerMembership[]
+  financialAccounts   FinancialAccount[]
+  paymentMethods      PaymentMethod[]
+  financialCategories FinancialCategory[]
+  transactions        Transaction[]
+  cashRegisters       CashRegister[]
+  commissionRules     CommissionRule[]
+  commissionEntries   CommissionEntry[]
+  commissionPayments  CommissionPayment[]
+  commissionClosings  CommissionClosing[]
+  fiscalSettings      FiscalSettings?
+  invoices            Invoice[]
+  taxProfiles         TaxProfile[]
+  bookingLinks        BookingLink[]
+  campaigns           Campaign[]
+  promotions          Promotion[]
+  coupons             Coupon[]
+  reviews             Review[]
+  cashbackRules       CashbackRule[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  files               File[]
+  documents           Document[]
+  documentTemplates   DocumentTemplate[]
+  settings            Setting[]
+  goals               Goal[]
+  reportsCache        ReportCache[]
 }
 
 model Branch {
@@ -295,18 +297,18 @@ model User {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  company             Company?             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sessions            Session[]
-  accounts            Account[]
-  userCompanies       UserCompany[]
-  professional        Professional?
-  customerProfiles    Customer[]
-  customerNotes       CustomerNote[]
-  appointmentHistory  AppointmentStatusHistory[]
-  orderHistory        OrderStatusHistory[]
-  cashRegisters       CashRegister[]
-  auditLogs           AuditLog[]
-  notifications       Notification[]
+  company            Company?                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions           Session[]
+  accounts           Account[]
+  userCompanies      UserCompany[]
+  professional       Professional?
+  customerProfiles   Customer[]
+  customerNotes      CustomerNote[]
+  appointmentHistory AppointmentStatusHistory[]
+  orderHistory       OrderStatusHistory[]
+  cashRegisters      CashRegister[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
 
   @@index([companyId])
 }
@@ -448,34 +450,57 @@ model FeatureFlag {
 // =====================================================================
 
 model Customer {
-  id             String    @id @default(cuid())
-  companyId      String
+  id                     String    @id @default(cuid())
+  companyId              String
   // Optional link to a Better Auth User when the customer booked while logged in
   // through the public portal. Guest bookings leave this null.
-  userId         String?
-  name           String
-  nickname       String?
-  phone          String?
-  secondaryPhone String?
-  email          String?
-  birthday       DateTime?
-  cpf            String?
-  cnpj           String?
-  active         Boolean   @default(true)
+  userId                 String?
+  name                   String
+  nickname               String?
+  phone                  String?
+  secondaryPhone         String?
+  email                  String?
+  birthday               DateTime?
+  cpf                    String?
+  cnpj                   String?
+  rg                     String?
+  avatarUrl              String?
+  // Self-referential "indicação": which existing customer referred this one.
+  referredById           String?
+  // Default discount (%) applied to this customer's orders (Belasis "desconto padrão").
+  defaultDiscountPercent Decimal?  @db.Decimal(5, 2)
+  // Contact-preference / opt-in toggles (Belasis notification settings per customer).
+  notificationsEnabled   Boolean   @default(true)
+  whatsappOptIn          Boolean   @default(true)
+  smsOptIn               Boolean   @default(true)
+  // When true, this customer is blocked from the public/online booking portal.
+  onlineAccessBlocked    Boolean   @default(false)
+  active                 Boolean   @default(true)
+  // Legacy import reconciliation (Belasis). `legacyId` is the source PK,
+  // `legacySource` names the origin system. Unique per company for idempotency;
+  // Postgres allows multiple NULLs so native rows are unaffected.
+  legacyId               String?
+  legacySource           String?
   // Soft-delete marker. When set, the record is hidden from every admin list and
   // public-booking read, but the row (and its history) is preserved. `active` is
   // a separate enable/disable toggle and is left untouched on delete.
-  deletedAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  deletedAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  company             Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  referredBy          Customer?               @relation("CustomerReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals           Customer[]              @relation("CustomerReferral")
   addresses           CustomerAddress[]
   credits             CustomerCredit[]
   cashback            CustomerCashback[]
   anamnesis           CustomerAnamnesis[]
   notes               CustomerNote[]
+  dependents          CustomerDependent[]
+  socialProfiles      CustomerSocialProfile[]
+  debts               CustomerDebt[]
+  tags                CustomerTag[]
   appointments        Appointment[]
   orders              Order[]
   customerPackages    CustomerPackage[]
@@ -484,9 +509,11 @@ model Customer {
   reviews             Review[]
 
   @@unique([companyId, userId])
+  @@unique([companyId, legacyId])
   @@index([companyId])
   @@index([companyId, name])
   @@index([userId])
+  @@index([referredById])
 }
 
 model CustomerAddress {
@@ -559,6 +586,82 @@ model CustomerNote {
   @@index([customerId])
 }
 
+// Dependents of a customer (Belasis "dependentes"). `dependentCustomerId` may
+// optionally point at another Customer row when the dependent is also registered.
+model CustomerDependent {
+  id                  String   @id @default(cuid())
+  customerId          String
+  name                String
+  relationship        String?
+  dependentCustomerId String?
+  createdAt           DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([dependentCustomerId])
+}
+
+// Tenant-scoped free-form labels applied to customers (N:N, implicit join table).
+model CustomerTag {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers Customer[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+// External social/media profiles linked to a customer (Instagram, WhatsApp, etc.).
+model CustomerSocialProfile {
+  id         String   @id @default(cuid())
+  customerId String
+  platform   String
+  url        String
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+// Outstanding customer debts (Belasis "débitos/pendências") and their payments.
+model CustomerDebt {
+  id         String    @id @default(cuid())
+  companyId  String
+  customerId String
+  amount     Decimal   @db.Decimal(12, 2)
+  origin     String?
+  dueDate    DateTime?
+  status     String    @default("open")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  payments CustomerDebtPayment[]
+
+  @@index([companyId])
+  @@index([customerId])
+}
+
+model CustomerDebtPayment {
+  id     String   @id @default(cuid())
+  debtId String
+  amount Decimal  @db.Decimal(12, 2)
+  paidAt DateTime @default(now())
+  method String?
+
+  debt CustomerDebt @relation(fields: [debtId], references: [id], onDelete: Cascade)
+
+  @@index([debtId])
+}
+
 // =====================================================================
 // DOMÍNIO: Profissionais
 // =====================================================================
@@ -573,28 +676,32 @@ model Professional {
   profession     String?
   birthday       DateTime?
   avatarUrl      String?
-  onlineBookable   Boolean   @default(true)
-  notifyWhatsapp   Boolean   @default(true)
-  active           Boolean   @default(true)
+  onlineBookable Boolean   @default(true)
+  notifyWhatsapp Boolean   @default(true)
+  active         Boolean   @default(true)
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId       String?
+  legacySource   String?
   // Soft-delete marker (see Customer.deletedAt). Hidden everywhere when set;
   // `active` remains an independent enable/disable toggle.
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  company           Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user              User?                         @relation(fields: [userId], references: [id])
-  schedules         ProfessionalSchedule[]
-  services          ProfessionalService[]
-  commissionRules   ProfessionalCommissionRule[]
-  appointments      Appointment[]
-  appointmentItems  AppointmentItem[]
-  orders            Order[]
-  orderItems        OrderItem[]
-  commissionEntries CommissionEntry[]
+  company            Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user               User?                        @relation(fields: [userId], references: [id])
+  schedules          ProfessionalSchedule[]
+  services           ProfessionalService[]
+  commissionRules    ProfessionalCommissionRule[]
+  appointments       Appointment[]
+  appointmentItems   AppointmentItem[]
+  orders             Order[]
+  orderItems         OrderItem[]
+  commissionEntries  CommissionEntry[]
   commissionPayments CommissionPayment[]
-  reviews           Review[]
+  reviews            Review[]
 
+  @@unique([companyId, legacyId])
   @@index([companyId])
 }
 
@@ -672,27 +779,30 @@ model ServiceCategory {
 }
 
 model Service {
-  id             String   @id @default(cuid())
-  companyId      String
-  categoryId     String?
-  name           String
-  price          Decimal  @db.Decimal(12, 2)
-  durationMin    Int      @default(30)
-  description    String?
-  imageUrl       String?
-  imageUrls      String[] @default([])
-  additionalCost Decimal  @default(0) @db.Decimal(12, 2)
-  cashbackPercent Decimal @default(0) @db.Decimal(5, 2)
-  onlineBookable Boolean  @default(true)
-  favorite       Boolean  @default(false)
-  visible        Boolean  @default(true)
-  displayOrder   Int      @default(0)
-  active         Boolean  @default(true)
+  id              String    @id @default(cuid())
+  companyId       String
+  categoryId      String?
+  name            String
+  price           Decimal   @db.Decimal(12, 2)
+  durationMin     Int       @default(30)
+  description     String?
+  imageUrl        String?
+  imageUrls       String[]  @default([])
+  additionalCost  Decimal   @default(0) @db.Decimal(12, 2)
+  cashbackPercent Decimal   @default(0) @db.Decimal(5, 2)
+  onlineBookable  Boolean   @default(true)
+  favorite        Boolean   @default(false)
+  visible         Boolean   @default(true)
+  displayOrder    Int       @default(0)
+  active          Boolean   @default(true)
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId        String?
+  legacySource    String?
   // Soft-delete marker (see Customer.deletedAt). Hidden everywhere when set;
   // `active`/`visible` remain independent toggles.
-  deletedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   category             ServiceCategory?      @relation(fields: [categoryId], references: [id])
@@ -703,6 +813,7 @@ model Service {
   membershipServices   MembershipService[]
   reviews              Review[]
 
+  @@unique([companyId, legacyId])
   @@index([companyId])
   @@index([categoryId])
 }
@@ -729,6 +840,7 @@ model Brand {
   id        String   @id @default(cuid())
   companyId String
   name      String
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -739,24 +851,27 @@ model Brand {
 }
 
 model Product {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   companyId       String
   categoryId      String?
   brandId         String?
   name            String
   imageUrl        String?
-  salePrice       Decimal  @db.Decimal(12, 2)
-  costPrice       Decimal  @default(0) @db.Decimal(12, 2)
-  stock           Decimal  @default(0) @db.Decimal(12, 3)
-  minStock        Decimal  @default(0) @db.Decimal(12, 3)
-  cashbackPercent Decimal  @default(0) @db.Decimal(5, 2)
-  favorite        Boolean  @default(false)
-  active          Boolean  @default(true)
+  salePrice       Decimal   @db.Decimal(12, 2)
+  costPrice       Decimal   @default(0) @db.Decimal(12, 2)
+  stock           Decimal   @default(0) @db.Decimal(12, 3)
+  minStock        Decimal   @default(0) @db.Decimal(12, 3)
+  cashbackPercent Decimal   @default(0) @db.Decimal(5, 2)
+  favorite        Boolean   @default(false)
+  active          Boolean   @default(true)
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId        String?
+  legacySource    String?
   // Soft-delete marker (see Customer.deletedAt). Hidden everywhere when set;
   // `active` remains an independent enable/disable toggle.
   deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   category           ProductCategory?    @relation(fields: [categoryId], references: [id])
@@ -764,13 +879,14 @@ model Product {
   inventoryMovements InventoryMovement[]
   purchaseItems      PurchaseItem[]
 
+  @@unique([companyId, legacyId])
   @@index([companyId])
   @@index([categoryId])
   @@index([brandId])
 }
 
 model Supplier {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   companyId         String
   name              String
   email             String?
@@ -778,16 +894,20 @@ model Supplier {
   stateRegistration String?
   cnpj              String?
   addressJson       Json?
-  active            Boolean  @default(true)
+  active            Boolean   @default(true)
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId          String?
+  legacySource      String?
   // Soft-delete marker (see Customer.deletedAt). Hidden everywhere when set;
   // `active` remains an independent enable/disable toggle.
   deletedAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   purchases Purchase[]
 
+  @@unique([companyId, legacyId])
   @@index([companyId])
 }
 
@@ -817,10 +937,10 @@ model Purchase {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier      Supplier?         @relation(fields: [supplierId], references: [id])
   account       FinancialAccount? @relation(fields: [accountId], references: [id])
-  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  paymentMethod PaymentMethod?    @relation(fields: [paymentMethodId], references: [id])
   items         PurchaseItem[]
 
   @@index([companyId])
@@ -855,6 +975,9 @@ model Appointment {
   end            DateTime
   notes          String?
   source         AppointmentSource @default(admin)
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId       String?
+  legacySource   String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
@@ -866,6 +989,7 @@ model Appointment {
   notifications AppointmentNotification[]
   review        Review?
 
+  @@unique([companyId, legacyId])
   @@index([companyId])
   @@index([companyId, start])
   @@index([professionalId, start])
@@ -887,11 +1011,11 @@ model AppointmentItem {
 }
 
 model AppointmentStatusHistory {
-  id            String            @id @default(cuid())
+  id            String             @id @default(cuid())
   appointmentId String
   fromStatus    AppointmentStatus?
   toStatus      AppointmentStatus
-  at            DateTime          @default(now())
+  at            DateTime           @default(now())
   byUserId      String?
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
@@ -930,6 +1054,9 @@ model Order {
   netTotal       Decimal     @default(0) @db.Decimal(12, 2)
   notes          String?
   date           DateTime    @default(now())
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId       String?
+  legacySource   String?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -944,6 +1071,7 @@ model Order {
   transactions  Transaction[]
 
   @@unique([companyId, number])
+  @@unique([companyId, legacyId])
   @@index([companyId])
   @@index([companyId, date])
 }
@@ -1046,22 +1174,26 @@ model PackageTemplateItem {
 }
 
 model CustomerPackage {
-  id         String        @id @default(cuid())
-  companyId  String
-  customerId String
-  templateId String?
-  number     Int
-  price      Decimal       @db.Decimal(12, 2)
-  status     PackageStatus @default(active)
-  expiresAt  DateTime?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  companyId    String
+  customerId   String
+  templateId   String?
+  number       Int
+  price        Decimal       @db.Decimal(12, 2)
+  status       PackageStatus @default(active)
+  expiresAt    DateTime?
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId     String?
+  legacySource String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer  Customer              @relation(fields: [customerId], references: [id])
-  template  PackageTemplate?      @relation(fields: [templateId], references: [id])
-  items     CustomerPackageItem[]
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer              @relation(fields: [customerId], references: [id])
+  template PackageTemplate?      @relation(fields: [templateId], references: [id])
+  items    CustomerPackageItem[]
 
+  @@unique([companyId, legacyId])
   @@index([companyId])
   @@index([customerId])
 }
@@ -1171,11 +1303,11 @@ model FinancialAccount {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  company                Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  transactions           Transaction[]
-  orderPayments          OrderPayment[]
-  purchases              Purchase[]
-  paymentMethodsDefault  PaymentMethod[] @relation("PaymentMethodDefaultAccount")
+  company               Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]
+  orderPayments         OrderPayment[]
+  purchases             Purchase[]
+  paymentMethodsDefault PaymentMethod[] @relation("PaymentMethodDefaultAccount")
 
   @@index([companyId])
 }
@@ -1202,15 +1334,15 @@ model PaymentMethod {
 }
 
 model FinancialCategory {
-  id                String                @id @default(cuid())
-  companyId         String
-  name              String
-  kind              FinancialCategoryKind
-  countsAsCommission Boolean              @default(false)
-  isExpense         Boolean               @default(false)
-  active            Boolean               @default(true)
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  id                 String                @id @default(cuid())
+  companyId          String
+  name               String
+  kind               FinancialCategoryKind
+  countsAsCommission Boolean               @default(false)
+  isExpense          Boolean               @default(false)
+  active             Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   transactions Transaction[]
@@ -1235,6 +1367,9 @@ model Transaction {
   recurrenceJson  Json?
   attachmentUrl   String?
   orderId         String?
+  // Legacy import reconciliation (Belasis). See Customer.legacyId.
+  legacyId        String?
+  legacySource    String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -1244,6 +1379,7 @@ model Transaction {
   paymentMethod PaymentMethod?     @relation(fields: [paymentMethodId], references: [id])
   order         Order?             @relation(fields: [orderId], references: [id])
 
+  @@unique([companyId, legacyId])
   @@index([companyId])
   @@index([companyId, dueDate])
 }
@@ -1363,15 +1499,15 @@ model CommissionClosing {
 // =====================================================================
 
 model FiscalSettings {
-  id                   String   @id @default(cuid())
-  companyId            String   @unique
+  id                    String   @id @default(cuid())
+  companyId             String   @unique
   municipalRegistration String?
-  cnae                 String?
-  serviceCode          String?
-  taxProfileJson       Json?
-  certificateRef       String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  cnae                  String?
+  serviceCode           String?
+  taxProfileJson        Json?
+  certificateRef        String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
@@ -1469,19 +1605,19 @@ model CampaignMessage {
 }
 
 model Promotion {
-  id            String       @id @default(cuid())
+  id            String              @id @default(cuid())
   companyId     String
   name          String
   scopeType     CommissionScopeType
   scopeId       String?
   discountType  DiscountType
-  discountValue Decimal      @db.Decimal(12, 2)
+  discountValue Decimal             @db.Decimal(12, 2)
   validFrom     DateTime?
   validTo       DateTime?
   usageLimit    Int?
-  appliesOnline Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  appliesOnline Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   coupons Coupon[]
@@ -1613,16 +1749,16 @@ model Document {
 }
 
 model DocumentTemplate {
-  id        String   @id @default(cuid())
-  companyId String
-  name      String
-  bodyHtml  String?
+  id         String   @id @default(cuid())
+  companyId  String
+  name       String
+  bodyHtml   String?
   fieldsJson Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  documents  Document[]
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  documents Document[]
 
   @@index([companyId])
 }
@@ -1642,15 +1778,15 @@ model Setting {
 }
 
 model Goal {
-  id        String   @id @default(cuid())
+  id        String              @id @default(cuid())
   companyId String
   period    String // ex: 2026-05
   scopeType CommissionScopeType
   scopeId   String?
-  target    Decimal  @db.Decimal(12, 2)
+  target    Decimal             @db.Decimal(12, 2)
   kind      GoalKind
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
