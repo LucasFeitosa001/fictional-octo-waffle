@@ -30,8 +30,15 @@ export class ProductsService {
       companyId,
       deletedAt: null,
       ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
+      // Busca por nome, código de barras ou código do item.
       ...(opts.search
-        ? { name: { contains: opts.search, mode: 'insensitive' } }
+        ? {
+            OR: [
+              { name: { contains: opts.search, mode: 'insensitive' } },
+              { barcode: { contains: opts.search, mode: 'insensitive' } },
+              { itemCode: { contains: opts.search, mode: 'insensitive' } },
+            ],
+          }
         : {}),
     };
 

@@ -382,6 +382,19 @@ interface Option {
   name: string;
 }
 
+// Campos adicionais do produto ainda não tipados no client compartilhado
+// (@beautypass/shared / lib/queries/catalogo). Vêm como Decimal string da API.
+type ProductExtraFields = {
+  employeePrice?: string | null;
+  additionalCost?: string | null;
+  unit?: string | null;
+  unitEquivalence?: string | null;
+  itemCode?: string | null;
+  barcode?: string | null;
+  observation?: string | null;
+  defaultCommissionPercent?: string | null;
+};
+
 function ProductModal({
   mode,
   product,
@@ -404,10 +417,18 @@ function ProductModal({
   const [categoryId, setCategoryId] = useState('');
   const [brandId, setBrandId] = useState('');
   const [salePrice, setSalePrice] = useState('');
+  const [employeePrice, setEmployeePrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
+  const [additionalCost, setAdditionalCost] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('');
+  const [unit, setUnit] = useState('');
+  const [unitEquivalence, setUnitEquivalence] = useState('');
+  const [itemCode, setItemCode] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [observation, setObservation] = useState('');
   const [cashbackPercent, setCashbackPercent] = useState('');
+  const [defaultCommissionPercent, setDefaultCommissionPercent] = useState('');
   const [active, setActive] = useState(true);
   const [favorite, setFavorite] = useState(false);
   const [tab, setTab] = useState('cadastro');
@@ -415,15 +436,30 @@ function ProductModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    const extra = (product ?? null) as (Product & ProductExtraFields) | null;
     setImageUrl(product?.imageUrl ?? null);
     setName(product?.name ?? '');
     setCategoryId(product?.categoryId ?? '');
     setBrandId(product?.brandId ?? '');
     setSalePrice(product ? String(product.salePrice) : '');
+    setEmployeePrice(extra?.employeePrice != null ? String(extra.employeePrice) : '');
     setCostPrice(product ? String(product.costPrice) : '');
+    setAdditionalCost(extra?.additionalCost != null ? String(extra.additionalCost) : '');
     setStock(product ? String(product.stock) : '');
     setMinStock(product ? String(product.minStock) : '');
+    setUnit(extra?.unit ?? '');
+    setUnitEquivalence(
+      extra?.unitEquivalence != null ? String(extra.unitEquivalence) : '',
+    );
+    setItemCode(extra?.itemCode ?? '');
+    setBarcode(extra?.barcode ?? '');
+    setObservation(extra?.observation ?? '');
     setCashbackPercent(product ? String(product.cashbackPercent) : '');
+    setDefaultCommissionPercent(
+      extra?.defaultCommissionPercent != null
+        ? String(extra.defaultCommissionPercent)
+        : '',
+    );
     setActive(product?.active ?? true);
     setFavorite(product?.favorite ?? false);
     setTab('cadastro');
@@ -442,9 +478,21 @@ function ProductModal({
       brandId: brandId || undefined,
       imageUrl,
       salePrice: Number(salePrice),
+      employeePrice: employeePrice !== '' ? Number(employeePrice) : undefined,
       costPrice: costPrice ? Number(costPrice) : undefined,
+      additionalCost: additionalCost !== '' ? Number(additionalCost) : undefined,
       minStock: minStock ? Number(minStock) : undefined,
+      unit: unit.trim() || undefined,
+      unitEquivalence:
+        unitEquivalence !== '' ? Number(unitEquivalence) : undefined,
+      itemCode: itemCode.trim() || undefined,
+      barcode: barcode.trim() || undefined,
+      observation: observation.trim() || undefined,
       cashbackPercent: cashbackPercent !== '' ? Number(cashbackPercent) : undefined,
+      defaultCommissionPercent:
+        defaultCommissionPercent !== ''
+          ? Number(defaultCommissionPercent)
+          : undefined,
       favorite,
     };
     try {
@@ -536,6 +584,27 @@ function ProductModal({
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Preço para profissional">
+                    <TextField
+                      value={employeePrice}
+                      onChange={setEmployeePrice}
+                      aria-label="Preço para profissional"
+                    >
+                      <Input type="number" placeholder="0,00" />
+                    </TextField>
+                  </Field>
+                  <Field label="Custo adicional">
+                    <TextField
+                      value={additionalCost}
+                      onChange={setAdditionalCost}
+                      aria-label="Custo adicional"
+                    >
+                      <Input type="number" placeholder="0,00" />
+                    </TextField>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Estoque">
                     <TextField value={stock} onChange={setStock} aria-label="Estoque">
                       <Input type="number" placeholder="0" />
@@ -544,6 +613,44 @@ function ProductModal({
                   <Field label="Estoque mínimo">
                     <TextField value={minStock} onChange={setMinStock} aria-label="Estoque mínimo">
                       <Input type="number" placeholder="0" />
+                    </TextField>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Unidade">
+                    <TextField value={unit} onChange={setUnit} aria-label="Unidade">
+                      <Input placeholder="un, ml, g…" />
+                    </TextField>
+                  </Field>
+                  <Field label="1 unidade equivale a">
+                    <TextField
+                      value={unitEquivalence}
+                      onChange={setUnitEquivalence}
+                      aria-label="1 unidade equivale a"
+                    >
+                      <Input type="number" placeholder="0" />
+                    </TextField>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Código do item">
+                    <TextField
+                      value={itemCode}
+                      onChange={setItemCode}
+                      aria-label="Código do item"
+                    >
+                      <Input placeholder="Código interno" />
+                    </TextField>
+                  </Field>
+                  <Field label="Código de barras">
+                    <TextField
+                      value={barcode}
+                      onChange={setBarcode}
+                      aria-label="Código de barras"
+                    >
+                      <Input placeholder="EAN / GTIN" />
                     </TextField>
                   </Field>
                 </div>
@@ -567,6 +674,35 @@ function ProductModal({
                   <span className="text-xs text-muted">
                     Percentual de cashback concedido ao cliente nas compras deste produto.
                   </span>
+                </Field>
+
+                <Field label="Comissão padrão (%)">
+                  <TextField
+                    value={defaultCommissionPercent}
+                    onChange={setDefaultCommissionPercent}
+                    aria-label="Comissão padrão"
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      placeholder="0"
+                    />
+                  </TextField>
+                  <span className="text-xs text-muted">
+                    Percentual de comissão aplicado ao profissional na venda deste produto.
+                  </span>
+                </Field>
+
+                <Field label="Observações">
+                  <TextField
+                    value={observation}
+                    onChange={setObservation}
+                    aria-label="Observações"
+                  >
+                    <Input placeholder="Anotações internas sobre o produto" />
+                  </TextField>
                 </Field>
 
                 <div className="flex flex-col gap-3 rounded-md border border-[var(--color-soft-border)] bg-[#fffdf8] p-3">

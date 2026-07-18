@@ -34,6 +34,7 @@ class MovementDto {
   // 'sangria' | 'suprimento' | 'payment' — tag da movimentação (usa campo refType existente).
   @IsOptional() @IsString() refType?: string;
   @IsOptional() @IsString() refId?: string;
+  @IsOptional() @IsString() description?: string;
 }
 
 const USER_SELECT = {
@@ -177,11 +178,12 @@ export class CashRegistersService {
         paymentMethodId: dto.paymentMethodId,
         refType: dto.refType,
         refId: dto.refId,
+        description: dto.description,
       },
     });
   }
 
-  async close(companyId: string, id: string, dto: CloseCashDto) {
+  async close(companyId: string, id: string, dto: CloseCashDto, userId?: string) {
     const reg = await this.prisma.client.cashRegister.findFirst({
       where: { id, companyId },
       include: { movements: true },
@@ -198,6 +200,10 @@ export class CashRegistersService {
       data: {
         status: 'closed',
         countedBalance: dto.countedBalance,
+        // Conferência persistida: saldo esperado, divergência e quem fechou.
+        expectedBalance,
+        divergence,
+        ...(userId ? { closedByUserId: userId } : {}),
         closedAt: new Date(),
       },
     });
@@ -283,10 +289,11 @@ export class CashRegistersController {
   @Post(':id/close')
   close(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: CloseCashDto,
   ) {
-    return this.service.close(companyId, id, dto);
+    return this.service.close(companyId, id, dto, userId);
   }
 }
 

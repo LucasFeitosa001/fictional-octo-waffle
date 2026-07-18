@@ -68,9 +68,10 @@ export class FinancialController {
   @Post('transactions/:id/reverse')
   reverseTransaction(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
   ) {
-    return this.service.reverseTransaction(companyId, id);
+    return this.service.reverseTransaction(companyId, id, userId);
   }
 
   @Patch('transactions/:id')

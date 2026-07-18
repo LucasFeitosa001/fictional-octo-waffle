@@ -15,10 +15,18 @@ export class CreateProductDto {
   @IsOptional() @IsString() brandId?: string;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() imageUrl?: string | null;
   @IsNumber() @Min(0) salePrice: number;
+  @IsOptional() @IsNumber() @Min(0) employeePrice?: number;
   @IsOptional() @IsNumber() @Min(0) costPrice?: number;
+  @IsOptional() @IsNumber() @Min(0) additionalCost?: number;
   @IsOptional() @IsNumber() @Min(0) stock?: number;
   @IsOptional() @IsNumber() @Min(0) minStock?: number;
+  @IsOptional() @IsString() unit?: string;
+  @IsOptional() @IsNumber() @Min(0) unitEquivalence?: number;
+  @IsOptional() @IsString() itemCode?: string;
+  @IsOptional() @IsString() barcode?: string;
+  @IsOptional() @IsString() observation?: string;
   @IsOptional() @IsNumber() @Min(0) cashbackPercent?: number;
+  @IsOptional() @IsNumber() @Min(0) defaultCommissionPercent?: number;
   @IsOptional() @IsBoolean() favorite?: boolean;
 }
 
@@ -28,10 +36,18 @@ export class UpdateProductDto {
   @IsOptional() @IsString() brandId?: string;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() imageUrl?: string | null;
   @IsOptional() @IsNumber() @Min(0) salePrice?: number;
+  @IsOptional() @IsNumber() @Min(0) employeePrice?: number;
   @IsOptional() @IsNumber() @Min(0) costPrice?: number;
+  @IsOptional() @IsNumber() @Min(0) additionalCost?: number;
   @IsOptional() @IsNumber() @Min(0) stock?: number;
   @IsOptional() @IsNumber() @Min(0) minStock?: number;
+  @IsOptional() @IsString() unit?: string;
+  @IsOptional() @IsNumber() @Min(0) unitEquivalence?: number;
+  @IsOptional() @IsString() itemCode?: string;
+  @IsOptional() @IsString() barcode?: string;
+  @IsOptional() @IsString() observation?: string;
   @IsOptional() @IsNumber() @Min(0) cashbackPercent?: number;
+  @IsOptional() @IsNumber() @Min(0) defaultCommissionPercent?: number;
   @IsOptional() @IsBoolean() favorite?: boolean;
   @IsOptional() @IsBoolean() active?: boolean;
 }

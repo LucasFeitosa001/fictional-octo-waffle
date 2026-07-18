@@ -374,7 +374,7 @@ export class FinancialService {
    * referenciando a original, preservando o histórico e neutralizando o efeito
    * no caixa.
    */
-  async reverseTransaction(companyId: string, id: string) {
+  async reverseTransaction(companyId: string, id: string, userId?: string) {
     const original = await this.findTransaction(companyId, id);
     if (original.status === 'reversed') {
       throw new BadRequestException('Transação já estornada');
@@ -382,11 +382,18 @@ export class FinancialService {
     const counterKind = original.kind === 'income' ? 'expense' : 'income';
     const label =
       original.description?.trim() || `lançamento ${original.id.slice(0, 8)}`;
+    const now = new Date();
     const [reversed, counter] = await this.prisma.client.$transaction([
+      // Marca a original como estornada e registra quando/por quem.
       this.prisma.client.transaction.update({
         where: { id },
-        data: { status: 'reversed' },
+        data: {
+          status: 'reversed',
+          reversedAt: now,
+          ...(userId ? { reversedByUserId: userId } : {}),
+        },
       }),
+      // Contrapartida referenciando a original via reversalOfId.
       this.prisma.client.transaction.create({
         data: {
           companyId,
@@ -398,9 +405,10 @@ export class FinancialService {
           partyType: original.partyType,
           partyId: original.partyId,
           orderId: original.orderId,
+          reversalOfId: original.id,
           description: `Estorno: ${label}`,
-          dueDate: new Date(),
-          paidAt: new Date(),
+          dueDate: now,
+          paidAt: now,
           status: 'reversed',
         },
       }),

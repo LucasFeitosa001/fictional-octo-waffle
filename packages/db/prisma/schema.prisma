@@ -297,18 +297,20 @@ model User {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  company            Company?                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sessions           Session[]
-  accounts           Account[]
-  userCompanies      UserCompany[]
-  professional       Professional?
-  customerProfiles   Customer[]
-  customerNotes      CustomerNote[]
-  appointmentHistory AppointmentStatusHistory[]
-  orderHistory       OrderStatusHistory[]
-  cashRegisters      CashRegister[]
-  auditLogs          AuditLog[]
-  notifications      Notification[]
+  company              Company?                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions             Session[]
+  accounts             Account[]
+  userCompanies        UserCompany[]
+  professional         Professional?
+  customerProfiles     Customer[]
+  customerNotes        CustomerNote[]
+  appointmentHistory   AppointmentStatusHistory[]
+  orderHistory         OrderStatusHistory[]
+  cashRegisters        CashRegister[]             @relation("CashRegisterResponsible")
+  closedCashRegisters  CashRegister[]             @relation("CashRegisterCloser")
+  reversedTransactions Transaction[]              @relation("TransactionReversedBy")
+  auditLogs            AuditLog[]
+  notifications        Notification[]
 
   @@index([companyId])
 }
@@ -851,27 +853,41 @@ model Brand {
 }
 
 model Product {
-  id              String    @id @default(cuid())
-  companyId       String
-  categoryId      String?
-  brandId         String?
-  name            String
-  imageUrl        String?
-  salePrice       Decimal   @db.Decimal(12, 2)
-  costPrice       Decimal   @default(0) @db.Decimal(12, 2)
-  stock           Decimal   @default(0) @db.Decimal(12, 3)
-  minStock        Decimal   @default(0) @db.Decimal(12, 3)
-  cashbackPercent Decimal   @default(0) @db.Decimal(5, 2)
-  favorite        Boolean   @default(false)
-  active          Boolean   @default(true)
+  id                       String    @id @default(cuid())
+  companyId                String
+  categoryId               String?
+  brandId                  String?
+  name                     String
+  imageUrl                 String?
+  salePrice                Decimal   @db.Decimal(12, 2)
+  // Preço especial cobrado de profissionais/funcionários (Belasis "preço para profissional").
+  employeePrice            Decimal?  @db.Decimal(12, 2)
+  costPrice                Decimal   @default(0) @db.Decimal(12, 2)
+  // Custo adicional (frete, impostos) somado ao custo do produto.
+  additionalCost           Decimal   @default(0) @db.Decimal(12, 2)
+  stock                    Decimal   @default(0) @db.Decimal(12, 3)
+  minStock                 Decimal   @default(0) @db.Decimal(12, 3)
+  // Unidade de medida (ex.: "un", "ml", "g") e quantas unidades-base equivalem a 1 unidade de venda.
+  unit                     String?
+  unitEquivalence          Decimal?  @db.Decimal(12, 3)
+  // Códigos de identificação: código interno do item e código de barras (EAN/GTIN).
+  itemCode                 String?
+  barcode                  String?
+  // Observações livres sobre o produto.
+  observation              String?
+  cashbackPercent          Decimal   @default(0) @db.Decimal(5, 2)
+  // Comissão padrão (%) aplicada quando o produto é vendido.
+  defaultCommissionPercent Decimal   @default(0) @db.Decimal(5, 2)
+  favorite                 Boolean   @default(false)
+  active                   Boolean   @default(true)
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
-  legacyId        String?
-  legacySource    String?
+  legacyId                 String?
+  legacySource             String?
   // Soft-delete marker (see Customer.deletedAt). Hidden everywhere when set;
   // `active` remains an independent enable/disable toggle.
-  deletedAt       DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  deletedAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   category           ProductCategory?    @relation(fields: [categoryId], references: [id])
@@ -1351,33 +1367,42 @@ model FinancialCategory {
 }
 
 model Transaction {
-  id              String          @id @default(cuid())
-  companyId       String
-  kind            TransactionKind
-  accountId       String?
-  categoryId      String?
-  paymentMethodId String?
-  partyType       PartyType?
-  partyId         String?
-  description     String?
-  grossAmount     Decimal         @db.Decimal(12, 2)
-  dueDate         DateTime?
-  paidAt          DateTime?
-  status          PaymentStatus   @default(pending)
-  recurrenceJson  Json?
-  attachmentUrl   String?
-  orderId         String?
+  id               String          @id @default(cuid())
+  companyId        String
+  kind             TransactionKind
+  accountId        String?
+  categoryId       String?
+  paymentMethodId  String?
+  partyType        PartyType?
+  partyId          String?
+  description      String?
+  grossAmount      Decimal         @db.Decimal(12, 2)
+  dueDate          DateTime?
+  paidAt           DateTime?
+  status           PaymentStatus   @default(pending)
+  recurrenceJson   Json?
+  attachmentUrl    String?
+  orderId          String?
+  // Estorno sem exclusão: quando esta transação é a contrapartida de estorno,
+  // `reversalOfId` aponta para a transação original. `reversedAt`/`reversedByUserId`
+  // registram quando e por quem a transação original foi estornada.
+  reversalOfId     String?
+  reversedAt       DateTime?
+  reversedByUserId String?
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
-  legacyId        String?
-  legacySource    String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  legacyId         String?
+  legacySource     String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
-  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  account       FinancialAccount?  @relation(fields: [accountId], references: [id])
-  category      FinancialCategory? @relation(fields: [categoryId], references: [id])
-  paymentMethod PaymentMethod?     @relation(fields: [paymentMethodId], references: [id])
-  order         Order?             @relation(fields: [orderId], references: [id])
+  company        Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account        FinancialAccount?  @relation(fields: [accountId], references: [id])
+  category       FinancialCategory? @relation(fields: [categoryId], references: [id])
+  paymentMethod  PaymentMethod?     @relation(fields: [paymentMethodId], references: [id])
+  order          Order?             @relation(fields: [orderId], references: [id])
+  reversalOf     Transaction?       @relation("TransactionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversals      Transaction[]      @relation("TransactionReversal")
+  reversedByUser User?              @relation("TransactionReversedBy", fields: [reversedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, legacyId])
   @@index([companyId])
@@ -1391,6 +1416,11 @@ model CashRegister {
   responsibleUserId String?
   openingBalance    Decimal            @default(0) @db.Decimal(12, 2)
   countedBalance    Decimal?           @db.Decimal(12, 2)
+  // Conferência de fechamento: saldo esperado (calculado dos movimentos) e a
+  // divergência (conferido − esperado). `closedByUserId` = quem fechou o caixa.
+  expectedBalance   Decimal?           @db.Decimal(12, 2)
+  divergence        Decimal?           @db.Decimal(12, 2)
+  closedByUserId    String?
   openedAt          DateTime           @default(now())
   closedAt          DateTime?
   status            CashRegisterStatus @default(open)
@@ -1398,7 +1428,8 @@ model CashRegister {
   updatedAt         DateTime           @updatedAt
 
   company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  responsibleUser User?          @relation(fields: [responsibleUserId], references: [id])
+  responsibleUser User?          @relation("CashRegisterResponsible", fields: [responsibleUserId], references: [id])
+  closedByUser    User?          @relation("CashRegisterCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
   movements       CashMovement[]
 
   @@unique([companyId, number])
@@ -1413,6 +1444,8 @@ model CashMovement {
   amount          Decimal          @db.Decimal(12, 2)
   refType         String?
   refId           String?
+  // Descrição livre da movimentação (motivo da sangria/suprimento, etc.).
+  description     String?
   at              DateTime         @default(now())
 
   cashRegister  CashRegister   @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
