@@ -75,6 +75,7 @@ export type PageAction = {
   label: string;
   icon: ReactNode;
   onClick: () => void;
+  disabled?: boolean;
 };
 
 type PageActionsContextValue = {

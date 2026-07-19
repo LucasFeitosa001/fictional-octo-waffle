@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Card } from '@heroui/react';
+import { Button, Card } from '@heroui/react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bar,
   BarChart,
@@ -15,20 +16,33 @@ import {
   YAxis,
 } from 'recharts';
 import { PageHeader } from '../components/PageHeader';
-import { DateRangeFilter } from '../components/DateRangeFilter';
+import { DateFieldBR, DateRangeFilter } from '../components/DateRangeFilter';
+import { Drawer } from '../components/Drawer';
+import { useSetPageActions } from '../layout/PageActions';
 import { EmptyState, LoadingState } from '../components/States';
 import {
   IconCalendar,
   IconChart,
   IconClock,
   IconDollar,
+  IconFilter,
   IconReceipt,
+  IconRefresh,
   IconTrendUp,
   IconUsers,
 } from '../components/icons';
 import { useDashboard } from '../lib/queries/dashboard';
 import type { Dashboard } from '../lib/queries/dashboard';
 import { formatMoney, formatNumber, isoDate } from '../lib/format';
+import { useSession } from '../lib/auth';
+
+/** "2026-07-05" → "05 jul, 2026" (mesmo formato de período do topo do painel). */
+const MESES_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function periodoLabel(iso: string): string {
+  const [y, m, d] = (iso || '').split('-');
+  if (!y || !m || !d) return iso;
+  return `${d} ${MESES_ABBR[Number(m) - 1] ?? m}, ${y}`;
+}
 
 const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
 const PIE_COLORS = ['#f2b33d', '#f08ca5', '#111111', '#f0ce84', '#d99a7c', '#b8893f', '#8a6d3b', '#c25d77'];
@@ -446,24 +460,71 @@ function MapaCalor({ data }: { data: Dashboard['mapaCalor'] }) {
 // ---------------------------------------------------------------------------
 
 export function PainelPage() {
+  const navigateTo = useNavigate();
   const [range, setRange] = useState(defaultRange);
+  const [mobileRange, setMobileRange] = useState(range);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const dashboard = useDashboard(range.from, range.to);
   const d = dashboard.data;
 
+  const { data: session } = useSession();
+  const firstName =
+    (session?.user?.name ?? '').trim().split(/\s+/)[0] || 'Administrador';
+
+  useSetPageActions(
+    [
+      {
+        key: 'agenda',
+        label: 'Agenda',
+        icon: <IconCalendar size={22} />,
+        onClick: () => navigateTo('/agenda'),
+      },
+      {
+        key: 'atualizar',
+        label: 'Atualizar',
+        icon: <IconRefresh size={22} className={dashboard.isFetching ? 'animate-spin' : ''} />,
+        onClick: () => { void dashboard.refetch(); },
+        disabled: dashboard.isFetching,
+      },
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => {
+          setMobileRange(range);
+          setMobileFiltersOpen(true);
+        },
+      },
+    ],
+    [navigateTo, dashboard.refetch, dashboard.isFetching, range],
+  );
+
   return (
     <div>
-      <PageHeader
-        title="Painel"
-        subtitle="Resumo do seu salão"
-      />
+      <PageHeader title={`Olá, ${firstName}`} subtitle="Resumo do seu salão" />
 
-      {/* Period filter */}
-      <div className="mb-5">
-        <DateRangeFilter
-          from={range.from}
-          to={range.to}
-          onChange={setRange}
+      {/* Período filtrado — mostra o intervalo atual (ex.: 05 jul, 2026 → 19 jul, 2026). */}
+      <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-[var(--color-soft-border)] bg-[#fffdf8] px-4 py-2.5 text-center text-sm font-medium text-foreground shadow-[var(--shadow-card)]">
+        <IconCalendar size={16} className="shrink-0 text-[#a67c1e]" />
+        <span>
+          {periodoLabel(range.from)}
+          <span className="mx-1.5 text-muted">→</span>
+          {periodoLabel(range.to)}
+        </span>
+      </div>
+
+      {/* Period filter (dd/mm/aaaa) */}
+      <div className="mb-5 hidden items-end gap-3 lg:flex">
+        <DateFieldBR
+          label="De"
+          value={range.from}
+          onChange={(from) => setRange((r) => ({ ...r, from }))}
+        />
+        <DateFieldBR
+          label="Até"
+          value={range.to}
+          onChange={(to) => setRange((r) => ({ ...r, to }))}
         />
       </div>
 
@@ -553,6 +614,34 @@ export function PainelPage() {
           </div>
         </div>
       )}
+
+      <Drawer
+        isOpen={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
+        title="Filtros do painel"
+        placement="bottom"
+        footer={(
+          <Button
+            variant="primary"
+            onClick={() => {
+              setRange(mobileRange);
+              setMobileFiltersOpen(false);
+            }}
+          >
+            Aplicar filtros
+          </Button>
+        )}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">Escolha o período dos indicadores.</p>
+          <DateRangeFilter
+            from={mobileRange.from}
+            to={mobileRange.to}
+            onChange={setMobileRange}
+            className="flex-col items-stretch [&>label]:!w-full"
+          />
+        </div>
+      </Drawer>
     </div>
   );
 }
