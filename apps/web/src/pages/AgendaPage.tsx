@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Input, Label, ListBox, Modal, Select, TextField } from '@heroui/react';
+import { Button, Input, Label, ListBox, Select, TextField } from '@heroui/react';
 import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
@@ -140,6 +140,7 @@ export function AgendaPage() {
   // drawers (same controls as the header dropdowns).
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [mobileViewOpen, setMobileViewOpen] = useState(false);
   const [dateDrawerOpen, setDateDrawerOpen] = useState(false);
   const [datePickerMonth, setDatePickerMonth] = useState(() => startOfMonth(new Date()));
   const [draftDate, setDraftDate] = useState(() => new Date());
@@ -613,6 +614,25 @@ export function AgendaPage() {
     </DropdownButton>
   );
 
+  const renderViewPanel = (close: () => void) => (
+    <div className="py-1">
+      {(['day', 'week', 'month'] as View[]).map((interval) => (
+        <button
+          key={interval}
+          type="button"
+          onClick={() => { setView(interval); close(); }}
+          className={[
+            'flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm hover:bg-[#f7f3ea]',
+            view === interval ? 'bg-[#f2b33d]/10 font-semibold text-[#8a6517]' : 'text-foreground',
+          ].join(' ')}
+        >
+          <span>{interval === 'day' ? 'Diário' : interval === 'week' ? 'Semanal' : 'Mensal'}</span>
+          {view === interval && <span aria-hidden>✓</span>}
+        </button>
+      ))}
+    </div>
+  );
+
   const viewBtn = (
     <DropdownButton
       label="Visualização"
@@ -621,20 +641,8 @@ export function AgendaPage() {
       buttonVariant="outline"
     >
       {(close) => (
-        <div className="w-44 py-1">
-          {(['day', 'week', 'month'] as View[]).map((interval) => (
-            <button
-              key={interval}
-              type="button"
-              onClick={() => { setView(interval); close(); }}
-              className={[
-                'flex w-full items-center px-3 py-2.5 text-left text-sm hover:bg-[#f7f3ea]',
-                view === interval ? 'font-semibold text-[#8a6517]' : 'text-foreground',
-              ].join(' ')}
-            >
-              {interval === 'day' ? 'Diário' : interval === 'week' ? 'Semanal' : 'Mensal'}
-            </button>
-          ))}
+        <div className="w-44 p-1">
+          {renderViewPanel(close)}
         </div>
       )}
     </DropdownButton>
@@ -700,17 +708,11 @@ export function AgendaPage() {
               <IconChevron size={17} className="-rotate-90" />
             </button>
           </div>
+          {/* Mobile: apenas alternância de visualização (Dia/Semana/Mês). Filtros,
+              Ações e Criar ficam na navbar inferior contextual. */}
           <div className="flex items-center gap-2 overflow-x-auto border-t border-[#dddddd]/40 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {viewBtn}
-            {filterBtn}
-            {actionsBtn}
-            <button type="button" aria-label="Configurações da agenda"
-              onClick={() => flash('Configurações da agenda disponíveis em Configurações.')}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76]">
-              <IconSettings size={15} />
-            </button>
-            <Button variant="primary" size="sm" className="shrink-0" onClick={() => openNew()}>
-              <IconCalendarPlus size={14} /> Novo
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setMobileViewOpen(true)}>
+              <IconView size={14} /> Visualização
             </Button>
           </div>
         </div>
@@ -968,33 +970,44 @@ export function AgendaPage() {
 
       {/* Mobile: the contextual bottom-nav opens Filtros / Ações as bottom-sheet
           drawers reusing the same controls (and shared state) as the header. */}
-      <Drawer isOpen={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} title="Filtrar">
+      <Drawer isOpen={mobileViewOpen} onClose={() => setMobileViewOpen(false)} title="Visualização" placement="bottom">
+        {renderViewPanel(() => setMobileViewOpen(false))}
+      </Drawer>
+      <Drawer isOpen={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} title="Filtrar" placement="bottom">
         {renderFilterPanel(() => setMobileFilterOpen(false))}
       </Drawer>
-      <Drawer isOpen={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} title="Ações">
+      <Drawer isOpen={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} title="Ações" placement="bottom">
         {renderActionsPanel(() => setMobileActionsOpen(false))}
       </Drawer>
 
-      {peekDay && (
-        <DayPeek
-          day={peekDay}
-          appts={apptsByDay.get(isoDate(peekDay)) ?? []}
-          serviceById={serviceById}
-          onClose={() => setPeekDay(null)}
-          onPickAppt={(a) => { setPeekDay(null); openDetail(a); }}
-        />
-      )}
+      <DayPeek
+        day={peekDay}
+        appts={peekDay ? (apptsByDay.get(isoDate(peekDay)) ?? []) : []}
+        serviceById={serviceById}
+        onClose={() => setPeekDay(null)}
+        onPickAppt={(a) => { setPeekDay(null); openDetail(a); }}
+      />
 
-      {/* Detail modal */}
-      <Modal isOpen={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setShowSuggest(false); setShowCancel(false); setShowReschedule(false); } }}>
-        <Modal.Backdrop>
-          <Modal.Container size="md" placement="center">
-            <Modal.Dialog>
-              <Modal.Header>
-                <Modal.Heading>Agendamento</Modal.Heading>
-              </Modal.Header>
+      <Drawer
+        isOpen={!!selected}
+        onClose={() => { setSelected(null); setShowSuggest(false); setShowCancel(false); setShowReschedule(false); }}
+        title="Agendamento"
+        widthClass="sm:w-[520px]"
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>
+            {selected && !['canceled', 'unconfirmed', 'scheduled'].includes(selected.status) && (
+              <Button variant="outline" className="border-danger/30 text-danger"
+                isDisabled={statusMutation.isPending}
+                onClick={() => { setShowCancel(true); setShowSuggest(false); }}>
+                Cancelar agendamento
+              </Button>
+            )}
+          </>
+        )}
+      >
               {selected && (
-                <Modal.Body className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
                     <span className="h-10 w-1.5 shrink-0 rounded-full"
                       style={{ backgroundColor: colorForAppointment(selected).bar }} />
@@ -1134,22 +1147,9 @@ export function AgendaPage() {
                       )}
                     </div>
                   )}
-                </Modal.Body>
+                </div>
               )}
-              <Modal.Footer>
-                <Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>
-                {selected && !['canceled', 'unconfirmed', 'scheduled'].includes(selected.status) && (
-                  <Button variant="outline" className="border-danger/30 text-danger"
-                    isDisabled={statusMutation.isPending}
-                    onClick={() => { setShowCancel(true); setShowSuggest(false); }}>
-                    Cancelar agendamento
-                  </Button>
-                )}
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+      </Drawer>
     </div>
   );
 }
@@ -1332,33 +1332,20 @@ function DayPeek({
   onClose,
   onPickAppt,
 }: {
-  day: Date;
+  day: Date | null;
   appts: AppointmentRow[];
   serviceById: Map<string, string>;
   onClose: () => void;
   onPickAppt: (a: AppointmentRow) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" onClick={onClose}>
-      <div
-        role="dialog"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xs overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-pop)]"
-      >
-        <div className="flex items-center justify-between border-b border-black/[0.06] px-4 py-3">
-          <span className="text-sm font-semibold capitalize text-foreground">{peekFmt.format(day)}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            className="grid h-7 w-7 place-items-center rounded-full text-[#6B6F76] hover:bg-[#f7f3ea]"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
-        <div className="max-h-[60vh] overflow-auto p-2">
+    <Drawer
+      isOpen={!!day}
+      onClose={onClose}
+      title={day ? peekFmt.format(day) : 'Agendamentos do dia'}
+      widthClass="sm:w-[420px]"
+    >
+        <div className="flex flex-col gap-1">
           {appts.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted">Nenhum agendamento.</p>
           ) : (
@@ -1383,7 +1370,6 @@ function DayPeek({
             })
           )}
         </div>
-      </div>
-    </div>
+    </Drawer>
   );
 }

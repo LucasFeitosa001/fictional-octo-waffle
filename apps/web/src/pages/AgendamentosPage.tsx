@@ -5,13 +5,13 @@ import {
   Input,
   Label,
   ListBox,
-  Modal,
   Select,
   TextField,
 } from '@heroui/react';
 import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import { PageHeader } from '../components/PageHeader';
 import { AppointmentStatusChip } from '../components/StatusChip';
+import { Drawer } from '../components/Drawer';
 import { useAppointments, useSetAppointmentStatus } from '../lib/queries';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
@@ -255,25 +255,19 @@ export function AgendamentosPage() {
         </div>
       )}
 
-      {/* Detail modal */}
-      <Modal
+      <Drawer
         isOpen={!!selected}
-        onOpenChange={(o) => {
-          if (!o) {
-            setSelected(null);
-            setShowSuggest(false);
-            setShowCancel(false);
-          }
+        onClose={() => {
+          setSelected(null);
+          setShowSuggest(false);
+          setShowCancel(false);
         }}
+        title="Detalhes do agendamento"
+        widthClass="sm:w-[520px]"
+        footer={<Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>}
       >
-        <Modal.Backdrop>
-          <Modal.Container size="md" placement="center">
-            <Modal.Dialog>
-              <Modal.Header>
-                <Modal.Heading>Detalhes do agendamento</Modal.Heading>
-              </Modal.Header>
               {selected && (
-                <Modal.Body className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4">
                   {/* Cliente + horario */}
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
@@ -383,17 +377,9 @@ export function AgendamentosPage() {
                       )}
                     </div>
                   )}
-                </Modal.Body>
+                </div>
               )}
-              <Modal.Footer>
-                <Button variant="outline" onClick={() => setSelected(null)}>
-                  Fechar
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+      </Drawer>
     </div>
   );
 }

@@ -80,38 +80,6 @@ export function Topbar() {
   }
 
   return (
-    <>
-      <header className="mobile-topbar z-30 flex shrink-0 items-center justify-between border-b border-[var(--color-soft-border)] bg-[#fffdf8]/92 px-4 backdrop-blur-xl lg:hidden">
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          aria-label="Ir para o início"
-          className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl pr-2 text-left active:bg-black/[0.04]"
-        >
-          <img
-            src="/brand/salonpass-wordmark.svg"
-            alt="Salonpass"
-            className="h-6 w-auto max-w-[132px] object-contain"
-          />
-        </button>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <NotificationBell variant="ringed" />
-          <button
-            type="button"
-            onClick={() => navigate('/perfil')}
-            aria-label="Abrir meu perfil"
-            className="grid h-11 w-11 place-items-center rounded-full active:bg-black/[0.04]"
-          >
-            <Avatar size="sm">
-              {image && <Avatar.Image src={image} alt={name} />}
-              <Avatar.Fallback className="bg-[#111111] text-[#f2b33d]">
-                {initials(name)}
-              </Avatar.Fallback>
-            </Avatar>
-          </button>
-        </div>
-      </header>
-
       <header className="sticky top-0 z-30 hidden h-[72px] items-center justify-between gap-4 border-b border-[var(--color-soft-border)] bg-[#fffdf8]/80 px-6 backdrop-blur-xl lg:flex">
       {/* Full-left: section title + description + pink sparkles */}
       <div className="flex min-w-0 items-center gap-3">
@@ -214,6 +182,5 @@ export function Topbar() {
         </div>
       </div>
       </header>
-    </>
   );
 }

@@ -117,26 +117,19 @@ h1, h2, h3, h4, h5, h6,
   border-color: #e5484d !important;
 }
 
-/* Mobile: modals become full-screen drawers that SLIDE up from the bottom — no
-   fade, no zoom. The slide is a keyframe that plays when the dialog mounts (this
-   is reliable; react-aria's data-entering flips off too fast for a transition to
-   catch). On close, data-exiting stays set for the whole exit, so the slide-down
-   keyframe plays in full while the backdrop is held mounted to match. */
+/* Mobile: form/detail modals behave like full-screen right drawers. The motion
+   lives on the container because react-aria keeps that element mounted through
+   `data-exiting`, allowing the complete horizontal exit animation to play. */
 @media (max-width: 639px) {
-  /* The slide lives on the CONTAINER — that's the element react-aria watches to
-     decide how long to keep the modal mounted on close. Animating the inner
-     dialog instead made react-aria unmount instantly (the instant-exit bug). */
   .modal__container {
-    align-items: flex-end !important;
+    align-items: stretch !important;
     justify-content: flex-end !important;
     padding: 0 !important;
     will-change: transform;
-    /* Enter: longer + decelerate (iOS/Vaul curve). */
-    animation: sp-drawer-up 360ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+    animation: sp-drawer-right-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
   }
   .modal__container[data-exiting="true"] {
-    /* Exit: shorter, same curve — native sheets leave faster than they enter. */
-    animation: sp-drawer-down 260ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+    animation: sp-drawer-right-out 300ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
   }
 
   .modal__dialog {
@@ -155,10 +148,10 @@ h1, h2, h3, h4, h5, h6,
      dim tracks the motion. */
   .modal__backdrop,
   .modal__backdrop[data-entering="true"] {
-    animation: sp-scrim-in 360ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+    animation: sp-scrim-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
   }
   .modal__backdrop[data-exiting="true"] {
-    animation: sp-scrim-out 260ms cubic-bezier(0.32, 0.72, 0, 1) both !important;
+    animation: sp-scrim-out 300ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
   }
 
   .modal__body {
@@ -167,13 +160,13 @@ h1, h2, h3, h4, h5, h6,
   }
 }
 
-@keyframes sp-drawer-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+@keyframes sp-drawer-right-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
-@keyframes sp-drawer-down {
-  from { transform: translateY(0); }
-  to { transform: translateY(100%); }
+@keyframes sp-drawer-right-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
 }
 @keyframes sp-scrim-in {
   from { background-color: rgba(0, 0, 0, 0); }

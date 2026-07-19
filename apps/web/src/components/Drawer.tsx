@@ -11,15 +11,17 @@ interface DrawerProps {
   footer?: ReactNode;
   /** Desktop width override, e.g. "sm:w-[520px]". Defaults to ~440px. */
   widthClass?: string;
+  /** Direction/layout of the panel. Content drawers use right; navbar actions use bottom. */
+  placement?: 'right' | 'bottom';
 }
 
-// Keep the panel mounted long enough for the exit slide to finish.
-const EXIT_MS = 300;
+// Keep the panel mounted long enough for the horizontal exit slide to finish.
+const EXIT_MS = 380;
 
 /**
  * Reusable side drawer, mobile-first.
  *
- * - Mobile (<sm): a bottom-sheet that slides up, rounded top, capped at 92vh.
+ * - Mobile (<sm): covers the viewport and slides in from the right.
  * - Desktop (sm+): slides in from the right, full height, ~440px wide.
  *
  * Rendered in a portal at `z-[70]` so it sits above modals and the bottom nav.
@@ -33,6 +35,7 @@ export function Drawer({
   children,
   footer,
   widthClass = 'sm:w-[440px]',
+  placement = 'right',
 }: DrawerProps) {
   // `mounted` keeps the drawer in the DOM through the exit animation; `show`
   // drives the slide / fade transition.
@@ -87,7 +90,7 @@ export function Drawer({
         aria-hidden
         onClick={onClose}
         className={[
-          'absolute inset-0 bg-black/40 transition-opacity duration-300 ease-out',
+          'absolute inset-0 bg-black/40 backdrop-blur-[1px] transition-opacity duration-[380ms] ease-out',
           show ? 'opacity-100' : 'opacity-0',
         ].join(' ')}
       />
@@ -100,20 +103,18 @@ export function Drawer({
         aria-label={title}
         tabIndex={-1}
         className={[
-          'absolute flex flex-col bg-[#fffdf8] shadow-[var(--shadow-pop)] outline-none',
-          'transition-transform duration-300 ease-out will-change-transform',
-          // Mobile: bottom sheet.
-          'inset-x-0 bottom-0 max-h-[92vh] rounded-t-2xl',
-          // Desktop: right-anchored, full-height panel.
-          'sm:inset-x-auto sm:right-0 sm:top-0 sm:bottom-0 sm:h-full sm:max-h-none sm:rounded-none sm:border-l sm:border-[var(--color-soft-border)]',
-          widthClass,
-          show
-            ? 'translate-y-0 sm:translate-x-0'
-            : 'translate-y-full sm:translate-y-0 sm:translate-x-full',
+          'absolute flex w-full flex-col border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-pop)] outline-none',
+          'transform-gpu transition-transform duration-[380ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] will-change-transform',
+          placement === 'right'
+            ? `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`
+            : `inset-x-0 bottom-0 max-h-[92dvh] rounded-t-3xl border-t ${show ? 'translate-y-0' : 'translate-y-full'}`,
         ].join(' ')}
       >
         {/* Header (sticky) */}
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-soft-border)] bg-[#fffdf8] px-4 py-3.5">
+        <div className={[
+          'sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-soft-border)] bg-[#fffdf8] px-4 pb-3.5',
+          placement === 'right' ? 'pt-[max(0.875rem,env(safe-area-inset-top))]' : 'pt-3.5',
+        ].join(' ')}>
           <h2 className="min-w-0 truncate text-base font-semibold text-foreground">{title}</h2>
           <button
             type="button"
