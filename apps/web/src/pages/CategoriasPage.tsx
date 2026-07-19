@@ -119,8 +119,6 @@ export function CategoriasPage() {
       <PageHeader
         title="Categorias"
         subtitle={subtitle}
-        onRefresh={() => categories.refetch()}
-        isRefreshing={categories.isFetching}
         actions={
           <>
             <Button

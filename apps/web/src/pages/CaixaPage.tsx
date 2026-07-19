@@ -71,11 +71,6 @@ export function CaixaPage() {
       <PageHeader
         title="Caixa"
         subtitle="Abertura, conferência e histórico"
-        onRefresh={() => {
-          history.refetch();
-          open.refetch();
-        }}
-        isRefreshing={history.isFetching}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" onClick={() => navigate('/financeiro/caixas')}>

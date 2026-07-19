@@ -211,11 +211,6 @@ export function PacotesPage() {
       <PageHeader
         title="Pacotes"
         subtitle="Pacotes vendidos e modelos"
-        onRefresh={() => {
-          sold.refetch();
-          templates.refetch();
-        }}
-        isRefreshing={sold.isFetching}
         actions={
           <Button variant="primary" onClick={() => setSellOpen(true)}>
             <IconPlus size={16} /> Vender pacote

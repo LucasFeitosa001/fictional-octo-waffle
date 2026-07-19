@@ -111,11 +111,6 @@ export default function AssinaturasPage() {
       <PageHeader
         title="Assinaturas"
         subtitle="Assinantes e planos recorrentes"
-        onRefresh={() => {
-          memberships.refetch();
-          plans.refetch();
-        }}
-        isRefreshing={memberships.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateSubscriberOpen(true)}>
             <IconPlus size={16} /> Novo assinante

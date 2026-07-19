@@ -61,8 +61,6 @@ export function ClientesPage() {
       <PageHeader
         title="Clientes"
         subtitle="Novos clientes captados no período"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
         actions={
           <Button variant="outline" onClick={exportCsv} isDisabled={customers.length === 0}>
             <IconDownload size={16} /> Exportar CSV

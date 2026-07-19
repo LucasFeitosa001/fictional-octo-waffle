@@ -123,8 +123,6 @@ export default function ComissoesResumoPage() {
       <PageHeader
         title="Comissões"
         subtitle="Resumo por profissional"
-        onRefresh={() => summary.refetch()}
-        isRefreshing={summary.isFetching}
       />
 
       {totals && (

@@ -51,8 +51,6 @@ export default function ComissoesConfigPage() {
       <PageHeader
         title="Configuração de comissões"
         subtitle="Regras de cálculo, taxas e descontos"
-        onRefresh={() => rules.refetch()}
-        isRefreshing={rules.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Nova regra

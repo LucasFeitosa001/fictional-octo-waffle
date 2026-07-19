@@ -93,8 +93,6 @@ export function MensagensPage() {
       <PageHeader
         title="Mensagens"
         subtitle="WhatsApp, SMS, lembretes e felicitações enviados"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
       />
 
       <Card className={`mb-4 ${CARD}`}>

@@ -124,8 +124,6 @@ export function FornecedoresPage() {
       <PageHeader
         title="Fornecedores"
         subtitle={subtitle}
-        onRefresh={() => suppliers.refetch()}
-        isRefreshing={suppliers.isFetching}
         actions={
           <>
             <Button

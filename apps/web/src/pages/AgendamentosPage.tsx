@@ -155,8 +155,6 @@ export function AgendamentosPage() {
       <PageHeader
         title="Agendamentos"
         subtitle="Todos os agendamentos do salao"
-        onRefresh={() => appts.refetch()}
-        isRefreshing={appts.isFetching}
       />
 
       {/* Filtros */}

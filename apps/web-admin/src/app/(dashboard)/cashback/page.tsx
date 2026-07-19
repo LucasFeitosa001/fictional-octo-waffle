@@ -109,8 +109,6 @@ export default function CashbackPage() {
       <PageHeader
         title="Cashback"
         subtitle="Regras de cashback por serviço, produto ou categoria"
-        onRefresh={() => rules.refetch()}
-        isRefreshing={rules.isFetching}
         actions={
           <Button variant="primary" onClick={openCreate}>
             <IconPlus size={16} /> Nova regra

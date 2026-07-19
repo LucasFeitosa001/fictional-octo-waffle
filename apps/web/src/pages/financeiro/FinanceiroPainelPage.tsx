@@ -134,8 +134,6 @@ export function FinanceiroPainelPage() {
       <PageHeader
         title="Painel financeiro"
         subtitle="A receber, a pagar, contas e fluxo de caixa"
-        onRefresh={() => summary.refetch()}
-        isRefreshing={summary.isFetching}
       />
 
       {/* Date range bar */}

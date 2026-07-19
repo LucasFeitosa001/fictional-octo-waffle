@@ -127,8 +127,6 @@ export function MarcasPage() {
       <PageHeader
         title="Marcas"
         subtitle={subtitle}
-        onRefresh={() => brands.refetch()}
-        isRefreshing={brands.isFetching}
         actions={
           <>
             <Button

@@ -164,8 +164,6 @@ export function ProfissionaisPage() {
       <PageHeader
         title="Profissionais"
         subtitle={subtitle}
-        onRefresh={() => professionals.refetch()}
-        isRefreshing={professionals.isFetching}
         actions={
           <>
             <Button

@@ -74,8 +74,6 @@ export default function CategoriasPage() {
       <PageHeader
         title="Categorias"
         subtitle="Categorias de produto"
-        onRefresh={() => categories.refetch()}
-        isRefreshing={categories.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Nova categoria

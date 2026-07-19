@@ -210,8 +210,6 @@ export function ServicosPage() {
       <PageHeader
         title="Serviços"
         subtitle="Catálogo de serviços do salão"
-        onRefresh={() => services.refetch()}
-        isRefreshing={services.isFetching}
         actions={
           <>
             <Button

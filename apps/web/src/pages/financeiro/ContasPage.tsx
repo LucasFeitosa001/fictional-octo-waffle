@@ -395,12 +395,6 @@ export function ContasPage() {
       <PageHeader
         title="Cadastros financeiros"
         subtitle="Contas, formas de pagamento e categorias"
-        onRefresh={() => {
-          accounts.refetch();
-          methods.refetch();
-          categories.refetch();
-        }}
-        isRefreshing={accounts.isFetching || methods.isFetching || categories.isFetching}
       />
 
       {/* Summary header */}

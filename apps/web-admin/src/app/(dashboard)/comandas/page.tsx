@@ -93,8 +93,6 @@ export default function ComandasPage() {
       <PageHeader
         title="Comandas"
         subtitle="Vendas e atendimentos"
-        onRefresh={() => orders.refetch()}
-        isRefreshing={orders.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Nova comanda

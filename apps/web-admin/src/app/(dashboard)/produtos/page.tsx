@@ -165,8 +165,6 @@ export default function ProdutosPage() {
       <PageHeader
         title="Produtos"
         subtitle={total ? `${total} produto(s)` : 'Catálogo de produtos'}
-        onRefresh={() => products.refetch()}
-        isRefreshing={products.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo produto

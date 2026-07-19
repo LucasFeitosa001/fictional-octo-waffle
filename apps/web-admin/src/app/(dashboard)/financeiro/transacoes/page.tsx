@@ -169,8 +169,6 @@ export default function TransacoesPage() {
       <PageHeader
         title="Transações"
         subtitle="Lançamentos de receitas e despesas"
-        onRefresh={() => transactions.refetch()}
-        isRefreshing={transactions.isFetching}
         actions={
           <Button variant="primary" onClick={openCreate}>
             <IconPlus size={16} /> Nova transação

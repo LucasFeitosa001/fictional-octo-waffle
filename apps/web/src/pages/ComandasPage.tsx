@@ -178,8 +178,6 @@ export function ComandasPage() {
       <PageHeader
         title="Comandas"
         subtitle="Vendas e atendimentos"
-        onRefresh={() => orders.refetch()}
-        isRefreshing={orders.isFetching}
         actions={
           <div className="flex gap-2">
             <Button

@@ -196,8 +196,6 @@ export function TransacoesPage() {
       <PageHeader
         title="Transações"
         subtitle="Recebimentos, despesas, vales e transferências"
-        onRefresh={() => transactions.refetch()}
-        isRefreshing={transactions.isFetching}
         actions={
           <>
             <Button

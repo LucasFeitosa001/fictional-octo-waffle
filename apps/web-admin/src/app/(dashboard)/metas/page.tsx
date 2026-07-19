@@ -145,8 +145,6 @@ export default function MetasPage() {
       <PageHeader
         title="Metas"
         subtitle="Acompanhe o progresso das metas mensais"
-        onRefresh={() => goals.refetch()}
-        isRefreshing={goals.isFetching}
         actions={
           <Button variant="primary" onClick={openCreate}>
             <IconPlus size={16} /> Nova meta

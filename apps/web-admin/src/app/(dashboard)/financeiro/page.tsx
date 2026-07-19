@@ -73,8 +73,6 @@ export default function FinanceiroPainelPage() {
       <PageHeader
         title="Painel financeiro"
         subtitle="Entradas, saídas e recebimentos por forma"
-        onRefresh={() => summary.refetch()}
-        isRefreshing={summary.isFetching}
       />
 
       {/* Date range bar */}

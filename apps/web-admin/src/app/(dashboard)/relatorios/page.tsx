@@ -113,8 +113,6 @@ export default function RelatoriosPage() {
       <PageHeader
         title="Relatórios"
         subtitle="Indicadores e rankings do período"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
       />
 
       <Card className="db-card mb-4">

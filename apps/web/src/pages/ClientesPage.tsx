@@ -136,8 +136,6 @@ export function ClientesPage() {
       <PageHeader
         title="Clientes"
         subtitle={total ? `${total} cliente(s)` : undefined}
-        onRefresh={() => customers.refetch()}
-        isRefreshing={customers.isFetching}
         actions={
           <>
             <Button

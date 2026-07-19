@@ -86,8 +86,6 @@ export default function ClientesPage() {
       <PageHeader
         title="Clientes"
         subtitle={total ? `${total} cliente(s)` : undefined}
-        onRefresh={() => customers.refetch()}
-        isRefreshing={customers.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo cliente

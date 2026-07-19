@@ -338,15 +338,6 @@ export function AgendamentoOnlinePage() {
       <PageHeader
         title="Agendamento online"
         subtitle="Configure como os clientes agendam pela internet"
-        onRefresh={() => {
-          link.refetch();
-          services.refetch();
-          hours.refetch();
-          empresa.refetch();
-          profile.refetch();
-          gallery.refetch();
-        }}
-        isRefreshing={link.isFetching || hours.isFetching || profile.isFetching}
         actions={
           <Button variant="outline" onClick={openPortal} isDisabled={!liveUrl}>
             <IconExternalLink size={16} /> Abrir página

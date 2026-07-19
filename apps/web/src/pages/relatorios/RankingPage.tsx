@@ -75,8 +75,6 @@ export function RankingPage() {
       <PageHeader
         title="Ranking"
         subtitle="Serviços, produtos e profissionais que mais venderam"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
       />
 
       <Card className={`mb-4 ${CARD}`}>

@@ -72,8 +72,6 @@ export function CaixaHistoricoPage() {
       <PageHeader
         title="Histórico de caixa"
         subtitle="Aberturas, fechamentos e conferências"
-        onRefresh={() => history.refetch()}
-        isRefreshing={history.isFetching}
       />
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">

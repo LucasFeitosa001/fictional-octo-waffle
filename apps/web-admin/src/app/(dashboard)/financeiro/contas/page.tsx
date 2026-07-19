@@ -274,14 +274,6 @@ export default function ContasPage() {
       <PageHeader
         title="Contas e formas de pagamento"
         subtitle="Contas financeiras, formas de pagamento e categorias"
-        onRefresh={() => {
-          accounts.refetch();
-          methods.refetch();
-          categories.refetch();
-        }}
-        isRefreshing={
-          accounts.isFetching || methods.isFetching || categories.isFetching
-        }
       />
 
       {/* Contas financeiras */}

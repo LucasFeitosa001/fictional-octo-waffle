@@ -145,21 +145,11 @@ export default function PainelPage() {
       .map(([d, v]) => ({ d: d.slice(8, 10), v }));
   }, [orderRows]);
 
-  function refresh() {
-    dashboard.refetch();
-    appts.refetch();
-    orders.refetch();
-  }
-
   const d = dashboard.data;
 
   return (
     <div>
-      <PageHeader
-        title="Painel do salão"
-        onRefresh={refresh}
-        isRefreshing={dashboard.isFetching}
-      />
+      <PageHeader title="Painel do salão" />
 
       {/* Date range bar */}
       <Card className="db-card mb-4">

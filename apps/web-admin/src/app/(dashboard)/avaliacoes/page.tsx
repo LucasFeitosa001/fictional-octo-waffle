@@ -41,8 +41,6 @@ export default function AvaliacoesPage() {
       <PageHeader
         title="Avaliações"
         subtitle="Notas e comentários dos clientes"
-        onRefresh={() => reviews.refetch()}
-        isRefreshing={reviews.isFetching}
       />
 
       <Card className="db-card mb-4">

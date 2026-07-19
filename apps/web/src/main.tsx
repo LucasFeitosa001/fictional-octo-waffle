@@ -9,7 +9,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      refetchOnWindowFocus: false,
+      // Auto-atualiza ao voltar o foco à janela/aba e ao reconectar — substitui
+      // o antigo botão "Atualizar" manual (o app se mantém fresco sozinho).
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
       staleTime: 30_000,
     },
   },

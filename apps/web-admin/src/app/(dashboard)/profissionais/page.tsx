@@ -85,8 +85,6 @@ export default function ProfissionaisPage() {
       <PageHeader
         title="Profissionais"
         subtitle={professionals.data?.total ? `${professionals.data.total} profissional(s)` : undefined}
-        onRefresh={() => professionals.refetch()}
-        isRefreshing={professionals.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo profissional

@@ -51,8 +51,6 @@ export function PacotesPredefinidosPage() {
       <PageHeader
         title="Pacotes predefinidos"
         subtitle="Modelos de pacote prontos para vender"
-        onRefresh={() => templates.refetch()}
-        isRefreshing={templates.isFetching}
         actions={
           <Button variant="primary" onClick={openCreate}>
             <IconPlus size={16} /> Novo modelo

@@ -74,8 +74,6 @@ export default function FornecedoresPage() {
       <PageHeader
         title="Fornecedores"
         subtitle={total ? `${total} fornecedor(es)` : 'Cadastro de fornecedores'}
-        onRefresh={() => suppliers.refetch()}
-        isRefreshing={suppliers.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo fornecedor

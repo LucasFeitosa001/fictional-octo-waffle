@@ -171,8 +171,6 @@ export function PromocoesPage() {
       <PageHeader
         title="Promoções"
         subtitle="Descontos por serviço, produto ou categoria"
-        onRefresh={() => promotions.refetch()}
-        isRefreshing={promotions.isFetching}
         actions={
           <>
             <Button

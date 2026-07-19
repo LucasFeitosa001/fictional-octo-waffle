@@ -102,8 +102,6 @@ export function DrePage() {
       <PageHeader
         title="DRE — Demonstrativo de Resultado"
         subtitle="Receitas e despesas liquidadas por categoria (regime de caixa)"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
         actions={
           <Button variant="outline" onClick={exportCsv} isDisabled={!d}>
             <IconDownload size={16} /> Exportar CSV

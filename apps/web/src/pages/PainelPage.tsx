@@ -456,8 +456,6 @@ export function PainelPage() {
       <PageHeader
         title="Painel"
         subtitle="Resumo do seu salão"
-        onRefresh={() => dashboard.refetch()}
-        isRefreshing={dashboard.isFetching}
       />
 
       {/* Period filter */}

@@ -1,22 +1,18 @@
 import type { ReactNode } from 'react';
 import { Button } from '@heroui/react';
-import { IconFilter, IconRefresh } from './icons';
+import { IconFilter } from './icons';
 
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
-  onRefresh?: () => void;
   onFilter?: () => void;
-  isRefreshing?: boolean;
   actions?: ReactNode;
 }
 
 export function PageHeader({
   title,
   subtitle,
-  onRefresh,
   onFilter,
-  isRefreshing,
   actions,
 }: PageHeaderProps) {
   return (
@@ -31,18 +27,11 @@ export function PageHeader({
             {actions}
           </div>
         )}
-        {(onFilter || onRefresh) && (
+        {onFilter && (
           <div className="page-header-action-group grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-            {onFilter && (
-              <Button variant="outline" onClick={onFilter}>
-                <IconFilter size={16} /> Filtrar
-              </Button>
-            )}
-            {onRefresh && (
-              <Button variant="primary" onClick={onRefresh} isDisabled={isRefreshing}>
-                <IconRefresh size={16} /> Atualizar
-              </Button>
-            )}
+            <Button variant="outline" onClick={onFilter}>
+              <IconFilter size={16} /> Filtrar
+            </Button>
           </div>
         )}
       </div>

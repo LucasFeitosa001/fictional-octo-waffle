@@ -69,8 +69,6 @@ export function EstoquePage() {
       <PageHeader
         title="Estoque — Sugestão de compra"
         subtitle="Produtos com estoque igual ou abaixo do mínimo definido"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
         actions={
           <Button variant="outline" onClick={exportCsv} isDisabled={items.length === 0}>
             <IconDownload size={16} /> Exportar CSV

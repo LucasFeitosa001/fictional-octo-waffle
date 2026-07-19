@@ -129,8 +129,6 @@ export function LinkAgendamentoPage() {
       <PageHeader
         title="Link de agendamento"
         subtitle="Compartilhe o link público de agendamento online"
-        onRefresh={() => link.refetch()}
-        isRefreshing={link.isFetching}
         actions={
           <Button
             variant="outline"

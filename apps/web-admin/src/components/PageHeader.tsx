@@ -1,14 +1,12 @@
 import type { ReactNode } from 'react';
 import { Button } from '@heroui/react';
-import { IconFilter, IconRefresh } from './icons';
+import { IconFilter } from './icons';
 
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
   eyebrow?: string;
-  onRefresh?: () => void;
   onFilter?: () => void;
-  isRefreshing?: boolean;
   actions?: ReactNode;
 }
 
@@ -16,9 +14,7 @@ export function PageHeader({
   title,
   subtitle,
   eyebrow,
-  onRefresh,
   onFilter,
-  isRefreshing,
   actions,
 }: PageHeaderProps) {
   return (
@@ -38,11 +34,6 @@ export function PageHeader({
         {onFilter && (
           <Button variant="outline" onClick={onFilter}>
             <IconFilter size={16} /> Filtrar
-          </Button>
-        )}
-        {onRefresh && (
-          <Button variant="primary" onClick={onRefresh} isDisabled={isRefreshing}>
-            <IconRefresh size={16} /> Atualizar
           </Button>
         )}
       </div>

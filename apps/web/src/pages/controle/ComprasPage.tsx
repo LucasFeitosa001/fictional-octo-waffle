@@ -185,8 +185,6 @@ export function ComprasPage() {
         subtitle={
           total ? `${total} compra(s)` : 'Pedidos de compra e entrada de estoque'
         }
-        onRefresh={() => purchases.refetch()}
-        isRefreshing={purchases.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Nova compra

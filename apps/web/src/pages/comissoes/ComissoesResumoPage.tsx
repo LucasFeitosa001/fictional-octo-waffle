@@ -170,12 +170,6 @@ export function ComissoesResumoPage() {
       <PageHeader
         title="Comissões"
         subtitle="Resumo por profissional"
-        onRefresh={() => {
-          overview.refetch();
-          summary.refetch();
-          entries.refetch();
-        }}
-        isRefreshing={overview.isFetching || summary.isFetching || entries.isFetching}
         actions={
           <Button
             variant="outline"

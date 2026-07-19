@@ -71,8 +71,6 @@ export function AgendamentosPage() {
       <PageHeader
         title="Agendamentos"
         subtitle="Ocupação da agenda e cancelamentos no período"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
       />
 
       <Card className={`mb-4 ${CARD}`}>

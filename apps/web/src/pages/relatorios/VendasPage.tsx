@@ -92,8 +92,6 @@ export function VendasPage() {
       <PageHeader
         title="Vendas"
         subtitle="Faturamento por dia, categoria e profissional"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
         actions={
           <Button variant="outline" onClick={exportCsv} isDisabled={!d}>
             <IconDownload size={16} /> Exportar CSV

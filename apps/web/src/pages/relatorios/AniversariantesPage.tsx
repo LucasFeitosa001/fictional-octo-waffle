@@ -47,8 +47,6 @@ export function AniversariantesPage() {
       <PageHeader
         title="Aniversariantes"
         subtitle="Clientes que fazem aniversário no mês selecionado"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
         actions={
           <Button variant="outline" onClick={exportCsv} isDisabled={customers.length === 0}>
             <IconDownload size={16} /> Exportar CSV

@@ -47,8 +47,6 @@ export function CaixasAbertosPage() {
       <PageHeader
         title="Caixas abertos"
         subtitle="Caixas em aberto no momento"
-        onRefresh={() => opened.refetch()}
-        isRefreshing={opened.isFetching}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => navigate('/financeiro/caixas/historico')}>

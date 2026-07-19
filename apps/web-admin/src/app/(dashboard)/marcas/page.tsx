@@ -81,8 +81,6 @@ export default function MarcasPage() {
       <PageHeader
         title="Marcas"
         subtitle="Marcas de produto"
-        onRefresh={() => brands.refetch()}
-        isRefreshing={brands.isFetching}
         actions={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Nova marca

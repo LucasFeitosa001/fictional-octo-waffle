@@ -138,8 +138,6 @@ export function RelatoriosPage() {
       <PageHeader
         title="Relatórios"
         subtitle="Escolha uma categoria para ver o relatório detalhado"
-        onRefresh={() => query.refetch()}
-        isRefreshing={query.isFetching}
       />
 
       {/* Resumo do período (atalho rápido) */}

@@ -45,11 +45,6 @@ export default function CaixaPage() {
       <PageHeader
         title="Caixa"
         subtitle="Abertura, conferência e histórico"
-        onRefresh={() => {
-          history.refetch();
-          open.refetch();
-        }}
-        isRefreshing={history.isFetching}
       />
 
       <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">

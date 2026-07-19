@@ -10,7 +10,10 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             retry: 1,
-            refetchOnWindowFocus: false,
+            // Auto-atualiza ao focar a janela/aba e ao reconectar — substitui o
+            // antigo botão "Atualizar" manual.
+            refetchOnWindowFocus: true,
+            refetchOnReconnect: true,
             staleTime: 30_000,
           },
         },
