@@ -13,11 +13,13 @@ import {
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
+import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
   IconChevron,
+  IconCircleCheck,
   IconDollar,
   IconDownload,
   IconPencil,
@@ -89,6 +91,24 @@ function describe(t: TransactionRow): string {
       : `Referente à comanda #${t.order.number}`;
   }
   return t.kind === 'income' ? 'Recebimento' : 'Despesa';
+}
+
+/** Titular (cliente/profissional) — do cadastro da comanda ou extraído do "… para NOME". */
+function titular(t: TransactionRow): string {
+  if (t.order?.customer?.name) return t.order.customer.name;
+  const d = (t.description || '').trim();
+  const m = /\bpara\s+(.+)$/i.exec(d);
+  if (m) return m[1].trim();
+  return d || (t.kind === 'income' ? 'Recebimento' : 'Despesa');
+}
+
+/** Origem: comanda (C#nº) quando houver, senão a categoria/natureza. */
+function origem(t: TransactionRow): string {
+  if (t.order) return `C#${t.order.number}`;
+  // Importação Belasis não linka o orderId, mas cita o nº na descrição.
+  const m = /comanda\s+#?(\d+)/i.exec(t.description || '');
+  if (m) return `C#${m[1]}`;
+  return t.category?.name ?? '—';
 }
 
 export function TransacoesPage() {
@@ -211,6 +231,135 @@ export function TransacoesPage() {
       );
     }
   }
+
+  // Tabela (desktop) / cards (mobile) com paridade da tela de transações do Belasis.
+  const columns: Column<TransactionRow>[] = [
+    {
+      key: 'data',
+      header: 'Data',
+      className: 'whitespace-nowrap text-sm text-muted',
+      render: (t) => formatDate(t.dueDate),
+    },
+    {
+      key: 'titular',
+      header: 'Titular',
+      isRowHeader: true,
+      render: (t) => {
+        const name = titular(t);
+        const desc = describe(t);
+        return (
+          <div className="min-w-0 max-w-[280px]">
+            <div
+              className={`truncate font-medium text-foreground ${
+                t.status === 'reversed' ? 'line-through opacity-60' : ''
+              }`}
+            >
+              {name}
+            </div>
+            {desc && desc !== name && (
+              <div className="truncate text-xs text-muted">{desc}</div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'origem',
+      header: 'Origem',
+      className: 'whitespace-nowrap text-sm text-muted',
+      render: (t) => origem(t),
+    },
+    {
+      key: 'forma',
+      header: 'Forma de pagamento',
+      className: 'whitespace-nowrap text-sm',
+      render: (t) => t.paymentMethod?.name ?? '—',
+    },
+    {
+      key: 'categoria',
+      header: 'Categoria',
+      render: (t) =>
+        t.category ? (
+          <Chip variant="soft" color="accent" size="sm">
+            {t.category.name}
+          </Chip>
+        ) : (
+          '—'
+        ),
+    },
+    {
+      key: 'bruto',
+      header: 'Valor bruto',
+      className: 'whitespace-nowrap text-right',
+      render: (t) => (
+        <span
+          className={`text-sm font-semibold ${
+            t.kind === 'income' ? 'text-success' : 'text-danger'
+          }`}
+        >
+          {t.kind === 'income' ? '+' : '−'}
+          {formatMoney(t.grossAmount)}
+        </span>
+      ),
+    },
+    {
+      key: 'liquido',
+      header: 'Valor líquido',
+      className: 'whitespace-nowrap text-right',
+      render: (t) => (
+        <div className="text-right">
+          <div className="text-sm font-medium text-foreground">
+            {formatMoney(t.grossAmount)}
+          </div>
+          {t.account && (
+            <div className="text-xs text-muted">{t.account.name}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (t) => (
+        <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
+          {STATUS_LABEL[t.status]}
+        </Chip>
+      ),
+    },
+    {
+      key: 'pago',
+      header: 'Pago',
+      className: 'text-center',
+      render: (t) =>
+        t.status === 'paid' ? (
+          <span className="inline-flex text-success" title="Pago">
+            <IconCircleCheck size={18} />
+          </span>
+        ) : (
+          <span className="text-muted">—</span>
+        ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (t) =>
+        t.status === 'reversed' ? null : (
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => openEdit(t)}>
+              <IconPencil size={15} /> Editar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              isDisabled={reverse.isPending}
+              onClick={() => handleReverse(t)}
+            >
+              <IconRepeat size={15} /> Estornar
+            </Button>
+          </div>
+        ),
+    },
+  ];
 
   return (
     <div>
@@ -377,17 +526,12 @@ export function TransacoesPage() {
               }
             />
           ) : (
-            <ul className="flex flex-col gap-2">
-              {rows.map((t) => (
-                <TransactionItem
-                  key={t.id}
-                  t={t}
-                  onEdit={() => openEdit(t)}
-                  onReverse={() => handleReverse(t)}
-                  reversing={reverse.isPending}
-                />
-              ))}
-            </ul>
+            <DataTable
+              columns={columns}
+              rows={rows}
+              getKey={(t) => t.id}
+              aria-label="Transações"
+            />
           )}
           {total > PAGE_SIZE && (
             <div className="mt-4 flex items-center justify-between border-t border-[var(--color-soft-border)] pt-3">
@@ -427,87 +571,6 @@ export function TransacoesPage() {
         />
       ) : null}
     </div>
-  );
-}
-
-/** Item de transação com fundo tingido pela natureza (receita verde / despesa rosa). */
-function TransactionItem({
-  t,
-  onEdit,
-  onReverse,
-  reversing,
-}: {
-  t: TransactionRow;
-  onEdit: () => void;
-  onReverse: () => void;
-  reversing: boolean;
-}) {
-  const isReversed = t.status === 'reversed';
-  const tint =
-    t.kind === 'income'
-      ? 'border-success/20 bg-success/5'
-      : 'border-danger/20 bg-danger/5';
-  return (
-    <li
-      className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${tint} ${
-        isReversed ? 'opacity-60' : ''
-      }`}
-    >
-      <div className="min-w-0 flex-1">
-        <p
-          className={`truncate text-sm font-medium text-foreground ${
-            isReversed ? 'line-through' : ''
-          }`}
-        >
-          {describe(t)}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-          <span>{formatDate(t.dueDate)}</span>
-          {t.category && (
-            <Chip variant="soft" color="accent" size="sm">
-              {t.category.name}
-            </Chip>
-          )}
-          {t.paymentMethod && <span>· {t.paymentMethod.name}</span>}
-          {t.account && <span>· {t.account.name}</span>}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 sm:justify-end">
-        <div className="flex flex-col items-start sm:items-end">
-          <span
-            className={
-              t.kind === 'income'
-                ? 'text-sm font-semibold text-success'
-                : 'text-sm font-semibold text-danger'
-            }
-          >
-            {t.kind === 'income' ? '+' : '−'}
-            {formatMoney(t.grossAmount)}
-          </span>
-          <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
-            {STATUS_LABEL[t.status]}
-          </Chip>
-        </div>
-        <div className="flex gap-2">
-          {!isReversed && (
-            <>
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                <IconPencil size={15} /> Editar
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                isDisabled={reversing}
-                onClick={onReverse}
-              >
-                <IconRepeat size={15} /> Estornar
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </li>
   );
 }
 
