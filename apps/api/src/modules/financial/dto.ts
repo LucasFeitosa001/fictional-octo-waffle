@@ -5,9 +5,11 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
   MinLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 // Enums mirror the Prisma schema (packages/db/prisma/schema.prisma).
 export enum TransactionKindDto {
@@ -46,6 +48,10 @@ export class ListTransactionsQueryDto {
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() from?: string;
   @IsOptional() @IsString() to?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) pageSize?: number;
+  // 'true' inclui as transações estornadas na lista (padrão: ocultas).
+  @IsOptional() @IsString() includeReversed?: string;
 }
 
 // Transferência entre contas (gera um par de lançamentos: saída na conta de

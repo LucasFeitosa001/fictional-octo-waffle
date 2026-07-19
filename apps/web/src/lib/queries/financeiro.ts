@@ -109,6 +109,13 @@ export interface TransactionFilters {
   categoryId?: string;
   from?: string;
   to?: string;
+  page?: number;
+  pageSize?: number;
+  includeReversed?: boolean;
+}
+
+export interface TransactionsPage extends Paginated<TransactionRow> {
+  totals: { income: number; expense: number; balance: number };
 }
 
 export interface CreateTransactionBody {
@@ -190,7 +197,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
   return useQuery({
     queryKey: ['transactions', filters],
     queryFn: () =>
-      api.get<Paginated<TransactionRow>>('/transactions', {
+      api.get<TransactionsPage>('/transactions', {
         type: filters.type,
         status: filters.status,
         paymentMethodId: filters.paymentMethodId,
@@ -198,8 +205,32 @@ export function useTransactions(filters: TransactionFilters = {}) {
         categoryId: filters.categoryId,
         from: filters.from,
         to: filters.to,
+        page: filters.page,
+        pageSize: filters.pageSize,
+        includeReversed: filters.includeReversed ? 'true' : undefined,
       }),
   });
+}
+
+/**
+ * Busca TODAS as transações do filtro atual (sem paginação) — usado para o
+ * "Exportar CSV", que deve conter o conjunto inteiro e não só a página visível.
+ */
+export async function fetchAllTransactions(
+  filters: TransactionFilters = {},
+): Promise<TransactionRow[]> {
+  const res = await api.get<TransactionsPage>('/transactions', {
+    type: filters.type,
+    status: filters.status,
+    paymentMethodId: filters.paymentMethodId,
+    accountId: filters.accountId,
+    categoryId: filters.categoryId,
+    from: filters.from,
+    to: filters.to,
+    includeReversed: filters.includeReversed ? 'true' : undefined,
+    pageSize: 100000,
+  });
+  return res.data;
 }
 
 export function useCreateTransaction() {

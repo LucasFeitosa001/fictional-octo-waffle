@@ -58,6 +58,9 @@ async function main() {
   let txN = 0, txSkip = 0;
   for (let i = 0; i < fin.length; i++) {
     const f = fin[i];
+    // Pula linhas de resumo/cabeçalho do export (rótulos do dashboard como
+    // "Pix", "Caixa", "Valor total" — vêm sem valor e sem datas).
+    if (!f.valor || f.valor === 0) { txSkip++; continue; }
     const legacyId = `tx:${f.kind}:${i}:${f.competencia || ''}:${Math.round((f.valor || 0) * 100)}`;
     if (await prisma.transaction.findFirst({ where: { companyId, legacyId }, select: { id: true } })) { txSkip++; continue; }
     const paid = (f.pago || 0) >= (f.valor || 0) && (f.valor || 0) > 0;

@@ -30,6 +30,7 @@ import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useCustomers, useProfessionals } from '../../lib/queries';
 import {
+  fetchAllTransactions,
   useCreateTransaction,
   useCreateTransfer,
   useFinancialAccounts,
@@ -43,6 +44,8 @@ import {
   type TransactionKind,
   type TransactionRow,
 } from '../../lib/queries/financeiro';
+
+const PAGE_SIZE = 30;
 
 const CARD_CLASS =
   'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
@@ -98,6 +101,12 @@ export function TransacoesPage() {
   const [methodFilter, setMethodFilter] = useState(ALL);
   const [formMode, setFormMode] = useState<LancamentoMode | null>(null);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
+  const [page, setPage] = useState(1);
+
+  // Qualquer mudança de filtro volta para a primeira página.
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, methodFilter, from, to, showReversed]);
 
   const paymentMethods = usePaymentMethods();
 
@@ -106,27 +115,23 @@ export function TransacoesPage() {
     paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
     from: from || undefined,
     to: to || undefined,
+    includeReversed: showReversed,
+    page,
+    pageSize: PAGE_SIZE,
   });
   const reverse = useReverseTransaction();
 
-  const serverRows = transactions.data?.data ?? [];
-  const rows = useMemo(
-    () =>
-      serverRows.filter((t) => showReversed || t.status !== 'reversed'),
-    [serverRows, showReversed],
-  );
-
-  const totals = useMemo(() => {
-    let income = 0;
-    let expense = 0;
-    for (const t of rows) {
-      if (t.status === 'reversed') continue;
-      const v = Number(t.grossAmount) || 0;
-      if (t.kind === 'income') income += v;
-      else expense += v;
-    }
-    return { income, expense, balance: income - expense };
-  }, [rows]);
+  // O servidor já ordena por data (mais recentes primeiro, sem data no fim),
+  // pagina e oculta as estornadas conforme `includeReversed`.
+  const rows = transactions.data?.data ?? [];
+  const total = transactions.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Totais do conjunto INTEIRO filtrado (não só a página), vindos do servidor.
+  const totals = transactions.data?.totals ?? {
+    income: 0,
+    expense: 0,
+    balance: 0,
+  };
 
   const hasFilters =
     statusFilter !== 'all' ||
@@ -143,21 +148,37 @@ export function TransacoesPage() {
     setMethodFilter(ALL);
   }
 
-  function exportCsv() {
-    downloadCsv<TransactionRow>(
-      `transacoes-${isoDate(new Date())}`,
-      [
-        { header: 'Descrição', value: (t) => describe(t) },
-        { header: 'Tipo', value: (t) => KIND_LABEL[t.kind] },
-        { header: 'Categoria', value: (t) => t.category?.name ?? '' },
-        { header: 'Forma', value: (t) => t.paymentMethod?.name ?? '' },
-        { header: 'Conta', value: (t) => t.account?.name ?? '' },
-        { header: 'Valor', value: (t) => Number(t.grossAmount).toFixed(2) },
-        { header: 'Vencimento', value: (t) => t.dueDate ?? '' },
-        { header: 'Status', value: (t) => STATUS_LABEL[t.status] },
-      ],
-      rows,
-    );
+  const [exporting, setExporting] = useState(false);
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      // Exporta o conjunto INTEIRO do filtro atual, não apenas a página visível.
+      const all = await fetchAllTransactions({
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
+        from: from || undefined,
+        to: to || undefined,
+        includeReversed: showReversed,
+      });
+      downloadCsv<TransactionRow>(
+        `transacoes-${isoDate(new Date())}`,
+        [
+          { header: 'Descrição', value: (t) => describe(t) },
+          { header: 'Tipo', value: (t) => KIND_LABEL[t.kind] },
+          { header: 'Categoria', value: (t) => t.category?.name ?? '' },
+          { header: 'Forma', value: (t) => t.paymentMethod?.name ?? '' },
+          { header: 'Conta', value: (t) => t.account?.name ?? '' },
+          { header: 'Valor', value: (t) => Number(t.grossAmount).toFixed(2) },
+          { header: 'Vencimento', value: (t) => t.dueDate ?? '' },
+          { header: 'Status', value: (t) => STATUS_LABEL[t.status] },
+        ],
+        all,
+      );
+    } catch {
+      window.alert('Não foi possível exportar as transações.');
+    } finally {
+      setExporting(false);
+    }
   }
 
   function openForm(mode: LancamentoMode) {
@@ -201,9 +222,9 @@ export function TransacoesPage() {
             <Button
               variant="outline"
               onClick={exportCsv}
-              isDisabled={rows.length === 0}
+              isDisabled={total === 0 || exporting}
             >
-              <IconDownload size={16} /> Exportar CSV
+              <IconDownload size={16} /> {exporting ? 'Exportando…' : 'Exportar CSV'}
             </Button>
             <Dropdown>
               <Dropdown.Trigger>
@@ -331,7 +352,11 @@ export function TransacoesPage() {
         <Card.Content className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Lançamentos</h3>
-            <span className="text-xs text-muted">{rows.length} resultado(s)</span>
+            <span className="text-xs text-muted">
+              {total > 0
+                ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}`
+                : '0 lançamento(s)'}
+            </span>
           </div>
           {transactions.isLoading ? (
             <LoadingState />
@@ -363,6 +388,31 @@ export function TransacoesPage() {
                 />
               ))}
             </ul>
+          )}
+          {total > PAGE_SIZE && (
+            <div className="mt-4 flex items-center justify-between border-t border-[var(--color-soft-border)] pt-3">
+              <span className="text-xs text-muted">
+                Página {page} de {pageCount}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  isDisabled={page <= 1 || transactions.isFetching}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <IconChevron size={14} className="rotate-90" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  isDisabled={page >= pageCount || transactions.isFetching}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                >
+                  Próxima <IconChevron size={14} className="-rotate-90" />
+                </Button>
+              </div>
+            </div>
           )}
         </Card.Content>
       </Card>

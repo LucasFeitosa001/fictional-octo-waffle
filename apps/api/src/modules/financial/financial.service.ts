@@ -11,6 +11,7 @@ import {
   CreateTransactionDto,
   CreateTransferDto,
   ListTransactionsQueryDto,
+  PaymentStatusDto,
   UpdateFinancialAccountDto,
   UpdateFinancialCategoryDto,
   UpdatePaymentMethodDto,
@@ -336,19 +337,32 @@ export class FinancialService {
       ...(fromStart ? { gte: fromStart } : {}),
       ...(toEnd ? { lte: toEnd } : {}),
     };
-    const where = {
+    const includeReversed = q.includeReversed === 'true';
+    // Filtros comuns (sem status) — reaproveitados na lista e nos totais.
+    const commonWhere = {
       companyId,
       ...(q.type ? { kind: q.type } : {}),
-      ...(q.status ? { status: q.status } : {}),
       ...(q.paymentMethodId ? { paymentMethodId: q.paymentMethodId } : {}),
       ...(q.accountId ? { accountId: q.accountId } : {}),
       ...(q.categoryId ? { categoryId: q.categoryId } : {}),
       ...(hasRange ? { dueDate: range } : {}),
     };
-    const [data, total] = await Promise.all([
+    // Lista: aplica o status escolhido; sem status, oculta estornadas por padrão.
+    const listStatus = q.status
+      ? { status: q.status }
+      : includeReversed
+        ? {}
+        : { status: { not: PaymentStatusDto.reversed } };
+    const where = { ...commonWhere, ...listStatus };
+
+    const page = q.page && q.page > 0 ? q.page : 1;
+    const pageSize = q.pageSize && q.pageSize > 0 ? Math.min(q.pageSize, 200) : 50;
+
+    const [data, total, sums] = await Promise.all([
       this.prisma.client.transaction.findMany({
         where,
-        orderBy: [{ dueDate: 'desc' }, { createdAt: 'desc' }],
+        // Mais recentes primeiro; sem data vão para o fim (nunca no topo).
+        orderBy: [{ dueDate: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
         include: {
           account: { select: { id: true, name: true } },
           category: { select: { id: true, name: true } },
@@ -362,10 +376,33 @@ export class FinancialService {
             },
           },
         },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
       }),
       this.prisma.client.transaction.count({ where }),
+      // Totais sobre TODO o conjunto filtrado (não só a página), sempre sem estornadas.
+      this.prisma.client.transaction.groupBy({
+        by: ['kind'],
+        where: {
+          ...commonWhere,
+          ...(q.status ? { status: q.status } : { status: { not: PaymentStatusDto.reversed } }),
+        },
+        _sum: { grossAmount: true },
+      }),
     ]);
-    return { data, page: 1, pageSize: data.length, total };
+
+    const sumFor = (kind: 'income' | 'expense') =>
+      Number(sums.find((s) => s.kind === kind)?._sum.grossAmount ?? 0);
+    const income = sumFor('income');
+    const expense = sumFor('expense');
+
+    return {
+      data,
+      page,
+      pageSize,
+      total,
+      totals: { income, expense, balance: income - expense },
+    };
   }
 
   /**
