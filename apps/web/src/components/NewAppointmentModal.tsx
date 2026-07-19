@@ -3,11 +3,11 @@ import {
   Button,
   Input,
   ListBox,
-  Modal,
   Select,
   Spinner,
   TextField,
 } from '@heroui/react';
+import { Drawer } from './Drawer';
 import { ApiClientError, APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import {
   useAvailability,
@@ -322,16 +322,33 @@ export function NewAppointmentModal({
     }
   }
 
+  const footer = success ? (
+    <Button variant="primary" onClick={() => onOpenChange(false)}>
+      Fechar
+    </Button>
+  ) : (
+    <>
+      <Button variant="outline" onClick={() => onOpenChange(false)}>
+        Cancelar
+      </Button>
+      <Button variant="outline" isDisabled={!canConfirm} onClick={handleComanda}>
+        Criar comanda
+      </Button>
+      <Button variant="primary" isDisabled={!canConfirm} onClick={handleConfirm}>
+        {isBusy ? 'Salvando…' : 'Confirmar agendamento'}
+      </Button>
+    </>
+  );
+
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Backdrop>
-        <Modal.Container size="lg" placement="center">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>Novo agendamento</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="flex flex-col gap-6">
-              {success ? (
+    <Drawer
+      isOpen={isOpen}
+      onClose={() => onOpenChange(false)}
+      title="Novo agendamento"
+      footer={footer}
+    >
+      <div className="flex flex-col gap-6">
+        {success ? (
                 <div className="flex flex-col items-center gap-2 py-6 text-center">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F3E7D6] text-2xl text-accent">
                     ✓
@@ -657,29 +674,7 @@ export function NewAppointmentModal({
                   )}
                 </>
               )}
-            </Modal.Body>
-            <Modal.Footer className="flex justify-end gap-2">
-              {success ? (
-                <Button variant="primary" onClick={() => onOpenChange(false)}>
-                  Fechar
-                </Button>
-              ) : (
-                <>
-                  <Button variant="outline" onClick={() => onOpenChange(false)}>
-                    Cancelar
-                  </Button>
-                  <Button variant="outline" isDisabled={!canConfirm} onClick={handleComanda}>
-                    Criar comanda
-                  </Button>
-                  <Button variant="primary" isDisabled={!canConfirm} onClick={handleConfirm}>
-                    {isBusy ? 'Salvando…' : 'Confirmar agendamento'}
-                  </Button>
-                </>
-              )}
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+      </div>
+    </Drawer>
   );
 }

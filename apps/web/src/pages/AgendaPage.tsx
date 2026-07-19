@@ -4,6 +4,7 @@ import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/s
 import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
+import { DropdownButton } from '../components/DropdownButton';
 import { colorForAppointment, layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
 import { IconCalendar, IconCalendarPlus, IconChevron } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
@@ -108,7 +109,6 @@ export function AgendaPage() {
 
   // ── Filters (Belasis "Filtrar" panel): professional (multi), status (multi),
   // service, and a customer search.
-  const [showFilters, setShowFilters] = useState(false);
   const [professionalIds, setProfessionalIds] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<AppointmentStatus[]>([]);
   const [serviceFilter, setServiceFilter] = useState<string>('');
@@ -117,7 +117,6 @@ export function AgendaPage() {
   // ── Batch selection (Belasis "Ações" menu).
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [showActions, setShowActions] = useState(false);
 
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [newApptDate, setNewApptDate] = useState<string | undefined>(undefined);
@@ -399,154 +398,140 @@ export function AgendaPage() {
   const nowVisible = nowMin >= 0 && nowMin <= TOTAL_MIN;
   const bodyHeight = (END_HOUR - START_HOUR) * HOUR_H;
 
-  const filterBtn = (
-    <button
-      type="button"
-      onClick={() => { setShowFilters((v) => !v); setShowActions(false); }}
-      className={[
-        'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors lg:h-8',
-        showFilters || activeFilterCount > 0
-          ? 'border-[#f2b33d] bg-[#f2b33d]/12 text-[#8a6517]'
-          : 'border-[var(--color-soft-border)] bg-white text-[#6B6F76] hover:bg-[#f7f3ea]',
-      ].join(' ')}
-    >
-      <IconFilter size={14} />
+  const filterLabel = (
+    <span className="inline-flex items-center gap-1.5">
       Filtrar
       {activeFilterCount > 0 && (
         <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#f2b33d] px-1 text-[10px] font-bold text-[#3b2d09]">
           {activeFilterCount}
         </span>
       )}
-    </button>
+    </span>
+  );
+
+  const filterBtn = (
+    <DropdownButton
+      label={filterLabel}
+      icon={<IconFilter size={14} />}
+      align="end"
+      buttonVariant={activeFilterCount > 0 ? 'primary' : 'outline'}
+    >
+      {(close) => (
+        <div className="flex w-[300px] max-w-[calc(100vw-1.5rem)] flex-col gap-4 p-4">
+          {/* Profissionais (multi) */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Profissionais</span>
+              {professionalIds.length > 0 && (
+                <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
+                  Desmarcar
+                </button>
+              )}
+            </div>
+            <div className="flex max-h-32 flex-col gap-1 overflow-auto">
+              {profList.length === 0 ? (
+                <span className="text-xs text-muted">Nenhum profissional.</span>
+              ) : profList.map((p) => (
+                <label key={p.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
+                  <input type="checkbox" checked={professionalIds.includes(p.id)} onChange={() => toggleProfessional(p.id)}
+                    className="h-4 w-4 accent-[#f2b33d]" />
+                  <span className="truncate">{p.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Status (multi) */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Status</span>
+              {statuses.length > 0 && (
+                <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
+                  Desmarcar
+                </button>
+              )}
+            </div>
+            <div className="flex max-h-32 flex-col gap-1 overflow-auto">
+              {STATUS_ORDER.map((s) => (
+                <label key={s} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
+                  <input type="checkbox" checked={statuses.includes(s)} onChange={() => toggleStatus(s)}
+                    className="h-4 w-4 accent-[#f2b33d]" />
+                  <span className="truncate">{APPOINTMENT_STATUS_LABELS[s]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Serviço (single) */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Serviço</span>
+            <Select aria-label="Serviço" selectedKey={serviceFilter || 'all'}
+              onSelectionChange={(k) => setServiceFilter(String(k) === 'all' ? '' : String(k))}>
+              <Select.Trigger><Select.Value /></Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="all" textValue="Todos os serviços">Todos os serviços</ListBox.Item>
+                  {serviceList.map((s) => (
+                    <ListBox.Item key={s.id} id={s.id} textValue={s.name}>{s.name}</ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </div>
+
+          {/* Busca por cliente */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Cliente</span>
+            <TextField value={customerQuery} onChange={setCustomerQuery} aria-label="Buscar cliente">
+              <Input placeholder="Buscar por nome…" />
+            </TextField>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-[var(--color-soft-border)] pt-3">
+            <span className="text-xs text-muted">{rows.length} agendamento(s)</span>
+            <div className="flex gap-2">
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
+              )}
+              <Button variant="outline" size="sm" onClick={close}>Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </DropdownButton>
   );
 
   const actionsBtn = (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => { setShowActions((v) => !v); setShowFilters(false); }}
-        className={[
-          'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors',
-          selectMode
-            ? 'border-[#f2b33d] bg-[#f2b33d]/12 text-[#8a6517]'
-            : 'border-[var(--color-soft-border)] bg-white text-[#6B6F76] hover:bg-[#f7f3ea]',
-        ].join(' ')}
-      >
-        <IconBolt size={14} />
-        Ações
-      </button>
-      {showActions && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)} />
-          <div className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-xl border border-black/[0.08] bg-white py-1 shadow-[var(--shadow-pop)]">
-            <button type="button" onClick={() => { setSelectMode(true); setShowActions(false); }}
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
-              Selecionar agendamentos
+    <DropdownButton
+      label="Ações"
+      icon={<IconBolt size={14} />}
+      align="end"
+      buttonVariant={selectMode ? 'primary' : 'outline'}
+    >
+      {(close) => (
+        <div className="w-56 py-1">
+          <button type="button" onClick={() => { setSelectMode(true); close(); }}
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+            Selecionar agendamentos
+          </button>
+          <button type="button" disabled title="Sem suporte no backend ainda"
+            className="flex w-full cursor-not-allowed items-center gap-2 px-3 py-2.5 text-left text-sm text-[#c9ccd1]">
+            Bloquear horários
+          </button>
+          <div className="my-1 border-t border-black/[0.06]" />
+          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#bfaf9e]">Visualização</div>
+          {(['day', 'week', 'month'] as View[]).map((v) => (
+            <button key={v} type="button" onClick={() => { setView(v); close(); }}
+              className={[
+                'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f7f3ea]',
+                view === v ? 'font-semibold text-[#8a6517]' : 'text-foreground',
+              ].join(' ')}>
+              {v === 'day' ? 'Diário' : v === 'week' ? 'Semanal' : 'Mensal'}
             </button>
-            <button type="button" disabled title="Sem suporte no backend ainda"
-              className="flex w-full cursor-not-allowed items-center gap-2 px-3 py-2.5 text-left text-sm text-[#c9ccd1]">
-              Bloquear horários
-            </button>
-            <div className="my-1 border-t border-black/[0.06]" />
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#bfaf9e]">Visualização</div>
-            {(['day', 'week', 'month'] as View[]).map((v) => (
-              <button key={v} type="button" onClick={() => { setView(v); setShowActions(false); }}
-                className={[
-                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f7f3ea]',
-                  view === v ? 'font-semibold text-[#8a6517]' : 'text-foreground',
-                ].join(' ')}>
-                {v === 'day' ? 'Diário' : v === 'week' ? 'Semanal' : 'Mensal'}
-              </button>
-            ))}
-          </div>
-        </>
+          ))}
+        </div>
       )}
-    </div>
-  );
-
-  const filtersPanel = showFilters && (
-    <div className="border-t border-[var(--color-soft-border)] bg-white px-3 py-3">
-      <div className="grid gap-4 lg:grid-cols-4">
-        {/* Profissionais (multi) */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Profissionais</span>
-            {professionalIds.length > 0 && (
-              <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
-                Desmarcar
-              </button>
-            )}
-          </div>
-          <div className="flex max-h-32 flex-col gap-1 overflow-auto">
-            {profList.length === 0 ? (
-              <span className="text-xs text-muted">Nenhum profissional.</span>
-            ) : profList.map((p) => (
-              <label key={p.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
-                <input type="checkbox" checked={professionalIds.includes(p.id)} onChange={() => toggleProfessional(p.id)}
-                  className="h-4 w-4 accent-[#f2b33d]" />
-                <span className="truncate">{p.name}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Status (multi) */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Status</span>
-            {statuses.length > 0 && (
-              <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
-                Desmarcar
-              </button>
-            )}
-          </div>
-          <div className="flex max-h-32 flex-col gap-1 overflow-auto">
-            {STATUS_ORDER.map((s) => (
-              <label key={s} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
-                <input type="checkbox" checked={statuses.includes(s)} onChange={() => toggleStatus(s)}
-                  className="h-4 w-4 accent-[#f2b33d]" />
-                <span className="truncate">{APPOINTMENT_STATUS_LABELS[s]}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Serviço (single) */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Serviço</span>
-          <Select aria-label="Serviço" selectedKey={serviceFilter || 'all'}
-            onSelectionChange={(k) => setServiceFilter(String(k) === 'all' ? '' : String(k))}>
-            <Select.Trigger><Select.Value /></Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                <ListBox.Item id="all" textValue="Todos os serviços">Todos os serviços</ListBox.Item>
-                {serviceList.map((s) => (
-                  <ListBox.Item key={s.id} id={s.id} textValue={s.name}>{s.name}</ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-        </div>
-
-        {/* Busca por cliente */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Cliente</span>
-          <TextField value={customerQuery} onChange={setCustomerQuery} aria-label="Buscar cliente">
-            <Input placeholder="Buscar por nome…" />
-          </TextField>
-        </div>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-xs text-muted">{rows.length} agendamento(s)</span>
-        <div className="flex gap-2">
-          {activeFilterCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setShowFilters(false)}>Fechar</Button>
-        </div>
-      </div>
-    </div>
+    </DropdownButton>
   );
 
   return (
@@ -631,7 +616,6 @@ export function AgendaPage() {
             </div>
           </div>
         </div>
-        {filtersPanel}
       </div>
 
       {/* Grid — the only scroller; full width, pads past the mobile bottom nav. */}

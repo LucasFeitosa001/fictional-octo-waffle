@@ -99,6 +99,7 @@ function ProtectedRoutes() {
         <Route path="/financeiro/configuracoes" element={<FinanceiroConfiguracoesPage />} />
         <Route path="/caixa" element={<CaixaPage />} />
         <Route path="/comissoes" element={<ComissoesResumoPage />} />
+        <Route path="/comissoes/pagas" element={<ComissoesResumoPage />} />
         <Route path="/comissoes/config" element={<ComissoesConfigPage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
         <Route path="/relatorios/vendas" element={<VendasPage />} />
@@ -120,6 +121,10 @@ function ProtectedRoutes() {
         <Route path="/ia-atendimento" element={<IAAtendimentoPage />} />
         <Route path="/configuracoes" element={<ConfiguracoesPage />} />
         <Route path="/ajuda" element={<AjudaPage />} />
+        <Route path="/ajuda/suporte" element={<AjudaPage />} />
+        <Route path="/ajuda/base-conhecimento" element={<AjudaPage />} />
+        <Route path="/ajuda/feedback" element={<AjudaPage />} />
+        <Route path="/ajuda/novidades" element={<AjudaPage />} />
         <Route path="/indique" element={<IndiquePage />} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

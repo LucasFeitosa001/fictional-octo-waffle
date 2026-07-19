@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Button, ScrollShadow, Tooltip } from '@heroui/react';
 import {
   IconBox,
@@ -22,6 +22,7 @@ import {
   IconMessage,
   IconPanelLeft,
   IconPercent,
+  IconPhone,
   IconPlus,
   IconReceipt,
   IconRepeat,
@@ -36,120 +37,170 @@ import {
   IconTruck,
   IconUserPlus,
   IconUsers,
+  IconWhatsApp,
 } from '../components/icons';
 import { signOut, useSession } from '../lib/auth';
-import { useCompany } from '../lib/queries';
 import { NotificationBell } from '../components/NotificationBell';
 
 type IconType = ComponentType<{ size?: number }>;
 
-type NavItem = { to: string; label: string; icon: IconType; end?: boolean };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: IconType;
+  end?: boolean;
+  badge?: 'Beta' | 'novo';
+};
 
-type NavGroup = { key: string; title: string; icon: IconType; items: NavItem[] };
+type NavGroup = {
+  kind: 'group';
+  key: string;
+  title: string;
+  icon: IconType;
+  items: NavItem[];
+};
 
-const GROUPS: NavGroup[] = [
+type NavDirect = NavItem & {
+  kind: 'link';
+  key: string;
+};
+
+type NavEntry = NavGroup | NavDirect;
+
+const NAVIGATION: NavEntry[] = [
   {
+    kind: 'link',
+    key: 'ia',
+    to: '/ia-atendimento',
+    label: 'IA',
+    icon: IconSparkles,
+    badge: 'Beta',
+  },
+  {
+    kind: 'group',
     key: 'principal',
     title: 'Principal',
     icon: IconHome,
     items: [
       { to: '/', label: 'Painel', icon: IconHome, end: true },
       { to: '/agenda', label: 'Agenda', icon: IconCalendar },
-      { to: '/agendamentos', label: 'Agendamentos', icon: IconReceipt },
       { to: '/comandas', label: 'Comandas', icon: IconReceipt },
       { to: '/pacotes', label: 'Pacotes', icon: IconLayers },
-      { to: '/assinaturas', label: 'Assinaturas', icon: IconRepeat },
+      { to: '/assinaturas', label: 'Vendas por Assinatura', icon: IconRepeat },
     ],
   },
   {
-    key: 'ia',
-    title: 'Inteligência',
-    icon: IconSparkles,
-    items: [
-      { to: '/ia-atendimento', label: 'IA Atendimento', icon: IconSparkles },
-    ],
-  },
-  {
+    kind: 'group',
     key: 'financeiro',
     title: 'Financeiro',
     icon: IconDollar,
     items: [
-      { to: '/financeiro', label: 'Painel financeiro', icon: IconChart, end: true },
+      { to: '/financeiro', label: 'Painel', icon: IconChart, end: true },
       { to: '/financeiro/transacoes', label: 'Transações', icon: IconDollar },
-      { to: '/financeiro/contas', label: 'Contas e métodos', icon: IconCreditCard },
-      { to: '/caixa', label: 'Caixa', icon: IconCash },
-      { to: '/financeiro/caixas', label: 'Caixas abertos', icon: IconCash },
+      { to: '/financeiro/contas', label: 'Cadastros', icon: IconCreditCard },
+      { to: '/financeiro/caixas', label: 'Caixas abertos', icon: IconCash, end: true },
       { to: '/financeiro/caixas/historico', label: 'Histórico de caixa', icon: IconClock },
+      { to: '/caixa', label: 'Belasis Pay', icon: IconCreditCard, badge: 'novo' },
       { to: '/financeiro/notas-fiscais', label: 'Notas Fiscais', icon: IconReceipt },
       { to: '/financeiro/configuracoes', label: 'Configurações', icon: IconSettings },
     ],
   },
   {
+    kind: 'group',
     key: 'comissoes',
     title: 'Comissões',
     icon: IconPercent,
     items: [
-      { to: '/comissoes', label: 'Resumo', icon: IconPercent, end: true },
+      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true },
+      { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash },
       { to: '/comissoes/config', label: 'Configurações', icon: IconSettings },
     ],
   },
   {
+    kind: 'group',
     key: 'cadastros',
     title: 'Cadastros',
     icon: IconUsers,
     items: [
       { to: '/clientes', label: 'Clientes', icon: IconUsers },
-      { to: '/profissionais', label: 'Profissionais', icon: IconScissors },
-      { to: '/fornecedores', label: 'Fornecedores', icon: IconTruck },
       { to: '/cadastros/anamneses', label: 'Anamneses', icon: IconMessage },
       { to: '/cadastros/convidar', label: 'Convidar profissionais', icon: IconUserPlus },
+      { to: '/profissionais', label: 'Profissionais', icon: IconScissors },
+      { to: '/fornecedores', label: 'Fornecedores', icon: IconTruck },
     ],
   },
   {
+    kind: 'group',
     key: 'controle',
     title: 'Controle',
     icon: IconLayers,
     items: [
       { to: '/servicos', label: 'Serviços', icon: IconScissors },
       { to: '/produtos', label: 'Produtos', icon: IconBox },
+      { to: '/controle/pacotes-predefinidos', label: 'Pacotes Predefinidos', icon: IconLayers },
       { to: '/categorias', label: 'Categorias', icon: IconFolder },
       { to: '/marcas', label: 'Marcas', icon: IconTag },
-      { to: '/controle/pacotes-predefinidos', label: 'Pacotes Predefinidos', icon: IconLayers },
       { to: '/controle/compras', label: 'Compras', icon: IconBox },
       { to: '/controle/gerador-documento', label: 'Gerador de Documento', icon: IconCopy },
     ],
   },
   {
+    kind: 'group',
     key: 'relatorios',
     title: 'Relatórios',
     icon: IconChart,
     items: [
-      { to: '/relatorios', label: 'Relatórios', icon: IconChart, end: true },
+      { to: '/relatorios', label: 'Painel', icon: IconHome, end: true },
       { to: '/metas', label: 'Metas', icon: IconTarget },
     ],
   },
   {
+    kind: 'link',
+    key: 'whatsapp',
+    to: '/whatsapp',
+    label: 'WhatsApp API Oficial',
+    icon: IconWhatsApp,
+    badge: 'novo',
+  },
+  {
+    kind: 'group',
     key: 'marketing',
     title: 'Marketing',
     icon: IconMegaphone,
     items: [
-      { to: '/marketing/agendamento-online', label: 'Agendamento Online', icon: IconCalendar },
       { to: '/marketing/link', label: 'Link de Agendamento', icon: IconLink },
+      { to: '/marketing/agendamento-online', label: 'Agendamento Online', icon: IconCalendar },
+      { to: '/marketing/campanhas', label: 'Automação de Marketing', icon: IconSend },
       { to: '/marketing/promocoes', label: 'Promoções', icon: IconMegaphone },
-      { to: '/marketing/campanhas', label: 'Campanhas', icon: IconSend },
       { to: '/marketing/avaliacoes', label: 'Avaliações', icon: IconStar },
       { to: '/marketing/cashback', label: 'Cashback', icon: IconGift },
     ],
   },
   {
-    key: 'outros',
-    title: 'Outros',
+    kind: 'link',
+    key: 'configuracoes',
+    to: '/configuracoes',
+    label: 'Configurações',
     icon: IconSettings,
+  },
+  {
+    kind: 'group',
+    key: 'ajuda',
+    title: 'Ajuda',
+    icon: IconInfo,
     items: [
-      { to: '/configuracoes', label: 'Configurações', icon: IconSettings },
-      { to: '/ajuda', label: 'Ajuda', icon: IconInfo },
-      { to: '/indique', label: 'Indique e ganhe', icon: IconShare },
+      { to: '/ajuda/suporte', label: 'Falar com o suporte', icon: IconPhone },
+      { to: '/ajuda/base-conhecimento', label: 'Base de conhecimento', icon: IconInfo },
+      { to: '/ajuda/feedback', label: 'Feedback', icon: IconMessage },
+      { to: '/ajuda/novidades', label: 'Novidades do sistema', icon: IconSparkles },
     ],
+  },
+  {
+    kind: 'link',
+    key: 'indique',
+    to: '/indique',
+    label: 'Indique e ganhe',
+    icon: IconShare,
   },
 ];
 
@@ -158,10 +209,12 @@ type QuickCreate = { to: string; label: string; description: string; icon: IconT
 const QUICK_CREATE: QuickCreate[] = [
   { to: '/agenda?new=1', label: 'Agendamento', description: 'Marcar um horário', icon: IconCalendar },
   { to: '/comandas?new=1', label: 'Comanda', description: 'Abrir uma venda', icon: IconReceipt },
+  { to: '/pacotes?new=1', label: 'Pacote', description: 'Criar um pacote', icon: IconLayers },
   { to: '/clientes?new=1', label: 'Cliente', description: 'Cadastrar pessoa', icon: IconUsers },
   { to: '/servicos?new=1', label: 'Serviço', description: 'Novo serviço', icon: IconScissors },
   { to: '/produtos?new=1', label: 'Produto', description: 'Item de estoque', icon: IconBox },
   { to: '/profissionais?new=1', label: 'Profissional', description: 'Adicionar à equipe', icon: IconScissors },
+  { to: '/fornecedores?new=1', label: 'Fornecedor', description: 'Cadastrar fornecedor', icon: IconTruck },
 ];
 
 const COLLAPSE_KEY = 'sp:sidebar:collapsed';
@@ -171,18 +224,38 @@ function loadCollapsedGroups(): Set<string> {
   try {
     const raw = localStorage.getItem(GROUP_COLLAPSE_KEY);
     return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch { return new Set(); }
+  } catch {
+    return new Set();
+  }
 }
 
 function saveCollapsedGroups(groups: Set<string>) {
-  try { localStorage.setItem(GROUP_COLLAPSE_KEY, JSON.stringify([...groups])); } catch {}
+  try {
+    localStorage.setItem(GROUP_COLLAPSE_KEY, JSON.stringify([...groups]));
+  } catch {
+    /* ignore */
+  }
+}
+
+function pathIsActive(to: string, pathname: string) {
+  const cleanPath = to.split(/[?#]/)[0];
+  if (cleanPath === '/') return pathname === '/';
+  return pathname === cleanPath || pathname.startsWith(`${cleanPath}/`);
 }
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return [
-    'group flex items-center rounded-lg text-sm font-medium transition-all duration-200',
+    'group flex min-h-10 items-center rounded-lg text-sm font-medium transition-colors',
     isActive ? 'db-nav-active' : 'text-white/70 hover:bg-white/[0.08] hover:text-white',
   ].join(' ');
+}
+
+function MenuBadge({ children }: { children: 'Beta' | 'novo' }) {
+  return (
+    <span className="ml-2 shrink-0 rounded-md bg-[#f2b33d] px-1.5 py-0.5 text-[9px] font-bold leading-none text-[#111111]">
+      {children}
+    </span>
+  );
 }
 
 export function Sidebar({
@@ -193,7 +266,7 @@ export function Sidebar({
   mobile?: boolean;
 }) {
   const navigate = useNavigate();
-  const { data: company } = useCompany();
+  const location = useLocation();
   const { data: session } = useSession();
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -206,10 +279,15 @@ export function Sidebar({
   const [createOpen, setCreateOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
 
+  const fullName = session?.user?.name?.trim() || 'Usuário';
+  const firstName = fullName.split(/\s+/)[0];
+  const avatarInitial = firstName.charAt(0).toUpperCase() || 'U';
+
   function toggleGroup(key: string) {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+    setCollapsedGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       saveCollapsedGroups(next);
       return next;
     });
@@ -217,8 +295,8 @@ export function Sidebar({
 
   function toggleCollapse() {
     setCreateOpen(false);
-    setCollapsed((v) => {
-      const next = !v;
+    setCollapsed((previous) => {
+      const next = !previous;
       try {
         localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
       } catch {
@@ -230,17 +308,19 @@ export function Sidebar({
 
   useEffect(() => {
     if (!createOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (createRef.current && !createRef.current.contains(e.target as Node)) {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (createRef.current && !createRef.current.contains(event.target as Node)) {
         setCreateOpen(false);
       }
     };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setCreateOpen(false);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCreateOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
     };
   }, [createOpen]);
 
@@ -250,15 +330,45 @@ export function Sidebar({
     navigate(to);
   }
 
+  function renderCollapsedEntry(entry: NavEntry) {
+    const EntryIcon = entry.icon;
+    const active = entry.kind === 'link'
+      ? pathIsActive(entry.to, location.pathname)
+      : entry.items.some((item) => pathIsActive(item.to, location.pathname));
+    const label = entry.kind === 'link' ? entry.label : entry.title;
+    const className = [
+      'grid h-11 w-full place-items-center rounded-lg transition-colors',
+      active ? 'db-nav-active' : 'text-white/70 hover:bg-white/[0.08] hover:text-white',
+    ].join(' ');
+
+    const control = entry.kind === 'link' ? (
+      <NavLink to={entry.to} onClick={onNavigate} className={className} aria-label={label}>
+        <EntryIcon size={19} />
+      </NavLink>
+    ) : (
+      <button type="button" onClick={toggleCollapse} className={className} aria-label={`Abrir ${label}`}>
+        <EntryIcon size={19} />
+      </button>
+    );
+
+    return (
+      <Tooltip key={entry.key} delay={150}>
+        <Tooltip.Trigger className="contents">{control}</Tooltip.Trigger>
+        <Tooltip.Content className="rounded-lg bg-[#1a1a1a] px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]">
+          {label}
+        </Tooltip.Content>
+      </Tooltip>
+    );
+  }
+
   return (
     <aside
       className={[
-        'db-sidebar flex h-full shrink-0 flex-col py-5 transition-[width] duration-300 ease-out',
+        'db-sidebar flex h-full shrink-0 flex-col py-4 transition-[width] duration-300 ease-out',
         mobile ? 'db-sidebar-mobile' : '',
         isCollapsed ? 'w-[84px] px-3' : 'w-[296px] px-4',
       ].join(' ')}
     >
-      {/* Brand + collapse toggle */}
       <div className={isCollapsed ? 'flex flex-col items-center gap-3' : 'flex items-center justify-between gap-2 px-1'}>
         {isCollapsed ? (
           <span
@@ -270,72 +380,76 @@ export function Sidebar({
         ) : (
           <div className="flex flex-col gap-1">
             <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" className="h-7 w-auto self-start" />
-            <div className="pl-0.5 text-[11px] font-medium uppercase tracking-[0.22em] text-white/55">
-              Gestão
-            </div>
+            <div className="pl-0.5 text-[11px] font-medium uppercase tracking-[0.22em] text-white/55">Gestão</div>
           </div>
         )}
-        {mobile ? (
-          <div className="text-white">
-            <NotificationBell />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={toggleCollapse}
-            aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
-            className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-          >
-            <IconPanelLeft size={18} />
-          </button>
-        )}
+
+        <div className={isCollapsed ? 'flex flex-col items-center gap-2 text-white' : 'flex items-center gap-1 text-white'}>
+          <NotificationBell />
+          {!mobile && (
+            <button
+              type="button"
+              onClick={toggleCollapse}
+              aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
+              className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <IconPanelLeft size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Profile (mobile only) */}
-      {mobile && (
-        <button
-          type="button"
-          onClick={() => { onNavigate?.(); navigate('/perfil'); }}
-          className="mt-4 flex items-center gap-3 rounded-xl bg-white/[0.06] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.1]"
-        >
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#f2b33d] text-sm font-bold text-[#111111]">
-            {session?.user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.();
+          navigate('/perfil');
+        }}
+        className={[
+          'mt-3 flex items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
+          isCollapsed ? 'h-11 justify-center' : 'gap-3 bg-white/[0.06] px-3 py-2.5',
+        ].join(' ')}
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[#f2b33d] text-sm font-bold text-[#111111]">
+          {session?.user?.image ? (
+            <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
+          ) : (
+            avatarInitial
+          )}
+        </span>
+        {!isCollapsed && (
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="block truncate text-sm font-semibold text-white">Olá, {firstName.toUpperCase()}</span>
+            <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
+              Meu perfil <IconChevron size={11} className="-rotate-90" />
+            </span>
           </span>
-          <div className="min-w-0 leading-tight">
-            <div className="truncate text-sm font-semibold text-white">
-              {session?.user?.name ?? 'Meu Perfil'}
-            </div>
-            <div className="truncate text-xs text-white/55">
-              {session?.user?.email ?? 'Ver perfil'}
-            </div>
-          </div>
-        </button>
-      )}
+        )}
+      </button>
 
-      {/* Novo (quick create) */}
-      <div ref={createRef} className="relative mt-5">
+      <div ref={createRef} className="relative mt-3">
         {isCollapsed ? (
           <Tooltip delay={150}>
             <Tooltip.Trigger className="contents">
               <button
                 type="button"
-                onClick={() => setCreateOpen((v) => !v)}
-                aria-label="Criar novo"
+                onClick={() => setCreateOpen((previous) => !previous)}
+                aria-label="Novo"
                 aria-expanded={createOpen}
-                className="grid h-11 w-full place-items-center rounded-xl bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)] transition-transform hover:scale-[1.03]"
+                className="grid h-10 w-full place-items-center rounded-xl bg-white text-[#111111] transition-colors hover:bg-white/90"
               >
-                <IconPlus size={20} />
+                <IconPlus size={18} />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content className="rounded-lg bg-[#1a1a1a] px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]">
-              Criar novo
+              Novo
             </Tooltip.Content>
           </Tooltip>
         ) : (
           <Button
             variant="secondary"
-            className="w-full justify-between bg-[#f2b33d] font-semibold text-[#111111] shadow-[var(--shadow-gold)] hover:bg-[#e6a92f]"
-            onClick={() => setCreateOpen((v) => !v)}
+            className="h-10 w-full justify-between rounded-xl bg-white font-semibold text-[#111111] shadow-none hover:bg-white/90"
+            onClick={() => setCreateOpen((previous) => !previous)}
             aria-expanded={createOpen}
             aria-haspopup="menu"
           >
@@ -348,7 +462,7 @@ export function Sidebar({
           <div
             role="menu"
             className={[
-              'absolute top-full z-30 mt-2 w-[264px] overflow-hidden rounded-2xl border border-black/[0.06] bg-[#fffdf8] p-1.5 shadow-[var(--shadow-pop)]',
+              'absolute top-full z-50 mt-2 max-h-[min(520px,65vh)] w-[264px] overflow-y-auto rounded-2xl border border-black/[0.06] bg-[#fffdf8] p-1.5 shadow-[var(--shadow-pop)]',
               isCollapsed ? 'left-0' : 'left-0 right-0 w-auto',
             ].join(' ')}
           >
@@ -373,99 +487,80 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Nav */}
-      <ScrollShadow className="-mr-1 mt-5 flex-1 pr-1" hideScrollBar>
-        <nav className="flex flex-col gap-5">
-          {GROUPS.map((group) => {
-            const groupOpen = !collapsedGroups.has(group.key);
-            const GroupIcon = group.icon;
+      <ScrollShadow
+        className="-mr-1 mt-3 flex-1 pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-white/35 scrollbar-active:scrollbar-thumb-white/45"
+      >
+        <nav className="flex flex-col gap-1">
+          {NAVIGATION.map((entry) => {
+            if (isCollapsed) return renderCollapsedEntry(entry);
+
+            const EntryIcon = entry.icon;
+            if (entry.kind === 'link') {
+              return (
+                <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
+                  <span className="min-w-0 flex-1 truncate pr-1">{entry.label}</span>
+                  {entry.badge && <MenuBadge>{entry.badge}</MenuBadge>}
+                </NavLink>
+              );
+            }
+
+            const groupOpen = !collapsedGroups.has(entry.key);
+            const groupActive = entry.items.some((item) => pathIsActive(item.to, location.pathname));
             return (
-            <div key={group.key}>
-              {!isCollapsed && (
+              <div key={entry.key}>
                 <button
                   type="button"
-                  onClick={() => toggleGroup(group.key)}
-                  className="flex min-h-10 w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-semibold text-white/75 transition-colors hover:bg-white/[0.08] hover:text-white"
+                  onClick={() => toggleGroup(entry.key)}
+                  aria-expanded={groupOpen}
+                  className={[
+                    'flex min-h-10 w-full items-center justify-between rounded-lg px-0 text-sm font-semibold transition-colors',
+                    groupActive ? 'bg-white/[0.08] text-white' : 'text-white/75 hover:bg-white/[0.08] hover:text-white',
+                  ].join(' ')}
                 >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="grid h-6 w-6 shrink-0 place-items-center text-white/65">
-                      <GroupIcon size={18} />
-                    </span>
-                    <span className="truncate">{group.title}</span>
+                  <span className="flex min-w-0 items-center">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
+                    <span className="truncate pr-2">{entry.title}</span>
                   </span>
-                  <IconChevron
-                    size={14}
-                    className={'transition-transform duration-200 ' + (groupOpen ? '' : '-rotate-90')}
-                  />
+                  <IconChevron size={14} className={`mr-3 transition-transform duration-200 ${groupOpen ? '' : '-rotate-90'}`} />
                 </button>
-              )}
-              <div
-                className={'flex flex-col gap-1 overflow-hidden transition-all duration-200 ' + (!isCollapsed && !groupOpen ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100')}
-              >
-                {group.items.map(({ to, label, icon: Icon, end }) => {
-                  const link = (
-                    <NavLink
-                      key={to}
-                      to={to}
-                      end={end}
-                      onClick={onNavigate}
-                      className={navLinkClass}
-                      title={isCollapsed ? label : undefined}
-                    >
-                      <span
-                        className={[
-                          'grid place-items-center',
-                          isCollapsed ? 'h-11 w-full' : 'h-9 w-9 shrink-0',
-                        ].join(' ')}
-                      >
-                        <Icon size={19} />
-                      </span>
-                      {!isCollapsed && <span className="truncate pr-2">{label}</span>}
-                    </NavLink>
-                  );
-                  if (!isCollapsed) return link;
-                  return (
-                    <Tooltip key={to} delay={150}>
-                      <Tooltip.Trigger className="contents">{link}</Tooltip.Trigger>
-                      <Tooltip.Content className="rounded-lg bg-[#1a1a1a] px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]">
-                        {label}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  );
-                })}
+
+                <div
+                  className={[
+                    'ml-[18px] overflow-hidden border-l border-white/10 pl-[18px] transition-all duration-200',
+                    groupOpen ? 'max-h-[600px] py-1 opacity-100' : 'max-h-0 py-0 opacity-0',
+                  ].join(' ')}
+                >
+                  <div className="flex flex-col gap-1">
+                    {entry.items.map(({ to, label, icon: ItemIcon, end, badge }) => (
+                      <NavLink key={to} to={to} end={end} onClick={onNavigate} className={navLinkClass}>
+                        <span className="grid h-9 w-8 shrink-0 place-items-center"><ItemIcon size={17} /></span>
+                        <span className="min-w-0 flex-1 truncate pr-1">{label}</span>
+                        {badge && <MenuBadge>{badge}</MenuBadge>}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
             );
           })}
         </nav>
       </ScrollShadow>
 
-      {/* Footer */}
-      <div className="mt-4 border-t border-white/[0.06] pt-3">
-        {!isCollapsed && (
-          <div className="mb-2 flex items-center gap-3 rounded-2xl bg-white/[0.05] px-3 py-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#f2b33d] text-[#111111]">
-              <IconStar size={18} />
-            </span>
-            <div className="min-w-0 leading-tight">
-              <div className="truncate text-sm font-semibold text-white">
-                {company?.name ?? 'Meu Salão'}
-              </div>
-              <div className="text-xs text-white/55">Plano Pro</div>
-            </div>
-          </div>
-        )}
+      <div className="mt-3 border-t border-white/[0.08] pt-3">
         <button
+          type="button"
           onClick={() => signOut()}
           aria-label="Sair"
           className={[
-            'flex items-center rounded-xl text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white',
-            isCollapsed ? 'h-11 w-full justify-center' : 'w-full gap-3 px-3 py-2.5',
+            'flex items-center rounded-lg text-sm font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-white',
+            isCollapsed ? 'h-10 w-full justify-center' : 'w-full gap-3 px-2.5 py-2',
           ].join(' ')}
         >
-          <IconLogout size={19} />
-          {!isCollapsed && 'Sair'}
+          <IconLogout size={18} />
+          {!isCollapsed && <span>Sair</span>}
         </button>
+        {!isCollapsed && <div className="px-2.5 pt-2 text-[10px] text-white/35">v5.7.12</div>}
       </div>
     </aside>
   );
