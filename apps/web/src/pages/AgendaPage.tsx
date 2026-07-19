@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Input, Label, ListBox, Modal, Select, TextField } from '@heroui/react';
 import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { DropdownButton } from '../components/DropdownButton';
+import { Drawer } from '../components/Drawer';
+import { useSetPageActions } from '../layout/PageActions';
 import { colorForAppointment, layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
 import { IconCalendar, IconCalendarPlus, IconChevron } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
@@ -40,10 +42,26 @@ function IconBolt({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+function IconView({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M8 4v16M3 9h18" />
+    </svg>
+  );
+}
+function IconSettings({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3h4v.08A1.7 1.7 0 0 0 15.04 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.22.62.81 1.03 1.47 1.03H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
+    </svg>
+  );
+}
 
 type View = 'day' | 'week' | 'month' | 'year';
 
-const VIEW_KEY = 'sp:agenda:view';
+const VIEW_KEY = 'sp:agenda:view:belasis-month';
 const WEEKDAY_LETTERS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -99,7 +117,7 @@ export function AgendaPage() {
   const isDesktop = useIsDesktop();
   const [view, setView] = useState<View>(() => {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(VIEW_KEY) : null;
-    return saved === 'day' || saved === 'week' || saved === 'month' || saved === 'year' ? saved : 'week';
+    return saved === 'day' || saved === 'week' || saved === 'month' || saved === 'year' ? saved : 'month';
   });
   const [peekDay, setPeekDay] = useState<Date | null>(null);
   useEffect(() => {
@@ -118,8 +136,17 @@ export function AgendaPage() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
+  // ── Mobile: the contextual BottomNav opens filters / actions as bottom-sheet
+  // drawers (same controls as the header dropdowns).
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [dateDrawerOpen, setDateDrawerOpen] = useState(false);
+  const [datePickerMonth, setDatePickerMonth] = useState(() => startOfMonth(new Date()));
+  const [draftDate, setDraftDate] = useState(() => new Date());
+
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [newApptDate, setNewApptDate] = useState<string | undefined>(undefined);
+  const agendaScrollerRef = useRef<HTMLDivElement>(null);
 
   const activeFilterCount =
     professionalIds.length + statuses.length + (serviceFilter ? 1 : 0) + (customerQuery.trim() ? 1 : 0);
@@ -159,15 +186,28 @@ export function AgendaPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [toast, setToast] = useState<string | null>(null);
-  useAutoCreate(() => setIsNewOpen(true));
+  useAutoCreate(() => openNew());
 
-  // Phones open on a focused day and can switch to a compact month overview.
-  // A seven-column weekly scheduler is intentionally kept for desktop only.
-  const effectiveView: View = isDesktop
-    ? view
-    : view === 'month'
-      ? 'month'
-      : 'day';
+  // Contextual bottom-nav actions for this page: Filtros / Ações / Criar. These
+  // fire the same things as the header controls (they only call stable setters,
+  // so the registration is created once on mount and cleared on unmount).
+  useSetPageActions(
+    [
+      { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setMobileFilterOpen(true) },
+      { key: 'acoes', label: 'Ações', icon: <IconBolt size={22} />, onClick: () => setMobileActionsOpen(true) },
+      {
+        key: 'criar',
+        label: 'Criar',
+        icon: <IconCalendarPlus size={22} />,
+        onClick: () => { setNewApptDate(undefined); setIsNewOpen(true); },
+      },
+    ],
+    [],
+  );
+
+  // Keep the same daily/weekly/monthly interval at every breakpoint. The
+  // default month interval is a date grid; professionals stay in the filter.
+  const effectiveView: View = view;
 
   const days = useMemo(() => {
     if (effectiveView === 'week') {
@@ -185,6 +225,12 @@ export function AgendaPage() {
     const gridStart = addDays(first, -first.getDay()); // back to Sunday
     return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   }, [anchor, effectiveView]);
+
+  const datePickerCells = useMemo(() => {
+    const first = startOfMonth(datePickerMonth);
+    const gridStart = addDays(first, -first.getDay());
+    return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  }, [datePickerMonth]);
 
   // Year view: the 12 months of the anchor's year.
   const yearMonths = useMemo(() => {
@@ -267,6 +313,24 @@ export function AgendaPage() {
           ? addMonths(a, dir)
           : addDays(a, effectiveView === 'week' ? dir * 7 : dir),
     );
+  }
+
+  function openDateDrawer() {
+    const selected = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    setDraftDate(selected);
+    setDatePickerMonth(startOfMonth(selected));
+    setDateDrawerOpen(true);
+  }
+
+  function applyDraftDate() {
+    setAnchor(new Date(draftDate.getFullYear(), draftDate.getMonth(), draftDate.getDate()));
+    setDateDrawerOpen(false);
+  }
+
+  function chooseToday() {
+    const today = new Date();
+    setDraftDate(today);
+    setDatePickerMonth(startOfMonth(today));
   }
 
   const periodLabel =
@@ -398,6 +462,16 @@ export function AgendaPage() {
   const nowVisible = nowMin >= 0 && nowMin <= TOTAL_MIN;
   const bodyHeight = (END_HOUR - START_HOUR) * HOUR_H;
 
+  useEffect(() => {
+    if (effectiveView !== 'day' && effectiveView !== 'week') return;
+    const scroller = agendaScrollerRef.current;
+    if (!scroller || appts.isLoading) return;
+    const frame = requestAnimationFrame(() => {
+      scroller.scrollTop = Math.max(0, nowTop - 120);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [appts.isLoading, effectiveView]);
+
   const filterLabel = (
     <span className="inline-flex items-center gap-1.5">
       Filtrar
@@ -409,15 +483,8 @@ export function AgendaPage() {
     </span>
   );
 
-  const filterBtn = (
-    <DropdownButton
-      label={filterLabel}
-      icon={<IconFilter size={14} />}
-      align="end"
-      buttonVariant={activeFilterCount > 0 ? 'primary' : 'outline'}
-    >
-      {(close) => (
-        <div className="flex w-[300px] max-w-[calc(100vw-1.5rem)] flex-col gap-4 p-4">
+  const renderFilterPanel = (close: () => void) => (
+    <div className="flex flex-col gap-4">
           {/* Profissionais (multi) */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
@@ -496,9 +563,39 @@ export function AgendaPage() {
               <Button variant="outline" size="sm" onClick={close}>Fechar</Button>
             </div>
           </div>
+    </div>
+  );
+
+  const filterBtn = (
+    <DropdownButton
+      label={filterLabel}
+      icon={<IconFilter size={14} />}
+      align="end"
+      buttonVariant={activeFilterCount > 0 ? 'primary' : 'outline'}
+    >
+      {(close) => (
+        <div className="w-[300px] max-w-[calc(100vw-1.5rem)] p-4">
+          {renderFilterPanel(close)}
         </div>
       )}
     </DropdownButton>
+  );
+
+  const renderActionsPanel = (close: () => void) => (
+    <div className="py-1">
+      <button type="button" onClick={() => { setSelectMode(true); close(); }}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+        Selecionar agendamentos
+      </button>
+      <button type="button" onClick={() => { close(); flash('O bloqueio de horários será aberto nas configurações da agenda.'); }}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+        Ocupar horários
+      </button>
+      <button type="button" onClick={() => { close(); flash('Selecione agendamentos para agrupá-los.'); }}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+        Agrupar agendamentos
+      </button>
+    </div>
   );
 
   const actionsBtn = (
@@ -509,24 +606,33 @@ export function AgendaPage() {
       buttonVariant={selectMode ? 'primary' : 'outline'}
     >
       {(close) => (
-        <div className="w-56 py-1">
-          <button type="button" onClick={() => { setSelectMode(true); close(); }}
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
-            Selecionar agendamentos
-          </button>
-          <button type="button" disabled title="Sem suporte no backend ainda"
-            className="flex w-full cursor-not-allowed items-center gap-2 px-3 py-2.5 text-left text-sm text-[#c9ccd1]">
-            Bloquear horários
-          </button>
-          <div className="my-1 border-t border-black/[0.06]" />
-          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#bfaf9e]">Visualização</div>
-          {(['day', 'week', 'month'] as View[]).map((v) => (
-            <button key={v} type="button" onClick={() => { setView(v); close(); }}
+        <div className="w-56">
+          {renderActionsPanel(close)}
+        </div>
+      )}
+    </DropdownButton>
+  );
+
+  const viewBtn = (
+    <DropdownButton
+      label="Visualização"
+      icon={<IconView size={14} />}
+      align="end"
+      buttonVariant="outline"
+    >
+      {(close) => (
+        <div className="w-44 py-1">
+          {(['day', 'week', 'month'] as View[]).map((interval) => (
+            <button
+              key={interval}
+              type="button"
+              onClick={() => { setView(interval); close(); }}
               className={[
-                'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f7f3ea]',
-                view === v ? 'font-semibold text-[#8a6517]' : 'text-foreground',
-              ].join(' ')}>
-              {v === 'day' ? 'Diário' : v === 'week' ? 'Semanal' : 'Mensal'}
+                'flex w-full items-center px-3 py-2.5 text-left text-sm hover:bg-[#f7f3ea]',
+                view === interval ? 'font-semibold text-[#8a6517]' : 'text-foreground',
+              ].join(' ')}
+            >
+              {interval === 'day' ? 'Diário' : interval === 'week' ? 'Semanal' : 'Mensal'}
             </button>
           ))}
         </div>
@@ -536,84 +642,76 @@ export function AgendaPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Toolbar — fixed header. */}
-      <div className="shrink-0 border-b border-[var(--color-soft-border)] bg-[#fffdf8] px-3 py-2">
-        {/* Desktop toolbar */}
-        <div className="hidden items-center gap-2 lg:flex">
-          <div className="flex items-center gap-0.5">
+      {/* Calendar header mirrors Belasis: interval navigation on the left and
+          visualization, filter, actions, settings and creation on the right. */}
+      <div className="shrink-0 border-b border-[#dddddd]/50 bg-white">
+        <div className="hidden h-[70px] items-center gap-2 px-5 lg:flex">
+          <div className="flex min-w-0 items-center">
             <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
-              className="grid h-8 w-8 place-items-center rounded-lg text-[#6B6F76] hover:bg-[#f7f3ea]">
-              <IconChevron size={16} className="rotate-90" />
+              className="grid h-10 w-10 shrink-0 place-items-center text-[#a67c1e] hover:bg-[#f7f3ea]">
+              <IconChevron size={22} className="rotate-90" />
             </button>
-            <button type="button" aria-label="Proximo" onClick={() => navigate(1)}
-              className="grid h-8 w-8 place-items-center rounded-lg text-[#6B6F76] hover:bg-[#f7f3ea]">
-              <IconChevron size={16} className="-rotate-90" />
+            <button
+              type="button"
+              onClick={openDateDrawer}
+              aria-haspopup="dialog"
+              aria-expanded={dateDrawerOpen}
+              className="max-w-[360px] truncate rounded-lg px-3 py-2 text-left text-base font-semibold capitalize text-foreground transition-colors hover:bg-[#f7f3ea]"
+            >
+              {periodLabel}
+            </button>
+            <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
+              className="grid h-10 w-10 shrink-0 place-items-center text-[#a67c1e] hover:bg-[#f7f3ea]">
+              <IconChevron size={22} className="-rotate-90" />
+            </button>
+            <button type="button" aria-label="Voltar para hoje" title="Hoje" onClick={() => setAnchor(new Date())}
+              className="ml-2 grid h-10 w-10 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76] hover:bg-[#f7f3ea]">
+              <IconCalendar size={17} />
             </button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setAnchor(new Date())}>
-            <IconCalendar size={14} /> Hoje
-          </Button>
-          <span className="truncate text-sm font-semibold capitalize text-foreground">{periodLabel}</span>
           <div className="ml-auto flex items-center gap-2">
+            {viewBtn}
             {filterBtn}
             {actionsBtn}
-            <div className="flex overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
-              {(['week', 'day', 'month'] as View[]).map((v) => (
-                <button key={v} type="button" onClick={() => setView(v)}
-                  className={[
-                    'px-3 py-1 text-xs font-medium transition-colors',
-                    view === v ? 'bg-[#f2b33d] text-[#3b2d09]' : 'bg-white text-[#6B6F76] hover:bg-[#f7f3ea]',
-                  ].join(' ')}>
-                  {v === 'week' ? 'Semana' : v === 'day' ? 'Dia' : 'Mês'}
-                </button>
-              ))}
-            </div>
+            <button type="button" aria-label="Configurações da agenda" title="Configurações da agenda"
+              onClick={() => flash('Configurações da agenda disponíveis em Configurações.')}
+              className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76] hover:bg-[#f7f3ea]">
+              <IconSettings size={15} />
+            </button>
             <Button variant="primary" size="sm" onClick={() => openNew()}>
               <IconCalendarPlus size={14} /> Novo
             </Button>
           </div>
         </div>
 
-        {/* Mobile toolbar: focused navigation first, filters on a second row. */}
-        <div className="flex flex-col gap-2 lg:hidden">
-          <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-1">
+        {/* The original mobile header is a centered, translucent date navigator. */}
+        <div className="bg-white/80 backdrop-blur-[2px] lg:hidden">
+          <div className="grid h-11 grid-cols-[44px_minmax(0,1fr)_44px] items-center justify-center px-4">
             <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[#6B6F76] active:bg-[#f7f3ea]">
-              <IconChevron size={19} className="rotate-90" />
+              className="grid h-11 w-11 place-items-center text-[#a67c1e] active:bg-[#f7f3ea]">
+              <IconChevron size={17} className="rotate-90" />
             </button>
-            <button
-              type="button"
-              onClick={() => setAnchor(new Date())}
-              className="min-w-0 rounded-xl px-2 py-2 text-center active:bg-[#f7f3ea]"
-            >
-              <span className="block truncate text-sm font-semibold capitalize text-foreground">{periodLabel}</span>
-              <span className="block text-[10px] font-medium text-[#8a6517]">Toque para voltar a hoje</span>
+            <button type="button" onClick={openDateDrawer} aria-haspopup="dialog" aria-expanded={dateDrawerOpen}
+              className="min-w-0 truncate px-2 text-center text-sm font-semibold capitalize text-[#a67c1e]">
+              {periodLabel}
             </button>
             <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[#6B6F76] active:bg-[#f7f3ea]">
-              <IconChevron size={19} className="-rotate-90" />
+              className="grid h-11 w-11 place-items-center text-[#a67c1e] active:bg-[#f7f3ea]">
+              <IconChevron size={17} className="-rotate-90" />
             </button>
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex h-11 shrink-0 overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white p-1">
-              {(['day', 'month'] as View[]).map((v) => (
-                <button key={v} type="button" onClick={() => setView(v)}
-                  className={[
-                    'min-w-12 rounded-lg px-3 text-xs font-semibold transition-colors',
-                    effectiveView === v ? 'bg-[#f2b33d] text-[#3b2d09]' : 'text-[#6B6F76] active:bg-[#f7f3ea]',
-                  ].join(' ')}>
-                  {v === 'day' ? 'Dia' : 'Mês'}
-                </button>
-              ))}
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              {filterBtn}
-              {actionsBtn}
-              <Button variant="primary" size="sm" onClick={() => openNew()}>
-                <IconCalendarPlus size={14} /> Novo
-              </Button>
-            </div>
+          <div className="flex items-center gap-2 overflow-x-auto border-t border-[#dddddd]/40 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {viewBtn}
+            {filterBtn}
+            {actionsBtn}
+            <button type="button" aria-label="Configurações da agenda"
+              onClick={() => flash('Configurações da agenda disponíveis em Configurações.')}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76]">
+              <IconSettings size={15} />
+            </button>
+            <Button variant="primary" size="sm" className="shrink-0" onClick={() => openNew()}>
+              <IconCalendarPlus size={14} /> Novo
+            </Button>
           </div>
         </div>
       </div>
@@ -642,104 +740,108 @@ export function AgendaPage() {
             else { setAnchor(d); setView('day'); }
           }}
           onPickAppt={openDetail}
-          mobile={!isDesktop}
         />
       ) : (
-        <div className="flex min-h-0 flex-1 overflow-auto bg-white pb-20 lg:pb-0">
-          {/* Time gutter */}
-          <div className="sticky left-0 z-20 w-12 shrink-0 border-r border-black/5 bg-white">
-            <div className="h-10" />
-            {HOURS.map((h) => (
-              <div key={h} style={{ height: HOUR_H }} className="relative pr-1.5 text-right">
-                <span className="absolute right-1.5 top-0 -translate-y-1/2 text-[10px] font-medium text-[#9AA0A6]">
-                  {String(h).padStart(2, '0')}:00
+        <div ref={agendaScrollerRef} className="flex min-h-0 flex-1 overflow-auto overscroll-contain bg-white pb-24 lg:pb-0">
+          <div className="sticky left-0 z-30 w-[47px] shrink-0 border-r border-[#dddddd]/50 bg-white lg:w-[58px]">
+            <div className="h-14" />
+            {HOURS.map((hour) => (
+              <div key={hour} style={{ height: HOUR_H }} className="relative pr-1.5 text-right">
+                <span className="absolute right-1.5 top-0 -translate-y-1/2 text-[10px] font-medium text-[#6d6d6d] lg:text-xs">
+                  {String(hour).padStart(2, '0')}:00
                 </span>
               </div>
             ))}
           </div>
 
-          {/* Day columns */}
-          <div className="grid flex-1" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(${effectiveView === 'day' ? '200px' : '100px'}, 1fr))` }}>
+          {/* Daily and weekly intervals are divided only by dates. */}
+          <div
+            className="grid flex-1"
+            style={{ gridTemplateColumns: `repeat(${days.length}, minmax(${effectiveView === 'day' ? '220px' : '108px'}, 1fr))` }}
+          >
             {days.map((day) => {
               const placed = layoutDay(rows, day, HOUR_H);
               const today = isToday(day);
               return (
-                <div key={day.toISOString()} className="border-l border-black/[0.06]">
-                  {/* Column header */}
-                  <div className="sticky top-0 z-10 flex h-10 flex-col items-center justify-center border-b border-black/[0.06] bg-white/95 backdrop-blur-sm">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-[#9AA0A6]">
+                <div key={day.toISOString()} className="min-w-0 border-l border-[#dddddd]/50">
+                  <div className="sticky top-0 z-20 flex h-14 flex-col items-center justify-center border-b border-[#dddddd]/50 bg-white/95 backdrop-blur-[2px]">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[#6B6F76]">
                       {weekdayFmt.format(day).replace('.', '')}
                     </span>
                     <span className={[
-                      'grid h-6 w-6 place-items-center rounded-full text-xs font-bold',
+                      'mt-0.5 grid h-7 min-w-7 place-items-center rounded-full px-1 text-sm font-semibold',
                       today ? 'bg-[#f2b33d] text-[#3b2d09]' : 'text-[#2F3136]',
-                    ].join(' ')}>
-                      {day.getDate()}
-                    </span>
+                    ].join(' ')}>{day.getDate()}</span>
                   </div>
 
-                  {/* Day body */}
-                  <div className="relative" style={{ height: bodyHeight }}>
-                    {HOURS.map((h, i) => (
-                      <div key={h} style={{ top: i * HOUR_H, height: HOUR_H }}
-                        className="absolute inset-x-0 border-b border-black/[0.04]">
-                        <div className="absolute inset-x-0 border-b border-dashed border-black/[0.03]"
-                          style={{ top: HOUR_H / 2 }} />
+                  <div
+                    className="relative cursor-crosshair"
+                    style={{ height: bodyHeight }}
+                    onClick={() => openNew(isoDate(day))}
+                    aria-label={`Novo agendamento em ${dateFmt.format(day)}`}
+                  >
+                    {HOURS.map((hour, index) => (
+                      <div
+                        key={hour}
+                        style={{ top: index * HOUR_H, height: HOUR_H }}
+                        className="pointer-events-none absolute inset-x-0 border-b border-[#dddddd]/50"
+                      >
+                        <div className="absolute inset-x-0 border-b border-dotted border-[#dddddd]/40" style={{ top: HOUR_H / 2 }} />
                       </div>
                     ))}
 
-                    {/* Now line */}
                     {today && nowVisible && (
                       <div className="pointer-events-none absolute inset-x-0 z-20" style={{ top: nowTop }}>
                         <span className="absolute -left-1 -top-[3px] h-[7px] w-[7px] rounded-full bg-[#ef4444]" />
-                        <div className="h-[2px] bg-[#ef4444]" />
+                        <div className="h-px bg-[#ef4444]" />
                       </div>
                     )}
 
-                    {/* Appointment blocks */}
                     {placed.map(({ a, top, height, col, cols }) => {
-                      const c = colorForAppointment(a);
+                      const color = colorForAppointment(a);
                       const canceled = a.status === 'canceled';
-                      const w = 100 / cols;
-                      const label = a.customer?.name ?? 'Sem cliente';
-                      const profName = a.professional?.name;
-                      const svcNames = profName;
+                      const width = 100 / cols;
+                      const customerName = a.customer?.name ?? 'Sem cliente';
+                      const serviceNames = (a.items ?? [])
+                        .map((item) => serviceById.get(item.serviceId))
+                        .filter((name): name is string => Boolean(name))
+                        .join(', ');
                       const isSelected = selectMode && selectedIds.has(a.id);
                       return (
-                        <button key={a.id} type="button" onClick={() => onBlockClick(a)}
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); onBlockClick(a); }}
+                          aria-label={`${formatTime(a.start)}, ${customerName}`}
                           style={{
                             top,
                             height: Math.max(height, 22),
-                            left: `calc(${col * w}% + 2px)`,
-                            width: `calc(${w}% - 4px)`,
-                            backgroundColor: canceled ? '#f3f4f6' : c.bg,
-                            borderLeftColor: canceled ? '#d1d5db' : c.bar,
+                            left: `calc(${col * width}% + 2px)`,
+                            width: `calc(${width}% - 4px)`,
+                            backgroundColor: canceled ? '#b8b8b8' : color.bar,
                           }}
                           className={[
-                            'absolute z-10 flex flex-col overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left transition-shadow hover:z-30 hover:shadow-md',
+                            'absolute z-10 flex flex-col overflow-hidden rounded-lg text-left text-white transition-[box-shadow,opacity] hover:z-30 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b33d]',
+                            canceled ? 'opacity-60' : '',
                             isSelected ? 'z-30 ring-2 ring-[#f2b33d] ring-offset-1' : '',
                           ].join(' ')}
                         >
+                          <span className="block w-full truncate bg-black/10 px-1 py-0.5 text-[9px] font-semibold leading-tight lg:text-[10px]">
+                            {timeFmt.format(new Date(a.start))}
+                          </span>
+                          <span className="block w-full truncate px-1 pt-0.5 text-[9px] font-semibold leading-tight lg:text-[10px]">
+                            {customerName}
+                          </span>
+                          {height >= 44 && serviceNames && (
+                            <span className="block w-full truncate px-1 text-[8px] leading-tight text-white/90 lg:text-[10px]">
+                              {serviceNames}
+                            </span>
+                          )}
                           {selectMode && (
                             <span className={[
-                              'absolute right-1 top-1 grid h-3.5 w-3.5 place-items-center rounded-full border text-[8px] font-bold',
-                              isSelected ? 'border-[#f2b33d] bg-[#f2b33d] text-white' : 'border-black/20 bg-white/70',
-                            ].join(' ')}>
-                              {isSelected ? '✓' : ''}
-                            </span>
-                          )}
-                          <span className="truncate text-[10px] font-bold" style={{ color: canceled ? '#9ca3af' : c.text }}>
-                            {timeFmt.format(new Date(a.start))} {label}
-                          </span>
-                          {height > 30 && profName && (
-                            <span className="truncate text-[9px] font-medium" style={{ color: canceled ? '#9ca3af' : c.text, opacity: 0.75 }}>
-                              {profName}
-                            </span>
-                          )}
-                          {height > 44 && svcNames && (
-                            <span className="truncate text-[9px]" style={{ color: canceled ? '#9ca3af' : c.text, opacity: 0.6 }}>
-                              {svcNames}
-                            </span>
+                              'absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full border text-[9px] font-bold',
+                              isSelected ? 'border-white bg-white text-[#8a6517]' : 'border-white/80 bg-black/10 text-white',
+                            ].join(' ')}>{isSelected ? '✓' : ''}</span>
                           )}
                         </button>
                       );
@@ -778,7 +880,100 @@ export function AgendaPage() {
         </div>
       )}
 
-      <NewAppointmentModal isOpen={isNewOpen} onOpenChange={setIsNewOpen} initialDate={newApptDate} onCreated={() => appts.refetch()} />
+      <NewAppointmentModal
+        isOpen={isNewOpen}
+        onOpenChange={setIsNewOpen}
+        initialDate={newApptDate}
+        onCreated={() => appts.refetch()}
+      />
+
+      <Drawer
+        isOpen={dateDrawerOpen}
+        onClose={() => setDateDrawerOpen(false)}
+        title="Selecionar uma data"
+        widthClass="sm:w-[420px]"
+        footer={(
+          <>
+            <Button variant="ghost" onClick={chooseToday}>Hoje</Button>
+            <Button variant="outline" onClick={() => setDateDrawerOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={applyDraftDate}>Ir para data</Button>
+          </>
+        )}
+      >
+        <div className="overflow-hidden rounded-2xl border border-[#dddddd]/70 bg-white">
+          <div className="flex items-center justify-between border-b border-[#dddddd]/60 px-2 py-2">
+            <button
+              type="button"
+              onClick={() => setDatePickerMonth((month) => addMonths(month, -1))}
+              aria-label="Mês anterior"
+              className="grid h-11 w-11 place-items-center rounded-xl text-[#a67c1e] transition-colors hover:bg-[#f7f3ea] active:bg-[#f2ece0]"
+            >
+              <IconChevron size={19} className="rotate-90" />
+            </button>
+            <span className="text-sm font-semibold capitalize text-foreground">
+              {monthFmt.format(datePickerMonth)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDatePickerMonth((month) => addMonths(month, 1))}
+              aria-label="Próximo mês"
+              className="grid h-11 w-11 place-items-center rounded-xl text-[#a67c1e] transition-colors hover:bg-[#f7f3ea] active:bg-[#f2ece0]"
+            >
+              <IconChevron size={19} className="-rotate-90" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 border-b border-[#dddddd]/50 px-2 py-2">
+            {WEEKDAY_LETTERS.map((weekday) => (
+              <span key={weekday} className="text-center text-[10px] font-semibold uppercase tracking-wide text-[#9AA0A6]">
+                {weekday}
+              </span>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-y-1 p-2">
+            {datePickerCells.map((day) => {
+              const dayIso = isoDate(day);
+              const selected = dayIso === isoDate(draftDate);
+              const today = dayIso === isoDate(new Date());
+              const inMonth = day.getMonth() === datePickerMonth.getMonth();
+              return (
+                <button
+                  key={dayIso}
+                  type="button"
+                  onClick={() => {
+                    setDraftDate(day);
+                    if (!inMonth) setDatePickerMonth(startOfMonth(day));
+                  }}
+                  aria-label={longDateFmt.format(day)}
+                  aria-pressed={selected}
+                  className={[
+                    'mx-auto grid h-11 w-11 place-items-center rounded-full text-sm font-semibold transition-colors',
+                    selected
+                      ? 'bg-[#f2b33d] text-[#3b2d09] shadow-[var(--shadow-gold)]'
+                      : today
+                        ? 'ring-1 ring-[#f2b33d] text-[#8a6517] hover:bg-[#f2b33d]/10'
+                        : inMonth
+                          ? 'text-foreground hover:bg-[#f7f3ea]'
+                          : 'text-[#c9ccd1] hover:bg-[#f7f3ea]',
+                  ].join(' ')}
+                >
+                  {day.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Drawer>
+
+      {/* Mobile: the contextual bottom-nav opens Filtros / Ações as bottom-sheet
+          drawers reusing the same controls (and shared state) as the header. */}
+      <Drawer isOpen={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} title="Filtrar">
+        {renderFilterPanel(() => setMobileFilterOpen(false))}
+      </Drawer>
+      <Drawer isOpen={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} title="Ações">
+        {renderActionsPanel(() => setMobileActionsOpen(false))}
+      </Drawer>
 
       {peekDay && (
         <DayPeek
@@ -959,10 +1154,7 @@ export function AgendaPage() {
   );
 }
 
-/**
- * Month calendar (Belasis-style): a grid of day squares for the whole month.
- * Days with appointments show a count badge; tapping a day opens it in Day view.
- */
+/** Belasis month view: days are the columns/cells and events stay visible as cards. */
 function MonthView({
   cells,
   anchorMonth,
@@ -971,7 +1163,6 @@ function MonthView({
   onNewForDay,
   onSeeDay,
   onPickAppt,
-  mobile,
 }: {
   cells: Date[];
   anchorMonth: number;
@@ -980,7 +1171,6 @@ function MonthView({
   onNewForDay: (d: Date) => void;
   onSeeDay: (d: Date) => void;
   onPickAppt: (a: AppointmentRow) => void;
-  mobile: boolean;
 }) {
   const todayIso = isoDate(new Date());
   return (
@@ -994,31 +1184,30 @@ function MonthView({
         ))}
       </div>
 
-      {/* Day squares — tapping a day starts a new appointment for it. */}
-      <div className="grid auto-rows-[64px] grid-cols-7 sm:auto-rows-[82px] lg:auto-rows-[118px]">
+      <div className="grid auto-rows-[158px] grid-cols-7 sm:auto-rows-[166px] lg:auto-rows-[176px]">
         {cells.map((d) => {
           const iso = isoDate(d);
           const list = apptsByDay.get(iso) ?? [];
-          const first = list[0];
-          const extra = list.length - 1;
+          const visible = list.slice(0, 2);
+          const extra = list.length - visible.length;
           const inMonth = d.getMonth() === anchorMonth;
           const isCurrentDay = iso === todayIso;
-          const svc = first?.items?.[0] ? serviceById.get(first.items[0].serviceId) : undefined;
           return (
             <div
               key={iso}
               role="button"
               tabIndex={0}
-              onClick={() => mobile ? onSeeDay(d) : onNewForDay(d)}
-              title={mobile ? 'Ver dia' : 'Novo agendamento'}
+              onClick={() => onNewForDay(d)}
+              onKeyDown={(event) => { if (event.key === 'Enter') onNewForDay(d); }}
+              title="Novo agendamento"
               className={[
-                'relative flex min-w-0 cursor-pointer flex-col items-center gap-1 overflow-hidden border-b border-r border-black/[0.06] p-1.5 transition-colors lg:items-start lg:p-1',
+                'relative flex min-w-0 cursor-pointer flex-col gap-1 overflow-hidden border-b border-r border-[#dddddd]/50 p-1 transition-colors',
                 inMonth ? 'bg-white hover:bg-[#f7f3ea]' : 'bg-[#fafafa]',
               ].join(' ')}
             >
               <span
                 className={[
-                  'grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-semibold lg:h-6 lg:w-6 lg:self-start',
+                  'grid h-6 w-6 shrink-0 place-items-center self-end rounded-full text-[11px] font-semibold lg:h-7 lg:w-7 lg:text-xs',
                   isCurrentDay
                     ? 'bg-[#f2b33d] text-[#3b2d09]'
                     : inMonth
@@ -1029,31 +1218,45 @@ function MonthView({
                 {d.getDate()}
               </span>
 
-              {first && !mobile && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onPickAppt(first); }}
-                  className="flex min-w-0 flex-col gap-0.5 rounded border-l-2 border-[#f2b33d] bg-[#f2b33d]/12 px-1 py-0.5 text-left leading-tight transition-colors hover:bg-[#f2b33d]/20"
-                >
-                  <span className="text-[9px] font-bold text-[#a67c1e]">{formatTime(first.start)}</span>
-                  <span className="min-w-0 truncate text-[9px] font-semibold text-foreground">
-                    {first.customer?.name?.split(' ')[0] ?? 'Cliente'}
-                  </span>
-                  {svc && (
-                    <span className="min-w-0 truncate text-[9px] text-muted">{svc}</span>
-                  )}
-                </button>
-              )}
-              {list.length > 0 && mobile && (
-                <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-[#f2b33d]/18 px-1.5 text-[10px] font-bold text-[#8a6517]">
-                  {list.length}
-                </span>
-              )}
-              {extra > 0 && !mobile && (
+              <div className="flex min-h-0 w-full flex-col gap-1">
+                {visible.map((appointment) => {
+                  const color = colorForAppointment(appointment);
+                  const canceled = appointment.status === 'canceled';
+                  const customer = appointment.customer?.name ?? 'Sem cliente';
+                  const service = appointment.items?.[0]
+                    ? serviceById.get(appointment.items[0].serviceId)
+                    : undefined;
+                  return (
+                    <button
+                      key={appointment.id}
+                      type="button"
+                      onClick={(event) => { event.stopPropagation(); onPickAppt(appointment); }}
+                      style={{ backgroundColor: canceled ? '#b8b8b8' : color.bar }}
+                      title={`${formatTime(appointment.start)} · ${customer} · ${service ?? 'Sem serviço'}`}
+                      className={[
+                        'flex h-[46px] min-w-0 flex-col items-start justify-center overflow-hidden rounded-md px-1 py-1 text-left leading-none text-white transition-shadow hover:shadow-md lg:h-[50px] lg:rounded-lg lg:px-1.5',
+                        canceled ? 'opacity-60' : '',
+                      ].join(' ')}
+                    >
+                      <span className="block w-full truncate text-[8px] font-bold lg:text-[10px]">
+                        {formatTime(appointment.start)}
+                      </span>
+                      <span className="mt-0.5 block w-full truncate text-[8px] font-semibold lg:text-[10px]">
+                        {customer}
+                      </span>
+                      <span className="mt-0.5 block w-full truncate text-[7px] text-white/85 lg:text-[9px]">
+                        {service ?? 'Sem serviço'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {extra > 0 && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onSeeDay(d); }}
-                  className="w-full rounded-md bg-[#f2b33d] px-1 py-1 text-center text-[10px] font-bold text-[#3b2d09] transition-colors hover:bg-[#e6a92f]"
+                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-[#6B6F76] hover:text-[#a67c1e] lg:text-[10px]"
                 >
                   +{extra} mais
                 </button>

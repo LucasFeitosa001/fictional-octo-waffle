@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { BottomNav } from './BottomNav';
+import { PageActionsProvider } from './PageActions';
 
 function IconClose({ size = 24 }: { size?: number }) {
   return (
@@ -29,6 +30,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const fullBleed = pathname === '/agenda';
 
   return (
+    <PageActionsProvider>
     <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop static sidebar */}
       <div className="hidden lg:block">
@@ -97,5 +99,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar (same style as the club) */}
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
     </div>
+    </PageActionsProvider>
   );
 }

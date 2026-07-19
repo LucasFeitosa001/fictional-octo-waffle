@@ -93,9 +93,6 @@ export function Topbar() {
             alt="Salonpass"
             className="h-6 w-auto max-w-[132px] object-contain"
           />
-          <span className="rounded-full bg-[#f2b33d]/18 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#8a6517]">
-            Gestão
-          </span>
         </button>
         <div className="flex shrink-0 items-center gap-1.5">
           <NotificationBell variant="ringed" />

@@ -41,6 +41,7 @@ import {
 } from '../components/icons';
 import { signOut, useSession } from '../lib/auth';
 import { NotificationBell } from '../components/NotificationBell';
+import { CREATE_GROUPS } from './PageActions';
 
 type IconType = ComponentType<{ size?: number }>;
 
@@ -202,19 +203,6 @@ const NAVIGATION: NavEntry[] = [
     label: 'Indique e ganhe',
     icon: IconShare,
   },
-];
-
-type QuickCreate = { to: string; label: string; description: string; icon: IconType };
-
-const QUICK_CREATE: QuickCreate[] = [
-  { to: '/agenda?new=1', label: 'Agendamento', description: 'Marcar um horário', icon: IconCalendar },
-  { to: '/comandas?new=1', label: 'Comanda', description: 'Abrir uma venda', icon: IconReceipt },
-  { to: '/pacotes?new=1', label: 'Pacote', description: 'Criar um pacote', icon: IconLayers },
-  { to: '/clientes?new=1', label: 'Cliente', description: 'Cadastrar pessoa', icon: IconUsers },
-  { to: '/servicos?new=1', label: 'Serviço', description: 'Novo serviço', icon: IconScissors },
-  { to: '/produtos?new=1', label: 'Produto', description: 'Item de estoque', icon: IconBox },
-  { to: '/profissionais?new=1', label: 'Profissional', description: 'Adicionar à equipe', icon: IconScissors },
-  { to: '/fornecedores?new=1', label: 'Fornecedor', description: 'Cadastrar fornecedor', icon: IconTruck },
 ];
 
 const COLLAPSE_KEY = 'sp:sidebar:collapsed';
@@ -380,7 +368,6 @@ export function Sidebar({
         ) : (
           <div className="flex flex-col gap-1">
             <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" className="h-7 w-auto self-start" />
-            <div className="pl-0.5 text-[11px] font-medium uppercase tracking-[0.22em] text-white/55">Gestão</div>
           </div>
         )}
 
@@ -466,22 +453,26 @@ export function Sidebar({
               isCollapsed ? 'left-0' : 'left-0 right-0 w-auto',
             ].join(' ')}
           >
-            {QUICK_CREATE.map(({ to, label, description, icon: Icon }) => (
-              <button
-                key={to}
-                type="button"
-                role="menuitem"
-                onClick={() => quickCreate(to)}
-                className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-[#f7f3ea]"
-              >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#111111] text-[#f2b33d]">
-                  <Icon size={18} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-[#111111]">{label}</span>
-                  <span className="block text-xs text-[#6f6a63]">{description}</span>
-                </span>
-              </button>
+            {CREATE_GROUPS.map((group) => (
+              <div key={group.label} className="pb-1">
+                <div className="px-2.5 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9AA0A6]">
+                  {group.label}
+                </div>
+                {group.items.map(({ to, label, icon: Icon }) => (
+                  <button
+                    key={to}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => quickCreate(to)}
+                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-[#f7f3ea]"
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#111111] text-[#f2b33d]">
+                      <Icon size={16} />
+                    </span>
+                    <span className="min-w-0 truncate text-sm font-semibold text-[#111111]">{label}</span>
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
         )}
