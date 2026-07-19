@@ -6,7 +6,6 @@ import {
   Dropdown,
   Input,
   ListBox,
-  Modal,
   Select,
   Switch,
   TextField,
@@ -27,7 +26,8 @@ import {
   IconRepeat,
   IconWallet,
 } from '../../components/icons';
-import { DateField, DateRangeFilter } from '../../components/DateRangeFilter';
+import { DateFieldBR } from '../../components/DateRangeFilter';
+import { Drawer } from '../../components/Drawer';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useCustomers, useProfessionals } from '../../lib/queries';
@@ -415,14 +415,8 @@ export function TransacoesPage() {
       <Card className={`mb-4 ${CARD_CLASS}`}>
         <Card.Content className="flex flex-col gap-4 p-4">
           <div className="flex flex-wrap items-end gap-3">
-            <DateRangeFilter
-              from={from}
-              to={to}
-              onChange={({ from: f, to: t }) => {
-                setFrom(f);
-                setTo(t);
-              }}
-            />
+            <DateFieldBR label="De" value={from} onChange={setFrom} />
+            <DateFieldBR label="Até" value={to} onChange={setTo} />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -828,200 +822,148 @@ function LancamentoModal({
     ? `Editar ${mode === 'recebimento' ? 'recebimento' : 'despesa'}`
     : `Novo ${MODE_LABEL[mode].toLowerCase()}`;
 
+  const footer = success ? (
+    <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      Fechar
+    </Button>
+  ) : (
+    <>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+        Cancelar
+      </Button>
+      <Button
+        variant="primary"
+        className="w-full sm:w-auto"
+        isDisabled={!canConfirm}
+        onClick={handleConfirm}
+      >
+        {isPending ? 'Salvando…' : 'Salvar'}
+      </Button>
+    </>
+  );
+
   return (
-    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container
-          placement="center"
-          className="w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        >
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>{title}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="flex flex-col gap-4">
-              {success ? (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2b33d]/15 text-2xl text-[#a67c1e]">
-                    ✓
-                  </div>
-                  <p className="text-base font-semibold text-foreground">
-                    Lançamento registrado com sucesso!
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Valor */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted">
-                      Valor (R$)
-                    </label>
-                    <TextField value={amount} onChange={setAmount} aria-label="Valor">
-                      <Input placeholder="0,00" inputMode="decimal" />
-                    </TextField>
-                  </div>
+    <Drawer isOpen onClose={onClose} title={title} footer={footer} widthClass="sm:w-[460px]">
+      {success ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f2b33d]/15 text-3xl text-[#a67c1e]">
+            ✓
+          </div>
+          <p className="text-base font-semibold text-foreground">
+            Lançamento registrado com sucesso!
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {/* Ordem espelha o Belasis: Valor → Descrição → Vencimento → Forma → Conta. */}
+          {/* 1. Valor */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">Valor (R$)</label>
+            <TextField value={amount} onChange={setAmount} aria-label="Valor">
+              <Input placeholder="0,00" inputMode="decimal" />
+            </TextField>
+          </div>
 
-                  {/* Recebido de (cliente) */}
-                  {mode === 'recebimento' && (
-                    <FieldSelect
-                      label="Recebido de (cliente)"
-                      placeholder="Selecione (opcional)"
-                      value={partyId}
-                      onChange={setPartyId}
-                      options={(customers.data?.data ?? []).map((c) => ({
-                        id: c.id,
-                        name: c.name,
-                      }))}
-                    />
-                  )}
+          {/* 2. Descrição */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">Descrição</label>
+            <TextField value={description} onChange={setDescription} aria-label="Descrição">
+              <Input placeholder="Gerada automaticamente se vazio" />
+            </TextField>
+          </div>
 
-                  {/* Profissional (vale / despesa) */}
-                  {(mode === 'vale' || mode === 'despesa') && (
-                    <FieldSelect
-                      label={
-                        isVale
-                          ? 'Profissional (obrigatório)'
-                          : 'Pago para (profissional)'
-                      }
-                      placeholder={isVale ? 'Selecione' : 'Selecione (opcional)'}
-                      value={partyId}
-                      onChange={setPartyId}
-                      options={(professionals.data?.data ?? []).map((p) => ({
-                        id: p.id,
-                        name: p.name,
-                      }))}
-                    />
-                  )}
+          {/* 3. Vencimento (dd/mm/aaaa) */}
+          <DateFieldBR
+            label="Vencimento"
+            value={dueDate}
+            onChange={setDueDate}
+            className="min-w-0"
+          />
 
-                  {/* Descrição */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted">
-                      Descrição
-                    </label>
-                    <TextField
-                      value={description}
-                      onChange={setDescription}
-                      aria-label="Descrição"
-                    >
-                      <Input placeholder="Gerada automaticamente se vazio" />
-                    </TextField>
-                  </div>
+          {/* 4. Forma de pagamento */}
+          <FieldSelect
+            label="Forma de pagamento"
+            placeholder="Selecione (opcional)"
+            value={paymentMethodId}
+            onChange={setPaymentMethodId}
+            options={(paymentMethods.data ?? []).map((m) => ({ id: m.id, name: m.name }))}
+          />
 
-                  {/* Categoria (oculto no vale) */}
-                  {!isVale && (
-                    <FieldSelect
-                      label="Categoria"
-                      placeholder="Selecione (opcional)"
-                      value={categoryId}
-                      onChange={setCategoryId}
-                      options={(categories.data ?? []).map((c) => ({
-                        id: c.id,
-                        name: c.name,
-                      }))}
-                    />
-                  )}
+          {/* 5. Conta */}
+          <FieldSelect
+            label="Conta"
+            placeholder="Selecione (opcional)"
+            value={accountId}
+            onChange={setAccountId}
+            options={(accounts.data ?? []).map((a) => ({ id: a.id, name: a.name }))}
+          />
 
-                  {/* Forma de pagamento */}
-                  <FieldSelect
-                    label="Forma de pagamento"
-                    placeholder="Selecione (opcional)"
-                    value={paymentMethodId}
-                    onChange={setPaymentMethodId}
-                    options={(paymentMethods.data ?? []).map((m) => ({
-                      id: m.id,
-                      name: m.name,
-                    }))}
-                  />
+          <div className="my-1 h-px bg-[var(--color-soft-border)]" />
 
-                  {/* Conta */}
-                  <FieldSelect
-                    label="Conta"
-                    placeholder="Selecione (opcional)"
-                    value={accountId}
-                    onChange={setAccountId}
-                    options={(accounts.data ?? []).map((a) => ({
-                      id: a.id,
-                      name: a.name,
-                    }))}
-                  />
+          {/* Extras (não existem no Belasis, mas úteis no nosso app). */}
+          {/* Categoria (oculto no vale) */}
+          {!isVale && (
+            <FieldSelect
+              label="Categoria"
+              placeholder="Selecione (opcional)"
+              value={categoryId}
+              onChange={setCategoryId}
+              options={(categories.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+            />
+          )}
 
-                  {/* Vencimento + Status */}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <DateField
-                      label="Vencimento"
-                      value={dueDate}
-                      onChange={setDueDate}
-                      className="min-w-0"
-                    />
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-muted">Status</label>
-                      <Select
-                        aria-label="Status"
-                        selectedKey={status}
-                        onSelectionChange={(k) =>
-                          setStatus(String(k) as PaymentStatus)
-                        }
-                      >
-                        <Select.Trigger>
-                          <Select.Value>
-                            {({ selectedText }) => selectedText}
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            <ListBox.Item id="paid" textValue="Pago">
-                              Pago
-                            </ListBox.Item>
-                            <ListBox.Item id="pending" textValue="Pendente">
-                              Pendente
-                            </ListBox.Item>
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                    </div>
-                  </div>
+          {/* Titular: cliente (recebimento) ou profissional (vale/despesa) */}
+          {mode === 'recebimento' && (
+            <FieldSelect
+              label="Recebido de (cliente)"
+              placeholder="Selecione (opcional)"
+              value={partyId}
+              onChange={setPartyId}
+              options={(customers.data?.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+            />
+          )}
+          {(mode === 'vale' || mode === 'despesa') && (
+            <FieldSelect
+              label={isVale ? 'Profissional (obrigatório)' : 'Pago para (profissional)'}
+              placeholder={isVale ? 'Selecione' : 'Selecione (opcional)'}
+              value={partyId}
+              onChange={setPartyId}
+              options={(professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name }))}
+            />
+          )}
 
-                  {formError && (
-                    <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                      {formError}
-                    </div>
-                  )}
-                </>
-              )}
-            </Modal.Body>
-            <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              {success ? (
-                <Button
-                  variant="primary"
-                  className="w-full sm:w-auto"
-                  onClick={onClose}
-                >
-                  Fechar
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    onClick={onClose}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="w-full sm:w-auto"
-                    isDisabled={!canConfirm}
-                    onClick={handleConfirm}
-                  >
-                    {isPending ? 'Salvando…' : 'Salvar'}
-                  </Button>
-                </>
-              )}
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+          {/* Status */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">Status</label>
+            <Select
+              aria-label="Status"
+              selectedKey={status}
+              onSelectionChange={(k) => setStatus(String(k) as PaymentStatus)}
+            >
+              <Select.Trigger>
+                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="paid" textValue="Pago">
+                    Pago
+                  </ListBox.Item>
+                  <ListBox.Item id="pending" textValue="Pendente">
+                    Pendente
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </div>
+
+          {formError && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {formError}
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   );
 }
 
@@ -1086,113 +1028,83 @@ function TransferenciaModal({
     }
   }
 
+  const footer = success ? (
+    <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      Fechar
+    </Button>
+  ) : (
+    <>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+        Cancelar
+      </Button>
+      <Button
+        variant="primary"
+        className="w-full sm:w-auto"
+        isDisabled={!canConfirm}
+        onClick={handleConfirm}
+      >
+        {transfer.isPending ? 'Salvando…' : 'Transferir'}
+      </Button>
+    </>
+  );
+
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container
-          placement="center"
-          className="w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        >
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>Nova transferência</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="flex flex-col gap-4">
-              {success ? (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2b33d]/15 text-2xl text-[#a67c1e]">
-                    ✓
-                  </div>
-                  <p className="text-base font-semibold text-foreground">
-                    Transferência registrada com sucesso!
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted">
-                      Valor (R$)
-                    </label>
-                    <TextField value={amount} onChange={setAmount} aria-label="Valor">
-                      <Input placeholder="0,00" inputMode="decimal" />
-                    </TextField>
-                  </div>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Nova transferência"
+      footer={footer}
+      widthClass="sm:w-[460px]"
+    >
+      {success ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f2b33d]/15 text-3xl text-[#a67c1e]">
+            ✓
+          </div>
+          <p className="text-base font-semibold text-foreground">
+            Transferência registrada com sucesso!
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">Valor (R$)</label>
+            <TextField value={amount} onChange={setAmount} aria-label="Valor">
+              <Input placeholder="0,00" inputMode="decimal" />
+            </TextField>
+          </div>
 
-                  <FieldSelect
-                    label="Conta de origem"
-                    placeholder="Selecione"
-                    value={fromAccountId}
-                    onChange={setFromAccountId}
-                    options={accountOptions}
-                  />
-                  <FieldSelect
-                    label="Conta de destino"
-                    placeholder="Selecione"
-                    value={toAccountId}
-                    onChange={setToAccountId}
-                    options={accountOptions}
-                  />
+          <FieldSelect
+            label="Conta de origem"
+            placeholder="Selecione"
+            value={fromAccountId}
+            onChange={setFromAccountId}
+            options={accountOptions}
+          />
+          <FieldSelect
+            label="Conta de destino"
+            placeholder="Selecione"
+            value={toAccountId}
+            onChange={setToAccountId}
+            options={accountOptions}
+          />
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted">
-                      Descrição
-                    </label>
-                    <TextField
-                      value={description}
-                      onChange={setDescription}
-                      aria-label="Descrição"
-                    >
-                      <Input placeholder="Gerada automaticamente se vazio" />
-                    </TextField>
-                  </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">Descrição</label>
+            <TextField value={description} onChange={setDescription} aria-label="Descrição">
+              <Input placeholder="Gerada automaticamente se vazio" />
+            </TextField>
+          </div>
 
-                  <DateField
-                    label="Data"
-                    value={date}
-                    onChange={setDate}
-                    className="min-w-0"
-                  />
+          <DateFieldBR label="Data" value={date} onChange={setDate} className="min-w-0" />
 
-                  {formError && (
-                    <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                      {formError}
-                    </div>
-                  )}
-                </>
-              )}
-            </Modal.Body>
-            <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              {success ? (
-                <Button
-                  variant="primary"
-                  className="w-full sm:w-auto"
-                  onClick={onClose}
-                >
-                  Fechar
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    onClick={onClose}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="w-full sm:w-auto"
-                    isDisabled={!canConfirm}
-                    onClick={handleConfirm}
-                  >
-                    {transfer.isPending ? 'Salvando…' : 'Transferir'}
-                  </Button>
-                </>
-              )}
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+          {formError && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {formError}
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   );
 }
