@@ -4,7 +4,7 @@ import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../components/PageHeader';
 import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
-import { IconDownload, IconLayers, IconPlus } from '../components/icons';
+import { IconDownload, IconLayers, IconPlus, IconSearch } from '../components/icons';
 import { formatDate, formatMoney } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
 import { useCustomers, useServices } from '../lib/queries';
@@ -81,6 +81,7 @@ export function PacotesPage() {
   const [sellOpen, setSellOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<SoldFilter>('all');
   const [search, setSearch] = useState('');
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const sold = useCustomerPackages();
@@ -99,6 +100,8 @@ export function PacotesPage() {
       return true;
     });
   }, [allSoldRows, statusFilter, search]);
+
+  const toolbarVisible = toolsOpen || search.trim() !== '' || statusFilter !== 'all';
 
   function exportSoldCsv() {
     downloadCsv(
@@ -140,12 +143,26 @@ export function PacotesPage() {
     }
   }
 
-  function effectiveStatus(p: CustomerPackage): PackageStatus {
-    if (p.status === 'active' && p.isExpired) return 'expired';
-    return p.status;
-  }
-
   const soldColumns: Column<CustomerPackage>[] = [
+    {
+      key: 'ticket',
+      header: 'Ticket',
+      render: (p) => (
+        <button
+          type="button"
+          onClick={() => setDetailId(p.id)}
+          className="font-semibold text-accent hover:underline"
+        >
+          #{p.number}
+        </button>
+      ),
+    },
+    { key: 'date', header: 'Data', render: (p) => formatDate(p.createdAt) },
+    {
+      key: 'validity',
+      header: 'Validade',
+      render: (p) => (p.expiresAt ? formatDate(p.expiresAt) : ''),
+    },
     {
       key: 'customer',
       header: 'Cliente',
@@ -154,40 +171,44 @@ export function PacotesPage() {
         <button
           type="button"
           onClick={() => setDetailId(p.id)}
-          className="text-left font-medium text-foreground underline-offset-2 hover:text-[#a67c1e] hover:underline"
+          className="text-left font-medium text-accent underline-offset-2 hover:underline"
         >
           {p.customer?.name ?? '—'}
         </button>
       ),
     },
-    { key: 'number', header: 'Nº', render: (p) => `#${p.number}` },
-    { key: 'price', header: 'Valor', render: (p) => formatMoney(p.price) },
-    { key: 'validity', header: 'Validade', render: (p) => formatDate(p.expiresAt) },
-    {
-      key: 'sessions',
-      header: 'Sessões',
-      render: (p) => (
-        <span className="text-foreground">
-          {p.sessionsUsed}/{p.sessionsTotal}
-          <span className="ml-2 text-muted">({p.sessionsRemaining} restantes)</span>
-        </span>
-      ),
-    },
     {
       key: 'status',
       header: 'Status',
+      render: (p) => (
+        <Chip color={STATUS_COLOR[p.status]} variant="soft" size="sm">
+          {STATUS_LABELS[p.status]}
+        </Chip>
+      ),
+    },
+    {
+      key: 'availability',
+      header: 'Disponibilidade',
       render: (p) => {
-        const st = effectiveStatus(p);
+        const vencido = p.isExpired || p.status === 'expired';
         return (
-          <Chip color={STATUS_COLOR[st]} variant="soft" size="sm">
-            {STATUS_LABELS[st]}
+          <Chip color={vencido ? 'danger' : 'success'} variant="soft" size="sm">
+            {vencido ? 'Vencido' : 'Ativo'}
           </Chip>
         );
       },
     },
     {
+      key: 'price',
+      header: 'Valor',
+      className: 'text-right',
+      render: (p) => (
+        <span className="font-semibold text-foreground">{formatMoney(p.price)}</span>
+      ),
+    },
+    {
       key: 'actions',
-      header: 'Ações',
+      header: '',
       render: (p) => (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => setDetailId(p.id)}>
@@ -210,79 +231,88 @@ export function PacotesPage() {
     <div>
       <PageHeader
         title="Pacotes"
-        subtitle="Pacotes vendidos e modelos"
+        subtitle="Pacotes vendidos aos clientes"
+        onFilter={() => setToolsOpen((o) => !o)}
         actions={
-          <Button variant="primary" onClick={() => setSellOpen(true)}>
-            <IconPlus size={16} /> Vender pacote
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setToolsOpen((o) => !o)}>
+              <IconSearch size={16} /> Buscar
+            </Button>
+            <Button variant="primary" onClick={() => setSellOpen(true)}>
+              <IconPlus size={16} /> Novo
+            </Button>
+          </>
         }
       />
 
       <Card className={`mb-4 ${CARD}`}>
-        <Card.Content className="p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Pacotes vendidos</h3>
-              <p className="text-xs text-muted">
-                {soldRows.length} de {allSoldRows.length} pacote(s)
-              </p>
+        <Card.Content className="p-0">
+          {toolbarVisible && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-[var(--color-soft-border)] p-4">
+              <SegmentedFilter
+                value={statusFilter}
+                options={SOLD_FILTERS}
+                onChange={setStatusFilter}
+              />
+              <div className="min-w-[200px] flex-1">
+                <TextField value={search} onChange={setSearch} aria-label="Buscar cliente">
+                  <Input placeholder="Buscar cliente…" />
+                </TextField>
+              </div>
+              {(search || statusFilter !== 'all') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearch('');
+                    setStatusFilter('all');
+                  }}
+                >
+                  Limpar
+                </Button>
+              )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              isDisabled={soldRows.length === 0}
-              onClick={exportSoldCsv}
-            >
-              <IconDownload size={14} /> Exportar CSV
-            </Button>
+          )}
+
+          <div className="p-4">
+            {sold.isLoading ? (
+              <LoadingState />
+            ) : sold.isError ? (
+              <ErrorState onRetry={() => sold.refetch()} />
+            ) : soldRows.length === 0 ? (
+              <EmptyState
+                icon={<IconLayers size={32} />}
+                title={
+                  allSoldRows.length === 0 ? 'Nenhum pacote vendido' : 'Nenhum pacote encontrado'
+                }
+                description={
+                  allSoldRows.length === 0
+                    ? 'Venda um pacote a um cliente para acompanhar sessões e validade.'
+                    : 'Tente ajustar os filtros.'
+                }
+              />
+            ) : (
+              <DataTable
+                aria-label="Pacotes vendidos"
+                columns={soldColumns}
+                rows={soldRows}
+                getKey={(p) => p.id}
+              />
+            )}
           </div>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <SegmentedFilter
-              value={statusFilter}
-              options={SOLD_FILTERS}
-              onChange={setStatusFilter}
-            />
-            <div className="min-w-[200px] flex-1">
-              <TextField value={search} onChange={setSearch} aria-label="Buscar cliente">
-                <Input placeholder="Buscar cliente…" />
-              </TextField>
-            </div>
-            {(search || statusFilter !== 'all') && (
+
+          {!sold.isLoading && !sold.isError && soldRows.length > 0 && (
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--color-soft-border)] px-4 py-3 text-sm text-muted">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setSearch('');
-                  setStatusFilter('all');
-                }}
+                isDisabled={soldRows.length === 0}
+                onClick={exportSoldCsv}
               >
-                Limpar
+                <IconDownload size={14} /> Exportar CSV
               </Button>
-            )}
-          </div>
-          {sold.isLoading ? (
-            <LoadingState />
-          ) : sold.isError ? (
-            <ErrorState onRetry={() => sold.refetch()} />
-          ) : soldRows.length === 0 ? (
-            <EmptyState
-              icon={<IconLayers size={32} />}
-              title={
-                allSoldRows.length === 0 ? 'Nenhum pacote vendido' : 'Nenhum pacote encontrado'
-              }
-              description={
-                allSoldRows.length === 0
-                  ? 'Venda um pacote a um cliente para acompanhar sessões e validade.'
-                  : 'Tente ajustar os filtros.'
-              }
-            />
-          ) : (
-            <DataTable
-              aria-label="Pacotes vendidos"
-              columns={soldColumns}
-              rows={soldRows}
-              getKey={(p) => p.id}
-            />
+              <span>{soldRows.length} no total</span>
+            </div>
           )}
         </Card.Content>
       </Card>

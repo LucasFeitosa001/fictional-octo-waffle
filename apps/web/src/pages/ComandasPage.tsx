@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Card,
+  Chip,
   Input,
   ListBox,
   Modal,
@@ -16,7 +17,7 @@ import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { OrderStatusChip } from '../components/StatusChip';
 import { DateField } from '../components/DateRangeFilter';
-import { IconDownload, IconPlus, IconReceipt } from '../components/icons';
+import { IconDownload, IconFilter, IconPlus, IconReceipt } from '../components/icons';
 import {
   useCreateOrder,
   useCustomers,
@@ -54,6 +55,20 @@ const STATUS_OPTIONS = [
   { id: 'canceled', label: 'Cancelada' },
 ] as const;
 
+/**
+ * Payment state derived from the order status (presentation only — the list
+ * endpoint carries no payment field): finalizada = Pago, aberta = Pendente.
+ */
+function PaymentChip({ status }: { status: OrderRow['status'] }) {
+  if (status === 'canceled') return <span className="text-xs text-muted">—</span>;
+  const paid = status === 'finished';
+  return (
+    <Chip color={paid ? 'success' : 'warning'} variant="soft" size="sm">
+      {paid ? 'Pago' : 'Pendente'}
+    </Chip>
+  );
+}
+
 export function ComandasPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<string>('all');
@@ -66,6 +81,8 @@ export function ComandasPage() {
   // The /orders endpoint only filters by status server-side, so date and
   // customer are applied client-side over the loaded rows.
   const [customerId, setCustomerId] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const customerOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -78,17 +95,21 @@ export function ComandasPage() {
     ];
   }, [allRows]);
 
-  const rows = useMemo(
-    () =>
-      allRows.filter((o) => {
-        const day = o.date?.slice(0, 10) ?? '';
-        if (range.from && day && day < range.from) return false;
-        if (range.to && day && day > range.to) return false;
-        if (customerId !== 'all' && o.customer?.id !== customerId) return false;
-        return true;
-      }),
-    [allRows, range.from, range.to, customerId],
-  );
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase().replace(/^#/, '');
+    return allRows.filter((o) => {
+      const day = o.date?.slice(0, 10) ?? '';
+      if (range.from && day && day < range.from) return false;
+      if (range.to && day && day > range.to) return false;
+      if (customerId !== 'all' && o.customer?.id !== customerId) return false;
+      if (q) {
+        const inNumber = String(o.number).includes(q);
+        const inName = (o.customer?.name ?? '').toLowerCase().includes(q);
+        if (!inNumber && !inName) return false;
+      }
+      return true;
+    });
+  }, [allRows, range.from, range.to, customerId, search]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<OrderRow | null>(null);
@@ -127,7 +148,7 @@ export function ComandasPage() {
   const columns: Column<OrderRow>[] = [
     {
       key: 'number',
-      header: 'Nº',
+      header: 'Ticket',
       isRowHeader: true,
       render: (o) => (
         <button
@@ -139,23 +160,40 @@ export function ComandasPage() {
         </button>
       ),
     },
-    { key: 'customer', header: 'Cliente', render: (o) => o.customer?.name ?? 'Avulso' },
     { key: 'date', header: 'Data', render: (o) => formatDate(o.date) },
-    { key: 'gross', header: 'Bruto', render: (o) => formatMoney(o.grossTotal) },
-    { key: 'discount', header: 'Desconto', render: (o) => formatMoney(o.discountTotal) },
     {
-      key: 'net',
-      header: 'Líquido',
-      render: (o) => <span className="font-semibold">{formatMoney(o.netTotal)}</span>,
+      key: 'customer',
+      header: 'Cliente',
+      render: (o) =>
+        o.customer ? (
+          <button
+            type="button"
+            onClick={() => navigate(`/comandas/${o.id}`)}
+            className="text-accent hover:underline"
+          >
+            {o.customer.name}
+          </button>
+        ) : (
+          <span className="text-muted">Avulso</span>
+        ),
     },
     { key: 'status', header: 'Status', render: (o) => <OrderStatusChip status={o.status} /> },
     {
+      key: 'net',
+      header: 'Valor',
+      className: 'text-right',
+      render: (o) => (
+        <span className="font-semibold tabular-nums">{formatMoney(o.netTotal)}</span>
+      ),
+    },
+    { key: 'payment', header: 'Pagamento', render: (o) => <PaymentChip status={o.status} /> },
+    {
       key: 'actions',
-      header: 'Ações',
+      header: '',
       render: (o) => (
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate(`/comandas/${o.id}`)}>
-            Detalhes
+            Ver
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setEditing(o)}>
             Editar
@@ -179,18 +217,26 @@ export function ComandasPage() {
         title="Comandas"
         subtitle="Vendas e atendimentos"
         actions={
-          <div className="flex gap-2">
+          <>
+            <TextField
+              value={search}
+              onChange={setSearch}
+              aria-label="Buscar comanda"
+              className="min-w-0 sm:w-56"
+            >
+              <Input placeholder="Buscar nº ou cliente…" />
+            </TextField>
             <Button
               variant="outline"
-              onClick={exportCsv}
-              isDisabled={rows.length === 0}
+              onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}
             >
-              <IconDownload size={16} /> Exportar CSV
+              <IconFilter size={16} /> Filtrar
             </Button>
             <Button variant="primary" onClick={() => setCreateOpen(true)}>
               <IconPlus size={16} /> Nova comanda
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -208,41 +254,43 @@ export function ComandasPage() {
             </Tabs>
           </div>
 
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <DateField
-              label="De"
-              value={range.from}
-              max={range.to}
-              onChange={(v) => setRange((r) => ({ ...r, from: v }))}
-            />
-            <DateField
-              label="Até"
-              value={range.to}
-              min={range.from}
-              onChange={(v) => setRange((r) => ({ ...r, to: v }))}
-            />
-            <div className="flex min-w-52 flex-col gap-1">
-              <span className="text-xs font-medium text-muted">Cliente</span>
-              <Select
-                aria-label="Cliente"
-                selectedKey={customerId}
-                onSelectionChange={(k) => setCustomerId(String(k ?? 'all'))}
-              >
-                <Select.Trigger>
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {customerOptions.map((c) => (
-                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                        {c.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
+          {showFilters && (
+            <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white p-3">
+              <DateField
+                label="De"
+                value={range.from}
+                max={range.to}
+                onChange={(v) => setRange((r) => ({ ...r, from: v }))}
+              />
+              <DateField
+                label="Até"
+                value={range.to}
+                min={range.from}
+                onChange={(v) => setRange((r) => ({ ...r, to: v }))}
+              />
+              <div className="flex min-w-52 flex-col gap-1">
+                <span className="text-xs font-medium text-muted">Cliente</span>
+                <Select
+                  aria-label="Cliente"
+                  selectedKey={customerId}
+                  onSelectionChange={(k) => setCustomerId(String(k ?? 'all'))}
+                >
+                  <Select.Trigger>
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {customerOptions.map((c) => (
+                        <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                          {c.name}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
 
           {orders.isLoading ? (
             <LoadingState />
@@ -265,13 +313,23 @@ export function ComandasPage() {
             />
           ) : (
             <>
-              <div className="mb-2 text-xs text-muted">{rows.length} comanda(s)</div>
+              <div className="mb-3 flex items-center justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportCsv}
+                  isDisabled={rows.length === 0}
+                >
+                  <IconDownload size={16} /> Exportar CSV
+                </Button>
+              </div>
               <DataTable
                 aria-label="Comandas"
                 columns={columns}
                 rows={rows}
                 getKey={(o) => o.id}
               />
+              <div className="mt-3 text-xs text-muted">{rows.length} no total</div>
             </>
           )}
         </Card.Content>
