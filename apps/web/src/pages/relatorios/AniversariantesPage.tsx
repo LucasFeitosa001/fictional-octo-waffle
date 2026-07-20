@@ -224,8 +224,8 @@ export function AniversariantesPage() {
 
       {/* ── Resultado ─────────────────────────────────────────────────────── */}
       {generatedMonth == null ? (
-        <Card className={CARD}>
-          <Card.Content className="p-8">
+        <Card className={`${CARD} !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]`}>
+          <Card.Content className="p-0 md:p-8">
             <EmptyState
               title="Gere o relatório de aniversariantes"
               description="Selecione o status e o período acima e toque em “Gerar relatório”."
@@ -236,8 +236,8 @@ export function AniversariantesPage() {
       ) : query.isLoading ? (
         <LoadingState />
       ) : (
-        <Card className={CARD}>
-          <Card.Content className="p-5">
+        <Card className={`${CARD} !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]`}>
+          <Card.Content className="p-0 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[color-mix(in_oklab,var(--sp-primary)_15%,transparent)] text-gold-strong">

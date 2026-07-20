@@ -118,8 +118,8 @@ export function CaixaPage() {
         </KpiCard>
       </div>
 
-      <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
-        <Card.Content className="p-4">
+      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+        <Card.Content className="p-0 md:p-4">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <h3 className="text-sm font-semibold text-foreground">Histórico de caixa</h3>
             <div className="flex flex-wrap items-end gap-3">

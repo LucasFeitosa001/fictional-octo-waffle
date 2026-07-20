@@ -478,8 +478,10 @@ export function ComandasPage() {
         }
       />
 
-      <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
-        <Card.Content className="p-3 sm:p-4">
+      {/* No mobile, o Card cor creme come o espaço horizontal dos cards da lista.
+          Só o desktop ganha wrapper com border/bg/sombra. */}
+      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+        <Card.Content className="p-0 md:p-4">
           {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
           <div className="mb-3 md:hidden">
             <TextField value={search} onChange={setSearch} aria-label="Buscar comanda">

@@ -399,8 +399,8 @@ export function MensagensPage() {
           </Card>
 
           {/* Detalhamento — tabela idêntica ao Belasis (colunas na mesma ordem) */}
-          <Card className={`mb-4 ${CARD}`}>
-            <Card.Content className="p-5">
+          <Card className={`mb-4 ${CARD} !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]`}>
+            <Card.Content className="p-0 md:p-5">
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-ink">Mensagens enviadas</h3>
                 <span className="text-xs font-medium text-muted-ink">

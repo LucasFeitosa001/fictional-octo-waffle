@@ -38,7 +38,6 @@ import {
 } from '../../lib/queries/agendamento-online';
 import { CLUB_ORIGIN } from '../../lib/config';
 
-const CARD = 'border border-line bg-card shadow-[var(--shadow-card)]';
 const FIELD =
   'w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_25%,transparent)]';
 const PUBLIC_BASE = `${CLUB_ORIGIN}/`;
@@ -934,8 +933,8 @@ export function AgendamentoOnlinePage() {
 
           {/* Editor panel + phone preview */}
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-            <Card className={`min-w-0 flex-1 ${CARD}`}>
-              <Card.Content className="flex flex-col gap-4 p-5">
+            <Card className="min-w-0 flex-1 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+              <Card.Content className="flex flex-col gap-4 p-0 md:p-5">
                 <div>
                   <h2 className="text-base font-semibold text-ink">{activeSection.title}</h2>
                   <p className="mt-0.5 text-sm text-muted-ink">{activeSection.description}</p>

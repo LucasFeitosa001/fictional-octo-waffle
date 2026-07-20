@@ -388,8 +388,8 @@ export function AssinaturasPage() {
       <TabBar tab={tab} onTab={setTab} />
 
       {tab === 'subscribers' && (
-        <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
-          <Card.Content className="p-4">
+        <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+          <Card.Content className="p-0 md:p-4">
             {showSearch && (
               <div className="mb-4 max-w-md">
                 <TextField value={search} onChange={setSearch} aria-label="Buscar assinatura" autoFocus>
@@ -620,8 +620,8 @@ export function AssinaturasPage() {
       )}
 
       {tab === 'plans' && (
-        <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
-          <Card.Content className="p-4">
+        <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+          <Card.Content className="p-0 md:p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">
                 Modelos de assinatura

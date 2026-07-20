@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Input, Label, ListBox, Select, TextField } from '@heroui/react';
 import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../components/States';
@@ -9,7 +10,7 @@ import { Drawer } from '../components/Drawer';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { useSetPageActions } from '../layout/PageActions';
 import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
-import { IconCalendar, IconChevron, IconEye, IconPlus } from '../components/icons';
+import { IconCalendar, IconChevron, IconEye, IconPlus, IconScissors, IconUser } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
 import { useAgendaAppointments } from '../lib/queries/agenda';
 import { useAutoCreate } from '../lib/useAutoCreate';
@@ -469,6 +470,18 @@ export function AgendaPage() {
   const [showReschedule, setShowReschedule] = useState(false);
   const [reDate, setReDate] = useState('');
   const [reTime, setReTime] = useState('');
+  // Toggles/textarea do drawer "Visualizando agendamento" (padrão Belasis).
+  // sendReminder/squeezeIn ficam locais até o backend expor os campos.
+  const [sendReminder, setSendReminder] = useState(true);
+  const [squeezeIn, setSqueezeIn] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const routerNavigate = useNavigate();
+  // Sincroniza campos locais quando um novo agendamento é selecionado.
+  useEffect(() => {
+    setNotesDraft(selected?.notes ?? '');
+    setMoreMenuOpen(false);
+  }, [selected?.id]);
   function openReschedule(a: AppointmentRow) {
     const d = new Date(a.start);
     setReDate(isoDate(d));
@@ -1081,198 +1094,240 @@ export function AgendaPage() {
 
       <Drawer
         isOpen={!!selected}
-        onClose={() => { setSelected(null); setShowSuggest(false); setShowCancel(false); setShowReschedule(false); }}
-        title="Agendamento"
+        onClose={() => { setSelected(null); setShowSuggest(false); setShowCancel(false); setShowReschedule(false); setMoreMenuOpen(false); }}
+        title="Visualizando agendamento"
         widthClass="sm:w-[520px]"
-        footer={(
-          <>
-            <Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>
-            {selected && !['canceled', 'unconfirmed', 'scheduled'].includes(selected.status) && (
-              <Button variant="outline" className="border-danger/30 text-danger"
-                isDisabled={statusMutation.isPending}
-                onClick={() => { setShowCancel(true); setShowSuggest(false); }}>
-                Cancelar agendamento
+        footer={selected ? (
+          <div className="relative flex w-full items-center justify-between gap-2">
+            <div className="relative">
+              <Button variant="ghost" size="sm" onClick={() => setMoreMenuOpen((v) => !v)}>
+                Outros {moreMenuOpen ? '▾' : '▴'}
               </Button>
-            )}
-          </>
-        )}
-      >
-              {selected && (
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="h-10 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: eventColor(selected) }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-base font-semibold text-foreground">
-                        {selected.customer?.name ?? 'Sem cliente'}
-                      </div>
-                      {selected.customer?.phone && (
-                        <div className="text-sm text-muted">{selected.customer.phone}</div>
-                      )}
-                      <div className="mt-0.5 text-sm font-medium text-foreground">
-                        {formatTime(selected.start)} - {formatTime(selected.end)}
-                      </div>
-                      <div className="text-xs capitalize text-muted">
-                        {longDateFmt.format(new Date(selected.start))} às {formatTime(selected.start)}h
-                      </div>
-                    </div>
-                    <AppointmentStatusChip status={selected.status} />
-                  </div>
-
-                  {/* Belasis: botão verde "Conversar" (WhatsApp) sob o cabeçalho */}
-                  {selected.customer?.phone && (
-                    <a
-                      href={`https://wa.me/${selected.customer.phone.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex w-fit items-center gap-2 rounded-full bg-[#25d366] px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                    >
-                      <IconWhatsApp size={16} />
-                      Conversar
-                    </a>
-                  )}
-
-                  <dl className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <dt className="inline-flex items-center text-xs font-medium text-muted">
-                        Profissional
-                        <HelpTooltip>Profissional responsável por este atendimento</HelpTooltip>
-                      </dt>
-                      <dd className="text-foreground">{selected.professional?.name ?? '-'}</dd>
-                    </div>
-                    <div>
-                      <dt className="inline-flex items-center text-xs font-medium text-muted">
-                        Total
-                        <HelpTooltip>Soma dos valores dos serviços do agendamento</HelpTooltip>
-                      </dt>
-                      <dd className="text-foreground">
-                        {formatMoney((selected.items ?? []).reduce((s, i) => s + Number(i.price ?? 0), 0))}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  {selected.items && selected.items.length > 0 && (
-                    <div className="inline-flex items-center text-xs text-muted">
-                      {selected.items.length} servico(s)
-                      <HelpTooltip>Serviços incluídos neste agendamento</HelpTooltip>
-                    </div>
-                  )}
-
-                  {selected.notes && (
-                    <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted">{selected.notes}</p>
-                  )}
-
-                  <div className="flex flex-col gap-1">
-                    <span className="inline-flex items-center text-xs font-medium text-muted">
-                      Alterar status
-                      <HelpTooltip>Atualiza a situação do agendamento e notifica o cliente</HelpTooltip>
-                    </span>
-                    <Select aria-label="Status" selectedKey={selected.status}
-                      onSelectionChange={(k) => changeStatus(selected, String(k) as AppointmentRow['status'])}
-                      isDisabled={statusMutation.isPending}>
-                      <Select.Trigger><Select.Value /></Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          {Object.entries(APPOINTMENT_STATUS_LABELS).map(([id, name]) => (
-                            <ListBox.Item key={id} id={id}>{name}</ListBox.Item>
-                          ))}
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-                  </div>
-
-                  {/* Per-appointment actions */}
-                  <span className="inline-flex items-center text-xs font-medium text-muted">
-                    Ações do agendamento
-                    <HelpTooltip>Reagende ou gere uma comanda para faturar este atendimento</HelpTooltip>
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openReschedule(selected)}>
-                      Reagendar
-                    </Button>
-                    <Button variant="outline" size="sm" isDisabled={createOrder.isPending}
-                      onClick={() => createComanda(selected)}>
-                      Criar comanda
-                    </Button>
-                  </div>
-
-                  {showReschedule && (
-                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
-                      <span className="text-xs font-semibold text-gold-strong">Reagendar</span>
-                      <div className="flex flex-wrap gap-2">
-                        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                          Data
-                          <input type="date" value={reDate} onChange={(e) => setReDate(e.target.value)}
-                            className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                          Horário
-                          <input type="time" value={reTime} onChange={(e) => setReTime(e.target.value)}
-                            className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
-                        </label>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="primary" size="sm" isDisabled={!reDate || !reTime} onClick={confirmReschedule}>
-                          Confirmar novo horário
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setShowReschedule(false)}>Voltar</Button>
-                      </div>
-                    </div>
-                  )}
-
+              {moreMenuOpen && (
+                <div className="absolute bottom-full left-0 mb-2 flex w-56 flex-col rounded-xl border border-line bg-white p-1 shadow-[var(--shadow-pop)]">
+                  <button type="button" onClick={() => { setMoreMenuOpen(false); openReschedule(selected); }}
+                    className="rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-canvas">
+                    Reagendar
+                  </button>
                   {(selected.status === 'unconfirmed' || selected.status === 'scheduled') && (
-                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
-                      <span className="text-xs font-semibold text-gold-strong">Pendente de confirmacao</span>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="primary" size="sm" isDisabled={statusMutation.isPending}
-                          onClick={() => changeStatus(selected, 'confirmed')}>
-                          Confirmar
-                        </Button>
-                        <Button variant="outline" size="sm"
-                          onClick={() => { setShowSuggest(true); setShowCancel(false); }}>
-                          Sugerir horario
-                        </Button>
-                        <Button variant="outline" size="sm"
-                          className="border-danger/30 text-danger hover:bg-danger/5"
-                          onClick={() => { setShowCancel(true); setShowSuggest(false); }}>
-                          Cancelar
-                        </Button>
-                      </div>
-
-                      {showSuggest && (
-                        <div className="mt-2 flex flex-col gap-2 rounded-lg bg-white p-3">
-                          <TextField value={suggestion} onChange={setSuggestion}>
-                            <Label>Sugestao de novo horario</Label>
-                            <Input placeholder="Ex: quinta-feira as 15h" />
-                          </TextField>
-                          <div className="flex gap-2">
-                            <Button variant="primary" size="sm" isDisabled={!suggestion.trim()} onClick={sendSuggestion}>
-                              Enviar sugestao
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setShowSuggest(false)}>Voltar</Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {showCancel && (
-                        <div className="mt-2 flex flex-col gap-2 rounded-lg bg-white p-3">
-                          <TextField value={cancelReason} onChange={setCancelReason}>
-                            <Label>Motivo do cancelamento (opcional)</Label>
-                            <Input placeholder="Ex: sem horario disponivel" />
-                          </TextField>
-                          <div className="flex gap-2">
-                            <Button variant="primary" size="sm" className="bg-danger"
-                              isDisabled={statusMutation.isPending} onClick={confirmCancel}>
-                              Confirmar cancelamento
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setShowCancel(false)}>Voltar</Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <button type="button" onClick={() => { setMoreMenuOpen(false); setShowSuggest(true); setShowCancel(false); }}
+                      className="rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-canvas">
+                      Sugerir horário
+                    </button>
                   )}
+                  <button type="button" onClick={() => { setMoreMenuOpen(false); setShowCancel(true); setShowSuggest(false); }}
+                    className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-canvas">
+                    Cancelar agendamento
+                  </button>
                 </div>
               )}
+            </div>
+            <Button variant="primary" isDisabled={createOrder.isPending}
+              className="bg-[#25a244] hover:!bg-[#1e8438]"
+              onClick={() => createComanda(selected)}>
+              Acessar comanda
+            </Button>
+          </div>
+        ) : null}
+      >
+        {selected && (
+          <div className="flex flex-col gap-5">
+            {/* HEADER: avatar + nome + fone + [Conversar] [Ver cliente] */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
+                  style={{ backgroundColor: eventColor(selected) }}
+                  aria-hidden>
+                  {(selected.customer?.name ?? 'A').trim().charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-base font-semibold text-foreground">
+                    {selected.customer?.name ?? 'Sem cliente'}
+                  </div>
+                  {selected.customer?.phone && (
+                    <div className="truncate text-sm text-muted-ink">{selected.customer.phone}</div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-stretch gap-2">
+                {selected.customer?.phone ? (
+                  <a
+                    href={`https://wa.me/${selected.customer.phone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                  >
+                    <IconWhatsApp size={16} />
+                    Conversar
+                  </a>
+                ) : (
+                  <span className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm text-muted-ink opacity-60">
+                    <IconWhatsApp size={16} />
+                    Sem telefone
+                  </span>
+                )}
+                <button
+                  type="button"
+                  disabled={!selected.customer?.id}
+                  onClick={() => { const id = selected.customer?.id; if (id) { setSelected(null); routerNavigate(`/clientes/${id}`); } }}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <IconUser size={16} />
+                  Ver cliente
+                </button>
+              </div>
+            </div>
+
+            {/* DATA + CHIPS: status + tipo de agendamento */}
+            <div className="flex flex-col gap-2">
+              <div className="text-sm capitalize text-muted-ink">
+                {longDateFmt.format(new Date(selected.start))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <AppointmentStatusChip status={selected.status} />
+                <span className="inline-flex items-center rounded-md bg-canvas px-2 py-0.5 text-xs font-medium text-muted-ink">
+                  Padrão
+                </span>
+              </div>
+            </div>
+
+            {/* SERVIÇOS */}
+            <section className="flex flex-col gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Serviços</h3>
+              {selected.items && selected.items.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {selected.items.map((it) => (
+                    <li key={it.id} className="flex items-start gap-3 rounded-lg border border-line bg-white p-3">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-canvas text-primary">
+                        <IconScissors size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {serviceById.get(it.serviceId) ?? 'Serviço'}
+                        </div>
+                        <div className="mt-0.5 truncate text-xs text-muted-ink">
+                          {formatTime(selected.start)} às {formatTime(selected.end)}
+                          {selected.professional?.name && <> com {selected.professional.name}</>}
+                        </div>
+                      </div>
+                      {it.price != null && Number(it.price) > 0 && (
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                          {formatMoney(Number(it.price))}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-ink">Nenhum serviço associado.</p>
+              )}
+            </section>
+
+            {/* AÇÕES: toggles */}
+            <section className="flex flex-col gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Ações</h3>
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
+                <span>Enviar lembrete</span>
+                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendReminder ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
+                  <input type="checkbox" checked={sendReminder} onChange={(e) => setSendReminder(e.target.checked)} className="sr-only" />
+                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendReminder ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
+                <span>Encaixar agendamento</span>
+                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', squeezeIn ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
+                  <input type="checkbox" checked={squeezeIn} onChange={(e) => setSqueezeIn(e.target.checked)} className="sr-only" />
+                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', squeezeIn ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
+                </span>
+              </label>
+            </section>
+
+            {/* OBSERVAÇÃO */}
+            <section className="flex flex-col gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Observação</h3>
+              <textarea
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                placeholder="Escreva aqui"
+                rows={3}
+                className="min-h-[80px] w-full resize-y rounded-lg border border-line bg-white px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50 placeholder:text-muted-ink"
+              />
+            </section>
+
+            {/* ALTERAR STATUS — segue disponível como Select rápido */}
+            <section className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Alterar status</span>
+              <Select aria-label="Status" selectedKey={selected.status}
+                onSelectionChange={(k) => changeStatus(selected, String(k) as AppointmentRow['status'])}
+                isDisabled={statusMutation.isPending}>
+                <Select.Trigger><Select.Value /></Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {Object.entries(APPOINTMENT_STATUS_LABELS).map(([id, name]) => (
+                      <ListBox.Item key={id} id={id}>{name}</ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </section>
+
+            {/* Formulários inline expandíveis (via "Outros" no rodapé) */}
+            {showReschedule && (
+              <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
+                <span className="text-xs font-semibold text-gold-strong">Reagendar</span>
+                <div className="flex flex-wrap gap-2">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Data
+                    <input type="date" value={reDate} onChange={(e) => setReDate(e.target.value)}
+                      className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Horário
+                    <input type="time" value={reTime} onChange={(e) => setReTime(e.target.value)}
+                      className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="primary" size="sm" isDisabled={!reDate || !reTime} onClick={confirmReschedule}>
+                    Confirmar novo horário
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowReschedule(false)}>Voltar</Button>
+                </div>
+              </div>
+            )}
+
+            {showSuggest && (
+              <div className="flex flex-col gap-2 rounded-lg border border-gold/30 bg-white p-3">
+                <TextField value={suggestion} onChange={setSuggestion}>
+                  <Label>Sugestão de novo horário</Label>
+                  <Input placeholder="Ex: quinta-feira as 15h" />
+                </TextField>
+                <div className="flex gap-2">
+                  <Button variant="primary" size="sm" isDisabled={!suggestion.trim()} onClick={sendSuggestion}>
+                    Enviar sugestão
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowSuggest(false)}>Voltar</Button>
+                </div>
+              </div>
+            )}
+
+            {showCancel && (
+              <div className="flex flex-col gap-2 rounded-lg border border-danger/30 bg-white p-3">
+                <TextField value={cancelReason} onChange={setCancelReason}>
+                  <Label>Motivo do cancelamento (opcional)</Label>
+                  <Input placeholder="Ex: sem horário disponível" />
+                </TextField>
+                <div className="flex gap-2">
+                  <Button variant="primary" size="sm" className="bg-danger"
+                    isDisabled={statusMutation.isPending} onClick={confirmCancel}>
+                    Confirmar cancelamento
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowCancel(false)}>Voltar</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Drawer>
     </div>
   );

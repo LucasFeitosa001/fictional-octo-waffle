@@ -530,8 +530,8 @@ export function TransacoesPage() {
         <IconChevron size={16} />
       </div>
 
-      <Card className={CARD_CLASS}>
-        <Card.Content className="p-4">
+      <Card className={`${CARD_CLASS} !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]`}>
+        <Card.Content className="p-0 md:p-4">
           <div className="mb-3 flex items-center justify-between">
             <span className="hidden text-xs text-muted md:inline">Ordenado por data</span>
             <span className="text-xs text-muted">

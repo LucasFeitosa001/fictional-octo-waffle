@@ -344,7 +344,7 @@ export function CashbackPage() {
           </div>
 
           {/* ── Lista de itens (avatar + nome + tipo/valor) ───────────── */}
-          <div className="rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-2 shadow-[var(--shadow-card)]">
+          <div className="rounded-2xl p-0 md:p-2 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:shadow-[var(--shadow-card)]">
             {rules.isLoading ? (
               <div className="p-4">
                 <LoadingState />

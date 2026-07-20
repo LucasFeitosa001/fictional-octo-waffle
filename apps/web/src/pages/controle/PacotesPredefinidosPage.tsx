@@ -269,7 +269,7 @@ export function PacotesPredefinidosPage() {
           ) : templates.isError ? (
             <ErrorState onRetry={() => templates.refetch()} />
           ) : rows.length === 0 ? (
-            <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
+            <div className="rounded-xl p-6 md:border md:border-line md:bg-card md:shadow-[var(--shadow-card)]">
               <EmptyState
                 icon={<IconLayers size={32} />}
                 title={

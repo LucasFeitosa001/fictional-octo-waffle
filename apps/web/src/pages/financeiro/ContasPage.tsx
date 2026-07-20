@@ -41,9 +41,6 @@ import {
 } from '../../lib/queries/financeiro';
 import { useSetPageActions } from '../../layout/PageActions';
 
-const CARD_CLASS =
-  'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
-
 const PAGE_SIZE = 20;
 
 const ACCOUNT_TYPE_LABEL: Record<FinancialAccountType, string> = {
@@ -572,8 +569,8 @@ export function ContasPage() {
         <IconChevron size={16} className={sortAsc ? 'rotate-180' : ''} />
       </button>
 
-      <Card className={CARD_CLASS}>
-        <Card.Content className="p-4">
+      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+        <Card.Content className="p-0 md:p-4">
           {tab === 'contas' &&
             (isLoading ? (
               <LoadingState />

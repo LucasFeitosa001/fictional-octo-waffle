@@ -206,7 +206,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
         </p>
       </div>
 
-      <div className={`${CARD_CLASS} px-4 sm:px-6`}>
+      <div className={`${CARD_CLASS} px-0 sm:px-6 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]`}>
         <SettingRow
           title="Filtro por data"
           help="Define a data-base usada para liberar a comissão para pagamento."

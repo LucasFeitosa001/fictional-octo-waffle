@@ -373,7 +373,7 @@ export function ComissoesResumoPage() {
       )}
 
       {/* Resumo por profissional (data-wiring preservado) */}
-      <div className={`rounded-2xl p-4 ${CARD_CLASS}`}>
+      <div className="rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">Comissões por profissional</h3>
           <span className="text-xs text-muted">{rows.length} resultado(s)</span>
