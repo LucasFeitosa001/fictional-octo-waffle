@@ -638,13 +638,15 @@ export function Sidebar({
                 <div className="px-2.5 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9AA0A6]">
                   {group.label}
                 </div>
-                {group.items.map(({ to, label, icon: Icon }) => (
+                {group.items.map(({ to, label, icon: Icon, disabled = false, disabledReason }) => (
                   <button
-                    key={to}
+                    key={`${group.label}-${label}`}
                     type="button"
                     role="menuitem"
-                    onClick={() => quickCreate(to)}
-                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-cream"
+                    onClick={() => (disabled ? undefined : quickCreate(to))}
+                    disabled={disabled}
+                    title={disabled ? disabledReason ?? 'Em breve' : undefined}
+                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
                   >
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink text-gold">
                       <Icon size={16} />

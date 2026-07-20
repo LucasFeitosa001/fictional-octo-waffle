@@ -13,6 +13,7 @@ import {
   IconArrowUp,
   IconBox,
   IconCalendar,
+  IconDollar,
   IconFolder,
   IconLayers,
   IconReceipt,
@@ -20,6 +21,7 @@ import {
   IconScissors,
   IconTag,
   IconTruck,
+  IconUser,
   IconUserPlus,
   IconUsers,
   IconWallet,
@@ -29,39 +31,43 @@ type IconType = ComponentType<{ size?: number }>;
 
 // ─── Shared "Novo" (create) menu, grouped like belasis.app ──────────────────
 // Rendered both in the Sidebar dropdown and in the mobile BottomNav sheet.
-export type CreateItem = { to: string; label: string; icon: IconType };
+// Order and grouping match the Belasis "Novo +" bottom-sheet 1:1.
+export type CreateItem = {
+  to: string;
+  label: string;
+  icon: IconType;
+  /** If true, tile renders as visual placeholder ("Em breve") and does not navigate. */
+  disabled?: boolean;
+  /** Optional custom tooltip; defaults to "Em breve" when disabled. */
+  disabledReason?: string;
+};
 export type CreateGroup = { label: string; items: CreateItem[] };
 
 export const CREATE_GROUPS: CreateGroup[] = [
   {
-    label: 'Principal',
+    label: 'Financeiro',
     items: [
       { to: '/agenda?new=1', label: 'Agendamento', icon: IconCalendar },
       { to: '/comandas?new=1', label: 'Comanda', icon: IconReceipt },
-      { to: '/pacotes?new=1', label: 'Pacote', icon: IconLayers },
-      { to: '/controle/pacotes-predefinidos?new=1', label: 'Pacote Predefinido', icon: IconLayers },
+      { to: '/financeiro/transacoes?new=despesa', label: 'Despesa', icon: IconArrowUp },
+      { to: '/financeiro/transacoes?new=recebimento', label: 'Receita', icon: IconArrowDown },
+      { to: '/financeiro/transacoes?new=transferencia', label: 'Transferência', icon: IconRepeat },
+      { to: '/financeiro/transacoes?new=vale', label: 'Vale', icon: IconWallet },
     ],
   },
   {
     label: 'Cadastros',
     items: [
       { to: '/clientes?new=1', label: 'Cliente', icon: IconUsers },
+      { to: '/profissionais?new=1', label: 'Profissional', icon: IconUserPlus },
       { to: '/servicos?new=1', label: 'Serviço', icon: IconScissors },
       { to: '/produtos?new=1', label: 'Produto', icon: IconBox },
       { to: '/categorias?new=1', label: 'Categoria', icon: IconFolder },
-      { to: '/profissionais?new=1', label: 'Profissional', icon: IconUserPlus },
       { to: '/fornecedores?new=1', label: 'Fornecedor', icon: IconTruck },
-      { to: '/controle/compras?new=1', label: 'Compra', icon: IconBox },
       { to: '/marcas?new=1', label: 'Marca', icon: IconTag },
-    ],
-  },
-  {
-    label: 'Financeiro',
-    items: [
-      { to: '/financeiro/transacoes?new=recebimento', label: 'Recebimento', icon: IconArrowDown },
-      { to: '/financeiro/transacoes?new=despesa', label: 'Despesa', icon: IconArrowUp },
-      { to: '/financeiro/transacoes?new=vale', label: 'Vale', icon: IconWallet },
-      { to: '/financeiro/transacoes?new=transferencia', label: 'Transferência', icon: IconRepeat },
+      { to: '#', label: 'Etiqueta', icon: IconLayers, disabled: true },
+      { to: '#', label: 'Usuário', icon: IconUser, disabled: true },
+      { to: '#', label: 'Tributação', icon: IconDollar, disabled: true },
     ],
   },
 ];

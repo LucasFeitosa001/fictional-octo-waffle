@@ -1,21 +1,23 @@
+// TODO(backend): billing_addons — persistir seleção do tenant, integrar com
+// cobrança do plano (bump no MRR + provisionar feature-flag) e listar
+// dinamicamente os add-ons disponíveis (categoria, preço, dependências).
+
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@heroui/react';
+import { PageHeader } from '../components/PageHeader';
+import { SegBtn } from '../components/SegBtn';
 import {
   IconChevron,
   IconMail,
   IconMegaphone,
   IconMessage,
   IconSparkles,
+  IconWhatsApp,
 } from '../components/icons';
-import { SegBtn } from '../components/SegBtn';
 
-// TODO(backend): billing_addons — persistir seleção do tenant, integrar com
-// cobrança do plano (bump no MRR + provisionar feature-flag), e listar
-// dinamicamente os add-ons disponíveis (categoria, preço, dependências).
-
-type AddonCategory = 'comunicacao' | 'marketing' | 'ia';
+type AddonCategory = 'comunicacao' | 'marketing';
 
 interface Addon {
   id: string;
@@ -51,7 +53,7 @@ const ADDONS: Addon[] = [
     description:
       'Envie campanhas por SMS para clientes sem WhatsApp — ideal para lembretes e ofertas relâmpago.',
     priceMonthly: 29.9,
-    category: 'comunicacao',
+    category: 'marketing',
     icon: IconMessage,
   },
   {
@@ -60,8 +62,17 @@ const ADDONS: Addon[] = [
     description:
       'Aumenta o volume de mensagens da IA de atendimento e libera modelos avançados para respostas mais naturais.',
     priceMonthly: 49.9,
-    category: 'ia',
+    category: 'comunicacao',
     icon: IconSparkles,
+  },
+  {
+    id: 'whatsapp-api',
+    name: 'WhatsApp API',
+    description:
+      'Canal oficial WhatsApp Business API para disparo em massa, templates aprovados e múltiplos atendentes.',
+    priceMonthly: 79,
+    category: 'comunicacao',
+    icon: IconWhatsApp,
   },
 ];
 
@@ -69,7 +80,6 @@ const CATEGORIES: { id: AddonCategory | 'todos'; label: string }[] = [
   { id: 'todos', label: 'Todos' },
   { id: 'comunicacao', label: 'Comunicação' },
   { id: 'marketing', label: 'Marketing' },
-  { id: 'ia', label: 'IA' },
 ];
 
 function formatMoney(v: number): string {
@@ -105,7 +115,7 @@ export function PerfilAdicionaisPage() {
   const totalMonthly = selectedList.reduce((sum, a) => sum + a.priceMonthly, 0);
 
   function handleContinue() {
-    // TODO(backend): POST /billing/addons { ids: selectedList.map(...) }
+    // TODO(backend): POST /billing/addons { ids: selectedList.map(a => a.id) }
     // eslint-disable-next-line no-console
     console.log('[adicionais] continuar', {
       ids: selectedList.map((a) => a.id),
@@ -116,28 +126,18 @@ export function PerfilAdicionaisPage() {
 
   return (
     <div className="pb-24">
-      {/* Header com back + título */}
-      <div className="mb-5 flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Voltar"
-          onClick={() => navigate(-1)}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-gold-strong hover:bg-cream"
-        >
-          <IconChevron size={22} className="rotate-90" />
-        </button>
-        <div className="min-w-0">
-          <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
-            Adicionais
-          </h1>
-          <p className="mt-1 text-sm leading-snug text-muted">
-            Amplie seu plano com recursos extras cobrados por mês.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Adicionais"
+        subtitle="Amplie seu plano com recursos extras cobrados por mês."
+        actions={
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            <IconChevron size={16} className="rotate-90" /> Voltar
+          </Button>
+        }
+      />
 
       {/* Segmented por categoria */}
-      <div className="mb-4 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
         {CATEGORIES.map((c) => (
           <SegBtn key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
             {c.label}
@@ -145,8 +145,8 @@ export function PerfilAdicionaisPage() {
         ))}
       </div>
 
-      {/* Grid de cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {/* Grid de cards: 1 col mobile, 2 cols desktop */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {visible.map((addon) => {
           const isSelected = selected.has(addon.id);
           const Icon = addon.icon;
@@ -155,9 +155,7 @@ export function PerfilAdicionaisPage() {
               key={addon.id}
               className={
                 'flex flex-col gap-3 rounded-2xl border bg-warm-white p-4 shadow-[var(--shadow-card)] transition-colors ' +
-                (isSelected
-                  ? 'border-gold-strong/60'
-                  : 'border-[var(--color-soft-border)]')
+                (isSelected ? 'border-gold-strong/60' : 'border-[var(--color-soft-border)]')
               }
             >
               <div className="flex items-start gap-3">
@@ -204,7 +202,7 @@ export function PerfilAdicionaisPage() {
         </div>
       )}
 
-      {/* Barra inferior fixa */}
+      {/* Barra inferior fixa: "N adicionais selecionados · continuar >" */}
       {selectedList.length > 0 && (
         <div
           className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-soft-border)] bg-warm-white/95 px-3 py-3 shadow-[0_-6px_20px_-12px_rgba(0,0,0,0.15)] backdrop-blur"
@@ -214,7 +212,9 @@ export function PerfilAdicionaisPage() {
             <div className="min-w-0">
               <div className="text-sm font-semibold text-foreground">
                 {selectedList.length}{' '}
-                {selectedList.length === 1 ? 'adicional selecionado' : 'adicionais selecionados'}
+                {selectedList.length === 1
+                  ? 'adicional selecionado'
+                  : 'adicionais selecionados'}
               </div>
               <div className="text-xs text-muted-ink">
                 Total: <span className="font-medium text-ink">{formatMoney(totalMonthly)}</span>

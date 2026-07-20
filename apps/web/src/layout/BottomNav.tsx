@@ -1,7 +1,7 @@
 import { useEffect, type ComponentType, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { IconCalendar, IconPlus, IconUsers, IconX } from '../components/icons';
-import { CREATE_GROUPS, useCreateSheet, usePageActions } from './PageActions';
+import { CREATE_GROUPS, useCreateSheet, usePageActions, type CreateItem } from './PageActions';
 
 function IconMenu({ size = 24 }: { size?: number }) {
   return (
@@ -46,8 +46,9 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   return (
     <>
-      {/* Create sheet — grouped "Novo" menu (Principal / Cadastros / Financeiro).
-          Always mounted so it slides smoothly in/out. */}
+      {/* Create sheet — grouped tile grid ("Financeiro" / "Cadastros") mirroring
+          the Belasis "Novo +" bottom-sheet. Always mounted so it slides smoothly
+          in/out. */}
       <div
         className={['fixed inset-0 z-50 lg:hidden', createOpen ? '' : 'pointer-events-none'].join(' ')}
         aria-hidden={!createOpen}
@@ -64,7 +65,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Criar novo"
+          aria-label="Criar"
           className={[
             'absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-warm-white pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[var(--shadow-pop)] transition-transform duration-300 ease-out will-change-transform',
             createOpen ? 'translate-y-0' : 'translate-y-full',
@@ -73,43 +74,33 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
           <div className="flex justify-center pt-3">
             <span className="h-1.5 w-10 rounded-full bg-black/15" />
           </div>
-          <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-3">
-            <div>
-              <h2 className="text-base font-semibold text-ink">Criar novo</h2>
-              <p className="text-sm text-muted-ink">O que você quer criar?</p>
-            </div>
+          <div className="flex items-center justify-between gap-3 px-5 pb-1 pt-2">
+            <h2 className="text-sm font-semibold text-ink">Criar</h2>
             <button
               type="button"
               onClick={closeCreateSheet}
               aria-label="Fechar"
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#5f5a54] shadow-sm"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-[#5f5a54] shadow-sm"
             >
               <IconX size={16} />
-              Fechar
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-1">
             {CREATE_GROUPS.map((group) => (
-              <div key={group.label} className="pb-1">
-                <div className="px-2.5 pb-0.5 pt-3 text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">
+              <section key={group.label} className="pt-4 first:pt-2">
+                <h3 className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9AA0A6]">
                   {group.label}
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  {group.items.map(({ to, label, icon: Icon }) => (
-                    <button
-                      key={to}
-                      type="button"
-                      onClick={() => pickCreate(to)}
-                      className="flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors hover:bg-cream active:bg-[#f2ece0]"
-                    >
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink text-gold">
-                        <Icon size={19} />
-                      </span>
-                      <span className="min-w-0 truncate text-sm font-semibold text-ink">{label}</span>
-                    </button>
+                </h3>
+                <div className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-5 md:grid-cols-6">
+                  {group.items.map((item) => (
+                    <CreateTile
+                      key={`${group.label}-${item.label}`}
+                      item={item}
+                      onPick={pickCreate}
+                    />
                   ))}
                 </div>
-              </div>
+              </section>
             ))}
           </div>
         </div>
@@ -169,6 +160,47 @@ function TabButton({
     >
       <Icon size={22} />
       <span className="max-w-full truncate">{label}</span>
+    </button>
+  );
+}
+
+/**
+ * A single Belasis-style "Create" tile: 60×60 rounded dark square with a white
+ * icon on top and a small label below. Disabled tiles render at reduced opacity
+ * and expose an "Em breve" tooltip.
+ */
+function CreateTile({
+  item,
+  onPick,
+}: {
+  item: CreateItem;
+  onPick: (to: string) => void;
+}) {
+  const { to, label, icon: Icon, disabled = false, disabledReason } = item;
+  const tooltip = disabled ? disabledReason ?? 'Em breve' : undefined;
+  return (
+    <button
+      type="button"
+      onClick={() => (disabled ? undefined : onPick(to))}
+      disabled={disabled}
+      title={tooltip}
+      aria-label={disabled ? `${label} — ${tooltip}` : label}
+      className={[
+        'group flex flex-col items-center gap-1.5 px-0.5 pt-0.5 text-center transition-transform disabled:cursor-not-allowed',
+        disabled ? 'opacity-45' : 'active:scale-[0.97]',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'grid h-[60px] w-[60px] shrink-0 place-items-center rounded-[18px] bg-ink text-white shadow-[0_2px_6px_rgba(0,0,0,0.14)] transition-colors',
+          disabled ? '' : 'group-hover:bg-black group-active:bg-black',
+        ].join(' ')}
+      >
+        <Icon size={24} />
+      </span>
+      <span className="line-clamp-2 max-w-full text-[11px] font-medium leading-tight text-ink">
+        {label}
+      </span>
     </button>
   );
 }
