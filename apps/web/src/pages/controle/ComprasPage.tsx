@@ -14,6 +14,7 @@ import {
   IconTrash,
   IconTruck,
 } from '../../components/icons';
+import { useSetPageActions } from '../../layout/PageActions';
 import { formatDate, formatMoney, formatNumber, isoDate } from '../../lib/format';
 import {
   useCreatePurchase,
@@ -180,6 +181,32 @@ export function ComprasPage() {
     }
   }
 
+  // Mobile: as ações do header (Buscar / Filtrar / Novo) vivem na BottomNav,
+  // reutilizando exatamente os mesmos handlers dos botões desktop.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((v) => !v),
+      },
+      {
+        key: 'filtros',
+        label: 'Filtrar',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen((v) => !v),
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [],
+  );
+
   async function handleDelete(p: PurchaseRow) {
     if (
       !window.confirm(
@@ -203,7 +230,7 @@ export function ComprasPage() {
       {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Compras</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
             <IconSearch size={16} /> Buscar
           </ToolbarButton>

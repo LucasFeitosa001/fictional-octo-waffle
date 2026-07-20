@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
+import { useSetPageActions } from '../../layout/PageActions';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState } from '../../components/States';
 import {
@@ -130,6 +131,33 @@ export function GeradorDocumentoPage() {
     }
   }
 
+  // Mobile: os mesmos botões do header (Buscar / Filtrar / Novo) vivem na
+  // BottomNav (igual Belasis). Cada ação dispara exatamente o mesmo handler
+  // do botão desktop. Os setters do useState são estáveis → deps vazias.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((v) => !v),
+      },
+      {
+        key: 'filtrar',
+        label: 'Filtrar',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen((v) => !v),
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [],
+  );
+
   return (
     <div className="pb-10">
       {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
@@ -139,12 +167,14 @@ export function GeradorDocumentoPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           <ToolbarButton
+            className="hidden md:inline-flex"
             active={searchOpen}
             onClick={() => setSearchOpen((v) => !v)}
           >
             <IconSearch size={16} /> Buscar
           </ToolbarButton>
           <ToolbarButton
+            className="hidden md:inline-flex"
             active={filterOpen || activeFilterCount > 0}
             onClick={() => setFilterOpen((v) => !v)}
           >
@@ -155,7 +185,11 @@ export function GeradorDocumentoPage() {
               </span>
             )}
           </ToolbarButton>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+          <Button
+            variant="primary"
+            className="hidden md:inline-flex"
+            onClick={() => setCreateOpen(true)}
+          >
             <IconPlus size={16} /> Novo
           </Button>
         </div>
@@ -617,16 +651,19 @@ function ToolbarButton({
   children,
   onClick,
   active,
+  className,
 }: {
   children: ReactNode;
   onClick: () => void;
   active?: boolean;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
+        className ?? '',
         'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
         active
           ? 'border-primary bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] text-primary'

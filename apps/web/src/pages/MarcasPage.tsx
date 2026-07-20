@@ -15,6 +15,7 @@ import {
   IconTrash,
 } from '../components/icons';
 import { formatNumber } from '../lib/format';
+import { useSetPageActions } from '../layout/PageActions';
 import {
   useBrands,
   useCreateBrand,
@@ -49,6 +50,32 @@ export function MarcasPage() {
   const [page, setPage] = useState(1);
 
   const allRows = brands.data ?? [];
+
+  // No mobile, os botões do header (Buscar / Filtrar / Novo) migram para a
+  // BottomNav — mesmos handlers do desktop. O header inline fica hidden md:flex.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((v) => !v),
+      },
+      {
+        key: 'filtrar',
+        label: 'Filtrar',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen((v) => !v),
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [],
+  );
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -105,7 +132,7 @@ export function MarcasPage() {
       {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Marcas</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton
             active={searchOpen}
             onClick={() => setSearchOpen((v) => !v)}

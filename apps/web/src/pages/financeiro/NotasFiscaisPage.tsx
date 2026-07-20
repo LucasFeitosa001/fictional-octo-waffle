@@ -15,6 +15,7 @@ import {
   IconSettings,
 } from '../../components/icons';
 import { formatDate, formatMoney } from '../../lib/format';
+import { useSetPageActions } from '../../layout/PageActions';
 
 const CARD_CLASS =
   'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
@@ -115,6 +116,34 @@ export function NotasFiscaisPage() {
     [docType, statusFilter, q],
   );
 
+  // Mobile: as ações do header (Buscar · Filtrar · Baixar XML) ficam na
+  // BottomNav (navbar inferior), como no Belasis. Reutilizam os mesmos
+  // handlers dos botões do desktop.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((o) => !o),
+      },
+      {
+        key: 'filtrar',
+        label: 'Filtrar',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen(true),
+      },
+      {
+        key: 'baixar-xml',
+        label: 'Baixar XML',
+        icon: <IconDownload size={22} />,
+        onClick: () => {},
+        disabled: rows.length === 0,
+      },
+    ],
+    [rows.length],
+  );
+
   const columns: Column<InvoiceRow>[] = [
     {
       key: 'number',
@@ -211,13 +240,14 @@ export function NotasFiscaisPage() {
           <Button
             variant={searchOpen ? 'primary' : 'outline'}
             onClick={() => setSearchOpen((o) => !o)}
+            className="hidden md:inline-flex"
           >
             <IconSearch size={16} /> Buscar
           </Button>
           <Button
             variant="outline"
             onClick={() => setFilterOpen(true)}
-            className="relative"
+            className="relative hidden md:inline-flex"
           >
             <IconFilter size={16} /> Filtrar
             {activeFilterCount > 0 && (
@@ -226,7 +256,11 @@ export function NotasFiscaisPage() {
               </span>
             )}
           </Button>
-          <Button variant="primary" isDisabled={rows.length === 0}>
+          <Button
+            variant="primary"
+            isDisabled={rows.length === 0}
+            className="hidden md:inline-flex"
+          >
             <IconDownload size={16} /> Baixar XML
           </Button>
         </div>

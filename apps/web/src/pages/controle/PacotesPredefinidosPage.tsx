@@ -17,6 +17,7 @@ import {
 } from '../../components/icons';
 import { formatMoney, formatNumber } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
+import { useSetPageActions } from '../../layout/PageActions';
 import { useServices } from '../../lib/queries';
 import {
   useCreatePackageTemplate,
@@ -129,12 +130,46 @@ export function PacotesPredefinidosPage() {
     }
   }
 
+  // Mobile: as ações do header vivem na BottomNav (igual Belasis). Cada onClick
+  // dispara exatamente o mesmo handler dos botões desktop.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((v) => !v),
+      },
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen((v) => !v),
+      },
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: exportCsv,
+        disabled: rows.length === 0,
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [rows],
+  );
+
   return (
     <div className="pb-10">
       {/* Cabeçalho: título + Buscar / Filtrar / Exportar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Pacotes Predefinidos</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Desktop apenas — no mobile essas ações ficam na BottomNav. */}
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
             <IconSearch size={16} /> Buscar
           </ToolbarButton>

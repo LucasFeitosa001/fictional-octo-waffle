@@ -36,6 +36,7 @@ import {
   type StockMovementType,
 } from '../lib/queries/catalogo';
 import { useAutoCreate } from '../lib/useAutoCreate';
+import { useSetPageActions } from '../layout/PageActions';
 
 const NONE = '';
 const PAGE_SIZE = 20;
@@ -155,6 +156,39 @@ export function ProdutosPage() {
     (statusFilter !== 'active' ? 1 : 0);
   const hasFilters = Boolean(search) || activeFilterCount > 0;
 
+  // Mobile: as ações do header vivem na BottomNav (padrão Belasis). Reutilizam
+  // exatamente os mesmos handlers dos botões desktop.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((v) => !v),
+      },
+      {
+        key: 'filtrar',
+        label: 'Filtrar',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen((v) => !v),
+      },
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: exportCsv,
+        disabled: rows.length === 0,
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [rows],
+  );
+
   function applySearch() {
     setSearch(searchInput.trim());
   }
@@ -209,7 +243,7 @@ export function ProdutosPage() {
       {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Produtos</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton
             active={searchOpen}
             onClick={() => setSearchOpen((v) => !v)}

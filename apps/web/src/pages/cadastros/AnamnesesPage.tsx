@@ -15,6 +15,7 @@ import {
 import { formatDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useAutoCreate } from '../../lib/useAutoCreate';
+import { useSetPageActions } from '../../layout/PageActions';
 
 const PAGE_SIZE = 20;
 
@@ -194,12 +195,47 @@ export function AnamnesesPage() {
     );
   }
 
+  // Mobile: as mesmas ações do header (Buscar / Filtrar / Exportar / Criar)
+  // vivem na BottomNav inferior (padrão Belasis). Cada onClick dispara o
+  // mesmo handler do botão desktop — os setters são estáveis, então só
+  // `rows.length` (que controla o disabled do Exportar) entra nas deps.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setShowSearch((v) => !v),
+      },
+      {
+        key: 'filtros',
+        label: 'Filtrar',
+        icon: <IconFilter size={22} />,
+        onClick: () => setShowFilters((v) => !v),
+      },
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: exportCsv,
+        disabled: rows.length === 0,
+      },
+      {
+        key: 'criar',
+        label: 'Criar',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [rows.length],
+  );
+
   return (
     <div className="pb-6">
       {/* ── Cabeçalho / toolbar (título + Buscar / Filtrar / Exportar / Criar) ── */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-foreground">Anamneses</h2>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton
             active={showSearch}
             onClick={() => setShowSearch((v) => !v)}

@@ -14,6 +14,7 @@ import {
   IconTrash,
   IconUsers,
 } from '../../components/icons';
+import { useSetPageActions } from '../../layout/PageActions';
 import { formatMoney, formatNumber } from '../../lib/format';
 import {
   useCreateGoal,
@@ -134,6 +135,25 @@ export function MetasPage() {
     }
   }
 
+  // Mobile: as ações de Filtros / Novo vivem na BottomNav (mesmos handlers do desktop).
+  useSetPageActions(
+    [
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFiltersOpen((v) => !v),
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: openCreate,
+      },
+    ],
+    [],
+  );
+
   return (
     <div>
       {/* ===== Cabeçalho: navegador de mês + toolbar ===== */}
@@ -160,7 +180,7 @@ export function MetasPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
+        <div className="hidden gap-2 md:flex md:w-auto">
           <Button variant="outline" onClick={() => setFiltersOpen((v) => !v)}>
             <IconFilter size={16} /> Filtrar
           </Button>

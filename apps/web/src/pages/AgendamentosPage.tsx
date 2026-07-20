@@ -12,6 +12,8 @@ import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/s
 import { PageHeader } from '../components/PageHeader';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { Drawer } from '../components/Drawer';
+import { useSetPageActions } from '../layout/PageActions';
+import { IconFilter } from '../components/icons';
 import { useAppointments, useSetAppointmentStatus } from '../lib/queries';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
@@ -63,6 +65,9 @@ export function AgendamentosPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  // Mobile: the contextual BottomNav opens the status filter as a bottom sheet
+  // (Belasis keeps filters/ações in the bottom nav on small screens).
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const from = useMemo(() => {
     const d = new Date();
@@ -77,6 +82,20 @@ export function AgendamentosPage() {
 
   const appts = useAppointments({ from, to });
   const statusMutation = useSetAppointmentStatus();
+
+  // The header's status filter lives in the BottomNav on mobile. Fires the same
+  // setter as the desktop segmented control (stable, so registered once).
+  useSetPageActions(
+    [
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setMobileFilterOpen(true),
+      },
+    ],
+    [],
+  );
 
   const rows = useMemo(() => {
     const all = appts.data?.data ?? [];
@@ -150,6 +169,31 @@ export function AgendamentosPage() {
     setCancelReason('');
   }
 
+  // Shared between the desktop segmented control and the mobile bottom-sheet so
+  // both fire the exact same `setFilter` handler.
+  const renderFilterButtons = (onPick?: () => void) =>
+    (Object.keys(FILTER_LABELS) as Filter[]).map((f) => {
+      const active = filter === f;
+      return (
+        <button
+          key={f}
+          type="button"
+          onClick={() => {
+            setFilter(f);
+            onPick?.();
+          }}
+          className={[
+            'rounded-lg px-4 py-1.5 text-sm font-medium transition-all',
+            active
+              ? 'bg-gold text-ink shadow-[var(--shadow-gold)]'
+              : 'text-muted-ink hover:bg-cream',
+          ].join(' ')}
+        >
+          {FILTER_LABELS[f]}
+        </button>
+      );
+    });
+
   return (
     <div>
       <PageHeader
@@ -157,29 +201,12 @@ export function AgendamentosPage() {
         subtitle="Todos os agendamentos do salao"
       />
 
-      {/* Filtros */}
-      <div className="mb-4 inline-flex rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-1 shadow-[var(--shadow-soft)]">
-        {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => {
-          const active = filter === f;
-          return (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={[
-                'rounded-lg px-4 py-1.5 text-sm font-medium transition-all',
-                active
-                  ? 'bg-gold text-ink shadow-[var(--shadow-gold)]'
-                  : 'text-muted-ink hover:bg-cream',
-              ].join(' ')}
-            >
-              {FILTER_LABELS[f]}
-            </button>
-          );
-        })}
+      {/* Filtros — segmented control (desktop). No mobile a versão fica na BottomNav. */}
+      <div className="mb-4 hidden rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-1 shadow-[var(--shadow-soft)] md:inline-flex">
+        {renderFilterButtons()}
       </div>
 
-      <span className="ml-3 text-sm text-muted-ink">{rows.length} agendamentos</span>
+      <span className="text-sm text-muted-ink md:ml-3">{rows.length} agendamentos</span>
 
       {appts.isLoading ? (
         <div className="mt-6 flex flex-col gap-3">
@@ -377,6 +404,18 @@ export function AgendamentosPage() {
                   )}
                 </div>
               )}
+      </Drawer>
+
+      {/* Mobile: filtro de status aberto pela BottomNav (mesmo handler do desktop). */}
+      <Drawer
+        isOpen={mobileFilterOpen}
+        onClose={() => setMobileFilterOpen(false)}
+        title="Filtrar"
+        placement="bottom"
+      >
+        <div className="flex flex-wrap gap-2">
+          {renderFilterButtons(() => setMobileFilterOpen(false))}
+        </div>
       </Drawer>
     </div>
   );

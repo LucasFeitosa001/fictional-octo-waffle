@@ -33,6 +33,7 @@ import {
   type FinancialCategoryKind,
   type PaymentMethod,
 } from '../../lib/queries/financeiro';
+import { useSetPageActions } from '../../layout/PageActions';
 
 const CARD_CLASS =
   'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
@@ -382,6 +383,36 @@ export function ContasPage() {
     setSearch('');
   }
 
+  // Mobile: as ações da toolbar (Buscar · Filtrar · Novo) vivem na BottomNav
+  // (padrão Belasis). Cada onClick dispara o mesmo handler do botão desktop.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((o) => !o),
+      },
+      ...(supportsStatus
+        ? [
+            {
+              key: 'filtrar',
+              label: 'Filtrar',
+              icon: <IconFilter size={22} />,
+              onClick: () => setFilterOpen(true),
+            },
+          ]
+        : []),
+      {
+        key: 'novo',
+        label: newLabel,
+        icon: <IconPlus size={22} />,
+        onClick: openCreate,
+      },
+    ],
+    [tab, supportsStatus],
+  );
+
   return (
     <div>
       {/* Cabeçalho + toolbar do Belasis: título à esquerda; à direita
@@ -396,11 +427,16 @@ export function ContasPage() {
           <Button
             variant={searchOpen ? 'primary' : 'outline'}
             onClick={() => setSearchOpen((o) => !o)}
+            className="hidden md:inline-flex"
           >
             <IconSearch size={16} /> Buscar
           </Button>
           {supportsStatus && (
-            <Button variant="outline" onClick={() => setFilterOpen(true)} className="relative">
+            <Button
+              variant="outline"
+              onClick={() => setFilterOpen(true)}
+              className="relative hidden md:inline-flex"
+            >
               <IconFilter size={16} /> Filtrar
               {statusFilterCount > 0 && (
                 <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-semibold text-ink">
@@ -409,7 +445,11 @@ export function ContasPage() {
               )}
             </Button>
           )}
-          <Button variant="primary" onClick={openCreate} className="col-span-2 sm:col-span-1">
+          <Button
+            variant="primary"
+            onClick={openCreate}
+            className="col-span-2 hidden sm:col-span-1 md:inline-flex"
+          >
             <IconPlus size={16} /> {newLabel}
           </Button>
         </div>

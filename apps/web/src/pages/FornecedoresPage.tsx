@@ -18,6 +18,7 @@ import {
 } from '../components/icons';
 import { formatNumber } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
+import { useSetPageActions } from '../layout/PageActions';
 import {
   useCreateSupplier,
   useDeleteSupplier,
@@ -134,12 +135,46 @@ export function FornecedoresPage() {
     }
   }
 
+  // Mobile: as mesmas ações do header (Buscar / Filtrar / Exportar / Novo) vão
+  // para a BottomNav inferior; cada onClick dispara o mesmo handler do desktop.
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((v) => !v),
+      },
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen((v) => !v),
+      },
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: exportCsv,
+        disabled: rows.length === 0,
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [rows],
+  );
+
   return (
     <div className="pb-10">
       {/* Cabeçalho: título + Buscar / Filtrar / Exportar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Fornecedores</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Desktop: barra de ações inline. No mobile essas ações vivem na BottomNav. */}
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
             <IconSearch size={16} /> Buscar
           </ToolbarButton>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '@heroui/react';
 import {
   Bar,
   BarChart,
@@ -14,7 +15,9 @@ import {
 import { PageHeader } from '../../components/PageHeader';
 import { LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
-import { IconChevron } from '../../components/icons';
+import { Drawer } from '../../components/Drawer';
+import { IconChevron, IconFilter } from '../../components/icons';
+import { useSetPageActions } from '../../layout/PageActions';
 import { useFinancialSummary } from '../../lib/queries/financeiro';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { formatMoney, isoDate } from '../../lib/format';
@@ -157,8 +160,27 @@ function TotalTile({
 
 export function FinanceiroPainelPage() {
   const [range, setRange] = useState(defaultRange);
+  // Filtro mobile: no Belasis o "Filtrar" fica na BottomNav e abre um drawer.
+  // Reutiliza exatamente o mesmo `setRange` do filtro inline do desktop.
+  const [mobileRange, setMobileRange] = useState(range);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const colors = useThemeColors();
   const summary = useFinancialSummary(range.from, range.to);
+
+  useSetPageActions(
+    [
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => {
+          setMobileRange(range);
+          setMobileFiltersOpen(true);
+        },
+      },
+    ],
+    [range],
+  );
   const d = summary.data;
 
   const accounts = d?.accounts.filter((a) => a.active) ?? [];
@@ -178,8 +200,8 @@ export function FinanceiroPainelPage() {
     <div>
       <PageHeader title="Painel" />
 
-      {/* Intervalo de datas (controla todo o resumo — data-wiring preservado) */}
-      <div className={`mb-4 rounded-xl bg-card p-4 ${SHADOW}`}>
+      {/* Intervalo de datas (desktop). No mobile o filtro vive na BottomNav. */}
+      <div className={`mb-4 hidden rounded-xl bg-card p-4 md:block ${SHADOW}`}>
         <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
       </div>
 
@@ -386,6 +408,37 @@ export function FinanceiroPainelPage() {
           </div>
         </div>
       )}
+
+      {/* Filtro mobile: acionado pela BottomNav (Belasis). Aplica o mesmo range. */}
+      <Drawer
+        isOpen={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
+        title="Filtrar"
+        placement="bottom"
+        footer={(
+          <Button
+            variant="primary"
+            onClick={() => {
+              setRange(mobileRange);
+              setMobileFiltersOpen(false);
+            }}
+          >
+            Aplicar filtros
+          </Button>
+        )}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">Escolha o período do resumo.</p>
+          <DateRangeFilter
+            from={mobileRange.from}
+            to={mobileRange.to}
+            onChange={setMobileRange}
+            fromLabel="Data inicial"
+            toLabel="Data final"
+            className="flex-col items-stretch [&>label]:!w-full"
+          />
+        </div>
+      </Drawer>
     </div>
   );
 }

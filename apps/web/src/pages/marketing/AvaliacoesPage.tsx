@@ -15,6 +15,7 @@ import {
   IconStar,
 } from '../../components/icons';
 import { formatDate, isoDate } from '../../lib/format';
+import { useSetPageActions } from '../../layout/PageActions';
 import {
   useReviewSettings,
   useReviews,
@@ -277,6 +278,22 @@ function AvaliacoesTab({
     downloadCsv('avaliacoes.csv', [header, ...body]);
   }
 
+  // Mobile: expõe a ação da aba na BottomNav (mesmo handler do botão desktop).
+  // Registrada aqui, dentro da aba, para reutilizar `exportCsv`/`rows` sem
+  // içar estado; a limpeza no unmount devolve a BottomNav ao padrão.
+  useSetPageActions(
+    [
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: exportCsv,
+        disabled: rows.length === 0,
+      },
+    ],
+    [rows],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       {/* Filters */}
@@ -307,7 +324,12 @@ function AvaliacoesTab({
                 })}
               </div>
             </div>
-            <Button variant="outline" onClick={exportCsv} isDisabled={rows.length === 0}>
+            <Button
+              variant="outline"
+              className="hidden md:inline-flex"
+              onClick={exportCsv}
+              isDisabled={rows.length === 0}
+            >
               <IconDownload size={16} /> Exportar CSV
             </Button>
           </div>

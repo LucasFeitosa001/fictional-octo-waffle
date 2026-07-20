@@ -23,6 +23,7 @@ import {
   IconWhatsApp,
 } from '../../components/icons';
 import { formatNumber, isoDate } from '../../lib/format';
+import { useSetPageActions } from '../../layout/PageActions';
 import { useReportsMessages } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { BackToReports, CARD } from './reportShared';
@@ -162,6 +163,23 @@ export function MensagensPage() {
 
   const query = useReportsMessages(range.from, range.to);
   const d = query.data;
+
+  // Mobile (<768px): a ação principal desta página vive na BottomNav (padrão
+  // Belasis), reutilizando exatamente o mesmo handler do botão desktop.
+  useSetPageActions(
+    [
+      {
+        key: 'gerar',
+        label: 'Gerar relatório',
+        icon: <IconSearch size={22} />,
+        onClick: () => {
+          void query.refetch();
+        },
+        disabled: query.isFetching,
+      },
+    ],
+    [query.refetch, query.isFetching],
+  );
 
   const byChannel = d?.byChannel ?? [];
   const byType = d?.byType ?? [];

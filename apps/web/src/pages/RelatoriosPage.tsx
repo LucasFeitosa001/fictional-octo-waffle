@@ -1,15 +1,18 @@
 import { useState } from 'react';
-import { Card } from '@heroui/react';
+import { Button, Card } from '@heroui/react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { LoadingState } from '../components/States';
 import { DateRangeFilter } from '../components/DateRangeFilter';
+import { Drawer } from '../components/Drawer';
+import { useSetPageActions } from '../layout/PageActions';
 import {
   IconBox,
   IconCalendar,
   IconChart,
   IconChevron,
   IconDollar,
+  IconFilter,
   IconGift,
   IconMessage,
   IconStar,
@@ -130,8 +133,27 @@ function IconWrap({ children }: { children: React.ReactNode }) {
 
 export function RelatoriosPage() {
   const [range, setRange] = useState(defaultRange);
+  const [mobileRange, setMobileRange] = useState(range);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const query = useReportsOverview(range.from, range.to);
   const d = query.data;
+
+  // Contextual bottom-nav action (mobile): the "Filtros" tab opens the same
+  // period picker that lives inline in the desktop "Resumo do período" card.
+  useSetPageActions(
+    [
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => {
+          setMobileRange(range);
+          setMobileFiltersOpen(true);
+        },
+      },
+    ],
+    [range],
+  );
 
   return (
     <div>
@@ -140,8 +162,9 @@ export function RelatoriosPage() {
         subtitle="Escolha uma categoria para ver o relatório detalhado"
       />
 
-      {/* Resumo do período (atalho rápido) */}
-      <Card className={`mb-4 ${CARD}`}>
+      {/* Resumo do período (atalho rápido) — inline apenas no desktop; no mobile
+          o período é escolhido pela ação "Filtros" da BottomNav (drawer abaixo). */}
+      <Card className={`mb-4 hidden lg:block ${CARD}`}>
         <Card.Content className="flex flex-wrap items-end justify-between gap-4 p-5">
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gold-strong">
@@ -207,6 +230,37 @@ export function RelatoriosPage() {
           </Link>
         ))}
       </div>
+
+      {/* Mobile: período no drawer, acionado pela BottomNav ("Filtros"). */}
+      <Drawer
+        isOpen={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
+        title="Resumo do período"
+        placement="bottom"
+        footer={(
+          <Button
+            variant="primary"
+            onClick={() => {
+              setRange(mobileRange);
+              setMobileFiltersOpen(false);
+            }}
+          >
+            Aplicar filtros
+          </Button>
+        )}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">Escolha o período dos indicadores.</p>
+          <DateRangeFilter
+            from={mobileRange.from}
+            to={mobileRange.to}
+            onChange={setMobileRange}
+            fromLabel="Data inicial"
+            toLabel="Data final"
+            className="flex-col items-stretch [&>label]:!w-full"
+          />
+        </div>
+      </Drawer>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
+import { useSetPageActions } from '../../layout/PageActions';
 import {
   IconChevron,
   IconCircleCheck,
@@ -139,6 +140,26 @@ export function CashbackPage() {
     setSelectMode(false);
   }
 
+  // No mobile os botões do header (Exportar / Novo) vivem na BottomNav.
+  useSetPageActions(
+    [
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: exportCsv,
+        disabled: rows.length === 0,
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: openCreate,
+      },
+    ],
+    [rows],
+  );
+
   const filterPills: [StatusFilter, string][] = [
     ['all', 'Todas'],
     ['active', 'Ativas'],
@@ -155,7 +176,7 @@ export function CashbackPage() {
             Regras de cashback por serviço, produto ou categoria
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-2 md:flex">
           <Button variant="outline" onClick={exportCsv} isDisabled={rows.length === 0}>
             <IconDownload size={16} /> Exportar CSV
           </Button>

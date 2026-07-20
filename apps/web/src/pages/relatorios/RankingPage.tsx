@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { PageHeader } from '../../components/PageHeader';
 import { DateField } from '../../components/DateRangeFilter';
 import { LoadingState } from '../../components/States';
-import { IconChevron, IconDownload, IconStar } from '../../components/icons';
+import { IconChevron, IconDownload, IconFilter, IconStar } from '../../components/icons';
 import { formatMoney, formatNumber, isoDate } from '../../lib/format';
 import { useReportsOverview } from '../../lib/queries/relatorios';
+import { useSetPageActions } from '../../layout/PageActions';
 import { BackToReports, CARD } from './reportShared';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,6 +170,27 @@ export function RankingPage() {
     setApplied(pending);
   }
 
+  // Mobile: as ações do card (Gerar / Exportar) vivem na BottomNav (padrão
+  // Belasis). No desktop os botões inline continuam visíveis (ver `hidden md:flex`).
+  useSetPageActions(
+    [
+      {
+        key: 'gerar',
+        label: 'Gerar',
+        icon: <IconFilter size={22} />,
+        onClick: () => setApplied(pending),
+      },
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        // TODO: menu de exportação (PDF/Excel) — mesmo comportamento do botão desktop (ainda sem handler).
+        onClick: () => {},
+      },
+    ],
+    [pending],
+  );
+
   return (
     <div>
       <BackToReports />
@@ -215,8 +237,9 @@ export function RankingPage() {
           </div>
         </div>
 
-        {/* Ação: Gerar relatório + export (Belasis: botão primário + dropdown) */}
-        <div className="mt-4 flex justify-end">
+        {/* Ação: Gerar relatório + export (Belasis: botão primário + dropdown).
+            Desktop-only: no mobile essas ações ficam na BottomNav (useSetPageActions). */}
+        <div className="mt-4 hidden justify-end md:flex">
           <div className="inline-flex overflow-hidden rounded-lg">
             <button
               type="button"

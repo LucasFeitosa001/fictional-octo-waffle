@@ -15,6 +15,7 @@ import {
   IconTrash,
 } from '../components/icons';
 import { downloadCsv } from '../lib/csv';
+import { useSetPageActions } from '../layout/PageActions';
 import {
   useCreateProductCategory,
   useDeleteProductCategory,
@@ -46,6 +47,27 @@ export function CategoriasPage() {
   }, [allRows, search, status]);
 
   const hasFilters = Boolean(search.trim()) || status !== 'all';
+
+  // Mobile: the header buttons live in the BottomNav (like Belasis). They fire
+  // the exact same handlers as the desktop buttons hidden below (`hidden md:*`).
+  useSetPageActions(
+    [
+      {
+        key: 'nova-categoria',
+        label: 'Nova',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+      {
+        key: 'exportar-csv',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: () => exportCsv(),
+        disabled: rows.length === 0,
+      },
+    ],
+    [rows],
+  );
 
   function exportCsv() {
     downloadCsv<ProductCategory>(
@@ -123,12 +145,17 @@ export function CategoriasPage() {
           <>
             <Button
               variant="outline"
+              className="hidden md:inline-flex"
               isDisabled={rows.length === 0}
               onClick={exportCsv}
             >
               <IconDownload size={16} /> Exportar CSV
             </Button>
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Button
+              variant="primary"
+              className="hidden md:inline-flex"
+              onClick={() => setCreateOpen(true)}
+            >
               <IconPlus size={16} /> Nova categoria
             </Button>
           </>
