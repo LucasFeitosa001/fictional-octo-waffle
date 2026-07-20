@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Avatar, Button, Chip, Input, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
 import { ImageUpload } from '../components/ImageUpload';
 import {
@@ -37,6 +38,7 @@ import { useAutoCreate } from '../lib/useAutoCreate';
 type StatusFilter = 'active' | 'inactive';
 
 export function ProfissionaisPage() {
+  const confirm = useConfirm();
   const professionals = useProfessionals();
   const remove = useDeleteProfessional();
   const allRows = professionals.data?.data ?? [];
@@ -75,10 +77,15 @@ export function ProfissionaisPage() {
     );
   }
 
-  function handleRemove(p: Professional) {
-    if (window.confirm(`Remover o profissional "${p.name}"?`)) {
-      remove.mutate(p.id);
-    }
+  async function handleRemove(p: Professional) {
+    const ok = await confirm({
+      title: `Remover o profissional "${p.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
+    remove.mutate(p.id);
   }
 
   // Mobile: as ações do header (Novo / Exportar CSV) migram para a BottomNav,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { Drawer } from '../../components/Drawer';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/States';
 import {
   IconChevron,
@@ -95,6 +96,7 @@ let nextId = 100;
 const genId = () => `local-${nextId++}`;
 
 export function AnamnesesPage() {
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<AnamnesisTemplate[]>(SEED_TEMPLATES);
 
   const [search, setSearch] = useState('');
@@ -143,8 +145,14 @@ export function AnamnesesPage() {
     });
   }
 
-  function handleDelete(t: AnamnesisTemplate) {
-    if (!window.confirm(`Excluir o modelo "${t.name}"?`)) return;
+  async function handleDelete(t: AnamnesisTemplate) {
+    const ok = await confirm({
+      title: `Excluir o modelo "${t.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     setTemplates((prev) => prev.filter((x) => x.id !== t.id));
     setSelected((prev) => {
       const next = new Set(prev);
@@ -153,10 +161,16 @@ export function AnamnesesPage() {
     });
   }
 
-  function handleBulkDelete() {
+  async function handleBulkDelete() {
     const ids = pageRows.filter((t) => selected.has(t.id)).map((t) => t.id);
     if (!ids.length) return;
-    if (!window.confirm(`Excluir ${ids.length} modelo(s) selecionado(s)?`)) return;
+    const ok = await confirm({
+      title: `Excluir ${ids.length} modelo(s) selecionado(s)?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     setTemplates((prev) => prev.filter((x) => !ids.includes(x.id)));
     setSelected(new Set());
   }

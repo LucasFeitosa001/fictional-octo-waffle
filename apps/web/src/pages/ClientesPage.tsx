@@ -18,6 +18,7 @@ import type { CustomerFull } from '../lib/types';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { useSetPageActions } from '../layout/PageActions';
 import { ClientePerfilModal, CustomerCreateModal } from './ClientePerfilTabs';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // `YYYY-MM-DD` → `MMDD` para comparar aniversário ignorando o ano.
 function monthDay(iso: string | null | undefined): string | null {
@@ -54,6 +55,7 @@ export function ClientesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [perfil, setPerfil] = useState<CustomerFull | null>(null);
   useAutoCreate(() => setCreateOpen(true));
+  const confirm = useConfirm();
 
   // Ações contextuais do mobile: renderizadas na BottomNav (não no header).
   useSetPageActions(
@@ -126,10 +128,15 @@ export function ClientesPage() {
     setSearch(searchInput.trim());
   }
 
-  function handleRemove(c: CustomerFull) {
-    if (window.confirm(`Remover o cliente "${c.name}"?`)) {
-      remove.mutate(c.id);
-    }
+  async function handleRemove(c: CustomerFull) {
+    const ok = await confirm({
+      title: 'Excluir cliente?',
+      message: `Remover o cliente "${c.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    remove.mutate(c.id);
   }
 
   function toggleSelect(id: string) {

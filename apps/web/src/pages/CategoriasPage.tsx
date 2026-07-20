@@ -16,6 +16,7 @@ import {
 } from '../components/icons';
 import { downloadCsv } from '../lib/csv';
 import { useSetPageActions } from '../layout/PageActions';
+import { useConfirm } from '../components/ConfirmDialog';
 import {
   useCreateProductCategory,
   useDeleteProductCategory,
@@ -27,6 +28,7 @@ import {
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 export function CategoriasPage() {
+  const confirm = useConfirm();
   const categories = useProductCategories();
   const deleteCategory = useDeleteProductCategory();
   const [editing, setEditing] = useState<ProductCategory | null>(null);
@@ -82,7 +84,13 @@ export function CategoriasPage() {
 
   async function handleDelete(c: ProductCategory) {
     setMessage(null);
-    if (!window.confirm(`Remover a categoria "${c.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Excluir categoria?',
+      message: `Remover a categoria "${c.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteCategory.mutateAsync(c.id);
     } catch (err) {

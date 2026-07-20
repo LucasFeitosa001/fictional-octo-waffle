@@ -30,6 +30,7 @@ import {
   IconWallet,
 } from '../../components/icons';
 import { DateFieldBR } from '../../components/DateRangeFilter';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
@@ -115,6 +116,7 @@ function origem(t: TransactionRow): string {
 }
 
 export function TransacoesPage() {
+  const confirm = useConfirm();
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>(
     'all',
   );
@@ -250,12 +252,14 @@ export function TransacoesPage() {
   );
 
   async function handleReverse(t: TransactionRow) {
-    if (
-      !window.confirm(
-        'Estornar esta transação? A original será preservada e marcada como estornada.',
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: 'Estornar transação?',
+      message:
+        'A original será preservada e marcada como estornada. Essa ação não pode ser desfeita.',
+      confirmLabel: 'Estornar',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await reverse.mutateAsync(t.id);
     } catch (err) {

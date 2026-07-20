@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
@@ -113,6 +114,7 @@ export function ComprasPage() {
   const [editId, setEditId] = useState<string | null>(null);
   useAutoCreate(() => setCreateOpen(true));
 
+  const confirm = useConfirm();
   const purchases = usePurchases(search || undefined);
   const methods = usePaymentMethods();
   const deletePurchase = useDeletePurchase();
@@ -208,12 +210,13 @@ export function ComprasPage() {
   );
 
   async function handleDelete(p: PurchaseRow) {
-    if (
-      !window.confirm(
-        `Excluir a compra ${purchaseLabel(p)}? A entrada de estoque será estornada.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Excluir a compra ${purchaseLabel(p)}?`,
+      message: 'A entrada de estoque será estornada. Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deletePurchase.mutateAsync(p.id);
     } catch (err) {

@@ -8,6 +8,7 @@ import {
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { ImageUpload } from '../components/ImageUpload';
@@ -80,6 +81,7 @@ function commissionOf(p: Product) {
 }
 
 export function ProdutosPage() {
+  const confirm = useConfirm();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -228,7 +230,13 @@ export function ProdutosPage() {
   }
 
   async function handleDelete(p: Product) {
-    if (!window.confirm(`Remover o produto "${p.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Excluir produto?',
+      message: `Remover o produto "${p.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     await deleteProduct.mutateAsync(p.id);
   }
 

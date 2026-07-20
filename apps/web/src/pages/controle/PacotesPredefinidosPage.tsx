@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
@@ -41,6 +42,7 @@ function itemsLabel(count: number) {
 }
 
 export function PacotesPredefinidosPage() {
+  const confirm = useConfirm();
   const templates = usePackageTemplates();
   const deleteTemplate = useDeletePackageTemplate();
 
@@ -118,7 +120,13 @@ export function PacotesPredefinidosPage() {
 
   async function handleDelete(template: PackageTemplate) {
     setMessage(null);
-    if (!window.confirm(`Remover o pacote "${template.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Excluir pacote predefinido?',
+      message: `Remover o pacote "${template.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteTemplate.mutateAsync(template.id);
     } catch (err) {

@@ -6,6 +6,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { DateField } from '../components/DateRangeFilter';
 import { Drawer } from '../components/Drawer';
+import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconCheck,
   IconDownload,
@@ -299,6 +300,7 @@ function Pagination({
 
 export function ComandasPage() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [statusTab, setStatusTab] = useState<string>('all');
   const status = STATUS_FILTERS.find((t) => t.id === statusTab)?.status;
   const orders = useOrders(status);
@@ -412,7 +414,13 @@ export function ComandasPage() {
   }
 
   async function handleRemove(o: OrderRow) {
-    if (!window.confirm(`Excluir a comanda #${o.number}?`)) return;
+    const ok = await confirm({
+      title: `Excluir comanda #${o.number}?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(o.id);
     } catch {
@@ -423,7 +431,13 @@ export function ComandasPage() {
   async function handleRemoveSelected() {
     const ids = [...selected];
     if (ids.length === 0) return;
-    if (!window.confirm(`Excluir ${ids.length} comanda(s) selecionada(s)?`)) return;
+    const ok = await confirm({
+      title: `Excluir ${ids.length} comanda(s) selecionada(s)?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await Promise.all(ids.map((id) => del.mutateAsync(id)));
       setSelected(new Set());

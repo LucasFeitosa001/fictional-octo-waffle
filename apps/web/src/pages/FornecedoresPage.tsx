@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
@@ -55,6 +56,7 @@ function readAddress(addressJson: unknown): SupplierAddress {
 }
 
 export function FornecedoresPage() {
+  const confirm = useConfirm();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -123,7 +125,13 @@ export function FornecedoresPage() {
 
   async function handleRemove(s: Supplier) {
     setMessage(null);
-    if (!window.confirm(`Remover o fornecedor "${s.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Excluir fornecedor?',
+      message: `Remover o fornecedor "${s.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(s.id);
     } catch (err) {

@@ -27,6 +27,7 @@ import {
 import { formatMoney } from "../lib/format";
 import { useAutoCreate } from "../lib/useAutoCreate";
 import { useSetPageActions } from "../layout/PageActions";
+import { useConfirm } from "../components/ConfirmDialog";
 
 const NONE = "";
 const PAGE_SIZE = 20;
@@ -83,6 +84,7 @@ export function ServicosPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceRow | null>(null);
   useAutoCreate(() => setCreateOpen(true));
+  const confirm = useConfirm();
 
   const services = useServices();
   const categories = useServiceCategories();
@@ -156,7 +158,13 @@ export function ServicosPage() {
   }
 
   async function handleDelete(s: ServiceRow) {
-    if (!window.confirm(`Remover o serviço "${s.name}"?`)) return;
+    const ok = await confirm({
+      title: "Excluir serviço?",
+      message: `Remover o serviço "${s.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
     await deleteService.mutateAsync(s.id);
     setSelected((prev) => {
       const next = new Set(prev);
@@ -168,8 +176,13 @@ export function ServicosPage() {
   async function handleBulkDelete() {
     const ids = rows.filter((s) => selected.has(s.id)).map((s) => s.id);
     if (!ids.length) return;
-    if (!window.confirm(`Remover ${ids.length} serviço(s) selecionado(s)?`))
-      return;
+    const ok = await confirm({
+      title: "Excluir serviços?",
+      message: `Remover ${ids.length} serviço(s) selecionado(s)? Essa ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
     for (const id of ids) await deleteService.mutateAsync(id);
     setSelected(new Set());
   }

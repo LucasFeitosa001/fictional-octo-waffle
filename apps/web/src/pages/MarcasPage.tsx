@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../components/Drawer';
+import { useConfirm } from '../components/ConfirmDialog';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconArrowDown,
@@ -34,6 +35,7 @@ function itemsLabel(count: number) {
 }
 
 export function MarcasPage() {
+  const confirm = useConfirm();
   const brands = useBrands();
   const deleteBrand = useDeleteBrand();
 
@@ -115,7 +117,13 @@ export function MarcasPage() {
 
   async function handleDelete(brand: Brand) {
     setMessage(null);
-    if (!window.confirm(`Remover a marca "${brand.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Excluir marca?',
+      message: `Remover a marca "${brand.name}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteBrand.mutateAsync(brand.id);
     } catch (err) {
