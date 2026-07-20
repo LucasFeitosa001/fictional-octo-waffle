@@ -43,18 +43,32 @@ export function Drawer({
   const [show, setShow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Mount → next frame flip `show` on so the transition plays. On close play the
-  // exit transition first, then unmount.
+  // Mount and visibility are intentionally handled in separate effects. A newly
+  // portalled panel needs to be painted in its off-screen position before we
+  // flip `show`; otherwise React can batch both states and skip the entrance
+  // animation entirely.
   useEffect(() => {
     if (isOpen) {
+      setShow(false);
       setMounted(true);
-      const raf = requestAnimationFrame(() => setShow(true));
-      return () => cancelAnimationFrame(raf);
+      return;
     }
     setShow(false);
     const t = setTimeout(() => setMounted(false), EXIT_MS);
     return () => clearTimeout(t);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !mounted) return;
+    let secondRaf = 0;
+    const firstRaf = requestAnimationFrame(() => {
+      secondRaf = requestAnimationFrame(() => setShow(true));
+    });
+    return () => {
+      cancelAnimationFrame(firstRaf);
+      cancelAnimationFrame(secondRaf);
+    };
+  }, [isOpen, mounted]);
 
   // Lock body scroll while the drawer occupies the screen.
   useEffect(() => {
@@ -90,7 +104,7 @@ export function Drawer({
         aria-hidden
         onClick={onClose}
         className={[
-          'absolute inset-0 bg-black/40 backdrop-blur-[1px] transition-opacity duration-[380ms] ease-out',
+          'absolute inset-0 cursor-pointer bg-black/40 backdrop-blur-[1px] transition-opacity duration-[380ms] ease-out',
           show ? 'opacity-100' : 'opacity-0',
         ].join(' ')}
       />
@@ -103,7 +117,7 @@ export function Drawer({
         aria-label={title}
         tabIndex={-1}
         className={[
-          'absolute flex w-full flex-col border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-pop)] outline-none',
+          'absolute flex w-full flex-col border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-pop)] outline-none',
           'transform-gpu transition-transform duration-[380ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] will-change-transform',
           placement === 'right'
             ? `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`
@@ -112,7 +126,7 @@ export function Drawer({
       >
         {/* Header (sticky) */}
         <div className={[
-          'sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-soft-border)] bg-[#fffdf8] px-4 pb-3.5',
+          'sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-soft-border)] bg-warm-white px-4 pb-3.5',
           placement === 'right' ? 'pt-[max(0.875rem,env(safe-area-inset-top))]' : 'pt-3.5',
         ].join(' ')}>
           <h2 className="min-w-0 truncate text-base font-semibold text-foreground">{title}</h2>
@@ -120,9 +134,11 @@ export function Drawer({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#6B6F76] transition-colors hover:bg-[#f7f3ea]"
+            title="Fechar"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#5f5a54] shadow-sm transition-colors hover:border-black/20 hover:bg-cream"
           >
-            <IconX size={18} />
+            <IconX size={16} />
+            <span>Fechar</span>
           </button>
         </div>
 
@@ -134,7 +150,7 @@ export function Drawer({
         {/* Footer (sticky) */}
         {footer && (
           <div
-            className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--color-soft-border)] bg-[#fffdf8] px-4 py-3"
+            className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--color-soft-border)] bg-warm-white px-4 py-3"
             style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
             {footer}

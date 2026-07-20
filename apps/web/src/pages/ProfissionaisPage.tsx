@@ -1,21 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Card, Chip, Input, Modal, Switch, Tabs, TextField } from '@heroui/react';
+import { Avatar, Button, Chip, Input, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
-import { PageHeader } from '../components/PageHeader';
-import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
-import { ActiveChip } from '../components/StatusChip';
+import { Drawer } from '../components/Drawer';
 import { ImageUpload } from '../components/ImageUpload';
 import {
   IconDownload,
+  IconGrip,
+  IconMail,
   IconPencil,
   IconPlus,
   IconScissors,
   IconSearch,
   IconTrash,
+  IconUsers,
 } from '../components/icons';
 import { downloadCsv } from '../lib/csv';
-import { SegBtn } from '../components/SegBtn';
 import { useProfessionals, useServices } from '../lib/queries';
 import {
   useCreateProfessional,
@@ -32,7 +32,8 @@ import { initials, toDateInput } from '../lib/format';
 import type { Professional } from '../lib/types';
 import { useAutoCreate } from '../lib/useAutoCreate';
 
-type StatusFilter = 'all' | 'active' | 'inactive';
+// O Belasis abre a lista em "Ativos" (não há um estado "Todos" na tela real).
+type StatusFilter = 'active' | 'inactive';
 
 export function ProfissionaisPage() {
   const professionals = useProfessionals();
@@ -42,36 +43,22 @@ export function ProfissionaisPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Professional | null>(null);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('all');
-  const [profession, setProfession] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('active');
   useAutoCreate(() => setCreateOpen(true));
-
-  const professionOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          allRows
-            .map((p) => p.profession?.trim())
-            .filter((v): v is string => Boolean(v)),
-        ),
-      ).sort((a, b) => a.localeCompare(b)),
-    [allRows],
-  );
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
     return allRows.filter((p) => {
       if (status === 'active' && !p.active) return false;
       if (status === 'inactive' && p.active) return false;
-      if (profession && p.profession?.trim() !== profession) return false;
       if (!term) return true;
       return [p.name, p.nickname, p.profession, p.phone]
         .filter(Boolean)
         .some((v) => v!.toLowerCase().includes(term));
     });
-  }, [allRows, search, status, profession]);
+  }, [allRows, search, status]);
 
-  const hasFilters = Boolean(search.trim()) || status !== 'all' || Boolean(profession);
+  const hasFilters = Boolean(search.trim());
 
   function exportCsv() {
     downloadCsv<Professional>(
@@ -93,202 +80,234 @@ export function ProfissionaisPage() {
     }
   }
 
-  const columns: Column<Professional>[] = [
-    {
-      key: 'name',
-      header: 'Profissional',
-      isRowHeader: true,
-      render: (p) => (
-        <div className="flex items-center gap-3">
-          <Avatar size="sm">
-            {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
-            <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
-          </Avatar>
-          <div>
-            <div className="font-medium text-foreground">{p.name}</div>
-            {p.nickname && <div className="text-xs text-muted">{p.nickname}</div>}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'profession',
-      header: 'Profissão',
-      render: (p) =>
-        p.profession ? (
-          <Chip variant="soft" color="accent" size="sm">
-            {p.profession}
-          </Chip>
-        ) : (
-          <span className="text-muted">—</span>
-        ),
-    },
-    { key: 'phone', header: 'Celular', render: (p) => p.phone ?? '—' },
-    { key: 'active', header: 'Status', render: (p) => <ActiveChip active={p.active} /> },
-    {
-      key: 'actions',
-      header: '',
-      render: (p) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`Editar ${p.name}`}
-            onClick={() => setEditing(p)}
-          >
-            <IconPencil size={16} /> Editar
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-danger"
-            aria-label={`Remover ${p.name}`}
-            onClick={() => handleRemove(p)}
-          >
-            <IconTrash size={16} />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
   const totalLoaded = professionals.data?.total ?? allRows.length;
   const subtitle = professionals.isLoading
     ? undefined
-    : hasFilters
-      ? `${rows.length} de ${totalLoaded} profissional(is)`
-      : `${totalLoaded} profissional(is)`;
+    : `${rows.length} de ${totalLoaded} profissional(is)`;
 
   return (
     <div>
-      <PageHeader
-        title="Profissionais"
-        subtitle={subtitle}
-        actions={
-          <>
-            <Button
-              variant="outline"
-              isDisabled={rows.length === 0}
-              onClick={exportCsv}
+      {/* ── Cabeçalho: título + ações (Belasis: título à esquerda, "Novo" à direita) ── */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-ink">Profissionais</h1>
+          {subtitle && <p className="text-sm text-muted-ink">{subtitle}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" isDisabled={rows.length === 0} onClick={exportCsv}>
+            <IconDownload size={16} /> Exportar CSV
+          </Button>
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <IconPlus size={16} /> Novo
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Card com toolbar (busca + abas Ativos/Inativos) e a lista ── */}
+      <div className="rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
+        {/* Toolbar */}
+        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-1 items-center rounded-full border border-line bg-canvas px-3 sm:max-w-md">
+            <IconSearch size={16} className="shrink-0 text-muted-ink" />
+            <TextField
+              value={search}
+              onChange={setSearch}
+              className="min-w-0 flex-1"
+              aria-label="Buscar profissional"
             >
-              <IconDownload size={16} /> Exportar CSV
-            </Button>
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
-              <IconPlus size={16} /> Novo profissional
-            </Button>
-          </>
-        }
-      />
-
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
-        <Card.Content className="p-4">
-          <div className="mb-4 flex flex-col gap-3">
-            <div className="flex max-w-md items-center gap-2">
-              <TextField
-                value={search}
-                onChange={setSearch}
-                className="min-w-0 flex-1"
-                aria-label="Buscar profissional"
-              >
-                <Input placeholder="Buscar por nome, apelido, profissão…" />
-              </TextField>
-              <Button variant="primary" aria-label="Buscar">
-                <IconSearch size={16} /> Buscar
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <SegBtn active={status === 'all'} onClick={() => setStatus('all')}>
-                Todos
-              </SegBtn>
-              <SegBtn active={status === 'active'} onClick={() => setStatus('active')}>
-                Ativos
-              </SegBtn>
-              <SegBtn
-                active={status === 'inactive'}
-                onClick={() => setStatus('inactive')}
-              >
-                Inativos
-              </SegBtn>
-              {professionOptions.length > 0 && (
-                <>
-                  <span className="mx-1 hidden h-5 w-px bg-[var(--color-soft-border)] sm:block" />
-                  <SegBtn active={!profession} onClick={() => setProfession('')}>
-                    Toda profissão
-                  </SegBtn>
-                  {professionOptions.map((prof) => (
-                    <SegBtn
-                      key={prof}
-                      active={profession === prof}
-                      onClick={() => setProfession(prof)}
-                    >
-                      {prof}
-                    </SegBtn>
-                  ))}
-                </>
-              )}
-            </div>
+              <Input
+                placeholder="Procure pelo nome, telefone ou e-mail"
+                className="border-0 bg-transparent px-2 shadow-none focus:ring-0"
+              />
+            </TextField>
           </div>
 
-          {professionals.isLoading ? (
-            <LoadingState />
-          ) : professionals.isError ? (
-            <ErrorState onRetry={() => professionals.refetch()} />
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={<IconScissors size={32} />}
-              title={
-                hasFilters
-                  ? 'Nenhum profissional encontrado'
-                  : 'Nenhum profissional cadastrado'
-              }
-              description={
-                hasFilters
-                  ? 'Ajuste a busca ou os filtros para ver mais resultados.'
-                  : 'Cadastre profissionais e vincule seus serviços e horários.'
-              }
-              action={
-                hasFilters ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearch('');
-                      setStatus('all');
-                      setProfession('');
-                    }}
-                  >
-                    Limpar filtros
-                  </Button>
-                ) : (
-                  <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                    <IconPlus size={16} /> Novo profissional
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <DataTable
-              aria-label="Profissionais"
-              columns={columns}
-              rows={rows}
-              getKey={(p) => p.id}
-            />
-          )}
-        </Card.Content>
-      </Card>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStatus('active')}
+              className={segClass(status === 'active')}
+            >
+              <IconUsers size={16} /> Ativos
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('inactive')}
+              className={segClass(status === 'inactive')}
+            >
+              <IconUsers size={16} /> Inativos
+            </button>
+          </div>
+        </div>
 
-      <ProfessionalModal
+        {/* Cabeçalho de colunas (só desktop) — Nome · Celular · E-mail, como no Belasis */}
+        <div className="hidden items-center gap-3 border-b border-line px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-ink sm:flex">
+          <span className="w-5 shrink-0" />
+          <span className="w-10 shrink-0" />
+          <span className="min-w-0 flex-1">Nome</span>
+          <span className="w-44 shrink-0">Celular</span>
+          <span className="min-w-0 flex-1">E-mail</span>
+          <span className="w-20 shrink-0" />
+        </div>
+
+        {/* Corpo */}
+        <div className="p-2 sm:p-0">
+          {professionals.isLoading ? (
+            <div className="p-4">
+              <LoadingState />
+            </div>
+          ) : professionals.isError ? (
+            <div className="p-4">
+              <ErrorState onRetry={() => professionals.refetch()} />
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={<IconScissors size={32} />}
+                title={
+                  hasFilters
+                    ? 'Nenhum profissional encontrado'
+                    : status === 'inactive'
+                      ? 'Nenhum profissional inativo'
+                      : 'Nenhum profissional cadastrado'
+                }
+                description={
+                  hasFilters
+                    ? 'Ajuste a busca para ver mais resultados.'
+                    : 'Cadastre profissionais e vincule seus serviços e horários.'
+                }
+                action={
+                  hasFilters ? (
+                    <Button variant="outline" onClick={() => setSearch('')}>
+                      Limpar busca
+                    </Button>
+                  ) : (
+                    <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                      <IconPlus size={16} /> Novo
+                    </Button>
+                  )
+                }
+              />
+            </div>
+          ) : (
+            <ul>
+              {rows.map((p) => (
+                <ProfessionalRow
+                  key={p.id}
+                  professional={p}
+                  onEdit={() => setEditing(p)}
+                  onRemove={() => handleRemove(p)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <ProfessionalDrawer
         mode="create"
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
       />
-      <ProfessionalModal
+      <ProfessionalDrawer
         mode="edit"
         professional={editing}
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
       />
     </div>
+  );
+}
+
+// Aba segmentada Ativos/Inativos (pílula preenchida no ativo — 100% themeable).
+function segClass(active: boolean): string {
+  return [
+    'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors',
+    active
+      ? 'bg-primary text-primary-foreground shadow-sm'
+      : 'border border-line bg-card text-muted-ink hover:text-ink',
+  ].join(' ');
+}
+
+// ---------------------------------------------------------------------
+// Linha da lista — espelha o Belasis: alça · avatar · Nome(+tag) · Celular · E-mail.
+function ProfessionalRow({
+  professional: p,
+  onEdit,
+  onRemove,
+}: {
+  professional: Professional;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="group flex items-center gap-3 border-b border-line px-3 py-2.5 last:border-0 hover:bg-canvas sm:px-4">
+      {/* Alça de reordenação (visual, como no Belasis) */}
+      <IconGrip
+        size={18}
+        className="hidden w-5 shrink-0 cursor-grab text-muted-ink/40 sm:block"
+      />
+
+      {/* Avatar */}
+      <Avatar size="sm" className="shrink-0">
+        {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
+        <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
+      </Avatar>
+
+      {/* Nome + tag (+ celular embaixo no mobile) */}
+      <button
+        type="button"
+        onClick={onEdit}
+        className="min-w-0 flex-1 text-left"
+        aria-label={`Editar ${p.name}`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="truncate font-medium text-ink">{p.name}</span>
+          {p.profession && (
+            <span className="hidden shrink-0 rounded bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground sm:inline">
+              {p.profession}
+            </span>
+          )}
+          {!p.active && (
+            <Chip color="default" variant="soft" size="sm" className="shrink-0">
+              Inativo
+            </Chip>
+          )}
+        </div>
+        {p.nickname && (
+          <div className="truncate text-xs text-muted-ink">{p.nickname}</div>
+        )}
+        <div className="mt-0.5 text-xs text-muted-ink sm:hidden">{p.phone ?? '—'}</div>
+      </button>
+
+      {/* Celular (desktop) */}
+      <div className="hidden w-44 shrink-0 truncate text-sm text-ink sm:block">
+        {p.phone ?? '—'}
+      </div>
+
+      {/* E-mail (desktop) — o modelo web não guarda e-mail ainda */}
+      <div className="hidden min-w-0 flex-1 items-center gap-1.5 text-sm text-muted-ink sm:flex">
+        <IconMail size={15} className="shrink-0 opacity-60" />
+        {/* TODO: adicionar `email` ao Professional para preencher esta coluna */}
+        <span className="truncate">—</span>
+      </div>
+
+      {/* Ações (hover no desktop, sempre visível no mobile) */}
+      <div className="flex shrink-0 items-center gap-0.5 sm:w-20 sm:justify-end sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+        <Button variant="ghost" size="sm" aria-label={`Editar ${p.name}`} onClick={onEdit}>
+          <IconPencil size={16} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-danger"
+          aria-label={`Remover ${p.name}`}
+          onClick={onRemove}
+        >
+          <IconTrash size={16} />
+        </Button>
+      </div>
+    </li>
   );
 }
 
@@ -321,7 +340,19 @@ function pickAllScopeRule(rules?: ProfessionalCommissionRuleRow[]): CommissionSt
   return { enabled: true, type: rule.type, value: String(rule.value ?? '') };
 }
 
-function ProfessionalModal({
+// Abas verticais do drawer (rótulos do Belasis). As demais abas do Belasis
+// (Usuário, Assinatura digital, Comissões e Auxiliares, Pagar salário, Vales,
+// Permissões, Contas de banco) dependem de módulos que o backend web ainda não
+// expõe — TODO.
+const DRAWER_TABS = [
+  { id: 'cadastro', label: 'Cadastro' },
+  { id: 'endereco', label: 'Endereço' },
+  { id: 'servicos', label: 'Personalizar serviços' },
+  { id: 'expediente', label: 'Expediente' },
+  { id: 'comissoes', label: 'Configurar comissões' },
+] as const;
+
+function ProfessionalDrawer({
   mode,
   professional,
   isOpen,
@@ -342,7 +373,7 @@ function ProfessionalModal({
   const servicesQuery = useServices();
   const serviceOptions = servicesQuery.data?.data ?? [];
 
-  const [tab, setTab] = useState('cadastro');
+  const [tab, setTab] = useState<string>('cadastro');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
@@ -531,376 +562,398 @@ function ProfessionalModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
-      <Modal.Container size="lg" placement="center">
-        <Modal.Dialog className="w-full max-w-lg">
-          <Modal.Header>
-            <Modal.Heading>
-              {mode === 'edit' ? 'Editar profissional' : 'Novo profissional'}
-            </Modal.Heading>
-          </Modal.Header>
-          <Modal.Body className="flex max-h-[75vh] flex-col overflow-y-auto">
-            <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-              <Tabs.List className="w-full overflow-x-auto">
-                <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
-                <Tabs.Tab id="endereco">Endereço</Tabs.Tab>
-                <Tabs.Tab id="servicos">Serviços</Tabs.Tab>
-                <Tabs.Tab id="expediente">Expediente</Tabs.Tab>
-                <Tabs.Tab id="comissoes">Comissões</Tabs.Tab>
-              </Tabs.List>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={mode === 'edit' ? 'Editar profissional' : 'Novo profissional'}
+      widthClass="sm:w-[640px]"
+      footer={
+        <>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            className="w-full sm:w-auto"
+            isDisabled={!canSave}
+            onClick={handleSave}
+          >
+            {pending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
+        {/* Navegação de abas — vertical no desktop (como no Belasis), scroll horizontal no mobile */}
+        <nav className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1 pb-2 sm:mx-0 sm:w-48 sm:shrink-0 sm:flex-col sm:border-b-0 sm:border-r sm:px-0 sm:pb-0 sm:pr-3">
+          {DRAWER_TABS.map((t) => {
+            const isActive = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={[
+                  'whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-ink hover:bg-canvas hover:text-ink',
+                ].join(' ')}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
 
-              {/* ---- Cadastro ---- */}
-              <Tabs.Panel id="cadastro" className="flex flex-col gap-4 pt-4">
-                <div className="flex justify-center sm:justify-start">
-                  <ImageUpload
-                    value={avatarUrl}
-                    onChange={setAvatarUrl}
-                    kind="professional"
-                    shape="circle"
-                    label="Foto"
-                    placeholder={initials(name)}
-                  />
-                </div>
+        {/* Painel */}
+        <div className="min-w-0 flex-1">
+          {/* ---- Cadastro ---- */}
+          {tab === 'cadastro' && (
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-center sm:justify-start">
+                <ImageUpload
+                  value={avatarUrl}
+                  onChange={setAvatarUrl}
+                  kind="professional"
+                  shape="circle"
+                  label="Foto"
+                  placeholder={initials(name)}
+                />
+              </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Nome">
-                    <TextField value={name} onChange={setName} aria-label="Nome">
-                      <Input placeholder="Nome completo" />
-                    </TextField>
-                  </Field>
-                  <Field label="Apelido">
-                    <TextField value={nickname} onChange={setNickname} aria-label="Apelido">
-                      <Input placeholder="Como é chamado(a)" />
-                    </TextField>
-                  </Field>
-                  <Field label="Celular">
-                    <TextField value={phone} onChange={setPhone} aria-label="Celular">
-                      <Input placeholder="(00) 00000-0000" />
-                    </TextField>
-                  </Field>
-                  <Field label="Profissão">
-                    <TextField value={profession} onChange={setProfession} aria-label="Profissão">
-                      <Input placeholder="Ex: Cabeleireira" />
-                    </TextField>
-                  </Field>
-                  <Field label="Cargo">
-                    <TextField value={position} onChange={setPosition} aria-label="Cargo">
-                      <Input placeholder="Ex: Sócia, Recepção" />
-                    </TextField>
-                  </Field>
-                  <Field label="CPF / CNPJ">
-                    <TextField
-                      value={documentNumber}
-                      onChange={setDocumentNumber}
-                      aria-label="CPF ou CNPJ"
-                    >
-                      <Input inputMode="numeric" placeholder="000.000.000-00" />
-                    </TextField>
-                  </Field>
-                  <Field label="RG">
-                    <TextField value={rg} onChange={setRg} aria-label="RG">
-                      <Input placeholder="Documento de identidade" />
-                    </TextField>
-                  </Field>
-                  <Field label="Aniversário">
-                    <input
-                      type="date"
-                      value={birthday}
-                      onChange={(e) => setBirthday(e.target.value)}
-                      aria-label="Aniversário"
-                      className="w-full rounded-lg border border-[var(--color-soft-border)] bg-[#fffdf8] px-3 py-2 text-sm text-foreground focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/25"
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Anotações">
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    aria-label="Anotações"
-                    rows={3}
-                    placeholder="Observações internas sobre a profissional…"
-                    className="w-full resize-y rounded-lg border border-[var(--color-soft-border)] bg-[#fffdf8] px-3 py-2 text-sm text-foreground focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/25"
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nome">
+                  <TextField value={name} onChange={setName} aria-label="Nome">
+                    <Input placeholder="Nome completo" />
+                  </TextField>
+                </Field>
+                <Field label="Apelido">
+                  <TextField value={nickname} onChange={setNickname} aria-label="Apelido">
+                    <Input placeholder="Como é chamado(a)" />
+                  </TextField>
+                </Field>
+                <Field label="Celular">
+                  <TextField value={phone} onChange={setPhone} aria-label="Celular">
+                    <Input placeholder="(00) 00000-0000" />
+                  </TextField>
+                </Field>
+                <Field label="Profissão">
+                  <TextField value={profession} onChange={setProfession} aria-label="Profissão">
+                    <Input placeholder="Ex: Cabeleireira" />
+                  </TextField>
+                </Field>
+                <Field label="Cargo">
+                  <TextField value={position} onChange={setPosition} aria-label="Cargo">
+                    <Input placeholder="Ex: Sócia, Recepção" />
+                  </TextField>
+                </Field>
+                <Field label="CPF / CNPJ">
+                  <TextField
+                    value={documentNumber}
+                    onChange={setDocumentNumber}
+                    aria-label="CPF ou CNPJ"
+                  >
+                    <Input inputMode="numeric" placeholder="000.000.000-00" />
+                  </TextField>
+                </Field>
+                <Field label="RG">
+                  <TextField value={rg} onChange={setRg} aria-label="RG">
+                    <Input placeholder="Documento de identidade" />
+                  </TextField>
+                </Field>
+                <Field label="Aniversário">
+                  <input
+                    type="date"
+                    value={birthday}
+                    onChange={(e) => setBirthday(e.target.value)}
+                    aria-label="Aniversário"
+                    className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
                   />
                 </Field>
+              </div>
 
-                <div className="flex flex-col gap-1 border-t border-[var(--color-soft-border)] pt-4">
-                  <h3 className="mb-1 text-sm font-semibold text-foreground">Configurações</h3>
-                  <ToggleRow
-                    label="Ativo"
-                    hint="Aparece nas listagens e pode receber atendimentos."
-                    checked={active}
-                    onChange={setActive}
-                  />
-                  <ToggleRow
-                    label="Disponível para agendamento online"
-                    hint="Deixa a profissional visível no link público de agendamento."
-                    checked={onlineBookable}
-                    onChange={setOnlineBookable}
-                  />
-                  <ToggleRow
-                    label="Notificações por WhatsApp"
-                    hint="Recebe avisos de novos agendamentos e lembretes."
-                    checked={notifyWhatsapp}
-                    onChange={setNotifyWhatsapp}
-                  />
-                  <ToggleRow
-                    label="Recebe comissão"
-                    hint="Gera lançamentos de comissão sobre os atendimentos e vendas."
-                    checked={receivesCommission}
-                    onChange={setReceivesCommission}
-                  />
-                  <ToggleRow
-                    label="Gerar agenda"
-                    hint="Cria a agenda desta profissional para receber agendamentos."
-                    checked={generateSchedule}
-                    onChange={setGenerateSchedule}
-                  />
-                </div>
-              </Tabs.Panel>
+              <Field label="Anotações">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  aria-label="Anotações"
+                  rows={3}
+                  placeholder="Observações internas sobre a profissional…"
+                  className="w-full resize-y rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              </Field>
 
-              {/* ---- Endereço ---- */}
-              <Tabs.Panel id="endereco" className="flex flex-col gap-4 pt-4">
-                <p className="text-xs text-muted">
-                  Endereço da profissional. Todos os campos são opcionais.
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="CEP">
-                    <TextField
-                      value={zip}
-                      onChange={(v) => setZip(maskCep(v))}
-                      aria-label="CEP"
-                    >
-                      <Input inputMode="numeric" placeholder="00000-000" />
-                    </TextField>
-                  </Field>
-                  <Field label="Logradouro">
-                    <TextField value={street} onChange={setStreet} aria-label="Logradouro">
-                      <Input placeholder="Rua, avenida…" />
-                    </TextField>
-                  </Field>
-                  <Field label="Número">
-                    <TextField value={number} onChange={setNumber} aria-label="Número">
-                      <Input placeholder="Nº" />
-                    </TextField>
-                  </Field>
-                  <Field label="Complemento">
-                    <TextField
-                      value={complement}
-                      onChange={setComplement}
-                      aria-label="Complemento"
-                    >
-                      <Input placeholder="Apto, bloco, sala…" />
-                    </TextField>
-                  </Field>
-                  <Field label="Bairro">
-                    <TextField value={district} onChange={setDistrict} aria-label="Bairro">
-                      <Input placeholder="Bairro" />
-                    </TextField>
-                  </Field>
-                  <Field label="Cidade">
-                    <TextField value={city} onChange={setCity} aria-label="Cidade">
-                      <Input placeholder="Cidade" />
-                    </TextField>
-                  </Field>
-                  <Field label="Estado">
-                    <TextField value={uf} onChange={setUf} aria-label="Estado">
-                      <Input placeholder="UF" />
-                    </TextField>
-                  </Field>
-                </div>
-              </Tabs.Panel>
+              <div className="flex flex-col gap-1 border-t border-line pt-4">
+                <h3 className="mb-1 text-sm font-semibold text-ink">Configurações</h3>
+                <ToggleRow
+                  label="Ativo"
+                  hint="Um profissional desativado não será listado para realizar agendamentos, comandas etc."
+                  checked={active}
+                  onChange={setActive}
+                />
+                <ToggleRow
+                  label="Disponível para agendamento online"
+                  hint="Clientes podem escolher esse profissional para fazer agendamentos online."
+                  checked={onlineBookable}
+                  onChange={setOnlineBookable}
+                />
+                <ToggleRow
+                  label="Notificações por WhatsApp"
+                  hint="Recebe avisos de novos agendamentos e lembretes."
+                  checked={notifyWhatsapp}
+                  onChange={setNotifyWhatsapp}
+                />
+                <ToggleRow
+                  label="Recebe comissão"
+                  hint="Desmarque se o profissional não recebe comissão."
+                  checked={receivesCommission}
+                  onChange={setReceivesCommission}
+                />
+                <ToggleRow
+                  label="Gerar agenda"
+                  hint="Caso esteja desativado não será gerada agenda para este profissional."
+                  checked={generateSchedule}
+                  onChange={setGenerateSchedule}
+                />
+              </div>
+            </div>
+          )}
 
-              {/* ---- Serviços ---- */}
-              <Tabs.Panel id="servicos" className="flex flex-col gap-3 pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-foreground">Serviços que realiza</h3>
-                  {serviceOptions.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setServiceIds((prev) =>
-                          prev.size === serviceOptions.length
-                            ? new Set()
-                            : new Set(serviceOptions.map((s) => s.id)),
-                        )
-                      }
-                      className="text-xs font-medium text-[#c98a1f] hover:underline"
-                    >
-                      {serviceIds.size === serviceOptions.length ? 'Limpar' : 'Selecionar todos'}
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-muted">
-                  Marque os serviços que esta profissional atende. É o que faz ela aparecer ao
-                  cliente no agendamento online.
-                </p>
-                {servicesQuery.isLoading || detailLoading ? (
-                  <p className="text-sm text-muted">Carregando serviços…</p>
-                ) : serviceOptions.length === 0 ? (
-                  <p className="text-sm text-muted">
-                    Nenhum serviço cadastrado. Cadastre serviços primeiro em “Serviços”.
-                  </p>
-                ) : (
-                  <div className="grid gap-1.5 sm:grid-cols-2">
-                    {serviceOptions.map((svc) => (
-                      <label
-                        key={svc.id}
-                        className="flex items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={serviceIds.has(svc.id)}
-                          onChange={() => toggleService(svc.id)}
-                        />
-                        <span className="truncate">{svc.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </Tabs.Panel>
+          {/* ---- Endereço ---- */}
+          {tab === 'endereco' && (
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-muted-ink">
+                Endereço da profissional. Todos os campos são opcionais.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="CEP">
+                  <TextField value={zip} onChange={(v) => setZip(maskCep(v))} aria-label="CEP">
+                    <Input inputMode="numeric" placeholder="00000-000" />
+                  </TextField>
+                </Field>
+                <Field label="Logradouro">
+                  <TextField value={street} onChange={setStreet} aria-label="Logradouro">
+                    <Input placeholder="Rua, avenida…" />
+                  </TextField>
+                </Field>
+                <Field label="Número">
+                  <TextField value={number} onChange={setNumber} aria-label="Número">
+                    <Input placeholder="Nº" />
+                  </TextField>
+                </Field>
+                <Field label="Complemento">
+                  <TextField value={complement} onChange={setComplement} aria-label="Complemento">
+                    <Input placeholder="Apto, bloco, sala…" />
+                  </TextField>
+                </Field>
+                <Field label="Bairro">
+                  <TextField value={district} onChange={setDistrict} aria-label="Bairro">
+                    <Input placeholder="Bairro" />
+                  </TextField>
+                </Field>
+                <Field label="Cidade">
+                  <TextField value={city} onChange={setCity} aria-label="Cidade">
+                    <Input placeholder="Cidade" />
+                  </TextField>
+                </Field>
+                <Field label="Estado">
+                  <TextField value={uf} onChange={setUf} aria-label="Estado">
+                    <Input placeholder="UF" />
+                  </TextField>
+                </Field>
+              </div>
+            </div>
+          )}
 
-              {/* ---- Expediente ---- */}
-              <Tabs.Panel id="expediente" className="flex flex-col gap-3 pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-foreground">Horário de atendimento</h3>
+          {/* ---- Personalizar serviços ---- */}
+          {tab === 'servicos' && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-ink">Serviços que realiza</h3>
+                {serviceOptions.length > 0 && (
                   <button
                     type="button"
-                    onClick={applyToAll}
-                    className="text-xs font-medium text-[#c98a1f] hover:underline disabled:opacity-40"
-                    disabled={!days.some((d) => d.enabled)}
+                    onClick={() =>
+                      setServiceIds((prev) =>
+                        prev.size === serviceOptions.length
+                          ? new Set()
+                          : new Set(serviceOptions.map((s) => s.id)),
+                      )
+                    }
+                    className="text-xs font-medium text-primary hover:underline"
                   >
-                    Aplicar a todos os dias
+                    {serviceIds.size === serviceOptions.length ? 'Limpar' : 'Selecionar todos'}
                   </button>
-                </div>
-                <p className="text-xs text-muted">
-                  Marque os dias em que atende e defina o horário. É o que libera os encaixes no
-                  agendamento online.
-                </p>
-                {detailLoading ? (
-                  <p className="text-sm text-muted">Carregando horários…</p>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {days.map((day, idx) => (
-                      <div
-                        key={idx}
-                        className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-1 py-1"
-                      >
-                        <label className="flex w-28 shrink-0 items-center gap-2 text-sm text-foreground">
-                          <input
-                            type="checkbox"
-                            checked={day.enabled}
-                            onChange={(e) => updateDay(idx, { enabled: e.target.checked })}
-                          />
-                          {WEEKDAY_LABELS[idx]}
-                        </label>
-                        {day.enabled ? (
-                          <div className="flex items-center gap-2 text-sm">
-                            <input
-                              type="time"
-                              value={day.start}
-                              onChange={(e) => updateDay(idx, { start: e.target.value })}
-                              aria-label={`Início ${WEEKDAY_LABELS[idx]}`}
-                              className="rounded-lg border border-[var(--color-soft-border)] bg-[#fffdf8] px-2 py-1.5 text-foreground focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/25"
-                            />
-                            <span className="text-muted">às</span>
-                            <input
-                              type="time"
-                              value={day.end}
-                              onChange={(e) => updateDay(idx, { end: e.target.value })}
-                              aria-label={`Término ${WEEKDAY_LABELS[idx]}`}
-                              className="rounded-lg border border-[var(--color-soft-border)] bg-[#fffdf8] px-2 py-1.5 text-foreground focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/25"
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted">Fechado</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
                 )}
-              </Tabs.Panel>
-
-              {/* ---- Comissões ---- */}
-              <Tabs.Panel id="comissoes" className="flex flex-col gap-3 pt-4">
-                <h3 className="text-sm font-semibold text-foreground">Comissão individual</h3>
-                <p className="text-xs text-muted">
-                  Defina uma comissão específica para esta profissional. Quando desativada, ela segue
-                  a configuração padrão de comissões do salão.
-                </p>
-                {detailLoading ? (
-                  <p className="text-sm text-muted">Carregando comissão…</p>
-                ) : (
-                  <>
-                    <ToggleRow
-                      label="Usar comissão individual"
-                      checked={commission.enabled}
-                      onChange={(v) => setCommission((c) => ({ ...c, enabled: v }))}
-                    />
-                    {commission.enabled && (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Tipo">
-                          <div className="flex gap-2">
-                            <SegBtn
-                              active={commission.type === 'percent'}
-                              onClick={() => setCommission((c) => ({ ...c, type: 'percent' }))}
-                            >
-                              Percentual (%)
-                            </SegBtn>
-                            <SegBtn
-                              active={commission.type === 'fixed'}
-                              onClick={() => setCommission((c) => ({ ...c, type: 'fixed' }))}
-                            >
-                              Valor fixo (R$)
-                            </SegBtn>
-                          </div>
-                        </Field>
-                        <Field
-                          label={commission.type === 'percent' ? 'Percentual (%)' : 'Valor (R$)'}
-                        >
-                          <TextField
-                            value={commission.value}
-                            onChange={(v) => setCommission((c) => ({ ...c, value: v }))}
-                            aria-label="Valor da comissão"
-                          >
-                            <Input
-                              inputMode="decimal"
-                              placeholder={commission.type === 'percent' ? 'Ex: 40' : 'Ex: 25,00'}
-                            />
-                          </TextField>
-                        </Field>
-                      </div>
-                    )}
-                  </>
-                )}
-              </Tabs.Panel>
-            </Tabs>
-
-            {error && (
-              <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                {error}
               </div>
-            )}
-          </Modal.Body>
-          <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              variant="primary"
-              className="w-full sm:w-auto"
-              isDisabled={!canSave}
-              onClick={handleSave}
-            >
-              {pending ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+              <p className="text-xs text-muted-ink">
+                Marque os serviços que esta profissional atende. É o que faz ela aparecer ao cliente
+                no agendamento online.
+              </p>
+              {servicesQuery.isLoading || detailLoading ? (
+                <p className="text-sm text-muted-ink">Carregando serviços…</p>
+              ) : serviceOptions.length === 0 ? (
+                <p className="text-sm text-muted-ink">
+                  Nenhum serviço cadastrado. Cadastre serviços primeiro em “Serviços”.
+                </p>
+              ) : (
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {serviceOptions.map((svc) => (
+                    <label
+                      key={svc.id}
+                      className="flex items-center gap-2 rounded-lg px-1 py-1 text-sm text-ink"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={serviceIds.has(svc.id)}
+                        onChange={() => toggleService(svc.id)}
+                      />
+                      <span className="truncate">{svc.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ---- Expediente ---- */}
+          {tab === 'expediente' && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-ink">Horário de atendimento</h3>
+                <button
+                  type="button"
+                  onClick={applyToAll}
+                  className="text-xs font-medium text-primary hover:underline disabled:opacity-40"
+                  disabled={!days.some((d) => d.enabled)}
+                >
+                  Aplicar a todos os dias
+                </button>
+              </div>
+              <p className="text-xs text-muted-ink">
+                Marque os dias em que atende e defina o horário. É o que libera os encaixes no
+                agendamento online.
+              </p>
+              {detailLoading ? (
+                <p className="text-sm text-muted-ink">Carregando horários…</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {days.map((day, idx) => (
+                    <div
+                      key={idx}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-1 py-1"
+                    >
+                      <label className="flex w-28 shrink-0 items-center gap-2 text-sm text-ink">
+                        <input
+                          type="checkbox"
+                          checked={day.enabled}
+                          onChange={(e) => updateDay(idx, { enabled: e.target.checked })}
+                        />
+                        {WEEKDAY_LABELS[idx]}
+                      </label>
+                      {day.enabled ? (
+                        <div className="flex items-center gap-2 text-sm">
+                          <input
+                            type="time"
+                            value={day.start}
+                            onChange={(e) => updateDay(idx, { start: e.target.value })}
+                            aria-label={`Início ${WEEKDAY_LABELS[idx]}`}
+                            className="rounded-lg border border-line bg-card px-2 py-1.5 text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
+                          />
+                          <span className="text-muted-ink">às</span>
+                          <input
+                            type="time"
+                            value={day.end}
+                            onChange={(e) => updateDay(idx, { end: e.target.value })}
+                            aria-label={`Término ${WEEKDAY_LABELS[idx]}`}
+                            className="rounded-lg border border-line bg-card px-2 py-1.5 text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-ink">Fechado</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ---- Configurar comissões ---- */}
+          {tab === 'comissoes' && (
+            <div className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold text-ink">Comissão individual</h3>
+              <p className="text-xs text-muted-ink">
+                Defina uma comissão específica para esta profissional. Quando desativada, ela segue a
+                configuração padrão de comissões do salão.
+              </p>
+              {detailLoading ? (
+                <p className="text-sm text-muted-ink">Carregando comissão…</p>
+              ) : (
+                <>
+                  <ToggleRow
+                    label="Usar comissão individual"
+                    checked={commission.enabled}
+                    onChange={(v) => setCommission((c) => ({ ...c, enabled: v }))}
+                  />
+                  {commission.enabled && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Tipo">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCommission((c) => ({ ...c, type: 'percent' }))}
+                            className={commTypeClass(commission.type === 'percent')}
+                          >
+                            Percentual (%)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCommission((c) => ({ ...c, type: 'fixed' }))}
+                            className={commTypeClass(commission.type === 'fixed')}
+                          >
+                            Valor fixo (R$)
+                          </button>
+                        </div>
+                      </Field>
+                      <Field label={commission.type === 'percent' ? 'Percentual (%)' : 'Valor (R$)'}>
+                        <TextField
+                          value={commission.value}
+                          onChange={(v) => setCommission((c) => ({ ...c, value: v }))}
+                          aria-label="Valor da comissão"
+                        >
+                          <Input
+                            inputMode="decimal"
+                            placeholder={commission.type === 'percent' ? 'Ex: 40' : 'Ex: 25,00'}
+                          />
+                        </TextField>
+                      </Field>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+    </Drawer>
   );
+}
+
+function commTypeClass(active: boolean): string {
+  return [
+    'min-h-10 flex-1 rounded-full px-3 text-sm font-medium transition-colors',
+    active
+      ? 'bg-primary text-primary-foreground'
+      : 'border border-line bg-card text-muted-ink hover:text-ink',
+  ].join(' ');
 }
 
 function ToggleRow({
@@ -920,9 +973,9 @@ function ToggleRow({
       onChange={onChange}
       className="flex w-full items-center justify-between gap-3 py-1.5"
     >
-      <span className="min-w-0 text-sm text-foreground">
+      <span className="min-w-0 text-sm text-ink">
         {label}
-        {hint && <span className="block text-xs text-muted">{hint}</span>}
+        {hint && <span className="block text-xs text-muted-ink">{hint}</span>}
       </span>
       <Switch.Control>
         <Switch.Thumb />
@@ -934,7 +987,7 @@ function ToggleRow({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted">{label}</label>
+      <label className="text-xs font-medium text-muted-ink">{label}</label>
       {children}
     </div>
   );

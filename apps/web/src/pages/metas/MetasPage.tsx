@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
-import {
-  Button,
-  Card,
-  Chip,
-  Input,
-  ListBox,
-  Modal,
-  Select,
-  TextField,
-} from '@heroui/react';
+import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
-import { PageHeader } from '../../components/PageHeader';
+import { Drawer } from '../../components/Drawer';
 import { EmptyState, LoadingState } from '../../components/States';
 import { MonthField } from '../../components/DateRangeFilter';
-import { IconPlus, IconTarget } from '../../components/icons';
+import {
+  IconCalendar,
+  IconChevron,
+  IconFilter,
+  IconPencil,
+  IconPlus,
+  IconTarget,
+  IconTrash,
+  IconUsers,
+} from '../../components/icons';
 import { formatMoney, formatNumber } from '../../lib/format';
 import {
   useCreateGoal,
@@ -38,102 +38,92 @@ const KIND_IS_MONEY: Record<GoalKind, boolean> = {
   commission: true,
 };
 
+const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
 function currentPeriod() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+/** 'YYYY-MM' → 'Julho, 2026' (rótulo do navegador de mês do Belasis). */
+function periodLabel(p: string) {
+  const [y, m] = p.split('-').map(Number);
+  if (!y || !m) return p;
+  return `${MONTHS[m - 1]}, ${y}`;
+}
 
-function ProgressBar({ value }: { value: number }) {
-  const pct = Math.round(Math.min(Math.max(value, 0), 1) * 100);
-  const color = pct >= 100 ? 'bg-success' : pct >= 50 ? 'bg-[#f2b33d]' : 'bg-[#f2b33d]/50';
+/** Desloca o período em `delta` meses, preservando o formato 'YYYY-MM'. */
+function shiftPeriod(p: string, delta: number) {
+  let [y, m] = p.split('-').map(Number);
+  m += delta;
+  if (m < 1) {
+    m = 12;
+    y -= 1;
+  } else if (m > 12) {
+    m = 1;
+    y += 1;
+  }
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
+const PROGRESS_TRACK = 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)]';
+
+function fmtValue(kind: GoalKind, n: number) {
+  return KIND_IS_MONEY[kind] ? formatMoney(n) : formatNumber(n);
+}
+
+function ProgressCell({ goal }: { goal: Goal }) {
+  const pct = Math.round(Math.min(Math.max(goal.progress, 0), 1) * 100);
+  const done = pct >= 100;
   return (
-    <div className="h-2.5 w-full overflow-hidden rounded-full bg-[#f2b33d]/10">
-      <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+    <div className="min-w-[180px]">
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-ink">{fmtValue(goal.kind, goal.actual)}</span>
+        <span className="text-muted-ink">meta {fmtValue(goal.kind, goal.target)}</span>
+      </div>
+      <div className={`flex items-center gap-2`}>
+        <div className={`h-2 w-full overflow-hidden rounded-full ${PROGRESS_TRACK}`}>
+          <div
+            className={`h-full rounded-full transition-all ${done ? 'bg-success' : 'bg-primary'}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span
+          className={[
+            'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+            done
+              ? 'bg-success/15 text-success'
+              : 'bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] text-primary',
+          ].join(' ')}
+        >
+          {pct}%
+        </span>
+      </div>
     </div>
   );
 }
 
-function GoalCard({ goal, onEdit }: { goal: Goal; onEdit: () => void }) {
-  const isMoney = KIND_IS_MONEY[goal.kind];
-  const fmt = (n: number) => (isMoney ? formatMoney(n) : formatNumber(n));
-  const pct = Math.round(Math.min(goal.progress, 1) * 100);
-  const remaining = Math.max(goal.target - goal.actual, 0);
-  return (
-    <Card className={CARD}>
-      <Card.Content className="p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
-              <IconTarget size={16} />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">{KIND_LABEL[goal.kind]}</p>
-              <p className="text-xs text-muted">{goal.period}</p>
-            </div>
-          </div>
-          <Chip
-            variant="soft"
-            color={pct >= 100 ? 'success' : 'accent'}
-            size="sm"
-          >
-            {pct}%
-          </Chip>
-        </div>
-        <ProgressBar value={goal.progress} />
-        <div className="mt-2 flex items-center justify-between text-sm">
-          <span className="font-semibold text-foreground">{fmt(goal.actual)}</span>
-          <span className="text-muted">meta {fmt(goal.target)}</span>
-        </div>
-        <p className="mt-1 text-xs text-muted">
-          {pct >= 100 ? 'Meta atingida 🎉' : `Faltam ${fmt(remaining)}`}
-        </p>
-        <div className="mt-3">
-          <Button variant="ghost" size="sm" onClick={onEdit}>
-            Editar
-          </Button>
-        </div>
-      </Card.Content>
-    </Card>
-  );
-}
-
-type KindFilter = 'all' | GoalKind;
-const KIND_FILTERS: { id: KindFilter; label: string }[] = [
-  { id: 'all', label: 'Todas' },
-  { id: 'sales', label: 'Vendas' },
-  { id: 'appointments', label: 'Agendamentos' },
-  { id: 'customers', label: 'Novos clientes' },
-  { id: 'commission', label: 'Comissão' },
-];
-
 export function MetasPage() {
-  const [period, setPeriod] = useState('');
-  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [period, setPeriod] = useState(currentPeriod());
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Goal | null>(null);
   const goals = useGoals(period || undefined);
   const del = useDeleteGoal();
 
-  const allRows = goals.data ?? [];
-  const rows = kindFilter === 'all' ? allRows : allRows.filter((g) => g.kind === kindFilter);
-
-  const summary = {
-    total: rows.length,
-    achieved: rows.filter((g) => g.progress >= 1).length,
-    avg: rows.length
-      ? Math.round((rows.reduce((a, g) => a + Math.min(g.progress, 1), 0) / rows.length) * 100)
-      : 0,
-  };
+  const rows = goals.data ?? [];
 
   function openCreate() {
     setEditing(null);
-    setModalOpen(true);
+    setDrawerOpen(true);
   }
   function openEdit(g: Goal) {
     setEditing(g);
-    setModalOpen(true);
+    setDrawerOpen(true);
   }
   async function handleRemove(g: Goal) {
     if (!window.confirm('Excluir esta meta?')) return;
@@ -146,121 +136,224 @@ export function MetasPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Metas"
-        subtitle="Acompanhe o progresso das metas mensais"
-        actions={
-          <Button variant="primary" onClick={openCreate}>
-            <IconPlus size={16} /> Nova meta
-          </Button>
-        }
-      />
+      {/* ===== Cabeçalho: navegador de mês + toolbar ===== */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Mês anterior"
+            onClick={() => setPeriod((p) => shiftPeriod(p, -1))}
+            className="grid h-9 w-9 place-items-center rounded-full text-muted-ink transition-colors hover:bg-canvas hover:text-primary"
+          >
+            <IconChevron size={18} className="rotate-90" />
+          </button>
+          <h1 className="min-w-[9rem] text-center text-lg font-bold text-ink sm:text-xl">
+            {periodLabel(period)}
+          </h1>
+          <button
+            type="button"
+            aria-label="Próximo mês"
+            onClick={() => setPeriod((p) => shiftPeriod(p, 1))}
+            className="grid h-9 w-9 place-items-center rounded-full text-muted-ink transition-colors hover:bg-canvas hover:text-primary"
+          >
+            <IconChevron size={18} className="-rotate-90" />
+          </button>
+        </div>
 
-      <Card className={`mb-4 ${CARD}`}>
-        <Card.Content className="flex flex-col gap-4 p-4 text-sm">
-          <div className="flex flex-wrap items-end gap-3">
-            <MonthField label="Período" value={period} onChange={setPeriod} />
-            {period && (
-              <Button variant="outline" size="sm" onClick={() => setPeriod('')}>
-                Limpar período
-              </Button>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted">Tipo:</span>
-            <div className="inline-flex flex-wrap gap-1 rounded-xl border border-[var(--color-soft-border)] bg-[#f7f3ea] p-1">
-              {KIND_FILTERS.map((f) => {
-                const active = f.id === kindFilter;
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setKindFilter(f.id)}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                      active
-                        ? 'bg-[#f2b33d] text-[#1a1a1a] shadow-[var(--shadow-gold)]'
-                        : 'text-muted hover:text-foreground'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                );
-              })}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <Button variant="outline" onClick={() => setFiltersOpen((v) => !v)}>
+            <IconFilter size={16} /> Filtrar
+          </Button>
+          <Button variant="primary" onClick={openCreate}>
+            <IconPlus size={16} /> Novo
+          </Button>
+        </div>
+      </div>
+
+      {/* ===== Filtros: Período + Profissionais ===== */}
+      {filtersOpen && (
+        <div className={`mb-4 ${CARD}`}>
+          <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-ink">Período</span>
+              <MonthField label={undefined} value={period} onChange={setPeriod} className="w-full" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-ink">Profissionais</span>
+              {/* TODO: ligar à lista de profissionais; metas atuais são scopeType 'all'. */}
+              <div className="flex h-10 items-center justify-between rounded-lg border border-line bg-card px-3 text-sm text-muted-ink">
+                <span className="inline-flex items-center gap-2">
+                  <IconUsers size={16} className="opacity-60" />
+                  Todos
+                </span>
+                <IconChevron size={16} className="opacity-60" />
+              </div>
             </div>
           </div>
-        </Card.Content>
-      </Card>
-
-      {!goals.isLoading && allRows.length > 0 && (
-        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card className={CARD}>
-            <Card.Content className="p-4">
-              <p className="text-xs text-muted">Metas exibidas</p>
-              <p className="mt-1 text-2xl font-bold text-foreground">{summary.total}</p>
-            </Card.Content>
-          </Card>
-          <Card className={CARD}>
-            <Card.Content className="p-4">
-              <p className="text-xs text-muted">Metas atingidas</p>
-              <p className="mt-1 text-2xl font-bold text-foreground">{summary.achieved}</p>
-            </Card.Content>
-          </Card>
-          <Card className={CARD}>
-            <Card.Content className="p-4">
-              <p className="text-xs text-muted">Progresso médio</p>
-              <p className="mt-1 text-2xl font-bold text-[#a67c1e]">{summary.avg}%</p>
-            </Card.Content>
-          </Card>
         </div>
       )}
 
+      {/* ===== Conteúdo ===== */}
       {goals.isLoading ? (
         <LoadingState />
       ) : rows.length === 0 ? (
-        <EmptyState
-          icon={<IconTarget size={32} />}
-          title={allRows.length === 0 ? 'Nenhuma meta cadastrada' : 'Nenhuma meta neste filtro'}
-          description={
-            allRows.length === 0
-              ? 'Crie metas de vendas, agendamentos, clientes ou comissão.'
-              : 'Ajuste o tipo de meta ou o período.'
-          }
-          action={
-            <Button variant="primary" onClick={openCreate}>
-              <IconPlus size={16} /> Nova meta
-            </Button>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {rows.map((g) => (
-            <div key={g.id} className="relative">
-              <GoalCard goal={g} onEdit={() => openEdit(g)} />
-              <button
-                type="button"
-                disabled={del.isPending}
-                onClick={() => handleRemove(g)}
-                className="absolute right-3 top-3 text-xs text-muted hover:text-danger"
-              >
-                Excluir
-              </button>
-            </div>
-          ))}
+        <div className={CARD}>
+          <div className="px-4 py-10">
+            <EmptyState
+              icon={<IconTarget size={32} />}
+              title="Nenhuma meta encontrada"
+              description="Verifique seus filtros e tente novamente."
+              action={
+                <Button variant="primary" onClick={openCreate}>
+                  <IconPlus size={16} /> Clique para criar
+                </Button>
+              }
+            />
+          </div>
         </div>
+      ) : (
+        <>
+          {/* Desktop: tabela */}
+          <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  <th className="px-4 py-3 font-semibold">Profissional</th>
+                  <th className="px-4 py-3 font-semibold">Período</th>
+                  <th className="px-4 py-3 font-semibold">Progresso</th>
+                  <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((g) => (
+                  <tr
+                    key={g.id}
+                    className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                  >
+                    <td className="px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(g)}
+                        className="flex w-full items-center gap-2.5 text-left"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
+                          <IconTarget size={16} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-ink">
+                            {KIND_LABEL[g.kind]}
+                          </span>
+                          <span className="block text-xs text-muted-ink">Todos os profissionais</span>
+                        </span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-2.5 text-ink">{periodLabel(g.period)}</td>
+                    <td className="px-4 py-2.5">
+                      <ProgressCell goal={g} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <RowActions
+                        onEdit={() => openEdit(g)}
+                        onDelete={() => handleRemove(g)}
+                        deleting={del.isPending}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile: cards */}
+          <div className="grid grid-cols-1 gap-3 md:hidden">
+            {rows.map((g) => (
+              <div key={g.id} className={`${CARD} p-4`}>
+                <div className="mb-3 flex items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(g)}
+                    className="flex min-w-0 items-center gap-2.5 text-left"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
+                      <IconTarget size={18} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-ink">
+                        {KIND_LABEL[g.kind]}
+                      </span>
+                      <span className="block text-xs text-muted-ink">{periodLabel(g.period)}</span>
+                    </span>
+                  </button>
+                  <RowActions
+                    onEdit={() => openEdit(g)}
+                    onDelete={() => handleRemove(g)}
+                    deleting={del.isPending}
+                  />
+                </div>
+                <ProgressCell goal={g} />
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
-      <NovaMetaModal isOpen={modalOpen} onOpenChange={setModalOpen} editing={editing} />
+      <MetaDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} editing={editing} />
     </div>
   );
 }
 
-function NovaMetaModal({
+function RowActions({
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-1 text-muted-ink">
+      <button
+        type="button"
+        aria-label="Editar"
+        title="Editar"
+        onClick={onEdit}
+        className="rounded p-1 hover:bg-canvas hover:text-primary"
+      >
+        <IconPencil size={16} />
+      </button>
+      <span className="h-4 w-px bg-line" />
+      <button
+        type="button"
+        aria-label="Remover"
+        title="Remover"
+        onClick={onDelete}
+        disabled={deleting}
+        className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
+      >
+        <IconTrash size={16} />
+      </button>
+    </div>
+  );
+}
+
+/** Campo com label reutilizado dentro do drawer. */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-muted-ink">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function MetaDrawer({
   isOpen,
-  onOpenChange,
+  onClose,
   editing,
 }: {
   isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   editing: Goal | null;
 }) {
   const [period, setPeriod] = useState(currentPeriod());
@@ -273,19 +366,18 @@ function NovaMetaModal({
   const isPending = create.isPending || update.isPending;
 
   useEffect(() => {
-    if (isOpen) {
-      if (editing) {
-        setPeriod(editing.period);
-        setKind(editing.kind);
-        setTarget(String(editing.target));
-      } else {
-        setPeriod(currentPeriod());
-        setKind('sales');
-        setTarget('');
-      }
-      setFormError(null);
-      setSuccess(false);
+    if (!isOpen) return;
+    if (editing) {
+      setPeriod(editing.period);
+      setKind(editing.kind);
+      setTarget(String(editing.target));
+    } else {
+      setPeriod(currentPeriod());
+      setKind('sales');
+      setTarget('');
     }
+    setFormError(null);
+    setSuccess(false);
   }, [isOpen, editing]);
 
   const canConfirm =
@@ -307,115 +399,111 @@ function NovaMetaModal({
       }
       setSuccess(true);
     } catch (err) {
-      setFormError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível salvar a meta.',
-      );
+      setFormError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar a meta.');
     }
   }
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Backdrop>
-      <Modal.Container
-        placement="center"
-        className="w-full max-w-lg max-h-[90vh] overflow-y-auto"
-      >
-        <Modal.Dialog>
-          <Modal.Header>
-            <Modal.Heading>{editing ? 'Editar meta' : 'Nova meta'}</Modal.Heading>
-          </Modal.Header>
-          <Modal.Body className="flex flex-col gap-4">
-            {success ? (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F3E7D6] text-2xl text-accent">
-                  ✓
-                </div>
-                <p className="text-base font-semibold text-foreground">Meta criada com sucesso!</p>
-              </div>
-            ) : (
-              <>
-                <MonthField
-                  label="Período (mês)"
-                  value={period}
-                  onChange={setPeriod}
-                  className="min-w-0"
-                />
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">Tipo de meta</label>
-                  <Select
-                    aria-label="Tipo de meta"
-                    selectedKey={kind}
-                    onSelectionChange={(k) => setKind(String(k) as GoalKind)}
-                  >
-                    <Select.Trigger>
-                      <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        <ListBox.Item id="sales" textValue="Vendas">
-                          Vendas
-                        </ListBox.Item>
-                        <ListBox.Item id="appointments" textValue="Agendamentos">
-                          Agendamentos
-                        </ListBox.Item>
-                        <ListBox.Item id="customers" textValue="Novos clientes">
-                          Novos clientes
-                        </ListBox.Item>
-                        <ListBox.Item id="commission" textValue="Comissão">
-                          Comissão
-                        </ListBox.Item>
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted">
-                    Alvo {KIND_IS_MONEY[kind] ? '(R$)' : '(quantidade)'}
-                  </label>
-                  <TextField value={target} onChange={setTarget} aria-label="Alvo">
-                    <Input placeholder={KIND_IS_MONEY[kind] ? '0,00' : '0'} inputMode="decimal" />
-                  </TextField>
-                </div>
-                {formError && (
-                  <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                    {formError}
-                  </div>
-                )}
-              </>
-            )}
-          </Modal.Body>
-          <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            {success ? (
-              <Button
-                variant="primary"
-                className="w-full sm:w-auto"
-                onClick={() => onOpenChange(false)}
-              >
-                Fechar
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={() => onOpenChange(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  variant="primary"
-                  className="w-full sm:w-auto"
-                  isDisabled={!canConfirm}
-                  onClick={handleConfirm}
-                >
-                  {isPending ? 'Salvando…' : 'Salvar'}
-                </Button>
-              </>
-            )}
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={editing ? 'Editar meta' : 'Nova meta'}
+      footer={
+        success ? (
+          <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+            Fechar
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              className="w-full sm:w-auto"
+              isDisabled={!canConfirm}
+              onClick={handleConfirm}
+            >
+              {isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </>
+        )
+      }
+    >
+      {success ? (
+        <div className="flex flex-col items-center gap-2 py-10 text-center">
+          <div className="grid h-14 w-14 place-items-center rounded-full bg-success/15 text-2xl text-success">
+            ✓
+          </div>
+          <p className="text-base font-semibold text-ink">
+            {editing ? 'Meta atualizada com sucesso!' : 'Meta criada com sucesso!'}
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <Field label="Período (mês)">
+            <div className="relative">
+              <MonthField label={undefined} value={period} onChange={setPeriod} className="w-full" />
+              <IconCalendar
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-ink"
+              />
+            </div>
+          </Field>
+
+          <Field label="Profissional">
+            {/* TODO: ligar à lista de profissionais; metas atuais são scopeType 'all'. */}
+            <div className="flex h-10 items-center justify-between rounded-lg border border-line bg-card px-3 text-sm text-muted-ink">
+              <span className="inline-flex items-center gap-2">
+                <IconUsers size={16} className="opacity-60" />
+                Todos
+              </span>
+              <IconChevron size={16} className="opacity-60" />
+            </div>
+          </Field>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-ink">Tipo de meta</span>
+            <Select
+              aria-label="Tipo de meta"
+              selectedKey={kind}
+              onSelectionChange={(k) => setKind(String(k) as GoalKind)}
+            >
+              <Select.Trigger>
+                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="sales" textValue="Vendas">
+                    Vendas
+                  </ListBox.Item>
+                  <ListBox.Item id="appointments" textValue="Agendamentos">
+                    Agendamentos
+                  </ListBox.Item>
+                  <ListBox.Item id="customers" textValue="Novos clientes">
+                    Novos clientes
+                  </ListBox.Item>
+                  <ListBox.Item id="commission" textValue="Comissão">
+                    Comissão
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </div>
+
+          <Field label={`Alvo ${KIND_IS_MONEY[kind] ? '(R$)' : '(quantidade)'}`}>
+            <TextField value={target} onChange={setTarget} aria-label="Alvo">
+              <Input placeholder={KIND_IS_MONEY[kind] ? '0,00' : '0'} inputMode="decimal" />
+            </TextField>
+          </Field>
+
+          {formError && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {formError}
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   );
 }

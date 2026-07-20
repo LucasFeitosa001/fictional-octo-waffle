@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Card, Chip } from '@heroui/react';
 import {
   Bar,
   BarChart,
@@ -15,33 +14,38 @@ import {
 import { PageHeader } from '../../components/PageHeader';
 import { LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
-import {
-  IconArrowDown,
-  IconArrowUp,
-  IconWallet,
-} from '../../components/icons';
+import { IconChevron } from '../../components/icons';
 import { useFinancialSummary } from '../../lib/queries/financeiro';
+import { useThemeColors } from '../../theme/useThemeColors';
 import { formatMoney, isoDate } from '../../lib/format';
 
-const CARD_CLASS =
-  'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+// ── Cores de data-viz FIXAS do Belasis (SVG recharts, independentes do tema) ──
+// Entrada = verde, Saída = vermelho; a linha de saldo e as barras de vendas
+// seguem a cor primária do Belasis (via useThemeColors).
+const CASH_IN = '#5cb85c';
+const CASH_OUT = '#c73d3d';
 
-// Cores dos gráficos (verde = entrada, rosa = saída, dourado = saldo/vendas).
-const COLOR_IN = '#16a34a';
-const COLOR_OUT = '#ec4899';
-const COLOR_GOLD = '#f2b33d';
+// Card branco genérico (mesma superfície/sombra do Belasis, themeable).
+const SHADOW = 'shadow-[var(--shadow-soft)]';
 
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(1); // início do mês
+  from.setDate(from.getDate() - 14); // Belasis: últimos 14 dias
   return { from: isoDate(from), to: isoDate(to) };
 }
 
-const ACCOUNT_TYPE_LABEL: Record<'cash' | 'bank', string> = {
-  cash: 'Dinheiro',
-  bank: 'Banco',
-};
+const MONTHS_PT = [
+  'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+  'jul', 'ago', 'set', 'out', 'nov', 'dez',
+];
+
+/** "YYYY-MM-DD" -> "05 jul, 2026" (rótulo do intervalo, igual ao Belasis). */
+function longDay(d: string): string {
+  const [y, m, day] = d.split('-');
+  const mi = Number(m) - 1;
+  return `${day} ${MONTHS_PT[mi] ?? m}, ${y}`;
+}
 
 /** "YYYY-MM-DD" -> "DD/MM" para os eixos. */
 function shortDay(d: string): string {
@@ -49,48 +53,20 @@ function shortDay(d: string): string {
   return parts.length === 3 ? `${parts[2]}/${parts[1]}` : d;
 }
 
-function KpiCard({
-  icon,
-  title,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  value: string;
-  tone: 'success' | 'danger' | 'accent';
-}) {
-  const toneText =
-    tone === 'success'
-      ? 'text-success'
-      : tone === 'danger'
-        ? 'text-danger'
-        : 'text-foreground';
-  const iconWrap =
-    tone === 'success'
-      ? 'bg-success/12 text-success'
-      : tone === 'danger'
-        ? 'bg-danger/12 text-danger'
-        : 'bg-[#f2b33d]/15 text-[#a67c1e]';
+/** Título de seção (Belasis: Text $size:20 $bold). */
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <Card className={CARD_CLASS}>
-      <Card.Content className="p-5">
-        <div className="flex items-center gap-2 text-muted">
-          <span
-            className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconWrap}`}
-          >
-            {icon}
-          </span>
-          <span className="text-sm font-medium text-foreground">{title}</span>
-        </div>
-        <div className={`mt-3 text-3xl font-bold ${toneText}`}>{value}</div>
-      </Card.Content>
-    </Card>
+    <span className="mb-2.5 block text-xl font-bold text-foreground">
+      {children}
+    </span>
   );
 }
 
-/** Item compacto de total do período. */
-function TotalRow({
+/**
+ * Linha do "Resumo": card branco, texto colorido (verde/vermelho) e chevron.
+ * Belasis: wb__sc-u678pu-1 — bg #FFF, radius 12, padding 10, sombra suave.
+ */
+function SummaryRow({
   label,
   value,
   tone,
@@ -99,207 +75,258 @@ function TotalRow({
   value: string;
   tone: 'success' | 'danger';
 }) {
+  const color = tone === 'success' ? 'text-success' : 'text-danger';
   return (
-    <div className="flex items-center justify-between rounded-xl border border-[var(--color-soft-border)] bg-white px-4 py-3 shadow-[var(--shadow-soft)]">
-      <span className="text-sm text-muted">{label}</span>
-      <span
-        className={`text-base font-semibold ${
-          tone === 'success' ? 'text-success' : 'text-danger'
-        }`}
-      >
-        {value}
+    <button
+      type="button"
+      className={`flex w-full items-center justify-between gap-3 rounded-xl bg-card p-2.5 text-left ${SHADOW}`}
+    >
+      <div className={color}>
+        <span className="block text-lg font-medium leading-tight">{label}</span>
+        <span className="mt-0.5 block text-2xl font-bold leading-tight">
+          {value}
+        </span>
+      </div>
+      <IconChevron size={22} className={`-rotate-90 shrink-0 ${color}`} />
+    </button>
+  );
+}
+
+/**
+ * Tile de conta: fundo colorido conforme o saldo, texto branco.
+ * Belasis: wb__sc-1tme506-0 — verde (>0), laranja (=0), vermelho (<0).
+ */
+function AccountTile({
+  name,
+  balance,
+}: {
+  name: string;
+  balance: number;
+}) {
+  const bg =
+    balance === 0 ? 'bg-warning' : balance > 0 ? 'bg-success' : 'bg-danger';
+  const fg =
+    balance === 0
+      ? 'text-warning-foreground'
+      : balance > 0
+        ? 'text-success-foreground'
+        : 'text-danger-foreground';
+  return (
+    <div className={`rounded-xl p-2.5 ${bg} ${fg} ${SHADOW}`}>
+      <span className="block truncate text-lg font-medium leading-tight opacity-95">
+        {name}
+      </span>
+      <span className="mt-0.5 block text-2xl font-bold leading-tight">
+        {formatMoney(balance)}
       </span>
     </div>
   );
 }
 
+/**
+ * Tile de total: fundo colorido cheio, texto branco + chevron.
+ * Belasis: wb__sc-1hd3h3j-0 — Recebidos(verde) / A Receber(azul→primary) /
+ * Pagos(laranja) / A Pagar(vermelho).
+ */
+function TotalTile({
+  label,
+  value,
+  bg,
+  fg,
+}: {
+  label: string;
+  value: string;
+  bg: string;
+  fg: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`flex items-center justify-between gap-2 rounded-xl p-2.5 text-left ${bg} ${fg} ${SHADOW}`}
+    >
+      <div className="min-w-0">
+        <span className="block text-lg font-medium leading-tight">{label}</span>
+        <span className="mt-0.5 block truncate text-2xl font-bold leading-tight">
+          {value}
+        </span>
+      </div>
+      <IconChevron size={22} className="-rotate-90 shrink-0" />
+    </button>
+  );
+}
+
 export function FinanceiroPainelPage() {
   const [range, setRange] = useState(defaultRange);
+  const colors = useThemeColors();
   const summary = useFinancialSummary(range.from, range.to);
   const d = summary.data;
 
-  const byMethod =
-    d?.byPaymentMethod.map((m) => ({
-      name: m.paymentMethodName,
-      total: m.total,
-    })) ?? [];
-
   const accounts = d?.accounts.filter((a) => a.active) ?? [];
-  const cashFlow = d?.cashFlow ?? [];
+  // Fluxo de caixa: entrada positiva acima, saída negativa abaixo do zero
+  // (barras empilhadas, igual ao Belasis) + linha de saldo acumulado.
+  const cashFlow =
+    d?.cashFlow.map((c) => ({
+      date: c.date,
+      received: c.inflow,
+      paid: -Math.abs(c.outflow),
+      balance: c.balance,
+    })) ?? [];
   const salesByDay = d?.salesByDay ?? [];
   const hasSales = salesByDay.some((s) => s.total > 0 || s.count > 0);
 
   return (
     <div>
-      <PageHeader
-        title="Painel financeiro"
-        subtitle="A receber, a pagar, contas e fluxo de caixa"
-      />
+      <PageHeader title="Painel" />
 
-      {/* Date range bar */}
-      <Card className={`mb-4 ${CARD_CLASS}`}>
-        <Card.Content className="p-4">
-          <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
-        </Card.Content>
-      </Card>
+      {/* Intervalo de datas (controla todo o resumo — data-wiring preservado) */}
+      <div className={`mb-4 rounded-xl bg-card p-4 ${SHADOW}`}>
+        <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
+      </div>
 
       {summary.isLoading ? (
         <LoadingState />
       ) : (
-        <>
-          {/* Cards "hoje" + saldo do período */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <KpiCard
-              icon={<IconArrowUp size={18} />}
-              title="A receber hoje"
-              value={formatMoney(d?.receivableToday ?? 0)}
-              tone="success"
-            />
-            <KpiCard
-              icon={<IconArrowDown size={18} />}
-              title="A pagar hoje"
-              value={formatMoney(d?.payableToday ?? 0)}
-              tone="danger"
-            />
-            <KpiCard
-              icon={<IconWallet size={18} />}
-              title="Saldo do período"
-              value={formatMoney(d?.balance ?? 0)}
-              tone="accent"
-            />
-          </div>
-
-          {/* Contas (saldo corrente) */}
-          {accounts.length > 0 && (
-            <Card className={`mt-4 ${CARD_CLASS}`}>
-              <Card.Content className="p-5">
-                <h3 className="mb-3 text-sm font-semibold text-foreground">
-                  Contas
-                </h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {accounts.map((a) => (
-                    <div
-                      key={a.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white px-4 py-3 shadow-[var(--shadow-soft)]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
-                          <IconWallet size={16} />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {a.name}
-                          </p>
-                          <p className="text-xs text-muted">
-                            {ACCOUNT_TYPE_LABEL[a.type]}
-                          </p>
-                        </div>
-                      </div>
-                      <span
-                        className={`shrink-0 text-sm font-semibold ${
-                          a.currentBalance < 0 ? 'text-danger' : 'text-foreground'
-                        }`}
-                      >
-                        {formatMoney(a.currentBalance)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-3 text-xs text-muted">
-                  Saldo corrente = saldo inicial + movimentos pagos.
-                </p>
-              </Card.Content>
-            </Card>
-          )}
-
-          {/* Totais do período */}
-          <Card className={`mt-4 ${CARD_CLASS}`}>
-            <Card.Content className="p-5">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Totais do período
-              </h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <TotalRow
-                  label="Recebidos"
-                  value={formatMoney(d?.totals.received ?? 0)}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr] lg:items-start">
+          {/* ── Coluna esquerda: Resumo + Contas ── */}
+          <div className="flex flex-col gap-4">
+            {/* Resumo */}
+            <section>
+              <SectionTitle>Resumo</SectionTitle>
+              <div className="flex flex-col gap-2.5">
+                <SummaryRow
+                  label="A receber hoje"
+                  value={formatMoney(d?.receivableToday ?? 0)}
                   tone="success"
                 />
-                <TotalRow
-                  label="A Receber"
-                  value={formatMoney(d?.totals.toReceive ?? 0)}
-                  tone="success"
-                />
-                <TotalRow
-                  label="Pagos"
-                  value={formatMoney(d?.totals.paid ?? 0)}
-                  tone="danger"
-                />
-                <TotalRow
-                  label="A Pagar"
-                  value={formatMoney(d?.totals.toPay ?? 0)}
+                <SummaryRow
+                  label="A pagar hoje"
+                  value={formatMoney(d?.payableToday ?? 0)}
                   tone="danger"
                 />
               </div>
-            </Card.Content>
-          </Card>
+            </section>
 
-          {/* Fluxo de caixa */}
-          <Card className={`mt-4 ${CARD_CLASS}`}>
-            <Card.Content className="p-5">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Fluxo de caixa
-              </h3>
+            {/* Contas */}
+            {accounts.length > 0 && (
+              <section>
+                <SectionTitle>Contas</SectionTitle>
+                <div className="flex max-h-[400px] flex-col gap-2.5 overflow-y-auto overscroll-contain pr-1">
+                  {accounts.map((a) => (
+                    <AccountTile
+                      key={a.id}
+                      name={a.name}
+                      balance={a.currentBalance}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* ── Coluna direita: Totais + gráficos ── */}
+          <div className="flex flex-col gap-6">
+            {/* Totais */}
+            <section>
+              <div className="mb-2.5 flex items-center justify-between gap-3">
+                <SectionTitle>Totais</SectionTitle>
+                <span className="flex items-center gap-1 text-sm font-semibold text-muted">
+                  {longDay(range.from)}
+                  <IconChevron size={16} className="-rotate-90" />
+                  {longDay(range.to)}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+                <TotalTile
+                  label="Recebidos"
+                  value={formatMoney(d?.totals.received ?? 0)}
+                  bg="bg-success"
+                  fg="text-success-foreground"
+                />
+                <TotalTile
+                  label="A Receber"
+                  value={formatMoney(d?.totals.toReceive ?? 0)}
+                  bg="bg-primary"
+                  fg="text-primary-foreground"
+                />
+                <TotalTile
+                  label="Pagos"
+                  value={formatMoney(d?.totals.paid ?? 0)}
+                  bg="bg-warning"
+                  fg="text-warning-foreground"
+                />
+                <TotalTile
+                  label="A Pagar"
+                  value={formatMoney(d?.totals.toPay ?? 0)}
+                  bg="bg-danger"
+                  fg="text-danger-foreground"
+                />
+              </div>
+            </section>
+
+            {/* Fluxo de caixa */}
+            <section>
+              <SectionTitle>Fluxo de caixa</SectionTitle>
               {cashFlow.length === 0 ? (
                 <div className="flex h-64 items-center justify-center text-sm text-muted">
                   Sem movimentações no período.
                 </div>
               ) : (
-                <div className="h-72">
+                <div className="h-[295px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
                       data={cashFlow}
                       margin={{ top: 8, right: 8, left: -8, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke={colors.chartGrid}
+                      />
                       <XAxis
                         dataKey="date"
                         tickFormatter={shortDay}
-                        tick={{ fontSize: 11, fill: '#888' }}
-                        tickLine={false}
+                        tick={{ fontSize: 12, fill: colors.chartAxis }}
                       />
                       <YAxis
-                        tick={{ fontSize: 11, fill: '#888' }}
-                        tickLine={false}
-                        axisLine={false}
+                        tick={{ fontSize: 12, fill: colors.chartAxis }}
                         width={64}
                         tickFormatter={(v: number) => formatMoney(v)}
                       />
                       <Tooltip
                         labelFormatter={(l: string) => shortDay(l)}
                         formatter={(value: number, name) => [
-                          formatMoney(value),
-                          name === 'inflow'
+                          formatMoney(Math.abs(value)),
+                          name === 'received'
                             ? 'Entrada'
-                            : name === 'outflow'
+                            : name === 'paid'
                               ? 'Saída'
                               : 'Saldo acumulado',
                         ]}
                       />
                       <Legend
                         formatter={(value) =>
-                          value === 'inflow'
+                          value === 'received'
                             ? 'Entrada'
-                            : value === 'outflow'
+                            : value === 'paid'
                               ? 'Saída'
                               : 'Saldo acumulado'
                         }
                       />
-                      <Bar dataKey="inflow" fill={COLOR_IN} radius={[3, 3, 0, 0]} maxBarSize={28} />
-                      <Bar dataKey="outflow" fill={COLOR_OUT} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                      <Bar
+                        dataKey="received"
+                        stackId="a"
+                        fill={CASH_IN}
+                        fillOpacity={0.75}
+                      />
+                      <Bar
+                        dataKey="paid"
+                        stackId="a"
+                        fill={CASH_OUT}
+                        fillOpacity={0.75}
+                      />
                       <Line
                         type="monotone"
                         dataKey="balance"
-                        stroke={COLOR_GOLD}
+                        stroke={colors.primary}
                         strokeWidth={2}
                         dot={false}
                       />
@@ -307,108 +334,57 @@ export function FinanceiroPainelPage() {
                   </ResponsiveContainer>
                 </div>
               )}
-            </Card.Content>
-          </Card>
+            </section>
 
-          {/* Vendas por dia */}
-          <Card className={`mt-4 ${CARD_CLASS}`}>
-            <Card.Content className="p-5">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Vendas por dia
-              </h3>
+            {/* Vendas por dia */}
+            <section>
+              <SectionTitle>Vendas por dia</SectionTitle>
               {!hasSales ? (
                 <div className="flex h-64 items-center justify-center text-sm text-muted">
                   Sem vendas no período.
                 </div>
               ) : (
-                <div className="h-64">
+                <div className="h-[295px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={salesByDay}
                       margin={{ top: 8, right: 8, left: -8, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke={colors.chartGrid}
+                      />
                       <XAxis
                         dataKey="date"
                         tickFormatter={shortDay}
-                        tick={{ fontSize: 11, fill: '#888' }}
-                        tickLine={false}
+                        tick={{ fontSize: 12, fill: colors.chartAxis }}
                       />
                       <YAxis
-                        tick={{ fontSize: 11, fill: '#888' }}
-                        tickLine={false}
-                        axisLine={false}
+                        tick={{ fontSize: 12, fill: colors.chartAxis }}
                         width={64}
                         tickFormatter={(v: number) => formatMoney(v)}
                       />
                       <Tooltip
                         labelFormatter={(l: string) => shortDay(l)}
-                        formatter={(value: number) => [formatMoney(value), 'Vendas']}
+                        formatter={(value: number) => [
+                          formatMoney(value),
+                          'Vendas',
+                        ]}
                       />
-                      <Bar dataKey="total" fill={COLOR_GOLD} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      <Bar
+                        dataKey="total"
+                        fill={colors.primary}
+                        fillOpacity={0.75}
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={40}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
-            </Card.Content>
-          </Card>
-
-          {/* Recebimentos por forma de pagamento */}
-          <Card className={`mt-4 ${CARD_CLASS}`}>
-            <Card.Content className="p-5">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Recebimentos por forma de pagamento
-              </h3>
-              {byMethod.length === 0 ? (
-                <div className="flex h-64 items-center justify-center text-sm text-muted">
-                  Sem recebimentos no período selecionado.
-                </div>
-              ) : (
-                <>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={byMethod}
-                        margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                        <XAxis
-                          dataKey="name"
-                          tick={{ fontSize: 11, fill: '#888' }}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 11, fill: '#888' }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <Tooltip
-                          formatter={(value: number) => formatMoney(value)}
-                        />
-                        <Bar dataKey="total" fill={COLOR_GOLD} radius={[4, 4, 0, 0]} maxBarSize={48} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <ul className="mt-4 flex flex-col gap-2">
-                    {d?.byPaymentMethod.map((m) => (
-                      <li
-                        key={m.paymentMethodId ?? 'none'}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <Chip variant="soft" color="accent" size="sm">
-                          {m.paymentMethodName}
-                        </Chip>
-                        <span className="font-semibold text-foreground">
-                          {formatMoney(m.total)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </Card.Content>
-          </Card>
-        </>
+            </section>
+          </div>
+        </div>
       )}
     </div>
   );

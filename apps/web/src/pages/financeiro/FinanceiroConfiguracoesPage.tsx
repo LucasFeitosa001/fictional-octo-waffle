@@ -1,101 +1,149 @@
-import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card } from '@heroui/react';
+import { useState, type ReactNode } from 'react';
 import { PageHeader } from '../../components/PageHeader';
-import {
-  IconCash,
-  IconChevron,
-  IconCreditCard,
-  IconDollar,
-  IconReceipt,
-  IconSettings,
-} from '../../components/icons';
 
-interface SettingLink {
-  to: string;
+/**
+ * FinanceiroConfig — clone fiel da tela /finance/settings do Belasis.
+ *
+ * A tela do Belasis é um formulário de configurações do módulo financeiro:
+ * uma lista de linhas (`wb__sc-nvq6fg-0`) com rótulo + descrição à esquerda e
+ * um switch (ant-switch) à direita, separadas por divisórias inferiores. O
+ * container (`wb__sc-z3olam-0`) tem fundo transparente (background: unset).
+ *
+ * Não há tabela, abas, gráficos nem drawer nesta tela — é apenas o form de
+ * toggles. Estrutura e textos batem 1:1 com o HTML capturado.
+ */
+
+interface SettingSwitch {
+  /** id do atributo no salon_configuration do Belasis (para wiring futuro). */
+  id: string;
   title: string;
-  description: string;
-  icon: ReactNode;
-  badge?: string;
+  description: ReactNode;
+  defaultOn: boolean;
 }
 
-const LINKS: SettingLink[] = [
+const SETTINGS: SettingSwitch[] = [
   {
-    to: '/financeiro/contas',
-    title: 'Contas e métodos de pagamento',
-    description: 'Contas bancárias, carteiras e formas de pagamento aceitas.',
-    icon: <IconCreditCard size={20} />,
+    id: 'retroactive',
+    title: 'Permitir lançamentos retroativos?',
+    description:
+      'Ative essa opção se precisar lançar recebimentos e despesas com datas anteriores à atual. Lançamentos retroativos podem comprometer o seu caixa.',
+    defaultOn: true,
   },
   {
-    to: '/financeiro/transacoes',
-    title: 'Transações e categorias',
-    description: 'Lançamentos de receitas e despesas e suas categorias.',
-    icon: <IconDollar size={20} />,
+    id: 'can_edit_bill_after_close_cash_accounting',
+    title: 'Permitir alterações de faturas após a sua conferência no caixa?',
+    description: (
+      <>
+        Se <strong>sim</strong>, será possível alterar todas as informações dos
+        recebimentos e despesas.
+        <br />
+        Se <strong>não</strong>, somente o valor poderá ser alterado.
+      </>
+    ),
+    defaultOn: true,
   },
   {
-    to: '/financeiro/caixas',
-    title: 'Caixas',
-    description: 'Caixas abertos e histórico de aberturas e fechamentos.',
-    icon: <IconCash size={20} />,
+    id: 'can_transaction_closed_cash_accounting',
+    title: 'Permitir movimentações financeiras com o caixa fechado?',
+    description: (
+      <>
+        Se <strong>sim</strong>, você permite que inserções, edições e exclusões
+        financeiras sejam realizadas dentro do sistema mesmo com o caixa fechado.
+        <br />
+        Se <strong>não</strong>, um aviso será exibido no momento de realizar
+        alguma transação financeira pedindo a abertura do caixa.
+      </>
+    ),
+    defaultOn: false,
   },
   {
-    to: '/financeiro/notas-fiscais',
-    title: 'Notas fiscais',
-    description: 'Integração fiscal e emissão de NFS-e / NFC-e.',
-    icon: <IconReceipt size={20} />,
-    badge: 'Em configuração',
+    id: 'multiple_cash_accounting',
+    title: 'Permitir múltiplos caixas por operador?',
+    description:
+      'Permite que cada operador abra e feche o próprio caixa de forma independente. Você pode conceder ou não a permissão para que cada profissional consiga visualizar todos os caixas ou somente o seu próprio caixa.',
+    defaultOn: false,
   },
 ];
 
+/** Toggle themeable equivalente ao ant-switch (44×22, handle 18). */
+function Switch({
+  checked,
+  onChange,
+  ...aria
+}: {
+  checked: boolean;
+  onChange: () => void;
+  'aria-label'?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      className={[
+        'relative inline-flex h-[22px] w-11 shrink-0 cursor-pointer items-center rounded-full',
+        'outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring',
+        checked ? 'bg-primary' : 'bg-black/25 hover:bg-black/30',
+      ].join(' ')}
+      {...aria}
+    >
+      <span
+        className={[
+          'inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow-sm',
+          'transition-transform duration-200',
+          checked ? 'translate-x-[22px]' : 'translate-x-0.5',
+        ].join(' ')}
+      />
+    </button>
+  );
+}
+
 export function FinanceiroConfiguracoesPage() {
-  const navigate = useNavigate();
+  // TODO: substituir por hook/query real (salon_configuration) quando a API de
+  // configurações financeiras estiver disponível; hoje mantém estado local.
+  const [state, setState] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(SETTINGS.map((s) => [s.id, s.defaultOn])),
+  );
+
+  const toggle = (id: string) => {
+    setState((prev) => ({ ...prev, [id]: !prev[id] }));
+    // TODO: persistir alteração no back-end (salon_configuration_attributes).
+  };
 
   return (
     <div>
-      <PageHeader
-        title="Configurações"
-        subtitle="Ajustes do módulo financeiro"
-      />
+      <PageHeader title="Configurações" />
 
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
-        <Card.Content className="p-3 sm:p-4">
-          <div className="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-foreground">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
-              <IconSettings size={16} />
-            </span>
-            Áreas de configuração
+      {/* Container do form: fundo transparente, largura total (z3olam). */}
+      <form
+        className="w-full"
+        onSubmit={(e) => e.preventDefault()}
+      >
+        {SETTINGS.map((setting) => (
+          <div
+            key={setting.id}
+            // wb__sc-nvq6fg-0: flex space-between, border-bottom rgba(0,0,0,.1), padding 20px 0
+            className="flex w-full items-center justify-between border-b border-line py-5 last:border-b-0"
+          >
+            <div className="flex min-w-0 flex-col pr-5">
+              <span className="flex items-center text-[15px] leading-tight text-foreground">
+                {setting.title}
+              </span>
+              <span className="mt-1 text-[14px] leading-snug text-muted-ink sm:text-xs">
+                {setting.description}
+              </span>
+            </div>
+            <div className="flex shrink-0 justify-start">
+              <Switch
+                checked={state[setting.id]}
+                onChange={() => toggle(setting.id)}
+                aria-label={setting.title}
+              />
+            </div>
           </div>
-          <ul className="flex flex-col gap-2">
-            {LINKS.map((link) => (
-              <li key={link.to}>
-                <button
-                  type="button"
-                  onClick={() => navigate(link.to)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white p-3 text-left transition-colors hover:border-[#f2b33d]/50 hover:bg-[#f2b33d]/[0.06]"
-                >
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#111111] text-[#f2b33d]">
-                    {link.icon}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{link.title}</span>
-                      {link.badge && (
-                        <span className="rounded-full border border-[#f2b33d]/40 bg-[#f2b33d]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#a67c1e]">
-                          {link.badge}
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-muted">{link.description}</span>
-                  </span>
-                  <span className="shrink-0 text-muted">
-                    <IconChevron size={18} className="-rotate-90" />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Card.Content>
-      </Card>
+        ))}
+      </form>
     </div>
   );
 }

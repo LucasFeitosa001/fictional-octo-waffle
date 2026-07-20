@@ -1,31 +1,53 @@
 @import "@heroui/styles";
 
-/* Fonts: Poppins drives brand + UI (400/500/600/700/800); Inter as fallback. */
-@import "@fontsource/poppins/400.css";
-@import "@fontsource/poppins/500.css";
-@import "@fontsource/poppins/600.css";
-@import "@fontsource/poppins/700.css";
-@import "@fontsource/poppins/800.css";
+/* Belasis uses Inter throughout the product UI. Keep the same locally hosted
+   family and the weights used by our components. */
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/inter/800.css";
 
-/* ── Salonpass design tokens (Tailwind v4) ───────────────────────────────────
-   Warm, premium identity: black surfaces, gold CTA, cream canvas. Shadows are
-   soft and professional (large blur, low opacity) — never harsh SaaS drops. */
+/* ── Themeable design tokens (Tailwind v4) ───────────────────────────────────
+   Every brand color is driven by per-theme CSS variables (--sp-*) defined in the
+   palettes below. Swapping [data-theme] on <html> re-skins the whole product.
+   The default (:root / "salonpass") reproduces the original warm gold/ink/cream
+   identity byte-for-byte; "belasis" ships the indigo shadcn palette lifted from
+   belasis.app. Add a new palette = one [data-theme="…"] block. */
+
+/* `inline` makes the utilities emit `var(--sp-*)` live, so bg-gold / text-ink /
+   bg-primary all follow the active theme instead of baking a fixed value. */
+@theme inline {
+  --color-primary: var(--sp-primary);
+  --color-primary-strong: var(--sp-primary-strong);
+  --color-primary-foreground: var(--sp-primary-fg);
+
+  --color-canvas: var(--sp-canvas);
+  --color-warm-white: var(--sp-warm-white);
+  --color-card: var(--sp-card);
+
+  --color-sidebar: var(--sp-sidebar);
+  --color-sidebar-foreground: var(--sp-sidebar-fg);
+  --color-sidebar-active: var(--sp-sidebar-active);
+
+  --color-ink: var(--sp-ink);
+  --color-ink-soft: var(--sp-ink-soft);
+  --color-muted-ink: var(--sp-muted-ink);
+  --color-line: var(--sp-border);
+  --color-ring: var(--sp-ring);
+
+  /* Back-compat aliases: existing bg-gold / text-cream / bg-pink keep working
+     and now recolor with the theme. */
+  --color-gold: var(--sp-primary);
+  --color-gold-strong: var(--sp-primary-strong);
+  --color-cream: var(--sp-canvas);
+  --color-pink: var(--sp-pink);
+  --color-beige: var(--sp-beige);
+  --color-beige-deep: var(--sp-beige-deep);
+  --color-soft-border: var(--sp-border);
+}
+
 @theme {
-  --color-ink: #111111;
-  --color-ink-soft: #1a1a1a;
-  --color-gold: #f2b33d;
-  --color-gold-strong: #e0a01f;
-  --color-pink: #f08ca5;
-  --color-cream: #f7f3ea;
-  --color-warm-white: #fffdf8;
-  --color-beige: #e9d9c3;
-  --color-beige-deep: #bfaf9e;
-  --color-muted-ink: #6f6a63;
-  --color-soft-border: rgba(26, 26, 26, 0.08);
-
   --radius-xl: 18px;
   --radius-2xl: 24px;
 
@@ -36,17 +58,85 @@
   --shadow-pop: 0 16px 40px rgba(26, 26, 26, 0.12);
 }
 
-/* HeroUI accent tokens: gold CTA (#F2B33D) with dark ink text; cream canvas. */
+/* ── Theme palettes ─────────────────────────────────────────────────────────
+   Each palette sets the --sp-* surface/brand vars AND the HeroUI accent/
+   background tokens, so HeroUI controls recolor together with our own surfaces. */
 @layer base {
   :root,
   .light,
   .default,
   [data-theme="light"],
-  [data-theme="default"] {
+  [data-theme="default"],
+  [data-theme="salonpass"] {
+    --sp-primary: #f2b33d;
+    --sp-primary-strong: #e0a01f;
+    --sp-primary-fg: #111111;
+
+    --sp-canvas: #fdfaf7;
+    --sp-warm-white: #fffdf8;
+    --sp-card: #ffffff;
+
+    --sp-sidebar: #111111;
+    --sp-sidebar-fg: #ffffff;
+    --sp-sidebar-active: rgba(255, 255, 255, 0.08);
+    --sp-sidebar-grad-top: #1a1a1a;
+    --sp-sidebar-grad-mid: #111111;
+    --sp-sidebar-grad-bottom: #0e0e0e;
+    --sp-sidebar-border: rgba(255, 255, 255, 0.06);
+
+    --sp-ink: #111111;
+    --sp-ink-soft: #1a1a1a;
+    --sp-muted-ink: #6f6a63;
+    --sp-border: rgba(26, 26, 26, 0.08);
+    --sp-ring: rgba(242, 179, 61, 0.9);
+
+    --sp-pink: #f08ca5;
+    --sp-beige: #e9d9c3;
+    --sp-beige-deep: #bfaf9e;
+
+    /* HeroUI */
     --accent: oklch(0.8 0.143 82); /* ~ #F2B33D gold */
     --accent-foreground: oklch(0.1776 0 89.88); /* ~ #111111 ink */
     --focus: var(--accent);
     --background: oklch(0.9568 0.0123 84); /* ~ #F7F3EA cream */
+  }
+
+  /* Belasis: indigo/purple #505afb, near-white canvas, light sidebar. Palette
+     lifted from belasis.app's own Tailwind v4 theme (oklch, hue 278). */
+  [data-theme="belasis"] {
+    --sp-primary: oklch(55% 0.22 278);
+    --sp-primary-strong: oklch(48% 0.22 278);
+    --sp-primary-fg: oklch(100% 0 0);
+
+    --sp-canvas: oklch(99.5% 0 0);
+    --sp-warm-white: oklch(100% 0 0);
+    --sp-card: oklch(100% 0 0);
+
+    /* Sidebar AZUL/índigo (a sidebar real do Belasis), não clara. */
+    --sp-sidebar: oklch(47% 0.17 278);
+    --sp-sidebar-fg: oklch(100% 0 0);
+    --sp-sidebar-active: color-mix(in oklab, #ffffff 16%, transparent);
+    --sp-sidebar-grad-top: oklch(50% 0.18 278);
+    --sp-sidebar-grad-mid: oklch(47% 0.17 278);
+    --sp-sidebar-grad-bottom: oklch(43% 0.16 278);
+    --sp-sidebar-border: color-mix(in oklab, #ffffff 12%, transparent);
+
+    --sp-ink: oklch(18% 0.02 278);
+    --sp-ink-soft: oklch(25% 0.03 278);
+    --sp-muted-ink: oklch(48% 0.02 278);
+    --sp-border: oklch(90% 0.01 278);
+    --sp-ring: oklch(55% 0.22 278 / 0.5);
+
+    --sp-pink: oklch(70% 0.16 350);
+    --sp-beige: oklch(93% 0.01 278);
+    --sp-beige-deep: oklch(80% 0.02 278);
+
+    /* HeroUI */
+    --accent: oklch(55% 0.22 278);
+    --accent-foreground: oklch(100% 0 0);
+    --focus: var(--accent);
+    --background: oklch(99.5% 0 0);
+    --foreground: oklch(18% 0.02 278);
   }
 }
 
@@ -61,16 +151,53 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family:
-    "Poppins", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Headings/brand: Poppins SemiBold. */
+/* Clickable controls should always advertise their affordance on devices that
+   have a pointer. Native buttons (including HeroUI buttons) otherwise keep the
+   platform's default arrow cursor in several browsers. */
+:where(
+  a[href],
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  label[for],
+  input:not(:disabled):is(
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="checkbox"],
+    [type="radio"],
+    [type="file"],
+    [type="range"],
+    [type="color"]
+  ),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"])
+) {
+  cursor: pointer;
+}
+
+:where(
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled,
+  [aria-disabled="true"]
+) {
+  cursor: not-allowed;
+}
+
+/* Headings and textual brand elements follow the same Inter family. */
 h1, h2, h3, h4, h5, h6,
 .font-brand {
-  font-family: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -181,29 +308,64 @@ h1, h2, h3, h4, h5, h6,
    Deep black with a barely-there top sheen so it reads as a crafted panel, not
    a flat fill. Hairline divider on the right edge. */
 .db-sidebar {
-  background-color: #111111;
-  background-image: linear-gradient(180deg, #1a1a1a 0%, #111111 22%, #0e0e0e 100%);
-  color: #fff;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: var(--sp-sidebar);
+  background-image: linear-gradient(
+    180deg,
+    var(--sp-sidebar-grad-top) 0%,
+    var(--sp-sidebar-grad-mid) 22%,
+    var(--sp-sidebar-grad-bottom) 100%
+  );
+  color: var(--sp-sidebar-fg);
+  border-right: 1px solid var(--sp-sidebar-border);
 }
 
-/* Active nav item: gold fill, ink text, soft gold glow. */
+/* Active sidebar items use the same subtle surface at every menu level. */
 .db-nav-active {
-  background: #f2b33d;
-  color: #111111;
-  box-shadow: 0 8px 24px rgba(242, 179, 61, 0.22);
+  background: var(--sp-sidebar-active);
+  color: var(--sp-sidebar-fg);
+  box-shadow: none;
+}
+
+/* The complete mobile navbar behaves like one tactile surface: it compresses
+   while any action is being pressed, then returns smoothly on release. */
+.sp-navbar-surface {
+  transform-origin: center bottom;
+  transition:
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 140ms ease-out,
+    filter 140ms ease-out;
+  will-change: transform;
+}
+
+.sp-navbar-surface:has(button:active) {
+  transform: translateY(3px) scale(0.985);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+  filter: brightness(0.94);
 }
 
 .db-canvas {
-  background-color: #FDFAF7;
+  background-color: var(--sp-canvas);
 }
 
-/* Mobile bottom tab bar: brand black, paints into the home-indicator safe area
-   so the bar reads solid black down to the screen edge. (Mirrors the club.) */
+/* Mobile bottom tab bar: brand sidebar surface, paints into the home-indicator
+   safe area so the bar reads solid down to the screen edge. (Mirrors the club.) */
 .club-bottomnav {
-  background: #111111;
-  background-image: linear-gradient(0deg, #111111 0%, #1a1a1a 100%);
+  background: var(--sp-sidebar);
+  background-image: linear-gradient(0deg, var(--sp-sidebar-grad-mid) 0%, var(--sp-sidebar-grad-top) 100%);
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* The mobile navigation drawer remains scrollable, but its scrollbar should
+   never occupy visual space when menu groups expand. */
+.db-sidebar-mobile .db-sidebar-scroll {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.db-sidebar-mobile .db-sidebar-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* ── Mobile application shell ───────────────────────────────────────────────
@@ -329,9 +491,9 @@ h1, h2, h3, h4, h5, h6,
   }
 }
 
-/* Focus ring: gold, soft, never clipped. */
+/* Focus ring: brand-tinted, soft, never clipped (follows the active theme). */
 *:focus-visible {
-  outline: 2px solid rgba(242, 179, 61, 0.9);
+  outline: 2px solid var(--sp-ring);
   outline-offset: 2px;
   border-radius: 6px;
 }

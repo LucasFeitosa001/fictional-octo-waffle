@@ -7,8 +7,8 @@ import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { DropdownButton } from '../components/DropdownButton';
 import { Drawer } from '../components/Drawer';
 import { useSetPageActions } from '../layout/PageActions';
-import { colorForAppointment, layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
-import { IconCalendar, IconCalendarPlus, IconChevron } from '../components/icons';
+import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
+import { IconCalendar, IconChevron, IconEye, IconPlus } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
 import { useAgendaAppointments } from '../lib/queries/agenda';
 import { useAutoCreate } from '../lib/useAutoCreate';
@@ -27,6 +27,26 @@ const STATUS_ORDER: AppointmentStatus[] = [
   'canceled',
 ];
 
+// Paleta EXATA do Belasis (tokens calendar_* extraídos do bundle): confirmado
+// #32c787, não confirmado #2196F3, aguardando #FFA500, cancelado/recusado
+// #ff6b68, venda/finalizado #607D8B, ocupado #CED4DA. Os estados extras do
+// SalonPass reaproveitam a mesma família de cores.
+const STATUS_DOT_COLOR: Record<AppointmentStatus, string> = {
+  scheduled: '#90A4AE',
+  confirmed: '#32c787',
+  unconfirmed: '#2196F3',
+  waiting: '#FFA500',
+  in_progress: '#8b5cf6',
+  done: '#607D8B',
+  finished: '#334155',
+  canceled: '#ff6b68',
+};
+
+/** Belasis colore cada evento pela cor do status (fundo sólido, texto branco). */
+function eventColor(a: AppointmentRow): string {
+  return STATUS_DOT_COLOR[a.status] ?? '#2196F3';
+}
+
 // Local glyphs (the shared icon set has no filter/bolt icon).
 function IconFilter({ size = 16 }: { size?: number }) {
   return (
@@ -42,11 +62,12 @@ function IconBolt({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
-function IconView({ size = 16 }: { size?: number }) {
+// Belasis usa o anticon "play-circle" no botão "voltar para hoje/agora".
+function IconPlayCircle({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M8 4v16M3 9h18" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 8.5 15.5 12 10 15.5V8.5z" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -89,6 +110,12 @@ function addDays(d: Date, n: number): Date {
 
 const rangeFmt = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short' });
 const monthFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
+// Belasis (FullCalendar titleFormat): "Julho, 2026" — mês capitalizado + vírgula + ano.
+const monthOnlyFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long' });
+function belasisMonthLabel(d: Date): string {
+  const m = monthOnlyFmt.format(d);
+  return `${m.charAt(0).toUpperCase()}${m.slice(1)}, ${d.getFullYear()}`;
+}
 const longDateFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 const peekFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 const weekdayFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' });
@@ -189,17 +216,19 @@ export function AgendaPage() {
   const [toast, setToast] = useState<string | null>(null);
   useAutoCreate(() => openNew());
 
-  // Contextual bottom-nav actions for this page: Filtros / Ações / Criar. These
+  // Contextual bottom-nav actions for this page. Calendar/view selection lives
+  // here too so every primary Agenda action stays in one predictable place.
   // fire the same things as the header controls (they only call stable setters,
   // so the registration is created once on mount and cleared on unmount).
   useSetPageActions(
     [
+      { key: 'calendario', label: 'Calendário', icon: <IconCalendar size={22} />, onClick: () => setMobileViewOpen(true) },
       { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setMobileFilterOpen(true) },
       { key: 'acoes', label: 'Ações', icon: <IconBolt size={22} />, onClick: () => setMobileActionsOpen(true) },
       {
         key: 'criar',
         label: 'Criar',
-        icon: <IconCalendarPlus size={22} />,
+        icon: <IconPlus size={22} />,
         onClick: () => { setNewApptDate(undefined); setIsNewOpen(true); },
       },
     ],
@@ -338,7 +367,7 @@ export function AgendaPage() {
     effectiveView === 'year'
       ? String(anchor.getFullYear())
       : effectiveView === 'month'
-        ? monthFmt.format(anchor)
+        ? belasisMonthLabel(anchor)
         : effectiveView === 'week'
           ? `${rangeFmt.format(days[0])} – ${rangeFmt.format(days[6])}`
           : longDateFmt.format(days[0]);
@@ -477,7 +506,7 @@ export function AgendaPage() {
     <span className="inline-flex items-center gap-1.5">
       Filtrar
       {activeFilterCount > 0 && (
-        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#f2b33d] px-1 text-[10px] font-bold text-[#3b2d09]">
+        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[10px] font-bold text-[#3b2d09]">
           {activeFilterCount}
         </span>
       )}
@@ -487,55 +516,87 @@ export function AgendaPage() {
   const renderFilterPanel = (close: () => void) => (
     <div className="flex flex-col gap-4">
           {/* Profissionais (multi) */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-3 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Profissionais</span>
+              <div>
+                <span className="block text-xs font-semibold text-ink">Profissionais</span>
+                <span className="text-[11px] text-[#8a857e]">Selecione um ou mais</span>
+              </div>
               {professionalIds.length > 0 && (
-                <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
+                <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-gold-strong hover:underline">
                   Desmarcar
                 </button>
               )}
             </div>
-            <div className="flex max-h-32 flex-col gap-1 overflow-auto">
+            <div className="flex max-h-36 flex-wrap content-start gap-2 overflow-y-auto pr-1">
               {profList.length === 0 ? (
                 <span className="text-xs text-muted">Nenhum profissional.</span>
-              ) : profList.map((p) => (
-                <label key={p.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
-                  <input type="checkbox" checked={professionalIds.includes(p.id)} onChange={() => toggleProfessional(p.id)}
-                    className="h-4 w-4 accent-[#f2b33d]" />
-                  <span className="truncate">{p.name}</span>
-                </label>
-              ))}
+              ) : profList.map((p) => {
+                const checked = professionalIds.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => toggleProfessional(p.id)}
+                    aria-pressed={checked}
+                    className={[
+                      'inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all',
+                      checked
+                        ? 'border-ink bg-ink text-white shadow-sm'
+                        : 'border-black/10 bg-white text-[#4f4b46] hover:border-gold/70 hover:bg-warm-white',
+                    ].join(' ')}
+                  >
+                    <span className={['h-2 w-2 shrink-0 rounded-full', checked ? 'bg-gold' : 'bg-black/15'].join(' ')} />
+                    <span className="truncate">{p.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Status (multi) */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-3 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Status</span>
+              <div>
+                <span className="block text-xs font-semibold text-ink">Status</span>
+                <span className="text-[11px] text-[#8a857e]">Combine os estados desejados</span>
+              </div>
               {statuses.length > 0 && (
-                <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-[#a67c1e] hover:underline">
+                <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-gold-strong hover:underline">
                   Desmarcar
                 </button>
               )}
             </div>
-            <div className="flex max-h-32 flex-col gap-1 overflow-auto">
-              {STATUS_ORDER.map((s) => (
-                <label key={s} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm text-foreground hover:bg-[#f7f3ea]">
-                  <input type="checkbox" checked={statuses.includes(s)} onChange={() => toggleStatus(s)}
-                    className="h-4 w-4 accent-[#f2b33d]" />
-                  <span className="truncate">{APPOINTMENT_STATUS_LABELS[s]}</span>
-                </label>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {STATUS_ORDER.map((s) => {
+                const checked = statuses.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleStatus(s)}
+                    aria-pressed={checked}
+                    className={[
+                      'inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all',
+                      checked
+                        ? 'border-ink bg-ink text-white shadow-sm'
+                        : 'border-black/10 bg-white text-[#4f4b46] hover:border-black/25 hover:bg-warm-white',
+                    ].join(' ')}
+                  >
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white/70" style={{ backgroundColor: STATUS_DOT_COLOR[s] }} />
+                    {APPOINTMENT_STATUS_LABELS[s]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Serviço (single) */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Serviço</span>
+          <div className="flex flex-col gap-2 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
+            <span className="text-xs font-semibold text-ink">Serviço</span>
             <Select aria-label="Serviço" selectedKey={serviceFilter || 'all'}
               onSelectionChange={(k) => setServiceFilter(String(k) === 'all' ? '' : String(k))}>
-              <Select.Trigger><Select.Value /></Select.Trigger>
+              <Select.Trigger className="rounded-full border border-black/10 bg-white shadow-none"><Select.Value /></Select.Trigger>
               <Select.Popover>
                 <ListBox>
                   <ListBox.Item id="all" textValue="Todos os serviços">Todos os serviços</ListBox.Item>
@@ -548,10 +609,10 @@ export function AgendaPage() {
           </div>
 
           {/* Busca por cliente */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">Cliente</span>
+          <div className="flex flex-col gap-2 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
+            <span className="text-xs font-semibold text-ink">Cliente</span>
             <TextField value={customerQuery} onChange={setCustomerQuery} aria-label="Buscar cliente">
-              <Input placeholder="Buscar por nome…" />
+              <Input className="rounded-full border border-black/10 bg-white shadow-none" placeholder="Buscar por nome…" />
             </TextField>
           </div>
 
@@ -585,15 +646,15 @@ export function AgendaPage() {
   const renderActionsPanel = (close: () => void) => (
     <div className="py-1">
       <button type="button" onClick={() => { setSelectMode(true); close(); }}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Selecionar agendamentos
       </button>
       <button type="button" onClick={() => { close(); flash('O bloqueio de horários será aberto nas configurações da agenda.'); }}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Ocupar horários
       </button>
       <button type="button" onClick={() => { close(); flash('Selecione agendamentos para agrupá-los.'); }}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-[#f7f3ea]">
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Agrupar agendamentos
       </button>
     </div>
@@ -622,8 +683,8 @@ export function AgendaPage() {
           type="button"
           onClick={() => { setView(interval); close(); }}
           className={[
-            'flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm hover:bg-[#f7f3ea]',
-            view === interval ? 'bg-[#f2b33d]/10 font-semibold text-[#8a6517]' : 'text-foreground',
+            'flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm hover:bg-cream',
+            view === interval ? 'bg-gold/10 font-semibold text-[#8a6517]' : 'text-foreground',
           ].join(' ')}
         >
           <span>{interval === 'day' ? 'Diário' : interval === 'week' ? 'Semanal' : 'Mensal'}</span>
@@ -636,7 +697,7 @@ export function AgendaPage() {
   const viewBtn = (
     <DropdownButton
       label="Visualização"
-      icon={<IconView size={14} />}
+      icon={<IconEye size={14} />}
       align="end"
       buttonVariant="outline"
     >
@@ -656,7 +717,7 @@ export function AgendaPage() {
         <div className="hidden h-[70px] items-center gap-2 px-5 lg:flex">
           <div className="flex min-w-0 items-center">
             <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
-              className="grid h-10 w-10 shrink-0 place-items-center text-[#a67c1e] hover:bg-[#f7f3ea]">
+              className="grid h-10 w-10 shrink-0 place-items-center text-gold-strong hover:bg-cream">
               <IconChevron size={22} className="rotate-90" />
             </button>
             <button
@@ -664,17 +725,17 @@ export function AgendaPage() {
               onClick={openDateDrawer}
               aria-haspopup="dialog"
               aria-expanded={dateDrawerOpen}
-              className="max-w-[360px] truncate rounded-lg px-3 py-2 text-left text-base font-semibold capitalize text-foreground transition-colors hover:bg-[#f7f3ea]"
+              className="max-w-[360px] truncate rounded-lg px-3 py-2 text-left text-base font-semibold capitalize text-foreground transition-colors hover:bg-cream"
             >
               {periodLabel}
             </button>
             <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
-              className="grid h-10 w-10 shrink-0 place-items-center text-[#a67c1e] hover:bg-[#f7f3ea]">
+              className="grid h-10 w-10 shrink-0 place-items-center text-gold-strong hover:bg-cream">
               <IconChevron size={22} className="-rotate-90" />
             </button>
             <button type="button" aria-label="Voltar para hoje" title="Hoje" onClick={() => setAnchor(new Date())}
-              className="ml-2 grid h-10 w-10 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76] hover:bg-[#f7f3ea]">
-              <IconCalendar size={17} />
+              className="ml-2 grid h-10 w-10 place-items-center rounded-lg text-gold-strong hover:bg-cream">
+              <IconPlayCircle size={20} />
             </button>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -683,11 +744,11 @@ export function AgendaPage() {
             {actionsBtn}
             <button type="button" aria-label="Configurações da agenda" title="Configurações da agenda"
               onClick={() => flash('Configurações da agenda disponíveis em Configurações.')}
-              className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76] hover:bg-[#f7f3ea]">
+              className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76] hover:bg-cream">
               <IconSettings size={15} />
             </button>
             <Button variant="primary" size="sm" onClick={() => openNew()}>
-              <IconCalendarPlus size={14} /> Novo
+              <IconPlus size={14} /> Novo
             </Button>
           </div>
         </div>
@@ -696,24 +757,17 @@ export function AgendaPage() {
         <div className="bg-white/80 backdrop-blur-[2px] lg:hidden">
           <div className="grid h-11 grid-cols-[44px_minmax(0,1fr)_44px] items-center justify-center px-4">
             <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
-              className="grid h-11 w-11 place-items-center text-[#a67c1e] active:bg-[#f7f3ea]">
+              className="grid h-11 w-11 place-items-center text-gold-strong active:bg-cream">
               <IconChevron size={17} className="rotate-90" />
             </button>
             <button type="button" onClick={openDateDrawer} aria-haspopup="dialog" aria-expanded={dateDrawerOpen}
-              className="min-w-0 truncate px-2 text-center text-sm font-semibold capitalize text-[#a67c1e]">
+              className="min-w-0 truncate px-2 text-center text-sm font-semibold capitalize text-gold-strong">
               {periodLabel}
             </button>
             <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
-              className="grid h-11 w-11 place-items-center text-[#a67c1e] active:bg-[#f7f3ea]">
+              className="grid h-11 w-11 place-items-center text-gold-strong active:bg-cream">
               <IconChevron size={17} className="-rotate-90" />
             </button>
-          </div>
-          {/* Mobile: apenas alternância de visualização (Dia/Semana/Mês). Filtros,
-              Ações e Criar ficam na navbar inferior contextual. */}
-          <div className="flex items-center gap-2 overflow-x-auto border-t border-[#dddddd]/40 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setMobileViewOpen(true)}>
-              <IconView size={14} /> Visualização
-            </Button>
           </div>
         </div>
       </div>
@@ -772,7 +826,7 @@ export function AgendaPage() {
                     </span>
                     <span className={[
                       'mt-0.5 grid h-7 min-w-7 place-items-center rounded-full px-1 text-sm font-semibold',
-                      today ? 'bg-[#f2b33d] text-[#3b2d09]' : 'text-[#2F3136]',
+                      today ? 'bg-gold text-[#3b2d09]' : 'text-[#2F3136]',
                     ].join(' ')}>{day.getDate()}</span>
                   </div>
 
@@ -800,7 +854,7 @@ export function AgendaPage() {
                     )}
 
                     {placed.map(({ a, top, height, col, cols }) => {
-                      const color = colorForAppointment(a);
+                      const color = eventColor(a);
                       const canceled = a.status === 'canceled';
                       const width = 100 / cols;
                       const customerName = a.customer?.name ?? 'Sem cliente';
@@ -820,12 +874,12 @@ export function AgendaPage() {
                             height: Math.max(height, 22),
                             left: `calc(${col * width}% + 2px)`,
                             width: `calc(${width}% - 4px)`,
-                            backgroundColor: canceled ? '#b8b8b8' : color.bar,
+                            backgroundColor: color,
                           }}
                           className={[
-                            'absolute z-10 flex flex-col overflow-hidden rounded-lg text-left text-white transition-[box-shadow,opacity] hover:z-30 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b33d]',
+                            'absolute z-10 flex flex-col overflow-hidden rounded-lg text-left text-white transition-[box-shadow,opacity] hover:z-30 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold',
                             canceled ? 'opacity-60' : '',
-                            isSelected ? 'z-30 ring-2 ring-[#f2b33d] ring-offset-1' : '',
+                            isSelected ? 'z-30 ring-2 ring-gold ring-offset-1' : '',
                           ].join(' ')}
                         >
                           <span className="block w-full truncate bg-black/10 px-1 py-0.5 text-[9px] font-semibold leading-tight lg:text-[10px]">
@@ -858,7 +912,7 @@ export function AgendaPage() {
 
       {/* Selection action bar (batch Ações) */}
       {selectMode && (
-        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-black/[0.08] bg-[#fffdf8] px-3 py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:bottom-0">
+        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-black/[0.08] bg-warm-white px-3 py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:bottom-0">
           <span className="text-sm font-semibold text-foreground">{selectedIds.size} selecionado(s)</span>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="primary" size="sm" isDisabled={selectedIds.size === 0 || statusMutation.isPending}
@@ -877,7 +931,7 @@ export function AgendaPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#111111] px-5 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">
           {toast}
         </div>
       )}
@@ -908,7 +962,7 @@ export function AgendaPage() {
               type="button"
               onClick={() => setDatePickerMonth((month) => addMonths(month, -1))}
               aria-label="Mês anterior"
-              className="grid h-11 w-11 place-items-center rounded-xl text-[#a67c1e] transition-colors hover:bg-[#f7f3ea] active:bg-[#f2ece0]"
+              className="grid h-11 w-11 place-items-center rounded-xl text-gold-strong transition-colors hover:bg-cream active:bg-[#f2ece0]"
             >
               <IconChevron size={19} className="rotate-90" />
             </button>
@@ -919,7 +973,7 @@ export function AgendaPage() {
               type="button"
               onClick={() => setDatePickerMonth((month) => addMonths(month, 1))}
               aria-label="Próximo mês"
-              className="grid h-11 w-11 place-items-center rounded-xl text-[#a67c1e] transition-colors hover:bg-[#f7f3ea] active:bg-[#f2ece0]"
+              className="grid h-11 w-11 place-items-center rounded-xl text-gold-strong transition-colors hover:bg-cream active:bg-[#f2ece0]"
             >
               <IconChevron size={19} className="-rotate-90" />
             </button>
@@ -952,12 +1006,12 @@ export function AgendaPage() {
                   className={[
                     'mx-auto grid h-11 w-11 place-items-center rounded-full text-sm font-semibold transition-colors',
                     selected
-                      ? 'bg-[#f2b33d] text-[#3b2d09] shadow-[var(--shadow-gold)]'
+                      ? 'bg-gold text-[#3b2d09] shadow-[var(--shadow-gold)]'
                       : today
-                        ? 'ring-1 ring-[#f2b33d] text-[#8a6517] hover:bg-[#f2b33d]/10'
+                        ? 'ring-1 ring-gold text-[#8a6517] hover:bg-gold/10'
                         : inMonth
-                          ? 'text-foreground hover:bg-[#f7f3ea]'
-                          : 'text-[#c9ccd1] hover:bg-[#f7f3ea]',
+                          ? 'text-foreground hover:bg-cream'
+                          : 'text-[#c9ccd1] hover:bg-cream',
                   ].join(' ')}
                 >
                   {day.getDate()}
@@ -1010,7 +1064,7 @@ export function AgendaPage() {
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
                     <span className="h-10 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: colorForAppointment(selected).bar }} />
+                      style={{ backgroundColor: eventColor(selected) }} />
                     <div className="min-w-0 flex-1">
                       <div className="text-base font-semibold text-foreground">
                         {selected.customer?.name ?? 'Sem cliente'}
@@ -1042,7 +1096,7 @@ export function AgendaPage() {
                   )}
 
                   {selected.notes && (
-                    <p className="rounded-lg bg-[#f7f3ea] px-3 py-2 text-sm text-muted">{selected.notes}</p>
+                    <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted">{selected.notes}</p>
                   )}
 
                   <div className="flex flex-col gap-1">
@@ -1073,8 +1127,8 @@ export function AgendaPage() {
                   </div>
 
                   {showReschedule && (
-                    <div className="flex flex-col gap-2 rounded-xl border border-[#f2b33d]/30 bg-[#faf6ec] p-3">
-                      <span className="text-xs font-semibold text-[#a67c1e]">Reagendar</span>
+                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-[#faf6ec] p-3">
+                      <span className="text-xs font-semibold text-gold-strong">Reagendar</span>
                       <div className="flex flex-wrap gap-2">
                         <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                           Data
@@ -1097,8 +1151,8 @@ export function AgendaPage() {
                   )}
 
                   {(selected.status === 'unconfirmed' || selected.status === 'scheduled') && (
-                    <div className="flex flex-col gap-2 rounded-xl border border-[#f2b33d]/30 bg-[#faf6ec] p-3">
-                      <span className="text-xs font-semibold text-[#a67c1e]">Pendente de confirmacao</span>
+                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-[#faf6ec] p-3">
+                      <span className="text-xs font-semibold text-gold-strong">Pendente de confirmacao</span>
                       <div className="flex flex-wrap gap-2">
                         <Button variant="primary" size="sm" isDisabled={statusMutation.isPending}
                           onClick={() => changeStatus(selected, 'confirmed')}>
@@ -1202,14 +1256,14 @@ function MonthView({
               title="Novo agendamento"
               className={[
                 'relative flex min-w-0 cursor-pointer flex-col gap-1 overflow-hidden border-b border-r border-[#dddddd]/50 p-1 transition-colors',
-                inMonth ? 'bg-white hover:bg-[#f7f3ea]' : 'bg-[#fafafa]',
+                inMonth ? 'bg-white hover:bg-cream' : 'bg-[#fafafa]',
               ].join(' ')}
             >
               <span
                 className={[
                   'grid h-6 w-6 shrink-0 place-items-center self-end rounded-full text-[11px] font-semibold lg:h-7 lg:w-7 lg:text-xs',
                   isCurrentDay
-                    ? 'bg-[#f2b33d] text-[#3b2d09]'
+                    ? 'bg-gold text-[#3b2d09]'
                     : inMonth
                       ? 'text-foreground'
                       : 'text-[#c9ccd1]',
@@ -1220,7 +1274,7 @@ function MonthView({
 
               <div className="flex min-h-0 w-full flex-col gap-1">
                 {visible.map((appointment) => {
-                  const color = colorForAppointment(appointment);
+                  const color = eventColor(appointment);
                   const canceled = appointment.status === 'canceled';
                   const customer = appointment.customer?.name ?? 'Sem cliente';
                   const service = appointment.items?.[0]
@@ -1231,7 +1285,7 @@ function MonthView({
                       key={appointment.id}
                       type="button"
                       onClick={(event) => { event.stopPropagation(); onPickAppt(appointment); }}
-                      style={{ backgroundColor: canceled ? '#b8b8b8' : color.bar }}
+                      style={{ backgroundColor: color }}
                       title={`${formatTime(appointment.start)} · ${customer} · ${service ?? 'Sem serviço'}`}
                       className={[
                         'flex h-[46px] min-w-0 flex-col items-start justify-center overflow-hidden rounded-md px-1 py-1 text-left leading-none text-white transition-shadow hover:shadow-md lg:h-[50px] lg:rounded-lg lg:px-1.5',
@@ -1256,7 +1310,7 @@ function MonthView({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onSeeDay(d); }}
-                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-[#6B6F76] hover:text-[#a67c1e] lg:text-[10px]"
+                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-[#6B6F76] hover:text-gold-strong lg:text-[10px]"
                 >
                   +{extra} mais
                 </button>
@@ -1299,15 +1353,15 @@ function YearView({
               className={[
                 'flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border transition-colors',
                 isCurrent
-                  ? 'border-[#f2b33d] bg-[#f2b33d]/10'
-                  : 'border-[var(--color-soft-border)] bg-white hover:bg-[#f7f3ea]',
+                  ? 'border-gold bg-gold/10'
+                  : 'border-[var(--color-soft-border)] bg-white hover:bg-cream',
               ].join(' ')}
             >
-              <span className={['text-sm font-semibold', isCurrent ? 'text-[#a67c1e]' : 'text-foreground'].join(' ')}>
+              <span className={['text-sm font-semibold', isCurrent ? 'text-gold-strong' : 'text-foreground'].join(' ')}>
                 {MONTH_LABELS[i]}
               </span>
               {count > 0 ? (
-                <span className="rounded-full bg-[#f2b33d]/15 px-2 py-0.5 text-[10px] font-semibold text-[#a67c1e]">
+                <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-semibold text-gold-strong">
                   {count}
                 </span>
               ) : (
@@ -1356,9 +1410,9 @@ function DayPeek({
                   key={a.id}
                   type="button"
                   onClick={() => onPickAppt(a)}
-                  className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-[#f7f3ea]"
+                  className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-cream"
                 >
-                  <span className="w-12 shrink-0 text-xs font-bold text-[#a67c1e]">{formatTime(a.start)}</span>
+                  <span className="w-12 shrink-0 text-xs font-bold text-gold-strong">{formatTime(a.start)}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-foreground">
                       {a.customer?.name ?? 'Sem cliente'}

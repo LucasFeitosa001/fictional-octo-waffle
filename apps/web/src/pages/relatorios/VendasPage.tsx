@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Button, Card } from '@heroui/react';
 import {
   Bar,
   BarChart,
@@ -14,14 +13,26 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { PageHeader } from '../../components/PageHeader';
-import { EmptyState, LoadingState } from '../../components/States';
-import { DateRangeFilter } from '../../components/DateRangeFilter';
-import { IconDownload, IconDollar, IconReceipt, IconTrendUp } from '../../components/icons';
+import { Drawer } from '../../components/Drawer';
+import {
+  IconCalendar,
+  IconChevron,
+  IconDollar,
+  IconDownload,
+  IconHome,
+  IconInfo,
+  IconReceipt,
+  IconStar,
+  IconTrendUp,
+} from '../../components/icons';
 import { formatMoney, formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsSales } from '../../lib/queries/relatorios';
-import { BackToReports, CARD, COLOR_GOLD, PIE_COLORS, shortDay } from './reportShared';
+import { useThemeColors } from '../../theme/useThemeColors';
+import { BackToReports, shortDay } from './reportShared';
+
+// ── card no estilo Belasis (branco + sombra suave), 100% themeable ────────────
+const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
 
 function defaultRange() {
   const to = new Date();
@@ -29,6 +40,36 @@ function defaultRange() {
   from.setDate(from.getDate() - 30);
   return { from: isoDate(from), to: isoDate(to) };
 }
+
+// Categorias de relatório (topo do módulo Relatórios no Belasis). "Financeiro"
+// é a categoria ativa desta página.
+const CATEGORIES = [
+  'Favoritos',
+  'Financeiro',
+  'Agendamentos',
+  'Clientes',
+  'Vendas',
+  'Estoque',
+  'Notas Fiscais',
+  'Ranking',
+  'Mensagens',
+];
+
+// Submenu vertical de relatórios financeiros (coluna esquerda do Belasis).
+// "Resultado Líquido de Serviços" (rota service-revenue) é o item selecionado.
+const FIN_REPORTS: { label: string; home?: boolean; current?: boolean }[] = [
+  { label: 'Início', home: true },
+  { label: 'Resultados Financeiros' },
+  { label: 'Resultado Líquido de Serviços', current: true },
+  { label: 'Resultado Líquido de Produtos' },
+  { label: 'Projeção de Faturamento' },
+  { label: 'Fluxo de Caixa' },
+  { label: 'Recebimentos' },
+  { label: 'Despesas' },
+  { label: 'Extrato de Contas' },
+  { label: 'Extrato de Movimentações' },
+  { label: 'Histórico de caixa' },
+];
 
 function Kpi({
   icon,
@@ -42,35 +83,44 @@ function Kpi({
   hint?: string;
 }) {
   return (
-    <Card className={CARD}>
-      <Card.Content className="p-5">
-        <div className="flex items-center gap-2 text-muted">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
-            {icon}
-          </span>
-          <span className="text-sm font-medium text-foreground">{title}</span>
-        </div>
-        <div className="mt-3 text-2xl font-bold text-foreground sm:text-3xl">{value}</div>
-        {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
-      </Card.Content>
-    </Card>
+    <div className={`${CARD} p-5`}>
+      <div className="flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          {icon}
+        </span>
+        <span className="text-sm font-medium text-ink">{title}</span>
+      </div>
+      <div className="mt-3 text-2xl font-bold text-ink sm:text-3xl">{value}</div>
+      {hint && <p className="mt-1 text-sm text-muted-ink">{hint}</p>}
+    </div>
   );
 }
 
 export function VendasPage() {
+  const colors = useThemeColors();
+
+  // `range` é o período aplicado (dispara a query); `pending` é o que está no
+  // formulário e só vira `range` ao clicar em "Gerar relatório" (fiel ao Belasis).
   const [range, setRange] = useState(defaultRange);
+  const [pending, setPending] = useState(range);
+  const [exportOpen, setExportOpen] = useState(false);
+
   const query = useReportsSales(range.from, range.to);
   const d = query.data;
 
   const byDay = (d?.byDay ?? []).map((s) => ({ date: s.date, total: s.total }));
   const byCategory = d?.byCategory ?? [];
   const byProfessional = d?.byProfessional ?? [];
-  const ticketMedio =
-    d && d.ordersCount > 0 ? d.salesTotal / d.ordersCount : 0;
+  const ticketMedio = d && d.ordersCount > 0 ? d.salesTotal / d.ordersCount : 0;
+  const hasData = !!d && (byDay.length > 0 || byCategory.length > 0 || byProfessional.length > 0);
+
+  function gerarRelatorio() {
+    setRange(pending);
+  }
 
   function exportCsv() {
     downloadCsv(
-      `vendas-${range.from}_a_${range.to}`,
+      `resultado-servicos-${range.from}_a_${range.to}`,
       [
         { header: 'Categoria', value: (r: { cat: string; label: string; value: string }) => r.cat },
         { header: 'Item', value: (r) => r.label },
@@ -84,180 +134,388 @@ export function VendasPage() {
         ...byDay.map((s) => ({ cat: 'Dia', label: s.date, value: String(s.total) })),
       ],
     );
+    setExportOpen(false);
   }
 
   return (
     <div>
       <BackToReports />
-      <PageHeader
-        title="Vendas"
-        subtitle="Faturamento por dia, categoria e profissional"
-        actions={
-          <Button variant="outline" onClick={exportCsv} isDisabled={!d}>
-            <IconDownload size={16} /> Exportar CSV
-          </Button>
-        }
-      />
 
-      <Card className={`mb-4 ${CARD}`}>
-        <Card.Content className="p-4">
-          <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
-        </Card.Content>
-      </Card>
+      {/* Cabeçalho do módulo Relatórios */}
+      <h1 className="text-xl font-semibold text-ink">Relatórios</h1>
 
-      {query.isLoading ? (
-        <LoadingState />
-      ) : (
-        <>
-          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Kpi
-              icon={<IconDollar size={18} />}
-              title="Vendas no período"
-              value={formatMoney(d?.salesTotal ?? 0)}
-            />
-            <Kpi
-              icon={<IconReceipt size={18} />}
-              title="Comandas finalizadas"
-              value={formatNumber(d?.ordersCount ?? 0)}
-            />
-            <Kpi
-              icon={<IconTrendUp size={18} />}
-              title="Ticket médio"
-              value={formatMoney(ticketMedio)}
-            />
+      {/* Barra de categorias (Financeiro ativa) */}
+      <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {CATEGORIES.map((c) => {
+          const active = c === 'Financeiro';
+          return (
+            <button
+              key={c}
+              type="button"
+              className={[
+                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+                active
+                  ? 'border-transparent bg-primary text-primary-foreground'
+                  : 'border-line bg-card text-muted-ink hover:text-ink',
+              ].join(' ')}
+            >
+              {c}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Conteúdo em 2 colunas: submenu de relatórios + card do relatório */}
+      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* Coluna esquerda: submenu de relatórios financeiros */}
+        <aside className={`${CARD} shrink-0 overflow-hidden p-1.5 lg:w-72`}>
+          <ul className="flex flex-col">
+            {FIN_REPORTS.map((r) => (
+              <li key={r.label}>
+                <div
+                  className={[
+                    'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors',
+                    r.current
+                      ? 'bg-primary/10 font-semibold text-primary'
+                      : 'text-ink hover:bg-primary/5',
+                  ].join(' ')}
+                >
+                  <span
+                    className={r.current ? 'text-primary' : 'text-muted-ink'}
+                    aria-hidden
+                  >
+                    {r.home ? <IconHome size={17} /> : <IconDollar size={17} />}
+                  </span>
+                  <span className="flex-1 truncate">{r.label}</span>
+                  {!r.home && (
+                    <span className="flex items-center gap-1.5 text-muted-ink">
+                      <IconInfo size={15} className="opacity-70" />
+                      <IconStar
+                        size={15}
+                        className={r.current ? 'text-primary' : 'opacity-70'}
+                      />
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </aside>
+
+        {/* Coluna direita: filtro + resultados */}
+        <div className="min-w-0 flex-1">
+          {/* Card de filtro: Período + Gerar relatório (split com "...") */}
+          <div className={`${CARD} p-4 sm:p-5`}>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                gerarRelatorio();
+              }}
+              className="flex flex-col gap-4"
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-ink">Período</label>
+                  {/* Range picker no estilo ant-picker-range */}
+                  <div className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-3 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 sm:h-10">
+                    <input
+                      type="date"
+                      value={pending.from}
+                      max={pending.to || undefined}
+                      onChange={(e) => setPending((p) => ({ ...p, from: e.target.value }))}
+                      aria-label="Data inicial"
+                      className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
+                    />
+                    <IconChevron size={14} className="-rotate-90 shrink-0 text-muted-ink" aria-hidden />
+                    <input
+                      type="date"
+                      value={pending.to}
+                      min={pending.from || undefined}
+                      onChange={(e) => setPending((p) => ({ ...p, to: e.target.value }))}
+                      aria-label="Data final"
+                      className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
+                    />
+                    <IconCalendar size={16} className="shrink-0 text-muted-ink" aria-hidden />
+                  </div>
+                </div>
+              </div>
+
+              {/* Botão split: Gerar relatório + "..." (opções de exportação) */}
+              <div className="flex w-full items-stretch">
+                <button
+                  type="submit"
+                  className="flex h-10 flex-1 items-center justify-center rounded-l-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  Gerar relatório
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportOpen(true)}
+                  aria-label="Mais opções"
+                  title="Mais opções"
+                  className="flex h-10 w-10 items-center justify-center rounded-r-lg border-l border-primary-foreground/20 bg-primary text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  <span className="text-lg leading-none tracking-widest" aria-hidden>
+                    ···
+                  </span>
+                </button>
+              </div>
+            </form>
           </div>
 
-          {/* Vendas por dia */}
-          <Card className={`mb-4 ${CARD}`}>
-            <Card.Content className="p-5">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Vendas por dia</h3>
-              {byDay.length === 0 ? (
-                <div className="flex h-64 items-center justify-center text-sm text-muted">
-                  Sem vendas no período.
-                </div>
-              ) : (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={byDay} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                      <XAxis
-                        dataKey="date"
-                        tickFormatter={shortDay}
-                        tick={{ fontSize: 11, fill: '#888' }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: '#888' }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={64}
-                        tickFormatter={(v: number) => formatMoney(v)}
-                      />
-                      <Tooltip
-                        labelFormatter={(l: string) => shortDay(l)}
-                        formatter={(v: number) => [formatMoney(v), 'Vendas']}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="total"
-                        stroke={COLOR_GOLD}
-                        strokeWidth={2.5}
-                        dot={{ r: 3, fill: COLOR_GOLD }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Card.Content>
-          </Card>
+          {/* Resultados */}
+          {query.isLoading ? (
+            <div className={`${CARD} mt-4 flex h-64 items-center justify-center text-sm text-muted-ink`}>
+              Carregando…
+            </div>
+          ) : !hasData ? (
+            <div className={`${CARD} mt-4 flex h-64 flex-col items-center justify-center gap-1 text-center`}>
+              <p className="text-sm font-medium text-ink">Não há dados</p>
+              <p className="text-sm text-muted-ink">
+                Nenhum item encontrado para o período selecionado.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* KPIs */}
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Kpi
+                  icon={<IconDollar size={18} />}
+                  title="Vendas no período"
+                  value={formatMoney(d?.salesTotal ?? 0)}
+                />
+                <Kpi
+                  icon={<IconReceipt size={18} />}
+                  title="Comandas finalizadas"
+                  value={formatNumber(d?.ordersCount ?? 0)}
+                />
+                <Kpi
+                  icon={<IconTrendUp size={18} />}
+                  title="Ticket médio"
+                  value={formatMoney(ticketMedio)}
+                />
+              </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Por categoria */}
-            <Card className={CARD}>
-              <Card.Content className="p-5">
-                <h3 className="mb-3 text-sm font-semibold text-foreground">Vendas por categoria</h3>
-                {byCategory.length === 0 ? (
-                  <EmptyState title="Sem vendas por categoria" />
+              {/* Vendas por dia */}
+              <div className={`${CARD} mt-4 p-5`}>
+                <h3 className="mb-3 text-sm font-semibold text-ink">Vendas por dia</h3>
+                {byDay.length === 0 ? (
+                  <div className="flex h-64 items-center justify-center text-sm text-muted-ink">
+                    Sem vendas no período.
+                  </div>
                 ) : (
-                  <>
-                    <div className="h-56">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={byCategory}
-                            dataKey="total"
-                            nameKey="category"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            innerRadius={40}
-                          >
-                            {byCategory.map((_, i) => (
-                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(v: number) => formatMoney(v)} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <ul className="mt-3 flex flex-col divide-y divide-[var(--color-soft-border)]">
-                      {byCategory.map((c, i) => (
-                        <li key={c.category} className="flex items-center gap-3 py-2">
-                          <span
-                            className="h-3 w-3 shrink-0 rounded-full"
-                            style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
-                          />
-                          <span className="flex-1 truncate text-sm text-foreground">
-                            {c.category}
-                          </span>
-                          <span className="text-sm font-semibold text-foreground">
-                            {formatMoney(c.total)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </Card.Content>
-            </Card>
-
-            {/* Por profissional */}
-            <Card className={CARD}>
-              <Card.Content className="p-5">
-                <h3 className="mb-3 text-sm font-semibold text-foreground">
-                  Receita por profissional
-                </h3>
-                {byProfessional.length === 0 ? (
-                  <EmptyState title="Sem vendas por profissional" />
-                ) : (
-                  <div className="h-56">
+                  <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={byProfessional.map((p) => ({ name: p.name, v: p.total }))}
-                        margin={{ top: 8, right: 8, left: -8, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                      <LineChart data={byDay} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colors.chartGrid} />
                         <XAxis
-                          dataKey="name"
-                          tick={{ fontSize: 11, fill: '#888' }}
+                          dataKey="date"
+                          tickFormatter={shortDay}
+                          tick={{ fontSize: 11, fill: colors.chartAxis }}
                           tickLine={false}
                         />
                         <YAxis
-                          tick={{ fontSize: 11, fill: '#888' }}
+                          tick={{ fontSize: 11, fill: colors.chartAxis }}
                           tickLine={false}
                           axisLine={false}
+                          width={64}
+                          tickFormatter={(v: number) => formatMoney(v)}
                         />
-                        <Tooltip formatter={(v: number) => formatMoney(v)} />
-                        <Bar dataKey="v" fill={COLOR_GOLD} radius={[4, 4, 0, 0]} maxBarSize={36} />
-                      </BarChart>
+                        <Tooltip
+                          labelFormatter={(l: string) => shortDay(l)}
+                          formatter={(v: number) => [formatMoney(v), 'Vendas']}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="total"
+                          stroke={colors.primary}
+                          strokeWidth={2.5}
+                          dot={{ r: 3, fill: colors.primary }}
+                        />
+                      </LineChart>
                     </ResponsiveContainer>
                   </div>
                 )}
-              </Card.Content>
-            </Card>
-          </div>
-        </>
-      )}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {/* Por categoria */}
+                <div className={`${CARD} p-5`}>
+                  <h3 className="mb-3 text-sm font-semibold text-ink">Vendas por categoria</h3>
+                  {byCategory.length === 0 ? (
+                    <div className="flex h-56 items-center justify-center text-sm text-muted-ink">
+                      Sem vendas por categoria.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={byCategory}
+                              dataKey="total"
+                              nameKey="category"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              innerRadius={40}
+                            >
+                              {byCategory.map((_, i) => (
+                                <Cell key={i} fill={colors.palette[i % colors.palette.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v: number) => formatMoney(v)} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <ul className="mt-3 flex flex-col divide-y divide-[var(--color-soft-border)]">
+                        {byCategory.map((c, i) => (
+                          <li key={c.category} className="flex items-center gap-3 py-2">
+                            <span
+                              className="h-3 w-3 shrink-0 rounded-full"
+                              style={{ background: colors.palette[i % colors.palette.length] }}
+                            />
+                            <span className="flex-1 truncate text-sm text-ink">{c.category}</span>
+                            <span className="text-sm font-semibold text-ink">
+                              {formatMoney(c.total)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+
+                {/* Por profissional */}
+                <div className={`${CARD} p-5`}>
+                  <h3 className="mb-3 text-sm font-semibold text-ink">Receita por profissional</h3>
+                  {byProfessional.length === 0 ? (
+                    <div className="flex h-56 items-center justify-center text-sm text-muted-ink">
+                      Sem vendas por profissional.
+                    </div>
+                  ) : (
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={byProfessional.map((p) => ({ name: p.name, v: p.total }))}
+                          margin={{ top: 8, right: 8, left: -8, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colors.chartGrid} />
+                          <XAxis
+                            dataKey="name"
+                            tick={{ fontSize: 11, fill: colors.chartAxis }}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 11, fill: colors.chartAxis }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip formatter={(v: number) => formatMoney(v)} />
+                          <Bar dataKey="v" fill={colors.primary} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tabela detalhada por profissional */}
+              <div className={`${CARD} mt-4 overflow-hidden`}>
+                <div className="border-b border-line px-5 py-4">
+                  <h3 className="text-sm font-semibold text-ink">Detalhamento por profissional</h3>
+                </div>
+                {byProfessional.length === 0 ? (
+                  <div className="flex h-40 items-center justify-center text-sm text-muted-ink">
+                    Nenhum item encontrado.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[480px] text-sm">
+                      <thead>
+                        <tr className="border-b border-line text-left text-xs font-medium uppercase tracking-wide text-muted-ink">
+                          <th className="px-5 py-3">Profissional</th>
+                          <th className="px-5 py-3 text-right">Receita</th>
+                          <th className="px-5 py-3 text-right">Participação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {byProfessional.map((p) => {
+                          const share =
+                            d && d.salesTotal > 0 ? (p.total / d.salesTotal) * 100 : 0;
+                          return (
+                            <tr
+                              key={p.id}
+                              className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                            >
+                              <td className="px-5 py-3 text-ink">{p.name}</td>
+                              <td className="px-5 py-3 text-right font-medium text-ink">
+                                {formatMoney(p.total)}
+                              </td>
+                              <td className="px-5 py-3 text-right text-muted-ink">
+                                {share.toFixed(1)}%
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-primary/5 font-semibold text-ink">
+                          <td className="px-5 py-3">Total</td>
+                          <td className="px-5 py-3 text-right">{formatMoney(d?.salesTotal ?? 0)}</td>
+                          <td className="px-5 py-3 text-right">100%</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Drawer lateral: opções de exportação (split "..." do Belasis) */}
+      <Drawer
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        title="Exportar relatório"
+      >
+        <p className="mb-4 text-sm text-muted-ink">
+          Escolha o formato para exportar o Resultado Líquido de Serviços do período{' '}
+          {shortDay(range.from)} – {shortDay(range.to)}.
+        </p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={!d}
+            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-ink transition-colors hover:bg-primary/5 disabled:opacity-50"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <IconDownload size={18} />
+            </span>
+            <span className="flex flex-col">
+              <span>Exportar CSV</span>
+              <span className="text-xs font-normal text-muted-ink">Planilha com o resumo do período</span>
+            </span>
+          </button>
+          {/* TODO: exportação em Excel/PDF depende de endpoint dedicado no backend */}
+          <button
+            type="button"
+            disabled
+            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-muted-ink opacity-60"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <IconDownload size={18} />
+            </span>
+            <span className="flex flex-col">
+              <span>Exportar PDF</span>
+              <span className="text-xs font-normal text-muted-ink">Em breve</span>
+            </span>
+          </button>
+        </div>
+      </Drawer>
     </div>
   );
 }

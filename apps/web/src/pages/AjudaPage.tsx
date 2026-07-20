@@ -66,9 +66,9 @@ export function AjudaPage() {
     <div>
       <PageHeader title="Ajuda" subtitle="Guias rápidos e primeiros passos no Salonpass" />
 
-      <Card className="mb-4 border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+      <Card className="mb-4 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
         <Card.Content className="flex items-start gap-3 p-5">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#f2b33d]/15 text-[#a67c1e]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gold/15 text-gold-strong">
             <IconInfo size={20} />
           </span>
           <div>
@@ -81,7 +81,7 @@ export function AjudaPage() {
         </Card.Content>
       </Card>
 
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+      <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
         <Card.Content className="p-3 sm:p-4">
           <div className="mb-2 px-1 text-sm font-semibold text-foreground">Temas comuns</div>
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -90,9 +90,9 @@ export function AjudaPage() {
                 <button
                   type="button"
                   onClick={() => navigate(topic.to)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white p-3 text-left transition-colors hover:border-[#f2b33d]/50 hover:bg-[#f2b33d]/[0.06]"
+                  className="flex w-full items-center gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white p-3 text-left transition-colors hover:border-gold/50 hover:bg-gold/[0.06]"
                 >
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#111111] text-[#f2b33d]">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-ink text-gold">
                     {topic.icon}
                   </span>
                   <span className="min-w-0 flex-1">

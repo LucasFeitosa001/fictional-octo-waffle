@@ -1,17 +1,15 @@
-import { useEffect, useState } from 'react';
-import {
-  Button,
-  Card,
-  Input,
-  ListBox,
-  Select,
-  Spinner,
-  TextField,
-} from '@heroui/react';
-import { PageHeader } from '../components/PageHeader';
+import { useEffect, useState, type ReactNode } from 'react';
 import { LoadingState, ErrorState } from '../components/States';
 import { ImageUpload } from '../components/ImageUpload';
+import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { WhatsappConnectionCard } from '../components/WhatsappConnectionCard';
+import {
+  IconHome,
+  IconBell,
+  IconSparkles,
+  IconWhatsApp,
+  IconChevron,
+} from '../components/icons';
 import {
   useEmpresa,
   useUpdateEmpresa,
@@ -19,6 +17,17 @@ import {
 } from '../lib/queries/empresa';
 import { useProfessionals } from '../lib/queries';
 import { useUpdateProfessional } from '../lib/queries/profissionais';
+
+/* ------------------------------------------------------------------ *
+ * Clone 100% fiel da página /settings do Belasis.
+ * - Header com título "Configurações" + abas (Detalhes da empresa,
+ *   Notificações, Personalizar, WhatsApp) — no Belasis: Detalhes,
+ *   Notificações, Personalizar, Admin, API. Trocamos Admin/API (sem
+ *   data-wiring) por WhatsApp, que existe no SalonPass.
+ * - Mobile: menu em lista (linha ícone + label + chevron), abrindo a
+ *   seção. Desktop: abas horizontais + conteúdo.
+ * Cores 100% themeable via tokens Tailwind (--sp-*). ZERO hex de marca.
+ * ------------------------------------------------------------------ */
 
 const TIMEZONES = [
   { id: 'America/Sao_Paulo', label: 'Brasília (America/Sao_Paulo)' },
@@ -37,44 +46,74 @@ const CURRENCIES = [
   { id: 'EUR', label: 'Euro (€)' },
 ];
 
-const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
-
-const SECTIONS = [
-  { id: 'identidade', label: 'Identidade visual' },
-  { id: 'dados', label: 'Dados da empresa' },
-  { id: 'preferencias', label: 'Preferências' },
-  { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'notificacoes', label: 'Notificações' },
+const PERSON_TYPES = [
+  { id: 'PJ', label: 'Pessoa Jurídica' },
+  { id: 'PF', label: 'Pessoa Física' },
 ];
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+const UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+  'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
+  'SP', 'SE', 'TO',
+];
+
+type TabId = 'detalhes' | 'notificacoes' | 'personalizar' | 'whatsapp';
+
+const TABS: { id: TabId; label: string; Icon: (p: { size?: number }) => ReactNode }[] = [
+  { id: 'detalhes', label: 'Detalhes da empresa', Icon: IconHome },
+  { id: 'notificacoes', label: 'Notificações', Icon: IconBell },
+  { id: 'personalizar', label: 'Personalizar', Icon: IconSparkles },
+  { id: 'whatsapp', label: 'WhatsApp', Icon: IconWhatsApp },
+];
+
+/* --- form primitives (visual do ant-form outlined, themeable) --- */
+
+const inputCls =
+  'h-10 w-full rounded-lg border border-line bg-card px-3 text-sm text-ink outline-none transition-colors placeholder:text-muted-ink focus:border-primary focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_28%,transparent)] disabled:opacity-60';
+
+function Field({
+  label,
+  required,
+  span = 'sm:col-span-2 lg:col-span-4',
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  /** Tailwind col-span helpers para o grid de 12 colunas no lg. */
+  span?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted">{label}</label>
+    <div className={`flex flex-col ${span}`}>
+      <label className="mb-1.5 block text-sm text-ink">
+        {required && <span className="mr-0.5 text-danger">*</span>}
+        {label}
+      </label>
       {children}
     </div>
   );
 }
 
-function SectionCard({
-  id,
-  title,
-  description,
+function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={inputCls} />;
+}
+
+function SelectInput({
   children,
-}: {
-  id: string;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <Card id={id} className={`scroll-mt-24 ${CARD}`}>
-      <Card.Header className="p-5 pb-0">
-        <Card.Title>{title}</Card.Title>
-        {description && <p className="mt-1 text-sm text-muted">{description}</p>}
-      </Card.Header>
-      <Card.Content className="flex flex-col gap-6 p-5">{children}</Card.Content>
-    </Card>
+    <div className="relative">
+      <select
+        {...props}
+        className={`${inputCls} cursor-pointer appearance-none pr-9`}
+      >
+        {children}
+      </select>
+      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-ink">
+        <IconChevron size={16} />
+      </span>
+    </div>
   );
 }
 
@@ -85,6 +124,11 @@ export function ConfiguracoesPage() {
   const updateProfessional = useUpdateProfessional();
   const profItems = (professionals.data as any)?.data ?? [];
 
+  // `active` null => mobile mostra a lista de seções; no desktop cai em 'detalhes'.
+  const [active, setActive] = useState<TabId | null>(null);
+  const current: TabId = active ?? 'detalhes';
+
+  // --- data-wiring (preservado) ---
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
   const [cnpj, setCnpj] = useState('');
@@ -96,7 +140,16 @@ export function ConfiguracoesPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Hydrate the form once the company record loads.
+  // Campos presentes no Belasis mas ainda sem persistência no SalonPass.
+  // TODO: mapear para o backend quando os campos existirem em UpdateEmpresaBody.
+  const [personType, setPersonType] = useState('PJ');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [cep, setCep] = useState('');
+  const [district, setDistrict] = useState('');
+  const [number, setNumber] = useState('');
+  const [stateUf, setStateUf] = useState('');
+  const [city, setCity] = useState('');
+
   const data = empresa.data;
   useEffect(() => {
     if (!data) return;
@@ -133,10 +186,12 @@ export function ConfiguracoesPage() {
     update.mutate(body, { onSuccess: () => setSaved(true) });
   }
 
+  const canSave = name.trim().length >= 2 && !update.isPending;
+
   if (empresa.isLoading) {
     return (
-      <div>
-        <PageHeader title="Configurações" subtitle="Dados da empresa" />
+      <div className="mx-auto max-w-6xl">
+        <PageTitle />
         <LoadingState />
       </div>
     );
@@ -144,301 +199,438 @@ export function ConfiguracoesPage() {
 
   if (empresa.isError) {
     return (
-      <div>
-        <PageHeader title="Configurações" subtitle="Dados da empresa" />
+      <div className="mx-auto max-w-6xl">
+        <PageTitle />
         <ErrorState onRetry={() => empresa.refetch()} />
       </div>
     );
   }
 
-  const canSave = name.trim().length >= 2 && !update.isPending;
-
   return (
-    <div>
-      <PageHeader title="Configurações" subtitle="Dados da empresa e identidade visual" />
+    <div className="mx-auto max-w-6xl">
+      {/* Header: título + abas (desktop) */}
+      <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        {/* Voltar (mobile, quando uma seção está aberta) */}
+        {active !== null ? (
+          <button
+            type="button"
+            onClick={() => setActive(null)}
+            className="flex items-center gap-2 text-lg font-semibold text-ink lg:hidden"
+          >
+            <span className="rotate-90 text-muted-ink">
+              <IconChevron size={20} />
+            </span>
+            {TABS.find((t) => t.id === active)?.label}
+          </button>
+        ) : (
+          <h1 className="text-xl font-semibold text-ink lg:text-2xl">Configurações</h1>
+        )}
+        <h1 className="hidden text-xl font-semibold text-ink lg:block lg:text-2xl">
+          Configurações
+        </h1>
 
-      <nav aria-label="Seções das configurações" className="-mx-4 mb-4 overflow-x-auto px-4 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max gap-2">
-          {SECTIONS.map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              className="inline-flex min-h-11 items-center rounded-full border border-[var(--color-soft-border)] bg-[#fffdf8] px-4 text-sm font-medium text-muted shadow-[var(--shadow-soft)] active:bg-[#f2b33d]/15 active:text-[#8a6517]"
+        {/* Abas — só desktop */}
+        <nav className="hidden items-center gap-1 rounded-xl border border-line bg-card p-1 lg:flex">
+          {TABS.map((t) => {
+            const isActive = current === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActive(t.id)}
+                className={
+                  'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ' +
+                  (isActive
+                    ? 'bg-primary text-primary-foreground shadow-[var(--shadow-soft)]'
+                    : 'text-muted-ink hover:bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] hover:text-ink')
+                }
+              >
+                <t.Icon size={16} />
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </header>
+
+      {/* Mobile: lista de seções (some quando uma seção está aberta) */}
+      {active === null && (
+        <div className="flex flex-col gap-2.5 lg:hidden">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActive(t.id)}
+              className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-4 text-left shadow-[var(--shadow-card)] transition-colors active:bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)]"
             >
-              {s.label}
-            </a>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] text-primary">
+                <t.Icon size={20} />
+              </span>
+              <span className="flex-1 text-sm font-semibold text-ink">{t.label}</span>
+              <span className="-rotate-90 text-muted-ink">
+                <IconChevron size={18} />
+              </span>
+            </button>
           ))}
         </div>
-      </nav>
+      )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        {/* Section nav */}
-        <nav className="hidden w-48 shrink-0 lg:block">
-          <div className="sticky top-24 flex flex-col gap-1">
-            {SECTIONS.map((s) => (
-              <a
-                key={s.id}
-                href={`#${s.id}`}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-[#f2b33d]/10 hover:text-[#a67c1e]"
-              >
-                {s.label}
-              </a>
-            ))}
-          </div>
-        </nav>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <SectionCard
-            id="identidade"
-            title="Identidade visual"
-            description="Logo exibido nos materiais e no agendamento online."
+      {/* Conteúdo — desktop sempre; mobile só quando uma seção está aberta */}
+      <div className={active === null ? 'hidden lg:block' : 'block'}>
+        {current === 'detalhes' && (
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6"
           >
-            <ImageUpload
-              value={logoUrl}
-              onChange={(url) => {
-                setLogoUrl(url);
-                markDirty();
-              }}
-              kind="logo"
-              shape="square"
-              size={96}
-              label="Logo da empresa"
-              placeholder="Logo"
-            />
-          </SectionCard>
-
-          <SectionCard
-            id="dados"
-            title="Dados da empresa"
-            description="Informações cadastrais e de contato."
-          >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Nome fantasia">
-                <TextField
-                  value={name}
-                  onChange={(v) => {
-                    setName(v);
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-12">
+              <Field label="Tipo" required span="sm:col-span-1 lg:col-span-4">
+                <SelectInput
+                  value={personType}
+                  onChange={(e) => {
+                    setPersonType(e.target.value);
                     markDirty();
                   }}
-                  aria-label="Nome fantasia"
+                  aria-label="Tipo"
                 >
-                  <Input placeholder="Ex.: Studio Samya" />
-                </TextField>
+                  {PERSON_TYPES.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </SelectInput>
               </Field>
 
-              <Field label="Razão social">
-                <TextField
-                  value={legalName}
-                  onChange={(v) => {
-                    setLegalName(v);
-                    markDirty();
-                  }}
-                  aria-label="Razão social"
-                >
-                  <Input placeholder="Ex.: Samya Beleza LTDA" />
-                </TextField>
-              </Field>
-
-              <Field label="CNPJ">
-                <TextField
+              <Field label="CPF/CNPJ" required span="sm:col-span-1 lg:col-span-4">
+                <TextInput
                   value={cnpj}
-                  onChange={(v) => {
-                    setCnpj(v);
+                  onChange={(e) => {
+                    setCnpj(e.target.value);
                     markDirty();
                   }}
-                  aria-label="CNPJ"
-                >
-                  <Input placeholder="00.000.000/0000-00" />
-                </TextField>
+                  inputMode="numeric"
+                  placeholder="CPF/CNPJ"
+                  style={{ textTransform: 'uppercase' }}
+                  aria-label="CPF/CNPJ"
+                />
               </Field>
 
-              <Field label="Telefone">
-                <TextField
-                  value={phone}
-                  onChange={(v) => {
-                    setPhone(v);
+              <Field label="Nome da empresa" required span="sm:col-span-2 lg:col-span-4">
+                <TextInput
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
                     markDirty();
                   }}
-                  aria-label="Telefone"
-                >
-                  <Input placeholder="(11) 99999-9999" />
-                </TextField>
+                  placeholder="Nome da empresa"
+                  aria-label="Nome da empresa"
+                />
               </Field>
 
-              <Field label="E-mail">
-                <TextField
+              <Field label="Razão social" span="sm:col-span-2 lg:col-span-4">
+                <TextInput
+                  value={legalName}
+                  onChange={(e) => {
+                    setLegalName(e.target.value);
+                    markDirty();
+                  }}
+                  placeholder="Razão social"
+                  aria-label="Razão social"
+                />
+              </Field>
+
+              <Field label="E-mail" span="sm:col-span-1 lg:col-span-4">
+                <TextInput
                   value={email}
-                  onChange={(v) => {
-                    setEmail(v);
+                  onChange={(e) => {
+                    setEmail(e.target.value);
                     markDirty();
                   }}
+                  type="email"
+                  placeholder="E-mail"
                   aria-label="E-mail"
-                >
-                  <Input type="email" placeholder="contato@empresa.com.br" />
-                </TextField>
+                />
               </Field>
 
-              <Field label="Endereço">
-                <TextField
+              <Field label="Telefone" required span="sm:col-span-1 lg:col-span-4">
+                <TextInput
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    markDirty();
+                  }}
+                  type="tel"
+                  placeholder="(11) 99999-9999"
+                  aria-label="Telefone"
+                />
+              </Field>
+
+              <Field label="WhatsApp" span="sm:col-span-2 lg:col-span-4">
+                {/* TODO: sem persistência — campo visual do Belasis. */}
+                <TextInput
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  type="tel"
+                  placeholder="(11) 99999-9999"
+                  aria-label="WhatsApp"
+                />
+              </Field>
+
+              <Field label="CEP" required span="sm:col-span-1 lg:col-span-2">
+                {/* TODO: sem persistência. */}
+                <TextInput
+                  value={cep}
+                  onChange={(e) => setCep(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="CEP"
+                  aria-label="CEP"
+                />
+              </Field>
+
+              <Field label="Endereço" required span="sm:col-span-1 lg:col-span-5">
+                <TextInput
                   value={address}
-                  onChange={(v) => {
-                    setAddress(v);
+                  onChange={(e) => {
+                    setAddress(e.target.value);
                     markDirty();
                   }}
+                  placeholder="Rua, Avenida, Travessa..."
                   aria-label="Endereço"
-                >
-                  <Input placeholder="Rua, número, bairro, cidade" />
-                </TextField>
+                />
               </Field>
-            </div>
-          </SectionCard>
 
-          <SectionCard
-            id="preferencias"
-            title="Preferências"
-            description="Fuso horário e moeda usados nos relatórios e cobranças."
-          >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Fuso horário">
-                <Select
+              <Field label="Bairro" required span="sm:col-span-2 lg:col-span-5">
+                {/* TODO: sem persistência. */}
+                <TextInput
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  placeholder="Bairro"
+                  aria-label="Bairro"
+                />
+              </Field>
+
+              <Field label="Número" required span="sm:col-span-1 lg:col-span-2">
+                {/* TODO: sem persistência. */}
+                <TextInput
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  placeholder="Número"
+                  aria-label="Número"
+                />
+              </Field>
+
+              <Field label="Estado" required span="sm:col-span-1 lg:col-span-5">
+                {/* TODO: sem persistência. */}
+                <SelectInput
+                  value={stateUf}
+                  onChange={(e) => setStateUf(e.target.value)}
+                  aria-label="Estado"
+                >
+                  <option value="">Estado</option>
+                  {UFS.map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+
+              <Field label="Cidade" required span="sm:col-span-2 lg:col-span-5">
+                {/* TODO: sem persistência. */}
+                <TextInput
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Cidade"
+                  aria-label="Cidade"
+                />
+              </Field>
+
+              <Field label="Fuso horário" span="sm:col-span-1 lg:col-span-6">
+                <SelectInput
+                  value={timezone}
+                  onChange={(e) => {
+                    setTimezone(e.target.value);
+                    markDirty();
+                  }}
                   aria-label="Fuso horário"
-                  selectedKey={timezone}
-                  onSelectionChange={(k) => {
-                    if (k) setTimezone(String(k));
-                    markDirty();
-                  }}
                 >
-                  <Select.Trigger>
-                    <Select.Value>
-                      {({ isPlaceholder, selectedText }) =>
-                        isPlaceholder ? 'Selecione o fuso' : selectedText
-                      }
-                    </Select.Value>
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {TIMEZONES.map((tz) => (
-                        <ListBox.Item key={tz.id} id={tz.id} textValue={tz.label}>
-                          {tz.label}
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
+                  {TIMEZONES.map((tz) => (
+                    <option key={tz.id} value={tz.id}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </SelectInput>
               </Field>
 
-              <Field label="Moeda">
-                <Select
-                  aria-label="Moeda"
-                  selectedKey={currency}
-                  onSelectionChange={(k) => {
-                    if (k) setCurrency(String(k));
+              <Field label="Moeda" span="sm:col-span-1 lg:col-span-6">
+                <SelectInput
+                  value={currency}
+                  onChange={(e) => {
+                    setCurrency(e.target.value);
                     markDirty();
                   }}
+                  aria-label="Moeda"
                 >
-                  <Select.Trigger>
-                    <Select.Value>
-                      {({ isPlaceholder, selectedText }) =>
-                        isPlaceholder ? 'Selecione a moeda' : selectedText
-                      }
-                    </Select.Value>
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {CURRENCIES.map((c) => (
-                        <ListBox.Item key={c.id} id={c.id} textValue={c.label}>
-                          {c.label}
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
+                  {CURRENCIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </SelectInput>
               </Field>
             </div>
-          </SectionCard>
 
-          <SectionCard
-            id="whatsapp"
-            title="WhatsApp"
-            description="Conecte o WhatsApp do salão para enviar as confirmações de agendamento aos clientes."
-          >
-            <WhatsappConnectionCard />
-          </SectionCard>
-
-          <SectionCard
-            id="notificacoes"
-            title="Notificações de profissionais"
-            description="Quando ativo, o profissional recebe uma mensagem no WhatsApp pessoal ao ser agendado."
-          >
-            {profItems.length === 0 ? (
-              <p className="text-sm text-muted">Nenhum profissional cadastrado.</p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {profItems.map((p: any) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between rounded-xl border border-default-200 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-foreground">{p.name}</div>
-                      <div className="text-xs text-muted">{p.phone || 'Sem telefone cadastrado'}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateProfessional.mutate({
-                          id: p.id,
-                          body: { notifyWhatsapp: !p.notifyWhatsapp },
-                        })
-                      }
-                      className={
-                        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ' +
-                        (p.notifyWhatsapp ? 'bg-emerald-500' : 'bg-default-300')
-                      }
-                    >
-                      <span
-                        className={
-                          'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ' +
-                          (p.notifyWhatsapp ? 'translate-x-6' : 'translate-x-1')
-                        }
-                      />
-                    </button>
-                  </div>
-                ))}
-              </div>
+            {update.isError && (
+              <p className="mt-4 text-sm text-danger">
+                Não foi possível salvar. Tente novamente.
+              </p>
             )}
-          </SectionCard>
 
-          {update.isError && (
-            <p className="text-sm text-danger">
-              Não foi possível salvar. Tente novamente.
-            </p>
-          )}
-
-          {/* Sticky save bar */}
-          <div className="sticky bottom-0 z-10 -mx-1 flex flex-col items-stretch gap-3 rounded-xl border border-[var(--color-soft-border)] bg-[#fffdf8]/95 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur sm:flex-row sm:items-center sm:justify-end">
-            {saved && !update.isPending && (
-              <span className="text-center text-sm font-medium text-emerald-600 sm:mr-auto sm:text-left">
-                Alterações salvas!
-              </span>
-            )}
-            <Button
-              type="submit"
-              variant="primary"
-              isDisabled={!canSave}
-              className="w-full sm:w-auto"
-            >
-              {update.isPending ? (
-                <>
-                  <Spinner size="sm" /> Salvando…
-                </>
-              ) : (
-                'Salvar alterações'
+            {/* Rodapé do form: Salvar à direita (como no Belasis) */}
+            <div className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+              {saved && !update.isPending && (
+                <span className="text-center text-sm font-medium text-emerald-600 sm:mr-auto sm:text-left">
+                  Alterações salvas!
+                </span>
               )}
-            </Button>
+              <button
+                type="submit"
+                disabled={!canSave}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {update.isPending ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
+                    Salvando…
+                  </>
+                ) : (
+                  'Salvar'
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {current === 'notificacoes' && (
+          <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+            <h2 className="text-base font-semibold text-ink">
+              Notificações de profissionais
+            </h2>
+            <p className="mt-1 text-sm text-muted-ink">
+              Quando ativo, o profissional recebe uma mensagem no WhatsApp pessoal ao ser
+              agendado.
+            </p>
+            <div className="mt-5">
+              {profItems.length === 0 ? (
+                <p className="text-sm text-muted-ink">Nenhum profissional cadastrado.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {profItems.map((p: any) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between rounded-xl border border-line px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-ink">{p.name}</div>
+                        <div className="text-xs text-muted-ink">
+                          {p.phone || 'Sem telefone cadastrado'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateProfessional.mutate({
+                            id: p.id,
+                            body: { notifyWhatsapp: !p.notifyWhatsapp },
+                          })
+                        }
+                        className={
+                          'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ' +
+                          (p.notifyWhatsapp ? 'bg-primary' : 'bg-line')
+                        }
+                        aria-pressed={!!p.notifyWhatsapp}
+                        aria-label={`Notificar ${p.name} no WhatsApp`}
+                      >
+                        <span
+                          className={
+                            'inline-block h-4 w-4 rounded-full bg-card shadow transition-transform ' +
+                            (p.notifyWhatsapp ? 'translate-x-6' : 'translate-x-1')
+                          }
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {current === 'personalizar' && (
+          <div className="flex flex-col gap-5">
+            <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <h2 className="text-base font-semibold text-ink">Identidade visual</h2>
+              <p className="mt-1 text-sm text-muted-ink">
+                Logo exibido nos materiais e no agendamento online.
+              </p>
+              <div className="mt-5">
+                <ImageUpload
+                  value={logoUrl}
+                  onChange={(url) => {
+                    setLogoUrl(url);
+                    markDirty();
+                  }}
+                  kind="logo"
+                  shape="square"
+                  size={96}
+                  label="Logo da empresa"
+                  placeholder="Logo"
+                />
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <h2 className="text-base font-semibold text-ink">Tema de cores</h2>
+              <p className="mt-1 text-sm text-muted-ink">
+                Muda a paleta de todo o sistema. A escolha fica salva neste dispositivo.
+              </p>
+              <div className="mt-4">
+                <ThemeSwitcher />
+              </div>
+            </section>
+
+            {/* O logo/tema é salvo junto com a empresa. */}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleSubmit({ preventDefault() {} } as React.FormEvent)}
+                disabled={!canSave}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {update.isPending ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
           </div>
-        </div>
-      </form>
+        )}
+
+        {current === 'whatsapp' && (
+          <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+            <h2 className="text-base font-semibold text-ink">WhatsApp</h2>
+            <p className="mt-1 text-sm text-muted-ink">
+              Conecte o WhatsApp do salão para enviar as confirmações de agendamento aos
+              clientes.
+            </p>
+            <div className="mt-5">
+              <WhatsappConnectionCard />
+            </div>
+          </section>
+        )}
+      </div>
     </div>
+  );
+}
+
+function PageTitle() {
+  return (
+    <h1 className="mb-5 text-xl font-semibold text-ink lg:text-2xl">Configurações</h1>
   );
 }

@@ -32,6 +32,19 @@ interface NewAppointmentModalProps {
 
 const NONE = '';
 
+// Cores de status do Belasis (mesma paleta calendar_* da Agenda). Usadas no
+// campo "Cor" do drawer, cujo padrão segue a cor do status selecionado.
+const STATUS_COLOR: Record<AppointmentStatus, string> = {
+  scheduled: '#90A4AE',
+  confirmed: '#32c787',
+  unconfirmed: '#2196F3',
+  waiting: '#FFA500',
+  in_progress: '#8b5cf6',
+  done: '#607D8B',
+  finished: '#334155',
+  canceled: '#ff6b68',
+};
+
 type Freq = 'none' | 'weekly' | 'biweekly' | 'monthly';
 const FREQ_OPTIONS: { id: Freq; label: string }[] = [
   { id: 'none', label: 'Não repete' },
@@ -90,7 +103,7 @@ function Toggle({
       <span
         className={
           'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ' +
-          (checked ? 'bg-[#f2b33d]' : 'bg-default-300')
+          (checked ? 'bg-gold' : 'bg-default-300')
         }
       >
         <span
@@ -328,14 +341,18 @@ export function NewAppointmentModal({
     </Button>
   ) : (
     <>
+      {/* Belasis: "Ajuda" fica à esquerda; ações de confirmação à direita. */}
+      <Button variant="ghost" className="mr-auto text-muted" onClick={() => onOpenChange(false)}>
+        Ajuda
+      </Button>
       <Button variant="outline" onClick={() => onOpenChange(false)}>
         Cancelar
       </Button>
+      <Button variant="primary" isDisabled={!canConfirm} onClick={handleConfirm}>
+        {isBusy ? 'Salvando…' : 'Salvar'}
+      </Button>
       <Button variant="outline" isDisabled={!canConfirm} onClick={handleComanda}>
         Criar comanda
-      </Button>
-      <Button variant="primary" isDisabled={!canConfirm} onClick={handleConfirm}>
-        {isBusy ? 'Salvando…' : 'Confirmar agendamento'}
       </Button>
     </>
   );
@@ -377,7 +394,7 @@ export function NewAppointmentModal({
                           setNewName('');
                           setNewPhone('');
                         }}
-                        className="text-xs font-medium text-[#a67c1e] hover:underline"
+                        className="text-xs font-medium text-gold-strong hover:underline"
                       >
                         {creatingNew ? 'Buscar existente' : '+ Novo cliente'}
                       </button>
@@ -426,13 +443,13 @@ export function NewAppointmentModal({
                   <Section title="Data">
                     <div className="rounded-xl border border-default-200 px-3.5 py-3">
                       <div className="text-sm font-semibold text-foreground">{formatFullDate(date)}</div>
-                      <label className="mt-1 flex items-center gap-2 text-xs font-medium text-[#a67c1e]">
+                      <label className="mt-1 flex items-center gap-2 text-xs font-medium text-gold-strong">
                         Buscar no calendário
                         <input
                           type="date"
                           value={date}
                           onChange={(e) => setDate(e.target.value)}
-                          className="bg-transparent text-xs text-[#a67c1e] outline-none"
+                          className="bg-transparent text-xs text-gold-strong outline-none"
                         />
                       </label>
                     </div>
@@ -460,8 +477,20 @@ export function NewAppointmentModal({
                     </Select>
                   </Section>
 
-                  {/* ── Serviço ─────────────────────────────────────────── */}
-                  <Section title="Serviço">
+                  {/* ── Cor ─────────────────────────────────────────────── */}
+                  <Section title="Cor">
+                    <div className="flex items-center gap-2.5 rounded-xl border border-default-200 px-3.5 py-3">
+                      <span
+                        className="h-4 w-4 shrink-0 rounded-full ring-2 ring-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+                        style={{ backgroundColor: STATUS_COLOR[status] }}
+                      />
+                      <span className="text-sm text-foreground">Padrão</span>
+                      {/* TODO: cor personalizada por agendamento (Belasis) — hoje segue a cor do status */}
+                    </div>
+                  </Section>
+
+                  {/* ── Itens do agendamento ────────────────────────────── */}
+                  <Section title="Itens do agendamento">
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-muted">Serviço</label>
                       <Select
@@ -491,7 +520,7 @@ export function NewAppointmentModal({
                     {selectedService?.description && (
                       <div className="flex flex-col gap-1">
                         <label className="text-xs font-medium text-muted">Descrição</label>
-                        <p className="rounded-lg bg-[#f7f3ea] px-3 py-2 text-sm text-muted">
+                        <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted">
                           {selectedService.description}
                         </p>
                       </div>
@@ -656,14 +685,14 @@ export function NewAppointmentModal({
                     )}
                   </Section>
 
-                  {/* ── Observação ──────────────────────────────────────── */}
-                  <Section title="Observação">
+                  {/* ── Observações ─────────────────────────────────────── */}
+                  <Section title="Observações">
                     <textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       rows={3}
                       placeholder="Alguma observação…"
-                      className="resize-none rounded-xl border border-default-200 bg-transparent px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-[#f2b33d]"
+                      className="resize-none rounded-xl border border-default-200 bg-transparent px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-gold"
                     />
                   </Section>
 

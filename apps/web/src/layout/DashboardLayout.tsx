@@ -50,7 +50,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         {/* Backdrop fades */}
         <div
           className={[
-            'absolute inset-0 bg-black/40 transition-opacity duration-300 ease-out',
+            'absolute inset-0 cursor-pointer bg-black/40 transition-opacity duration-300 ease-out',
             drawerOpen ? 'opacity-100' : 'opacity-0',
           ].join(' ')}
           onClick={() => setDrawerOpen(false)}
@@ -71,11 +71,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           aria-label="Fechar menu"
           tabIndex={drawerOpen ? 0 : -1}
           className={[
-            'absolute right-4 top-4 rounded-full bg-white/20 p-2 text-white transition-opacity duration-300',
+            'absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-black/45 px-3 py-2 text-xs font-medium text-white shadow-lg backdrop-blur-sm transition-opacity duration-300',
             drawerOpen ? 'opacity-100' : 'opacity-0',
           ].join(' ')}
         >
-          <IconClose size={20} />
+          <IconClose size={17} />
+          Fechar
         </button>
       </div>
 
@@ -89,7 +90,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </main>
         ) : (
           <main className="db-canvas min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
-            <div className="mobile-page-content mx-auto min-w-0 max-w-[1400px] px-4 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-6 lg:px-8 lg:py-8 lg:pb-8">
+            <div className="mobile-page-content mx-auto min-w-0 max-w-[1560px] px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 sm:pt-5 lg:px-5 lg:py-6 lg:pb-6">
               {children}
             </div>
           </main>

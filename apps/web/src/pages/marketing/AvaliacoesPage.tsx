@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button, Card, Chip, Switch, Tabs } from '@heroui/react';
+import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { Button, Card, Chip, Switch } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, LoadingState } from '../../components/States';
@@ -7,10 +7,11 @@ import { DateRangeFilter } from '../../components/DateRangeFilter';
 import {
   IconArrowDown,
   IconArrowUp,
-  IconChart,
   IconDownload,
+  IconHome,
   IconMessage,
-  IconSparkles,
+  IconPercent,
+  IconSettings,
   IconStar,
 } from '../../components/icons';
 import { formatDate, isoDate } from '../../lib/format';
@@ -31,6 +32,10 @@ function defaultRange() {
   return { from: isoDate(from), to: isoDate(to) };
 }
 
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] || name;
+}
+
 function Stars({ rating, size = 15 }: { rating: number; size?: number }) {
   const rounded = Math.round(rating);
   return (
@@ -39,7 +44,7 @@ function Stars({ rating, size = 15 }: { rating: number; size?: number }) {
         <IconStar
           key={n}
           size={size}
-          className={n <= rounded ? 'text-[#f2b33d]' : 'text-default-200'}
+          className={n <= rounded ? 'text-gold' : 'text-default-200'}
         />
       ))}
     </span>
@@ -79,7 +84,7 @@ function initials(name: string) {
 function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#f2b33d]/20 font-semibold text-[#8a6517]"
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-gold/20 font-semibold text-gold-strong"
       style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
       {initials(name)}
@@ -91,7 +96,7 @@ function Avatar({ name, size = 40 }: { name: string; size?: number }) {
 function Delta({ value, suffix = '' }: { value: number; suffix?: string }) {
   const rounded = Math.round(value * 10) / 10;
   if (rounded === 0) {
-    return <span className="text-xs text-muted">—</span>;
+    return <span className="text-xs text-muted-ink">—</span>;
   }
   const up = rounded > 0;
   const abs = Math.abs(rounded);
@@ -109,6 +114,10 @@ function Delta({ value, suffix = '' }: { value: number; suffix?: string }) {
   );
 }
 
+/**
+ * Belasis metric tile: white rounded card, ~140px tall, icon anchored top-right,
+ * big 26px value stacked over a muted label (`wb__sc-v9hleu-5`).
+ */
 function MetricCard({
   icon,
   value,
@@ -121,18 +130,12 @@ function MetricCard({
   footer?: ReactNode;
 }) {
   return (
-    <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
-      <Card.Content className="flex h-full flex-col gap-1 p-4">
-        <div className="flex items-start justify-between">
-          <span className="text-2xl font-bold leading-tight text-[#111111] sm:text-3xl">
-            {value}
-          </span>
-          <span className="text-[#f2b33d]">{icon}</span>
-        </div>
-        <span className="text-xs font-medium text-muted sm:text-sm">{label}</span>
-        {footer && <div className="mt-auto pt-1">{footer}</div>}
-      </Card.Content>
-    </Card>
+    <div className="relative flex h-[140px] flex-col justify-center rounded-xl border border-line bg-warm-white p-3 shadow-[var(--shadow-card)]">
+      <span className="absolute right-2.5 top-2.5">{icon}</span>
+      <span className="text-[26px] font-bold leading-none text-ink">{value}</span>
+      <span className="mt-1.5 text-sm text-muted-ink">{label}</span>
+      {footer && <div className="mt-1.5">{footer}</div>}
+    </div>
   );
 }
 
@@ -150,7 +153,7 @@ function PainelTab({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+      <Card className="border border-line bg-warm-white shadow-[var(--shadow-card)]">
         <Card.Content className="p-4">
           <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
         </Card.Content>
@@ -160,27 +163,29 @@ function PainelTab({
         <LoadingState />
       ) : (
         <>
-          <div>
-            <h2 className="mb-3 text-sm font-semibold text-foreground">
+          {/* Métricas do seu estabelecimento */}
+          <div className="flex flex-col">
+            <h2 className="mb-2.5 text-base font-semibold text-ink">
               Métricas do seu estabelecimento
             </h2>
             <div className="grid grid-cols-2 gap-3">
               <MetricCard
-                icon={<IconStar size={18} />}
+                icon={<IconStar size={26} className="text-gold" />}
                 value={(data?.current.average ?? 0).toFixed(1)}
                 label="Média das avaliações"
                 footer={<Delta value={(data?.current.average ?? 0) - (data?.previous.average ?? 0)} />}
               />
               <MetricCard
-                icon={<IconChart size={18} />}
+                icon={<IconMessage size={26} className="text-pink" />}
                 value={data?.current.count ?? 0}
                 label="Quantidade de avaliações"
                 footer={<Delta value={(data?.current.count ?? 0) - (data?.previous.count ?? 0)} />}
               />
               <MetricCard
-                icon={<IconMessage size={18} />}
+                icon={<IconPercent size={26} className="text-primary" />}
+                // TODO: Belasis usa response_rate; usamos commentRate (campo disponível).
                 value={`${Math.round((data?.current.commentRate ?? 0) * 100)}%`}
-                label="Taxa de comentários"
+                label="Taxa de resposta"
                 footer={
                   <Delta
                     value={
@@ -192,46 +197,34 @@ function PainelTab({
                 }
               />
               <MetricCard
-                icon={<IconSparkles size={18} />}
-                value={data?.best ? data.best.rating.toFixed(1) : '—'}
+                icon={data?.best ? <Avatar name={data.best.name} size={32} /> : <IconStar size={26} className="text-gold" />}
+                value={data?.best ? data.best.rating.toFixed(1) : '0.0'}
                 label={
-                  data?.best ? `Melhor avaliado(a): ${data.best.name}` : 'Melhor avaliado(a)'
+                  data?.best ? `Melhor avaliado(a) ${firstName(data.best.name)}` : 'Melhor avaliado(a)'
                 }
-                footer={data?.best ? <Stars rating={data.best.rating} size={13} /> : undefined}
               />
             </div>
           </div>
 
-          <div>
-            <h2 className="mb-3 text-sm font-semibold text-foreground">
-              Médias dos profissionais
-            </h2>
+          {/* Médias dos profissionais — carrossel horizontal (wb__sc-1i8gh11) */}
+          <div className="flex flex-col">
+            <h2 className="mb-1 text-base font-semibold text-ink">Médias dos profissionais</h2>
             {data && data.professionals.length > 0 ? (
-              <div className="flex flex-col gap-2">
+              <div className="flex gap-2.5 overflow-x-auto whitespace-nowrap pb-3.5 pt-2.5">
                 {data.professionals.map((p: ProfessionalRating) => (
-                  <Card
+                  <div
                     key={p.id}
-                    className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]"
+                    className="flex min-w-[110px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-line bg-card p-2.5 shadow-[var(--shadow-card)]"
                   >
-                    <Card.Content className="flex items-center gap-3 p-3">
-                      <Avatar name={p.name} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">{p.name}</p>
-                        <div className="flex items-center gap-2">
-                          <Stars rating={p.rating} size={13} />
-                          <span className="text-xs text-muted">
-                            {p.count} avaliação(ões)
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className="text-lg font-bold text-[#111111]">
-                          {p.rating.toFixed(1)}
-                        </span>
-                        <Delta value={p.rating - p.oldRating} />
-                      </div>
-                    </Card.Content>
-                  </Card>
+                    <Avatar name={p.name} size={60} />
+                    <span className="mt-1 w-[110px] truncate text-center text-sm text-ink">
+                      {firstName(p.name)}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <IconStar size={14} className="text-gold" />
+                      <span className="text-sm text-ink">{p.rating.toFixed(1)}</span>
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -287,12 +280,12 @@ function AvaliacoesTab({
   return (
     <div className="flex flex-col gap-4">
       {/* Filters */}
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+      <Card className="border border-line bg-warm-white shadow-[var(--shadow-card)]">
         <Card.Content className="flex flex-col gap-3 p-4">
           <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted">Nota</span>
+              <span className="text-xs font-medium text-muted-ink">Nota</span>
               <div className="flex flex-wrap gap-1.5">
                 {RATING_OPTIONS.map(([key, label]) => {
                   const isActive = ratingFilter === key;
@@ -304,8 +297,8 @@ function AvaliacoesTab({
                       className={[
                         'min-h-10 rounded-lg px-3 py-1.5 text-sm font-medium transition-all',
                         isActive
-                          ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]'
-                          : 'text-[#6f6a63] hover:bg-[#f2b33d]/15 hover:text-[#a67c1e]',
+                          ? 'bg-gold text-primary-foreground shadow-[var(--shadow-gold)]'
+                          : 'text-muted-ink hover:bg-gold/15 hover:text-gold-strong',
                       ].join(' ')}
                     >
                       {label}
@@ -326,15 +319,15 @@ function AvaliacoesTab({
       ) : (
         <>
           {/* Average summary */}
-          <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+          <Card className="border border-line bg-warm-white shadow-[var(--shadow-card)]">
             <Card.Content className="flex flex-wrap items-center justify-between gap-4 p-6">
               <div className="flex items-center gap-4">
-                <div className="text-5xl font-bold text-[#111111]">
+                <div className="text-5xl font-bold text-ink">
                   {(data?.average ?? 0).toFixed(1)}
                 </div>
                 <div>
                   <Stars rating={Math.round(data?.average ?? 0)} size={18} />
-                  <p className="mt-1 text-sm text-muted">
+                  <p className="mt-1 text-sm text-muted-ink">
                     {data?.count ?? 0} avaliação(ões) no período
                   </p>
                 </div>
@@ -345,12 +338,12 @@ function AvaliacoesTab({
                   const total = data?.count ?? 0;
                   const pct = total > 0 ? Math.round((n / total) * 100) : 0;
                   return (
-                    <div key={star} className="flex items-center gap-2 text-xs text-muted">
+                    <div key={star} className="flex items-center gap-2 text-xs text-muted-ink">
                       <span className="w-3">{star}</span>
-                      <IconStar size={12} className="text-[#f2b33d]" />
+                      <IconStar size={12} className="text-gold" />
                       <div className="h-1.5 w-32 overflow-hidden rounded-full bg-default-100">
                         <div
-                          className="h-full rounded-full bg-[#f2b33d]"
+                          className="h-full rounded-full bg-gold"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -382,21 +375,24 @@ function AvaliacoesTab({
               {rows.map((r) => (
                 <Card
                   key={r.id}
-                  className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]"
+                  className="border border-line bg-warm-white shadow-[var(--shadow-card)]"
                 >
                   <Card.Content className="p-4">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <Stars rating={r.rating} />
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {r.customer?.name ?? 'Cliente'}
-                        </span>
+                        <Avatar name={r.customer?.name ?? 'Cliente'} size={36} />
+                        <div className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-ink">
+                            {r.customer?.name ?? 'Cliente'}
+                          </span>
+                          <Stars rating={r.rating} />
+                        </div>
                       </div>
-                      <span className="shrink-0 text-xs text-muted">
+                      <span className="shrink-0 text-xs text-muted-ink">
                         {formatDate(r.createdAt)}
                       </span>
                     </div>
-                    {r.comment && <p className="text-sm text-foreground">{r.comment}</p>}
+                    {r.comment && <p className="mt-2 text-sm text-ink">{r.comment}</p>}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {r.professional && (
                         <Chip variant="soft" color="accent" size="sm">
@@ -437,13 +433,13 @@ function LabeledTextarea({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      {hint && <span className="text-xs text-muted">{hint}</span>}
+      <span className="text-sm font-medium text-ink">{label}</span>
+      {hint && <span className="text-xs text-muted-ink">{hint}</span>}
       <textarea
         value={value}
         rows={rows}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-[var(--color-soft-border)] bg-white px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/20"
+        className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-gold focus:ring-2 focus:ring-gold/20"
       />
     </label>
   );
@@ -492,16 +488,16 @@ function ConfiguracoesTab() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+      <Card className="border border-line bg-warm-white shadow-[var(--shadow-card)]">
         <Card.Content className="flex flex-col gap-5 p-4 sm:p-6">
           <Switch
             isSelected={form.moduleActive}
             onChange={(v: boolean) => set('moduleActive', v)}
             className="flex w-full items-center justify-between gap-3"
           >
-            <span className="min-w-0 text-sm text-foreground">
+            <span className="min-w-0 text-sm text-ink">
               Solicitar avaliação
-              <span className="block text-xs text-muted">
+              <span className="block text-xs text-muted-ink">
                 Enviar pedido de avaliação aos clientes após o atendimento.
               </span>
             </span>
@@ -510,8 +506,8 @@ function ConfiguracoesTab() {
             </Switch.Control>
           </Switch>
 
-          <div className="flex flex-col gap-4 border-t border-[var(--color-soft-border)] pt-4">
-            <h3 className="text-sm font-semibold text-foreground">Página de avaliação</h3>
+          <div className="flex flex-col gap-4 border-t border-line pt-4">
+            <h3 className="text-sm font-semibold text-ink">Página de avaliação</h3>
             <LabeledTextarea
               label="Título"
               value={form.headerTitle}
@@ -536,8 +532,8 @@ function ConfiguracoesTab() {
             />
           </div>
 
-          <div className="flex flex-col gap-4 border-t border-[var(--color-soft-border)] pt-4">
-            <h3 className="text-sm font-semibold text-foreground">Solicitação de avaliação</h3>
+          <div className="flex flex-col gap-4 border-t border-line pt-4">
+            <h3 className="text-sm font-semibold text-ink">Solicitação de avaliação</h3>
             <LabeledTextarea
               label="Mensagem de solicitação"
               hint="Use %NOME% para o nome do cliente e %LINK% para o link da avaliação."
@@ -546,7 +542,7 @@ function ConfiguracoesTab() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-[var(--color-soft-border)] pt-4">
+          <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
             <Button variant="primary" onClick={save} isDisabled={update.isPending}>
               {update.isPending ? 'Salvando…' : 'Salvar'}
             </Button>
@@ -561,31 +557,48 @@ function ConfiguracoesTab() {
 
 // ---------------------------------------------------------------------- Page
 
+type TabId = 'painel' | 'avaliacoes' | 'config';
+
+const TABS: { id: TabId; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
+  { id: 'painel', label: 'Painel', icon: IconHome },
+  { id: 'avaliacoes', label: 'Avaliações', icon: IconStar },
+  { id: 'config', label: 'Configurações', icon: IconSettings },
+];
+
 export function AvaliacoesPage() {
   const [range, setRange] = useState(defaultRange);
-  const [tab, setTab] = useState('painel');
+  const [tab, setTab] = useState<TabId>('painel');
 
   return (
     <div>
       <PageHeader title="Avaliações" subtitle="Notas e comentários dos clientes" />
 
-      <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-        <Tabs.List className="mb-4 w-full overflow-x-auto">
-          <Tabs.Tab id="painel">Painel</Tabs.Tab>
-          <Tabs.Tab id="avaliacoes">Avaliações</Tabs.Tab>
-          <Tabs.Tab id="config">Configurações</Tabs.Tab>
-        </Tabs.List>
+      {/* Belasis underline tab bar (wb__sc-11qvk6f) */}
+      <div className="mb-4 flex gap-8 overflow-x-auto border-b border-line">
+        {TABS.map(({ id, label, icon: Icon }) => {
+          const isActive = tab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={[
+                'relative flex shrink-0 items-center gap-2 whitespace-nowrap pb-3 pt-1 text-sm transition-colors',
+                isActive
+                  ? 'font-semibold text-ink after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-primary after:content-[""]'
+                  : 'text-muted-ink hover:text-ink',
+              ].join(' ')}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
-        <Tabs.Panel id="painel">
-          <PainelTab range={range} setRange={setRange} />
-        </Tabs.Panel>
-        <Tabs.Panel id="avaliacoes">
-          <AvaliacoesTab range={range} setRange={setRange} />
-        </Tabs.Panel>
-        <Tabs.Panel id="config">
-          <ConfiguracoesTab />
-        </Tabs.Panel>
-      </Tabs>
+      {tab === 'painel' && <PainelTab range={range} setRange={setRange} />}
+      {tab === 'avaliacoes' && <AvaliacoesTab range={range} setRange={setRange} />}
+      {tab === 'config' && <ConfiguracoesTab />}
     </div>
   );
 }

@@ -37,7 +37,7 @@ import type {
 } from '../lib/types';
 
 const CARD =
-  'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+  'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
 
 const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   pending: 'Pendente',
@@ -227,7 +227,7 @@ function ComandaDetalhe({ order, onBack }: { order: OrderDetail; onBack: () => v
       </Card>
 
       {/* Sticky footer actions */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-soft-border)] bg-[#fffdf8]/95 p-3 backdrop-blur sm:left-auto sm:right-6">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-soft-border)] bg-warm-white/95 p-3 backdrop-blur sm:left-auto sm:right-6">
         <div className="mx-auto flex max-w-3xl flex-col gap-2">
           {actionError && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">

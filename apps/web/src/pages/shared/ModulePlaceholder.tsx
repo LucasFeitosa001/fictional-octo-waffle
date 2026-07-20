@@ -58,7 +58,7 @@ export function ModulePlaceholder({
         'inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-medium transition-colors sm:w-auto';
       const style =
         variant === 'primary'
-          ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)] hover:bg-[#e6a92f]'
+          ? 'bg-gold text-ink shadow-[var(--shadow-gold)] hover:bg-[#e6a92f]'
           : 'border border-default-300 bg-white text-foreground hover:bg-default-50';
       return (
         <a
@@ -87,15 +87,15 @@ export function ModulePlaceholder({
     <div>
       <PageHeader title={title} subtitle={subtitle} />
 
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+      <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
         <Card.Content className="flex flex-col items-center gap-5 px-5 py-12 text-center sm:py-16">
-          <span className="grid h-16 w-16 place-items-center rounded-2xl bg-[#f2b33d]/15 text-[#a67c1e]">
+          <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gold/15 text-gold-strong">
             {icon}
           </span>
 
           {statusLabel && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f2b33d]/40 bg-[#f2b33d]/10 px-3 py-1 text-xs font-semibold text-[#a67c1e]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#f2b33d]" />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold-strong">
+              <span className="h-1.5 w-1.5 rounded-full bg-gold" />
               {statusLabel}
             </span>
           )}
@@ -109,7 +109,7 @@ export function ModulePlaceholder({
             <ul className="flex w-full max-w-md flex-col gap-2 text-left">
               {bullets.map((b) => (
                 <li key={b} className="flex items-start gap-2.5 text-sm text-foreground">
-                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#f2b33d]/15 text-[#a67c1e]">
+                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gold/15 text-gold-strong">
                     <IconCheck size={13} />
                   </span>
                   <span className="leading-snug">{b}</span>

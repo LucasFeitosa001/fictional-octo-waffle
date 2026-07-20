@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Input, Spinner, TextField } from '@heroui/react';
+import { useLocation } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { useSession } from '../lib/auth';
 import { api } from '../lib/api';
 
-const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+const CARD = 'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
 
 const PLAN_START = new Date('2026-06-13T00:00:00-03:00');
 const PLAN_PRICE = 199;
@@ -52,6 +53,7 @@ function generateInvoices(): { period: string; due: string; amount: number; stat
 }
 
 export function PerfilPage() {
+  const { hash } = useLocation();
   const { data: session } = useSession();
   const user = session?.user;
 
@@ -62,6 +64,14 @@ export function PerfilPage() {
   useEffect(() => {
     if (user?.name) setName(user.name);
   }, [user?.name]);
+
+  useEffect(() => {
+    if (hash !== '#assinatura') return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById('assinatura')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hash]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -117,21 +127,21 @@ export function PerfilPage() {
         </Card>
 
         {/* Plano */}
-        <Card className={CARD}>
+        <Card id="assinatura" className={CARD}>
           <Card.Header className="p-5 pb-0">
             <Card.Title>Plano</Card.Title>
           </Card.Header>
           <Card.Content className="flex flex-col gap-4 p-5">
-            <div className="flex items-center gap-4 rounded-xl bg-[#f2b33d]/10 px-4 py-3">
+            <div className="flex items-center gap-4 rounded-xl bg-gold/10 px-4 py-3">
               <div className="flex-1">
-                <div className="text-sm font-semibold text-[#111111]">Plano Pro</div>
-                <div className="text-xs text-[#6f6a63]">
+                <div className="text-sm font-semibold text-ink">Plano Pro</div>
+                <div className="text-xs text-muted-ink">
                   Ativo desde {formatDate(PLAN_START)}
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-lg font-bold text-[#111111]">
-                  <span className="text-sm font-normal text-[#6f6a63] line-through">{formatMoney(PLAN_PRICE)}</span>{' '}
+                <div className="text-lg font-bold text-ink">
+                  <span className="text-sm font-normal text-muted-ink line-through">{formatMoney(PLAN_PRICE)}</span>{' '}
                   {formatMoney(0)}
                 </div>
                 <div className="text-xs font-medium text-emerald-600">Cortesia aplicada</div>
@@ -143,20 +153,20 @@ export function PerfilPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--color-soft-border)] bg-[#faf6ec]">
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#6f6a63]">Período</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#6f6a63]">Vencimento</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#6f6a63]">Valor</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#6f6a63]">Status</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-ink">Período</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-ink">Vencimento</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-ink">Valor</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-ink">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map((inv, i) => (
                     <tr key={i} className="border-b border-[var(--color-soft-border)] last:border-0">
-                      <td className="px-4 py-2.5 text-[#111111]">{inv.period}</td>
-                      <td className="px-4 py-2.5 text-[#6f6a63]">{inv.due}</td>
+                      <td className="px-4 py-2.5 text-ink">{inv.period}</td>
+                      <td className="px-4 py-2.5 text-muted-ink">{inv.due}</td>
                       <td className="px-4 py-2.5 text-right">
                         {inv.amount > 0 ? (
-                          <span className="font-medium text-[#111111]">{formatMoney(inv.amount)}</span>
+                          <span className="font-medium text-ink">{formatMoney(inv.amount)}</span>
                         ) : (
                           <span className="font-medium text-emerald-600">{formatMoney(0)}</span>
                         )}
@@ -168,7 +178,7 @@ export function PerfilPage() {
                           </span>
                         )}
                         {inv.status === 'futuro' && (
-                          <span className="inline-block rounded-full bg-[#f7f3ea] px-2.5 py-0.5 text-xs font-semibold text-[#6f6a63]">
+                          <span className="inline-block rounded-full bg-cream px-2.5 py-0.5 text-xs font-semibold text-muted-ink">
                             Futuro
                           </span>
                         )}
@@ -179,7 +189,7 @@ export function PerfilPage() {
               </table>
             </div>
 
-            <p className="text-xs text-[#6f6a63]">
+            <p className="text-xs text-muted-ink">
               O valor padrão do plano é {formatMoney(PLAN_PRICE)}/mês. Atualmente você possui um desconto de cortesia de 100% aplicado.
             </p>
           </Card.Content>

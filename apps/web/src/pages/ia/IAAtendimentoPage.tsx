@@ -153,7 +153,7 @@ const SEED_FAQ: FaqItem[] = [
 
 function IaBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[#f2b33d]/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#a67c1e]">
+    <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold-strong">
       <IconSparkles size={11} /> IA
     </span>
   );
@@ -171,7 +171,7 @@ function MetricCard({
   accent: string;
 }) {
   return (
-    <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-soft)]">
+    <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-soft)]">
       <Card.Content className="flex items-center gap-3 p-4">
         <span
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl"
@@ -181,7 +181,7 @@ function MetricCard({
         </span>
         <div className="min-w-0">
           <p className="truncate text-xs text-muted">{label}</p>
-          <p className="text-lg font-bold text-[#111111]">{value}</p>
+          <p className="text-lg font-bold text-ink">{value}</p>
         </div>
       </Card.Content>
     </Card>
@@ -205,7 +205,7 @@ function ToggleSwitch({
       aria-label={label}
       onClick={onChange}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-        checked ? 'bg-[#f2b33d]' : 'bg-default-300'
+        checked ? 'bg-gold' : 'bg-default-300'
       }`}
     >
       <span
@@ -317,7 +317,7 @@ export function IAAtendimentoPage() {
                 'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
                 connected
                   ? 'border-[#25D366]/40 bg-[#25D366]/10 text-[#128C3E]'
-                  : 'border-default-300 bg-white text-[#6f6a63] hover:bg-default-50',
+                  : 'border-default-300 bg-white text-muted-ink hover:bg-default-50',
               ].join(' ')}
             >
               <IconWhatsApp size={16} />
@@ -327,9 +327,9 @@ export function IAAtendimentoPage() {
               />
             </button>
             {/* Auto-reply */}
-            <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-soft-border)] bg-[#fffdf8] px-3 py-2 shadow-[var(--shadow-soft)]">
-              <IconBot size={16} className="text-[#a67c1e]" />
-              <span className="text-sm font-medium text-[#111111]">Auto-resposta</span>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-soft-border)] bg-warm-white px-3 py-2 shadow-[var(--shadow-soft)]">
+              <IconBot size={16} className="text-gold-strong" />
+              <span className="text-sm font-medium text-ink">Auto-resposta</span>
               <ToggleSwitch
                 checked={autoReply}
                 onChange={() => setAutoReply((v) => !v)}
@@ -343,25 +343,25 @@ export function IAAtendimentoPage() {
       {/* Metrics strip */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard
-          icon={<IconMessage size={20} className="text-[#a67c1e]" />}
+          icon={<IconMessage size={20} className="text-gold-strong" />}
           label="Conversas hoje"
           value={String(metrics.today)}
           accent="rgba(242,179,61,0.15)"
         />
         <MetricCard
-          icon={<IconCalendarPlus size={20} className="text-[#a67c1e]" />}
+          icon={<IconCalendarPlus size={20} className="text-gold-strong" />}
           label="Agendamentos pela IA"
           value={String(metrics.byAi)}
           accent="rgba(242,179,61,0.15)"
         />
         <MetricCard
-          icon={<IconClock size={20} className="text-[#f08ca5]" />}
+          icon={<IconClock size={20} className="text-pink" />}
           label="Tempo médio de resposta"
           value="8s"
           accent="rgba(240,140,165,0.15)"
         />
         <MetricCard
-          icon={<IconCircleCheck size={20} className="text-[#a67c1e]" />}
+          icon={<IconCircleCheck size={20} className="text-gold-strong" />}
           label="Taxa de resolução"
           value={`${metrics.rate}%`}
           accent="rgba(242,179,61,0.15)"
@@ -372,13 +372,13 @@ export function IAAtendimentoPage() {
       <div className="mb-5 grid gap-4 lg:grid-cols-[320px_1fr]">
         {/* Conversation list */}
         <Card
-          className={`min-w-0 overflow-hidden border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)] ${
+          className={`min-w-0 overflow-hidden border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] ${
             threadOpenMobile ? 'hidden lg:block' : ''
           }`}
         >
           <div className="flex items-center justify-between border-b border-[var(--color-soft-border)] px-4 py-3">
-            <p className="font-brand text-sm font-semibold text-[#111111]">Conversas</p>
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#f2b33d]/15 px-2 py-0.5 text-xs font-semibold text-[#a67c1e]">
+            <p className="font-brand text-sm font-semibold text-ink">Conversas</p>
+            <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-strong">
               <IconWhatsApp size={12} /> {conversations.length}
             </span>
           </div>
@@ -393,26 +393,26 @@ export function IAAtendimentoPage() {
                   onClick={() => selectConversation(c.id)}
                   className={[
                     'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
-                    isActive ? 'bg-[#f2b33d]/10' : 'hover:bg-[#f7f3ea]',
+                    isActive ? 'bg-gold/10' : 'hover:bg-cream',
                   ].join(' ')}
                 >
                   <Avatar size="sm">
-                    <Avatar.Fallback className="bg-[#111111] text-[#f2b33d]">
+                    <Avatar.Fallback className="bg-ink text-gold">
                       {initials(c.name)}
                     </Avatar.Fallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-[#111111]">{c.name}</span>
+                      <span className="truncate text-sm font-semibold text-ink">{c.name}</span>
                       {c.handledByAi && <IaBadge />}
                     </div>
-                    <p className="truncate text-xs text-[#6f6a63]">
+                    <p className="truncate text-xs text-muted-ink">
                       {last.sender === 'customer' ? '' : '✓ '}
                       {last.text}
                     </p>
                   </div>
                   {c.unread > 0 && (
-                    <span className="mt-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#f08ca5] px-1 text-[11px] font-bold text-white">
+                    <span className="mt-1 grid h-5 min-w-5 place-items-center rounded-full bg-pink px-1 text-[11px] font-bold text-white">
                       {c.unread}
                     </span>
                   )}
@@ -424,7 +424,7 @@ export function IAAtendimentoPage() {
 
         {/* Thread */}
         <Card
-          className={`min-h-[560px] min-w-0 flex-col border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)] lg:flex ${
+          className={`min-h-[560px] min-w-0 flex-col border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] lg:flex ${
             threadOpenMobile ? 'flex' : 'hidden'
           }`}
         >
@@ -437,27 +437,27 @@ export function IAAtendimentoPage() {
                     type="button"
                     onClick={() => setThreadOpenMobile(false)}
                     aria-label="Voltar para conversas"
-                    className="-ml-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#6f6a63] transition-colors hover:bg-[#f7f3ea] hover:text-[#111111] lg:hidden"
+                    className="-ml-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-cream hover:text-ink lg:hidden"
                   >
                     <IconChevron size={20} className="rotate-90" />
                   </button>
                   <Avatar size="sm">
-                    <Avatar.Fallback className="bg-[#111111] text-[#f2b33d]">
+                    <Avatar.Fallback className="bg-ink text-gold">
                       {initials(selected.name)}
                     </Avatar.Fallback>
                   </Avatar>
                   <div>
-                    <p className="text-sm font-semibold text-[#111111]">{selected.name}</p>
-                    <p className="text-xs text-[#6f6a63]">{selected.phone}</p>
+                    <p className="text-sm font-semibold text-ink">{selected.name}</p>
+                    <p className="text-xs text-muted-ink">{selected.phone}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {selected.handledByAi ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f2b33d]/15 px-2.5 py-1 text-xs font-semibold text-[#a67c1e]">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold-strong">
                       <IconBot size={13} /> IA no comando
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f08ca5]/15 px-2.5 py-1 text-xs font-semibold text-[#c25d77]">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-pink/15 px-2.5 py-1 text-xs font-semibold text-[#c25d77]">
                       Atendente
                     </span>
                   )}
@@ -480,10 +480,10 @@ export function IAAtendimentoPage() {
                         className={[
                           'max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-[var(--shadow-soft)]',
                           isCustomer
-                            ? 'rounded-tl-sm bg-white text-[#111111]'
+                            ? 'rounded-tl-sm bg-white text-ink'
                             : m.sender === 'ai'
-                              ? 'rounded-tr-sm bg-[#f2b33d] text-[#111111]'
-                              : 'rounded-tr-sm bg-[#111111] text-white',
+                              ? 'rounded-tr-sm bg-gold text-ink'
+                              : 'rounded-tr-sm bg-ink text-white',
                         ].join(' ')}
                       >
                         {m.sender === 'ai' && (
@@ -513,7 +513,7 @@ export function IAAtendimentoPage() {
               {/* Composer */}
               <div className="border-t border-[var(--color-soft-border)] p-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white focus-within:border-[#f2b33d] focus-within:ring-2 focus-within:ring-[#f2b33d]/25">
+                  <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/25">
                     <TextField
                       value={draft}
                       onChange={setDraft}
@@ -536,7 +536,7 @@ export function IAAtendimentoPage() {
                     variant="primary"
                     onClick={() => sendMessage(true)}
                     isDisabled={!draft.trim()}
-                    className="bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)] hover:bg-[#e6a92f]"
+                    className="bg-gold text-ink shadow-[var(--shadow-gold)] hover:bg-[#e6a92f]"
                   >
                     <IconSend size={16} /> Enviar
                   </Button>
@@ -560,14 +560,14 @@ export function IAAtendimentoPage() {
       {/* Config panel */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Persona / tone */}
-        <Card className="min-w-0 border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+        <Card className="min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
           <Card.Content className="flex flex-col gap-3 p-5">
             <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#111111] text-[#f2b33d]">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-gold">
                 <IconBot size={18} />
               </span>
               <div>
-                <p className="font-brand text-sm font-semibold text-[#111111]">Persona da IA</p>
+                <p className="font-brand text-sm font-semibold text-ink">Persona da IA</p>
                 <p className="text-xs text-muted">Tom de voz das respostas</p>
               </div>
             </div>
@@ -582,21 +582,21 @@ export function IAAtendimentoPage() {
                     className={[
                       'flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-all',
                       isActive
-                        ? 'border-transparent bg-[#f2b33d] shadow-[var(--shadow-gold)]'
-                        : 'border-[var(--color-soft-border)] bg-white hover:bg-[#f7f3ea]',
+                        ? 'border-transparent bg-gold shadow-[var(--shadow-gold)]'
+                        : 'border-[var(--color-soft-border)] bg-white hover:bg-cream',
                     ].join(' ')}
                   >
                     <span>
                       <span
-                        className={`block text-sm font-semibold ${isActive ? 'text-[#111111]' : 'text-[#111111]'}`}
+                        className={`block text-sm font-semibold ${isActive ? 'text-ink' : 'text-ink'}`}
                       >
                         {t.label}
                       </span>
-                      <span className={`block text-xs ${isActive ? 'text-[#7a5a12]' : 'text-[#6f6a63]'}`}>
+                      <span className={`block text-xs ${isActive ? 'text-[#7a5a12]' : 'text-muted-ink'}`}>
                         {t.hint}
                       </span>
                     </span>
-                    {isActive && <IconCheck size={18} className="text-[#111111]" />}
+                    {isActive && <IconCheck size={18} className="text-ink" />}
                   </button>
                 );
               })}
@@ -605,14 +605,14 @@ export function IAAtendimentoPage() {
         </Card>
 
         {/* Automations */}
-        <Card className="min-w-0 border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+        <Card className="min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
           <Card.Content className="flex flex-col gap-3 p-5">
             <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f2b33d]/15 text-[#a67c1e]">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-gold/15 text-gold-strong">
                 <IconSparkles size={18} />
               </span>
               <div>
-                <p className="font-brand text-sm font-semibold text-[#111111]">Automações</p>
+                <p className="font-brand text-sm font-semibold text-ink">Automações</p>
                 <p className="text-xs text-muted">O que a IA faz sozinha</p>
               </div>
             </div>
@@ -623,8 +623,8 @@ export function IAAtendimentoPage() {
                   className="flex items-start justify-between gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white px-3.5 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#111111]">{a.label}</p>
-                    <p className="text-xs text-[#6f6a63]">{a.description}</p>
+                    <p className="text-sm font-medium text-ink">{a.label}</p>
+                    <p className="text-xs text-muted-ink">{a.description}</p>
                   </div>
                   <ToggleSwitch
                     checked={a.enabled}
@@ -638,14 +638,14 @@ export function IAAtendimentoPage() {
         </Card>
 
         {/* FAQ / knowledge base */}
-        <Card className="min-w-0 border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+        <Card className="min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
           <Card.Content className="flex flex-col gap-3 p-5">
             <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f08ca5]/15 text-[#c25d77]">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-pink/15 text-[#c25d77]">
                 <IconStar size={18} />
               </span>
               <div>
-                <p className="font-brand text-sm font-semibold text-[#111111]">Base de conhecimento</p>
+                <p className="font-brand text-sm font-semibold text-ink">Base de conhecimento</p>
                 <p className="text-xs text-muted">Perguntas e respostas da IA</p>
               </div>
             </div>
@@ -656,8 +656,8 @@ export function IAAtendimentoPage() {
                   className="group flex items-start justify-between gap-2 rounded-xl border border-[var(--color-soft-border)] bg-white px-3.5 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#111111]">{f.question}</p>
-                    <p className="text-xs text-[#6f6a63]">{f.answer}</p>
+                    <p className="text-sm font-medium text-ink">{f.question}</p>
+                    <p className="text-xs text-muted-ink">{f.answer}</p>
                   </div>
                   <button
                     type="button"

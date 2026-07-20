@@ -102,7 +102,7 @@ export function ImageUpload({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="relative flex shrink-0 items-center justify-center overflow-hidden border border-[var(--color-soft-border)] bg-[#f7f3ea] text-[#a67c1e] transition-colors hover:border-[#f2b33d]"
+        className="relative flex shrink-0 items-center justify-center overflow-hidden border border-[var(--color-soft-border)] bg-cream text-gold-strong transition-colors hover:border-gold"
         style={{ width: size, height: size, borderRadius: radius }}
         aria-label="Enviar imagem"
       >
@@ -314,7 +314,7 @@ function ImageCropModal({ src, shape, onCancel, onConfirm }: ImageCropModalProps
                       step={0.01}
                       value={zoom}
                       onChange={(e) => setZoom(Number(e.target.value))}
-                      className="h-1 flex-1 cursor-pointer accent-[#f2b33d]"
+                      className="h-1 flex-1 cursor-pointer accent-gold"
                     />
                   </div>
                   <p className="text-center text-xs text-[#9a8f7d]">
@@ -399,7 +399,7 @@ export function ImageGalleryUpload({
         {value.map((url, i) => (
           <div
             key={url}
-            className="group relative h-20 w-20 overflow-hidden rounded-[14px] border border-[var(--color-soft-border)] bg-[#f7f3ea]"
+            className="group relative h-20 w-20 overflow-hidden rounded-[14px] border border-[var(--color-soft-border)] bg-cream"
           >
             <img src={url} alt="" className="h-full w-full object-cover" />
             {i === 0 && (
@@ -423,7 +423,7 @@ export function ImageGalleryUpload({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy}
-            className="grid h-20 w-20 shrink-0 place-items-center rounded-[14px] border border-dashed border-[var(--color-soft-border)] bg-[#f7f3ea] text-[#a67c1e] transition-colors hover:border-[#f2b33d] disabled:opacity-60"
+            className="grid h-20 w-20 shrink-0 place-items-center rounded-[14px] border border-dashed border-[var(--color-soft-border)] bg-cream text-gold-strong transition-colors hover:border-gold disabled:opacity-60"
             aria-label="Adicionar foto"
           >
             {busy ? <Spinner size="sm" /> : <IconPlus size={20} />}

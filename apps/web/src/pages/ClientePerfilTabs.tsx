@@ -6,7 +6,6 @@ import {
   Chip,
   Input,
   ListBox,
-  Modal,
   Select,
   Spinner,
   Switch,
@@ -14,6 +13,7 @@ import {
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { Drawer } from '../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconCalendar,
@@ -1444,20 +1444,9 @@ export function CustomerCreateModal({
   onClose: () => void;
 }) {
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="lg" placement="center">
-          <Modal.Dialog className="w-full max-w-2xl">
-            <Modal.Header>
-              <Modal.Heading>Novo cliente</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="max-h-[75vh] overflow-y-auto">
-              {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
-            </Modal.Body>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Drawer isOpen={isOpen} onClose={onClose} title="Novo cliente" widthClass="sm:w-[520px]">
+      {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
+    </Drawer>
   );
 }
 
@@ -1485,84 +1474,79 @@ export function ClientePerfilModal({
   const full = panel.data?.customer ?? customer;
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="lg" placement="center">
-          <Modal.Dialog className="w-full max-w-2xl">
-            <Modal.Header>
-              <div className="flex items-center gap-3">
-                <Avatar size="md">
-                  {customer?.avatarUrl && (
-                    <Avatar.Image src={customer.avatarUrl} alt={customer.name} />
-                  )}
-                  <Avatar.Fallback>{initials(customer?.name ?? '?')}</Avatar.Fallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <Modal.Heading>{customer?.name ?? 'Cliente'}</Modal.Heading>
-                  {customer?.phone && (
-                    <div className="text-xs text-muted">{customer.phone}</div>
-                  )}
-                </div>
-                {panel.isFetching && <Spinner size="sm" />}
-              </div>
-            </Modal.Header>
-            <Modal.Body className="max-h-[78vh] overflow-y-auto">
-              {customer && (
-                <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-                  <Tabs.List className="w-full overflow-x-auto">
-                    <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
-                    <Tabs.Tab id="painel">Painel</Tabs.Tab>
-                    <Tabs.Tab id="agendamentos">Agendamentos</Tabs.Tab>
-                    <Tabs.Tab id="vendas">Vendas</Tabs.Tab>
-                    <Tabs.Tab id="pacotes">Pacotes</Tabs.Tab>
-                    <Tabs.Tab id="debitos">Débitos</Tabs.Tab>
-                    <Tabs.Tab id="creditos">Créditos</Tabs.Tab>
-                    <Tabs.Tab id="cashback">Cashback</Tabs.Tab>
-                    <Tabs.Tab id="anotacoes">Anotações</Tabs.Tab>
-                    <Tabs.Tab id="anamneses">Anamneses</Tabs.Tab>
-                  </Tabs.List>
-
-                  <Tabs.Panel id="cadastro" className="pt-4">
-                    <CustomerForm
-                      mode="edit"
-                      customer={full}
-                      onDone={onClose}
-                      onCancel={onClose}
-                    />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="painel" className="pt-4">
-                    <PainelTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="agendamentos" className="pt-4">
-                    <AgendamentosTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="vendas" className="pt-4">
-                    <VendasTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="pacotes" className="pt-4">
-                    <PacotesTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="debitos" className="pt-4">
-                    <DebitosTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="creditos" className="pt-4">
-                    <CreditosTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="cashback" className="pt-4">
-                    <CashbackTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="anotacoes" className="pt-4">
-                    <AnotacoesTab customerId={customer.id} />
-                  </Tabs.Panel>
-                  <Tabs.Panel id="anamneses" className="pt-4">
-                    <AnamnesesTab customerId={customer.id} />
-                  </Tabs.Panel>
-                </Tabs>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={customer?.name ?? 'Cliente'}
+      widthClass="sm:w-[560px]"
+    >
+      {customer && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <Avatar size="md">
+              {customer.avatarUrl && (
+                <Avatar.Image src={customer.avatarUrl} alt={customer.name} />
               )}
-            </Modal.Body>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+              <Avatar.Fallback>{initials(customer.name ?? '?')}</Avatar.Fallback>
+            </Avatar>
+            <div className="min-w-0">
+              <div className="truncate text-base font-semibold text-ink">
+                {customer.name}
+              </div>
+              {customer.phone && (
+                <div className="text-xs text-muted-ink">{customer.phone}</div>
+              )}
+            </div>
+            {panel.isFetching && <Spinner size="sm" />}
+          </div>
+
+          <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
+            <Tabs.List className="w-full overflow-x-auto">
+              <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
+              <Tabs.Tab id="painel">Painel</Tabs.Tab>
+              <Tabs.Tab id="agendamentos">Agendamentos</Tabs.Tab>
+              <Tabs.Tab id="vendas">Vendas</Tabs.Tab>
+              <Tabs.Tab id="pacotes">Pacotes</Tabs.Tab>
+              <Tabs.Tab id="debitos">Débitos</Tabs.Tab>
+              <Tabs.Tab id="creditos">Créditos</Tabs.Tab>
+              <Tabs.Tab id="cashback">Cashback</Tabs.Tab>
+              <Tabs.Tab id="anotacoes">Anotações</Tabs.Tab>
+              <Tabs.Tab id="anamneses">Anamneses</Tabs.Tab>
+            </Tabs.List>
+
+            <Tabs.Panel id="cadastro" className="pt-4">
+              <CustomerForm mode="edit" customer={full} onDone={onClose} onCancel={onClose} />
+            </Tabs.Panel>
+            <Tabs.Panel id="painel" className="pt-4">
+              <PainelTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="agendamentos" className="pt-4">
+              <AgendamentosTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="vendas" className="pt-4">
+              <VendasTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="pacotes" className="pt-4">
+              <PacotesTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="debitos" className="pt-4">
+              <DebitosTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="creditos" className="pt-4">
+              <CreditosTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="cashback" className="pt-4">
+              <CashbackTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="anotacoes" className="pt-4">
+              <AnotacoesTab customerId={customer.id} />
+            </Tabs.Panel>
+            <Tabs.Panel id="anamneses" className="pt-4">
+              <AnamnesesTab customerId={customer.id} />
+            </Tabs.Panel>
+          </Tabs>
+        </div>
+      )}
+    </Drawer>
   );
 }

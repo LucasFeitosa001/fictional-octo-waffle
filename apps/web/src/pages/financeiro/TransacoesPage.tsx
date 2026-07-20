@@ -11,19 +11,22 @@ import {
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
-import { PageHeader } from '../../components/PageHeader';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCalculator,
+  IconCheck,
   IconChevron,
   IconCircleCheck,
   IconDollar,
   IconDownload,
+  IconFilter,
   IconPencil,
   IconPlus,
   IconRepeat,
+  IconSearch,
   IconWallet,
 } from '../../components/icons';
 import { DateFieldBR } from '../../components/DateRangeFilter';
@@ -50,7 +53,7 @@ import {
 const PAGE_SIZE = 30;
 
 const CARD_CLASS =
-  'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+  'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
 
 const ALL = '__all__';
 
@@ -123,6 +126,13 @@ export function TransacoesPage() {
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [page, setPage] = useState(1);
 
+  // Toolbar do Belasis: Buscar (input revelado), Filtrar (drawer lateral),
+  // Calcular totais (mostra a faixa de totais sob demanda, como no Belasis).
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [showTotals, setShowTotals] = useState(false);
+
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
     setPage(1);
@@ -144,6 +154,16 @@ export function TransacoesPage() {
   // O servidor já ordena por data (mais recentes primeiro, sem data no fim),
   // pagina e oculta as estornadas conforme `includeReversed`.
   const rows = transactions.data?.data ?? [];
+  // Busca "Buscar" filtra a página atual no cliente por titular/descrição.
+  // TODO: mover a busca para o servidor (a query não expõe parâmetro `q`).
+  const q = query.trim().toLowerCase();
+  const visibleRows = q
+    ? rows.filter(
+        (t) =>
+          titular(t).toLowerCase().includes(q) ||
+          describe(t).toLowerCase().includes(q),
+      )
+    : rows;
   const total = transactions.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   // Totais do conjunto INTEIRO filtrado (não só a página), vindos do servidor.
@@ -153,12 +173,13 @@ export function TransacoesPage() {
     balance: 0,
   };
 
-  const hasFilters =
-    statusFilter !== 'all' ||
-    showReversed ||
-    Boolean(from) ||
-    Boolean(to) ||
-    methodFilter !== ALL;
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (showReversed ? 1 : 0) +
+    (from ? 1 : 0) +
+    (to ? 1 : 0) +
+    (methodFilter !== ALL ? 1 : 0);
+  const hasFilters = activeFilterCount > 0;
 
   function clearFilters() {
     setStatusFilter('all');
@@ -363,197 +384,221 @@ export function TransacoesPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Transações"
-        subtitle="Recebimentos, despesas, vales e transferências"
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={exportCsv}
-              isDisabled={total === 0 || exporting}
-            >
-              <IconDownload size={16} /> {exporting ? 'Exportando…' : 'Exportar CSV'}
-            </Button>
-            <Dropdown>
-              <Dropdown.Trigger>
-                <Button variant="primary">
-                  <IconPlus size={16} /> Novo <IconChevron size={14} />
-                </Button>
-              </Dropdown.Trigger>
-              <Dropdown.Popover>
-                <Dropdown.Menu aria-label="Tipo de lançamento">
-                  <Dropdown.Item
-                    textValue="Recebimento"
-                    onAction={() => openForm('recebimento')}
-                  >
-                    Recebimento
-                  </Dropdown.Item>
-                  <Dropdown.Item
-                    textValue="Despesa"
-                    onAction={() => openForm('despesa')}
-                  >
-                    Despesa
-                  </Dropdown.Item>
-                  <Dropdown.Item textValue="Vale" onAction={() => openForm('vale')}>
-                    Vale
-                  </Dropdown.Item>
-                  <Dropdown.Item
-                    textValue="Transferência"
-                    onAction={() => openForm('transferencia')}
-                  >
-                    Transferência
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
-          </>
-        }
-      />
-
-      {/* Filter bar */}
-      <Card className={`mb-4 ${CARD_CLASS}`}>
-        <Card.Content className="flex flex-col gap-4 p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <DateFieldBR label="De" value={from} onChange={setFrom} />
-            <DateFieldBR label="Até" value={to} onChange={setTo} />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <FilterSelect
-              label="Status de pagamento"
-              value={statusFilter}
-              onChange={(v) => setStatusFilter(v as 'all' | 'paid' | 'pending')}
-              options={[
-                { id: 'all', name: 'Todos' },
-                { id: 'paid', name: 'Pago' },
-                { id: 'pending', name: 'Pendente' },
-              ]}
-            />
-            <FilterSelect
-              label="Forma de pagamento"
-              value={methodFilter}
-              onChange={setMethodFilter}
-              options={[
-                { id: ALL, name: 'Todas as formas' },
-                ...(paymentMethods.data ?? []).map((m) => ({
-                  id: m.id,
-                  name: m.name,
-                })),
-              ]}
-            />
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted">Estornadas</span>
-              <Switch
-                isSelected={showReversed}
-                onChange={setShowReversed}
-                className="flex h-10 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
-              >
-                <span className="text-sm text-foreground">
-                  Mostrar estornadas
-                </span>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch>
-            </div>
-          </div>
-
-          {hasFilters && (
-            <div>
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Limpar filtros
+      {/* Cabeçalho + toolbar do Belasis: título à esquerda; à direita
+          Buscar · Filtrar · Calcular totais · Exportar · Novo ▾. */}
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
+            Transações
+          </h1>
+          <p className="mt-1 text-sm leading-snug text-muted">
+            Recebimentos, despesas, vales e transferências
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+          <Button
+            variant={searchOpen ? 'primary' : 'outline'}
+            onClick={() => setSearchOpen((o) => !o)}
+          >
+            <IconSearch size={16} /> Buscar
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setFilterOpen(true)}
+            className="relative"
+          >
+            <IconFilter size={16} /> Filtrar
+            {activeFilterCount > 0 && (
+              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-semibold text-[var(--color-on-gold,#3a2f16)]">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant={showTotals ? 'primary' : 'outline'}
+            onClick={() => setShowTotals((t) => !t)}
+          >
+            <IconCalculator size={16} /> Calcular totais
+          </Button>
+          <Button
+            variant="outline"
+            onClick={exportCsv}
+            isDisabled={total === 0 || exporting}
+            aria-label="Exportar CSV"
+          >
+            <IconDownload size={16} />
+            <span className="sm:hidden"> {exporting ? 'Exportando…' : 'Exportar'}</span>
+          </Button>
+          <Dropdown>
+            <Dropdown.Trigger>
+              <Button variant="primary">
+                <IconPlus size={16} /> Novo <IconChevron size={14} />
               </Button>
-            </div>
-          )}
-        </Card.Content>
-      </Card>
-
-      {/* Totals strip */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <TotalCard
-          icon={<IconArrowUp size={16} />}
-          label="Receitas"
-          value={formatMoney(totals.income)}
-          tone="success"
-        />
-        <TotalCard
-          icon={<IconArrowDown size={16} />}
-          label="Despesas"
-          value={formatMoney(totals.expense)}
-          tone="danger"
-        />
-        <TotalCard
-          icon={<IconWallet size={16} />}
-          label="Saldo filtrado"
-          value={formatMoney(totals.balance)}
-          tone="accent"
-        />
+            </Dropdown.Trigger>
+            <Dropdown.Popover>
+              <Dropdown.Menu aria-label="Tipo de lançamento">
+                <Dropdown.Item
+                  textValue="Recebimento"
+                  onAction={() => openForm('recebimento')}
+                >
+                  Recebimento
+                </Dropdown.Item>
+                <Dropdown.Item
+                  textValue="Despesa"
+                  onAction={() => openForm('despesa')}
+                >
+                  Despesa
+                </Dropdown.Item>
+                <Dropdown.Item textValue="Vale" onAction={() => openForm('vale')}>
+                  Vale
+                </Dropdown.Item>
+                <Dropdown.Item
+                  textValue="Transferência"
+                  onAction={() => openForm('transferencia')}
+                >
+                  Transferência
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        </div>
       </div>
+
+      {/* Buscar (revelado ao clicar em Buscar) */}
+      {searchOpen && (
+        <div className="mb-4">
+          <TextField value={query} onChange={setQuery} aria-label="Buscar transações">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+                <IconSearch size={16} />
+              </span>
+              <Input
+                autoFocus
+                placeholder="Buscar por titular ou descrição…"
+                className="pl-9"
+              />
+            </div>
+          </TextField>
+        </div>
+      )}
+
+      {/* Totais sob demanda (botão "Calcular totais", como no Belasis) */}
+      {showTotals && (
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <TotalCard
+            icon={<IconArrowUp size={16} />}
+            label="Receitas"
+            value={formatMoney(totals.income)}
+            tone="success"
+          />
+          <TotalCard
+            icon={<IconArrowDown size={16} />}
+            label="Despesas"
+            value={formatMoney(totals.expense)}
+            tone="danger"
+          />
+          <TotalCard
+            icon={<IconWallet size={16} />}
+            label="Saldo filtrado"
+            value={formatMoney(totals.balance)}
+            tone="accent"
+          />
+        </div>
+      )}
 
       <Card className={CARD_CLASS}>
         <Card.Content className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">Lançamentos</h3>
+            <span className="text-xs text-muted">Ordenado por data</span>
             <span className="text-xs text-muted">
-              {total > 0
-                ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}`
-                : '0 lançamento(s)'}
+              {total > 0 ? `${total} no total` : '0 lançamento(s)'}
             </span>
           </div>
           {transactions.isLoading ? (
             <LoadingState />
           ) : transactions.isError ? (
             <ErrorState onRetry={() => transactions.refetch()} />
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <EmptyState
               icon={<IconDollar size={32} />}
               title={
-                hasFilters
-                  ? 'Nenhuma transação para os filtros'
-                  : 'Nenhuma transação registrada'
+                q
+                  ? 'Nenhum item encontrado'
+                  : hasFilters
+                    ? 'Nenhuma transação para os filtros'
+                    : 'Nenhuma transação registrada'
               }
               description={
-                hasFilters
-                  ? 'Ajuste os filtros para ver mais lançamentos.'
-                  : 'Lance recebimentos e despesas para acompanhar o caixa.'
+                q
+                  ? 'Ajuste a busca para ver mais lançamentos.'
+                  : hasFilters
+                    ? 'Ajuste os filtros para ver mais lançamentos.'
+                    : 'Lance recebimentos e despesas para acompanhar o caixa.'
               }
             />
           ) : (
             <DataTable
               columns={columns}
-              rows={rows}
+              rows={visibleRows}
               getKey={(t) => t.id}
               aria-label="Transações"
             />
           )}
-          {total > PAGE_SIZE && (
-            <div className="mt-4 flex items-center justify-between border-t border-[var(--color-soft-border)] pt-3">
-              <span className="text-xs text-muted">
-                Página {page} de {pageCount}
-              </span>
-              <div className="flex gap-2">
+          {total > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
+              <span className="text-xs text-muted">{total} no total</span>
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
+                  aria-label="Página anterior"
                   isDisabled={page <= 1 || transactions.isFetching}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
-                  <IconChevron size={14} className="rotate-90" /> Anterior
+                  <IconChevron size={14} className="rotate-90" />
                 </Button>
+                <span className="px-1 text-xs text-muted">
+                  Página {page} de {pageCount}
+                </span>
                 <Button
                   variant="outline"
                   size="sm"
+                  aria-label="Próxima página"
                   isDisabled={page >= pageCount || transactions.isFetching}
                   onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                 >
-                  Próxima <IconChevron size={14} className="-rotate-90" />
+                  <IconChevron size={14} className="-rotate-90" />
                 </Button>
+                <span className="ml-1 hidden text-xs text-muted sm:inline">
+                  {PAGE_SIZE} / página
+                </span>
               </div>
             </div>
           )}
         </Card.Content>
       </Card>
+
+      {/* Filtrar: drawer lateral (direita) com as seções do Belasis. */}
+      <FiltrosDrawer
+        isOpen={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        from={from}
+        to={to}
+        setFrom={setFrom}
+        setTo={setTo}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        methodFilter={methodFilter}
+        setMethodFilter={setMethodFilter}
+        paymentMethods={(paymentMethods.data ?? []).map((m) => ({
+          id: m.id,
+          name: m.name,
+        }))}
+        showReversed={showReversed}
+        setShowReversed={setShowReversed}
+        hasFilters={hasFilters}
+        onClear={clearFilters}
+      />
 
       {formMode === 'transferencia' ? (
         <TransferenciaModal isOpen onClose={closeForm} />
@@ -568,38 +613,163 @@ export function TransacoesPage() {
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
+/**
+ * Drawer de filtros (Belasis "Filtrar"): desliza da direita e agrupa as seções
+ * Período, Status de pagamento, Formas de pagamento e Estornadas. Aplica ao vivo
+ * (as queries reagem ao estado); "Aplicar" apenas fecha. As seções Contas/
+ * Categorias do Belasis dependem de filtro no servidor.
+ * TODO: expor filtro por conta/categoria na query de transações.
+ */
+function FiltrosDrawer({
+  isOpen,
+  onClose,
+  from,
+  to,
+  setFrom,
+  setTo,
+  statusFilter,
+  setStatusFilter,
+  methodFilter,
+  setMethodFilter,
+  paymentMethods,
+  showReversed,
+  setShowReversed,
+  hasFilters,
+  onClear,
 }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { id: string; name: string }[];
+  isOpen: boolean;
+  onClose: () => void;
+  from: string;
+  to: string;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
+  statusFilter: 'all' | 'paid' | 'pending';
+  setStatusFilter: (v: 'all' | 'paid' | 'pending') => void;
+  methodFilter: string;
+  setMethodFilter: (v: string) => void;
+  paymentMethods: { id: string; name: string }[];
+  showReversed: boolean;
+  setShowReversed: (v: boolean) => void;
+  hasFilters: boolean;
+  onClear: () => void;
+}) {
+  const statusOptions: { id: 'all' | 'paid' | 'pending'; name: string }[] = [
+    { id: 'all', name: 'Todos' },
+    { id: 'paid', name: 'Pago' },
+    { id: 'pending', name: 'Em aberto' },
+  ];
+  const methodOptions = [{ id: ALL, name: 'Todas as formas' }, ...paymentMethods];
+
+  const footer = (
+    <>
+      <Button
+        variant="outline"
+        className="w-full sm:w-auto"
+        isDisabled={!hasFilters}
+        onClick={onClear}
+      >
+        Limpar filtros
+      </Button>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+        Aplicar
+      </Button>
+    </>
+  );
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Filtrar"
+      footer={footer}
+      widthClass="sm:w-[420px]"
+    >
+      <div className="flex flex-col gap-6">
+        {/* Período */}
+        <FilterSection title="Período">
+          <div className="grid grid-cols-2 gap-3">
+            <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
+            <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
+          </div>
+        </FilterSection>
+
+        {/* Status de pagamento (segmentado) */}
+        <FilterSection title="Status de pagamento">
+          <div className="grid grid-cols-3 gap-2">
+            {statusOptions.map((o) => {
+              const active = statusFilter === o.id;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setStatusFilter(o.id)}
+                  className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                    active
+                      ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
+                      : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
+                  }`}
+                >
+                  {o.name}
+                </button>
+              );
+            })}
+          </div>
+        </FilterSection>
+
+        {/* Formas de pagamento (lista selecionável) */}
+        <FilterSection title="Formas de pagamento">
+          <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
+            {methodOptions.map((o, i) => {
+              const active = methodFilter === o.id;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setMethodFilter(o.id)}
+                  className={`flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
+                    i > 0 ? 'border-t border-[var(--color-soft-border)]' : ''
+                  } ${active ? 'bg-gold/12 font-medium text-foreground' : 'bg-white text-foreground hover:bg-cream'}`}
+                >
+                  <span className="truncate">{o.name}</span>
+                  {active && <IconCheck size={16} className="shrink-0 text-gold-strong" />}
+                </button>
+              );
+            })}
+          </div>
+        </FilterSection>
+
+        {/* Estornadas */}
+        <FilterSection title="Estornadas">
+          <Switch
+            isSelected={showReversed}
+            onChange={setShowReversed}
+            className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
+          >
+            <span className="text-sm text-foreground">Mostrar estornadas</span>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+        </FilterSection>
+      </div>
+    </Drawer>
+  );
+}
+
+/** Bloco de seção do drawer de filtros (título + conteúdo). */
+function FilterSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-muted">{label}</span>
-      <Select
-        aria-label={label}
-        selectedKey={value}
-        onSelectionChange={(k) => onChange(String(k))}
-      >
-        <Select.Trigger>
-          <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-        </Select.Trigger>
-        <Select.Popover>
-          <ListBox>
-            {options.map((o) => (
-              <ListBox.Item key={o.id} id={o.id} textValue={o.name}>
-                {o.name}
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </Select.Popover>
-      </Select>
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+        {title}
+      </span>
+      {children}
     </div>
   );
 }
@@ -626,7 +796,7 @@ function TotalCard({
       ? 'bg-success/12 text-success'
       : tone === 'danger'
         ? 'bg-danger/12 text-danger'
-        : 'bg-[#f2b33d]/15 text-[#a67c1e]';
+        : 'bg-gold/15 text-gold-strong';
   return (
     <Card className={CARD_CLASS}>
       <Card.Content className="flex items-center justify-between p-4">
@@ -846,7 +1016,7 @@ function LancamentoModal({
     <Drawer isOpen onClose={onClose} title={title} footer={footer} widthClass="sm:w-[460px]">
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f2b33d]/15 text-3xl text-[#a67c1e]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-3xl text-gold-strong">
             ✓
           </div>
           <p className="text-base font-semibold text-foreground">
@@ -1058,7 +1228,7 @@ function TransferenciaModal({
     >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f2b33d]/15 text-3xl text-[#a67c1e]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-3xl text-gold-strong">
             ✓
           </div>
           <p className="text-base font-semibold text-foreground">

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { IconCalendar, IconHome, IconPlus, IconUsers } from '../components/icons';
+import { IconCalendar, IconPlus, IconUsers, IconX } from '../components/icons';
 import { CREATE_GROUPS, usePageActions } from './PageActions';
 
 function IconMenu({ size = 24 }: { size?: number }) {
@@ -17,11 +17,9 @@ type IconType = ComponentType<{ size?: number }>;
  * Mobile bottom tab bar (Gestão): black bar hidden on >=lg, where the static
  * sidebar takes over.
  *
- * - Default: flat tabs (Início / Agenda / Clientes / Menu) with a raised gold
- *   "Mais" FAB that opens the grouped "Novo" sheet.
- * - Contextual: when the current page registers its own actions (via
- *   `useSetPageActions`), the bar renders those actions in place of the default
- *   tabs — always keeping an **Início** shortcut and the **Menu** button.
+ * - Menu is always the first item, at the far left.
+ * - The remaining items are registered by the current page. Pages that have not
+ *   registered actions yet use Agenda / Criar / Clientes as a safe fallback.
  */
 export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const navigate = useNavigate();
@@ -31,7 +29,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const contextual = pageActions.length > 0;
 
   const isActive = (to: string) =>
-    to === '/' ? pathname === '/' : pathname.startsWith(to);
+    pathname === to || (to !== '/' && pathname.startsWith(`${to}/`));
 
   // Lock background scroll while the sheet is open.
   useEffect(() => {
@@ -57,7 +55,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
         {/* Scrim */}
         <div
           className={[
-            'absolute inset-0 bg-black/40 transition-opacity duration-300 ease-out',
+            'absolute inset-0 cursor-pointer bg-black/40 transition-opacity duration-300 ease-out',
             createOpen ? 'opacity-100' : 'opacity-0',
           ].join(' ')}
           onClick={() => setCreateOpen(false)}
@@ -65,18 +63,30 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
         {/* Sheet */}
         <div
           role="dialog"
+          aria-modal="true"
           aria-label="Criar novo"
           className={[
-            'absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-[#fffdf8] pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[var(--shadow-pop)] transition-transform duration-300 ease-out will-change-transform',
+            'absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-warm-white pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[var(--shadow-pop)] transition-transform duration-300 ease-out will-change-transform',
             createOpen ? 'translate-y-0' : 'translate-y-full',
           ].join(' ')}
         >
           <div className="flex justify-center pt-3">
             <span className="h-1.5 w-10 rounded-full bg-black/15" />
           </div>
-          <div className="px-4 pb-2 pt-3">
-            <h2 className="text-base font-semibold text-[#111111]">Criar novo</h2>
-            <p className="text-sm text-[#6f6a63]">O que você quer criar?</p>
+          <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-3">
+            <div>
+              <h2 className="text-base font-semibold text-ink">Criar novo</h2>
+              <p className="text-sm text-muted-ink">O que você quer criar?</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreateOpen(false)}
+              aria-label="Fechar"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#5f5a54] shadow-sm"
+            >
+              <IconX size={16} />
+              Fechar
+            </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2">
             {CREATE_GROUPS.map((group) => (
@@ -90,12 +100,12 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
                       key={to}
                       type="button"
                       onClick={() => pickCreate(to)}
-                      className="flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors hover:bg-[#f7f3ea] active:bg-[#f2ece0]"
+                      className="flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors hover:bg-cream active:bg-[#f2ece0]"
                     >
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#111111] text-[#f2b33d]">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink text-gold">
                         <Icon size={19} />
                       </span>
-                      <span className="min-w-0 truncate text-sm font-semibold text-[#111111]">{label}</span>
+                      <span className="min-w-0 truncate text-sm font-semibold text-ink">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -107,44 +117,28 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
       <nav
         aria-label="Navegação principal"
-        className="club-bottomnav fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg rounded-[24px] border border-white/10 shadow-[0_18px_55px_rgba(0,0,0,0.32)] lg:hidden"
+        className="sp-navbar-surface club-bottomnav fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg rounded-[24px] border border-white/10 shadow-[0_18px_55px_rgba(0,0,0,0.32)] lg:hidden"
       >
         {contextual ? (
-          // Contextual bar: Início + the page's own actions + Menu.
+          // Contextual bar: Menu first, followed only by the current page actions.
           <div className="flex items-stretch px-1">
-            <TabButton label="Início" icon={IconHome} active={isActive('/')} onPress={() => navigate('/')} />
-            {pageActions.map((action) => (
-              <ActionButton key={action.key} label={action.label} icon={action.icon} onPress={action.onClick} />
-            ))}
             <TabButton label="Menu" icon={IconMenu} active={false} onPress={() => onMenuOpen?.()} />
+            {pageActions.map((action) => (
+              <ActionButton
+                key={action.key}
+                label={action.label}
+                icon={action.icon}
+                onPress={action.onClick}
+                disabled={action.disabled}
+              />
+            ))}
           </div>
         ) : (
-          <div className="relative mx-auto grid max-w-md grid-cols-5 items-end px-2">
-            {/* Left tab */}
-            <TabButton label="Início" icon={IconHome} active={isActive('/')} onPress={() => navigate('/')} />
-
-            <TabButton label="Agenda" icon={IconCalendar} active={isActive('/agenda')} onPress={() => navigate('/agenda')} />
-
-            {/* Center raised "Mais" FAB → opens the grouped create sheet */}
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={() => setCreateOpen(true)}
-                aria-label="Criar novo"
-                className="-mt-7 flex flex-col items-center"
-              >
-                <span className="grid h-14 w-14 place-items-center rounded-full bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)] ring-4 ring-[#111111] transition-transform active:scale-95">
-                  <IconPlus size={26} />
-                </span>
-                <span className="mt-1 text-[11px] font-semibold text-[#f2b33d]">Mais</span>
-              </button>
-            </div>
-
-            {/* Right tab */}
-            <TabButton label="Clientes" icon={IconUsers} active={isActive('/clientes')} onPress={() => navigate('/clientes')} />
-
-            {/* Menu (opens the complete navigation drawer) */}
+          <div className="flex items-stretch px-1">
             <TabButton label="Menu" icon={IconMenu} active={false} onPress={() => onMenuOpen?.()} />
+            <TabButton label="Agenda" icon={IconCalendar} active={isActive('/agenda')} onPress={() => navigate('/agenda')} />
+            <ActionButton label="Criar" icon={<IconPlus size={22} />} onPress={() => setCreateOpen(true)} />
+            <TabButton label="Clientes" icon={IconUsers} active={isActive('/clientes')} onPress={() => navigate('/clientes')} />
           </div>
         )}
       </nav>
@@ -167,8 +161,9 @@ function TabButton({
     <button
       type="button"
       onClick={onPress}
+      aria-current={active ? 'page' : undefined}
       className={`flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2 text-[10px] font-medium transition-colors ${
-        active ? 'text-[#f2b33d]' : 'text-white/55 hover:text-white/80'
+        active ? 'text-gold' : 'text-white/55 hover:text-white/80'
       }`}
     >
       <Icon size={22} />
@@ -182,16 +177,19 @@ function ActionButton({
   label,
   icon,
   onPress,
+  disabled = false,
 }: {
   label: string;
   icon: ReactNode;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onPress}
-      className="flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2 text-[10px] font-medium text-white/70 transition-colors hover:text-white active:text-[#f2b33d]"
+      disabled={disabled}
+      className="flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2 text-[10px] font-medium text-white/70 transition-colors hover:text-white active:text-gold disabled:cursor-not-allowed disabled:opacity-45"
     >
       {icon}
       <span className="max-w-full truncate">{label}</span>

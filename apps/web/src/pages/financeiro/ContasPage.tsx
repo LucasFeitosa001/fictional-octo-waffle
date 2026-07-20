@@ -1,33 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  Card,
-  Chip,
-  Input,
-  ListBox,
-  Modal,
-  Select,
-  Switch,
-  Tabs,
-  TextField,
-} from '@heroui/react';
+import { Button, Card, Chip, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
-import { PageHeader } from '../../components/PageHeader';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, LoadingState } from '../../components/States';
-import { ActiveChip } from '../../components/StatusChip';
+import { Drawer } from '../../components/Drawer';
 import {
+  IconChevron,
   IconCreditCard,
+  IconDollar,
+  IconFilter,
   IconFolder,
   IconPencil,
   IconPlus,
+  IconSearch,
+  IconTag,
   IconTrash,
   IconWallet,
 } from '../../components/icons';
-import { formatMoney } from '../../lib/format';
-
-const CARD_CLASS =
-  'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
 import {
   useCreateFinancialAccount,
   useCreateFinancialCategory,
@@ -48,6 +37,11 @@ import {
   type PaymentMethod,
 } from '../../lib/queries/financeiro';
 
+const CARD_CLASS =
+  'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
+
+const PAGE_SIZE = 20;
+
 const ACCOUNT_TYPE_LABEL: Record<FinancialAccountType, string> = {
   cash: 'Caixa',
   bank: 'Banco',
@@ -59,53 +53,73 @@ const CATEGORY_KIND_LABEL: Record<FinancialCategoryKind, string> = {
 };
 
 type TabKey = 'contas' | 'formas' | 'categorias';
-type StatusFilter = 'all' | 'active' | 'inactive';
 
-function StatusSeg({
-  value,
-  onChange,
+const TABS: { id: TabKey; label: string; icon: typeof IconWallet }[] = [
+  { id: 'contas', label: 'Contas', icon: IconWallet },
+  { id: 'formas', label: 'Formas de pagamento', icon: IconDollar },
+  { id: 'categorias', label: 'Categorias', icon: IconTag },
+];
+
+function byName<T extends { name: string }>(a: T, b: T) {
+  return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+}
+
+/**
+ * Ações de linha no estilo Belasis: lápis (editar) · divisória · lixeira
+ * (excluir, em vermelho). Ícones anticon → equivalentes lucide.
+ */
+function RowActions({
+  onEdit,
+  onRemove,
+  removing,
 }: {
-  value: StatusFilter;
-  onChange: (v: StatusFilter) => void;
+  onEdit: () => void;
+  onRemove: () => void;
+  removing?: boolean;
 }) {
   return (
-    <div className="inline-flex h-10 items-center gap-1 rounded-lg border border-[var(--color-soft-border)] bg-white p-1">
-      {(
-        [
-          { id: 'all', label: 'Todos' },
-          { id: 'active', label: 'Ativados' },
-          { id: 'inactive', label: 'Desativados' },
-        ] as const
-      ).map((s) => {
-        const active = value === s.id;
-        return (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onChange(s.id)}
-            className={
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
-              (active
-                ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]'
-                : 'text-muted hover:text-foreground')
-            }
-          >
-            {s.label}
-          </button>
-        );
-      })}
+    <div className="flex items-center justify-end gap-1">
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label="Editar"
+        title="Editar"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-cream hover:text-foreground"
+      >
+        <IconPencil size={16} />
+      </button>
+      <span className="h-4 w-px bg-[var(--color-soft-border)]" aria-hidden />
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={removing}
+        aria-label="Remover"
+        title="Remover"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+      >
+        <IconTrash size={16} />
+      </button>
     </div>
   );
 }
 
 export function ContasPage() {
   const [tab, setTab] = useState<TabKey>('contas');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [page, setPage] = useState(1);
 
-  const [accountModal, setAccountModal] = useState(false);
-  const [methodModal, setMethodModal] = useState(false);
-  const [categoryModal, setCategoryModal] = useState(false);
+  // Toolbar do Belasis: Buscar (input revelado) · Filtrar (drawer lateral) · Novo.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  // Filtro de Status do Belasis: caixas "Ativada" / "Desativada". Padrão do
+  // Belasis é mostrar apenas as ativadas.
+  const [showActive, setShowActive] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
+
+  const [accountDrawer, setAccountDrawer] = useState(false);
+  const [methodDrawer, setMethodDrawer] = useState(false);
+  const [categoryDrawer, setCategoryDrawer] = useState(false);
   const [editingAccount, setEditingAccount] = useState<FinancialAccount | null>(null);
   const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null);
   const [editingCategory, setEditingCategory] = useState<FinancialCategory | null>(null);
@@ -129,53 +143,49 @@ export function ContasPage() {
     return !q || name.toLowerCase().includes(q);
   }
   function matchActive(active: boolean) {
-    return (
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && active) ||
-      (statusFilter === 'inactive' && !active)
-    );
+    return (active && showActive) || (!active && showInactive);
   }
 
-  // Status filter só se aplica onde o backend expõe `active` (contas e categorias).
+  // Status só se aplica onde o backend expõe `active` (contas e categorias).
   const supportsStatus = tab !== 'formas';
 
   const filteredAccounts = useMemo(
-    () => allAccounts.filter((a) => matchActive(a.active) && matchSearch(a.name)),
-    [allAccounts, statusFilter, q],
+    () =>
+      allAccounts.filter((a) => matchActive(a.active) && matchSearch(a.name)).sort(byName),
+    [allAccounts, showActive, showInactive, q],
   );
   const filteredCategories = useMemo(
-    () => allCategories.filter((c) => matchActive(c.active) && matchSearch(c.name)),
-    [allCategories, statusFilter, q],
+    () =>
+      allCategories
+        .filter((c) => matchActive(c.active) && matchSearch(c.name))
+        .sort(byName),
+    [allCategories, showActive, showInactive, q],
   );
   const filteredMethods = useMemo(
-    () => allMethods.filter((m) => matchSearch(m.name)),
+    () => allMethods.filter((m) => matchSearch(m.name)).sort(byName),
     [allMethods, q],
   );
 
-  const totalBalance = useMemo(
-    () =>
-      allAccounts
-        .filter((a) => a.active)
-        .reduce((sum, a) => sum + (Number(a.initialBalance) || 0), 0),
-    [allAccounts],
-  );
-  const activeAccountCount = allAccounts.filter((a) => a.active).length;
+  // Qualquer mudança de aba/busca/filtro volta para a primeira página.
+  useEffect(() => {
+    setPage(1);
+  }, [tab, q, showActive, showInactive]);
 
   const delAccount = useDeleteFinancialAccount();
   const delMethod = useDeletePaymentMethod();
   const delCategory = useDeleteFinancialCategory();
 
-  function openCreateAccount() {
-    setEditingAccount(null);
-    setAccountModal(true);
-  }
-  function openCreateMethod() {
-    setEditingMethod(null);
-    setMethodModal(true);
-  }
-  function openCreateCategory() {
-    setEditingCategory(null);
-    setCategoryModal(true);
+  function openCreate() {
+    if (tab === 'contas') {
+      setEditingAccount(null);
+      setAccountDrawer(true);
+    } else if (tab === 'formas') {
+      setEditingMethod(null);
+      setMethodDrawer(true);
+    } else {
+      setEditingCategory(null);
+      setCategoryDrawer(true);
+    }
   }
 
   async function removeAccount(a: FinancialAccount) {
@@ -210,7 +220,11 @@ export function ContasPage() {
       key: 'name',
       header: 'Nome',
       isRowHeader: true,
-      render: (a) => <span className="font-medium text-foreground">{a.name}</span>,
+      render: (a) => (
+        <span className={a.active ? 'font-medium text-foreground' : 'font-medium text-muted'}>
+          {a.name}
+        </span>
+      ),
     },
     {
       key: 'details',
@@ -222,35 +236,17 @@ export function ContasPage() {
       ),
     },
     {
-      key: 'initial',
-      header: 'Saldo',
-      render: (a) => formatMoney(a.initialBalance),
-    },
-    { key: 'active', header: 'Status', render: (a) => <ActiveChip active={a.active} /> },
-    {
       key: 'actions',
       header: '',
       render: (a) => (
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditingAccount(a);
-              setAccountModal(true);
-            }}
-          >
-            <IconPencil size={15} /> Editar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            isDisabled={delAccount.isPending}
-            onClick={() => removeAccount(a)}
-          >
-            <IconTrash size={15} /> Remover
-          </Button>
-        </div>
+        <RowActions
+          onEdit={() => {
+            setEditingAccount(a);
+            setAccountDrawer(true);
+          }}
+          onRemove={() => removeAccount(a)}
+          removing={delAccount.isPending}
+        />
       ),
     },
   ];
@@ -295,26 +291,14 @@ export function ContasPage() {
       key: 'actions',
       header: '',
       render: (m) => (
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditingMethod(m);
-              setMethodModal(true);
-            }}
-          >
-            <IconPencil size={15} /> Editar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            isDisabled={delMethod.isPending}
-            onClick={() => removeMethod(m)}
-          >
-            <IconTrash size={15} /> Remover
-          </Button>
-        </div>
+        <RowActions
+          onEdit={() => {
+            setEditingMethod(m);
+            setMethodDrawer(true);
+          }}
+          onRemove={() => removeMethod(m)}
+          removing={delMethod.isPending}
+        />
       ),
     },
   ];
@@ -324,17 +308,17 @@ export function ContasPage() {
       key: 'name',
       header: 'Nome',
       isRowHeader: true,
-      render: (c) => <span className="font-medium text-foreground">{c.name}</span>,
+      render: (c) => (
+        <span className={c.active ? 'font-medium text-foreground' : 'font-medium text-muted'}>
+          {c.name}
+        </span>
+      ),
     },
     {
       key: 'kind',
       header: 'Crédito/Débito',
       render: (c) => (
-        <Chip
-          variant="soft"
-          color={c.kind === 'credit' ? 'success' : 'danger'}
-          size="sm"
-        >
+        <Chip variant="soft" color={c.kind === 'credit' ? 'success' : 'danger'} size="sm">
           {CATEGORY_KIND_LABEL[c.kind]}
         </Chip>
       ),
@@ -344,34 +328,41 @@ export function ContasPage() {
       header: 'Comissionável',
       render: (c) => (c.countsAsCommission ? 'Sim' : 'Não'),
     },
-    { key: 'active', header: 'Status', render: (c) => <ActiveChip active={c.active} /> },
     {
       key: 'actions',
       header: '',
       render: (c) => (
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditingCategory(c);
-              setCategoryModal(true);
-            }}
-          >
-            <IconPencil size={15} /> Editar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            isDisabled={delCategory.isPending}
-            onClick={() => removeCategory(c)}
-          >
-            <IconTrash size={15} /> Remover
-          </Button>
-        </div>
+        <RowActions
+          onEdit={() => {
+            setEditingCategory(c);
+            setCategoryDrawer(true);
+          }}
+          onRemove={() => removeCategory(c)}
+          removing={delCategory.isPending}
+        />
       ),
     },
   ];
+
+  const isLoading =
+    tab === 'contas'
+      ? accounts.isLoading
+      : tab === 'formas'
+        ? methods.isLoading
+        : categories.isLoading;
+
+  const rowCount =
+    tab === 'contas'
+      ? filteredAccounts.length
+      : tab === 'formas'
+        ? filteredMethods.length
+        : filteredCategories.length;
+
+  const pageCount = Math.max(1, Math.ceil(rowCount / PAGE_SIZE));
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageAccounts = filteredAccounts.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageMethods = filteredMethods.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageCategories = filteredCategories.slice(pageStart, pageStart + PAGE_SIZE);
 
   const searchPlaceholder =
     tab === 'contas'
@@ -380,265 +371,334 @@ export function ContasPage() {
         ? 'Buscar forma de pagamento…'
         : 'Buscar categoria…';
 
-  const onNew =
-    tab === 'contas'
-      ? openCreateAccount
-      : tab === 'formas'
-        ? openCreateMethod
-        : openCreateCategory;
-
   const newLabel =
     tab === 'contas' ? 'Nova conta' : tab === 'formas' ? 'Nova forma' : 'Nova categoria';
 
+  // Badge de filtros ativos: desvios do padrão do Belasis (só Ativada).
+  const statusFilterCount =
+    (showInactive ? 1 : 0) + (!showActive ? 1 : 0);
+
+  function changeTab(next: TabKey) {
+    setTab(next);
+    setSearch('');
+  }
+
   return (
     <div>
-      <PageHeader
-        title="Cadastros financeiros"
-        subtitle="Contas, formas de pagamento e categorias"
-      />
-
-      {/* Summary header */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className={CARD_CLASS}>
-          <Card.Content className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-2">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
-                <IconWallet size={16} />
-              </span>
-              <span className="text-sm font-medium text-muted">Saldo inicial total</span>
-            </div>
-            <span className="text-lg font-bold text-foreground">
-              {formatMoney(totalBalance)}
-            </span>
-          </Card.Content>
-        </Card>
-        <Card className={CARD_CLASS}>
-          <Card.Content className="flex items-center justify-between p-4">
-            <span className="text-sm font-medium text-muted">Contas ativas</span>
-            <span className="text-lg font-bold text-foreground">
-              {activeAccountCount}
-            </span>
-          </Card.Content>
-        </Card>
-        <Card className={CARD_CLASS}>
-          <Card.Content className="flex items-center justify-between p-4">
-            <span className="text-sm font-medium text-muted">Formas de pagamento</span>
-            <span className="text-lg font-bold text-foreground">{allMethods.length}</span>
-          </Card.Content>
-        </Card>
+      {/* Cabeçalho + toolbar do Belasis: título à esquerda; à direita
+          Buscar · Filtrar · Novo. */}
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
+            Cadastros
+          </h1>
+          <p className="mt-1 text-sm leading-snug text-muted">
+            Contas, formas de pagamento e categorias
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+          <Button
+            variant={searchOpen ? 'primary' : 'outline'}
+            onClick={() => setSearchOpen((o) => !o)}
+          >
+            <IconSearch size={16} /> Buscar
+          </Button>
+          {supportsStatus && (
+            <Button variant="outline" onClick={() => setFilterOpen(true)} className="relative">
+              <IconFilter size={16} /> Filtrar
+              {statusFilterCount > 0 && (
+                <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-semibold text-ink">
+                  {statusFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
+          <Button variant="primary" onClick={openCreate} className="col-span-2 sm:col-span-1">
+            <IconPlus size={16} /> {newLabel}
+          </Button>
+        </div>
       </div>
+
+      {/* Abas (pílulas) do Belasis: Contas · Formas de pagamento · Categorias. */}
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => changeTab(t.id)}
+              className={
+                'inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors ' +
+                (active
+                  ? 'bg-gold text-ink shadow-[var(--shadow-gold)]'
+                  : 'border border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream')
+              }
+            >
+              <Icon size={16} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Buscar (revelado ao clicar em Buscar) */}
+      {searchOpen && (
+        <div className="mb-4">
+          <TextField value={search} onChange={setSearch} aria-label="Buscar">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+                <IconSearch size={16} />
+              </span>
+              <Input autoFocus placeholder={searchPlaceholder} className="pl-9" />
+            </div>
+          </TextField>
+        </div>
+      )}
 
       <Card className={CARD_CLASS}>
         <Card.Content className="p-4">
-          <Tabs
-            selectedKey={tab}
-            onSelectionChange={(k) => {
-              setTab(String(k) as TabKey);
-              setSearch('');
-              setStatusFilter('all');
-            }}
-          >
-            <Tabs.List className="w-full overflow-x-auto">
-              <Tabs.Tab id="contas">Contas</Tabs.Tab>
-              <Tabs.Tab id="formas">Formas de pagamento</Tabs.Tab>
-              <Tabs.Tab id="categorias">Categorias</Tabs.Tab>
-            </Tabs.List>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs text-muted">Ordenado por Nome</span>
+            <span className="text-xs text-muted">
+              {rowCount > 0 ? `${rowCount} no total` : '0 registro(s)'}
+            </span>
+          </div>
 
-            {/* Toolbar: busca + filtrar por aba + novo */}
-            <div className="mt-4 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <TextField
-                  value={search}
-                  onChange={setSearch}
-                  className="min-w-0 flex-1 sm:max-w-xs"
-                  aria-label="Buscar"
+          {tab === 'contas' &&
+            (isLoading ? (
+              <LoadingState />
+            ) : filteredAccounts.length === 0 ? (
+              <EmptyState
+                icon={<IconFolder size={32} />}
+                title="Nenhuma conta encontrada"
+                description="Cadastre caixa ou contas bancárias para registrar movimentações."
+              />
+            ) : (
+              <DataTable
+                aria-label="Contas financeiras"
+                columns={accountColumns}
+                rows={pageAccounts}
+                getKey={(a) => a.id}
+              />
+            ))}
+
+          {tab === 'formas' &&
+            (isLoading ? (
+              <LoadingState />
+            ) : filteredMethods.length === 0 ? (
+              <EmptyState
+                icon={<IconCreditCard size={32} />}
+                title="Nenhuma forma de pagamento"
+                description="Cadastre dinheiro, pix, crédito ou débito com taxa e prazo de recebimento."
+              />
+            ) : (
+              <DataTable
+                aria-label="Formas de pagamento"
+                columns={methodColumns}
+                rows={pageMethods}
+                getKey={(m) => m.id}
+              />
+            ))}
+
+          {tab === 'categorias' &&
+            (isLoading ? (
+              <LoadingState />
+            ) : filteredCategories.length === 0 ? (
+              <EmptyState
+                icon={<IconFolder size={32} />}
+                title="Nenhuma categoria encontrada"
+                description="Organize o plano de contas por categoria de crédito e débito."
+              />
+            ) : (
+              <DataTable
+                aria-label="Categorias financeiras"
+                columns={categoryColumns}
+                rows={pageCategories}
+                getKey={(c) => c.id}
+              />
+            ))}
+
+          {/* Paginação do Belasis: "X no total" + prev/next + 20 / página. */}
+          {rowCount > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
+              <span className="text-xs text-muted">{rowCount} no total</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Página anterior"
+                  isDisabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
-                  <Input placeholder={searchPlaceholder} />
-                </TextField>
-                {supportsStatus && (
-                  <StatusSeg value={statusFilter} onChange={setStatusFilter} />
-                )}
-                <div className="ms-auto">
-                  <Button variant="primary" size="sm" onClick={onNew}>
-                    <IconPlus size={15} /> {newLabel}
-                  </Button>
-                </div>
+                  <IconChevron size={14} className="rotate-90" />
+                </Button>
+                <span className="px-1 text-xs text-muted">
+                  Página {page} de {pageCount}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Próxima página"
+                  isDisabled={page >= pageCount}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                >
+                  <IconChevron size={14} className="-rotate-90" />
+                </Button>
+                <span className="ml-1 hidden text-xs text-muted sm:inline">
+                  {PAGE_SIZE} / página
+                </span>
               </div>
             </div>
-
-            <Tabs.Panel id="contas" className="pt-4">
-              {accounts.isLoading ? (
-                <LoadingState />
-              ) : filteredAccounts.length === 0 ? (
-                <EmptyState
-                  icon={<IconFolder size={32} />}
-                  title="Nenhuma conta encontrada"
-                  description="Cadastre caixa ou contas bancárias para registrar movimentações."
-                />
-              ) : (
-                <DataTable
-                  aria-label="Contas financeiras"
-                  columns={accountColumns}
-                  rows={filteredAccounts}
-                  getKey={(a) => a.id}
-                />
-              )}
-            </Tabs.Panel>
-
-            <Tabs.Panel id="formas" className="pt-4">
-              {methods.isLoading ? (
-                <LoadingState />
-              ) : filteredMethods.length === 0 ? (
-                <EmptyState
-                  icon={<IconCreditCard size={32} />}
-                  title="Nenhuma forma de pagamento"
-                  description="Cadastre dinheiro, pix, crédito ou débito com taxa e prazo de recebimento."
-                />
-              ) : (
-                <DataTable
-                  aria-label="Formas de pagamento"
-                  columns={methodColumns}
-                  rows={filteredMethods}
-                  getKey={(m) => m.id}
-                />
-              )}
-            </Tabs.Panel>
-
-            <Tabs.Panel id="categorias" className="pt-4">
-              {categories.isLoading ? (
-                <LoadingState />
-              ) : filteredCategories.length === 0 ? (
-                <EmptyState
-                  icon={<IconFolder size={32} />}
-                  title="Nenhuma categoria encontrada"
-                  description="Organize o plano de contas por categoria de crédito e débito."
-                />
-              ) : (
-                <DataTable
-                  aria-label="Categorias financeiras"
-                  columns={categoryColumns}
-                  rows={filteredCategories}
-                  getKey={(c) => c.id}
-                />
-              )}
-            </Tabs.Panel>
-          </Tabs>
+          )}
         </Card.Content>
       </Card>
 
-      <NovaContaModal
-        isOpen={accountModal}
-        onOpenChange={setAccountModal}
+      {/* Filtrar: drawer lateral (direita) com a seção Status do Belasis. */}
+      <StatusFilterDrawer
+        isOpen={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        showActive={showActive}
+        showInactive={showInactive}
+        setShowActive={setShowActive}
+        setShowInactive={setShowInactive}
+      />
+
+      {/* Novo/Editar = drawers laterais (direita). */}
+      <ContaDrawer
+        isOpen={accountDrawer}
+        onClose={() => setAccountDrawer(false)}
         editing={editingAccount}
       />
-      <NovaFormaModal isOpen={methodModal} onOpenChange={setMethodModal} editing={editingMethod} />
-      <NovaCategoriaModal
-        isOpen={categoryModal}
-        onOpenChange={setCategoryModal}
+      <FormaDrawer
+        isOpen={methodDrawer}
+        onClose={() => setMethodDrawer(false)}
+        editing={editingMethod}
+      />
+      <CategoriaDrawer
+        isOpen={categoryDrawer}
+        onClose={() => setCategoryDrawer(false)}
         editing={editingCategory}
       />
     </div>
   );
 }
 
-function ModalShell({
+/** Drawer "Filtrar" com a seção Status (Ativada / Desativada), como no Belasis. */
+function StatusFilterDrawer({
   isOpen,
-  onOpenChange,
-  title,
-  success,
-  successText,
-  canConfirm,
-  isPending,
-  formError,
-  onConfirm,
-  children,
+  onClose,
+  showActive,
+  showInactive,
+  setShowActive,
+  setShowInactive,
 }: {
   isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  success: boolean;
-  successText: string;
-  canConfirm: boolean;
-  isPending: boolean;
-  formError: string | null;
-  onConfirm: () => void;
-  children: React.ReactNode;
+  onClose: () => void;
+  showActive: boolean;
+  showInactive: boolean;
+  setShowActive: (v: boolean) => void;
+  setShowInactive: (v: boolean) => void;
+}) {
+  const options: { label: string; value: boolean; set: (v: boolean) => void }[] = [
+    { label: 'Ativada', value: showActive, set: setShowActive },
+    { label: 'Desativada', value: showInactive, set: setShowInactive },
+  ];
+
+  const footer = (
+    <>
+      <Button
+        variant="outline"
+        className="w-full sm:w-auto"
+        onClick={() => {
+          setShowActive(true);
+          setShowInactive(false);
+        }}
+      >
+        Limpar filtros
+      </Button>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+        Aplicar
+      </Button>
+    </>
+  );
+
+  return (
+    <Drawer isOpen={isOpen} onClose={onClose} title="Filtrar" footer={footer} widthClass="sm:w-[420px]">
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">Status</span>
+        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
+          {options.map((o, i) => (
+            <label
+              key={o.label}
+              className={
+                'flex cursor-pointer items-center gap-3 px-3 py-3 text-sm transition-colors hover:bg-cream ' +
+                (i > 0 ? 'border-t border-[var(--color-soft-border)]' : '')
+              }
+            >
+              <input
+                type="checkbox"
+                checked={o.value}
+                onChange={(e) => o.set(e.target.checked)}
+                className="h-4 w-4 accent-[color:var(--sp-primary,#505afb)]"
+              />
+              <span className="text-foreground">{o.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+/** Rótulo de campo do formulário dos drawers. */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-foreground">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+/** Switch de linha (label à esquerda, controle à direita) dos drawers. */
+function RowSwitch({
+  label,
+  isSelected,
+  onChange,
+}: {
+  label: string;
+  isSelected: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Backdrop>
-      <Modal.Container
-        placement="center"
-        className="w-full max-w-lg max-h-[90vh] overflow-y-auto"
-      >
-        <Modal.Dialog>
-          <Modal.Header>
-            <Modal.Heading>{title}</Modal.Heading>
-          </Modal.Header>
-          <Modal.Body className="flex flex-col gap-4">
-            {success ? (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2b33d]/15 text-2xl text-[#a67c1e]">
-                  ✓
-                </div>
-                <p className="text-base font-semibold text-foreground">{successText}</p>
-              </div>
-            ) : (
-              <>
-                {children}
-                {formError && (
-                  <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                    {formError}
-                  </div>
-                )}
-              </>
-            )}
-          </Modal.Body>
-          <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            {success ? (
-              <Button
-                variant="primary"
-                className="w-full sm:w-auto"
-                onClick={() => onOpenChange(false)}
-              >
-                Fechar
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={() => onOpenChange(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  variant="primary"
-                  className="w-full sm:w-auto"
-                  isDisabled={!canConfirm}
-                  onClick={onConfirm}
-                >
-                  {isPending ? 'Salvando…' : 'Salvar'}
-                </Button>
-              </>
-            )}
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Switch
+      isSelected={isSelected}
+      onChange={onChange}
+      className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
+    >
+      <span className="text-sm text-foreground">{label}</span>
+      <Switch.Control>
+        <Switch.Thumb />
+      </Switch.Control>
+    </Switch>
   );
 }
 
 const NONE = '';
 
-function NovaContaModal({
+/**
+ * Drawer "Conta bancária" (Novo/Editar), clonado de drawer-1.html: linha
+ * Nome (2/3) + Saldo (1/3), Acesso (somente leitura) e switch Ativa.
+ */
+function ContaDrawer({
   isOpen,
-  onOpenChange,
+  onClose,
   editing,
 }: {
   isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   editing: FinancialAccount | null;
 }) {
   const [name, setName] = useState('');
@@ -681,91 +741,118 @@ function NovaContaModal({
     try {
       if (editing) {
         await update.mutateAsync({ id: editing.id, body: { ...base, active } });
-        onOpenChange(false);
+        onClose();
       } else {
         await create.mutateAsync(base);
         setSuccess(true);
       }
     } catch (err) {
-      setFormError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível salvar a conta.',
-      );
+      setFormError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar a conta.');
     }
   }
 
-  return (
-    <ModalShell
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      title={editing ? 'Editar conta' : 'Nova conta'}
-      success={success}
-      successText="Conta criada com sucesso!"
-      canConfirm={canConfirm}
-      isPending={isPending}
-      formError={formError}
-      onConfirm={handleConfirm}
-    >
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Nome</label>
-        <TextField value={name} onChange={setName} aria-label="Nome">
-          <Input placeholder="Ex.: Caixa principal" />
-        </TextField>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Tipo</label>
-        <Select
-          aria-label="Tipo"
-          selectedKey={type}
-          onSelectionChange={(k) => setType(String(k) as FinancialAccountType)}
-        >
-          <Select.Trigger>
-            <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id="cash" textValue="Caixa">
-                Caixa
-              </ListBox.Item>
-              <ListBox.Item id="bank" textValue="Banco">
-                Banco
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Saldo inicial (R$)</label>
-        <TextField value={initialBalance} onChange={setInitialBalance} aria-label="Saldo inicial">
-          <Input placeholder="0,00" inputMode="decimal" />
-        </TextField>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Acesso</label>
-        <div className="rounded-md border border-[var(--color-soft-border)] bg-white px-3 py-2 text-sm text-foreground">
-          Qualquer usuário pode acessar
-        </div>
-      </div>
-      <Switch
-        isSelected={active}
-        onChange={setActive}
-        className="flex w-full items-center justify-between gap-3 py-1.5"
+  const footer = success ? (
+    <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      Fechar
+    </Button>
+  ) : (
+    <>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+        Cancelar
+      </Button>
+      <Button
+        variant="primary"
+        className="w-full sm:w-auto"
+        isDisabled={!canConfirm}
+        onClick={handleConfirm}
       >
-        <span className="text-sm text-foreground">Ativa</span>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-      </Switch>
-    </ModalShell>
+        {isPending ? 'Salvando…' : 'Salvar'}
+      </Button>
+    </>
+  );
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={editing ? 'Editar conta' : 'Conta bancária'}
+      footer={footer}
+      widthClass="sm:w-[480px]"
+    >
+      {success ? (
+        <SuccessBlock text="Conta criada com sucesso!" />
+      ) : (
+        <div className="flex flex-col gap-4">
+          {/* Nome (2/3) + Saldo (1/3), como no Belasis */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <Field label="Nome">
+                <TextField value={name} onChange={setName} aria-label="Nome">
+                  <Input placeholder="Nome" />
+                </TextField>
+              </Field>
+            </div>
+            <div className="col-span-1">
+              <Field label="Saldo">
+                <TextField
+                  value={initialBalance}
+                  onChange={setInitialBalance}
+                  aria-label="Saldo"
+                >
+                  <Input placeholder="R$ 0,00" inputMode="decimal" />
+                </TextField>
+              </Field>
+            </div>
+          </div>
+
+          {/* Tipo — não existe no drawer do Belasis (usa Belasis Pay), mas o
+              backend do SalonPass separa Caixa/Banco. */}
+          <Field label="Tipo">
+            <Select
+              aria-label="Tipo"
+              selectedKey={type}
+              onSelectionChange={(k) => setType(String(k) as FinancialAccountType)}
+            >
+              <Select.Trigger>
+                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="cash" textValue="Caixa">
+                    Caixa
+                  </ListBox.Item>
+                  <ListBox.Item id="bank" textValue="Banco">
+                    Banco
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Field>
+
+          {/* Acesso (somente leitura, como no Belasis) */}
+          <Field label="Acesso">
+            <div className="rounded-md border border-[var(--color-soft-border)] bg-cream/40 px-3 py-2 text-sm text-muted">
+              Qualquer usuário pode acessar
+            </div>
+          </Field>
+
+          <RowSwitch label="Ativa" isSelected={active} onChange={setActive} />
+
+          {formError && <FormError message={formError} />}
+        </div>
+      )}
+    </Drawer>
   );
 }
 
-function NovaFormaModal({
+/** Drawer de Forma de pagamento (Novo/Editar). */
+function FormaDrawer({
   isOpen,
-  onOpenChange,
+  onClose,
   editing,
 }: {
   isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   editing: PaymentMethod | null;
 }) {
   const [name, setName] = useState('');
@@ -814,102 +901,117 @@ function NovaFormaModal({
     try {
       if (editing) {
         await update.mutateAsync({ id: editing.id, body });
-        onOpenChange(false);
+        onClose();
       } else {
         await create.mutateAsync(body);
         setSuccess(true);
       }
     } catch (err) {
-      setFormError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível salvar a forma.',
-      );
+      setFormError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar a forma.');
     }
   }
 
-  return (
-    <ModalShell
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      title={editing ? 'Editar forma de pagamento' : 'Nova forma de pagamento'}
-      success={success}
-      successText="Forma criada com sucesso!"
-      canConfirm={canConfirm}
-      isPending={isPending}
-      formError={formError}
-      onConfirm={handleConfirm}
-    >
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Nome</label>
-        <TextField value={name} onChange={setName} aria-label="Nome">
-          <Input placeholder="Ex.: Cartão de crédito" />
-        </TextField>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted">Taxa (%)</label>
-          <TextField value={feePercent} onChange={setFeePercent} aria-label="Taxa">
-            <Input placeholder="0,00" inputMode="decimal" />
-          </TextField>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted">Prazo de recebimento (dias)</label>
-          <TextField
-            value={settlementDays}
-            onChange={setSettlementDays}
-            aria-label="Prazo de recebimento"
-          >
-            <Input placeholder="0" inputMode="numeric" />
-          </TextField>
-        </div>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Conta</label>
-        <Select
-          aria-label="Conta"
-          selectedKey={defaultAccountId || null}
-          onSelectionChange={(k) => setDefaultAccountId(k ? String(k) : NONE)}
-        >
-          <Select.Trigger>
-            <Select.Value>
-              {({ isPlaceholder, selectedText }) =>
-                isPlaceholder ? 'Selecione (opcional)' : selectedText
-              }
-            </Select.Value>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {(accounts.data ?? []).map((a) => (
-                <ListBox.Item key={a.id} id={a.id} textValue={a.name}>
-                  {a.name}
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      </div>
-      <Switch
-        isSelected={goesToCash}
-        onChange={setGoesToCash}
-        className="flex w-full items-center justify-between gap-3 py-1.5"
+  const footer = success ? (
+    <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      Fechar
+    </Button>
+  ) : (
+    <>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+        Cancelar
+      </Button>
+      <Button
+        variant="primary"
+        className="w-full sm:w-auto"
+        isDisabled={!canConfirm}
+        onClick={handleConfirm}
       >
-        <span className="text-sm text-foreground">
-          Baixa automática no financeiro
-        </span>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-      </Switch>
-    </ModalShell>
+        {isPending ? 'Salvando…' : 'Salvar'}
+      </Button>
+    </>
+  );
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={editing ? 'Editar forma de pagamento' : 'Forma de pagamento'}
+      footer={footer}
+      widthClass="sm:w-[480px]"
+    >
+      {success ? (
+        <SuccessBlock text="Forma criada com sucesso!" />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <Field label="Nome">
+            <TextField value={name} onChange={setName} aria-label="Nome">
+              <Input placeholder="Ex.: Cartão de crédito" />
+            </TextField>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Taxa (%)">
+              <TextField value={feePercent} onChange={setFeePercent} aria-label="Taxa">
+                <Input placeholder="0,00" inputMode="decimal" />
+              </TextField>
+            </Field>
+            <Field label="Prazo de recebimento (dias)">
+              <TextField
+                value={settlementDays}
+                onChange={setSettlementDays}
+                aria-label="Prazo de recebimento"
+              >
+                <Input placeholder="0" inputMode="numeric" />
+              </TextField>
+            </Field>
+          </div>
+
+          <Field label="Conta">
+            <Select
+              aria-label="Conta"
+              selectedKey={defaultAccountId || null}
+              onSelectionChange={(k) => setDefaultAccountId(k ? String(k) : NONE)}
+            >
+              <Select.Trigger>
+                <Select.Value>
+                  {({ isPlaceholder, selectedText }) =>
+                    isPlaceholder ? 'Selecione (opcional)' : selectedText
+                  }
+                </Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {(accounts.data ?? []).map((a) => (
+                    <ListBox.Item key={a.id} id={a.id} textValue={a.name}>
+                      {a.name}
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Field>
+
+          <RowSwitch
+            label="Baixa automática no financeiro"
+            isSelected={goesToCash}
+            onChange={setGoesToCash}
+          />
+
+          {formError && <FormError message={formError} />}
+        </div>
+      )}
+    </Drawer>
   );
 }
 
-function NovaCategoriaModal({
+/** Drawer de Categoria (Novo/Editar). */
+function CategoriaDrawer({
   isOpen,
-  onOpenChange,
+  onClose,
   editing,
 }: {
   isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   editing: FinancialCategory | null;
 }) {
   const [name, setName] = useState('');
@@ -953,7 +1055,7 @@ function NovaCategoriaModal({
     try {
       if (editing) {
         await update.mutateAsync({ id: editing.id, body: { ...base, active } });
-        onOpenChange(false);
+        onClose();
       } else {
         await create.mutateAsync(base);
         setSuccess(true);
@@ -965,66 +1067,95 @@ function NovaCategoriaModal({
     }
   }
 
+  const footer = success ? (
+    <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      Fechar
+    </Button>
+  ) : (
+    <>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+        Cancelar
+      </Button>
+      <Button
+        variant="primary"
+        className="w-full sm:w-auto"
+        isDisabled={!canConfirm}
+        onClick={handleConfirm}
+      >
+        {isPending ? 'Salvando…' : 'Salvar'}
+      </Button>
+    </>
+  );
+
   return (
-    <ModalShell
+    <Drawer
       isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      title={editing ? 'Editar categoria' : 'Nova categoria'}
-      success={success}
-      successText="Categoria criada com sucesso!"
-      canConfirm={canConfirm}
-      isPending={isPending}
-      formError={formError}
-      onConfirm={handleConfirm}
+      onClose={onClose}
+      title={editing ? 'Editar categoria' : 'Categoria'}
+      footer={footer}
+      widthClass="sm:w-[480px]"
     >
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Nome</label>
-        <TextField value={name} onChange={setName} aria-label="Nome">
-          <Input placeholder="Ex.: Vendas de serviços" />
-        </TextField>
+      {success ? (
+        <SuccessBlock text="Categoria criada com sucesso!" />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <Field label="Nome">
+            <TextField value={name} onChange={setName} aria-label="Nome">
+              <Input placeholder="Ex.: Vendas de serviços" />
+            </TextField>
+          </Field>
+
+          <Field label="Crédito/Débito">
+            <Select
+              aria-label="Crédito/Débito"
+              selectedKey={kind}
+              onSelectionChange={(k) => setKind(String(k) as FinancialCategoryKind)}
+            >
+              <Select.Trigger>
+                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="credit" textValue="Crédito">
+                    Crédito
+                  </ListBox.Item>
+                  <ListBox.Item id="debit" textValue="Débito">
+                    Débito
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Field>
+
+          <RowSwitch
+            label="Conta como comissão"
+            isSelected={countsAsCommission}
+            onChange={setCountsAsCommission}
+          />
+          <RowSwitch label="Ativa" isSelected={active} onChange={setActive} />
+
+          {formError && <FormError message={formError} />}
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
+function SuccessBlock({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-3xl text-gold-strong">
+        ✓
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted">Crédito/Débito</label>
-        <Select
-          aria-label="Crédito/Débito"
-          selectedKey={kind}
-          onSelectionChange={(k) => setKind(String(k) as FinancialCategoryKind)}
-        >
-          <Select.Trigger>
-            <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id="credit" textValue="Crédito">
-                Crédito
-              </ListBox.Item>
-              <ListBox.Item id="debit" textValue="Débito">
-                Débito
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      </div>
-      <Switch
-        isSelected={countsAsCommission}
-        onChange={setCountsAsCommission}
-        className="flex w-full items-center justify-between gap-3 py-1.5"
-      >
-        <span className="text-sm text-foreground">Conta como comissão</span>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-      </Switch>
-      <Switch
-        isSelected={active}
-        onChange={setActive}
-        className="flex w-full items-center justify-between gap-3 py-1.5"
-      >
-        <span className="text-sm text-foreground">Ativa</span>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-      </Switch>
-    </ModalShell>
+      <p className="text-base font-semibold text-foreground">{text}</p>
+    </div>
+  );
+}
+
+function FormError({ message }: { message: string }) {
+  return (
+    <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+      {message}
+    </div>
   );
 }

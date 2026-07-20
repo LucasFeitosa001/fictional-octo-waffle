@@ -40,7 +40,7 @@ function ManagerNumberSection() {
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <p className="text-sm font-semibold text-[#1a1a1a]">
+        <p className="text-sm font-semibold text-ink-soft">
           Numero do salao (WhatsApp)
         </p>
         <p className="mt-1 text-sm text-muted">

@@ -118,7 +118,7 @@ export function CaixaPage() {
         </KpiCard>
       </div>
 
-      <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+      <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
         <Card.Content className="p-4">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <h3 className="text-sm font-semibold text-foreground">Histórico de caixa</h3>
@@ -181,10 +181,10 @@ function KpiCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+    <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
       <Card.Content className="p-5">
         <div className="mb-2 flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f2b33d]/15 text-[#a67c1e]">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gold/15 text-gold-strong">
             {icon}
           </span>
           <span className="text-sm font-medium text-muted">{label}</span>

@@ -1,159 +1,292 @@
 import { useState } from 'react';
-import { Card } from '@heroui/react';
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { PageHeader } from '../../components/PageHeader';
-import { LoadingState } from '../../components/States';
-import { DateRangeFilter } from '../../components/DateRangeFilter';
-import { IconCalendar, IconCircleCheck, IconX } from '../../components/icons';
-import { formatNumber, isoDate } from '../../lib/format';
+import {
+  IconCalendar,
+  IconChevron,
+  IconHome,
+  IconStar,
+} from '../../components/icons';
+import { isoDate } from '../../lib/format';
 import { useReportsOverview } from '../../lib/queries/relatorios';
-import { BackToReports, CARD, COLOR_GREEN } from './reportShared';
+import { BackToReports } from './reportShared';
+
+/* -------------------------------------------------------------------------- */
+/*  Clone 100% fiel da página "Todos os Agendamentos" do Belasis              */
+/*  (rota /reports/calendars/all). É um GERADOR de relatório: menu de tipos   */
+/*  à esquerda + formulário de configuração à direita + "Gerar relatório".    */
+/*  Cores 100% themeable via tokens (--sp-*). Mobile-first.                    */
+/* -------------------------------------------------------------------------- */
 
 function defaultRange() {
   const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - 30);
+  const from = new Date(to.getFullYear(), to.getMonth(), 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
-function Kpi({
-  icon,
-  title,
+// ---- Menu de tipos de relatório (submenu "Agendamentos" do hub Belasis) ----
+const REPORT_TYPES = [
+  { key: 'home', label: 'Início', icon: IconHome, to: '/reports/calendars' },
+  { key: 'all', label: 'Todos os Agendamentos', icon: IconCalendar, to: '/reports/calendars/all' },
+  { key: 'deleted', label: 'Agendamentos excluídos', icon: IconCalendar, to: '/reports/calendars/deleted' },
+  { key: 'origin', label: 'Origem dos Agendamentos', icon: IconCalendar, to: '/reports/calendars/origin' },
+  { key: 'creation', label: 'Criação de Agendamento', icon: IconCalendar, to: '/reports/calendars/creation' },
+  { key: 'care', label: 'Cuidados para Hoje', icon: IconCalendar, to: '/reports/calendars/care-messages-today' },
+] as const;
+
+// ---- Colunas selecionáveis do relatório (ordem idêntica ao Belasis) --------
+const COLUMN_OPTIONS = [
+  { value: 'employee', label: 'Profissional' },
+  { value: 'date', label: 'Data' },
+  { value: 'start_hour', label: 'Horário inicial' },
+  { value: 'end_hour', label: 'Horário final' },
+  { value: 'service', label: 'Serviço' },
+  { value: 'client', label: 'Cliente' },
+  { value: 'client_cellphone', label: 'Celular' },
+  { value: 'address', label: 'Endereço' },
+  { value: 'city_state', label: 'Cidade e Estado' },
+  { value: 'obs', label: 'Observação' },
+  { value: 'duration', label: 'Duração' },
+  { value: 'status', label: 'Status' },
+  { value: 'color', label: 'Cor' },
+] as const;
+
+// ---- Controle segmentado (ant-radio-group-solid) — themeable --------------
+function Segmented<T extends string>({
+  options,
   value,
-  tone = 'accent',
+  onChange,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  value: string;
-  tone?: 'accent' | 'success' | 'danger';
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
 }) {
-  const wrap =
-    tone === 'success'
-      ? 'bg-success/12 text-success'
-      : tone === 'danger'
-        ? 'bg-danger/12 text-danger'
-        : 'bg-[#f2b33d]/15 text-[#a67c1e]';
   return (
-    <Card className={CARD}>
-      <Card.Content className="p-5">
-        <div className="flex items-center gap-2 text-muted">
-          <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${wrap}`}>
-            {icon}
-          </span>
-          <span className="text-sm font-medium text-foreground">{title}</span>
-        </div>
-        <div className="mt-3 text-2xl font-bold text-foreground sm:text-3xl">{value}</div>
-      </Card.Content>
-    </Card>
+    <div className="inline-flex flex-wrap overflow-hidden rounded-lg border border-line">
+      {options.map((o, i) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={[
+              'px-4 py-1.5 text-sm font-medium transition-colors',
+              i > 0 ? 'border-l border-line' : '',
+              active
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card text-ink hover:bg-canvas',
+            ].join(' ')}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---- Rótulo de campo de formulário (ant-form-item-label) -------------------
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="mb-1.5 block text-sm text-ink" title={String(children)}>
+      {children}
+    </span>
   );
 }
 
 export function AgendamentosPage() {
   const [range, setRange] = useState(defaultRange);
+  const [layout, setLayout] = useState<'portrait' | 'landscape'>('portrait');
+  const [employeeStatus, setEmployeeStatus] = useState<'all' | 'actives' | 'inactives'>('all');
+  const [columnsOption, setColumnsOption] = useState<'columns' | 'empty_columns'>('columns');
+  const [groupBy, setGroupBy] = useState('all');
+  const [checked, setChecked] = useState<Set<string>>(
+    () => new Set(COLUMN_OPTIONS.map((c) => c.value)),
+  );
+
+  // Data-wiring preservado: dispara a query de overview para o período escolhido.
   const query = useReportsOverview(range.from, range.to);
-  const occ = query.data?.occupancy;
 
-  const total = occ?.total ?? 0;
-  const done = occ?.done ?? 0;
-  const canceled = occ?.canceled ?? 0;
-  const others = Math.max(0, total - done - canceled);
-  const rate = Math.round((occ?.rate ?? 0) * 100);
+  function toggleColumn(v: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return next;
+    });
+  }
 
-  const pieData = [
-    { name: 'Realizados', value: done, color: COLOR_GREEN },
-    { name: 'Cancelados', value: canceled, color: '#ec4899' },
-    { name: 'Outros', value: others, color: '#f0ce84' },
-  ].filter((s) => s.value > 0);
+  function gerarRelatorio() {
+    // TODO: endpoint de geração de relatório de agendamentos (PDF) não existe
+    // ainda no backend SalonPass — por ora reprocessa a query do período.
+    query.refetch();
+  }
 
   return (
     <div>
       <BackToReports />
       <PageHeader
-        title="Agendamentos"
-        subtitle="Ocupação da agenda e cancelamentos no período"
+        title="Todos os Agendamentos"
+        subtitle="Configure e gere o relatório de agendamentos do período"
       />
 
-      <Card className={`mb-4 ${CARD}`}>
-        <Card.Content className="p-4">
-          <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
-        </Card.Content>
-      </Card>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* ---- Menu de tipos de relatório ------------------------------- */}
+        <nav className="shrink-0 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-card)] lg:w-[320px]">
+          <ul className="flex flex-col gap-0.5">
+            {REPORT_TYPES.map((r) => {
+              const active = r.key === 'all';
+              const Icon = r.icon;
+              return (
+                <li key={r.key}>
+                  <button
+                    type="button"
+                    className={[
+                      'flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm transition-colors',
+                      active
+                        ? 'font-semibold text-primary-strong [background:color-mix(in_oklab,var(--sp-primary)_12%,transparent)]'
+                        : 'text-ink hover:bg-canvas',
+                    ].join(' ')}
+                  >
+                    <Icon size={18} className={active ? 'text-primary-strong' : 'text-muted-ink'} />
+                    <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                    {active && <IconStar size={16} className="shrink-0 text-gold" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-      {query.isLoading ? (
-        <LoadingState />
-      ) : (
-        <>
-          <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Kpi
-              icon={<IconCalendar size={18} />}
-              title="Total"
-              value={formatNumber(total)}
-            />
-            <Kpi
-              icon={<IconCircleCheck size={18} />}
-              title="Realizados"
-              value={formatNumber(done)}
-              tone="success"
-            />
-            <Kpi icon={<IconX size={18} />} title="Cancelados" value={formatNumber(canceled)} tone="danger" />
-            <Kpi
-              icon={<IconCalendar size={18} />}
-              title="Ocupação"
-              value={`${rate}%`}
-            />
+        {/* ---- Formulário de configuração do relatório ------------------- */}
+        <form
+          className="min-w-0 flex-1 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            gerarRelatorio();
+          }}
+        >
+          <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
+            {/* Layout */}
+            <div>
+              <FieldLabel>Layout</FieldLabel>
+              <Segmented
+                value={layout}
+                onChange={setLayout}
+                options={[
+                  { value: 'portrait', label: 'Retrato' },
+                  { value: 'landscape', label: 'Paisagem' },
+                ]}
+              />
+            </div>
+
+            {/* Período */}
+            <div>
+              <FieldLabel>Período</FieldLabel>
+              <div className="flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-card px-3 text-sm text-ink focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/30">
+                <input
+                  type="date"
+                  value={range.from}
+                  max={range.to || undefined}
+                  onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+                  aria-label="Data inicial"
+                  className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
+                />
+                <IconChevron size={14} className="shrink-0 -rotate-90 text-muted-ink" />
+                <input
+                  type="date"
+                  value={range.to}
+                  min={range.from || undefined}
+                  onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+                  aria-label="Data final"
+                  className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
+                />
+                <IconCalendar size={16} className="shrink-0 text-muted-ink" />
+              </div>
+            </div>
+
+            {/* Profissionais */}
+            <div>
+              <FieldLabel>Profissionais</FieldLabel>
+              <Segmented
+                value={employeeStatus}
+                onChange={setEmployeeStatus}
+                options={[
+                  { value: 'all', label: 'Todos' },
+                  { value: 'actives', label: 'Ativos' },
+                  { value: 'inactives', label: 'Inativos' },
+                ]}
+              />
+            </div>
+
+            {/* Colunas */}
+            <div>
+              <FieldLabel>Colunas</FieldLabel>
+              <Segmented
+                value={columnsOption}
+                onChange={setColumnsOption}
+                options={[
+                  { value: 'columns', label: 'Informativa' },
+                  { value: 'empty_columns', label: 'Em Branco' },
+                ]}
+              />
+            </div>
+
+            {/* Agrupar por */}
+            <div>
+              <FieldLabel>Agrupar por</FieldLabel>
+              <div className="relative">
+                <select
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value)}
+                  aria-label="Agrupar por"
+                  className="h-11 w-full appearance-none rounded-xl border border-line bg-card px-3 pr-9 text-sm text-ink outline-none transition-colors focus:border-gold focus:ring-2 focus:ring-gold/30"
+                >
+                  <option value="all">Todos</option>
+                  <option value="employee">Profissional</option>
+                  <option value="date">Data</option>
+                </select>
+                <IconChevron
+                  size={16}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-ink"
+                />
+              </div>
+            </div>
           </div>
 
-          <Card className={CARD}>
-            <Card.Content className="p-5">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Distribuição dos agendamentos
-              </h3>
-              {pieData.length === 0 ? (
-                <div className="flex h-64 items-center justify-center text-sm text-muted">
-                  Sem agendamentos no período.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-2">
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          innerRadius={40}
-                        >
-                          {pieData.map((s) => (
-                            <Cell key={s.name} fill={s.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(v: number) => formatNumber(v)} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <ul className="flex flex-col divide-y divide-[var(--color-soft-border)]">
-                    {pieData.map((s) => (
-                      <li key={s.name} className="flex items-center gap-3 py-2">
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{ background: s.color }}
-                        />
-                        <span className="flex-1 text-sm text-foreground">{s.name}</span>
-                        <span className="text-sm font-semibold text-foreground">
-                          {formatNumber(s.value)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </Card.Content>
-          </Card>
-        </>
-      )}
+          {/* Checklist de colunas do relatório */}
+          <div className="mt-5">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 md:grid-cols-3">
+              {COLUMN_OPTIONS.map((c) => (
+                <label
+                  key={c.value}
+                  className="flex cursor-pointer items-center gap-2 text-sm text-ink"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked.has(c.value)}
+                    onChange={() => toggleColumn(c.value)}
+                    className="h-4 w-4 shrink-0 rounded border-line accent-[var(--sp-primary)]"
+                  />
+                  <span className="min-w-0 truncate">{c.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Ação: Gerar relatório (botão primário) */}
+          <div className="mt-6 flex justify-end">
+            <button
+              type="submit"
+              disabled={query.isFetching}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {query.isFetching ? 'Gerando…' : 'Gerar relatório'}
+              <IconChevron size={16} className="rotate-180" />
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

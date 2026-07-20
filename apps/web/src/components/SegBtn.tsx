@@ -20,8 +20,8 @@ export function SegBtn({
       onClick={onClick}
       className={
         active
-          ? 'min-h-10 rounded-full bg-[#f2b33d]/15 px-4 py-2 text-sm font-medium text-[#8a6517] shadow-[var(--shadow-gold)]'
-          : 'min-h-10 rounded-full border border-[var(--color-soft-border)] bg-[#fffdf8] px-4 py-2 text-sm text-muted transition-colors hover:text-foreground'
+          ? 'min-h-10 rounded-full bg-gold/15 px-4 py-2 text-sm font-medium text-[#8a6517] shadow-[var(--shadow-gold)]'
+          : 'min-h-10 rounded-full border border-[var(--color-soft-border)] bg-warm-white px-4 py-2 text-sm text-muted transition-colors hover:text-foreground'
       }
     >
       {children}

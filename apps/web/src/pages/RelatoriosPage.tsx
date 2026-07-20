@@ -19,7 +19,7 @@ import {
 import { formatMoney, formatNumber, isoDate } from '../lib/format';
 import { useReportsOverview } from '../lib/queries/relatorios';
 
-const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+const CARD = 'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
 
 function defaultRange() {
   const to = new Date();
@@ -122,7 +122,7 @@ function SummaryCard({
 
 function IconWrap({ children }: { children: React.ReactNode }) {
   return (
-    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f2b33d]/15 text-[#a67c1e]">
+    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/15 text-gold-strong">
       {children}
     </span>
   );
@@ -144,7 +144,7 @@ export function RelatoriosPage() {
       <Card className={`mb-4 ${CARD}`}>
         <Card.Content className="flex flex-wrap items-end justify-between gap-4 p-5">
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#a67c1e]">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gold-strong">
               Resumo do período
             </p>
             <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
@@ -181,14 +181,14 @@ export function RelatoriosPage() {
       )}
 
       {/* Categorias */}
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#a67c1e]">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gold-strong">
         Categorias de relatórios
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {CATEGORIES.map((c) => (
           <Link key={c.slug} to={c.to} className="group block focus:outline-none">
             <Card
-              className={`${CARD} h-full transition-all group-hover:-translate-y-0.5 group-hover:border-[#f2b33d] group-hover:shadow-[var(--shadow-gold)] group-focus-visible:border-[#f2b33d]`}
+              className={`${CARD} h-full transition-all group-hover:-translate-y-0.5 group-hover:border-gold group-hover:shadow-[var(--shadow-gold)] group-focus-visible:border-gold`}
             >
               <Card.Content className="flex h-full items-start gap-3 p-5">
                 <IconWrap>{c.icon}</IconWrap>
@@ -197,7 +197,7 @@ export function RelatoriosPage() {
                     <span className="text-base font-semibold text-foreground">{c.title}</span>
                     <IconChevron
                       size={16}
-                      className="-rotate-90 shrink-0 text-muted transition-colors group-hover:text-[#a67c1e]"
+                      className="-rotate-90 shrink-0 text-muted transition-colors group-hover:text-gold-strong"
                     />
                   </div>
                   <p className="mt-1 text-sm leading-snug text-muted">{c.description}</p>

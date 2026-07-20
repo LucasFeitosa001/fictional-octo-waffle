@@ -206,14 +206,19 @@ const NAVIGATION: NavEntry[] = [
 ];
 
 const COLLAPSE_KEY = 'sp:sidebar:collapsed';
-const GROUP_COLLAPSE_KEY = 'sp:sidebar:groups';
+// v2 resets the previous default-open preference once. From this version on,
+// every group starts collapsed and subsequent user choices are persisted.
+const GROUP_COLLAPSE_KEY = 'sp:sidebar:groups:v2';
+const DEFAULT_COLLAPSED_GROUPS = new Set(
+  NAVIGATION.filter((entry): entry is NavGroup => entry.kind === 'group').map((entry) => entry.key),
+);
 
 function loadCollapsedGroups(): Set<string> {
   try {
     const raw = localStorage.getItem(GROUP_COLLAPSE_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
+    return raw ? new Set(JSON.parse(raw)) : new Set(DEFAULT_COLLAPSED_GROUPS);
   } catch {
-    return new Set();
+    return new Set(DEFAULT_COLLAPSED_GROUPS);
   }
 }
 
@@ -233,14 +238,18 @@ function pathIsActive(to: string, pathname: string) {
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return [
-    'group flex min-h-10 items-center rounded-lg text-sm font-medium transition-colors',
+    'group flex min-h-10 items-center rounded-lg text-sm font-normal transition-colors',
     isActive ? 'db-nav-active' : 'text-white/70 hover:bg-white/[0.08] hover:text-white',
   ].join(' ');
 }
 
+function subNavLinkClass(state: { isActive: boolean }) {
+  return `${navLinkClass(state)} pl-9`;
+}
+
 function MenuBadge({ children }: { children: 'Beta' | 'novo' }) {
   return (
-    <span className="ml-2 shrink-0 rounded-md bg-[#f2b33d] px-1.5 py-0.5 text-[9px] font-bold leading-none text-[#111111]">
+    <span className="ml-2 shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[9px] font-bold leading-none text-ink">
       {children}
     </span>
   );
@@ -265,7 +274,9 @@ export function Sidebar({
 
   const [collapsedGroups, setCollapsedGroups] = useState(loadCollapsedGroups);
   const [createOpen, setCreateOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const fullName = session?.user?.name?.trim() || 'Usuário';
   const firstName = fullName.split(/\s+/)[0];
@@ -283,6 +294,7 @@ export function Sidebar({
 
   function toggleCollapse() {
     setCreateOpen(false);
+    setProfileOpen(false);
     setCollapsed((previous) => {
       const next = !previous;
       try {
@@ -295,14 +307,20 @@ export function Sidebar({
   }
 
   useEffect(() => {
-    if (!createOpen) return;
+    if (!createOpen && !profileOpen) return;
     const closeOnOutsideClick = (event: MouseEvent) => {
       if (createRef.current && !createRef.current.contains(event.target as Node)) {
         setCreateOpen(false);
       }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCreateOpen(false);
+      if (event.key === 'Escape') {
+        setCreateOpen(false);
+        setProfileOpen(false);
+      }
     };
     document.addEventListener('mousedown', closeOnOutsideClick);
     document.addEventListener('keydown', closeOnEscape);
@@ -310,10 +328,16 @@ export function Sidebar({
       document.removeEventListener('mousedown', closeOnOutsideClick);
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [createOpen]);
+  }, [createOpen, profileOpen]);
 
   function quickCreate(to: string) {
     setCreateOpen(false);
+    onNavigate?.();
+    navigate(to);
+  }
+
+  function pickProfileOption(to: string) {
+    setProfileOpen(false);
     onNavigate?.();
     navigate(to);
   }
@@ -334,16 +358,43 @@ export function Sidebar({
         <EntryIcon size={19} />
       </NavLink>
     ) : (
-      <button type="button" onClick={toggleCollapse} className={className} aria-label={`Abrir ${label}`}>
+      <button type="button" className={className} aria-label={label}>
         <EntryIcon size={19} />
       </button>
     );
 
+    // Colapsada: flyout à DIREITA na COR DA SIDEBAR. Link → só o label; grupo →
+    // o submenu inteiro (subitens clicáveis), como no Belasis.
     return (
-      <Tooltip key={entry.key} delay={150}>
+      <Tooltip key={entry.key} delay={0}>
         <Tooltip.Trigger className="contents">{control}</Tooltip.Trigger>
-        <Tooltip.Content className="rounded-lg bg-[#1a1a1a] px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]">
-          {label}
+        <Tooltip.Content placement="right" className="db-sidebar rounded-xl border border-white/10 p-1.5 text-white shadow-[var(--shadow-pop)]">
+          {entry.kind === 'link' ? (
+            <span className="block px-2 py-0.5 text-xs font-medium">{label}</span>
+          ) : (
+            <div className="min-w-[196px]">
+              <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/45">{entry.title}</p>
+              {entry.items.map((item) => {
+                const ItemIcon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={onNavigate}
+                    className={({ isActive }) =>
+                      [
+                        'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                        isActive ? 'db-nav-active' : 'text-white/80 hover:bg-white/[0.1] hover:text-white',
+                      ].join(' ')
+                    }
+                  >
+                    {ItemIcon ? <ItemIcon size={16} /> : null}
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+            </div>
+          )}
         </Tooltip.Content>
       </Tooltip>
     );
@@ -354,14 +405,16 @@ export function Sidebar({
       className={[
         'db-sidebar flex h-full shrink-0 flex-col py-4 transition-[width] duration-300 ease-out',
         mobile ? 'db-sidebar-mobile' : '',
-        isCollapsed ? 'w-[84px] px-3' : 'w-[296px] px-4',
+        isCollapsed ? 'w-[76px] px-1' : 'w-[248px] px-1',
       ].join(' ')}
     >
-      <div className={isCollapsed ? 'flex flex-col items-center gap-3' : 'flex items-center justify-between gap-2 px-1'}>
+      <div className={isCollapsed
+        ? 'flex flex-col items-center gap-3 border-b border-white/[0.1] pb-3'
+        : 'flex items-center justify-between gap-2 border-b border-white/[0.1] px-1 pb-3'}>
         {isCollapsed ? (
           <span
             aria-label="Salonpass"
-            className="grid h-9 w-9 place-items-center rounded-xl bg-[#f2b33d] font-brand text-lg font-bold text-[#111111]"
+            className="grid h-9 w-9 place-items-center rounded-xl bg-gold font-brand text-lg font-bold text-ink"
           >
             S
           </span>
@@ -386,33 +439,77 @@ export function Sidebar({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => {
-          onNavigate?.();
-          navigate('/perfil');
-        }}
-        className={[
-          'mt-3 flex items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
-          isCollapsed ? 'h-11 justify-center' : 'gap-3 bg-white/[0.06] px-3 py-2.5',
-        ].join(' ')}
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[#f2b33d] text-sm font-bold text-[#111111]">
-          {session?.user?.image ? (
-            <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
-          ) : (
-            avatarInitial
-          )}
-        </span>
-        {!isCollapsed && (
-          <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate text-sm font-semibold text-white">Olá, {firstName.toUpperCase()}</span>
-            <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
-              Meu perfil <IconChevron size={11} className="-rotate-90" />
-            </span>
+      <div ref={profileRef} className="relative mt-3">
+        <button
+          type="button"
+          onClick={() => {
+            setCreateOpen(false);
+            setProfileOpen((previous) => !previous);
+          }}
+          aria-haspopup="menu"
+          aria-expanded={profileOpen}
+          className={[
+            'flex w-full items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
+            isCollapsed ? 'h-11 justify-center' : 'gap-3 bg-white/[0.06] px-3 py-2.5',
+          ].join(' ')}
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-gold text-sm font-bold text-ink">
+            {session?.user?.image ? (
+              <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
+            ) : (
+              avatarInitial
+            )}
           </span>
+          {!isCollapsed && (
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-sm font-semibold text-white">Olá, {firstName.toUpperCase()}</span>
+              <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
+                Meu perfil
+                <IconChevron size={11} className={`transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+              </span>
+            </span>
+          )}
+        </button>
+
+        {profileOpen && (
+          <div
+            role="menu"
+            className={[
+              'absolute z-[60] w-56 overflow-hidden rounded-2xl border border-black/[0.08] bg-warm-white p-1.5 text-ink shadow-[var(--shadow-pop)]',
+              isCollapsed ? 'bottom-0 left-full ml-2' : 'inset-x-0 top-full mt-2 w-auto',
+            ].join(' ')}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => pickProfileOption('/perfil')}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors hover:bg-cream"
+            >
+              <IconUsers size={17} /> Minha Conta
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => pickProfileOption('/perfil#assinatura')}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors hover:bg-cream"
+            >
+              <IconCreditCard size={17} /> Assinatura
+            </button>
+            <div className="my-1 h-px bg-black/[0.07]" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setProfileOpen(false);
+                void signOut();
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-danger transition-colors hover:bg-danger/10"
+            >
+              <IconLogout size={17} /> Sair
+            </button>
+          </div>
         )}
-      </button>
+      </div>
 
       <div ref={createRef} className="relative mt-3">
         {isCollapsed ? (
@@ -420,23 +517,29 @@ export function Sidebar({
             <Tooltip.Trigger className="contents">
               <button
                 type="button"
-                onClick={() => setCreateOpen((previous) => !previous)}
+                onClick={() => {
+                  setProfileOpen(false);
+                  setCreateOpen((previous) => !previous);
+                }}
                 aria-label="Novo"
                 aria-expanded={createOpen}
-                className="grid h-10 w-full place-items-center rounded-xl bg-white text-[#111111] transition-colors hover:bg-white/90"
+                className="grid h-10 w-full place-items-center rounded-xl bg-white text-ink transition-colors hover:bg-white/90"
               >
                 <IconPlus size={18} />
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Content className="rounded-lg bg-[#1a1a1a] px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]">
+            <Tooltip.Content className="rounded-lg bg-ink-soft px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]">
               Novo
             </Tooltip.Content>
           </Tooltip>
         ) : (
           <Button
             variant="secondary"
-            className="h-10 w-full justify-between rounded-xl bg-white font-semibold text-[#111111] shadow-none hover:bg-white/90"
-            onClick={() => setCreateOpen((previous) => !previous)}
+            className="h-10 w-full justify-between rounded-xl bg-white font-semibold text-ink shadow-none hover:bg-white/90"
+            onClick={() => {
+              setProfileOpen(false);
+              setCreateOpen((previous) => !previous);
+            }}
             aria-expanded={createOpen}
             aria-haspopup="menu"
           >
@@ -449,7 +552,7 @@ export function Sidebar({
           <div
             role="menu"
             className={[
-              'absolute top-full z-50 mt-2 max-h-[min(520px,65vh)] w-[264px] overflow-y-auto rounded-2xl border border-black/[0.06] bg-[#fffdf8] p-1.5 shadow-[var(--shadow-pop)]',
+              'absolute top-full z-50 mt-2 max-h-[min(520px,65vh)] w-[264px] overflow-y-auto rounded-2xl border border-black/[0.06] bg-warm-white p-1.5 shadow-[var(--shadow-pop)]',
               isCollapsed ? 'left-0' : 'left-0 right-0 w-auto',
             ].join(' ')}
           >
@@ -464,12 +567,12 @@ export function Sidebar({
                     type="button"
                     role="menuitem"
                     onClick={() => quickCreate(to)}
-                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-[#f7f3ea]"
+                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-cream"
                   >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#111111] text-[#f2b33d]">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink text-gold">
                       <Icon size={16} />
                     </span>
-                    <span className="min-w-0 truncate text-sm font-semibold text-[#111111]">{label}</span>
+                    <span className="min-w-0 truncate text-sm font-normal text-ink">{label}</span>
                   </button>
                 ))}
               </div>
@@ -479,7 +582,7 @@ export function Sidebar({
       </div>
 
       <ScrollShadow
-        className="-mr-1 mt-3 flex-1 pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-white/35 scrollbar-active:scrollbar-thumb-white/45"
+        className="db-sidebar-scroll -mr-1 mt-3 flex-1 pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-white/35 scrollbar-active:scrollbar-thumb-white/45"
       >
         <nav className="flex flex-col gap-1">
           {NAVIGATION.map((entry) => {
@@ -505,7 +608,7 @@ export function Sidebar({
                   onClick={() => toggleGroup(entry.key)}
                   aria-expanded={groupOpen}
                   className={[
-                    'flex min-h-10 w-full items-center justify-between rounded-lg px-0 text-sm font-semibold transition-colors',
+                    'flex min-h-10 w-full items-center justify-between rounded-lg px-0 text-sm font-normal transition-colors',
                     groupActive ? 'bg-white/[0.08] text-white' : 'text-white/75 hover:bg-white/[0.08] hover:text-white',
                   ].join(' ')}
                 >
@@ -518,13 +621,13 @@ export function Sidebar({
 
                 <div
                   className={[
-                    'ml-[18px] overflow-hidden border-l border-white/10 pl-[18px] transition-all duration-200',
+                    'overflow-hidden transition-all duration-200',
                     groupOpen ? 'max-h-[600px] py-1 opacity-100' : 'max-h-0 py-0 opacity-0',
                   ].join(' ')}
                 >
                   <div className="flex flex-col gap-1">
                     {entry.items.map(({ to, label, icon: ItemIcon, end, badge }) => (
-                      <NavLink key={to} to={to} end={end} onClick={onNavigate} className={navLinkClass}>
+                      <NavLink key={to} to={to} end={end} onClick={onNavigate} className={subNavLinkClass}>
                         <span className="grid h-9 w-8 shrink-0 place-items-center"><ItemIcon size={17} /></span>
                         <span className="min-w-0 flex-1 truncate pr-1">{label}</span>
                         {badge && <MenuBadge>{badge}</MenuBadge>}
@@ -539,18 +642,6 @@ export function Sidebar({
       </ScrollShadow>
 
       <div className="mt-3 border-t border-white/[0.08] pt-3">
-        <button
-          type="button"
-          onClick={() => signOut()}
-          aria-label="Sair"
-          className={[
-            'flex items-center rounded-lg text-sm font-medium text-white/65 transition-colors hover:bg-white/[0.08] hover:text-white',
-            isCollapsed ? 'h-10 w-full justify-center' : 'w-full gap-3 px-2.5 py-2',
-          ].join(' ')}
-        >
-          <IconLogout size={18} />
-          {!isCollapsed && <span>Sair</span>}
-        </button>
         {!isCollapsed && <div className="px-2.5 pt-2 text-[10px] text-white/35">v5.7.12</div>}
       </div>
     </aside>

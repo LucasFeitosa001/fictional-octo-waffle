@@ -80,6 +80,13 @@ export const IconFilter = (p: IconProps) => (
     <path d="M3 5h18l-7 8v6l-4-2v-4Z" />
   </Base>
 );
+export const IconCalculator = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="4" y="2.5" width="16" height="19" rx="2" />
+    <path d="M8 6.5h8" />
+    <path d="M8 11h.01M12 11h.01M16 11h.01M8 14.5h.01M12 14.5h.01M16 14.5h4M8 18h.01M12 18h.01" />
+  </Base>
+);
 export const IconRefresh = (p: IconProps) => (
   <Base {...p}>
     <path d="M21 12a9 9 0 1 1-2.6-6.3" />
@@ -351,5 +358,22 @@ export const IconUserPlus = (p: IconProps) => (
     <circle cx="9" cy="8" r="3.2" />
     <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
     <path d="M18 8v6M15 11h6" />
+  </Base>
+);
+export const IconGrip = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </Base>
+);
+export const IconMail = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3.5 7 8.5 6 8.5-6" />
+  </Base>
+);
+export const IconUser = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="8" r="3.4" />
+    <path d="M5 20a7 7 0 0 1 14 0" />
   </Base>
 );

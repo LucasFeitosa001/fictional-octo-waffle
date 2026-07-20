@@ -84,11 +84,11 @@ export function LoginPage() {
         {/* Atmosphere: soft gold + pink glow over the dark gray */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-[#f2b33d]/20 blur-[110px]"
+          className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-gold/20 blur-[110px]"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-36 -right-10 h-96 w-96 rounded-full bg-[#f08ca5]/15 blur-[120px]"
+          className="pointer-events-none absolute -bottom-36 -right-10 h-96 w-96 rounded-full bg-pink/15 blur-[120px]"
         />
 
         <div className="relative">
@@ -100,13 +100,13 @@ export function LoginPage() {
         </div>
 
         <div className="relative max-w-md">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f2b33d] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#111111]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink">
             <IconSparkles size={13} /> Gestão completa
           </span>
           <h1 className="mt-5 font-brand text-4xl font-semibold leading-[1.1] text-white xl:text-5xl">
             Sua gestão,
             <br />
-            <span className="text-[#f2b33d]">seus resultados.</span>
+            <span className="text-gold">seus resultados.</span>
           </h1>
           <p className="mt-4 max-w-sm text-base leading-relaxed text-white/55">
             A plataforma completa para o seu salão — e uma recepcionista de IA que
@@ -116,7 +116,7 @@ export function LoginPage() {
           <ul className="mt-9 flex flex-col gap-4">
             {HIGHLIGHTS.map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-center gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-[#f2b33d] ring-1 ring-inset ring-white/10">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-gold ring-1 ring-inset ring-white/10">
                   <Icon size={17} />
                 </span>
                 <span className="text-sm text-white/75">{text}</span>
@@ -194,7 +194,7 @@ export function LoginPage() {
             <Button
               type="submit"
               isDisabled={loading}
-              className="mt-1 h-12 w-full rounded-full bg-[#111111] text-sm font-medium text-white hover:bg-[#1f1f1f]"
+              className="mt-1 h-12 w-full rounded-full bg-ink text-sm font-medium text-white hover:bg-[#1f1f1f]"
             >
               {loading ? <Spinner size="sm" /> : 'Entrar'}
             </Button>
@@ -234,7 +234,7 @@ export function LoginPage() {
               href={CLUB_ORIGIN}
               target="_blank"
               rel="noreferrer noopener"
-              className="mt-1 inline-block text-sm font-semibold text-[#a67c1e] hover:underline"
+              className="mt-1 inline-block text-sm font-semibold text-gold-strong hover:underline"
             >
               Acessar Salonpass para clientes
             </a>

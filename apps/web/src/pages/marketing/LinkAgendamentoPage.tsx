@@ -145,11 +145,11 @@ export function LinkAgendamentoPage() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
           {/* Main card */}
-          <Card className="min-w-0 border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+          <Card className="min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
             <Card.Content className="flex flex-col gap-6 p-6">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#f2b33d]/15 text-[#a67c1e]">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/15 text-gold-strong">
                     <IconLink size={18} />
                   </span>
                   <div>
@@ -166,7 +166,7 @@ export function LinkAgendamentoPage() {
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Endereço completo</label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <code className="min-w-0 flex-1 truncate rounded-xl border border-[var(--color-soft-border)] bg-[#f7f3ea] px-3 py-2.5 text-sm text-foreground">
+                  <code className="min-w-0 flex-1 truncate rounded-xl border border-[var(--color-soft-border)] bg-cream px-3 py-2.5 text-sm text-foreground">
                     {draftUrl}
                   </code>
                   <div className="flex shrink-0 gap-2">
@@ -184,8 +184,8 @@ export function LinkAgendamentoPage() {
               {/* Slug editor */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Slug (apelido do link)</label>
-                <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white focus-within:border-[#f2b33d] focus-within:ring-2 focus-within:ring-[#f2b33d]/25">
-                  <span className="hidden items-center bg-[#f7f3ea] px-3 text-sm text-muted sm:flex">
+                <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/25">
+                  <span className="hidden items-center bg-cream px-3 text-sm text-muted sm:flex">
                     {PUBLIC_BASE}
                   </span>
                   <TextField
@@ -200,7 +200,7 @@ export function LinkAgendamentoPage() {
                     type="button"
                     onClick={() => copy(slug, 'slug')}
                     aria-label="Copiar slug"
-                    className="grid w-11 shrink-0 place-items-center border-l border-[var(--color-soft-border)] text-muted transition-colors hover:bg-[#f7f3ea] hover:text-foreground"
+                    className="grid w-11 shrink-0 place-items-center border-l border-[var(--color-soft-border)] text-muted transition-colors hover:bg-cream hover:text-foreground"
                   >
                     {copied === 'slug' ? <IconCheck size={16} /> : <IconCopy size={16} />}
                   </button>
@@ -246,7 +246,7 @@ export function LinkAgendamentoPage() {
                   onClick={toggleActive}
                   disabled={update.isPending}
                   className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
-                    active ? 'bg-[#f2b33d]' : 'bg-default-300'
+                    active ? 'bg-gold' : 'bg-default-300'
                   }`}
                 >
                   <span
@@ -293,10 +293,10 @@ export function LinkAgendamentoPage() {
           </Card>
 
           {/* QR + preview */}
-          <Card className="h-fit min-w-0 border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]">
+          <Card className="h-fit min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
             <Card.Content className="flex flex-col items-center gap-3 p-6 text-center">
               <div className="flex w-full items-center gap-2 text-left">
-                <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#111111] text-[#f2b33d]">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-gold">
                   <IconQr size={18} />
                 </span>
                 <div>

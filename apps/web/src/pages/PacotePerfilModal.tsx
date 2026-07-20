@@ -85,7 +85,7 @@ function PackageDetailBody({ pkg }: { pkg: CustomerPackageDetail }) {
   return (
     <div className="flex flex-col gap-4">
       {/* Header summary */}
-      <div className="rounded-xl border border-[var(--color-soft-border)] bg-[#fffdf8] p-4">
+      <div className="rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-base font-semibold text-foreground">
@@ -222,7 +222,7 @@ function PackageItemCard({
         <div className="h-2 w-full overflow-hidden rounded-full bg-[#f2ede2]">
           <div
             className={`h-full rounded-full transition-all ${
-              noSaldo ? 'bg-[#c9c2b4]' : 'bg-[#f2b33d]'
+              noSaldo ? 'bg-[#c9c2b4]' : 'bg-gold'
             }`}
             style={{ width: `${pct}%` }}
           />

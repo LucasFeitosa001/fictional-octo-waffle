@@ -117,14 +117,14 @@ export function NotificationBell({
         aria-label={unread > 0 ? `Notificações, ${unread} não lidas` : 'Notificações'}
         className={
           ringed
-            ? 'relative grid h-10 w-10 place-items-center rounded-full border border-[var(--color-soft-border)] bg-[#fffdf8] text-foreground transition-colors hover:border-[#f2b33d] hover:bg-[#f7f3ea]'
+            ? 'relative grid h-10 w-10 place-items-center rounded-full border border-[var(--color-soft-border)] bg-warm-white text-foreground transition-colors hover:border-gold hover:bg-cream'
             : 'relative rounded-lg p-2 text-current hover:bg-black/5'
         }
       >
         <IconBell size={ringed ? 19 : 22} />
         {ringed ? (
           unread > 0 && (
-            <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#f08ca5] ring-2 ring-[#fffdf8]" aria-hidden />
+            <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-pink ring-2 ring-warm-white" aria-hidden />
           )
         ) : (
           unread > 0 && (

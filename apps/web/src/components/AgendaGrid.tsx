@@ -171,7 +171,7 @@ export function AgendaGrid({ days, appointments, onSelect, hourHeight = 56 }: Ag
                 <span
                   className={[
                     'mt-0.5 grid h-7 w-7 place-items-center rounded-full text-sm font-semibold',
-                    today ? 'bg-[#f2b33d] text-[#3b2d09]' : 'text-[#2F3136]',
+                    today ? 'bg-gold text-[#3b2d09]' : 'text-[#2F3136]',
                   ].join(' ')}
                 >
                   {day.getDate()}
@@ -194,8 +194,8 @@ export function AgendaGrid({ days, appointments, onSelect, hourHeight = 56 }: Ag
                     style={{ top: nowTop }}
                   >
                     <div className="relative">
-                      <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-[#f2b33d]" />
-                      <div className="h-px bg-[#f2b33d]" />
+                      <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-gold" />
+                      <div className="h-px bg-gold" />
                     </div>
                   </div>
                 )}

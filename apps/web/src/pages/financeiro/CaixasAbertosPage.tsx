@@ -1,27 +1,39 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Chip, ListBox, Modal, Select } from '@heroui/react';
+import { Button, ListBox, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
-import { PageHeader } from '../../components/PageHeader';
-import { DataTable, type Column } from '../../components/DataTable';
+import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
-import { SegBtn } from '../../components/SegBtn';
-import { IconCash, IconClock, IconWallet } from '../../components/icons';
+import { IconCash, IconRefresh, IconPlus, IconClock } from '../../components/icons';
 import {
   useOpenedCashRegisters,
   useOpenCashRegister,
   useCloseCashRegister,
   useCashMovement,
   type CashRegisterDetail,
-  type CashMovementRow,
 } from '../../lib/queries/caixa';
 import { usePaymentMethods } from '../../lib/queries/financeiro';
 import { formatDateTime, formatMoney } from '../../lib/format';
 
-const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+// ── Ícones anticon reproduzidos (play-circle, minus) ─────────────────────────
+function IconPlayCircle({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="64 64 896 896" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z" />
+      <path d="M719.4 499.1l-296.1-215A15.9 15.9 0 00398 297v430c0 13.1 14.8 20.5 25.3 12.9l296.1-215a15.9 15.9 0 000-25.8zm-257.6 134V390.9L628.5 512 461.8 633.1z" />
+    </svg>
+  );
+}
+function IconMinus({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="64 64 896 896" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M872 474H152c-4.4 0-8 3.6-8 8v60c0 4.4 3.6 8 8 8h720c4.4 0 8-3.6 8-8v-60c0-4.4-3.6-8-8-8z" />
+    </svg>
+  );
+}
 
 type View = 'resumido' | 'detalhado';
-type ModalMode = 'open' | 'sangria' | 'suprimento' | 'close';
+type DrawerMode = 'open' | 'sangria' | 'suprimento' | 'close';
 
 export function CaixasAbertosPage() {
   const navigate = useNavigate();
@@ -29,78 +41,63 @@ export function CaixasAbertosPage() {
   const rows = opened.data ?? [];
 
   const [view, setView] = useState<View>('resumido');
-  const [modal, setModal] = useState<{ mode: ModalMode; register?: CashRegisterDetail } | null>(
+  const [drawer, setDrawer] = useState<{ mode: DrawerMode; register?: CashRegisterDetail } | null>(
     null,
-  );
-
-  const openTotal = useMemo(
-    () => rows.reduce((s, c) => s + Number(c.openingBalance ?? 0), 0),
-    [rows],
-  );
-  const cashTotal = useMemo(
-    () => rows.reduce((s, c) => s + Number(c.summary?.saldoEmCaixa ?? 0), 0),
-    [rows],
   );
 
   return (
     <div>
-      <PageHeader
-        title="Caixas abertos"
-        subtitle="Caixas em aberto no momento"
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate('/financeiro/caixas/historico')}>
-              <IconClock size={16} /> Histórico
-            </Button>
-            <Button variant="primary" onClick={() => setModal({ mode: 'open' })}>
-              <IconCash size={16} /> Abrir caixa
-            </Button>
-          </div>
-        }
-      />
-
-      {/* KPIs */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <KpiCard icon={<IconCash size={18} />} label="Caixas abertos" value={String(rows.length)}
-          hint="Em aberto neste momento" />
-        <KpiCard icon={<IconWallet size={18} />} label="Saldo inicial somado" value={formatMoney(openTotal)}
-          hint="Somatório dos saldos de abertura" />
-        <KpiCard icon={<IconWallet size={18} />} label="Saldo em caixa somado" value={formatMoney(cashTotal)}
-          hint="Inicial + movimentações" />
+      {/* ── Cabeçalho ─────────────────────────────────────────────────────── */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="flex items-center gap-2 text-[1.4rem] font-bold leading-tight text-ink sm:text-2xl">
+          Caixas abertos
+          <span className="text-muted-ink" title="Ver tutorial">
+            <IconPlayCircle size={18} />
+          </span>
+        </h1>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <Button variant="outline" onClick={() => navigate('/financeiro/caixas/historico')}>
+            <IconClock size={16} /> Histórico
+          </Button>
+          <Button variant="outline" onClick={() => opened.refetch()}>
+            <IconRefresh size={16} /> Atualizar
+          </Button>
+          <Button
+            variant="primary"
+            className="col-span-2 sm:col-span-1"
+            onClick={() => setDrawer({ mode: 'open' })}
+          >
+            <IconPlus size={16} /> Abrir caixa
+          </Button>
+        </div>
       </div>
 
-      {/* Abas de visualização */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <SegBtn active={view === 'resumido'} onClick={() => setView('resumido')}>
+      {/* ── Abas (Resumido / Detalhado) — estilo ant-tabs sublinhado ──────── */}
+      <div className="mb-4 flex items-center gap-6 border-b border-line">
+        <Tab active={view === 'resumido'} onClick={() => setView('resumido')}>
           Resumido
-        </SegBtn>
-        <SegBtn active={view === 'detalhado'} onClick={() => setView('detalhado')}>
+        </Tab>
+        <Tab active={view === 'detalhado'} onClick={() => setView('detalhado')}>
           Detalhado
-        </SegBtn>
+        </Tab>
       </div>
 
       {opened.isLoading ? (
-        <Card className={CARD}>
-          <Card.Content className="p-4">
-            <LoadingState />
-          </Card.Content>
-        </Card>
+        <div className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]">
+          <LoadingState />
+        </div>
       ) : opened.isError ? (
-        <Card className={CARD}>
-          <Card.Content className="p-4">
-            <ErrorState onRetry={() => opened.refetch()} />
-          </Card.Content>
-        </Card>
+        <div className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]">
+          <ErrorState onRetry={() => opened.refetch()} />
+        </div>
       ) : rows.length === 0 ? (
-        <Card className={CARD}>
-          <Card.Content className="p-4">
-            <EmptyState
-              icon={<IconCash size={32} />}
-              title="Nenhum caixa aberto"
-              description="Abra um caixa para começar a registrar as movimentações do dia."
-            />
-          </Card.Content>
-        </Card>
+        <div className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]">
+          <EmptyState
+            icon={<IconCash size={32} />}
+            title="Nenhum caixa aberto"
+            description="Abra um caixa para começar a registrar as movimentações do dia."
+          />
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {rows.map((reg) => (
@@ -108,54 +105,54 @@ export function CaixasAbertosPage() {
               key={reg.id}
               reg={reg}
               view={view}
-              onAction={(mode) => setModal({ mode, register: reg })}
+              onAction={(mode) => setDrawer({ mode, register: reg })}
             />
           ))}
         </div>
       )}
 
-      {modal && (
-        <CashActionModal
-          mode={modal.mode}
-          register={modal.register}
+      {drawer && (
+        <CashActionDrawer
+          mode={drawer.mode}
+          register={drawer.register}
           isOpen
-          onClose={() => setModal(null)}
+          onClose={() => setDrawer(null)}
         />
       )}
     </div>
   );
 }
 
-function KpiCard({
-  icon,
-  label,
-  value,
-  hint,
+// ── Aba sublinhada ───────────────────────────────────────────────────────────
+function Tab({
+  active,
+  onClick,
+  children,
 }: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint: string;
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
   return (
-    <Card className={CARD}>
-      <Card.Content className="p-5">
-        <div className="mb-2 flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f2b33d]/15 text-[#a67c1e]">
-            {icon}
-          </span>
-          <span className="text-sm font-medium text-muted">{label}</span>
-        </div>
-        <div className="text-2xl font-bold text-foreground">{value}</div>
-        <div className="mt-1 text-sm text-muted">{hint}</div>
-      </Card.Content>
-    </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        '-mb-px border-b-2 px-1 pb-2.5 pt-1 text-sm font-medium transition-colors',
+        active
+          ? 'border-primary text-primary'
+          : 'border-transparent text-muted-ink hover:text-ink',
+      ].join(' ')}
+    >
+      {children}
+    </button>
   );
 }
 
+// ── Avatar ───────────────────────────────────────────────────────────────────
 function Avatar({ name, url }: { name: string; url?: string | null }) {
   if (url) {
-    return <img src={url} alt={name} className="h-11 w-11 rounded-full object-cover" />;
+    return <img src={url} alt={name} className="h-[54px] w-[54px] rounded-full object-cover" />;
   }
   const initials = name
     .split(' ')
@@ -164,21 +161,48 @@ function Avatar({ name, url }: { name: string; url?: string | null }) {
     .map((w) => w[0]?.toUpperCase())
     .join('');
   return (
-    <span className="grid h-11 w-11 place-items-center rounded-full bg-[#f2b33d]/20 text-sm font-semibold text-[#a67c1e]">
+    <span className="grid h-[54px] w-[54px] place-items-center rounded-full bg-gold/20 text-base font-semibold text-gold-strong">
       {initials || '?'}
     </span>
   );
 }
 
-function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+// ── Linha valor/label (styled-component `kxgYzN` do Belasis) ─────────────────
+function Row({
+  label,
+  value,
+  positive,
+}: {
+  label: string;
+  value: string;
+  positive?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between gap-2 py-1 text-sm">
-      <span className="text-muted">{label}</span>
-      <span className={strong ? 'font-semibold text-foreground' : 'text-foreground'}>{value}</span>
+    <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
+      <span
+        className={['truncate', positive ? 'font-medium text-success' : 'text-muted-ink'].join(' ')}
+        style={{ maxWidth: '60%' }}
+      >
+        {label}
+      </span>
+      <span className={positive ? 'font-semibold text-success' : 'font-medium text-ink'}>
+        {value}
+      </span>
     </div>
   );
 }
 
+// ── Sub-card interno (Conferência de caixa / Outros pagamentos) ──────────────
+function InnerCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex h-full flex-col rounded-xl border border-line bg-card">
+      <div className="border-b border-line px-3 py-2.5 text-sm font-semibold text-ink">{title}</div>
+      <div className="px-3 py-2.5">{children}</div>
+    </div>
+  );
+}
+
+// ── Card de um caixa aberto ──────────────────────────────────────────────────
 function CashCard({
   reg,
   view,
@@ -186,144 +210,142 @@ function CashCard({
 }: {
   reg: CashRegisterDetail;
   view: View;
-  onAction: (mode: ModalMode) => void;
+  onAction: (mode: DrawerMode) => void;
 }) {
   const s = reg.summary;
   const user = reg.responsibleUser;
   const userName = user?.name ?? 'Sem responsável';
 
   return (
-    <Card className={CARD}>
-      <Card.Content className="flex flex-col gap-4 p-5">
-        {/* Cabeçalho do profissional */}
-        <div className="flex items-start gap-3">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
+      {/* Cabeçalho do caixa */}
+      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3.5">
+        <div className="flex min-w-0 items-start gap-3">
           <Avatar name={userName} url={user?.avatarUrl ?? user?.image} />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate font-semibold text-foreground">{userName}</span>
-              <Chip color="success" variant="soft" size="sm">
-                Aberto
-              </Chip>
-            </div>
-            {user?.email && <div className="truncate text-xs text-muted">{user.email}</div>}
-            <div className="mt-0.5 text-xs text-muted">
-              Caixa #{reg.number} · aberto em {formatDateTime(reg.openedAt)}
-            </div>
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-ink">{userName}</div>
+            {user?.email && <div className="truncate text-xs text-muted-ink">{user.email}</div>}
+            <div className="text-xs text-muted-ink">Caixa aberto em {formatDateTime(reg.openedAt)}</div>
           </div>
         </div>
+        <span className="shrink-0 text-sm font-semibold text-muted-ink">#{reg.number}</span>
+      </div>
 
+      {/* Corpo */}
+      <div className="px-4 py-4">
         {view === 'resumido' ? (
-          <div className="rounded-xl border border-[var(--color-soft-border)] bg-[#fffbf2] p-3">
-            <Line label="Saldo inicial" value={formatMoney(s.openingBalance)} />
-            <Line label="Dinheiro" value={formatMoney(s.dinheiro)} />
-            <Line label="Cartão de crédito" value={formatMoney(s.credito)} />
-            <Line label="Pix" value={formatMoney(s.pix)} />
-            <Line label="Outros pagamentos" value={formatMoney(s.outros)} />
-            <Line label="Movimentações" value={formatMoney(s.movements)} />
-            <Line label="Total pago" value={formatMoney(s.totalPago)} />
-            <div className="my-1 border-t border-[var(--color-soft-border)]" />
-            <Line label="Saldo em caixa" value={formatMoney(s.saldoEmCaixa)} strong />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <InnerCard title="Conferência de caixa">
+              <Row label="Saldo inicial" value={formatMoney(s.openingBalance)} />
+              {s.byMethod.map((b) => (
+                <Row key={b.name} label={b.name} value={formatMoney(b.total)} />
+              ))}
+              <Row label="Saldo inicial" value={formatMoney(s.openingBalance)} />
+              <Row label="Movimentações" value={formatMoney(s.movements)} />
+              <Row label="Saldo em caixa" value={formatMoney(s.saldoEmCaixa)} positive />
+            </InnerCard>
+            <InnerCard title="Outros pagamentos">
+              <Row label="Outros pagamentos" value={formatMoney(s.outros)} />
+              <Row label="Total recebido" value={formatMoney(s.totalPago)} />
+              {/* TODO: backend não expõe "total à receber" para o caixa. */}
+              <Row label="Total à receber" value={formatMoney(0)} />
+            </InnerCard>
           </div>
         ) : (
           <DetalhadoBody reg={reg} />
         )}
+      </div>
 
-        {/* Ações */}
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => onAction('suprimento')}>
-            Suprimento
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => onAction('sangria')}>
-            Sangria
-          </Button>
-          <Button size="sm" variant="primary" onClick={() => onAction('close')}>
-            Fechar caixa
-          </Button>
+      {/* Ações (ant-card-actions) */}
+      <div className="mt-auto flex flex-col gap-3 border-t border-line px-4 py-4">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => onAction('suprimento')}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-success/60 text-sm font-medium text-success transition-colors hover:bg-success/10"
+          >
+            <IconPlus size={16} /> Suprimento
+          </button>
+          <button
+            type="button"
+            onClick={() => onAction('sangria')}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-danger/60 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+          >
+            <IconMinus size={16} /> Sangria
+          </button>
         </div>
-      </Card.Content>
-    </Card>
+        <button
+          type="button"
+          onClick={() => onAction('close')}
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-danger text-sm font-semibold text-white transition-colors hover:bg-danger/90"
+        >
+          Fechar caixa
+        </button>
+      </div>
+    </div>
   );
 }
 
+// ── Corpo detalhado (lançamentos + totais) ───────────────────────────────────
 function DetalhadoBody({ reg }: { reg: CashRegisterDetail }) {
   const s = reg.summary;
   const movements = reg.movements ?? [];
   const payments = movements.filter((m) => m.refType !== 'sangria' && m.refType !== 'suprimento');
   const others = movements.filter((m) => m.refType === 'sangria' || m.refType === 'suprimento');
 
-  const cols: Column<CashMovementRow>[] = [
-    {
-      key: 'method',
-      header: 'Forma de pagamento',
-      isRowHeader: true,
-      render: (m) => m.paymentMethod?.name ?? 'Outros',
-    },
-    {
-      key: 'amount',
-      header: 'Valor',
-      render: (m) => (
-        <span className={m.type === 'out' ? 'text-danger' : 'text-foreground'}>
-          {m.type === 'out' ? '- ' : ''}
-          {formatMoney(m.amount)}
-        </span>
-      ),
-    },
-  ];
-
   return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Lançamentos</h4>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <InnerCard title="Lançamentos">
         {payments.length === 0 ? (
-          <p className="text-sm text-muted">Nenhum lançamento.</p>
+          <p className="py-1.5 text-sm text-muted-ink">Nenhum lançamento.</p>
         ) : (
-          <DataTable
-            aria-label="Lançamentos do caixa"
-            columns={cols}
-            rows={payments}
-            getKey={(m) => m.id}
-          />
+          payments.map((m) => (
+            <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+              <span className="truncate text-muted-ink" style={{ maxWidth: '60%' }}>
+                {m.paymentMethod?.name ?? 'Outros'}
+              </span>
+              <span className={m.type === 'out' ? 'font-medium text-danger' : 'font-medium text-ink'}>
+                {m.type === 'out' ? '- ' : ''}
+                {formatMoney(m.amount)}
+              </span>
+            </div>
+          ))
         )}
-      </div>
+        {s.byMethod.length > 0 && (
+          <div className="mt-1 border-t border-line pt-1.5">
+            {s.byMethod.map((b) => (
+              <Row key={b.name} label={b.name} value={formatMoney(b.total)} />
+            ))}
+          </div>
+        )}
+      </InnerCard>
 
-      {s.byMethod.length > 0 && (
-        <div className="rounded-xl border border-[var(--color-soft-border)] bg-[#fffbf2] p-3">
-          <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            Total por forma
-          </h4>
-          {s.byMethod.map((b) => (
-            <Line key={b.name} label={b.name} value={formatMoney(b.total)} />
-          ))}
-        </div>
-      )}
-
-      <div className="rounded-xl border border-[var(--color-soft-border)] bg-[#fffbf2] p-3">
-        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-          Outras movimentações
-        </h4>
-        <Line label="Suprimentos (reforço)" value={formatMoney(s.suprimentos)} />
-        <Line label="Sangrias (retirada)" value={formatMoney(s.sangrias)} />
+      <InnerCard title="Outras movimentações">
+        <Row label="Suprimentos (reforço)" value={formatMoney(s.suprimentos)} />
+        <Row label="Sangrias (retirada)" value={formatMoney(s.sangrias)} />
         {others.length > 0 && (
-          <div className="mt-2 flex flex-col gap-1">
+          <div className="mt-1 flex flex-col gap-1 border-t border-line pt-1.5">
             {others.map((m) => (
-              <div key={m.id} className="flex items-center justify-between text-xs text-muted">
-                <span>
-                  {m.refType === 'sangria' ? 'Sangria' : 'Suprimento'}
-                  {m.refId ? ` · ${m.refId}` : ''} · {formatDateTime(m.at)}
+              <div key={m.id} className="flex items-center justify-between text-xs text-muted-ink">
+                <span className="truncate" style={{ maxWidth: '60%' }}>
+                  {m.refType === 'sangria' ? 'Sangria' : 'Suprimento'} · {formatDateTime(m.at)}
                 </span>
                 <span>{formatMoney(m.amount)}</span>
               </div>
             ))}
           </div>
         )}
-      </div>
+        <div className="mt-1 border-t border-line pt-1.5">
+          <Row label="Saldo em caixa" value={formatMoney(s.saldoEmCaixa)} positive />
+        </div>
+      </InnerCard>
     </div>
   );
 }
 
-// ===================== Modal de ações =====================
+// ===================== Drawer de ações =====================
 
-const TITLES: Record<ModalMode, string> = {
+const TITLES: Record<DrawerMode, string> = {
   open: 'Abrir caixa',
   sangria: 'Sangria (retirada)',
   suprimento: 'Suprimento (reforço)',
@@ -343,7 +365,7 @@ function MoneyInput({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-muted">{label}</span>
+      <span className="text-xs font-medium text-muted-ink">{label}</span>
       <input
         type="number"
         min={0}
@@ -353,19 +375,19 @@ function MoneyInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0,00"
-        className="rounded-xl border border-default-200 bg-transparent px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-[#f2b33d]"
+        className="rounded-xl border border-line bg-transparent px-3.5 py-3 text-sm text-ink outline-none placeholder:text-muted-ink focus:border-primary"
       />
     </label>
   );
 }
 
-function CashActionModal({
+function CashActionDrawer({
   mode,
   register,
   isOpen,
   onClose,
 }: {
-  mode: ModalMode;
+  mode: DrawerMode;
   register?: CashRegisterDetail;
   isOpen: boolean;
   onClose: () => void;
@@ -435,121 +457,129 @@ function CashActionModal({
     }
   }
 
+  const title = `${TITLES[mode]}${register ? ` · Caixa #${register.number}` : ''}`;
+
   return (
-    <Modal isOpen={isOpen} onOpenChange={(o) => !o && onClose()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm" placement="center">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>
-                {TITLES[mode]}
-                {register ? ` · Caixa #${register.number}` : ''}
-              </Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="flex flex-col gap-4">
-              {result ? (
-                <div className="flex flex-col gap-2">
-                  <Line label="Saldo esperado" value={formatMoney(result.expected)} />
-                  <Line label="Valor conferido" value={formatMoney(Number(amount))} />
-                  <div className="my-1 border-t border-[var(--color-soft-border)]" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted">Divergência</span>
-                    <Chip
-                      color={
-                        Math.abs(result.divergence) < 0.005
-                          ? 'success'
-                          : result.divergence > 0
-                            ? 'warning'
-                            : 'danger'
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      footer={
+        result ? (
+          <Button variant="primary" onClick={onClose}>
+            Concluir
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button variant="primary" isDisabled={busy} onClick={handleConfirm}>
+              {busy
+                ? 'Salvando…'
+                : mode === 'open'
+                  ? 'Abrir'
+                  : mode === 'close'
+                    ? 'Fechar caixa'
+                    : 'Salvar'}
+            </Button>
+          </>
+        )
+      }
+    >
+      {result ? (
+        <div className="flex flex-col gap-2">
+          <Row label="Saldo esperado" value={formatMoney(result.expected)} />
+          <Row label="Valor conferido" value={formatMoney(Number(amount))} />
+          <div className="my-1 border-t border-line" />
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-ink">Divergência</span>
+            <span
+              className={[
+                'rounded-full px-2.5 py-0.5 text-sm font-semibold',
+                Math.abs(result.divergence) < 0.005
+                  ? 'bg-success/12 text-success'
+                  : result.divergence > 0
+                    ? 'bg-gold/15 text-gold-strong'
+                    : 'bg-danger/12 text-danger',
+              ].join(' ')}
+            >
+              {result.divergence >= 0 ? '+' : ''}
+              {formatMoney(result.divergence)}
+            </span>
+          </div>
+          <p className="text-xs text-muted-ink">
+            {Math.abs(result.divergence) < 0.005
+              ? 'Caixa fechado sem divergência.'
+              : 'Caixa fechado com divergência registrada.'}
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {mode === 'open' && (
+            <MoneyInput label="Saldo inicial" value={amount} onChange={setAmount} autoFocus />
+          )}
+
+          {mode === 'close' && (
+            <>
+              <div className="rounded-xl border border-line bg-card p-3">
+                <Row
+                  label="Saldo inicial"
+                  value={formatMoney(expected - (register?.summary?.movements ?? 0))}
+                />
+                <Row
+                  label="Movimentações"
+                  value={formatMoney(register?.summary?.movements ?? 0)}
+                />
+                <Row label="Saldo esperado" value={formatMoney(expected)} positive />
+              </div>
+              <MoneyInput
+                label="Valor conferido (real)"
+                value={amount}
+                onChange={setAmount}
+                autoFocus
+              />
+            </>
+          )}
+
+          {(mode === 'sangria' || mode === 'suprimento') && (
+            <>
+              <MoneyInput label="Valor" value={amount} onChange={setAmount} autoFocus />
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-ink">Forma de pagamento</span>
+                <Select
+                  aria-label="Forma de pagamento"
+                  selectedKey={paymentMethodId || null}
+                  onSelectionChange={(k) => setPaymentMethodId(k ? String(k) : '')}
+                >
+                  <Select.Trigger>
+                    <Select.Value>
+                      {({ isPlaceholder, selectedText }) =>
+                        isPlaceholder ? 'Selecionar forma' : selectedText
                       }
-                      variant="soft"
-                      size="sm"
-                    >
-                      {result.divergence >= 0 ? '+' : ''}
-                      {formatMoney(result.divergence)}
-                    </Chip>
-                  </div>
-                  <p className="text-xs text-muted">
-                    {Math.abs(result.divergence) < 0.005
-                      ? 'Caixa fechado sem divergência.'
-                      : 'Caixa fechado com divergência registrada.'}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {mode === 'open' && (
-                    <MoneyInput label="Saldo inicial" value={amount} onChange={setAmount} autoFocus />
-                  )}
+                    </Select.Value>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {methodItems.map((m) => (
+                        <ListBox.Item key={m.id} id={m.id} textValue={m.name}>
+                          {m.name}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
+            </>
+          )}
 
-                  {mode === 'close' && (
-                    <>
-                      <div className="rounded-xl border border-[var(--color-soft-border)] bg-[#fffbf2] p-3">
-                        <Line label="Saldo inicial" value={formatMoney(expected - (register?.summary?.movements ?? 0))} />
-                        <Line label="Movimentações" value={formatMoney(register?.summary?.movements ?? 0)} />
-                        <Line label="Saldo esperado" value={formatMoney(expected)} strong />
-                      </div>
-                      <MoneyInput label="Valor conferido (real)" value={amount} onChange={setAmount} autoFocus />
-                    </>
-                  )}
-
-                  {(mode === 'sangria' || mode === 'suprimento') && (
-                    <>
-                      <MoneyInput label="Valor" value={amount} onChange={setAmount} autoFocus />
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium text-muted">Forma de pagamento</span>
-                        <Select
-                          aria-label="Forma de pagamento"
-                          selectedKey={paymentMethodId || null}
-                          onSelectionChange={(k) => setPaymentMethodId(k ? String(k) : '')}
-                        >
-                          <Select.Trigger>
-                            <Select.Value>
-                              {({ isPlaceholder, selectedText }) =>
-                                isPlaceholder ? 'Selecionar forma' : selectedText
-                              }
-                            </Select.Value>
-                          </Select.Trigger>
-                          <Select.Popover>
-                            <ListBox>
-                              {methodItems.map((m) => (
-                                <ListBox.Item key={m.id} id={m.id} textValue={m.name}>
-                                  {m.name}
-                                </ListBox.Item>
-                              ))}
-                            </ListBox>
-                          </Select.Popover>
-                        </Select>
-                      </div>
-                    </>
-                  )}
-
-                  {error && (
-                    <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                      {error}
-                    </div>
-                  )}
-                </>
-              )}
-            </Modal.Body>
-            <Modal.Footer className="flex justify-end gap-2">
-              {result ? (
-                <Button variant="primary" onClick={onClose}>
-                  Concluir
-                </Button>
-              ) : (
-                <>
-                  <Button variant="outline" onClick={onClose}>
-                    Cancelar
-                  </Button>
-                  <Button variant="primary" isDisabled={busy} onClick={handleConfirm}>
-                    {busy ? 'Salvando…' : mode === 'open' ? 'Abrir' : mode === 'close' ? 'Fechar caixa' : 'Salvar'}
-                  </Button>
-                </>
-              )}
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+          {error && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   );
 }

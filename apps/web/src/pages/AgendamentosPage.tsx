@@ -53,7 +53,7 @@ const STATUS_BAR: Record<string, string> = {
   finished: '#6B6F76',
 };
 
-const CARD = 'border border-[var(--color-soft-border)] bg-[#fffdf8] shadow-[var(--shadow-card)]';
+const CARD = 'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
 
 export function AgendamentosPage() {
   const [filter, setFilter] = useState<Filter>('all');
@@ -158,7 +158,7 @@ export function AgendamentosPage() {
       />
 
       {/* Filtros */}
-      <div className="mb-4 inline-flex rounded-xl border border-[var(--color-soft-border)] bg-[#fffdf8] p-1 shadow-[var(--shadow-soft)]">
+      <div className="mb-4 inline-flex rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-1 shadow-[var(--shadow-soft)]">
         {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => {
           const active = filter === f;
           return (
@@ -169,8 +169,8 @@ export function AgendamentosPage() {
               className={[
                 'rounded-lg px-4 py-1.5 text-sm font-medium transition-all',
                 active
-                  ? 'bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)]'
-                  : 'text-[#6f6a63] hover:bg-[#f7f3ea]',
+                  ? 'bg-gold text-ink shadow-[var(--shadow-gold)]'
+                  : 'text-muted-ink hover:bg-cream',
               ].join(' ')}
             >
               {FILTER_LABELS[f]}
@@ -179,26 +179,26 @@ export function AgendamentosPage() {
         })}
       </div>
 
-      <span className="ml-3 text-sm text-[#6f6a63]">{rows.length} agendamentos</span>
+      <span className="ml-3 text-sm text-muted-ink">{rows.length} agendamentos</span>
 
       {appts.isLoading ? (
         <div className="mt-6 flex flex-col gap-3">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className={`animate-pulse rounded-xl p-4 ${CARD}`}>
               <div className="flex items-center gap-3">
-                <div className="h-10 w-1 rounded-full bg-[#e9d9c3]" />
+                <div className="h-10 w-1 rounded-full bg-beige" />
                 <div className="flex-1">
-                  <div className="mb-2 h-4 w-1/3 rounded bg-[#e9d9c3]" />
-                  <div className="h-3 w-1/2 rounded bg-[#f7f3ea]" />
+                  <div className="mb-2 h-4 w-1/3 rounded bg-beige" />
+                  <div className="h-3 w-1/2 rounded bg-cream" />
                 </div>
-                <div className="h-6 w-20 rounded-full bg-[#f7f3ea]" />
+                <div className="h-6 w-20 rounded-full bg-cream" />
               </div>
             </div>
           ))}
         </div>
       ) : rows.length === 0 ? (
         <Card className={`mt-4 ${CARD}`}>
-          <Card.Content className="py-12 text-center text-sm text-[#6f6a63]">
+          <Card.Content className="py-12 text-center text-sm text-muted-ink">
             Nenhum agendamento encontrado.
           </Card.Content>
         </Card>
@@ -206,7 +206,7 @@ export function AgendamentosPage() {
         <div className="mt-4 flex flex-col gap-5">
           {grouped.map(([day, dayRows]) => (
             <div key={day}>
-              <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-[#bfaf9e]">
+              <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-beige-deep">
                 {dayFmt.format(new Date(day + 'T12:00:00'))}
               </h3>
               <div className="flex flex-col gap-2">
@@ -223,16 +223,16 @@ export function AgendamentosPage() {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-[#111111]">
+                        <span className="truncate text-sm font-semibold text-ink">
                           {a.customer?.name ?? 'Sem cliente'}
                         </span>
                         <AppointmentStatusChip status={a.status} />
                       </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[#6f6a63]">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-ink">
                         <span>{formatTime(a.start)} - {formatTime(a.end)}</span>
                         {a.professional && <span>{a.professional.name}</span>}
                         {a.items && a.items.length > 0 && (
-                          <span className="font-medium text-[#111111]">
+                          <span className="font-medium text-ink">
                             {formatMoney(a.items.reduce((s, i) => s + Number(i.price ?? 0), 0))}
                           </span>
                         )}
@@ -248,7 +248,7 @@ export function AgendamentosPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#111111] px-5 py-3 text-sm font-medium text-white shadow-[var(--shadow-pop)]">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-[var(--shadow-pop)]">
           {toast}
         </div>
       )}
@@ -269,10 +269,10 @@ export function AgendamentosPage() {
                   {/* Cliente + horario */}
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-base font-semibold text-[#111111]">
+                      <div className="text-base font-semibold text-ink">
                         {selected.customer?.name ?? 'Sem cliente'}
                       </div>
-                      <div className="text-sm text-[#6f6a63]">
+                      <div className="text-sm text-muted-ink">
                         {dateFmt.format(new Date(selected.start))} - {formatTime(selected.start)} ate {formatTime(selected.end)}
                       </div>
                     </div>
@@ -282,26 +282,26 @@ export function AgendamentosPage() {
                   {/* Info */}
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <dt className="text-xs font-medium text-[#bfaf9e]">Profissional</dt>
-                      <dd className="text-[#111111]">{selected.professional?.name ?? '-'}</dd>
+                      <dt className="text-xs font-medium text-beige-deep">Profissional</dt>
+                      <dd className="text-ink">{selected.professional?.name ?? '-'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs font-medium text-[#bfaf9e]">Total</dt>
-                      <dd className="text-[#111111]">
+                      <dt className="text-xs font-medium text-beige-deep">Total</dt>
+                      <dd className="text-ink">
                         {formatMoney((selected.items ?? []).reduce((s, i) => s + Number(i.price ?? 0), 0))}
                       </dd>
                     </div>
                   </dl>
 
                   {selected.notes && (
-                    <p className="rounded-lg bg-[#f7f3ea] px-3 py-2 text-sm text-[#6f6a63]">
+                    <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted-ink">
                       {selected.notes}
                     </p>
                   )}
 
                   {/* Status */}
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-[#bfaf9e]">Alterar status</span>
+                    <span className="text-xs font-medium text-beige-deep">Alterar status</span>
                     <Select
                       aria-label="Status"
                       selectedKey={selected.status}
@@ -321,8 +321,8 @@ export function AgendamentosPage() {
 
                   {/* Acoes para pendentes */}
                   {(selected.status === 'unconfirmed' || selected.status === 'scheduled') && (
-                    <div className="flex flex-col gap-2 rounded-xl border border-[#f2b33d]/30 bg-[#faf6ec] p-3">
-                      <span className="text-xs font-semibold text-[#a67c1e]">Pendente de confirmacao</span>
+                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-[#faf6ec] p-3">
+                      <span className="text-xs font-semibold text-gold-strong">Pendente de confirmacao</span>
                       <div className="flex flex-wrap gap-2">
                         <Button variant="primary" size="sm" isDisabled={statusMutation.isPending}
                           onClick={() => changeStatus(selected, 'confirmed')}>

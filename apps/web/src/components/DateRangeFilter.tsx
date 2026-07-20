@@ -12,7 +12,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 const fieldClass =
   'h-11 w-full rounded-xl border border-default-200 bg-white px-3 text-base text-foreground sm:h-10 sm:text-sm ' +
   'shadow-sm outline-none transition-colors ' +
-  'focus:border-[#f2b33d] focus:ring-2 focus:ring-[#f2b33d]/30 ' +
+  'focus:border-gold focus:ring-2 focus:ring-gold/30 ' +
   '[color-scheme:light] [&::-webkit-calendar-picker-indicator]:cursor-pointer ' +
   '[&::-webkit-calendar-picker-indicator]:opacity-60 ' +
   'hover:[&::-webkit-calendar-picker-indicator]:opacity-100';
