@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { BottomNav } from './BottomNav';
 import { PageActionsProvider } from './PageActions';
+import { ConfirmProvider } from '../components/ConfirmDialog';
 
 function IconClose({ size = 24 }: { size?: number }) {
   return (
@@ -31,6 +32,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <PageActionsProvider>
+    <ConfirmProvider>
     <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop static sidebar */}
       <div className="hidden lg:block">
@@ -100,6 +102,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar (same style as the club) */}
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
     </div>
+    </ConfirmProvider>
     </PageActionsProvider>
   );
 }
