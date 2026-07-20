@@ -493,7 +493,7 @@ export function Sidebar({
       className={[
         'db-sidebar flex h-full shrink-0 flex-col py-4 transition-[width] duration-300 ease-out',
         mobile ? 'db-sidebar-mobile' : '',
-        isCollapsed ? 'w-[76px] px-1' : 'w-[248px] px-1',
+        isCollapsed ? 'w-[76px] px-1' : mobile ? 'w-[208px] px-1' : 'w-[224px] px-1',
       ].join(' ')}
     >
       <div className={isCollapsed
