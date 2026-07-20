@@ -34,3 +34,4 @@ yarn-error.log*
 coverage/
 .gstack/
 silvia-erp-backup-*.json
+belasis-reference/.auth-profile*

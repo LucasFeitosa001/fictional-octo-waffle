@@ -1075,20 +1075,13 @@ function EditarComandaDrawer({
     }
   }
 
-  const [section, setSection] = useState<'geral' | 'itens' | 'pagamentos' | 'observacoes'>('geral');
   return (
     <FullDrawer
       isOpen={order != null}
       onClose={onClose}
       title={order ? `Editando comanda #${order.number}` : 'Editando comanda'}
-      sections={[
-        { key: 'geral', label: 'Cliente / Data' },
-        { key: 'itens', label: 'Itens da comanda' },
-        { key: 'pagamentos', label: 'Pagamentos' },
-        { key: 'observacoes', label: 'Observações' },
-      ]}
-      activeSection={section}
-      onSectionChange={(k) => setSection(k as any)}
+      widthClass="md:w-[1024px] lg:w-[1200px] xl:w-[1400px]"
+      // Belasis: comanda é FORM ÚNICO scrollable (sem tabs, sem menu vertical)
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
