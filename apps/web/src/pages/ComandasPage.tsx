@@ -5,6 +5,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { DateField } from '../components/DateRangeFilter';
 import { Drawer } from '../components/Drawer';
+import { FullDrawer } from '../components/FullDrawer';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
@@ -297,11 +298,11 @@ function Pagination({
 // ---------------------------------------------------------------------------
 
 export function ComandasPage() {
-  const navigate = useNavigate();
   const confirm = useConfirm();
-  const [statusTab, setStatusTab] = useState<string>('all');
-  const status = STATUS_FILTERS.find((t) => t.id === statusTab)?.status;
-  const orders = useOrders(status);
+  // Belasis: um único toggle "Excluídas / Não excluídas" (default: Não
+  // excluídas). Carregamos tudo do endpoint e filtramos por status no cliente.
+  const [showExcluidas, setShowExcluidas] = useState(false);
+  const orders = useOrders();
   const del = useDeleteOrder();
   const allRows = useMemo(() => orders.data?.data ?? [], [orders.data]);
 
@@ -310,6 +311,9 @@ export function ComandasPage() {
   // payment and text are applied client-side over the loaded rows.
   const [customerId, setCustomerId] = useState<string>('all');
   const [payFilter, setPayFilter] = useState<PayFilter>('all');
+  const [payMethods, setPayMethods] = useState<Set<string>>(
+    () => new Set(PAYMENT_METHODS.map((m) => m.id)),
+  );
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -318,6 +322,7 @@ export function ComandasPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<OrderRow | null>(null);
+  const [viewing, setViewing] = useState<OrderRow | null>(null);
   useAutoCreate(() => setCreateOpen(true));
 
   // Mobile: the header Buscar/Filtrar/Novo controls move to the BottomNav
@@ -345,12 +350,18 @@ export function ComandasPage() {
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase().replace(/^#/, '');
     return allRows.filter((o) => {
+      // Belasis toggle "Excluídas / Não excluídas": default esconde canceladas.
+      const isCanceled = o.status === 'canceled';
+      if (showExcluidas ? !isCanceled : isCanceled) return false;
       const day = o.date?.slice(0, 10) ?? '';
       if (range.from && day && day < range.from) return false;
       if (range.to && day && day > range.to) return false;
       if (customerId !== 'all' && o.customer?.id !== customerId) return false;
       if (payFilter === 'paid' && o.status !== 'finished') return false;
       if (payFilter === 'pending' && o.status !== 'open') return false;
+      // Forma de pagamento: nenhuma marcada = filtra tudo. Enquanto o backend
+      // não devolver o método na row, tratamos "todas marcadas" como no-op.
+      if (payMethods.size === 0) return false;
       if (q) {
         const inNumber = String(o.number).includes(q);
         const inName = (o.customer?.name ?? '').toLowerCase().includes(q);
@@ -358,12 +369,12 @@ export function ComandasPage() {
       }
       return true;
     });
-  }, [allRows, range.from, range.to, customerId, payFilter, search]);
+  }, [allRows, showExcluidas, range.from, range.to, customerId, payFilter, payMethods, search]);
 
   // Reset to first page whenever the active filter set changes.
   useEffect(() => {
     setPage(1);
-  }, [statusTab, range.from, range.to, customerId, payFilter, search]);
+  }, [showExcluidas, range.from, range.to, customerId, payFilter, payMethods, search]);
 
   const pageRows = useMemo(
     () => rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -389,26 +400,6 @@ export function ComandasPage() {
       else next.add(id);
       return next;
     });
-  }
-
-  function exportCsv() {
-    const header = ['Ticket', 'Data', 'Cliente', 'Status', 'Valor', 'Pagamento'];
-    const body = rows.map((o) => [
-      o.number,
-      formatDate(o.date),
-      o.customer?.name ?? 'Avulso',
-      ORDER_STATUS_LABELS[o.status],
-      o.netTotal,
-      o.status === 'finished' ? 'Pago' : o.status === 'open' ? 'Pendente' : '—',
-    ]);
-    const csv = [header, ...body].map((r) => r.map(csvCell).join(',')).join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `comandas-${isoDate(new Date())}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   async function handleRemove(o: OrderRow) {
@@ -501,23 +492,63 @@ export function ComandasPage() {
               <div className="flex flex-col gap-1.5">
                 <span className="inline-flex items-center text-xs font-semibold text-muted-ink">
                   Status
-                  <HelpTooltip>Filtra comandas pela situação (aberta, finalizada, excluída)</HelpTooltip>
+                  <HelpTooltip>Marcado exibe apenas comandas excluídas; desmarcado exibe as demais</HelpTooltip>
                 </span>
-                <div className="inline-flex flex-wrap gap-1 rounded-lg border border-[var(--color-soft-border)] bg-canvas p-0.5">
-                  {STATUS_FILTERS.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setStatusTab(t.id)}
-                      className={[
-                        'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                        statusTab === t.id
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-ink hover:text-foreground',
-                      ].join(' ')}
-                    >
-                      {t.label}
-                    </button>
+                <label className="inline-flex w-fit items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--sp-primary)]"
+                    checked={showExcluidas}
+                    onChange={(e) => setShowExcluidas(e.target.checked)}
+                  />
+                  {showExcluidas ? 'Excluídas' : 'Não excluídas'}
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="inline-flex items-center text-xs font-semibold text-muted-ink">
+                  Forma de pagamento
+                  <HelpTooltip>Filtra pelas formas de pagamento registradas nas comandas</HelpTooltip>
+                </span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[var(--sp-primary)]"
+                      checked={payMethods.size === PAYMENT_METHODS.length}
+                      ref={(el) => {
+                        if (el) {
+                          el.indeterminate =
+                            payMethods.size > 0 && payMethods.size < PAYMENT_METHODS.length;
+                        }
+                      }}
+                      onChange={(e) =>
+                        setPayMethods(
+                          e.target.checked
+                            ? new Set(PAYMENT_METHODS.map((m) => m.id))
+                            : new Set(),
+                        )
+                      }
+                    />
+                    Selecionar tudo
+                  </label>
+                  {PAYMENT_METHODS.map((m) => (
+                    <label key={m.id} className="inline-flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[var(--sp-primary)]"
+                        checked={payMethods.has(m.id)}
+                        onChange={(e) =>
+                          setPayMethods((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(m.id);
+                            else next.delete(m.id);
+                            return next;
+                          })
+                        }
+                      />
+                      {m.label}
+                    </label>
                   ))}
                 </div>
               </div>
@@ -596,8 +627,8 @@ export function ComandasPage() {
             </div>
           )}
 
-          <div className="mb-3 flex items-center justify-between gap-2">
-            {selected.size > 0 ? (
+          {selected.size > 0 && (
+            <div className="mb-3 flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -607,18 +638,8 @@ export function ComandasPage() {
               >
                 <IconTrash size={14} /> Excluir ({selected.size})
               </Button>
-            ) : (
-              <span />
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportCsv}
-              isDisabled={rows.length === 0}
-            >
-              <IconDownload size={16} /> Exportar CSV
-            </Button>
-          </div>
+            </div>
+          )}
 
           {orders.isLoading ? (
             <LoadingState />
@@ -690,9 +711,10 @@ export function ComandasPage() {
                     {pageRows.map((o) => (
                       <tr
                         key={o.id}
-                        className="border-b border-[var(--color-soft-border)] transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
+                        onClick={() => setViewing(o)}
+                        className="cursor-pointer border-b border-[var(--color-soft-border)] transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
                       >
-                        <td className={td}>
+                        <td className={td} onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             aria-label={`Selecionar comanda ${o.number}`}
@@ -702,25 +724,17 @@ export function ComandasPage() {
                           />
                         </td>
                         <td className={td}>
-                          <button
-                            type="button"
-                            onClick={() => setEditing(o)}
-                            className="font-semibold text-primary hover:underline"
-                          >
-                            #{o.number}
-                          </button>
+                          <span className="font-semibold text-primary">#{o.number}</span>
                         </td>
                         <td className={`${td} text-muted-ink`}>{formatDate(o.date)}</td>
                         <td className={td}>
                           {o.customer ? (
-                            <button
-                              type="button"
+                            <span
                               title={o.customer.name}
-                              onClick={() => setEditing(o)}
-                              className="max-w-[220px] truncate text-primary hover:underline"
+                              className="block max-w-[220px] truncate text-foreground"
                             >
                               {o.customer.name}
-                            </button>
+                            </span>
                           ) : (
                             <span className="text-muted">Avulso</span>
                           )}
@@ -737,9 +751,9 @@ export function ComandasPage() {
                         <td className={td}>
                           <NfCell />
                         </td>
-                        <td className={`${td} text-center`}>
+                        <td className={`${td} text-center`} onClick={(e) => e.stopPropagation()}>
                           <RowMenu
-                            onView={() => setEditing(o)}
+                            onView={() => setViewing(o)}
                             onEdit={() => setEditing(o)}
                             onRemove={() => handleRemove(o)}
                             disableRemove={o.status === 'canceled' || del.isPending}
@@ -779,7 +793,7 @@ export function ComandasPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setEditing(o)}
+                      onClick={() => setViewing(o)}
                       className="text-left"
                     >
                       <div className="text-base font-bold text-primary">#{o.number}</div>
@@ -806,6 +820,14 @@ export function ComandasPage() {
 
       <NovoComandaDrawer isOpen={createOpen} onClose={() => setCreateOpen(false)} />
       <EditarComandaDrawer order={editing} onClose={() => setEditing(null)} />
+      <VerComandaDrawer
+        order={viewing}
+        onClose={() => setViewing(null)}
+        onEdit={(o) => {
+          setViewing(null);
+          setEditing(o);
+        }}
+      />
     </div>
   );
 }
@@ -1053,11 +1075,20 @@ function EditarComandaDrawer({
     }
   }
 
+  const [section, setSection] = useState<'geral' | 'itens' | 'pagamentos' | 'observacoes'>('geral');
   return (
-    <Drawer
+    <FullDrawer
       isOpen={order != null}
       onClose={onClose}
-      title={order ? `Editar comanda #${order.number}` : 'Editar comanda'}
+      title={order ? `Editando comanda #${order.number}` : 'Editando comanda'}
+      sections={[
+        { key: 'geral', label: 'Cliente / Data' },
+        { key: 'itens', label: 'Itens da comanda' },
+        { key: 'pagamentos', label: 'Pagamentos' },
+        { key: 'observacoes', label: 'Observações' },
+      ]}
+      activeSection={section}
+      onSectionChange={(k) => setSection(k as any)}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -1113,6 +1144,75 @@ function EditarComandaDrawer({
         </Field>
         {error && <FormError message={error} />}
       </div>
+    </FullDrawer>
+  );
+}
+
+/**
+ * Drawer de detalhe (Ver comanda). Substitui a antiga navegação
+ * `/comandas/:id` — abre lateralmente com os campos disponíveis na row.
+ */
+function VerComandaDrawer({
+  order,
+  onClose,
+  onEdit,
+}: {
+  order: OrderRow | null;
+  onClose: () => void;
+  onEdit: (o: OrderRow) => void;
+}) {
+  return (
+    <Drawer
+      isOpen={order != null}
+      onClose={onClose}
+      title={order ? `Comanda #${order.number}` : 'Detalhe da comanda'}
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Fechar
+          </Button>
+          {order && (
+            <Button variant="primary" onClick={() => onEdit(order)}>
+              Editar
+            </Button>
+          )}
+        </>
+      }
+    >
+      {order && (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Cliente">
+              <Input value={order.customer?.name ?? 'Avulso'} disabled aria-label="Cliente" />
+            </Field>
+            <Field label="Data">
+              <Input value={formatDate(order.date)} disabled aria-label="Data" />
+            </Field>
+            <Field label="Número">
+              <Input value={`#${order.number}`} disabled aria-label="Número" />
+            </Field>
+            <Field label="Valor líquido">
+              <Input value={formatMoney(order.netTotal)} disabled aria-label="Valor" />
+            </Field>
+            <Field label="Total bruto">
+              <Input value={formatMoney(order.grossTotal)} disabled aria-label="Total bruto" />
+            </Field>
+            <Field label="Descontos">
+              <Input value={formatMoney(order.discountTotal)} disabled aria-label="Descontos" />
+            </Field>
+          </div>
+          <Field label="Status">
+            <div>
+              <StatusTag status={order.status} />
+            </div>
+          </Field>
+          <Field label="Pagamento">
+            <div>
+              <PaymentTag status={order.status} />
+            </div>
+          </Field>
+        </div>
+      )}
     </Drawer>
   );
 }
