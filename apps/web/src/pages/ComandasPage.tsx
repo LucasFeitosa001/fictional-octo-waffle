@@ -26,6 +26,7 @@ import {
 import { formatDate, formatMoney, isoDate } from '../lib/format';
 import type { OrderRow } from '../lib/types';
 import { useAutoCreate } from '../lib/useAutoCreate';
+import { useSetPageActions } from '../layout/PageActions';
 
 const PAGE_SIZE = 20;
 
@@ -67,36 +68,32 @@ const PAY_FILTERS: { id: PayFilter; label: string }[] = [
 // Presentation atoms (Belasis ant-tag look, themeable via --sp-* tokens)
 // ---------------------------------------------------------------------------
 
-/** Solid/soft status tag. Belasis renders Finalizado as a solid neutral tag. */
+/**
+ * Status tag, matching Belasis (antd) pixel-for-pixel:
+ * Finalizado = solid neutral gray (#777, white text); Em aberto = ant-tag-orange;
+ * Cancelada = ant-tag-red. These are fixed semantic status colors.
+ */
 function StatusTag({ status }: { status: OrderRow['status'] }) {
-  const label = ORDER_STATUS_LABELS[status];
   if (status === 'finished') {
     return (
       <span
         className="inline-flex items-center rounded-[4px] px-2 py-0.5 text-xs font-medium text-white"
-        style={{ backgroundColor: 'color-mix(in oklab, var(--sp-ink) 52%, transparent)' }}
+        style={{ backgroundColor: '#777777' }}
       >
-        {label}
+        Finalizado
       </span>
     );
   }
   if (status === 'canceled') {
     return (
-      <span className="inline-flex items-center rounded-[4px] border border-danger/40 bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
-        {label}
+      <span className="inline-flex items-center rounded-[4px] border border-[#ffa39e] bg-[#fff1f0] px-2 py-0.5 text-xs font-medium text-[#cf1322]">
+        Cancelada
       </span>
     );
   }
   return (
-    <span
-      className="inline-flex items-center rounded-[4px] px-2 py-0.5 text-xs font-medium text-primary"
-      style={{
-        backgroundColor: 'color-mix(in oklab, var(--sp-primary) 12%, transparent)',
-        borderColor: 'color-mix(in oklab, var(--sp-primary) 40%, transparent)',
-        borderWidth: 1,
-      }}
-    >
-      {label}
+    <span className="inline-flex items-center rounded-[4px] border border-[#ffd591] bg-[#fff7e6] px-2 py-0.5 text-xs font-medium text-[#d46b08]">
+      Em aberto
     </span>
   );
 }
@@ -113,13 +110,7 @@ function PaymentTag({ status }: { status: OrderRow['status'] }) {
       Pago
     </span>
   ) : (
-    <span
-      className="inline-flex items-center rounded-[4px] px-2 py-0.5 text-xs font-medium"
-      style={{
-        backgroundColor: 'color-mix(in oklab, var(--sp-primary) 10%, transparent)',
-        color: 'var(--sp-primary-strong, var(--sp-primary))',
-      }}
-    >
+    <span className="inline-flex items-center rounded-[4px] border border-[#ffd591] bg-[#fff7e6] px-2 py-0.5 text-xs font-medium text-[#d46b08]">
       Pendente
     </span>
   );
@@ -329,6 +320,17 @@ export function ComandasPage() {
   const [editing, setEditing] = useState<OrderRow | null>(null);
   useAutoCreate(() => setCreateOpen(true));
 
+  // Mobile: the header Buscar/Filtrar/Novo controls move to the BottomNav
+  // (Belasis pattern). Each fires the exact same handler as the desktop button.
+  useSetPageActions(
+    [
+      { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setShowSearch((v) => !v) },
+      { key: 'filtros', label: 'Filtrar', icon: <IconFilter size={22} />, onClick: () => setShowFilters((v) => !v) },
+      { key: 'novo', label: 'Novo', icon: <IconPlus size={22} />, onClick: () => setCreateOpen(true) },
+    ],
+    [],
+  );
+
   const customerOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const o of allRows) {
@@ -442,6 +444,7 @@ export function ComandasPage() {
           <>
             <Button
               variant="outline"
+              className="hidden md:inline-flex"
               onClick={() => setShowSearch((v) => !v)}
               aria-expanded={showSearch}
             >
@@ -449,12 +452,17 @@ export function ComandasPage() {
             </Button>
             <Button
               variant="outline"
+              className="hidden md:inline-flex"
               onClick={() => setShowFilters((v) => !v)}
               aria-expanded={showFilters}
             >
               <IconFilter size={16} /> Filtrar
             </Button>
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Button
+              variant="primary"
+              className="hidden md:inline-flex"
+              onClick={() => setCreateOpen(true)}
+            >
               <IconPlus size={16} /> Novo
             </Button>
           </>

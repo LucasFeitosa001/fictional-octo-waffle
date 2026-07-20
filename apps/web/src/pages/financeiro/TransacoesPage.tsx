@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSetPageActions } from '../../layout/PageActions';
 import {
   Button,
   Card,
@@ -19,7 +20,6 @@ import {
   IconCalculator,
   IconCheck,
   IconChevron,
-  IconCircleCheck,
   IconDollar,
   IconDownload,
   IconFilter,
@@ -235,6 +235,20 @@ export function TransacoesPage() {
     setEditing(null);
   }
 
+  // Belasis-style: no mobile (BottomNav inferior, ativa <lg) as ações da toolbar
+  // vivem na navbar inferior — não inline no header. Cada onClick dispara EXATAMENTE
+  // o mesmo handler do botão desktop. Setters são estáveis e openForm é hoisted, por
+  // isso o registro é criado uma vez (deps []) e limpo ao desmontar.
+  useSetPageActions(
+    [
+      { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setSearchOpen((o) => !o) },
+      { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen(true) },
+      { key: 'totais', label: 'Totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
+      { key: 'novo', label: 'Novo', icon: <IconPlus size={22} />, onClick: () => openForm('recebimento') },
+    ],
+    [],
+  );
+
   async function handleReverse(t: TransactionRow) {
     if (
       !window.confirm(
@@ -287,8 +301,16 @@ export function TransacoesPage() {
     {
       key: 'origem',
       header: 'Origem',
-      className: 'whitespace-nowrap text-sm text-muted',
-      render: (t) => origem(t),
+      className: 'whitespace-nowrap text-sm',
+      // Belasis: origem da comanda vira link (C#NNNN); senão categoria em cinza.
+      render: (t) => {
+        const o = origem(t);
+        return o.startsWith('C#') ? (
+          <span className="font-medium text-primary hover:underline">{o}</span>
+        ) : (
+          <span className="text-muted">{o}</span>
+        );
+      },
     },
     {
       key: 'forma',
@@ -351,14 +373,24 @@ export function TransacoesPage() {
       key: 'pago',
       header: 'Pago',
       className: 'text-center',
-      render: (t) =>
-        t.status === 'paid' ? (
-          <span className="inline-flex text-success" title="Pago">
-            <IconCircleCheck size={18} />
+      // Belasis: coluna "Pago" é um toggle (aceso quando pago).
+      render: (t) => {
+        const paid = t.status === 'paid';
+        return (
+          <span
+            role="img"
+            aria-label={paid ? 'Pago' : 'Em aberto'}
+            title={paid ? 'Pago' : 'Em aberto'}
+            className={`inline-flex h-5 w-9 items-center rounded-full p-0.5 transition-colors ${
+              paid
+                ? 'justify-end bg-primary'
+                : 'justify-start bg-[var(--color-soft-border)]'
+            }`}
+          >
+            <span className="h-4 w-4 rounded-full bg-white shadow-sm" />
           </span>
-        ) : (
-          <span className="text-muted">—</span>
-        ),
+        );
+      },
     },
     {
       key: 'actions',
@@ -395,7 +427,7 @@ export function TransacoesPage() {
             Recebimentos, despesas, vales e transferências
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+        <div className="hidden gap-2 sm:w-auto sm:flex-wrap sm:justify-end lg:flex">
           <Button
             variant={searchOpen ? 'primary' : 'outline'}
             onClick={() => setSearchOpen((o) => !o)}

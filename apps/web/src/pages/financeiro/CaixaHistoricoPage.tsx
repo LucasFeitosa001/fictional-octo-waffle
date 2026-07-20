@@ -8,6 +8,7 @@ import { IconCash, IconChevron, IconFilter } from '../../components/icons';
 import { useCashRegisters, type CashHistoryRow } from '../../lib/queries/caixa';
 import { useProfessionals } from '../../lib/queries';
 import { formatDate, formatMoney } from '../../lib/format';
+import { useSetPageActions } from '../../layout/PageActions';
 
 const CARD_CLASS =
   'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
@@ -80,6 +81,20 @@ export function CaixaHistoricoPage() {
     (openerId ? 1 : 0) +
     (closerId ? 1 : 0);
   const hasFilters = activeFilterCount > 0;
+
+  // Mobile: os controles de topo (Filtrar) vivem na BottomNav inferior, como no
+  // Belasis. Reutiliza o mesmo handler do botão desktop (abrir o drawer).
+  useSetPageActions(
+    [
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen(true),
+      },
+    ],
+    [],
+  );
 
   function clearFilters() {
     setNumero('');
@@ -168,7 +183,7 @@ export function CaixaHistoricoPage() {
             Aberturas, fechamentos e conferências
           </p>
         </div>
-        <div className="flex sm:w-auto sm:justify-end">
+        <div className="hidden sm:w-auto sm:justify-end md:flex">
           <Button
             variant="outline"
             onClick={() => setFilterOpen(true)}

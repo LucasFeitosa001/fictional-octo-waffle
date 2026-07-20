@@ -15,6 +15,7 @@ import {
   IconTrash,
   IconUsers,
 } from '../components/icons';
+import { useSetPageActions } from '../layout/PageActions';
 import { downloadCsv } from '../lib/csv';
 import { useProfessionals, useServices } from '../lib/queries';
 import {
@@ -80,6 +81,27 @@ export function ProfissionaisPage() {
     }
   }
 
+  // Mobile: as ações do header (Novo / Exportar CSV) migram para a BottomNav,
+  // disparando exatamente os mesmos handlers dos botões desktop (Belasis-style).
+  useSetPageActions(
+    [
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+      {
+        key: 'exportar',
+        label: 'Exportar',
+        icon: <IconDownload size={22} />,
+        onClick: () => exportCsv(),
+        disabled: rows.length === 0,
+      },
+    ],
+    [rows],
+  );
+
   const totalLoaded = professionals.data?.total ?? allRows.length;
   const subtitle = professionals.isLoading
     ? undefined
@@ -93,7 +115,7 @@ export function ProfissionaisPage() {
           <h1 className="text-xl font-semibold text-ink">Profissionais</h1>
           {subtitle && <p className="text-sm text-muted-ink">{subtitle}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-2 md:flex">
           <Button variant="outline" isDisabled={rows.length === 0} onClick={exportCsv}>
             <IconDownload size={16} /> Exportar CSV
           </Button>
@@ -347,8 +369,8 @@ function pickAllScopeRule(rules?: ProfessionalCommissionRuleRow[]): CommissionSt
 const DRAWER_TABS = [
   { id: 'cadastro', label: 'Cadastro' },
   { id: 'endereco', label: 'Endereço' },
-  { id: 'servicos', label: 'Personalizar serviços' },
   { id: 'expediente', label: 'Expediente' },
+  { id: 'servicos', label: 'Personalizar serviços' },
   { id: 'comissoes', label: 'Configurar comissões' },
 ] as const;
 
@@ -643,12 +665,16 @@ function ProfessionalDrawer({
                     <Input placeholder="Ex: Cabeleireira" />
                   </TextField>
                 </Field>
-                <Field label="Cargo">
-                  <TextField value={position} onChange={setPosition} aria-label="Cargo">
-                    <Input placeholder="Ex: Sócia, Recepção" />
-                  </TextField>
+                <Field label="Aniversário">
+                  <input
+                    type="date"
+                    value={birthday}
+                    onChange={(e) => setBirthday(e.target.value)}
+                    aria-label="Aniversário"
+                    className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
+                  />
                 </Field>
-                <Field label="CPF / CNPJ">
+                <Field label="CPF/CNPJ">
                   <TextField
                     value={documentNumber}
                     onChange={setDocumentNumber}
@@ -662,14 +688,10 @@ function ProfessionalDrawer({
                     <Input placeholder="Documento de identidade" />
                   </TextField>
                 </Field>
-                <Field label="Aniversário">
-                  <input
-                    type="date"
-                    value={birthday}
-                    onChange={(e) => setBirthday(e.target.value)}
-                    aria-label="Aniversário"
-                    className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
-                  />
+                <Field label="Cargo">
+                  <TextField value={position} onChange={setPosition} aria-label="Cargo">
+                    <Input placeholder="Ex: Sócia, Recepção" />
+                  </TextField>
                 </Field>
               </div>
 
@@ -699,10 +721,10 @@ function ProfessionalDrawer({
                   onChange={setOnlineBookable}
                 />
                 <ToggleRow
-                  label="Notificações por WhatsApp"
-                  hint="Recebe avisos de novos agendamentos e lembretes."
-                  checked={notifyWhatsapp}
-                  onChange={setNotifyWhatsapp}
+                  label="Gerar agenda"
+                  hint="Caso esteja desativado não será gerada agenda para este profissional."
+                  checked={generateSchedule}
+                  onChange={setGenerateSchedule}
                 />
                 <ToggleRow
                   label="Recebe comissão"
@@ -711,10 +733,10 @@ function ProfessionalDrawer({
                   onChange={setReceivesCommission}
                 />
                 <ToggleRow
-                  label="Gerar agenda"
-                  hint="Caso esteja desativado não será gerada agenda para este profissional."
-                  checked={generateSchedule}
-                  onChange={setGenerateSchedule}
+                  label="Notificações por WhatsApp"
+                  hint="Recebe avisos de novos agendamentos e lembretes."
+                  checked={notifyWhatsapp}
+                  onChange={setNotifyWhatsapp}
                 />
               </div>
             </div>

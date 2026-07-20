@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button, ListBox, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
-import { IconCash, IconRefresh, IconPlus, IconClock } from '../../components/icons';
+import { IconCash, IconRefresh, IconPlus } from '../../components/icons';
 import {
   useOpenedCashRegisters,
   useOpenCashRegister,
@@ -14,6 +13,7 @@ import {
 } from '../../lib/queries/caixa';
 import { usePaymentMethods } from '../../lib/queries/financeiro';
 import { formatDateTime, formatMoney } from '../../lib/format';
+import { useSetPageActions } from '../../layout/PageActions';
 
 // ── Ícones anticon reproduzidos (play-circle, minus) ─────────────────────────
 function IconPlayCircle({ size = 16 }: { size?: number }) {
@@ -36,13 +36,35 @@ type View = 'resumido' | 'detalhado';
 type DrawerMode = 'open' | 'sangria' | 'suprimento' | 'close';
 
 export function CaixasAbertosPage() {
-  const navigate = useNavigate();
   const opened = useOpenedCashRegisters();
   const rows = opened.data ?? [];
 
   const [view, setView] = useState<View>('resumido');
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; register?: CashRegisterDetail } | null>(
     null,
+  );
+
+  // Mobile: as ações do header vivem na BottomNav (padrão Belasis). Mesmos
+  // handlers dos botões desktop — só reutilizados aqui.
+  useSetPageActions(
+    [
+      {
+        key: 'atualizar',
+        label: 'Atualizar',
+        icon: <IconRefresh size={22} className={opened.isFetching ? 'animate-spin' : ''} />,
+        onClick: () => {
+          void opened.refetch();
+        },
+        disabled: opened.isFetching,
+      },
+      {
+        key: 'abrir-caixa',
+        label: 'Abrir caixa',
+        icon: <IconCash size={22} />,
+        onClick: () => setDrawer({ mode: 'open' }),
+      },
+    ],
+    [opened.refetch, opened.isFetching],
   );
 
   return (
@@ -55,19 +77,12 @@ export function CaixasAbertosPage() {
             <IconPlayCircle size={18} />
           </span>
         </h1>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
-          <Button variant="outline" onClick={() => navigate('/financeiro/caixas/historico')}>
-            <IconClock size={16} /> Histórico
-          </Button>
+        <div className="hidden gap-2 lg:flex lg:w-auto">
           <Button variant="outline" onClick={() => opened.refetch()}>
             <IconRefresh size={16} /> Atualizar
           </Button>
-          <Button
-            variant="primary"
-            className="col-span-2 sm:col-span-1"
-            onClick={() => setDrawer({ mode: 'open' })}
-          >
-            <IconPlus size={16} /> Abrir caixa
+          <Button variant="primary" onClick={() => setDrawer({ mode: 'open' })}>
+            Abrir caixa
           </Button>
         </div>
       </div>
@@ -172,22 +187,29 @@ function Row({
   label,
   value,
   positive,
+  muted,
 }: {
   label: string;
   value: string;
   positive?: boolean;
+  muted?: boolean;
 }) {
+  const labelClass = positive
+    ? 'font-medium text-success'
+    : muted
+      ? 'text-muted-ink'
+      : 'text-ink';
+  const valueClass = positive
+    ? 'font-semibold text-success'
+    : muted
+      ? 'text-muted-ink'
+      : 'font-medium text-ink';
   return (
     <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
-      <span
-        className={['truncate', positive ? 'font-medium text-success' : 'text-muted-ink'].join(' ')}
-        style={{ maxWidth: '60%' }}
-      >
+      <span className={['truncate', labelClass].join(' ')} style={{ maxWidth: '60%' }}>
         {label}
       </span>
-      <span className={positive ? 'font-semibold text-success' : 'font-medium text-ink'}>
-        {value}
-      </span>
+      <span className={valueClass}>{value}</span>
     </div>
   );
 }
@@ -246,9 +268,9 @@ function CashCard({
             </InnerCard>
             <InnerCard title="Outros pagamentos">
               <Row label="Outros pagamentos" value={formatMoney(s.outros)} />
-              <Row label="Total recebido" value={formatMoney(s.totalPago)} />
+              <Row label="Total recebido" value={formatMoney(s.totalPago)} muted />
               {/* TODO: backend não expõe "total à receber" para o caixa. */}
-              <Row label="Total à receber" value={formatMoney(0)} />
+              <Row label="Total à receber" value={formatMoney(0)} muted />
             </InnerCard>
           </div>
         ) : (

@@ -9,7 +9,6 @@ import {
   Select,
   Spinner,
   Switch,
-  Tabs,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
@@ -1454,6 +1453,23 @@ export function CustomerCreateModal({
 // Modal de perfil com abas
 // =====================================================================
 
+// Menu interno lateral do perfil — ordem e rótulos 1:1 com o Belasis.
+const PERFIL_MENU: { id: string; label: string }[] = [
+  { id: 'cadastro', label: 'Cadastro' },
+  { id: 'painel', label: 'Painel' },
+  { id: 'debitos', label: 'Débitos' },
+  { id: 'creditos', label: 'Créditos' },
+  { id: 'cashback', label: 'Cashback' },
+  { id: 'agendamentos', label: 'Agendamentos' },
+  { id: 'vendas', label: 'Vendas' },
+  { id: 'pacotes', label: 'Pacotes' },
+  { id: 'mensagens', label: 'Mensagens' },
+  { id: 'anotacoes', label: 'Anotações' },
+  { id: 'imagens', label: 'Imagens e Arquivos' },
+  { id: 'anamneses', label: 'Anamneses' },
+  { id: 'assinaturas', label: 'Vendas por Assinatura' },
+];
+
 export function ClientePerfilModal({
   customer,
   isOpen,
@@ -1478,7 +1494,7 @@ export function ClientePerfilModal({
       isOpen={isOpen}
       onClose={onClose}
       title={customer?.name ?? 'Cliente'}
-      widthClass="sm:w-[560px]"
+      widthClass="sm:w-[760px]"
     >
       {customer && (
         <div className="flex flex-col gap-4">
@@ -1500,51 +1516,75 @@ export function ClientePerfilModal({
             {panel.isFetching && <Spinner size="sm" />}
           </div>
 
-          <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-            <Tabs.List className="w-full overflow-x-auto">
-              <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
-              <Tabs.Tab id="painel">Painel</Tabs.Tab>
-              <Tabs.Tab id="agendamentos">Agendamentos</Tabs.Tab>
-              <Tabs.Tab id="vendas">Vendas</Tabs.Tab>
-              <Tabs.Tab id="pacotes">Pacotes</Tabs.Tab>
-              <Tabs.Tab id="debitos">Débitos</Tabs.Tab>
-              <Tabs.Tab id="creditos">Créditos</Tabs.Tab>
-              <Tabs.Tab id="cashback">Cashback</Tabs.Tab>
-              <Tabs.Tab id="anotacoes">Anotações</Tabs.Tab>
-              <Tabs.Tab id="anamneses">Anamneses</Tabs.Tab>
-            </Tabs.List>
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
+            {/* Menu interno lateral */}
+            <nav
+              aria-label="Seções do cliente"
+              className="flex shrink-0 gap-1 overflow-x-auto border-b border-line pb-2 sm:w-52 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
+            >
+              {PERFIL_MENU.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setTab(m.id)}
+                  aria-current={tab === m.id ? 'page' : undefined}
+                  className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    tab === m.id
+                      ? 'bg-gold font-medium text-primary-foreground'
+                      : 'text-ink hover:bg-canvas'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </nav>
 
-            <Tabs.Panel id="cadastro" className="pt-4">
-              <CustomerForm mode="edit" customer={full} onDone={onClose} onCancel={onClose} />
-            </Tabs.Panel>
-            <Tabs.Panel id="painel" className="pt-4">
-              <PainelTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="agendamentos" className="pt-4">
-              <AgendamentosTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="vendas" className="pt-4">
-              <VendasTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="pacotes" className="pt-4">
-              <PacotesTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="debitos" className="pt-4">
-              <DebitosTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="creditos" className="pt-4">
-              <CreditosTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="cashback" className="pt-4">
-              <CashbackTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="anotacoes" className="pt-4">
-              <AnotacoesTab customerId={customer.id} />
-            </Tabs.Panel>
-            <Tabs.Panel id="anamneses" className="pt-4">
-              <AnamnesesTab customerId={customer.id} />
-            </Tabs.Panel>
-          </Tabs>
+            {/* Conteúdo da seção ativa */}
+            <div className="min-w-0 flex-1">
+              {tab === 'cadastro' && (
+                <CustomerForm mode="edit" customer={full} onDone={onClose} onCancel={onClose} />
+              )}
+              {tab === 'painel' && <PainelTab customerId={customer.id} />}
+              {tab === 'debitos' && <DebitosTab customerId={customer.id} />}
+              {tab === 'creditos' && <CreditosTab customerId={customer.id} />}
+              {tab === 'cashback' && <CashbackTab customerId={customer.id} />}
+              {tab === 'agendamentos' && <AgendamentosTab customerId={customer.id} />}
+              {tab === 'vendas' && <VendasTab customerId={customer.id} />}
+              {tab === 'pacotes' && <PacotesTab customerId={customer.id} />}
+              {tab === 'mensagens' && (
+                <div className="flex flex-col gap-3">
+                  <SectionTitle>Mensagens</SectionTitle>
+                  <EmptyState
+                    icon={<IconMessage size={28} />}
+                    title="Nenhuma mensagem"
+                    description="As mensagens enviadas a este cliente aparecerão aqui."
+                  />
+                </div>
+              )}
+              {tab === 'anotacoes' && <AnotacoesTab customerId={customer.id} />}
+              {tab === 'imagens' && (
+                <div className="flex flex-col gap-3">
+                  <SectionTitle>Imagens e Arquivos</SectionTitle>
+                  <EmptyState
+                    icon={<IconFolder size={28} />}
+                    title="Nenhum arquivo"
+                    description="As imagens e arquivos deste cliente aparecerão aqui."
+                  />
+                </div>
+              )}
+              {tab === 'anamneses' && <AnamnesesTab customerId={customer.id} />}
+              {tab === 'assinaturas' && (
+                <div className="flex flex-col gap-3">
+                  <SectionTitle>Vendas por Assinatura</SectionTitle>
+                  <EmptyState
+                    icon={<IconLayers size={28} />}
+                    title="Nenhuma assinatura"
+                    description="As vendas por assinatura deste cliente aparecerão aqui."
+                  />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </Drawer>

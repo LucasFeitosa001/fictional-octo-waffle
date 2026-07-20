@@ -11,6 +11,7 @@ import {
   IconChevron,
   IconCircleCheck,
   IconDownload,
+  IconFilter,
   IconHome,
   IconInfo,
   IconPercent,
@@ -22,6 +23,7 @@ import {
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useProfessionals } from '../../lib/queries';
+import { useSetPageActions } from '../../layout/PageActions';
 import {
   useCommissionDetail,
   useCommissionEntries,
@@ -88,8 +90,14 @@ function shortDate(iso: string): string {
 
 export function ComissoesResumoPage() {
   const navigate = useNavigate();
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Belasis abre a tela já com um período padrão de 30 dias (ex.: "19 jun → 19 jul"),
+  // e não com o campo vazio. Reproduz o mesmo comportamento da captura.
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return isoDate(d);
+  });
+  const [to, setTo] = useState(() => isoDate(new Date()));
   const [professionalId, setProfessionalId] = useState('');
   const [status, setStatus] = useState('');
   const [showPrevious, setShowPrevious] = useState(false); // TODO: sem wiring de query ainda
@@ -134,6 +142,28 @@ export function ComissoesResumoPage() {
       rowsToExport,
     );
   }
+
+  // No mobile (<768px) as ações contextuais desta página vivem na BottomNav
+  // (padrão Belasis). Disparam exatamente os mesmos handlers dos botões desktop.
+  const hasEntries = (entries.data ?? []).length > 0;
+  useSetPageActions(
+    [
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen(true),
+      },
+      {
+        key: 'exportar',
+        label: 'Exportar CSV',
+        icon: <IconDownload size={22} />,
+        onClick: exportCsv,
+        disabled: !hasEntries,
+      },
+    ],
+    [hasEntries],
+  );
 
   const profOptions = useMemo(
     () => [
@@ -227,8 +257,9 @@ export function ComissoesResumoPage() {
           </h1>
           <Button
             variant="outline"
+            className="hidden md:inline-flex"
             onClick={exportCsv}
-            isDisabled={(entries.data ?? []).length === 0}
+            isDisabled={!hasEntries}
           >
             <IconDownload size={16} /> Exportar CSV
           </Button>

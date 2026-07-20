@@ -62,7 +62,15 @@ function initials(name: string) {
 
 function stockLabel(qty: number, unit?: string | null) {
   if (unit && unit.trim()) return `${formatNumber(qty)} ${unit.trim()}`;
-  return `${formatNumber(qty)} ${qty === 1 ? 'unidade' : 'unidades'}`;
+  // Belasis exibe sempre "unidade" (singular), inclusive para 0 e plural.
+  return `${formatNumber(qty)} unidade`;
+}
+
+function commissionLabel(value: number) {
+  return `% ${value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function commissionOf(p: Product) {
@@ -86,6 +94,7 @@ export function ProdutosPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [moveProduct, setMoveProduct] = useState<Product | null>(null);
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   useAutoCreate(() => setCreateOpen(true));
 
   const products = useProducts({ search: search || undefined, lowStock });
@@ -113,6 +122,26 @@ export function ProdutosPage() {
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const paged = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const pagedIds = paged.map((p) => p.id);
+  const allSelected =
+    pagedIds.length > 0 && pagedIds.every((id) => selected.has(id));
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) pagedIds.forEach((id) => next.delete(id));
+      else pagedIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     setPage(1);
@@ -347,6 +376,13 @@ export function ProdutosPage() {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                      <th className="w-10 px-4 py-3">
+                        <Checkbox
+                          checked={allSelected}
+                          onChange={toggleAll}
+                          ariaLabel="Selecionar tudo"
+                        />
+                      </th>
                       <th className="px-4 py-3 font-semibold">Nome</th>
                       <th className="px-4 py-3 font-semibold">Marca</th>
                       <th className="px-4 py-3 font-semibold">Categoria</th>
@@ -368,6 +404,13 @@ export function ProdutosPage() {
                           key={p.id}
                           className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                         >
+                          <td className="px-4 py-2.5">
+                            <Checkbox
+                              checked={selected.has(p.id)}
+                              onChange={() => toggleOne(p.id)}
+                              ariaLabel={`Selecionar ${p.name}`}
+                            />
+                          </td>
                           <td className="px-4 py-2.5">
                             <button
                               type="button"
@@ -404,7 +447,7 @@ export function ProdutosPage() {
                             {formatMoney(p.salePrice)}
                           </td>
                           <td className="px-4 py-2.5 text-right text-muted-ink">
-                            {comm != null ? `% ${formatNumber(comm)}` : '—'}
+                            {comm != null ? commissionLabel(comm) : '—'}
                           </td>
                           <td className="px-4 py-2.5">
                             <RowActions
@@ -636,6 +679,43 @@ function RowActions({
         <IconTrash size={16} />
       </button>
     </div>
+  );
+}
+
+function Checkbox({
+  checked,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      aria-pressed={checked}
+      onClick={onChange}
+      className={[
+        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+        checked
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-line bg-card hover:border-primary',
+      ].join(' ')}
+    >
+      {checked && (
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M2.5 6.5l2.5 2.5 4.5-5"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </button>
   );
 }
 

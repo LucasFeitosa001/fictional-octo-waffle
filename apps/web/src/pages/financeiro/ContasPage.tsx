@@ -7,15 +7,12 @@ import { Drawer } from '../../components/Drawer';
 import {
   IconChevron,
   IconCreditCard,
-  IconDollar,
   IconFilter,
   IconFolder,
   IconPencil,
   IconPlus,
   IconSearch,
-  IconTag,
   IconTrash,
-  IconWallet,
 } from '../../components/icons';
 import {
   useCreateFinancialAccount,
@@ -54,10 +51,12 @@ const CATEGORY_KIND_LABEL: Record<FinancialCategoryKind, string> = {
 
 type TabKey = 'contas' | 'formas' | 'categorias';
 
-const TABS: { id: TabKey; label: string; icon: typeof IconWallet }[] = [
-  { id: 'contas', label: 'Contas', icon: IconWallet },
-  { id: 'formas', label: 'Formas de pagamento', icon: IconDollar },
-  { id: 'categorias', label: 'Categorias', icon: IconTag },
+// Abas do Belasis: badges de texto puro (Contas · Formas de pagamento ·
+// Categorias), sem ícones.
+const TABS: { id: TabKey; label: string }[] = [
+  { id: 'contas', label: 'Contas' },
+  { id: 'formas', label: 'Formas de pagamento' },
+  { id: 'categorias', label: 'Categorias' },
 ];
 
 function byName<T extends { name: string }>(a: T, b: T) {
@@ -371,8 +370,8 @@ export function ContasPage() {
         ? 'Buscar forma de pagamento…'
         : 'Buscar categoria…';
 
-  const newLabel =
-    tab === 'contas' ? 'Nova conta' : tab === 'formas' ? 'Nova forma' : 'Nova categoria';
+  // Belasis rotula o botão de criação sempre como "Novo" (independente da aba).
+  const newLabel = 'Novo';
 
   // Badge de filtros ativos: desvios do padrão do Belasis (só Ativada).
   const statusFilterCount =
@@ -392,9 +391,6 @@ export function ContasPage() {
           <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
             Cadastros
           </h1>
-          <p className="mt-1 text-sm leading-snug text-muted">
-            Contas, formas de pagamento e categorias
-          </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
           <Button
@@ -423,20 +419,18 @@ export function ContasPage() {
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
         {TABS.map((t) => {
           const active = tab === t.id;
-          const Icon = t.icon;
           return (
             <button
               key={t.id}
               type="button"
               onClick={() => changeTab(t.id)}
               className={
-                'inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors ' +
+                'inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors ' +
                 (active
                   ? 'bg-gold text-ink shadow-[var(--shadow-gold)]'
                   : 'border border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream')
               }
             >
-              <Icon size={16} />
               {t.label}
             </button>
           );

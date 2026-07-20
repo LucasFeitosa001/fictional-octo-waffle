@@ -1,27 +1,20 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Chip, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
+import { Button, Card, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, LoadingState } from '../../components/States';
 import { ImageUpload } from '../../components/ImageUpload';
-import { Drawer } from '../../components/Drawer';
 import {
-  IconCalendar,
   IconCheck,
-  IconChevron,
-  IconClock,
   IconCopy,
-  IconCreditCard,
   IconExternalLink,
   IconEye,
   IconHome,
   IconInfo,
-  IconLink,
   IconScissors,
   IconSettings,
   IconShare,
-  IconSparkles,
   IconTrash,
   IconWhatsApp,
 } from '../../components/icons';
@@ -50,74 +43,54 @@ const FIELD =
   'w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_25%,transparent)]';
 const PUBLIC_BASE = `${CLUB_ORIGIN}/`;
 
-// The Belasis "Agendamento Online" hub is a vertical list of navigation rows
-// (mobile-first). Each row opens a right-side drawer with that section's editor.
+// The Belasis "Agendamento Online" page is a horizontal tab bar (Detalhes da
+// empresa / Configurações / Links / Galeria de fotos / Serviços / Horário de
+// atendimento / Pagamentos) driving an inline editor panel, with a fixed phone
+// preview of the public booking page pinned to the right.
 type SectionId =
   | 'detalhes'
+  | 'config'
   | 'links'
-  | 'horario'
-  | 'redes'
-  | 'beneficios'
   | 'galeria'
   | 'servicos'
-  | 'config'
+  | 'horario'
   | 'pagamentos';
 
-const SECTIONS: { id: SectionId; icon: ReactNode; title: string; description: string }[] = [
+const SECTIONS: { id: SectionId; title: string; description: string }[] = [
   {
     id: 'detalhes',
-    icon: <IconHome size={18} />,
     title: 'Detalhes da empresa',
-    description: 'Defina a logo, o endereço e os dados para contato do seu estabelecimento.',
+    description: 'Defina a logo, o endereço, a descrição e as redes sociais do seu estabelecimento.',
+  },
+  {
+    id: 'config',
+    title: 'Configurações',
+    description: 'Defina aqui as configurações finais para o seu agendamento online ficar perfeito!',
   },
   {
     id: 'links',
-    icon: <IconLink size={18} />,
     title: 'Links',
     description: 'Personalize e gerencie os links de agendamento online para as diferentes plataformas.',
   },
   {
-    id: 'horario',
-    icon: <IconClock size={18} />,
-    title: 'Horário de atendimento',
-    description: 'Informe ao seu cliente quais dias e horários o seu estabelecimento estará aberto.',
-  },
-  {
-    id: 'redes',
-    icon: <IconShare size={18} />,
-    title: 'Site e redes sociais',
-    description: 'Mostre às pessoas que você está nas redes sociais e garanta mais likes.',
-  },
-  {
-    id: 'beneficios',
-    icon: <IconSparkles size={18} />,
-    title: 'Benefícios',
-    description:
-      'Conte para todos quais benefícios o seu espaço possui, desde wi-fi, estacionamento e entre outros.',
-  },
-  {
     id: 'galeria',
-    icon: <IconEye size={18} />,
     title: 'Galeria de fotos',
     description:
       'Adicione fotos do seu trabalho e mostre às pessoas que desejam agendar o quanto você é incrível!',
   },
   {
     id: 'servicos',
-    icon: <IconScissors size={18} />,
     title: 'Serviços',
     description:
       'Selecione quais serviços podem ser agendados com seus respectivos tempos, valores, descrições, fotos e profissionais.',
   },
   {
-    id: 'config',
-    icon: <IconSettings size={18} />,
-    title: 'Configurações',
-    description: 'Defina aqui as configurações finais para o seu agendamento online ficar perfeito!',
+    id: 'horario',
+    title: 'Horário de atendimento',
+    description: 'Informe ao seu cliente quais dias e horários o seu estabelecimento estará aberto.',
   },
   {
     id: 'pagamentos',
-    icon: <IconCreditCard size={18} />,
     title: 'Pagamentos',
     description: 'Configurações de pagamentos.',
   },
@@ -193,6 +166,47 @@ function ComingSoon({ description }: { description: string }) {
   return <EmptyState icon={<IconInfo size={28} />} title="Em configuração" description={description} />;
 }
 
+// Fixed phone mockup that previews the public booking page (à la Belasis).
+function PhonePreview({ url, active }: { url: string; active: boolean }) {
+  return (
+    <div className="mx-auto w-[300px]">
+      <div className="relative aspect-[9/19] w-full rounded-[2.4rem] border-[11px] border-black bg-black shadow-[var(--shadow-card)]">
+        <div className="absolute left-1/2 top-0 z-10 h-5 w-28 -translate-x-1/2 rounded-b-2xl bg-black" />
+        <div className="h-full w-full overflow-hidden rounded-[1.6rem] bg-[#141118]">
+          {url && active ? (
+            <iframe title="Prévia da página pública" src={url} loading="lazy" className="h-full w-full border-0" />
+          ) : (
+            <div className="flex h-full flex-col gap-3 px-4 pb-4 pt-8 text-white/90">
+              <div className="text-center text-sm font-semibold">Sua página de agendamento</div>
+              <div className="flex flex-col gap-2.5">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                    <span className="h-9 w-9 shrink-0 rounded-lg bg-white/10" />
+                    <span className="flex flex-1 flex-col gap-1.5">
+                      <span className="h-2.5 w-2/3 rounded bg-white/15" />
+                      <span className="h-2 w-1/3 rounded bg-white/10" />
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled
+                className="mt-auto rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+              >
+                Agendar agora
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <p className="mt-3 text-center text-xs text-muted-ink">
+        {active ? 'Prévia da página pública' : 'Ative o link para publicar a página.'}
+      </p>
+    </div>
+  );
+}
+
 export function AgendamentoOnlinePage() {
   const navigate = useNavigate();
 
@@ -210,8 +224,8 @@ export function AgendamentoOnlinePage() {
   const addPhoto = useAddGalleryPhoto();
   const removePhoto = useRemoveGalleryPhoto();
 
-  // Which section drawer is open (null = the hub list).
-  const [active, setActive] = useState<SectionId | null>(null);
+  // Which tab is active.
+  const [active, setActive] = useState<SectionId>('detalhes');
 
   // Booking-link editor state.
   const [slug, setSlug] = useState('');
@@ -223,11 +237,10 @@ export function AgendamentoOnlinePage() {
   const [hoursDraft, setHoursDraft] = useState<BusinessHoursDay[]>([]);
   const [hoursMsg, setHoursMsg] = useState<{ ok?: string; error?: string }>({});
 
-  // Web-profile editor state (site/redes, benefícios e configurações compartilham
-  // um único rascunho; cada seção salva apenas os seus próprios campos).
+  // Web-profile editor state (detalhes/redes e configurações compartilham um
+  // único rascunho; cada aba salva apenas os seus próprios campos).
   const [profileDraft, setProfileDraft] = useState<WebProfile | null>(null);
   const [redesMsg, setRedesMsg] = useState<{ ok?: string; error?: string }>({});
-  const [benefMsg, setBenefMsg] = useState<{ ok?: string; error?: string }>({});
   const [configMsg, setConfigMsg] = useState<{ ok?: string; error?: string }>({});
   const [galeriaMsg, setGaleriaMsg] = useState<{ ok?: string; error?: string }>({});
   const [photoUrl, setPhotoUrl] = useState('');
@@ -325,9 +338,19 @@ export function AgendamentoOnlinePage() {
     setProfileDraft((cur) => (cur ? { ...cur, [key]: value } : cur));
   }
 
-  const REDES_FIELDS = ['description', 'website', 'facebook', 'instagram'] as const;
-  const BENEF_FIELDS = ['wifi', 'snackBar', 'parkingLot', 'kids', 'accessibility'] as const;
-  const CONFIG_FIELDS = ['themePreference', 'schedulingFlow', 'requiredLogin'] as const;
+  // "Detalhes da empresa" edita descrição + redes sociais; "Configurações" edita
+  // as preferências de agendamento e os benefícios do estabelecimento.
+  const DETALHES_FIELDS = ['description', 'website', 'facebook', 'instagram'] as const;
+  const CONFIG_FIELDS = [
+    'themePreference',
+    'schedulingFlow',
+    'requiredLogin',
+    'wifi',
+    'snackBar',
+    'parkingLot',
+    'kids',
+    'accessibility',
+  ] as const;
 
   function sectionDirty(fields: readonly (keyof WebProfile)[]): boolean {
     if (!profile.data || !profileDraft) return false;
@@ -388,45 +411,14 @@ export function AgendamentoOnlinePage() {
   }
 
   const address = empresa.data?.addressJson ?? null;
-  const galleryCount = gallery.data?.length ?? 0;
 
-  function closeDrawer() {
-    setActive(null);
-  }
+  const activeSection = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
 
-  const activeSection = SECTIONS.find((s) => s.id === active) ?? null;
-
-  // Per-section status chip rendered on the hub row (right side, before chevron).
-  function rowStatus(id: SectionId): ReactNode {
-    if (id === 'links') {
-      return (
-        <Chip variant="soft" color={activeLink ? 'success' : 'default'} size="sm">
-          {activeLink ? 'Ativo' : 'Inativo'}
-        </Chip>
-      );
-    }
-    if (id === 'galeria') {
-      return (
-        <Chip variant="soft" color={galleryCount > 0 ? 'success' : 'default'} size="sm">
-          {galleryCount} foto{galleryCount === 1 ? '' : 's'}
-        </Chip>
-      );
-    }
-    if (id === 'servicos') {
-      return (
-        <Chip variant="soft" color={onlineCount > 0 ? 'success' : 'default'} size="sm">
-          {onlineCount} online
-        </Chip>
-      );
-    }
-    return null;
-  }
-
-  // ---- drawer bodies ----
+  // ---- tab bodies ----
   function renderBody(id: SectionId): ReactNode {
     switch (id) {
       case 'detalhes':
-        return empresa.isLoading ? (
+        return empresa.isLoading || !profileDraft ? (
           <LoadingState />
         ) : (
           <div className="flex flex-col gap-4">
@@ -449,7 +441,7 @@ export function AgendamentoOnlinePage() {
                 </p>
               </div>
             </div>
-            <dl className="grid grid-cols-1 gap-2">
+            <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="rounded-xl border border-line bg-card px-3 py-2">
                 <dt className="text-xs text-muted-ink">Telefone</dt>
                 <dd className="text-sm text-ink">{address?.phone || '—'}</dd>
@@ -459,6 +451,131 @@ export function AgendamentoOnlinePage() {
                 <dd className="truncate text-sm text-ink">{address?.email || '—'}</dd>
               </div>
             </dl>
+
+            <Field label="Descrição do estabelecimento">
+              <textarea
+                value={profileDraft.description}
+                rows={3}
+                onChange={(e) => setProfileField('description', e.target.value)}
+                placeholder="Conte um pouco sobre o seu salão para os clientes."
+                className={FIELD}
+              />
+            </Field>
+            <Field label="Site">
+              <TextField value={profileDraft.website} onChange={(v) => setProfileField('website', v)} aria-label="Site">
+                <Input placeholder="https://www.seusite.com.br" />
+              </TextField>
+            </Field>
+            <Field label="Instagram">
+              <TextField
+                value={profileDraft.instagram}
+                onChange={(v) => setProfileField('instagram', v)}
+                aria-label="Instagram"
+              >
+                <Input placeholder="https://instagram.com/seusalao" />
+              </TextField>
+            </Field>
+            <Field label="Facebook">
+              <TextField
+                value={profileDraft.facebook}
+                onChange={(v) => setProfileField('facebook', v)}
+                aria-label="Facebook"
+              >
+                <Input placeholder="https://facebook.com/seusalao" />
+              </TextField>
+            </Field>
+            <Feedback error={redesMsg.error} ok={redesMsg.ok} />
+          </div>
+        );
+
+      case 'config':
+        return profile.isLoading || !profileDraft ? (
+          <LoadingState />
+        ) : (
+          <div className="flex flex-col gap-4">
+            <Field label="Tema da página">
+              <Select
+                aria-label="Tema da página"
+                selectedKey={profileDraft.themePreference}
+                onSelectionChange={(k) =>
+                  k && setProfileField('themePreference', String(k) as ThemePreference)
+                }
+              >
+                <Select.Trigger>
+                  <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item id="auto" textValue="Automático (sistema)">
+                      Automático (sistema)
+                    </ListBox.Item>
+                    <ListBox.Item id="light" textValue="Claro">
+                      Claro
+                    </ListBox.Item>
+                    <ListBox.Item id="dark" textValue="Escuro">
+                      Escuro
+                    </ListBox.Item>
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
+
+            <Field
+              label="Fluxo de agendamento"
+              hint="Define se o cliente começa escolhendo o serviço ou o profissional."
+            >
+              <Select
+                aria-label="Fluxo de agendamento"
+                selectedKey={profileDraft.schedulingFlow}
+                onSelectionChange={(k) =>
+                  k && setProfileField('schedulingFlow', String(k) as SchedulingFlow)
+                }
+              >
+                <Select.Trigger>
+                  <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item id="service" textValue="Escolher serviço primeiro">
+                      Escolher serviço primeiro
+                    </ListBox.Item>
+                    <ListBox.Item id="professional" textValue="Escolher profissional primeiro">
+                      Escolher profissional primeiro
+                    </ListBox.Item>
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
+
+            <ToggleRow
+              selected={profileDraft.requiredLogin}
+              onChange={(v: boolean) => setProfileField('requiredLogin', v)}
+              title="Exigir login para agendar"
+              hint="Quando ativo, o cliente precisa entrar antes de confirmar o agendamento."
+            />
+
+            <div className="flex flex-col gap-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Benefícios</span>
+              {(
+                [
+                  { key: 'wifi', label: 'Wi-Fi', hint: 'Internet sem fio para os clientes.' },
+                  { key: 'snackBar', label: 'Lanchonete', hint: 'Café, água ou lanches disponíveis.' },
+                  { key: 'parkingLot', label: 'Estacionamento', hint: 'Vagas para os clientes.' },
+                  { key: 'kids', label: 'Espaço kids', hint: 'Área ou atividades para crianças.' },
+                  { key: 'accessibility', label: 'Acessibilidade', hint: 'Acesso adaptado para todos.' },
+                ] as { key: keyof WebProfile; label: string; hint: string }[]
+              ).map((b) => (
+                <ToggleRow
+                  key={b.key}
+                  selected={Boolean(profileDraft[b.key])}
+                  onChange={(v: boolean) => setProfileField(b.key, v as WebProfile[typeof b.key])}
+                  title={b.label}
+                  hint={b.hint}
+                />
+              ))}
+            </div>
+
+            <Feedback error={configMsg.error} ok={configMsg.ok} />
           </div>
         );
 
@@ -519,118 +636,6 @@ export function AgendamentoOnlinePage() {
             />
 
             <Feedback error={linkMsg.error} ok={linkMsg.ok} />
-          </div>
-        );
-
-      case 'horario':
-        return hours.isLoading ? (
-          <LoadingState />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {hoursDraft.map((day) => (
-              <div
-                key={day.weekday}
-                className="flex flex-col gap-2 rounded-xl border border-line bg-card px-3 py-3"
-              >
-                <Switch
-                  isSelected={day.open}
-                  onChange={(v: boolean) => setDay(day.weekday, { open: v })}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <span className="text-sm font-medium text-ink">{WEEKDAY_LABELS[day.weekday]}</span>
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                </Switch>
-                {day.open ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="time"
-                      value={day.start}
-                      onChange={(e) => setDay(day.weekday, { start: e.target.value })}
-                      className="rounded-lg border border-line bg-card px-2 py-1.5 text-sm text-ink focus:border-gold focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_25%,transparent)]"
-                    />
-                    <span className="text-sm text-muted-ink">até</span>
-                    <input
-                      type="time"
-                      value={day.end}
-                      onChange={(e) => setDay(day.weekday, { end: e.target.value })}
-                      className="rounded-lg border border-line bg-card px-2 py-1.5 text-sm text-ink focus:border-gold focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_25%,transparent)]"
-                    />
-                  </div>
-                ) : (
-                  <span className="text-sm text-muted-ink">Fechado</span>
-                )}
-              </div>
-            ))}
-            <Feedback error={hoursMsg.error} ok={hoursMsg.ok} />
-          </div>
-        );
-
-      case 'redes':
-        return profile.isLoading || !profileDraft ? (
-          <LoadingState />
-        ) : (
-          <div className="flex flex-col gap-4">
-            <Field label="Descrição do estabelecimento">
-              <textarea
-                value={profileDraft.description}
-                rows={3}
-                onChange={(e) => setProfileField('description', e.target.value)}
-                placeholder="Conte um pouco sobre o seu salão para os clientes."
-                className={FIELD}
-              />
-            </Field>
-            <Field label="Site">
-              <TextField value={profileDraft.website} onChange={(v) => setProfileField('website', v)} aria-label="Site">
-                <Input placeholder="https://www.seusite.com.br" />
-              </TextField>
-            </Field>
-            <Field label="Facebook">
-              <TextField
-                value={profileDraft.facebook}
-                onChange={(v) => setProfileField('facebook', v)}
-                aria-label="Facebook"
-              >
-                <Input placeholder="https://facebook.com/seusalao" />
-              </TextField>
-            </Field>
-            <Field label="Instagram">
-              <TextField
-                value={profileDraft.instagram}
-                onChange={(v) => setProfileField('instagram', v)}
-                aria-label="Instagram"
-              >
-                <Input placeholder="https://instagram.com/seusalao" />
-              </TextField>
-            </Field>
-            <Feedback error={redesMsg.error} ok={redesMsg.ok} />
-          </div>
-        );
-
-      case 'beneficios':
-        return profile.isLoading || !profileDraft ? (
-          <LoadingState />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {(
-              [
-                { key: 'wifi', label: 'Wi-Fi', hint: 'Internet sem fio para os clientes.' },
-                { key: 'snackBar', label: 'Lanchonete', hint: 'Café, água ou lanches disponíveis.' },
-                { key: 'parkingLot', label: 'Estacionamento', hint: 'Vagas para os clientes.' },
-                { key: 'kids', label: 'Espaço kids', hint: 'Área ou atividades para crianças.' },
-                { key: 'accessibility', label: 'Acessibilidade', hint: 'Acesso adaptado para todos.' },
-              ] as { key: keyof WebProfile; label: string; hint: string }[]
-            ).map((b) => (
-              <ToggleRow
-                key={b.key}
-                selected={Boolean(profileDraft[b.key])}
-                onChange={(v: boolean) => setProfileField(b.key, v as WebProfile[typeof b.key])}
-                title={b.label}
-                hint={b.hint}
-              />
-            ))}
-            <Feedback error={benefMsg.error} ok={benefMsg.ok} />
           </div>
         );
 
@@ -718,6 +723,10 @@ export function AgendamentoOnlinePage() {
           />
         ) : (
           <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-ink">
+              {onlineCount} de {serviceRows.length} serviço{serviceRows.length === 1 ? '' : 's'} disponível
+              {onlineCount === 1 ? '' : 'is'} online.
+            </p>
             {serviceRows.map((s) => (
               <Switch
                 key={s.id}
@@ -739,73 +748,48 @@ export function AgendamentoOnlinePage() {
           </div>
         );
 
-      case 'config':
-        return profile.isLoading || !profileDraft ? (
+      case 'horario':
+        return hours.isLoading ? (
           <LoadingState />
         ) : (
-          <div className="flex flex-col gap-4">
-            <Field label="Tema da página">
-              <Select
-                aria-label="Tema da página"
-                selectedKey={profileDraft.themePreference}
-                onSelectionChange={(k) =>
-                  k && setProfileField('themePreference', String(k) as ThemePreference)
-                }
+          <div className="flex flex-col gap-3">
+            {hoursDraft.map((day) => (
+              <div
+                key={day.weekday}
+                className="flex flex-col gap-2 rounded-xl border border-line bg-card px-3 py-3"
               >
-                <Select.Trigger>
-                  <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    <ListBox.Item id="auto" textValue="Automático (sistema)">
-                      Automático (sistema)
-                    </ListBox.Item>
-                    <ListBox.Item id="light" textValue="Claro">
-                      Claro
-                    </ListBox.Item>
-                    <ListBox.Item id="dark" textValue="Escuro">
-                      Escuro
-                    </ListBox.Item>
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-            </Field>
-
-            <Field
-              label="Fluxo de agendamento"
-              hint="Define se o cliente começa escolhendo o serviço ou o profissional."
-            >
-              <Select
-                aria-label="Fluxo de agendamento"
-                selectedKey={profileDraft.schedulingFlow}
-                onSelectionChange={(k) =>
-                  k && setProfileField('schedulingFlow', String(k) as SchedulingFlow)
-                }
-              >
-                <Select.Trigger>
-                  <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    <ListBox.Item id="service" textValue="Escolher serviço primeiro">
-                      Escolher serviço primeiro
-                    </ListBox.Item>
-                    <ListBox.Item id="professional" textValue="Escolher profissional primeiro">
-                      Escolher profissional primeiro
-                    </ListBox.Item>
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-            </Field>
-
-            <ToggleRow
-              selected={profileDraft.requiredLogin}
-              onChange={(v: boolean) => setProfileField('requiredLogin', v)}
-              title="Exigir login para agendar"
-              hint="Quando ativo, o cliente precisa entrar antes de confirmar o agendamento."
-            />
-
-            <Feedback error={configMsg.error} ok={configMsg.ok} />
+                <Switch
+                  isSelected={day.open}
+                  onChange={(v: boolean) => setDay(day.weekday, { open: v })}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <span className="text-sm font-medium text-ink">{WEEKDAY_LABELS[day.weekday]}</span>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
+                {day.open ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={day.start}
+                      onChange={(e) => setDay(day.weekday, { start: e.target.value })}
+                      className="rounded-lg border border-line bg-card px-2 py-1.5 text-sm text-ink focus:border-gold focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_25%,transparent)]"
+                    />
+                    <span className="text-sm text-muted-ink">até</span>
+                    <input
+                      type="time"
+                      value={day.end}
+                      onChange={(e) => setDay(day.weekday, { end: e.target.value })}
+                      className="rounded-lg border border-line bg-card px-2 py-1.5 text-sm text-ink focus:border-gold focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_25%,transparent)]"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-ink">Fechado</span>
+                )}
+              </div>
+            ))}
+            <Feedback error={hoursMsg.error} ok={hoursMsg.ok} />
           </div>
         );
 
@@ -819,14 +803,53 @@ export function AgendamentoOnlinePage() {
     }
   }
 
-  // ---- drawer footers (save/reset) ----
+  // ---- tab footers (save/reset) ----
   function renderFooter(id: SectionId): ReactNode {
     switch (id) {
       case 'detalhes':
         return (
-          <Button variant="primary" onClick={() => navigate('/configuracoes')}>
-            <IconSettings size={16} /> Editar em Configurações
-          </Button>
+          <>
+            <Button variant="ghost" onClick={() => navigate('/configuracoes')}>
+              <IconSettings size={16} /> Editar dados
+            </Button>
+            {sectionDirty(DETALHES_FIELDS) && (
+              <Button
+                variant="ghost"
+                onClick={() => resetProfileSection(DETALHES_FIELDS)}
+                isDisabled={updateProfile.isPending}
+              >
+                Descartar
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              onClick={() => saveProfileSection(DETALHES_FIELDS, setRedesMsg)}
+              isDisabled={updateProfile.isPending || !sectionDirty(DETALHES_FIELDS)}
+            >
+              {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </>
+        );
+      case 'config':
+        return (
+          <>
+            {sectionDirty(CONFIG_FIELDS) && (
+              <Button
+                variant="ghost"
+                onClick={() => resetProfileSection(CONFIG_FIELDS)}
+                isDisabled={updateProfile.isPending}
+              >
+                Descartar
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              onClick={() => saveProfileSection(CONFIG_FIELDS, setConfigMsg)}
+              isDisabled={updateProfile.isPending || !sectionDirty(CONFIG_FIELDS)}
+            >
+              {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </>
         );
       case 'links':
         return (
@@ -865,73 +888,12 @@ export function AgendamentoOnlinePage() {
             </Button>
           </>
         );
-      case 'redes':
-        return (
-          <>
-            {sectionDirty(REDES_FIELDS) && (
-              <Button
-                variant="ghost"
-                onClick={() => resetProfileSection(REDES_FIELDS)}
-                isDisabled={updateProfile.isPending}
-              >
-                Descartar
-              </Button>
-            )}
-            <Button
-              variant="primary"
-              onClick={() => saveProfileSection(REDES_FIELDS, setRedesMsg)}
-              isDisabled={updateProfile.isPending || !sectionDirty(REDES_FIELDS)}
-            >
-              {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </>
-        );
-      case 'beneficios':
-        return (
-          <>
-            {sectionDirty(BENEF_FIELDS) && (
-              <Button
-                variant="ghost"
-                onClick={() => resetProfileSection(BENEF_FIELDS)}
-                isDisabled={updateProfile.isPending}
-              >
-                Descartar
-              </Button>
-            )}
-            <Button
-              variant="primary"
-              onClick={() => saveProfileSection(BENEF_FIELDS, setBenefMsg)}
-              isDisabled={updateProfile.isPending || !sectionDirty(BENEF_FIELDS)}
-            >
-              {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </>
-        );
-      case 'config':
-        return (
-          <>
-            {sectionDirty(CONFIG_FIELDS) && (
-              <Button
-                variant="ghost"
-                onClick={() => resetProfileSection(CONFIG_FIELDS)}
-                isDisabled={updateProfile.isPending}
-              >
-                Descartar
-              </Button>
-            )}
-            <Button
-              variant="primary"
-              onClick={() => saveProfileSection(CONFIG_FIELDS, setConfigMsg)}
-              isDisabled={updateProfile.isPending || !sectionDirty(CONFIG_FIELDS)}
-            >
-              {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </>
-        );
       default:
         return null;
     }
   }
+
+  const footer = renderFooter(active);
 
   return (
     <div>
@@ -948,70 +910,51 @@ export function AgendamentoOnlinePage() {
       {link.isLoading ? (
         <LoadingState />
       ) : (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-          {/* Status summary */}
-          <Card className={CARD}>
-            <Card.Content className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-gold/15 text-gold-strong">
-                  <IconCalendar size={20} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink">Página pública de agendamento</p>
-                  {liveUrl ? (
-                    <code className="block truncate text-xs text-muted-ink">{liveUrl}</code>
-                  ) : (
-                    <p className="text-xs text-muted-ink">Defina um link para publicar.</p>
-                  )}
-                </div>
-              </div>
-              <Chip variant="soft" color={activeLink ? 'success' : 'default'} size="sm">
-                {activeLink ? 'Ativo' : 'Inativo'}
-              </Chip>
-            </Card.Content>
-          </Card>
+        <div className="flex flex-col gap-5">
+          {/* Tab bar */}
+          <div className="flex flex-wrap gap-2">
+            {SECTIONS.map((s) => {
+              const isActive = s.id === active;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setActive(s.id)}
+                  className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-line bg-card text-ink hover:bg-canvas'
+                  }`}
+                >
+                  {s.title}
+                </button>
+              );
+            })}
+          </div>
 
-          {/* Hub — vertical list of section rows (mobile-first, à la Belasis) */}
-          <Card className={`overflow-hidden ${CARD}`}>
-            <ul className="divide-y divide-[var(--sp-border)]">
-              {SECTIONS.map((s) => (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => setActive(s.id)}
-                    className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-canvas"
-                  >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/15 text-gold-strong">
-                      {s.icon}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-ink">{s.title}</span>
-                      <span className="block text-xs text-muted-ink">{s.description}</span>
-                    </span>
-                    {rowStatus(s.id)}
-                    <IconChevron size={18} className="shrink-0 -rotate-90 text-muted-ink" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Card>
+          {/* Editor panel + phone preview */}
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+            <Card className={`min-w-0 flex-1 ${CARD}`}>
+              <Card.Content className="flex flex-col gap-4 p-5">
+                <div>
+                  <h2 className="text-base font-semibold text-ink">{activeSection.title}</h2>
+                  <p className="mt-0.5 text-sm text-muted-ink">{activeSection.description}</p>
+                </div>
+                {renderBody(active)}
+                {footer && (
+                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+                    {footer}
+                  </div>
+                )}
+              </Card.Content>
+            </Card>
+
+            <div className="lg:sticky lg:top-4 lg:w-[340px] lg:shrink-0">
+              <PhonePreview url={liveUrl} active={activeLink} />
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Section editor drawer — slides in from the right */}
-      <Drawer
-        isOpen={active !== null}
-        onClose={closeDrawer}
-        title={activeSection?.title ?? ''}
-        footer={active ? renderFooter(active) : undefined}
-      >
-        {active && (
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted-ink">{activeSection?.description}</p>
-            {renderBody(active)}
-          </div>
-        )}
-      </Drawer>
     </div>
   );
 }

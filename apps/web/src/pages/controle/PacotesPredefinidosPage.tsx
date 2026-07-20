@@ -104,7 +104,7 @@ export function PacotesPredefinidosPage() {
 
   function exportCsv() {
     downloadCsv<PackageTemplate>(
-      'modelos-de-pacote',
+      'pacotes-predefinidos',
       [
         { header: 'Nome', value: (t) => t.name },
         { header: 'Itens', value: (t) => t.items.length },
@@ -117,14 +117,14 @@ export function PacotesPredefinidosPage() {
 
   async function handleDelete(template: PackageTemplate) {
     setMessage(null);
-    if (!window.confirm(`Remover o modelo "${template.name}"?`)) return;
+    if (!window.confirm(`Remover o pacote "${template.name}"?`)) return;
     try {
       await deleteTemplate.mutateAsync(template.id);
     } catch (err) {
       setMessage(
         err instanceof ApiClientError
           ? err.message
-          : 'Não foi possível remover o modelo.',
+          : 'Não foi possível remover o pacote.',
       );
     }
   }
@@ -133,7 +133,7 @@ export function PacotesPredefinidosPage() {
     <div className="pb-10">
       {/* Cabeçalho: título + Buscar / Filtrar / Exportar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-ink sm:text-2xl">Modelos de pacote</h1>
+        <h1 className="text-xl font-semibold text-ink sm:text-2xl">Pacotes Predefinidos</h1>
         <div className="flex flex-wrap items-center gap-2">
           <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
             <IconSearch size={16} /> Buscar
@@ -233,12 +233,12 @@ export function PacotesPredefinidosPage() {
               <EmptyState
                 icon={<IconLayers size={32} />}
                 title={
-                  hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum pacote predefinido'
+                  hasFilters ? 'Nenhum pacote encontrado' : 'Nenhum pacote predefinido'
                 }
                 description={
                   hasFilters
                     ? 'Ajuste a busca ou os filtros para ver mais resultados.'
-                    : 'Crie modelos com serviços e número de sessões para agilizar a venda de pacotes.'
+                    : 'Crie pacotes com serviços e número de sessões para agilizar a venda.'
                 }
                 action={
                   hasFilters ? (
@@ -247,7 +247,7 @@ export function PacotesPredefinidosPage() {
                     </Button>
                   ) : (
                     <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                      <IconPlus size={16} /> Novo modelo
+                      <IconPlus size={16} /> Novo pacote
                     </Button>
                   )
                 }
@@ -406,7 +406,7 @@ export function PacotesPredefinidosPage() {
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
                 <span>
                   {hasFilters
-                    ? `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} modelo(s)`
+                    ? `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} pacote(s)`
                     : `${formatNumber(allRows.length)} no total`}
                 </span>
                 {pageCount > 1 && (
@@ -457,16 +457,16 @@ export function PacotesPredefinidosPage() {
 /** Linha expandida: itens do pacote (Serviço/Produto · Quantidade · Preço unit.). */
 function PackageItems({ template }: { template: PackageTemplate }) {
   if (template.items.length === 0) {
-    return <p className="text-xs text-muted-ink">Nenhum serviço neste modelo.</p>;
+    return <p className="text-xs text-muted-ink">Nenhum item neste pacote.</p>;
   }
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-card">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-wide text-muted-ink">
-            <th className="px-3 py-2 font-semibold">Serviço / Produto</th>
+            <th className="px-3 py-2 font-semibold">Serviço/Produto</th>
             <th className="w-24 px-3 py-2 text-center font-semibold">Quantidade</th>
-            <th className="w-32 px-3 py-2 text-right font-semibold">Preço unit.</th>
+            <th className="w-32 px-3 py-2 text-right font-semibold">Preço unitário</th>
           </tr>
         </thead>
         <tbody>
@@ -670,7 +670,7 @@ function TemplateDrawer({
       onClose();
     } catch (err) {
       setError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível salvar o modelo.',
+        err instanceof ApiClientError ? err.message : 'Não foi possível salvar o pacote.',
       );
     }
   }
@@ -679,7 +679,7 @@ function TemplateDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'edit' ? 'Editar modelo' : 'Novo pacote predefinido'}
+      title={mode === 'edit' ? 'Editar pacote predefinido' : 'Novo pacote predefinido'}
       widthClass="sm:w-[520px]"
       footer={
         <>

@@ -1,21 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
-import { ApiClientError } from '@beautypass/shared';
-import { Drawer } from '../components/Drawer';
-import { ImageGalleryUpload } from '../components/ImageUpload';
-import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { useEffect, useMemo, useState } from "react";
+import { Button, Input, ListBox, Select, TextField } from "@heroui/react";
+import { ApiClientError } from "@beautypass/shared";
+import { Drawer } from "../components/Drawer";
+import { ImageUpload } from "../components/ImageUpload";
+import { EmptyState, ErrorState, LoadingState } from "../components/States";
 import {
   IconChevron,
-  IconDownload,
+  IconCircleCheck,
   IconFilter,
-  IconGift,
   IconPencil,
   IconPlus,
   IconScissors,
   IconSearch,
   IconStar,
   IconTrash,
-} from '../components/icons';
+} from "../components/icons";
 import {
   useCreateService,
   useDeleteService,
@@ -24,34 +23,60 @@ import {
   useUpdateService,
   type ServiceBody,
   type ServiceRow,
-} from '../lib/queries';
-import { formatDuration, formatMoney } from '../lib/format';
-import { downloadCsv } from '../lib/csv';
-import { useAutoCreate } from '../lib/useAutoCreate';
+} from "../lib/queries";
+import { formatMoney } from "../lib/format";
+import { useAutoCreate } from "../lib/useAutoCreate";
+import { useSetPageActions } from "../layout/PageActions";
 
-const NONE = '';
+const NONE = "";
 const PAGE_SIZE = 20;
 
 // color-mix helper para superfícies temáticas derivadas de --sp-primary (100% themeable).
 const primaryTint = (pct: number) =>
   `color-mix(in oklab, var(--sp-primary) ${pct}%, transparent)`;
 
-type StatusFilter = 'all' | 'active' | 'inactive';
-type FavFilter = 'all' | 'starred' | 'unstarred';
+type StatusFilter = "all" | "active" | "inactive";
+type FavFilter = "all" | "starred" | "unstarred";
+
+type ServiceBelasisFields = ServiceRow & {
+  additionalCost?: string | number | null;
+  commission?: string | number | null;
+  commissionPercent?: string | number | null;
+};
 
 // Belasis mostra a duração na tabela como HH:MM (ex.: 00:05, 02:30).
 function formatHm(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function formatMobileDuration(min: number): string {
+  return min < 60 ? `${min} min` : `${formatHm(min)} h`;
+}
+
+function commissionOf(service: ServiceRow): number | null {
+  const extra = service as ServiceBelasisFields;
+  const raw = extra.commissionPercent ?? extra.commission;
+  return raw == null || raw === "" ? null : Number(raw);
+}
+
+function formatPercent(value: number | null): string {
+  const normalized = value == null || Number.isNaN(value) ? 0 : value;
+  return `% ${normalized.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export function ServicosPage() {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
-  const [favFilter, setFavFilter] = useState<FavFilter>('all');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [sortAsc, setSortAsc] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
+  const [favFilter, setFavFilter] = useState<FavFilter>("all");
   const [categorySet, setCategorySet] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -65,7 +90,10 @@ export function ServicosPage() {
   const updateService = useUpdateService();
 
   async function toggleFavorite(s: ServiceRow) {
-    await updateService.mutateAsync({ id: s.id, body: { favorite: !s.favorite } });
+    await updateService.mutateAsync({
+      id: s.id,
+      body: { favorite: !s.favorite },
+    });
   }
 
   const catName = useMemo(() => {
@@ -78,15 +106,24 @@ export function ServicosPage() {
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allRows.filter(
-      (s) =>
-        (!q || s.name.toLowerCase().includes(q)) &&
-        (categorySet.size === 0 || (s.categoryId != null && categorySet.has(s.categoryId))) &&
-        (statusFilter === 'all' || (statusFilter === 'active' ? s.active : !s.active)) &&
-        (favFilter === 'all' ||
-          (favFilter === 'starred' ? Boolean(s.favorite) : !s.favorite)),
-    );
-  }, [allRows, search, categorySet, statusFilter, favFilter]);
+    return allRows
+      .filter(
+        (s) =>
+          (!q || s.name.toLowerCase().includes(q)) &&
+          (categorySet.size === 0 ||
+            (s.categoryId != null && categorySet.has(s.categoryId))) &&
+          (statusFilter === "all" ||
+            (statusFilter === "active" ? s.active : !s.active)) &&
+          (favFilter === "all" ||
+            (favFilter === "starred" ? Boolean(s.favorite) : !s.favorite)),
+      )
+      .sort((a, b) => {
+        const compared = a.name.localeCompare(b.name, "pt-BR", {
+          sensitivity: "base",
+        });
+        return sortAsc ? compared : -compared;
+      });
+  }, [allRows, search, categorySet, statusFilter, favFilter, sortAsc]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   useEffect(() => {
@@ -95,14 +132,17 @@ export function ServicosPage() {
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const hasFilters = Boolean(
-    search || categorySet.size || statusFilter !== 'all' || favFilter !== 'all',
+    search ||
+    categorySet.size ||
+    statusFilter !== "active" ||
+    favFilter !== "all",
   );
 
   function resetFilters() {
-    setSearch('');
+    setSearch("");
     setCategorySet(new Set());
-    setStatusFilter('all');
-    setFavFilter('all');
+    setStatusFilter("active");
+    setFavFilter("all");
     setPage(1);
   }
 
@@ -126,9 +166,10 @@ export function ServicosPage() {
   }
 
   async function handleBulkDelete() {
-    const ids = pageRows.filter((s) => selected.has(s.id)).map((s) => s.id);
+    const ids = rows.filter((s) => selected.has(s.id)).map((s) => s.id);
     if (!ids.length) return;
-    if (!window.confirm(`Remover ${ids.length} serviço(s) selecionado(s)?`)) return;
+    if (!window.confirm(`Remover ${ids.length} serviço(s) selecionado(s)?`))
+      return;
     for (const id of ids) await deleteService.mutateAsync(id);
     setSelected(new Set());
   }
@@ -142,7 +183,8 @@ export function ServicosPage() {
   }
 
   const pageIds = pageRows.map((s) => s.id);
-  const allChecked = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const allChecked =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   function toggleSelectAll() {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -151,31 +193,185 @@ export function ServicosPage() {
       return next;
     });
   }
-  const selectedCount = pageIds.filter((id) => selected.has(id)).length;
+  const selectedCount = rows.filter((row) => selected.has(row.id)).length;
 
-  function exportCsv() {
-    downloadCsv<ServiceRow>(
-      'servicos',
-      [
-        { header: 'Serviço', value: (s) => s.name },
-        { header: 'Categoria', value: (s) => (s.categoryId ? catName.get(s.categoryId) : '') },
-        { header: 'Preço', value: (s) => Number(s.price).toFixed(2) },
-        { header: 'Duração (min)', value: (s) => s.durationMin },
-        { header: 'Mostra no site', value: (s) => (s.onlineBookable ? 'Sim' : 'Não') },
-        { header: 'Favorito', value: (s) => (s.favorite ? 'Sim' : 'Não') },
-        { header: 'Status', value: (s) => (s.active ? 'Ativo' : 'Inativo') },
-      ],
-      rows,
-    );
+  function toggleSelectAllRows() {
+    const rowIds = rows.map((row) => row.id);
+    const allRowsChecked =
+      rowIds.length > 0 && rowIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allRowsChecked) rowIds.forEach((id) => next.delete(id));
+      else rowIds.forEach((id) => next.add(id));
+      return next;
+    });
   }
 
-  const categoryOptions = (categories.data ?? []).map((c) => ({ id: c.id, name: c.name }));
+  const categoryOptions = useMemo(
+    () =>
+      (categories.data ?? []).map((category) => ({
+        id: category.id,
+        name: category.name,
+      })),
+    [categories.data],
+  );
+
+  useSetPageActions(
+    [
+      {
+        key: "filters",
+        label: "Filtros",
+        icon: <IconFilter size={22} />,
+        onClick: () => setMobileFiltersOpen(true),
+      },
+      {
+        key: "select",
+        label: "Selecionar",
+        icon: <IconCircleCheck size={22} />,
+        onClick: toggleSelectAllRows,
+        disabled: rows.length === 0,
+      },
+      {
+        key: "create",
+        label: "Criar",
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [rows, selected],
+  );
+
+  const filterControls = (
+    <>
+      <FilterGroup title="Status">
+        <CheckRow
+          label="Ativos"
+          checked={statusFilter === "active" || statusFilter === "all"}
+          onChange={(checked) =>
+            setStatusFilter(
+              checked
+                ? statusFilter === "inactive"
+                  ? "all"
+                  : "active"
+                : "inactive",
+            )
+          }
+        />
+        <CheckRow
+          label="Inativos"
+          checked={statusFilter === "inactive" || statusFilter === "all"}
+          onChange={(checked) =>
+            setStatusFilter(
+              checked
+                ? statusFilter === "active"
+                  ? "all"
+                  : "inactive"
+                : "active",
+            )
+          }
+        />
+      </FilterGroup>
+
+      <FilterGroup title="Favoritos">
+        <CheckRow
+          label="Com estrela"
+          checked={favFilter === "starred"}
+          onChange={(checked) => setFavFilter(checked ? "starred" : "all")}
+        />
+        <CheckRow
+          label="Sem estrela"
+          checked={favFilter === "unstarred"}
+          onChange={(checked) => setFavFilter(checked ? "unstarred" : "all")}
+        />
+      </FilterGroup>
+
+      <FilterGroup title="Categorias">
+        <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
+          <CheckRow
+            label="Selecionar tudo"
+            checked={
+              categoryOptions.length > 0 &&
+              categorySet.size === categoryOptions.length
+            }
+            onChange={(checked) => {
+              setCategorySet(
+                checked
+                  ? new Set(categoryOptions.map((category) => category.id))
+                  : new Set(),
+              );
+              setPage(1);
+            }}
+          />
+          {categoryOptions.map((category) => (
+            <CheckRow
+              key={category.id}
+              label={category.name}
+              checked={categorySet.has(category.id)}
+              onChange={() => toggleCategory(category.id)}
+            />
+          ))}
+        </div>
+      </FilterGroup>
+
+      {hasFilters && (
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="mt-3 text-xs font-medium text-primary hover:underline"
+        >
+          Limpar filtros
+        </button>
+      )}
+    </>
+  );
 
   return (
-    <div className="pb-6">
+    <div className="pb-6 lg:pb-0">
       {/* ── Cabeçalho / toolbar (título + Buscar / Filtrar / Novo) ── */}
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-foreground">Serviços</h2>
+      <header className="mb-4 hidden flex-wrap items-center justify-between gap-3 lg:flex">
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Serviços</h1>
+          <button
+            type="button"
+            aria-label="Ver tutorial de serviços"
+            title="Ver tutorial"
+            className="grid h-7 w-7 place-items-center text-muted-ink transition-colors hover:text-primary"
+          >
+            <svg
+              width="17"
+              height="17"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="m10 8 6 4-6 4V8Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Ajuda sobre serviços"
+            title="Ajuda"
+            className="grid h-7 w-7 place-items-center text-muted-ink transition-colors hover:text-primary"
+          >
+            <svg
+              width="17"
+              height="17"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9.8 9a2.4 2.4 0 1 1 3.7 2c-1 .65-1.5 1.15-1.5 2.5" />
+              <path d="M12 17h.01" />
+            </svg>
+          </button>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <ToolbarButton
             active={showSearch}
@@ -189,23 +385,36 @@ export function ServicosPage() {
             icon={<IconFilter size={16} />}
             label="Filtrar"
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportCsv}
-            isDisabled={rows.length === 0}
-          >
-            <IconDownload size={16} /> Exportar
-          </Button>
-          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
           </Button>
         </div>
       </header>
 
+      {/* O Belasis mantém título e busca sempre visíveis no catálogo móvel. */}
+      <section className="mb-3 lg:hidden">
+        <h1 className="mb-3 text-lg font-semibold text-ink">Serviços</h1>
+        <label className="relative block">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-ink">
+            <IconSearch size={18} />
+          </span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Buscar serviço"
+            aria-label="Buscar serviço"
+            className="h-11 w-full rounded-lg border border-line bg-card pl-10 pr-3 text-sm text-ink outline-none placeholder:text-muted-ink focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </label>
+      </section>
+
       {/* ── Campo de busca (revelado pelo botão Buscar) ── */}
       {showSearch && (
-        <div className="mb-4">
+        <div className="mb-4 hidden lg:block">
           <TextField
             value={search}
             onChange={(v) => {
@@ -226,64 +435,25 @@ export function ServicosPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* ── Rail de filtros (Status / Favoritos / Categorias) ── */}
         {showFilters && (
-          <aside className="w-full shrink-0 rounded-2xl border border-line bg-card p-4 lg:w-60">
-            <FilterGroup title="Status">
-              <CheckRow
-                label="Ativos"
-                checked={statusFilter === 'active' || statusFilter === 'all'}
-                onChange={(c) =>
-                  setStatusFilter(c ? (statusFilter === 'inactive' ? 'all' : 'active') : 'inactive')
-                }
-              />
-              <CheckRow
-                label="Inativos"
-                checked={statusFilter === 'inactive' || statusFilter === 'all'}
-                onChange={(c) =>
-                  setStatusFilter(c ? (statusFilter === 'active' ? 'all' : 'inactive') : 'active')
-                }
-              />
-            </FilterGroup>
-
-            <FilterGroup title="Favoritos">
-              <CheckRow
-                label="Com estrela"
-                checked={favFilter === 'starred'}
-                onChange={(c) => setFavFilter(c ? 'starred' : 'all')}
-              />
-              <CheckRow
-                label="Sem estrela"
-                checked={favFilter === 'unstarred'}
-                onChange={(c) => setFavFilter(c ? 'unstarred' : 'all')}
-              />
-            </FilterGroup>
-
-            <FilterGroup title="Categorias">
-              <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
-                {categoryOptions.map((c) => (
-                  <CheckRow
-                    key={c.id}
-                    label={c.name}
-                    checked={categorySet.has(c.id)}
-                    onChange={() => toggleCategory(c.id)}
-                  />
-                ))}
-              </div>
-            </FilterGroup>
-
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="mt-3 text-xs font-medium text-gold hover:underline"
-              >
-                Limpar filtros
-              </button>
-            )}
+          <aside className="hidden w-60 shrink-0 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:block">
+            {filterControls}
           </aside>
         )}
 
         {/* ── Conteúdo (tabela desktop / cards mobile + paginação) ── */}
         <div className="min-w-0 flex-1">
+          <div className="mb-3 flex justify-end lg:hidden">
+            <button
+              type="button"
+              onClick={() => setSortAsc((value) => !value)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+              aria-label="Alternar ordenação por nome"
+            >
+              Ordenando por Nome
+              <IconChevron size={12} className={sortAsc ? "rotate-180" : ""} />
+            </button>
+          </div>
+
           {selectedCount > 0 && (
             <div
               className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm text-foreground"
@@ -306,39 +476,70 @@ export function ServicosPage() {
           ) : services.isError ? (
             <ErrorState onRetry={() => services.refetch()} />
           ) : rows.length === 0 ? (
-            <EmptyState
-              icon={<IconScissors size={32} />}
-              title={hasFilters ? 'Nenhum serviço encontrado' : 'Nenhum serviço cadastrado'}
-              description={
-                hasFilters
-                  ? 'Tente ajustar os filtros.'
-                  : 'Cadastre serviços com preço, duração e categoria para começar.'
-              }
-            />
+            <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
+              <EmptyState
+                icon={<IconScissors size={32} />}
+                title={
+                  hasFilters
+                    ? "Nenhum serviço encontrado"
+                    : "Nenhum serviço cadastrado"
+                }
+                description={
+                  hasFilters
+                    ? "Tente ajustar os filtros."
+                    : "Cadastre serviços com preço, duração e categoria para começar."
+                }
+              />
+            </div>
           ) : (
             <>
               {/* Desktop: tabela antd-like */}
-              <div className="hidden overflow-hidden rounded-2xl border border-line bg-card sm:block">
-                <table className="w-full text-sm">
+              <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] lg:block">
+                <table className="w-full table-fixed border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                      <th className="w-10 px-3 py-3">
-                        <Check checked={allChecked} onChange={toggleSelectAll} />
+                    <tr className="border-b border-line bg-canvas text-left text-sm font-semibold text-muted-ink">
+                      <th className="w-10 px-3 py-3.5">
+                        <Check
+                          checked={allChecked}
+                          onChange={toggleSelectAll}
+                        />
                       </th>
-                      <th className="px-3 py-3 font-semibold">Nome</th>
-                      <th className="px-3 py-3 font-semibold">Valor</th>
-                      <th className="px-3 py-3 font-semibold">Comissão</th>
-                      <th className="px-3 py-3 font-semibold">Duração</th>
-                      <th className="px-3 py-3 font-semibold">Categoria</th>
-                      <th className="px-3 py-3 font-semibold">Mostra no site</th>
-                      <th className="w-28 px-3 py-3" />
+                      <th className="w-[28%] px-3 py-3.5 font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setSortAsc((value) => !value)}
+                          className="inline-flex items-center gap-1.5 hover:text-primary"
+                        >
+                          Nome
+                          <IconChevron
+                            size={12}
+                            className={sortAsc ? "rotate-180" : ""}
+                          />
+                        </button>
+                      </th>
+                      <th className="w-[12%] px-3 py-3.5 text-right font-semibold">
+                        Valor
+                      </th>
+                      <th className="w-[12%] px-3 py-3.5 text-right font-semibold">
+                        Comissão
+                      </th>
+                      <th className="w-[10%] px-3 py-3.5 font-semibold">
+                        Duração
+                      </th>
+                      <th className="w-[16%] px-3 py-3.5 font-semibold">
+                        Categoria
+                      </th>
+                      <th className="w-[11%] px-3 py-3.5 text-center font-semibold">
+                        Mostra no site
+                      </th>
+                      <th className="w-[114px] px-3 py-3.5" />
                     </tr>
                   </thead>
                   <tbody>
                     {pageRows.map((s) => (
                       <tr
                         key={s.id}
-                        className="border-b border-line last:border-0 transition-colors hover:bg-canvas"
+                        className="border-b border-line/70 last:border-0 transition-colors hover:bg-canvas"
                       >
                         <td className="px-3 py-2.5">
                           <Check
@@ -350,38 +551,34 @@ export function ServicosPage() {
                           <button
                             type="button"
                             onClick={() => setEditing(s)}
-                            className="flex items-center gap-2.5 text-left"
+                            className="flex w-full items-center gap-2 text-left"
                           >
                             <Avatar url={s.imageUrl} />
-                            <span className="truncate font-medium text-foreground hover:text-gold">
+                            <span className="truncate font-medium text-primary hover:underline">
                               {s.name}
-                              {Number(s.cashbackPercent) > 0 && (
-                                <span className="ml-1 inline-flex items-center gap-0.5 align-middle text-xs text-accent">
-                                  <IconGift size={11} /> {Number(s.cashbackPercent)}%
-                                </span>
-                              )}
                             </span>
                           </button>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-foreground">
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right text-ink">
                           {formatMoney(s.price)}
                         </td>
-                        {/* TODO: comissão por serviço ainda não existe no modelo de dados. */}
-                        <td className="px-3 py-2.5 text-muted-ink">—</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-foreground">
+                        <td className="px-3 py-2.5 text-right text-muted-ink">
+                          {formatPercent(commissionOf(s))}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-ink">
                           {formatHm(s.durationMin)}
                         </td>
                         <td className="px-3 py-2.5">
                           {s.categoryId ? (
                             <span className="truncate text-muted-ink">
-                              {catName.get(s.categoryId) ?? '—'}
+                              {catName.get(s.categoryId) ?? "—"}
                             </span>
                           ) : (
                             <span className="text-muted-ink">—</span>
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-muted-ink">
-                          {s.onlineBookable ? 'Sim' : 'Não'}
+                        <td className="px-3 py-2.5 text-center text-muted-ink">
+                          {(s.visible ?? s.onlineBookable) ? "Sim" : "Não"}
                         </td>
                         <td className="px-3 py-2.5">
                           <RowActions
@@ -397,14 +594,20 @@ export function ServicosPage() {
                     ))}
                   </tbody>
                 </table>
+                <Pagination
+                  total={rows.length}
+                  page={page}
+                  pageCount={pageCount}
+                  onPage={setPage}
+                />
               </div>
 
               {/* Mobile: cards */}
-              <ul className="flex flex-col gap-2 sm:hidden">
-                {pageRows.map((s) => (
+              <ul className="flex flex-col gap-2 lg:hidden">
+                {rows.map((s) => (
                   <li
                     key={s.id}
-                    className="flex items-center gap-3 rounded-2xl border border-line bg-card p-3"
+                    className="flex items-center gap-3 rounded-xl border border-line bg-card p-3 shadow-[var(--shadow-card)]"
                   >
                     <Check
                       checked={selected.has(s.id)}
@@ -417,32 +620,58 @@ export function ServicosPage() {
                       className="min-w-0 flex-1 text-left"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate font-medium text-foreground">{s.name}</span>
+                        <span className="truncate font-medium text-foreground">
+                          {s.name}
+                        </span>
                         <IconStar
                           size={18}
-                          className={s.favorite ? 'text-gold' : 'text-muted-ink'}
+                          className={
+                            s.favorite ? "text-gold" : "text-muted-ink"
+                          }
                         />
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2 text-sm text-muted-ink">
                         <span>{formatMoney(s.price)}</span>
-                        <span>{formatDuration(s.durationMin)}</span>
+                        <span>{formatMobileDuration(s.durationMin)}</span>
                       </div>
                     </button>
                   </li>
                 ))}
               </ul>
-
-              {/* Paginação */}
-              <Pagination
-                total={rows.length}
-                page={page}
-                pageCount={pageCount}
-                onPage={setPage}
-              />
             </>
           )}
         </div>
       </div>
+
+      <Drawer
+        isOpen={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
+        title="Filtros"
+        placement="bottom"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                resetFilters();
+                setMobileFiltersOpen(false);
+              }}
+            >
+              Limpar
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-1"
+              onClick={() => setMobileFiltersOpen(false)}
+            >
+              Aplicar
+            </Button>
+          </>
+        }
+      >
+        {filterControls}
+      </Drawer>
 
       <ServiceDrawer
         mode="create"
@@ -478,22 +707,24 @@ function ToolbarButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-        active
-          ? 'border-gold text-gold'
-          : 'border-line text-muted-ink hover:text-foreground'
-      }`}
-      style={active ? { background: primaryTint(10) } : undefined}
+      aria-pressed={active}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5 text-sm font-medium text-muted-ink transition-colors hover:border-primary hover:text-primary"
     >
       {icon} {label}
     </button>
   );
 }
 
-function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
+function FilterGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mb-4 last:mb-0">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">{title}</p>
+      <p className="mb-2 text-sm font-semibold text-ink">{title}</p>
       <div className="space-y-1">{children}</div>
     </div>
   );
@@ -529,12 +760,12 @@ function Check({
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
       className="h-4 w-4 shrink-0 cursor-pointer rounded border-line"
-      style={{ accentColor: 'var(--sp-primary)' }}
+      style={{ accentColor: "var(--sp-primary)" }}
     />
   );
 }
 
-function Avatar({ url, size = 32 }: { url?: string | null; size?: number }) {
+function Avatar({ url, size = 24 }: { url?: string | null; size?: number }) {
   const box = { width: size, height: size };
   return url ? (
     <img
@@ -572,11 +803,11 @@ function RowActions({
     <div className="flex items-center justify-end gap-1 text-muted-ink">
       <button
         type="button"
-        aria-label={favorite ? 'Remover dos favoritos' : 'Marcar como favorito'}
+        aria-label={favorite ? "Remover dos favoritos" : "Marcar como favorito"}
         onClick={onStar}
         disabled={starDisabled}
         className={`rounded p-1 transition-colors disabled:opacity-50 ${
-          favorite ? 'text-gold' : 'hover:text-gold'
+          favorite ? "text-gold" : "hover:text-gold"
         }`}
       >
         <IconStar size={16} />
@@ -615,13 +846,14 @@ function Pagination({
   pageCount: number;
   onPage: (p: number) => void;
 }) {
+  const [jumpPage, setJumpPage] = useState("");
   const pages: number[] = [];
   const from = Math.max(1, Math.min(page - 2, pageCount - 4));
   const to = Math.min(pageCount, from + 4);
   for (let i = from; i <= to; i++) pages.push(i);
 
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-end gap-2 text-sm text-muted-ink">
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-card px-3 py-3 text-sm text-muted-ink">
       <span className="mr-auto">{total} no total</span>
       <button
         type="button"
@@ -638,7 +870,9 @@ function Pagination({
           type="button"
           onClick={() => onPage(p)}
           className={`h-8 min-w-8 rounded-lg border px-2 font-medium transition-colors ${
-            p === page ? 'border-gold text-gold' : 'border-line hover:text-foreground'
+            p === page
+              ? "border-primary text-primary"
+              : "border-line hover:text-foreground"
           }`}
           style={p === page ? { background: primaryTint(10) } : undefined}
         >
@@ -654,7 +888,30 @@ function Pagination({
       >
         <IconChevron size={16} className="-rotate-90" />
       </button>
-      <span className="ml-1">{PAGE_SIZE} / página</span>
+      <span className="ml-1 rounded-md border border-line bg-card px-2.5 py-1.5">
+        {PAGE_SIZE} / página
+      </span>
+      <label className="ml-1 inline-flex items-center gap-1.5 whitespace-nowrap">
+        Vá até
+        <input
+          type="number"
+          min={1}
+          max={pageCount}
+          value={jumpPage}
+          onChange={(event) => setJumpPage(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            const requested = Number(jumpPage);
+            if (Number.isFinite(requested)) {
+              onPage(Math.max(1, Math.min(pageCount, Math.floor(requested))));
+              setJumpPage("");
+            }
+          }}
+          aria-label="Página"
+          className="h-8 w-12 rounded-md border border-line bg-card px-1.5 text-center text-ink outline-none focus:border-primary"
+        />
+        Página
+      </label>
     </div>
   );
 }
@@ -666,7 +923,37 @@ interface Option {
   name: string;
 }
 
-type DrawerTab = 'cadastro' | 'config' | 'cashback';
+type DrawerTab =
+  | "cadastro"
+  | "config"
+  | "cashback"
+  | "cuidados"
+  | "retorno"
+  | "comissoes"
+  | "personalizar"
+  | "produtos"
+  | "nota-fiscal";
+
+const drawerTabs: { id: DrawerTab; label: string; available: boolean }[] = [
+  { id: "cadastro", label: "Cadastro", available: true },
+  { id: "config", label: "Configurações", available: true },
+  { id: "cashback", label: "Cashback", available: true },
+  { id: "cuidados", label: "Cuidados", available: false },
+  { id: "retorno", label: "Retorno", available: false },
+  { id: "comissoes", label: "Comissões e Auxiliares", available: false },
+  { id: "personalizar", label: "Personalizar", available: false },
+  { id: "produtos", label: "Produtos consumidos", available: false },
+  { id: "nota-fiscal", label: "Configurar nota fiscal", available: false },
+];
+
+const durationOptions = [
+  5, 10, 15, 20, 30, 40, 45, 60, 70, 90, 120, 150, 180, 240,
+];
+
+function durationOptionLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  return `${formatHm(minutes)} h`;
+}
 
 function ServiceDrawer({
   mode,
@@ -675,7 +962,7 @@ function ServiceDrawer({
   onClose,
   categories,
 }: {
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   service?: ServiceRow | null;
   isOpen: boolean;
   onClose: () => void;
@@ -683,16 +970,17 @@ function ServiceDrawer({
 }) {
   const create = useCreateService();
   const update = useUpdateService();
-  const [tab, setTab] = useState<DrawerTab>('cadastro');
-  const [name, setName] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [price, setPrice] = useState('');
-  const [additionalCost, setAdditionalCost] = useState('');
-  const [durationMin, setDurationMin] = useState('30');
-  const [description, setDescription] = useState('');
+  const [tab, setTab] = useState<DrawerTab>("cadastro");
+  const [name, setName] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [price, setPrice] = useState("");
+  const [additionalCost, setAdditionalCost] = useState("");
+  const [commission, setCommission] = useState("");
+  const [durationMin, setDurationMin] = useState("15");
+  const [description, setDescription] = useState("");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [cashbackEnabled, setCashbackEnabled] = useState(false);
-  const [cashbackPercent, setCashbackPercent] = useState('');
+  const [cashbackPercent, setCashbackPercent] = useState("");
   const [onlineBookable, setOnlineBookable] = useState(true);
   const [favorite, setFavorite] = useState(false);
   const [visible, setVisible] = useState(true);
@@ -701,15 +989,19 @@ function ServiceDrawer({
 
   useEffect(() => {
     if (!isOpen) return;
-    setTab('cadastro');
-    setName(service?.name ?? '');
-    setCategoryId(service?.categoryId ?? '');
-    setPrice(service ? String(service.price) : '');
-    const addCost = (service as { additionalCost?: string | number } | null | undefined)
+    setTab("cadastro");
+    setName(service?.name ?? "");
+    setCategoryId(service?.categoryId ?? categories[0]?.id ?? "");
+    setPrice(service ? String(service.price) : "");
+    const addCost = (service as ServiceBelasisFields | null | undefined)
       ?.additionalCost;
-    setAdditionalCost(addCost != null && Number(addCost) > 0 ? String(addCost) : '');
-    setDurationMin(service ? String(service.durationMin) : '30');
-    setDescription(service?.description ?? '');
+    setAdditionalCost(
+      addCost != null && Number(addCost) > 0 ? String(addCost) : "",
+    );
+    const serviceCommission = service ? commissionOf(service) : null;
+    setCommission(serviceCommission == null ? "" : String(serviceCommission));
+    setDurationMin(service ? String(service.durationMin) : "15");
+    setDescription(service?.description ?? "");
     setImageUrls(
       service?.imageUrls?.length
         ? service.imageUrls
@@ -719,18 +1011,25 @@ function ServiceDrawer({
     );
     const cb = service?.cashbackPercent ? Number(service.cashbackPercent) : 0;
     setCashbackEnabled(cb > 0);
-    setCashbackPercent(cb > 0 ? String(cb) : '');
+    setCashbackPercent(cb > 0 ? String(cb) : "");
     setOnlineBookable(service?.onlineBookable ?? true);
     setFavorite(service?.favorite ?? false);
     setVisible(service?.visible ?? true);
     setActive(service?.active ?? true);
     setError(null);
-  }, [isOpen, service]);
+  }, [isOpen, service, categories]);
 
   const pending = create.isPending || update.isPending;
+  const selectedDuration = Number(durationMin);
+  const availableDurations = durationOptions.includes(selectedDuration)
+    ? durationOptions
+    : [...durationOptions, selectedDuration]
+        .filter((minutes) => Number.isFinite(minutes) && minutes > 0)
+        .sort((a, b) => a - b);
   const canSave =
     name.trim().length >= 2 &&
-    price !== '' &&
+    categoryId !== "" &&
+    price !== "" &&
     Number(price) >= 0 &&
     Number(durationMin) >= 1 &&
     !pending;
@@ -745,13 +1044,14 @@ function ServiceDrawer({
       durationMin: Number(durationMin),
       description: description.trim() || undefined,
       imageUrls,
-      cashbackPercent: cashbackEnabled && cashbackPercent ? Number(cashbackPercent) : 0,
+      cashbackPercent:
+        cashbackEnabled && cashbackPercent ? Number(cashbackPercent) : 0,
       onlineBookable,
       favorite,
       visible,
     };
     try {
-      if (mode === 'edit' && service) {
+      if (mode === "edit" && service) {
         await update.mutateAsync({ id: service.id, body: { ...body, active } });
       } else {
         await create.mutateAsync(body);
@@ -759,7 +1059,9 @@ function ServiceDrawer({
       onClose();
     } catch (err) {
       setError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível salvar o serviço.',
+        err instanceof ApiClientError
+          ? err.message
+          : "Não foi possível salvar o serviço.",
       );
     }
   }
@@ -768,11 +1070,15 @@ function ServiceDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'edit' ? 'Editar serviço' : 'Novo serviço'}
-      widthClass="sm:w-[520px]"
+      title={mode === "edit" ? "Editando serviço" : "Novo serviço"}
+      widthClass="sm:w-[min(1024px,calc(100vw-48px))]"
       footer={
         <>
-          <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={onClose}
+          >
             Cancelar
           </Button>
           <Button
@@ -781,159 +1087,266 @@ function ServiceDrawer({
             isDisabled={!canSave}
             onClick={handleSave}
           >
-            {pending ? 'Salvando…' : 'Salvar'}
+            {pending ? "Salvando…" : "Salvar"}
           </Button>
         </>
       }
     >
-      {/* Abas do drawer (Belasis) */}
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-line">
-        {(
-          [
-            { id: 'cadastro', label: 'Cadastro' },
-            { id: 'config', label: 'Configurações' },
-            { id: 'cashback', label: 'Cashback' },
-          ] as { id: DrawerTab; label: string }[]
-        ).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              tab === t.id
-                ? 'border-gold text-gold'
-                : 'border-transparent text-muted-ink hover:text-foreground'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className="flex min-h-[560px] flex-col gap-5 sm:flex-row">
+        {/* O Belasis usa navegação vertical no drawer de serviço. */}
+        <nav className="flex shrink-0 overflow-x-auto border-b border-line sm:w-52 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r">
+          {drawerTabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              disabled={!item.available}
+              onClick={() => setTab(item.id)}
+              className={`relative whitespace-nowrap px-3 py-2.5 text-left text-sm transition-colors after:absolute after:bg-primary disabled:cursor-not-allowed disabled:opacity-45 sm:after:bottom-0 sm:after:right-[-1px] sm:after:top-0 sm:after:w-0.5 ${
+                tab === item.id
+                  ? "border-b-2 border-primary text-primary sm:border-b-0 sm:after:block"
+                  : "border-b-2 border-transparent text-muted-ink hover:bg-canvas hover:text-ink sm:border-b-0 sm:after:hidden"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
 
-      {tab === 'cadastro' && (
-        <div className="flex flex-col gap-4">
-          <Field label="Fotos do serviço (opcional)">
-            <ImageGalleryUpload value={imageUrls} onChange={setImageUrls} kind="service" max={12} />
-          </Field>
-
-          <Field label="Nome">
-            <TextField value={name} onChange={setName} aria-label="Nome">
-              <Input placeholder="Nome do serviço" />
-            </TextField>
-          </Field>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Categoria (opcional)">
-              <Select
-                aria-label="Categoria"
-                selectedKey={categoryId || null}
-                onSelectionChange={(k) => setCategoryId(k ? String(k) : NONE)}
-              >
-                <Select.Trigger>
-                  <Select.Value>
-                    {({ isPlaceholder, selectedText }) =>
-                      isPlaceholder ? 'Selecione' : selectedText
-                    }
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {categories.map((c) => (
-                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                        {c.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-            </Field>
-            <Field label="Tipo de preço">
-              <div className="flex h-full items-center">
-                <span className="rounded-full bg-canvas px-3 py-1 text-xs font-medium text-muted-ink ring-1 ring-line">
-                  Preço fixo
-                </span>
+        <div className="min-w-0 flex-1 sm:pl-5">
+          {tab === "cadastro" && (
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-center py-1">
+                <ImageUpload
+                  value={imageUrls[0] ?? null}
+                  onChange={(url) =>
+                    setImageUrls((current) =>
+                      url ? [url, ...current.slice(1)] : current.slice(1),
+                    )
+                  }
+                  kind="service"
+                  shape="square"
+                  size={120}
+                  placeholder="Foto"
+                />
               </div>
-            </Field>
-          </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Preço de venda (R$)">
-              <TextField value={price} onChange={setPrice} aria-label="Preço de venda">
-                <Input type="number" placeholder="0,00" />
-              </TextField>
-            </Field>
-            <Field label="Custo adicional (R$)">
-              <TextField
-                value={additionalCost}
-                onChange={setAdditionalCost}
-                aria-label="Custo adicional"
-              >
-                <Input type="number" placeholder="0,00" />
-              </TextField>
-            </Field>
-          </div>
+              <Field label="Nome" required>
+                <TextField value={name} onChange={setName} aria-label="Nome">
+                  <Input placeholder="Informe o nome" />
+                </TextField>
+              </Field>
 
-          <Field label="Duração (min)">
-            <TextField value={durationMin} onChange={setDurationMin} aria-label="Duração">
-              <Input type="number" placeholder="30" />
-            </TextField>
-          </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Categoria" required>
+                  <Select
+                    aria-label="Categoria"
+                    selectedKey={categoryId || null}
+                    onSelectionChange={(k) =>
+                      setCategoryId(k ? String(k) : NONE)
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value>
+                        {({ isPlaceholder, selectedText }) =>
+                          isPlaceholder ? "Selecione" : selectedText
+                        }
+                      </Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {categories.map((c) => (
+                          <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                            {c.name}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </Field>
+                <Field label="Preço de venda">
+                  <div className="flex min-w-0 items-stretch">
+                    <span className="inline-flex shrink-0 items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
+                      Preço fixo
+                      <IconChevron size={12} />
+                    </span>
+                    <TextField
+                      value={price}
+                      onChange={setPrice}
+                      aria-label="Preço de venda"
+                      className="min-w-0 flex-1"
+                    >
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="R$ 0,00"
+                        className="rounded-l-none"
+                      />
+                    </TextField>
+                  </div>
+                </Field>
+              </div>
 
-          <Field label="Descrição (opcional)">
-            <TextField value={description} onChange={setDescription} aria-label="Descrição">
-              <Input placeholder="Detalhes do serviço" />
-            </TextField>
-            <p className="text-xs text-muted-ink">Esta descrição aparece no agendamento online.</p>
-          </Field>
-        </div>
-      )}
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Custo adicional" info>
+                  <div className="flex min-w-0 items-stretch">
+                    <span className="inline-flex items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
+                      R$
+                      <IconChevron size={12} />
+                    </span>
+                    <TextField
+                      value={additionalCost}
+                      onChange={setAdditionalCost}
+                      aria-label="Custo adicional"
+                      className="min-w-0 flex-1"
+                    >
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0,00"
+                        className="rounded-l-none"
+                      />
+                    </TextField>
+                  </div>
+                </Field>
+                <Field label="Comissão" info>
+                  <TextField
+                    value={commission}
+                    onChange={setCommission}
+                    aria-label="Comissão"
+                  >
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="% 0,00"
+                    />
+                  </TextField>
+                </Field>
+                <Field label="Duração">
+                  <Select
+                    aria-label="Duração"
+                    selectedKey={durationMin}
+                    onSelectionChange={(key) =>
+                      key && setDurationMin(String(key))
+                    }
+                  >
+                    <Select.Trigger>
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {availableDurations.map((minutes) => (
+                          <ListBox.Item
+                            key={minutes}
+                            id={String(minutes)}
+                            textValue={durationOptionLabel(minutes)}
+                          >
+                            {durationOptionLabel(minutes)}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </Field>
+              </div>
 
-      {tab === 'config' && (
-        <div className="flex flex-col gap-3">
-          <Toggle label="Agendamento online" checked={onlineBookable} onChange={setOnlineBookable} />
-          <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
-          <Toggle label="Visível no catálogo" checked={visible} onChange={setVisible} />
-          {mode === 'edit' && <Toggle label="Ativo" checked={active} onChange={setActive} />}
-        </div>
-      )}
+              <Field label="Descrição">
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={4}
+                  placeholder="Essa descrição aparecerá para o seu cliente quando ele for agendar online"
+                  aria-label="Descrição"
+                  className="w-full resize-y rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none placeholder:text-muted-ink focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </Field>
+            </div>
+          )}
 
-      {tab === 'cashback' && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-md border border-line bg-canvas px-3 py-2 text-xs text-muted-ink">
-            O cashback é próprio do serviço e independente da comissão do profissional.
-          </div>
-          <Toggle
-            label="Ativar cashback neste serviço"
-            checked={cashbackEnabled}
-            onChange={setCashbackEnabled}
-          />
-          {cashbackEnabled && (
-            <Field label="Cashback (%)">
-              <TextField
-                value={cashbackPercent}
-                onChange={setCashbackPercent}
-                aria-label="Cashback"
-              >
-                <Input type="number" placeholder="0" />
-              </TextField>
-            </Field>
+          {tab === "config" && (
+            <div className="flex flex-col gap-3">
+              <Toggle
+                label="Agendamento online"
+                checked={onlineBookable}
+                onChange={setOnlineBookable}
+              />
+              <Toggle
+                label="Favorito"
+                checked={favorite}
+                onChange={setFavorite}
+              />
+              <Toggle
+                label="Visível no catálogo"
+                checked={visible}
+                onChange={setVisible}
+              />
+              {mode === "edit" && (
+                <Toggle label="Ativo" checked={active} onChange={setActive} />
+              )}
+            </div>
+          )}
+
+          {tab === "cashback" && (
+            <div className="flex flex-col gap-4">
+              <div className="rounded-md border border-line bg-canvas px-3 py-2 text-xs text-muted-ink">
+                O cashback é próprio do serviço e independente da comissão do
+                profissional.
+              </div>
+              <Toggle
+                label="Ativar cashback neste serviço"
+                checked={cashbackEnabled}
+                onChange={setCashbackEnabled}
+              />
+              {cashbackEnabled && (
+                <Field label="Cashback (%)">
+                  <TextField
+                    value={cashbackPercent}
+                    onChange={setCashbackPercent}
+                    aria-label="Cashback"
+                  >
+                    <Input type="number" placeholder="0" />
+                  </TextField>
+                </Field>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </div>
           )}
         </div>
-      )}
-
-      {error && (
-        <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {error}
-        </div>
-      )}
+      </div>
     </Drawer>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  required = false,
+  info = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  required?: boolean;
+  info?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted-ink">{label}</label>
+      <label className="text-xs font-medium text-muted-ink">
+        {required && <span className="mr-0.5 text-danger">*</span>}
+        {label}
+        {info && (
+          <span
+            className="ml-1 inline-grid h-3.5 w-3.5 place-items-center rounded-full border border-muted-ink text-[9px] leading-none text-muted-ink"
+            aria-hidden
+          >
+            i
+          </span>
+        )}
+      </label>
       {children}
     </div>
   );

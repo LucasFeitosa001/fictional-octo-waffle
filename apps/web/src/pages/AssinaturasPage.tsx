@@ -9,7 +9,6 @@ import {
   IconCheck,
   IconDownload,
   IconFilter,
-  IconInfo,
   IconPlus,
   IconRepeat,
   IconScissors,
@@ -18,6 +17,7 @@ import {
 } from '../components/icons';
 import { formatDate, formatMoney } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
+import { useSetPageActions } from '../layout/PageActions';
 import { useCustomers, useServices } from '../lib/queries';
 import {
   useCreateCustomerMembership,
@@ -281,6 +281,31 @@ export function AssinaturasPage() {
     [subRows, page],
   );
 
+  // Mobile: as ações contextuais (Buscar/Filtrar/Novo) vivem na BottomNav —
+  // os mesmos handlers dos botões do header desktop. Trocam conforme a aba.
+  useSetPageActions(
+    tab === 'subscribers'
+      ? [
+          { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setShowSearch((v) => !v) },
+          { key: 'filtros', label: 'Filtrar', icon: <IconFilter size={22} />, onClick: () => setShowFilters((v) => !v) },
+          { key: 'novo', label: 'Novo', icon: <IconPlus size={22} />, onClick: () => setCreateSubOpen(true) },
+        ]
+      : tab === 'plans'
+        ? [
+            {
+              key: 'novo-modelo',
+              label: 'Novo modelo',
+              icon: <IconPlus size={22} />,
+              onClick: () => {
+                setEditingPlan(null);
+                setPlanDrawerOpen(true);
+              },
+            },
+          ]
+        : [],
+    [tab],
+  );
+
   function toggleStatus(s: MembershipStatus, on: boolean) {
     setStatusSet((prev) => {
       const next = new Set(prev);
@@ -328,18 +353,28 @@ export function AssinaturasPage() {
   const headerActions =
     tab === 'subscribers' ? (
       <>
-        <Button variant="outline" onClick={() => setShowSearch((v) => !v)} aria-expanded={showSearch}>
+        <Button
+          variant="outline"
+          className="hidden md:inline-flex"
+          onClick={() => setShowSearch((v) => !v)}
+          aria-expanded={showSearch}
+        >
           <IconSearch size={16} /> Buscar
         </Button>
-        <Button variant="outline" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters}>
+        <Button
+          variant="outline"
+          className="hidden md:inline-flex"
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+        >
           <IconFilter size={16} /> Filtrar
         </Button>
-        <Button variant="primary" onClick={() => setCreateSubOpen(true)}>
+        <Button variant="primary" className="hidden md:inline-flex" onClick={() => setCreateSubOpen(true)}>
           <IconPlus size={16} /> Novo
         </Button>
       </>
     ) : tab === 'plans' ? (
-      <Button variant="primary" onClick={openCreatePlan}>
+      <Button variant="primary" className="hidden md:inline-flex" onClick={openCreatePlan}>
         <IconPlus size={16} /> Novo modelo
       </Button>
     ) : undefined;
@@ -827,9 +862,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
       widthClass="sm:w-[720px]"
       footer={
         <>
-          <Button variant="ghost" className="mr-auto text-muted-ink" onClick={onClose}>
-            <IconInfo size={16} /> Ajuda
-          </Button>
           <Button variant="outline" onClick={onClose}>
             Fechar
           </Button>

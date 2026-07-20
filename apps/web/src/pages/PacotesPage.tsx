@@ -4,17 +4,15 @@ import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
-  IconDownload,
   IconFilter,
   IconLayers,
   IconPencil,
   IconPlus,
-  IconReceipt,
   IconSearch,
   IconTrash,
 } from '../components/icons';
+import { useSetPageActions } from '../layout/PageActions';
 import { formatDate, formatMoney, formatNumber } from '../lib/format';
-import { downloadCsv } from '../lib/csv';
 import { useCustomers, useServices } from '../lib/queries';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { PacotePerfilModal } from './PacotePerfilModal';
@@ -30,17 +28,28 @@ import {
 const NONE = '';
 const PAGE_SIZE = 20;
 
-// Disponibilidade derivada (o Belasis mostra "Ativo" / "Vencido" na coluna).
-function availability(p: CustomerPackage): 'active' | 'expired' | 'finished' {
-  if (p.status === 'finished') return 'finished';
+// No Belasis, "Status" (consumo das sessões) e "Disponibilidade" (validade) são
+// DUAS colunas independentes.
+// Status: Finalizado (sessões esgotadas) x Em andamento.
+function consumption(p: CustomerPackage): 'finished' | 'ongoing' {
+  if (p.status === 'finished' || p.sessionsRemaining <= 0) return 'finished';
+  return 'ongoing';
+}
+
+// Disponibilidade: Ativo x Vencido (pela validade).
+function availability(p: CustomerPackage): 'active' | 'expired' {
   if (p.isExpired || p.status === 'expired') return 'expired';
   return 'active';
 }
 
-const AVAIL_LABEL: Record<'active' | 'expired' | 'finished', string> = {
+const STATUS_LABEL: Record<'finished' | 'ongoing', string> = {
+  finished: 'Finalizado',
+  ongoing: 'Em andamento',
+};
+
+const AVAIL_LABEL: Record<'active' | 'expired', string> = {
   active: 'Ativo',
   expired: 'Vencido',
-  finished: 'Finalizado',
 };
 
 type AvailFilter = 'all' | PackageStatus;
@@ -68,8 +77,12 @@ export function PacotesPage() {
     const from = dateFrom ? new Date(dateFrom).getTime() : null;
     const to = dateTo ? new Date(dateTo).getTime() + 86_400_000 : null;
     return allRows.filter((p) => {
-      const st = availability(p);
-      if (statusFilter !== 'all' && st !== statusFilter) return false;
+      if (statusFilter === 'finished' && consumption(p) !== 'finished') return false;
+      if (
+        (statusFilter === 'active' || statusFilter === 'expired') &&
+        availability(p) !== statusFilter
+      )
+        return false;
       if (term && !(p.customer?.name ?? '').toLowerCase().includes(term)) return false;
       const created = new Date(p.createdAt).getTime();
       if (from != null && created < from) return false;
@@ -102,20 +115,30 @@ export function PacotesPage() {
     setDateTo('');
   }
 
-  function exportCsv() {
-    downloadCsv<CustomerPackage>(
-      `pacotes-${new Date().toISOString().slice(0, 10)}`,
-      [
-        { header: 'Ticket', value: (p) => `#${p.number}` },
-        { header: 'Data', value: (p) => formatDate(p.createdAt) },
-        { header: 'Validade', value: (p) => (p.expiresAt ? formatDate(p.expiresAt) : '') },
-        { header: 'Cliente', value: (p) => p.customer?.name ?? '' },
-        { header: 'Disponibilidade', value: (p) => AVAIL_LABEL[availability(p)] },
-        { header: 'Valor', value: (p) => Number(p.price).toFixed(2) },
-      ],
-      rows,
-    );
-  }
+  // Mobile: as ações do header vivem na BottomNav (padrão Belasis).
+  useSetPageActions(
+    [
+      {
+        key: 'buscar',
+        label: 'Buscar',
+        icon: <IconSearch size={22} />,
+        onClick: () => setSearchOpen((v) => !v),
+      },
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFilterOpen((v) => !v),
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [],
+  );
 
   async function handleDelete(p: CustomerPackage) {
     if (!window.confirm(`Excluir o pacote #${p.number}?`)) return;
@@ -131,7 +154,7 @@ export function PacotesPage() {
       {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Pacotes</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
             <IconSearch size={16} /> Buscar
           </ToolbarButton>
@@ -145,9 +168,6 @@ export function PacotesPage() {
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <ToolbarButton onClick={exportCsv} disabled={rows.length === 0}>
-            <IconDownload size={16} /> Exportar
           </ToolbarButton>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
@@ -201,7 +221,7 @@ export function PacotesPage() {
                 checked={statusFilter === 'active'}
                 onClick={() => setStatusFilter('active')}
               >
-                Disponível
+                Ativo
               </CheckRow>
               <CheckRow
                 checked={statusFilter === 'expired'}
@@ -274,15 +294,16 @@ export function PacotesPage() {
                       <th className="px-4 py-3 font-semibold">Data</th>
                       <th className="px-4 py-3 font-semibold">Validade</th>
                       <th className="px-4 py-3 font-semibold">Cliente</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
                       <th className="px-4 py-3 font-semibold">Disponibilidade</th>
                       <th className="px-4 py-3 text-right font-semibold">Valor</th>
-                      <th className="px-4 py-3 text-center font-semibold">Nota Fiscal</th>
                       <th className="px-4 py-3 text-center font-semibold">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paged.map((p) => {
                       const av = availability(p);
+                      const cs = consumption(p);
                       return (
                         <tr
                           key={p.id}
@@ -311,14 +332,13 @@ export function PacotesPage() {
                             </button>
                           </td>
                           <td className="px-4 py-2.5">
+                            <StatusBadge value={cs} />
+                          </td>
+                          <td className="px-4 py-2.5">
                             <AvailBadge value={av} />
                           </td>
                           <td className="px-4 py-2.5 text-right font-medium text-ink">
                             {formatMoney(p.price)}
-                          </td>
-                          <td className="px-4 py-2.5 text-center text-muted-ink/50">
-                            {/* TODO Belasis: emissão de nota fiscal ainda não integrada */}
-                            <IconReceipt size={16} className="mx-auto" />
                           </td>
                           <td className="px-4 py-2.5">
                             <RowActions
@@ -342,6 +362,7 @@ export function PacotesPage() {
                 <ul className="flex flex-col gap-2">
                   {paged.map((p) => {
                     const av = availability(p);
+                    const cs = consumption(p);
                     return (
                       <li
                         key={p.id}
@@ -354,7 +375,10 @@ export function PacotesPage() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-semibold text-primary">#{p.number}</span>
-                            <AvailBadge value={av} />
+                            <div className="flex items-center gap-1.5">
+                              <StatusBadge value={cs} />
+                              <AvailBadge value={av} />
+                            </div>
                           </div>
                           <span className="min-w-0 truncate font-medium text-ink">
                             {p.customer?.name ?? '—'}
@@ -390,15 +414,8 @@ export function PacotesPage() {
                 </ul>
               </div>
 
-              {/* Rodapé: exportar + total + paginação ("N no total" / "20 / página") */}
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
-                <button
-                  type="button"
-                  onClick={exportCsv}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1.5 font-medium text-ink transition-colors hover:bg-canvas"
-                >
-                  <IconDownload size={14} /> Exportar CSV
-                </button>
+              {/* Rodapé: total + paginação ("N no total" / "20 / página") */}
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-xs text-muted-ink">
                 <div className="flex items-center gap-3">
                   <span>{formatNumber(rows.length)} no total</span>
                   {pageCount > 1 && (
@@ -449,13 +466,30 @@ export function PacotesPage() {
 // Subcomponentes de apresentação
 // ---------------------------------------------------------------------
 
-function AvailBadge({ value }: { value: 'active' | 'expired' | 'finished' }) {
+// Coluna "Status" (consumo das sessões) — Belasis: Finalizado (cinza) / Em andamento (azul).
+function StatusBadge({ value }: { value: 'finished' | 'ongoing' }) {
+  const styles: Record<typeof value, string> = {
+    finished:
+      'bg-[color-mix(in_oklab,#777777_12%,transparent)] text-[#595959] border-[color-mix(in_oklab,#777777_30%,transparent)]',
+    ongoing:
+      'bg-[color-mix(in_oklab,#1677ff_12%,transparent)] text-[#1668dc] border-[color-mix(in_oklab,#1677ff_28%,transparent)]',
+  };
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${styles[value]}`}
+    >
+      {STATUS_LABEL[value]}
+    </span>
+  );
+}
+
+// Coluna "Disponibilidade" (validade) — Belasis: Ativo (verde) / Vencido (vermelho).
+function AvailBadge({ value }: { value: 'active' | 'expired' }) {
   const styles: Record<typeof value, string> = {
     active:
       'bg-[color-mix(in_oklab,#2fc25b_14%,transparent)] text-[#1f8f45] border-[color-mix(in_oklab,#2fc25b_30%,transparent)]',
     expired:
       'bg-[color-mix(in_oklab,#ff4d4f_12%,transparent)] text-[#c62b2d] border-[color-mix(in_oklab,#ff4d4f_28%,transparent)]',
-    finished: 'bg-canvas text-muted-ink border-line',
   };
   return (
     <span

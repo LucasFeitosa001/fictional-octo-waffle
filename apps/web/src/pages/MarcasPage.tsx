@@ -6,8 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
-  IconBox,
-  IconDownload,
+  IconChevron,
   IconFilter,
   IconPencil,
   IconPlus,
@@ -16,7 +15,6 @@ import {
   IconTrash,
 } from '../components/icons';
 import { formatNumber } from '../lib/format';
-import { downloadCsv } from '../lib/csv';
 import {
   useBrands,
   useCreateBrand,
@@ -88,17 +86,6 @@ export function MarcasPage() {
     setProductFilter('all');
   }
 
-  function exportCsv() {
-    downloadCsv<Brand>(
-      'marcas',
-      [
-        { header: 'Marca', value: (b) => b.name },
-        { header: 'Produtos', value: (b) => b.productCount ?? 0 },
-      ],
-      rows,
-    );
-  }
-
   async function handleDelete(brand: Brand) {
     setMessage(null);
     if (!window.confirm(`Remover a marca "${brand.name}"?`)) return;
@@ -115,7 +102,7 @@ export function MarcasPage() {
 
   return (
     <div className="pb-10">
-      {/* Cabeçalho: título + Buscar / Filtrar / Exportar / Novo (igual Belasis) */}
+      {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Marcas</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -135,9 +122,6 @@ export function MarcasPage() {
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <ToolbarButton onClick={exportCsv} disabled={rows.length === 0}>
-            <IconDownload size={16} /> Exportar
           </ToolbarButton>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
@@ -283,14 +267,10 @@ export function MarcasPage() {
                             <button
                               type="button"
                               onClick={() => setEditing(b)}
-                              className="flex w-full items-center gap-2.5 text-left"
+                              title={b.name}
+                              className="block w-full truncate text-left font-medium text-ink transition-colors hover:text-primary"
                             >
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
-                                <IconTag size={16} />
-                              </span>
-                              <span className="min-w-0 truncate font-medium text-ink">
-                                {b.name}
-                              </span>
+                              {b.name}
                             </button>
                           </td>
                           <td className="px-4 py-2.5">
@@ -298,11 +278,10 @@ export function MarcasPage() {
                               type="button"
                               onClick={() => setEditing(b)}
                               className={[
-                                'inline-flex items-center gap-1.5 transition-colors hover:text-primary',
+                                'text-left transition-colors hover:text-primary',
                                 count > 0 ? 'text-ink' : 'text-muted-ink',
                               ].join(' ')}
                             >
-                              <IconBox size={14} className="opacity-60" />
                               {itemsLabel(count)}
                             </button>
                           </td>
@@ -332,24 +311,19 @@ export function MarcasPage() {
                       <button
                         type="button"
                         onClick={() => setEditing(b)}
-                        className="flex w-full items-center gap-3 text-left"
+                        className="block w-full text-left"
                       >
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
-                          <IconTag size={18} />
+                        <span className="block min-w-0 truncate font-medium text-ink">
+                          {b.name}
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <span className="block min-w-0 truncate font-medium text-ink">
-                            {b.name}
-                          </span>
-                          <span
-                            className={[
-                              'mt-0.5 block text-xs',
-                              count > 0 ? 'text-muted-ink' : 'text-muted-ink/70',
-                            ].join(' ')}
-                          >
-                            {itemsLabel(count)}
-                          </span>
-                        </div>
+                        <span
+                          className={[
+                            'mt-0.5 block text-xs',
+                            count > 0 ? 'text-muted-ink' : 'text-muted-ink/70',
+                          ].join(' ')}
+                        >
+                          {itemsLabel(count)}
+                        </span>
                       </button>
                       <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-line/60 pt-2">
                         <Button
@@ -376,36 +350,18 @@ export function MarcasPage() {
                 })}
               </ul>
 
-              {/* Rodapé: contagem + paginação */}
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
-                <span>
+              {/* Rodapé: paginação numerada (igual Belasis) */}
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-xs text-muted-ink">
+                <span className="mr-auto">
                   {hasFilters
                     ? `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} marca(s)`
                     : `${formatNumber(allRows.length)} no total`}
                 </span>
-                {pageCount > 1 && (
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isDisabled={safePage <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    >
-                      Anterior
-                    </Button>
-                    <span className="px-1">
-                      {safePage} / {pageCount}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isDisabled={safePage >= pageCount}
-                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                    >
-                      Próxima
-                    </Button>
-                  </div>
-                )}
+                <Pagination
+                  page={safePage}
+                  pageCount={pageCount}
+                  onChange={setPage}
+                />
               </div>
             </>
           )}
@@ -464,6 +420,76 @@ function RowActions({
         <IconTrash size={16} />
       </button>
     </div>
+  );
+}
+
+function pageItems(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const items: (number | '…')[] = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) items.push('…');
+  for (let p = start; p <= end; p += 1) items.push(p);
+  if (end < total - 1) items.push('…');
+  items.push(total);
+  return items;
+}
+
+function Pagination({
+  page,
+  pageCount,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  onChange: (p: number) => void;
+}) {
+  if (pageCount <= 1) return null;
+  const arrow =
+    'inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-card text-ink transition-colors hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40';
+  return (
+    <nav className="flex items-center gap-1" aria-label="Paginação">
+      <button
+        type="button"
+        aria-label="Página anterior"
+        className={arrow}
+        disabled={page <= 1}
+        onClick={() => onChange(Math.max(1, page - 1))}
+      >
+        <IconChevron size={15} className="rotate-90" />
+      </button>
+      {pageItems(page, pageCount).map((it, i) =>
+        it === '…' ? (
+          <span key={`gap-${i}`} className="px-1 text-muted-ink">
+            …
+          </span>
+        ) : (
+          <button
+            key={it}
+            type="button"
+            aria-current={it === page ? 'page' : undefined}
+            onClick={() => onChange(it)}
+            className={[
+              'inline-flex h-7 min-w-7 items-center justify-center rounded-md border px-2 text-sm font-medium transition-colors',
+              it === page
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-line bg-card text-ink hover:bg-canvas',
+            ].join(' ')}
+          >
+            {it}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        aria-label="Próxima página"
+        className={arrow}
+        disabled={page >= pageCount}
+        onClick={() => onChange(Math.min(pageCount, page + 1))}
+      >
+        <IconChevron size={15} className="-rotate-90" />
+      </button>
+    </nav>
   );
 }
 

@@ -10,6 +10,7 @@ import {
   IconPlus,
   IconReceipt,
   IconSearch,
+  IconSettings,
   IconTrash,
   IconTruck,
 } from '../../components/icons';
@@ -350,18 +351,6 @@ export function ComprasPage() {
                 </div>
               ) : (
                 <>
-                  {/* Pill de ordenação (igual Belasis) */}
-                  <div className="mb-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort(sortKey)}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
-                    >
-                      Ordenando por {sortKey === 'ticket' ? 'Ticket' : 'Data'}
-                      <Caret dir={sortDir} />
-                    </button>
-                  </div>
-
                   {/* ===== Desktop: tabela ===== */}
                   <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
                     <table className="w-full border-collapse text-sm">
@@ -387,7 +376,11 @@ export function ComprasPage() {
                           <th className="px-4 py-3 font-semibold">
                             Forma de pagamento
                           </th>
-                          <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                          <th className="px-4 py-3 text-center font-semibold">
+                            <span className="inline-flex text-muted-ink" aria-label="Configurar colunas">
+                              <IconSettings size={15} />
+                            </span>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -499,30 +492,35 @@ export function ComprasPage() {
 
                   {/* Rodapé: contagem + paginação */}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
-                    <span>{formatNumber(total)} registros no total</span>
-                    {pageCount > 1 && (
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          isDisabled={safePage <= 1}
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        >
-                          Anterior
-                        </Button>
-                        <span className="px-1">
-                          {safePage} / {pageCount}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          isDisabled={safePage >= pageCount}
-                          onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                        >
-                          Próxima
-                        </Button>
-                      </div>
-                    )}
+                    <span>{formatNumber(total)} no total</span>
+                    <div className="flex items-center gap-1.5">
+                      {pageCount > 1 && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            isDisabled={safePage <= 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          >
+                            Anterior
+                          </Button>
+                          <span className="px-1">
+                            {safePage} / {pageCount}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            isDisabled={safePage >= pageCount}
+                            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                          >
+                            Próxima
+                          </Button>
+                        </>
+                      )}
+                      <span className="rounded-md border border-line bg-card px-2 py-1">
+                        {PAGE_SIZE} / página
+                      </span>
+                    </div>
                   </div>
                 </>
               )}

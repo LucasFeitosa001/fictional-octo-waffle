@@ -16,6 +16,7 @@ import { useDeleteCustomer } from '../lib/queries/clientes';
 import { formatDate, initials } from '../lib/format';
 import type { CustomerFull } from '../lib/types';
 import { useAutoCreate } from '../lib/useAutoCreate';
+import { useSetPageActions } from '../layout/PageActions';
 import { ClientePerfilModal, CustomerCreateModal } from './ClientePerfilTabs';
 
 // `YYYY-MM-DD` → `MMDD` para comparar aniversário ignorando o ano.
@@ -47,9 +48,31 @@ export function ClientesPage() {
   // Seleção (checkbox por linha — visual, igual ao Belasis)
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  // "Vá até página" (input de salto do rodapé, igual ao Belasis)
+  const [gotoInput, setGotoInput] = useState('');
+
   const [createOpen, setCreateOpen] = useState(false);
   const [perfil, setPerfil] = useState<CustomerFull | null>(null);
   useAutoCreate(() => setCreateOpen(true));
+
+  // Ações contextuais do mobile: renderizadas na BottomNav (não no header).
+  useSetPageActions(
+    [
+      {
+        key: 'filtros',
+        label: 'Filtros',
+        icon: <IconFilter size={22} />,
+        onClick: () => setFiltersOpen((v) => !v),
+      },
+      {
+        key: 'novo',
+        label: 'Novo',
+        icon: <IconPlus size={22} />,
+        onClick: () => setCreateOpen(true),
+      },
+    ],
+    [],
+  );
 
   const customers = useCustomers(search, page, pageSize);
   const remove = useDeleteCustomer();
@@ -158,7 +181,7 @@ export function ClientesPage() {
           <button
             type="button"
             onClick={() => setFiltersOpen((v) => !v)}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            className={`hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors md:inline-flex ${
               filtersOpen
                 ? 'border-gold bg-gold text-primary-foreground'
                 : 'border-line bg-card text-ink hover:bg-canvas'
@@ -170,7 +193,7 @@ export function ClientesPage() {
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gold px-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-gold)] transition-colors hover:bg-gold-strong"
+            className="hidden h-9 items-center gap-1.5 rounded-lg bg-gold px-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-gold)] transition-colors hover:bg-gold-strong md:inline-flex"
           >
             <IconPlus size={16} />
             <span>Novo</span>
@@ -476,7 +499,7 @@ export function ClientesPage() {
                 {/* Rodapé / paginação */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
                   <span className="text-xs text-muted-ink">{total} no total</span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     <button
                       type="button"
                       aria-label="Página anterior"
@@ -501,6 +524,21 @@ export function ClientesPage() {
                         {n}
                       </button>
                     ))}
+                    {/* Reticências + última página (igual ao Belasis) */}
+                    {pageNumbers[pageNumbers.length - 1] < totalPages && (
+                      <>
+                        {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && (
+                          <span className="px-1 text-sm text-muted-ink">•••</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setPage(totalPages)}
+                          className="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-line px-2 text-sm text-ink hover:bg-canvas"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       aria-label="Próxima página"
@@ -510,6 +548,31 @@ export function ClientesPage() {
                     >
                       <IconChevron size={16} className="-rotate-90" />
                     </button>
+                    <span className="ml-2 whitespace-nowrap text-xs text-muted-ink">
+                      {pageSize} / página
+                    </span>
+                    <div className="ml-2 flex items-center gap-1.5">
+                      <span className="whitespace-nowrap text-xs text-muted-ink">
+                        Vá até
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages}
+                        value={gotoInput}
+                        onChange={(e) => setGotoInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const n = Number(gotoInput);
+                            if (Number.isFinite(n) && n >= 1 && n <= totalPages) setPage(n);
+                            setGotoInput('');
+                          }
+                        }}
+                        aria-label="Ir para a página"
+                        placeholder="Página"
+                        className="h-8 w-20 rounded-md border border-line bg-card px-2 text-sm text-ink outline-none placeholder:text-muted-ink focus:border-gold"
+                      />
+                    </div>
                   </div>
                 </div>
               </>

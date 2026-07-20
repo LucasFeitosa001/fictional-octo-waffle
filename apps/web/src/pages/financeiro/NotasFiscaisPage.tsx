@@ -10,7 +10,6 @@ import {
   IconEye,
   IconFilter,
   IconPencil,
-  IconPlus,
   IconReceipt,
   IconSearch,
   IconSettings,
@@ -86,7 +85,6 @@ export function NotasFiscaisPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
-  const [emitOpen, setEmitOpen] = useState(false);
   const [editing, setEditing] = useState<InvoiceRow | null>(null);
 
   // Filtros ativos (contador no botão Filtrar, como no Belasis).
@@ -228,11 +226,8 @@ export function NotasFiscaisPage() {
               </span>
             )}
           </Button>
-          <Button variant="outline" isDisabled={rows.length === 0}>
+          <Button variant="primary" isDisabled={rows.length === 0}>
             <IconDownload size={16} /> Baixar XML
-          </Button>
-          <Button variant="primary" onClick={() => setEmitOpen(true)}>
-            <IconPlus size={16} /> Emitir nota
           </Button>
         </div>
       </div>
@@ -344,14 +339,11 @@ export function NotasFiscaisPage() {
         }}
       />
 
-      {(emitOpen || editing) && (
+      {editing && (
         <EmitInvoiceDrawer
           editing={editing}
           defaultDocType={docType}
-          onClose={() => {
-            setEmitOpen(false);
-            setEditing(null);
-          }}
+          onClose={() => setEditing(null)}
         />
       )}
     </div>
