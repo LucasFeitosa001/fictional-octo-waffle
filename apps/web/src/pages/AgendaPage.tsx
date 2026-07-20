@@ -506,7 +506,7 @@ export function AgendaPage() {
     <span className="inline-flex items-center gap-1.5">
       Filtrar
       {activeFilterCount > 0 && (
-        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[10px] font-bold text-[#3b2d09]">
+        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[10px] font-bold text-ink">
           {activeFilterCount}
         </span>
       )}
@@ -520,7 +520,7 @@ export function AgendaPage() {
             <div className="flex items-center justify-between">
               <div>
                 <span className="block text-xs font-semibold text-ink">Profissionais</span>
-                <span className="text-[11px] text-[#8a857e]">Selecione um ou mais</span>
+                <span className="text-[11px] text-muted-ink">Selecione um ou mais</span>
               </div>
               {professionalIds.length > 0 && (
                 <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-gold-strong hover:underline">
@@ -543,7 +543,7 @@ export function AgendaPage() {
                       'inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all',
                       checked
                         ? 'border-ink bg-ink text-white shadow-sm'
-                        : 'border-black/10 bg-white text-[#4f4b46] hover:border-gold/70 hover:bg-warm-white',
+                        : 'border-black/10 bg-white text-muted-ink hover:border-gold/70 hover:bg-warm-white',
                     ].join(' ')}
                   >
                     <span className={['h-2 w-2 shrink-0 rounded-full', checked ? 'bg-gold' : 'bg-black/15'].join(' ')} />
@@ -559,7 +559,7 @@ export function AgendaPage() {
             <div className="flex items-center justify-between">
               <div>
                 <span className="block text-xs font-semibold text-ink">Status</span>
-                <span className="text-[11px] text-[#8a857e]">Combine os estados desejados</span>
+                <span className="text-[11px] text-muted-ink">Combine os estados desejados</span>
               </div>
               {statuses.length > 0 && (
                 <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-gold-strong hover:underline">
@@ -580,7 +580,7 @@ export function AgendaPage() {
                       'inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all',
                       checked
                         ? 'border-ink bg-ink text-white shadow-sm'
-                        : 'border-black/10 bg-white text-[#4f4b46] hover:border-black/25 hover:bg-warm-white',
+                        : 'border-black/10 bg-white text-muted-ink hover:border-black/25 hover:bg-warm-white',
                     ].join(' ')}
                   >
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white/70" style={{ backgroundColor: STATUS_DOT_COLOR[s] }} />
@@ -684,7 +684,7 @@ export function AgendaPage() {
           onClick={() => { setView(interval); close(); }}
           className={[
             'flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm hover:bg-cream',
-            view === interval ? 'bg-gold/10 font-semibold text-[#8a6517]' : 'text-foreground',
+            view === interval ? 'bg-gold/10 font-semibold text-gold-strong' : 'text-foreground',
           ].join(' ')}
         >
           <span>{interval === 'day' ? 'Diário' : interval === 'week' ? 'Semanal' : 'Mensal'}</span>
@@ -713,7 +713,7 @@ export function AgendaPage() {
     <div className="flex h-full min-h-0 flex-col">
       {/* Calendar header mirrors Belasis: interval navigation on the left and
           visualization, filter, actions, settings and creation on the right. */}
-      <div className="shrink-0 border-b border-[#dddddd]/50 bg-white">
+      <div className="shrink-0 border-b border-line/50 bg-white">
         <div className="hidden h-[70px] items-center gap-2 px-5 lg:flex">
           <div className="flex min-w-0 items-center">
             <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
@@ -744,7 +744,7 @@ export function AgendaPage() {
             {actionsBtn}
             <button type="button" aria-label="Configurações da agenda" title="Configurações da agenda"
               onClick={() => flash('Configurações da agenda disponíveis em Configurações.')}
-              className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--color-soft-border)] text-[#6B6F76] hover:bg-cream">
+              className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--color-soft-border)] text-muted-ink hover:bg-cream">
               <IconSettings size={15} />
             </button>
             <Button variant="primary" size="sm" onClick={() => openNew()}>
@@ -799,11 +799,11 @@ export function AgendaPage() {
         />
       ) : (
         <div ref={agendaScrollerRef} className="flex min-h-0 flex-1 overflow-auto overscroll-contain bg-white pb-24 lg:pb-0">
-          <div className="sticky left-0 z-30 w-[47px] shrink-0 border-r border-[#dddddd]/50 bg-white lg:w-[58px]">
+          <div className="sticky left-0 z-30 w-[47px] shrink-0 border-r border-line/50 bg-white lg:w-[58px]">
             <div className="h-14" />
             {HOURS.map((hour) => (
               <div key={hour} style={{ height: HOUR_H }} className="relative pr-1.5 text-right">
-                <span className="absolute right-1.5 top-0 -translate-y-1/2 text-[10px] font-medium text-[#6d6d6d] lg:text-xs">
+                <span className="absolute right-1.5 top-0 -translate-y-1/2 text-[10px] font-medium text-muted-ink lg:text-xs">
                   {String(hour).padStart(2, '0')}:00
                 </span>
               </div>
@@ -819,14 +819,14 @@ export function AgendaPage() {
               const placed = layoutDay(rows, day, HOUR_H);
               const today = isToday(day);
               return (
-                <div key={day.toISOString()} className="min-w-0 border-l border-[#dddddd]/50">
-                  <div className="sticky top-0 z-20 flex h-14 flex-col items-center justify-center border-b border-[#dddddd]/50 bg-white/95 backdrop-blur-[2px]">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[#6B6F76]">
+                <div key={day.toISOString()} className="min-w-0 border-l border-line/50">
+                  <div className="sticky top-0 z-20 flex h-14 flex-col items-center justify-center border-b border-line/50 bg-white/95 backdrop-blur-[2px]">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-ink">
                       {weekdayFmt.format(day).replace('.', '')}
                     </span>
                     <span className={[
                       'mt-0.5 grid h-7 min-w-7 place-items-center rounded-full px-1 text-sm font-semibold',
-                      today ? 'bg-gold text-[#3b2d09]' : 'text-[#2F3136]',
+                      today ? 'bg-gold text-ink' : 'text-ink',
                     ].join(' ')}>{day.getDate()}</span>
                   </div>
 
@@ -840,9 +840,9 @@ export function AgendaPage() {
                       <div
                         key={hour}
                         style={{ top: index * HOUR_H, height: HOUR_H }}
-                        className="pointer-events-none absolute inset-x-0 border-b border-[#dddddd]/50"
+                        className="pointer-events-none absolute inset-x-0 border-b border-line/50"
                       >
-                        <div className="absolute inset-x-0 border-b border-dotted border-[#dddddd]/40" style={{ top: HOUR_H / 2 }} />
+                        <div className="absolute inset-x-0 border-b border-dotted border-line/40" style={{ top: HOUR_H / 2 }} />
                       </div>
                     ))}
 
@@ -896,7 +896,7 @@ export function AgendaPage() {
                           {selectMode && (
                             <span className={[
                               'absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full border text-[9px] font-bold',
-                              isSelected ? 'border-white bg-white text-[#8a6517]' : 'border-white/80 bg-black/10 text-white',
+                              isSelected ? 'border-white bg-white text-gold-strong' : 'border-white/80 bg-black/10 text-white',
                             ].join(' ')}>{isSelected ? '✓' : ''}</span>
                           )}
                         </button>
@@ -956,13 +956,13 @@ export function AgendaPage() {
           </>
         )}
       >
-        <div className="overflow-hidden rounded-2xl border border-[#dddddd]/70 bg-white">
-          <div className="flex items-center justify-between border-b border-[#dddddd]/60 px-2 py-2">
+        <div className="overflow-hidden rounded-2xl border border-line/70 bg-white">
+          <div className="flex items-center justify-between border-b border-line/60 px-2 py-2">
             <button
               type="button"
               onClick={() => setDatePickerMonth((month) => addMonths(month, -1))}
               aria-label="Mês anterior"
-              className="grid h-11 w-11 place-items-center rounded-xl text-gold-strong transition-colors hover:bg-cream active:bg-[#f2ece0]"
+              className="grid h-11 w-11 place-items-center rounded-xl text-gold-strong transition-colors hover:bg-cream active:bg-cream"
             >
               <IconChevron size={19} className="rotate-90" />
             </button>
@@ -973,15 +973,15 @@ export function AgendaPage() {
               type="button"
               onClick={() => setDatePickerMonth((month) => addMonths(month, 1))}
               aria-label="Próximo mês"
-              className="grid h-11 w-11 place-items-center rounded-xl text-gold-strong transition-colors hover:bg-cream active:bg-[#f2ece0]"
+              className="grid h-11 w-11 place-items-center rounded-xl text-gold-strong transition-colors hover:bg-cream active:bg-cream"
             >
               <IconChevron size={19} className="-rotate-90" />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 border-b border-[#dddddd]/50 px-2 py-2">
+          <div className="grid grid-cols-7 border-b border-line/50 px-2 py-2">
             {WEEKDAY_LETTERS.map((weekday) => (
-              <span key={weekday} className="text-center text-[10px] font-semibold uppercase tracking-wide text-[#9AA0A6]">
+              <span key={weekday} className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted-ink">
                 {weekday}
               </span>
             ))}
@@ -1006,12 +1006,12 @@ export function AgendaPage() {
                   className={[
                     'mx-auto grid h-11 w-11 place-items-center rounded-full text-sm font-semibold transition-colors',
                     selected
-                      ? 'bg-gold text-[#3b2d09] shadow-[var(--shadow-gold)]'
+                      ? 'bg-gold text-ink shadow-[var(--shadow-gold)]'
                       : today
-                        ? 'ring-1 ring-gold text-[#8a6517] hover:bg-gold/10'
+                        ? 'ring-1 ring-gold text-gold-strong hover:bg-gold/10'
                         : inMonth
                           ? 'text-foreground hover:bg-cream'
-                          : 'text-[#c9ccd1] hover:bg-cream',
+                          : 'text-muted-ink hover:bg-cream',
                   ].join(' ')}
                 >
                   {day.getDate()}
@@ -1127,7 +1127,7 @@ export function AgendaPage() {
                   </div>
 
                   {showReschedule && (
-                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-[#faf6ec] p-3">
+                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
                       <span className="text-xs font-semibold text-gold-strong">Reagendar</span>
                       <div className="flex flex-wrap gap-2">
                         <label className="flex flex-col gap-1 text-xs font-medium text-muted">
@@ -1151,7 +1151,7 @@ export function AgendaPage() {
                   )}
 
                   {(selected.status === 'unconfirmed' || selected.status === 'scheduled') && (
-                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-[#faf6ec] p-3">
+                    <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
                       <span className="text-xs font-semibold text-gold-strong">Pendente de confirmacao</span>
                       <div className="flex flex-wrap gap-2">
                         <Button variant="primary" size="sm" isDisabled={statusMutation.isPending}
@@ -1232,7 +1232,7 @@ function MonthView({
       {/* Weekday header */}
       <div className="sticky top-0 z-10 grid grid-cols-7 border-b border-black/[0.06] bg-white">
         {WEEKDAY_LETTERS.map((w) => (
-          <div key={w} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-[#9AA0A6]">
+          <div key={w} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-ink">
             {w}
           </div>
         ))}
@@ -1255,18 +1255,18 @@ function MonthView({
               onKeyDown={(event) => { if (event.key === 'Enter') onNewForDay(d); }}
               title="Novo agendamento"
               className={[
-                'relative flex min-w-0 cursor-pointer flex-col gap-1 overflow-hidden border-b border-r border-[#dddddd]/50 p-1 transition-colors',
-                inMonth ? 'bg-white hover:bg-cream' : 'bg-[#fafafa]',
+                'relative flex min-w-0 cursor-pointer flex-col gap-1 overflow-hidden border-b border-r border-line/50 p-1 transition-colors',
+                inMonth ? 'bg-white hover:bg-cream' : 'bg-canvas',
               ].join(' ')}
             >
               <span
                 className={[
                   'grid h-6 w-6 shrink-0 place-items-center self-end rounded-full text-[11px] font-semibold lg:h-7 lg:w-7 lg:text-xs',
                   isCurrentDay
-                    ? 'bg-gold text-[#3b2d09]'
+                    ? 'bg-gold text-ink'
                     : inMonth
                       ? 'text-foreground'
-                      : 'text-[#c9ccd1]',
+                      : 'text-muted-ink',
                 ].join(' ')}
               >
                 {d.getDate()}
@@ -1310,7 +1310,7 @@ function MonthView({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onSeeDay(d); }}
-                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-[#6B6F76] hover:text-gold-strong lg:text-[10px]"
+                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-muted-ink hover:text-gold-strong lg:text-[10px]"
                 >
                   +{extra} mais
                 </button>
@@ -1365,7 +1365,7 @@ function YearView({
                   {count}
                 </span>
               ) : (
-                <span className="text-[10px] text-[#c9ccd1]">—</span>
+                <span className="text-[10px] text-muted-ink">—</span>
               )}
             </button>
           );
