@@ -525,7 +525,7 @@ export function TransacoesPage() {
 
       {/* Pílula "Ordenado por data" do Belasis — visível no mobile.
           O servidor ordena por data (fixo), então é apresentação. */}
-      <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[color:var(--sp-primary,#505afb)] px-4 py-2 text-sm font-semibold text-white shadow-sm md:hidden">
+      <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-[color:var(--sp-primary,#505afb)] px-4 py-2 text-sm font-semibold text-white shadow-sm md:hidden">
         Ordenado por data
         <IconChevron size={16} />
       </div>
@@ -561,52 +561,147 @@ export function TransacoesPage() {
               }
             />
           ) : (
-            <DataTable
-              columns={columns}
-              rows={visibleRows}
-              getKey={(t) => t.id}
-              aria-label="Transações"
-              // Belasis tinge as linhas por natureza: receitas em verde, despesas
-              // em vermelho; estornadas ficam neutras/apagadas.
-              rowClassName={(t) =>
-                t.status === 'reversed'
-                  ? 'opacity-60'
-                  : t.kind === 'income'
-                    ? 'bg-success/5'
-                    : 'bg-danger/5'
-              }
-            />
+            <>
+              {/* Desktop: tabela padrão Belasis (linhas tingidas por natureza). */}
+              <div className="hidden md:block">
+                <DataTable
+                  columns={columns}
+                  rows={visibleRows}
+                  getKey={(t) => t.id}
+                  aria-label="Transações"
+                  rowClassName={(t) =>
+                    t.status === 'reversed'
+                      ? 'opacity-60'
+                      : t.kind === 'income'
+                        ? 'bg-success/5'
+                        : 'bg-danger/5'
+                  }
+                />
+              </div>
+
+              {/* Mobile: cards Belasis — fundo tingido (verde=receita, vermelho=despesa),
+                  3 linhas: (1) data + pill status; (2) método + valor preto bold;
+                  (3) NOME bold + descrição/referência abaixo. Toque abre edição. */}
+              <ul className="flex flex-col gap-2 md:hidden">
+                {visibleRows.map((t) => {
+                  const isIncome = t.kind === 'income';
+                  const reversed = t.status === 'reversed';
+                  const method = t.paymentMethod?.name ?? '—';
+                  const desc = describe(t);
+                  const holder = titular(t);
+                  const tint = reversed
+                    ? 'bg-white border-[var(--color-soft-border)]'
+                    : isIncome
+                      ? 'bg-[color-mix(in_oklab,#22c55e_10%,white)] border-[color-mix(in_oklab,#22c55e_20%,var(--color-soft-border))]'
+                      : 'bg-[color-mix(in_oklab,#ef4444_8%,white)] border-[color-mix(in_oklab,#ef4444_18%,var(--color-soft-border))]';
+                  return (
+                    <li key={t.id}>
+                      <div
+                        role="button"
+                        tabIndex={reversed ? -1 : 0}
+                        aria-disabled={reversed}
+                        onClick={() => !reversed && openEdit(t)}
+                        onKeyDown={(e) => {
+                          if (reversed) return;
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openEdit(t);
+                          }
+                        }}
+                        className={[
+                          'flex w-full flex-col gap-1.5 rounded-xl border px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                          tint,
+                          reversed ? 'opacity-60' : 'cursor-pointer',
+                        ].join(' ')}
+                      >
+                        {/* linha 1: data + pill status */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[12px] font-medium text-muted-ink">
+                            {formatDate(t.dueDate)}
+                          </span>
+                          <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
+                            {STATUS_LABEL[t.status]}
+                          </Chip>
+                        </div>
+                        {/* linha 2: método + valor */}
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
+                            {method}
+                          </span>
+                          <span
+                            className={[
+                              'shrink-0 text-[14px] font-bold tabular-nums text-foreground',
+                              reversed ? 'line-through' : '',
+                            ].join(' ')}
+                          >
+                            {formatMoney(t.grossAmount)}
+                          </span>
+                        </div>
+                        {/* linha 3: NOME bold + descrição/referência abaixo */}
+                        {holder && (
+                          <div className="text-[13px] font-semibold text-foreground">
+                            {holder}
+                          </div>
+                        )}
+                        {desc && desc !== holder && (
+                          <div className="text-[11.5px] leading-snug text-muted-ink">
+                            {desc}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
           {total > 0 && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
-              <span className="text-xs text-muted">{total} no total</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Página anterior"
-                  isDisabled={page <= 1 || transactions.isFetching}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <IconChevron size={14} className="rotate-90" />
-                </Button>
-                <span className="px-1 text-xs text-muted">
-                  Página {page} de {pageCount}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Próxima página"
-                  isDisabled={page >= pageCount || transactions.isFetching}
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                >
-                  <IconChevron size={14} className="-rotate-90" />
-                </Button>
-                <span className="ml-1 hidden text-xs text-muted sm:inline">
-                  {PAGE_SIZE} / página
-                </span>
+            <>
+              {/* Desktop: paginação completa. */}
+              <div className="mt-4 hidden flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3 md:flex">
+                <span className="text-xs text-muted">{total} no total</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Página anterior"
+                    isDisabled={page <= 1 || transactions.isFetching}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <IconChevron size={14} className="rotate-90" />
+                  </Button>
+                  <span className="px-1 text-xs text-muted">
+                    Página {page} de {pageCount}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Próxima página"
+                    isDisabled={page >= pageCount || transactions.isFetching}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    <IconChevron size={14} className="-rotate-90" />
+                  </Button>
+                  <span className="ml-1 hidden text-xs text-muted sm:inline">
+                    {PAGE_SIZE} / página
+                  </span>
+                </div>
               </div>
-            </div>
+
+              {/* Mobile: "Ver mais" — avança para a próxima página. */}
+              {page < pageCount && (
+                <div className="mt-3 md:hidden">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    isDisabled={transactions.isFetching}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    {transactions.isFetching ? 'Carregando…' : 'Ver mais'}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </Card.Content>
       </Card>
@@ -642,6 +737,30 @@ export function TransacoesPage() {
           onClose={closeForm}
         />
       ) : null}
+
+      {/* FAB chat mobile (bottom-right). TODO: abrir chat de suporte real. */}
+      <button
+        type="button"
+        aria-label="Abrir chat de suporte"
+        onClick={() => {
+          /* TODO: integrar chat de suporte */
+        }}
+        className="fixed bottom-24 right-4 z-30 grid h-12 w-12 place-items-center rounded-full bg-[color:var(--sp-primary,#505afb)] text-white shadow-[var(--shadow-pop,0_8px_24px_rgba(0,0,0,0.18))] transition-transform active:scale-95 md:hidden"
+      >
+        <svg
+          width={22}
+          height={22}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </button>
     </div>
   );
 }
