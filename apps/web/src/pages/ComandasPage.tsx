@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button, Card, Input, ListBox, Select, TextField } from '@heroui/react';
-import { ApiClientError, ORDER_STATUS_LABELS } from '@beautypass/shared';
+import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { DateField } from '../components/DateRangeFilter';
@@ -10,7 +9,6 @@ import { HelpTooltip } from '../components/HelpTooltip';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconCheck,
-  IconDownload,
   IconFilter,
   IconInfo,
   IconPlus,
@@ -39,20 +37,6 @@ function monthRange() {
   return { from: isoDate(from), to: isoDate(to) };
 }
 
-/** Quote a CSV cell, escaping embedded quotes/newlines. */
-function csvCell(value: string | number): string {
-  const s = String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-/** Status filter, mirrors the Belasis "Status" filter section. */
-const STATUS_FILTERS = [
-  { id: 'all', label: 'Todas', status: undefined },
-  { id: 'open', label: 'Em aberto', status: 'open' },
-  { id: 'finished', label: 'Finalizadas', status: 'finished' },
-  { id: 'canceled', label: 'Excluídas', status: 'canceled' },
-] as const;
-
 const STATUS_OPTIONS = [
   { id: 'open', label: 'Aberta' },
   { id: 'finished', label: 'Finalizada' },
@@ -65,6 +49,19 @@ const PAY_FILTERS: { id: PayFilter; label: string }[] = [
   { id: 'paid', label: 'Finalizado' },
   { id: 'pending', label: 'Pendente' },
 ];
+
+/**
+ * Métodos de pagamento apresentados no filtro (Belasis). A API `/orders` ainda
+ * não expõe o método de pagamento na row, portanto o filtro é apresentacional
+ * e será plugado quando o backend passar a devolver esse dado — nesse ponto
+ * basta consumir `o.paymentMethod` no `rows` filter abaixo.
+ */
+const PAYMENT_METHODS = [
+  { id: 'credit', label: 'Cartão de crédito' },
+  { id: 'debit', label: 'Cartão de débito' },
+  { id: 'cash', label: 'Dinheiro' },
+  { id: 'pix', label: 'Pix' },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Presentation atoms (Belasis ant-tag look, themeable via --sp-* tokens)
@@ -707,7 +704,7 @@ export function ComandasPage() {
                         <td className={td}>
                           <button
                             type="button"
-                            onClick={() => navigate(`/comandas/${o.id}`)}
+                            onClick={() => setEditing(o)}
                             className="font-semibold text-primary hover:underline"
                           >
                             #{o.number}
@@ -719,7 +716,7 @@ export function ComandasPage() {
                             <button
                               type="button"
                               title={o.customer.name}
-                              onClick={() => navigate(`/comandas/${o.id}`)}
+                              onClick={() => setEditing(o)}
                               className="max-w-[220px] truncate text-primary hover:underline"
                             >
                               {o.customer.name}
@@ -742,7 +739,7 @@ export function ComandasPage() {
                         </td>
                         <td className={`${td} text-center`}>
                           <RowMenu
-                            onView={() => navigate(`/comandas/${o.id}`)}
+                            onView={() => setEditing(o)}
                             onEdit={() => setEditing(o)}
                             onRemove={() => handleRemove(o)}
                             disableRemove={o.status === 'canceled' || del.isPending}
@@ -782,7 +779,7 @@ export function ComandasPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate(`/comandas/${o.id}`)}
+                      onClick={() => setEditing(o)}
                       className="text-left"
                     >
                       <div className="text-base font-bold text-primary">#{o.number}</div>
