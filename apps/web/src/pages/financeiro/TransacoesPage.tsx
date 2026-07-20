@@ -530,40 +530,35 @@ export function TransacoesPage() {
         <IconChevron size={16} />
       </div>
 
-      <Card className={`${CARD_CLASS} !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]`}>
-        <Card.Content className="p-0 md:p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="hidden text-xs text-muted md:inline">Ordenado por data</span>
-            <span className="text-xs text-muted">
-              {total > 0 ? `${total} no total` : '0 lançamento(s)'}
-            </span>
-          </div>
-          {transactions.isLoading ? (
-            <LoadingState />
-          ) : transactions.isError ? (
-            <ErrorState onRetry={() => transactions.refetch()} />
-          ) : visibleRows.length === 0 ? (
-            <EmptyState
-              icon={<IconDollar size={32} />}
-              title={
-                q
-                  ? 'Nenhum item encontrado'
-                  : hasFilters
-                    ? 'Nenhuma transação para os filtros'
-                    : 'Nenhuma transação registrada'
-              }
-              description={
-                q
-                  ? 'Ajuste a busca para ver mais lançamentos.'
-                  : hasFilters
-                    ? 'Ajuste os filtros para ver mais lançamentos.'
-                    : 'Lance recebimentos e despesas para acompanhar o caixa.'
-              }
-            />
-          ) : (
-            <>
-              {/* Desktop: tabela padrão Belasis (linhas tingidas por natureza). */}
-              <div className="hidden md:block">
+      {/* Contador (mobile visível abaixo do chip; desktop dentro do Card). */}
+      <div className="mb-3 flex items-center justify-between md:hidden">
+        <span className="text-xs text-muted">
+          {total > 0 ? `${total} no total` : '0 lançamento(s)'}
+        </span>
+      </div>
+
+      {/* DESKTOP: Card + DataTable + paginação — mantém wrapper cor creme */}
+      <div className="hidden md:block">
+        <Card className={CARD_CLASS}>
+          <Card.Content className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs text-muted">Ordenado por data</span>
+              <span className="text-xs text-muted">
+                {total > 0 ? `${total} no total` : '0 lançamento(s)'}
+              </span>
+            </div>
+            {transactions.isLoading ? (
+              <LoadingState />
+            ) : transactions.isError ? (
+              <ErrorState onRetry={() => transactions.refetch()} />
+            ) : visibleRows.length === 0 ? (
+              <EmptyState
+                icon={<IconDollar size={32} />}
+                title={q ? 'Nenhum item encontrado' : hasFilters ? 'Nenhuma transação para os filtros' : 'Nenhuma transação registrada'}
+                description={q ? 'Ajuste a busca para ver mais lançamentos.' : hasFilters ? 'Ajuste os filtros para ver mais lançamentos.' : 'Lance recebimentos e despesas para acompanhar o caixa.'}
+              />
+            ) : (
+              <>
                 <DataTable
                   columns={columns}
                   rows={visibleRows}
@@ -577,134 +572,131 @@ export function TransacoesPage() {
                         : 'bg-danger/5'
                   }
                 />
-              </div>
+                {total > 0 && (
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
+                    <span className="text-xs text-muted">{total} no total</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" aria-label="Página anterior" isDisabled={page <= 1 || transactions.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                        <IconChevron size={14} className="rotate-90" />
+                      </Button>
+                      <span className="px-1 text-xs text-muted">Página {page} de {pageCount}</span>
+                      <Button variant="outline" size="sm" aria-label="Próxima página" isDisabled={page >= pageCount || transactions.isFetching} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+                        <IconChevron size={14} className="-rotate-90" />
+                      </Button>
+                      <span className="ml-1 hidden text-xs text-muted sm:inline">{PAGE_SIZE} / página</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </Card.Content>
+        </Card>
+      </div>
 
-              {/* Mobile: cards Belasis — fundo tingido (verde=receita, vermelho=despesa),
-                  3 linhas: (1) data + pill status; (2) método + valor preto bold;
-                  (3) NOME bold + descrição/referência abaixo. Toque abre edição. */}
-              <ul className="flex flex-col gap-2 md:hidden">
-                {visibleRows.map((t) => {
-                  const isIncome = t.kind === 'income';
-                  const reversed = t.status === 'reversed';
-                  const method = t.paymentMethod?.name ?? '—';
-                  const desc = describe(t);
-                  const holder = titular(t);
-                  const tint = reversed
-                    ? 'bg-white border-[var(--color-soft-border)]'
-                    : isIncome
-                      ? 'bg-[color-mix(in_oklab,#22c55e_10%,white)] border-[color-mix(in_oklab,#22c55e_20%,var(--color-soft-border))]'
-                      : 'bg-[color-mix(in_oklab,#ef4444_8%,white)] border-[color-mix(in_oklab,#ef4444_18%,var(--color-soft-border))]';
-                  return (
-                    <li key={t.id}>
-                      <div
-                        role="button"
-                        tabIndex={reversed ? -1 : 0}
-                        aria-disabled={reversed}
-                        onClick={() => !reversed && openEdit(t)}
-                        onKeyDown={(e) => {
-                          if (reversed) return;
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            openEdit(t);
-                          }
-                        }}
-                        className={[
-                          'flex w-full flex-col gap-1.5 rounded-xl border px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
-                          tint,
-                          reversed ? 'opacity-60' : 'cursor-pointer',
-                        ].join(' ')}
-                      >
-                        {/* linha 1: data + pill status */}
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[12px] font-medium text-muted-ink">
-                            {formatDate(t.dueDate)}
-                          </span>
-                          <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
-                            {STATUS_LABEL[t.status]}
-                          </Chip>
-                        </div>
-                        {/* linha 2: método + valor */}
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
-                            {method}
-                          </span>
-                          <span
-                            className={[
-                              'shrink-0 text-[14px] font-bold tabular-nums text-foreground',
-                              reversed ? 'line-through' : '',
-                            ].join(' ')}
-                          >
-                            {formatMoney(t.grossAmount)}
-                          </span>
-                        </div>
-                        {/* linha 3: NOME bold + descrição/referência abaixo */}
-                        {holder && (
-                          <div className="text-[13px] font-semibold text-foreground">
-                            {holder}
-                          </div>
-                        )}
-                        {desc && desc !== holder && (
-                          <div className="text-[11.5px] leading-snug text-muted-ink">
-                            {desc}
-                          </div>
-                        )}
+      {/* MOBILE: lista direto no fluxo, SEM Card wrapper (regra do projeto) */}
+      <div className="md:hidden">
+        {transactions.isLoading ? (
+          <LoadingState />
+        ) : transactions.isError ? (
+          <ErrorState onRetry={() => transactions.refetch()} />
+        ) : visibleRows.length === 0 ? (
+          <EmptyState
+            icon={<IconDollar size={32} />}
+            title={q ? 'Nenhum item encontrado' : hasFilters ? 'Nenhuma transação para os filtros' : 'Nenhuma transação registrada'}
+            description={q ? 'Ajuste a busca para ver mais lançamentos.' : hasFilters ? 'Ajuste os filtros para ver mais lançamentos.' : 'Lance recebimentos e despesas para acompanhar o caixa.'}
+          />
+        ) : (
+          <>
+            {/* Mobile: cards Belasis — fundo tingido (verde=receita, vermelho=despesa),
+                3 linhas: (1) data + pill status; (2) método + valor preto bold;
+                (3) NOME bold + descrição/referência abaixo. Toque abre edição. */}
+            <ul className="flex flex-col gap-2">
+              {visibleRows.map((t) => {
+                const isIncome = t.kind === 'income';
+                const reversed = t.status === 'reversed';
+                const method = t.paymentMethod?.name ?? '—';
+                const desc = describe(t);
+                const holder = titular(t);
+                const tint = reversed
+                  ? 'bg-white border-[var(--color-soft-border)]'
+                  : isIncome
+                    ? 'bg-[color-mix(in_oklab,#22c55e_10%,white)] border-[color-mix(in_oklab,#22c55e_20%,var(--color-soft-border))]'
+                    : 'bg-[color-mix(in_oklab,#ef4444_8%,white)] border-[color-mix(in_oklab,#ef4444_18%,var(--color-soft-border))]';
+                return (
+                  <li key={t.id}>
+                    <div
+                      role="button"
+                      tabIndex={reversed ? -1 : 0}
+                      aria-disabled={reversed}
+                      onClick={() => !reversed && openEdit(t)}
+                      onKeyDown={(e) => {
+                        if (reversed) return;
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openEdit(t);
+                        }
+                      }}
+                      className={[
+                        'flex w-full flex-col gap-1.5 rounded-xl border px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        tint,
+                        reversed ? 'opacity-60' : 'cursor-pointer',
+                      ].join(' ')}
+                    >
+                      {/* linha 1: data + pill status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[12px] font-medium text-muted-ink">
+                          {formatDate(t.dueDate)}
+                        </span>
+                        <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
+                          {STATUS_LABEL[t.status]}
+                        </Chip>
                       </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-          {total > 0 && (
-            <>
-              {/* Desktop: paginação completa. */}
-              <div className="mt-4 hidden flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3 md:flex">
-                <span className="text-xs text-muted">{total} no total</span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label="Página anterior"
-                    isDisabled={page <= 1 || transactions.isFetching}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    <IconChevron size={14} className="rotate-90" />
-                  </Button>
-                  <span className="px-1 text-xs text-muted">
-                    Página {page} de {pageCount}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label="Próxima página"
-                    isDisabled={page >= pageCount || transactions.isFetching}
-                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  >
-                    <IconChevron size={14} className="-rotate-90" />
-                  </Button>
-                  <span className="ml-1 hidden text-xs text-muted sm:inline">
-                    {PAGE_SIZE} / página
-                  </span>
-                </div>
+                      {/* linha 2: método + valor */}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
+                          {method}
+                        </span>
+                        <span
+                          className={[
+                            'shrink-0 text-[14px] font-bold tabular-nums text-foreground',
+                            reversed ? 'line-through' : '',
+                          ].join(' ')}
+                        >
+                          {formatMoney(t.grossAmount)}
+                        </span>
+                      </div>
+                      {/* linha 3: NOME bold + descrição/referência abaixo */}
+                      {holder && (
+                        <div className="text-[13px] font-semibold text-foreground">
+                          {holder}
+                        </div>
+                      )}
+                      {desc && desc !== holder && (
+                        <div className="text-[11.5px] leading-snug text-muted-ink">
+                          {desc}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {/* Mobile: "Ver mais" — avança para a próxima página. */}
+            {total > 0 && page < pageCount && (
+              <div className="mt-3">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  isDisabled={transactions.isFetching}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                >
+                  {transactions.isFetching ? 'Carregando…' : 'Ver mais'}
+                </Button>
               </div>
-
-              {/* Mobile: "Ver mais" — avança para a próxima página. */}
-              {page < pageCount && (
-                <div className="mt-3 md:hidden">
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    isDisabled={transactions.isFetching}
-                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  >
-                    {transactions.isFetching ? 'Carregando…' : 'Ver mais'}
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </Card.Content>
-      </Card>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Filtrar: drawer lateral (direita) com as seções do Belasis. */}
       <FiltrosDrawer
