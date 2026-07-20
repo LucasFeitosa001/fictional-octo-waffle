@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { BottomNav } from './BottomNav';
-import { PageActionsProvider } from './PageActions';
+import { CreateSheetProvider, PageActionsProvider } from './PageActions';
 import { ConfirmProvider } from '../components/ConfirmDialog';
 
 function IconClose({ size = 24 }: { size?: number }) {
@@ -32,6 +32,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <PageActionsProvider>
+    <CreateSheetProvider>
     <ConfirmProvider>
     <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop static sidebar */}
@@ -103,6 +104,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
     </div>
     </ConfirmProvider>
+    </CreateSheetProvider>
     </PageActionsProvider>
   );
 }

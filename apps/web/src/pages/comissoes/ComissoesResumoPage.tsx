@@ -62,10 +62,10 @@ const STATUS_OPTIONS = [
 // Abas do topo (idênticas às do Belasis mobile). As de status filtram o resumo;
 // "Configurações" navega para a rota de config de comissões.
 const TABS = [
-  { id: '', label: 'Resumo', icon: IconHome },
-  { id: 'open', label: 'Comissões em aberto', icon: IconChart },
-  { id: 'paid', label: 'Comissões pagas', icon: IconCircleCheck },
-  { id: 'settings', label: 'Configurações', icon: IconSettings, nav: '/commissions/settings' },
+  { id: '', label: 'Resumo', shortLabel: 'Resumo', icon: IconHome },
+  { id: 'open', label: 'Comissões em aberto', shortLabel: 'Em aberto', icon: IconChart },
+  { id: 'paid', label: 'Comissões pagas', shortLabel: 'Pagas', icon: IconCircleCheck },
+  { id: 'settings', label: 'Configurações', shortLabel: 'Configurações', icon: IconSettings, nav: '/commissions/settings' },
 ] as const;
 
 const ENTRY_STATUS_LABEL: Record<CommissionEntry['status'], string> = {
@@ -324,7 +324,8 @@ export function ComissoesResumoPage() {
                 ].join(' ')}
               >
                 <Icon size={15} />
-                {tab.label}
+                <span className="md:hidden">{tab.shortLabel}</span>
+                <span className="hidden md:inline">{tab.label}</span>
               </button>
             );
           })}
@@ -372,8 +373,9 @@ export function ComissoesResumoPage() {
         </div>
       )}
 
-      {/* Resumo por profissional (data-wiring preservado) */}
-      <div className="rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+      {/* Resumo por profissional (data-wiring preservado).
+          Mobile: escondido — Belasis mostra só os 3 KPI cards no mobile. */}
+      <div className="hidden md:block rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">Comissões por profissional</h3>
           <span className="text-xs text-muted">{rows.length} resultado(s)</span>
@@ -415,7 +417,7 @@ export function ComissoesResumoPage() {
           </>
         }
       >
-        <p className="mb-4 text-sm text-muted">Selecione um período e escolha o profissional</p>
+        <div className="mb-4 text-sm text-muted">Selecione um período e escolha o profissional</div>
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Data inicial">

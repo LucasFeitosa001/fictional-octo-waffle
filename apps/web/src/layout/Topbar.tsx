@@ -16,7 +16,16 @@ const PAGE_META: { path: string; title: string; description: string }[] = [
   { path: '/ia-atendimento', title: 'IA Atendimento', description: 'Seu atendente virtual' },
   { path: '/financeiro/transacoes', title: 'Transações', description: 'Entradas e saídas do caixa' },
   { path: '/financeiro/contas', title: 'Contas e métodos', description: 'Contas e formas de pagamento' },
+  { path: '/financeiro/cadastros/categorias', title: 'Categorias', description: 'Categorias de transações financeiras' },
+  { path: '/financeiro/cadastros/formas-pagamento', title: 'Formas de pagamento', description: 'Configuração de meios de pagamento' },
+  { path: '/financeiro/cadastros/contas', title: 'Contas bancárias', description: 'Contas ativas e integrações' },
+  { path: '/financeiro/belasis-pay', title: 'Belasis Pay', description: 'Cadastro do gateway de pagamento' },
+  { path: '/financeiro/caixas-abertos', title: 'Caixas abertos', description: 'Movimentações dos caixas em aberto' },
+  { path: '/financeiro/caixas', title: 'Caixas abertos', description: 'Movimentações dos caixas em aberto' },
+  { path: '/financeiro/historico-caixa', title: 'Histórico de caixa', description: 'Fechamentos e conferências' },
+  { path: '/financeiro/notas-fiscais', title: 'Notas Fiscais', description: 'Emissão e acompanhamento' },
   { path: '/financeiro', title: 'Painel financeiro', description: 'A saúde financeira do studio' },
+  { path: '/vendas-por-assinatura', title: 'Assinaturas', description: 'Planos recorrentes' },
   { path: '/caixa', title: 'Caixa', description: 'Abertura e fechamento de caixa' },
   { path: '/comissoes/config', title: 'Configurações de comissão', description: 'Regras de comissionamento' },
   { path: '/comissoes', title: 'Comissões', description: 'Resumo das comissões da equipe' },
@@ -34,7 +43,10 @@ const PAGE_META: { path: string; title: string; description: string }[] = [
   { path: '/marketing/avaliacoes', title: 'Avaliações', description: 'O feedback dos clientes' },
   { path: '/marketing/cashback', title: 'Cashback', description: 'Programa de recompensas' },
   { path: '/configuracoes', title: 'Configurações', description: 'Preferências do studio' },
+  { path: '/perfil/adicionais', title: 'Adicionais', description: 'Recursos extras do seu plano' },
   { path: '/perfil', title: 'Meu perfil', description: 'Conta, acesso e plano' },
+  { path: '/notificacoes', title: 'Notificações', description: 'Central de avisos e alertas' },
+  { path: '/indique-e-ganhe', title: 'Indique e ganhe', description: 'Convide e ganhe recompensas' },
 ];
 
 function getPageMeta(pathname: string) {

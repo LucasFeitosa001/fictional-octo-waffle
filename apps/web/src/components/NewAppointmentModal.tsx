@@ -8,8 +8,13 @@ import {
   TextField,
 } from '@heroui/react';
 import { Drawer } from './Drawer';
-import { IconCalendar, IconInfo } from './icons';
-import { ApiClientError, APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
+import { IconCalendar, IconChevron, IconInfo, IconSearch } from './icons';
+import {
+  ApiClientError,
+  APPOINTMENT_STATUS_LABELS,
+  type AppointmentStatus,
+  type Customer,
+} from '@beautypass/shared';
 import {
   useAvailability,
   useCreateAppointment,
@@ -158,6 +163,8 @@ export function NewAppointmentModal({
   const [durationMin, setDurationMin] = useState(0);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string; phone?: string | null } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -200,6 +207,8 @@ export function NewAppointmentModal({
       setDurationMin(0);
       setCustomerSearch('');
       setCustomerId('');
+      setSelectedCustomer(null);
+      setPickerOpen(false);
       setCreatingNew(false);
       setNewName('');
       setNewPhone('');
@@ -244,7 +253,8 @@ export function NewAppointmentModal({
     createOrder.isPending;
   const canConfirm = Boolean(serviceId && professionalId && slotStart) && !isBusy;
 
-  const selectedCustomerName = customerItems.find((c) => c.id === customerId)?.name;
+  const selectedCustomerName =
+    selectedCustomer?.name ?? customerItems.find((c) => c.id === customerId)?.name;
 
   // Create the appointment(s) and apply the chosen status. Returns the primary
   // appointment (+ resolved customer) so callers can chain a comanda, or null on
@@ -399,6 +409,21 @@ export function NewAppointmentModal({
       footer={footer}
       widthClass="sm:w-[min(1180px,94vw)]"
     >
+      {/* Sub-drawer: seletor de cliente (bottom-sheet, funciona em mobile). */}
+      <CustomerPickerDrawer
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        search={customerSearch}
+        onSearchChange={setCustomerSearch}
+        items={customerItems}
+        isLoading={customers.isFetching}
+        selectedId={customerId}
+        onPick={(c) => {
+          setCustomerId(c.id);
+          setSelectedCustomer({ id: c.id, name: c.name, phone: c.phone });
+          setPickerOpen(false);
+        }}
+      />
       {success ? (
         <div className="flex flex-col items-center gap-2 py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F3E7D6] text-2xl text-accent">
@@ -434,41 +459,32 @@ export function NewAppointmentModal({
                     </TextField>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2">
-                    <TextField value={customerSearch} onChange={setCustomerSearch} aria-label="Buscar cliente">
-                      <Input className={triggerCls} placeholder="Busque por um cliente" />
-                    </TextField>
-                    {(customerSearch.trim() || customerId) && (
-                      <Select
-                        aria-label="Cliente"
-                        selectedKey={customerId || null}
-                        onSelectionChange={(k) => setCustomerId(k ? String(k) : NONE)}
-                      >
-                        <Select.Trigger className={triggerCls}>
-                          <Select.Value>
-                            {({ isPlaceholder, selectedText }) =>
-                              isPlaceholder ? 'Selecionar cliente' : selectedText
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {customerItems.map((c) => (
-                              <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                                {c.name}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(true)}
+                    className={
+                      triggerCls +
+                      ' flex items-center justify-between gap-2 px-3 text-left ' +
+                      (selectedCustomer ? 'text-foreground' : 'text-muted')
+                    }
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                      <span className="truncate">
+                        {selectedCustomer?.name ?? 'Selecionar cliente'}
+                      </span>
+                      {selectedCustomer?.phone ? (
+                        <span className="truncate text-xs text-muted">{selectedCustomer.phone}</span>
+                      ) : null}
+                    </span>
+                    <IconChevron size={16} className="shrink-0 text-muted" />
+                  </button>
                 )}
                 <button
                   type="button"
                   onClick={() => {
                     setCreatingNew((v) => !v);
                     setCustomerId('');
+                    setSelectedCustomer(null);
                     setCustomerSearch('');
                     setNewName('');
                     setNewPhone('');
@@ -751,6 +767,97 @@ export function NewAppointmentModal({
           </div>
         </div>
       )}
+    </Drawer>
+  );
+}
+
+/**
+ * Sub-drawer bottom-sheet para escolher um cliente existente. Aparece por cima
+ * do drawer de Novo agendamento (portal + z-index maior) e funciona 100% em
+ * mobile — resolve o caso em que o <Select> do HeroUI não abre o popover
+ * dentro de outro bottom-sheet.
+ */
+function CustomerPickerDrawer({
+  isOpen,
+  onClose,
+  search,
+  onSearchChange,
+  items,
+  isLoading,
+  selectedId,
+  onPick,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  search: string;
+  onSearchChange: (v: string) => void;
+  items: Customer[];
+  isLoading: boolean;
+  selectedId: string;
+  onPick: (c: Customer) => void;
+}) {
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Selecionar cliente"
+      placement="bottom"
+      widthClass="sm:w-[520px]"
+    >
+      <div className="flex flex-col gap-3">
+        <div className="relative">
+          <IconSearch
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+          />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Digite para buscar"
+            aria-label="Buscar cliente"
+            autoFocus
+            className="h-11 w-full rounded-lg border border-default-200 bg-white pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
+          />
+        </div>
+
+        {isLoading && items.length === 0 && (
+          <div className="flex items-center gap-2 py-6 text-sm text-muted">
+            <Spinner size="sm" /> Buscando clientes…
+          </div>
+        )}
+
+        {!isLoading && items.length === 0 && (
+          <div className="rounded-lg border border-dashed border-default-200 px-3 py-6 text-center text-sm text-muted">
+            {search.trim() ? 'Nenhum cliente encontrado.' : 'Digite para buscar um cliente.'}
+          </div>
+        )}
+
+        {items.length > 0 && (
+          <ul className="flex flex-col divide-y divide-default-200 rounded-lg border border-default-200 bg-white">
+            {items.map((c) => {
+              const isSelected = c.id === selectedId;
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(c)}
+                    className={
+                      'flex w-full flex-col items-start gap-0.5 px-3 py-3 text-left transition-colors hover:bg-cream ' +
+                      (isSelected ? 'bg-cream' : '')
+                    }
+                  >
+                    <span className="truncate text-sm font-medium text-foreground">{c.name}</span>
+                    {c.phone ? (
+                      <span className="truncate text-xs text-muted">{c.phone}</span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </Drawer>
   );
 }

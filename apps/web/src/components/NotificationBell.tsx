@@ -1,6 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IconBell } from './icons';
+import { useNavigate } from 'react-router-dom';
+import {
+  IconBell,
+  IconGift,
+  IconHelpCircle,
+  IconSettings,
+  IconShare,
+} from './icons';
 import { formatDateTime } from '../lib/format';
 import {
   useMarkAllNotificationsRead,
@@ -39,6 +46,12 @@ export function NotificationBell({
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const prevUnread = useRef<number | null>(null);
+  const navigate = useNavigate();
+
+  function go(to: string) {
+    setOpen(false);
+    navigate(to);
+  }
 
   const notifications = useNotifications(30);
   const markRead = useMarkNotificationRead();
@@ -140,7 +153,7 @@ export function NotificationBell({
           <div
             ref={panelRef}
             style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-            className="z-[100] overflow-hidden rounded-xl border border-default-200 bg-white shadow-xl"
+            className="z-[100] flex flex-col overflow-hidden rounded-xl border border-default-200 bg-white shadow-xl"
           >
             <div className="flex items-center justify-between border-b border-default-100 px-4 py-3">
               <span className="text-sm font-semibold text-foreground">Notificações</span>
@@ -155,7 +168,27 @@ export function NotificationBell({
               )}
             </div>
 
-            <div className="overflow-y-auto" style={{ maxHeight: pos.maxHeight }}>
+            <div className="flex flex-col overflow-y-auto" style={{ maxHeight: pos.maxHeight }}>
+              {/* Bloco fixo topo: Aniversariantes de hoje */}
+              <button
+                type="button"
+                onClick={() => go('/relatorios/aniversariantes')}
+                className="flex w-full items-center gap-3 border-b border-default-100 bg-pink/5 px-4 py-3 text-left transition-colors hover:bg-pink/10"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-pink/15 text-pink">
+                  <IconGift size={18} />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-sm font-semibold text-foreground">
+                    Aniversariantes de hoje
+                  </span>
+                  <span className="text-xs text-muted">
+                    Clique aqui para abrir a lista
+                  </span>
+                </span>
+              </button>
+
+              {/* Lista de notificações */}
               {notifications.isLoading ? (
                 <p className="px-4 py-8 text-center text-sm text-muted">Carregando…</p>
               ) : items.length === 0 ? (
@@ -188,6 +221,45 @@ export function NotificationBell({
                   ))}
                 </ul>
               )}
+
+              {/* Rodapé: VER TODAS */}
+              <div className="border-t border-default-100 px-4 py-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => go('/notificacoes')}
+                  className="text-xs font-semibold uppercase tracking-wide text-primary hover:underline"
+                >
+                  Ver todas
+                </button>
+              </div>
+
+              {/* 3 tiles: Configurações, Ajuda, Indique e ganhe */}
+              <div className="grid grid-cols-3 gap-1 border-t border-default-100 bg-default-50/60 p-2">
+                <button
+                  type="button"
+                  onClick={() => go('/configuracoes')}
+                  className="flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-foreground transition-colors hover:bg-white"
+                >
+                  <IconSettings size={20} />
+                  <span className="text-[11px] font-medium">Configurações</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go('/ajuda')}
+                  className="flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-foreground transition-colors hover:bg-white"
+                >
+                  <IconHelpCircle size={20} />
+                  <span className="text-[11px] font-medium">Ajuda</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go('/indique')}
+                  className="flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-foreground transition-colors hover:bg-white"
+                >
+                  <IconShare size={20} />
+                  <span className="text-[11px] font-medium">Indique e ganhe</span>
+                </button>
+              </div>
             </div>
           </div>,
           document.body,

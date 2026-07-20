@@ -170,89 +170,152 @@ export function CategoriasPage() {
         }
       />
 
-      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
-        <Card.Content className="p-0 md:p-4">
-          {message && (
-            <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {message}
-            </div>
-          )}
+      {message && (
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {message}
+        </div>
+      )}
 
-          <div className="mb-4 flex flex-col gap-3">
-            <div className="flex max-w-md items-center gap-2">
-              <TextField
-                value={search}
-                onChange={setSearch}
-                className="min-w-0 flex-1"
-                aria-label="Buscar categoria"
-              >
-                <Input placeholder="Buscar por nome…" />
-              </TextField>
-              <Button variant="primary" aria-label="Buscar">
-                <IconSearch size={16} /> Buscar
-              </Button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <SegBtn active={status === 'all'} onClick={() => setStatus('all')}>
-                Todas
-              </SegBtn>
-              <SegBtn active={status === 'active'} onClick={() => setStatus('active')}>
-                Ativas
-              </SegBtn>
-              <SegBtn
-                active={status === 'inactive'}
-                onClick={() => setStatus('inactive')}
-              >
-                Inativas
-              </SegBtn>
-            </div>
-          </div>
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex max-w-md items-center gap-2">
+          <TextField
+            value={search}
+            onChange={setSearch}
+            className="min-w-0 flex-1"
+            aria-label="Buscar categoria"
+          >
+            <Input placeholder="Digite para buscar" />
+          </TextField>
+          <Button variant="primary" aria-label="Buscar">
+            <IconSearch size={16} /> <span className="hidden md:inline">Buscar</span>
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegBtn active={status === 'all'} onClick={() => setStatus('all')}>
+            Todas
+          </SegBtn>
+          <SegBtn active={status === 'active'} onClick={() => setStatus('active')}>
+            Ativas
+          </SegBtn>
+          <SegBtn
+            active={status === 'inactive'}
+            onClick={() => setStatus('inactive')}
+          >
+            Inativas
+          </SegBtn>
+        </div>
+      </div>
 
-          {categories.isLoading ? (
-            <LoadingState />
-          ) : categories.isError ? (
-            <ErrorState onRetry={() => categories.refetch()} />
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={<IconFolder size={32} />}
-              title={
-                hasFilters
-                  ? 'Nenhuma categoria encontrada'
-                  : 'Nenhuma categoria cadastrada'
-              }
-              description={
-                hasFilters
-                  ? 'Ajuste a busca ou os filtros para ver mais resultados.'
-                  : 'Crie categorias para organizar seus produtos.'
-              }
-              action={
-                hasFilters ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearch('');
-                      setStatus('all');
-                    }}
-                  >
-                    Limpar filtros
-                  </Button>
-                ) : (
-                  <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                    <IconPlus size={16} /> Nova categoria
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <DataTable
-              aria-label="Categorias de produto"
-              columns={columns}
-              rows={rows}
-              getKey={(c) => c.id}
-            />
-          )}
-        </Card.Content>
-      </Card>
+      {/* Desktop: card + tabela */}
+      <div className="hidden md:block">
+        <Card>
+          <Card.Content className="p-4">
+            {categories.isLoading ? (
+              <LoadingState />
+            ) : categories.isError ? (
+              <ErrorState onRetry={() => categories.refetch()} />
+            ) : rows.length === 0 ? (
+              <EmptyState
+                icon={<IconFolder size={32} />}
+                title={
+                  hasFilters
+                    ? 'Nenhuma categoria encontrada'
+                    : 'Nenhuma categoria cadastrada'
+                }
+                description={
+                  hasFilters
+                    ? 'Ajuste a busca ou os filtros para ver mais resultados.'
+                    : 'Crie categorias para organizar seus produtos.'
+                }
+                action={
+                  hasFilters ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSearch('');
+                        setStatus('all');
+                      }}
+                    >
+                      Limpar filtros
+                    </Button>
+                  ) : (
+                    <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                      <IconPlus size={16} /> Nova categoria
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <DataTable
+                aria-label="Categorias de produto"
+                columns={columns}
+                rows={rows}
+                getKey={(c) => c.id}
+              />
+            )}
+          </Card.Content>
+        </Card>
+      </div>
+
+      {/* Mobile: cards compactos 2 linhas */}
+      <div className="md:hidden">
+        {categories.isLoading ? (
+          <LoadingState />
+        ) : categories.isError ? (
+          <ErrorState onRetry={() => categories.refetch()} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<IconFolder size={32} />}
+            title={
+              hasFilters
+                ? 'Nenhuma categoria encontrada'
+                : 'Nenhuma categoria cadastrada'
+            }
+            description={
+              hasFilters
+                ? 'Ajuste a busca ou os filtros para ver mais resultados.'
+                : 'Crie categorias para organizar seus produtos.'
+            }
+            action={
+              hasFilters ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearch('');
+                    setStatus('all');
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                  <IconPlus size={16} /> Nova categoria
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {rows.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-md border border-[var(--color-soft-border)] bg-warm-white px-3 py-2 shadow-[var(--shadow-card)]"
+                onClick={() => setEditing(c)}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {c.name}
+                  </span>
+                  <ActiveChip active={c.active} />
+                </div>
+                <div className="mt-1 text-xs text-muted">
+                  Toque para editar
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <CategoryModal
         mode="create"

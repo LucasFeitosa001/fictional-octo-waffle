@@ -478,11 +478,8 @@ export function ComandasPage() {
         }
       />
 
-      {/* No mobile, o Card cor creme come o espaço horizontal dos cards da lista.
-          Só o desktop ganha wrapper com border/bg/sombra. */}
-      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
-        <Card.Content className="p-0 md:p-4">
-          {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
+      <div>
+        {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
           <div className="mb-3 md:hidden">
             <TextField value={search} onChange={setSearch} aria-label="Buscar comanda">
               <Input placeholder="Digite para buscar" />
@@ -656,29 +653,35 @@ export function ComandasPage() {
             </div>
           )}
 
-          {orders.isLoading ? (
-            <LoadingState />
-          ) : orders.isError ? (
-            <ErrorState onRetry={() => orders.refetch()} />
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={<IconReceipt size={32} />}
-              title="Nenhuma comanda"
-              description={
-                allRows.length > 0
-                  ? 'Nenhuma comanda corresponde aos filtros. Ajuste o período ou o cliente.'
-                  : 'As comandas aparecerão aqui conforme forem abertas.'
-              }
-              action={
-                <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                  <IconPlus size={16} /> Nova comanda
-                </Button>
-              }
-            />
-          ) : (
-            <>
-              {/* Desktop / tablet: ant-table style */}
-              <div className="hidden overflow-x-auto md:block">
+      </div>
+
+      {/* Desktop: tabela + paginação dentro do Card. */}
+      <div className="hidden md:block">
+        <Card>
+          <Card.Content className="p-4">
+            {orders.isLoading ? (
+              <LoadingState />
+            ) : orders.isError ? (
+              <ErrorState onRetry={() => orders.refetch()} />
+            ) : rows.length === 0 ? (
+              <EmptyState
+                icon={<IconReceipt size={32} />}
+                title="Nenhuma comanda"
+                description={
+                  allRows.length > 0
+                    ? 'Nenhuma comanda corresponde aos filtros. Ajuste o período ou o cliente.'
+                    : 'As comandas aparecerão aqui conforme forem abertas.'
+                }
+                action={
+                  <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                    <IconPlus size={16} /> Nova comanda
+                  </Button>
+                }
+              />
+            ) : (
+              <>
+                {/* Desktop / tablet: ant-table style */}
+                <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b border-[var(--color-soft-border)] bg-[color-mix(in_oklab,var(--sp-ink)_3%,transparent)]">
@@ -780,68 +783,96 @@ export function ComandasPage() {
                 </table>
               </div>
 
-              {/* Mobile: cards compactos padrão Belasis.
-                  Linha 1: [checkbox?] #num NOME  ......  R$ valor
-                  Linha 2: data ...................... [pill status]
-                  Sem "Excluir" no card; sem "Selecionar" fixo — ambos via BottomNav ⇒ selectMode. */}
-              <ul className="flex flex-col gap-2 md:hidden">
-                {pageRows.map((o) => {
-                  const isSelected = selected.has(o.id);
-                  const onCardClick = () => {
-                    if (selectMode) toggleOne(o.id);
-                    else setViewing(o);
-                  };
-                  return (
-                    <li key={o.id}>
-                      <button
-                        type="button"
-                        onClick={onCardClick}
-                        className={[
-                          'flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
-                          isSelected
-                            ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
-                            : 'border-[var(--color-soft-border)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]',
-                        ].join(' ')}
-                      >
-                        {selectMode && (
-                          <span
-                            aria-hidden
-                            className={[
-                              'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors',
-                              isSelected
-                                ? 'border-[var(--sp-primary)] bg-[var(--sp-primary)] text-white'
-                                : 'border-[var(--color-soft-border)] bg-white',
-                            ].join(' ')}
-                          >
-                            {isSelected && <IconCheck size={13} />}
-                          </span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
-                              <span className="font-semibold text-primary">#{o.number}</span>{' '}
-                              <span className="text-foreground">{o.customer?.name ?? 'Avulso'}</span>
-                            </div>
-                            <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground">
-                              {formatMoney(o.netTotal)}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex items-center justify-between gap-2">
-                            <span className="text-[11px] text-muted-ink">{formatDate(o.date)}</span>
-                            <StatusTag status={o.status} />
-                          </div>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                <Pagination page={page} total={rows.length} onPage={setPage} />
+              </>
+            )}
+          </Card.Content>
+        </Card>
+      </div>
 
-              <Pagination page={page} total={rows.length} onPage={setPage} />
-            </>
-          )}
-        </Card.Content>
-      </Card>
+      {/* Mobile: sem wrapper Card, cards compactos padrão Belasis. */}
+      <div className="md:hidden">
+        {orders.isLoading ? (
+          <LoadingState />
+        ) : orders.isError ? (
+          <ErrorState onRetry={() => orders.refetch()} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<IconReceipt size={32} />}
+            title="Nenhuma comanda"
+            description={
+              allRows.length > 0
+                ? 'Nenhuma comanda corresponde aos filtros. Ajuste o período ou o cliente.'
+                : 'As comandas aparecerão aqui conforme forem abertas.'
+            }
+            action={
+              <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                <IconPlus size={16} /> Nova comanda
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            {/* Linha 1: [checkbox?] #num NOME  ......  R$ valor
+                Linha 2: data ...................... [pill status]
+                Sem "Excluir" no card; sem "Selecionar" fixo — ambos via BottomNav ⇒ selectMode. */}
+            <ul className="flex flex-col gap-2">
+              {pageRows.map((o) => {
+                const isSelected = selected.has(o.id);
+                const onCardClick = () => {
+                  if (selectMode) toggleOne(o.id);
+                  else setViewing(o);
+                };
+                return (
+                  <li key={o.id}>
+                    <button
+                      type="button"
+                      onClick={onCardClick}
+                      className={[
+                        'flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        isSelected
+                          ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
+                          : 'border-[var(--color-soft-border)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]',
+                      ].join(' ')}
+                    >
+                      {selectMode && (
+                        <span
+                          aria-hidden
+                          className={[
+                            'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors',
+                            isSelected
+                              ? 'border-[var(--sp-primary)] bg-[var(--sp-primary)] text-white'
+                              : 'border-[var(--color-soft-border)] bg-white',
+                          ].join(' ')}
+                        >
+                          {isSelected && <IconCheck size={13} />}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
+                            <span className="font-semibold text-primary">#{o.number}</span>{' '}
+                            <span className="text-foreground">{o.customer?.name ?? 'Avulso'}</span>
+                          </div>
+                          <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground">
+                            {formatMoney(o.netTotal)}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-muted-ink">{formatDate(o.date)}</span>
+                          <StatusTag status={o.status} />
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <Pagination page={page} total={rows.length} onPage={setPage} />
+          </>
+        )}
+      </div>
 
       <NovoComandaDrawer isOpen={createOpen} onClose={() => setCreateOpen(false)} />
       <EditarComandaDrawer order={editing} onClose={() => setEditing(null)} />

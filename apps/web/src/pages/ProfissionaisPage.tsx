@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Chip, Input, Switch, TextField } from '@heroui/react';
+import { Avatar, Button, Card, Chip, Input, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
 import { ImageUpload } from '../components/ImageUpload';
 import {
+  IconCheck,
   IconDownload,
-  IconGrip,
   IconInfo,
   IconPencil,
   IconPlus,
@@ -51,6 +51,8 @@ export function ProfissionaisPage() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [status, setStatus] = useState<StatusFilter>('active');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   useAutoCreate(() => setCreateOpen(true));
 
   const rows = useMemo(() => {
@@ -66,6 +68,20 @@ export function ProfissionaisPage() {
   }, [allRows, search, status]);
 
   const hasFilters = Boolean(search.trim());
+
+  // Ao sair do selectMode, limpa a seleção acumulada (padrão ComandasPage).
+  useEffect(() => {
+    if (!selectMode) setSelected(new Set());
+  }, [selectMode]);
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function exportCsv() {
     downloadCsv<Professional>(
@@ -92,10 +108,38 @@ export function ProfissionaisPage() {
     remove.mutate(p.id);
   }
 
-  // Mobile: as ações do header (Novo / Exportar CSV) migram para a BottomNav,
-  // disparando exatamente os mesmos handlers dos botões desktop (Belasis-style).
+  async function handleRemoveSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: `Remover ${ids.length} profissional(is)?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
+    for (const id of ids) {
+      try {
+        await remove.mutateAsync(id);
+      } catch {
+        // Continua com os demais mesmo se um falhar.
+      }
+    }
+    setSelected(new Set());
+    setSelectMode(false);
+  }
+
+  // Mobile: BottomNav = [Selecionar, Novo, Exportar] — disparando os mesmos
+  // handlers dos botões desktop (Belasis-style).
   useSetPageActions(
     [
+      {
+        key: 'selecionar',
+        label: 'Selecionar',
+        icon: <IconCheck size={22} />,
+        onClick: () => setSelectMode((v) => !v),
+        active: selectMode,
+      },
       {
         key: 'novo',
         label: 'Novo',
@@ -110,7 +154,7 @@ export function ProfissionaisPage() {
         disabled: rows.length === 0,
       },
     ],
-    [rows],
+    [rows, selectMode],
   );
 
   const totalLoaded = professionals.data?.total ?? allRows.length;
@@ -145,6 +189,21 @@ export function ProfissionaisPage() {
         </div>
       </div>
 
+      {/* Busca: sempre visível no mobile (Belasis "Digite para buscar"),
+          antes das tabs. Desktop revela via botão "Buscar". */}
+      <div className="mb-3 md:hidden">
+        <TextField value={search} onChange={setSearch} aria-label="Buscar profissional">
+          <Input placeholder="Digite para buscar" />
+        </TextField>
+      </div>
+      {searchOpen && (
+        <div className="mb-3 hidden max-w-md md:block">
+          <TextField value={search} onChange={setSearch} aria-label="Buscar profissional">
+            <Input placeholder="Digite para buscar" />
+          </TextField>
+        </div>
+      )}
+
       {/* ── Abas Ativos / Inativos (underline, como no Belasis) ── */}
       <div className="mb-3 flex items-center gap-6 border-b border-line">
         <TabButton
@@ -164,54 +223,30 @@ export function ProfissionaisPage() {
         {subtitle && <span className="ml-auto pb-2 text-xs text-muted-ink">{subtitle}</span>}
       </div>
 
-      {/* Campo de busca: sempre visível no mobile (como no Belasis); no desktop é
-          revelado pelo botão "Buscar". */}
-      <div
-        className={[
-          'mb-3 items-center rounded-full border border-line bg-card px-3 sm:max-w-md',
-          'flex',
-          searchOpen ? 'md:flex' : 'md:hidden',
-        ].join(' ')}
-      >
-          <IconSearch size={16} className="shrink-0 text-muted-ink" />
-          <TextField
-            value={search}
-            onChange={setSearch}
-            className="min-w-0 flex-1"
-            aria-label="Buscar profissional"
+      {/* Barra de ações da seleção (mobile e desktop) */}
+      {selected.size > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-danger"
+            isDisabled={remove.isPending}
+            onClick={handleRemoveSelected}
           >
-            <Input
-              placeholder="Procure pelo nome, telefone ou e-mail"
-              className="border-0 bg-transparent px-2 shadow-none focus:ring-0"
-            />
-          </TextField>
+            <IconTrash size={14} /> Remover ({selected.size})
+          </Button>
         </div>
+      )}
 
-      {/* ── Card com cabeçalho de colunas + lista ──
-          No mobile o "card externo" some e cada linha vira um card próprio (Belasis). */}
-      <div className="rounded-none border-0 bg-transparent shadow-none sm:rounded-2xl sm:border sm:border-line sm:bg-card sm:shadow-[var(--shadow-card)]">
-        {/* Cabeçalho de colunas (só desktop) — ⓘ · Nome · Celular · E-mail, como no Belasis */}
-        <div className="hidden items-center gap-3 border-b border-line px-4 py-3 text-sm font-semibold text-ink sm:flex">
-          <IconInfo size={16} className="w-5 shrink-0 text-primary" />
-          <span className="w-10 shrink-0" />
-          <span className="min-w-0 flex-1">Nome</span>
-          <span className="w-52 shrink-0">Celular</span>
-          <span className="min-w-0 flex-1">E-mail</span>
-          <span className="w-20 shrink-0" />
-        </div>
-
-        {/* Corpo */}
-        <div className="p-2 sm:p-0">
-          {professionals.isLoading ? (
-            <div className="p-4">
+      {/* DESKTOP: Card com cabeçalho de colunas + lista tabular */}
+      <div className="hidden md:block">
+        <Card>
+          <Card.Content className="p-4">
+            {professionals.isLoading ? (
               <LoadingState />
-            </div>
-          ) : professionals.isError ? (
-            <div className="p-4">
+            ) : professionals.isError ? (
               <ErrorState onRetry={() => professionals.refetch()} />
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="p-4">
+            ) : rows.length === 0 ? (
               <EmptyState
                 icon={<IconScissors size={32} />}
                 title={
@@ -238,20 +273,81 @@ export function ProfissionaisPage() {
                   )
                 }
               />
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-3 sm:block sm:gap-0">
-              {rows.map((p) => (
-                <ProfessionalRow
-                  key={p.id}
-                  professional={p}
-                  onEdit={() => setEditing(p)}
-                  onRemove={() => handleRemove(p)}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
+            ) : (
+              <>
+                {/* Cabeçalho de colunas — ⓘ · Nome · Celular · E-mail, como no Belasis */}
+                <div className="flex items-center gap-3 border-b border-line pb-2 text-sm font-semibold text-ink">
+                  <IconInfo size={16} className="w-5 shrink-0 text-primary" />
+                  <span className="w-10 shrink-0" />
+                  <span className="min-w-0 flex-1">Nome</span>
+                  <span className="w-52 shrink-0">Celular</span>
+                  <span className="min-w-0 flex-1">E-mail</span>
+                  <span className="w-20 shrink-0" />
+                </div>
+                <ul>
+                  {rows.map((p) => (
+                    <ProfessionalDesktopRow
+                      key={p.id}
+                      professional={p}
+                      onEdit={() => setEditing(p)}
+                      onRemove={() => handleRemove(p)}
+                    />
+                  ))}
+                </ul>
+              </>
+            )}
+          </Card.Content>
+        </Card>
+      </div>
+
+      {/* MOBILE: lista direto no fluxo, SEM Card wrapper (regra do projeto).
+          Cards 2-linhas compactos (padrão ComandasPage). Toque abre o drawer. */}
+      <div className="md:hidden">
+        {professionals.isLoading ? (
+          <LoadingState />
+        ) : professionals.isError ? (
+          <ErrorState onRetry={() => professionals.refetch()} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<IconScissors size={32} />}
+            title={
+              hasFilters
+                ? 'Nenhum profissional encontrado'
+                : status === 'inactive'
+                  ? 'Nenhum profissional inativo'
+                  : 'Nenhum profissional cadastrado'
+            }
+            description={
+              hasFilters
+                ? 'Ajuste a busca para ver mais resultados.'
+                : 'Cadastre profissionais e vincule seus serviços e horários.'
+            }
+            action={
+              hasFilters ? (
+                <Button variant="outline" onClick={() => setSearch('')}>
+                  Limpar busca
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                  <IconPlus size={16} /> Novo
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {rows.map((p) => (
+              <ProfessionalMobileCard
+                key={p.id}
+                professional={p}
+                selectMode={selectMode}
+                selected={selected.has(p.id)}
+                onToggle={() => toggleOne(p.id)}
+                onOpen={() => setEditing(p)}
+              />
+            ))}
+          </ul>
+        )}
       </div>
 
       <ProfessionalDrawer
@@ -299,8 +395,8 @@ function TabButton({
 }
 
 // ---------------------------------------------------------------------
-// Linha da lista — espelha o Belasis: alça · avatar · Nome(+tag) · Celular · E-mail.
-function ProfessionalRow({
+// Linha desktop — espelha o Belasis: avatar · Nome(+tag) · Celular · E-mail.
+function ProfessionalDesktopRow({
   professional: p,
   onEdit,
   onRemove,
@@ -310,20 +406,13 @@ function ProfessionalRow({
   onRemove: () => void;
 }) {
   return (
-    <li className="group flex items-center gap-3 rounded-2xl border border-line bg-card px-3 py-3.5 shadow-[var(--shadow-card)] hover:bg-canvas sm:rounded-none sm:border-0 sm:border-b sm:border-line sm:py-2.5 sm:shadow-none last:sm:border-0 sm:px-4">
-      {/* Alça de reordenação (visual, como no Belasis) — hambúrguer azul no mobile */}
-      <IconGrip
-        size={18}
-        className="w-5 shrink-0 cursor-grab text-primary sm:text-muted-ink/40"
-      />
-
-      {/* Avatar */}
+    <li className="group flex items-center gap-3 border-b border-line py-2.5 last:border-0 hover:bg-canvas">
+      <span className="w-5 shrink-0" />
       <Avatar size="sm" className="shrink-0">
         {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
         <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
       </Avatar>
 
-      {/* Nome (link azul) + tag (+ celular embaixo no mobile) */}
       <button
         type="button"
         onClick={onEdit}
@@ -331,9 +420,9 @@ function ProfessionalRow({
         aria-label={`Editar ${p.name}`}
       >
         <div className="flex items-center gap-2">
-          <span className="truncate font-medium uppercase text-ink sm:text-primary">{p.name}</span>
+          <span className="truncate font-medium uppercase text-primary">{p.name}</span>
           {p.profession && (
-            <span className="hidden shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground sm:inline">
+            <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
               {p.profession}
             </span>
           )}
@@ -346,23 +435,17 @@ function ProfessionalRow({
         {p.nickname && (
           <div className="truncate text-xs text-muted-ink">{p.nickname}</div>
         )}
-        <div className="mt-0.5 text-xs text-muted-ink sm:hidden">{p.phone ?? '—'}</div>
       </button>
 
-      {/* Celular (desktop) */}
-      <div className="hidden w-52 shrink-0 truncate text-sm text-ink sm:block">
-        {p.phone ?? '—'}
-      </div>
+      <div className="w-52 shrink-0 truncate text-sm text-ink">{p.phone ?? '—'}</div>
 
-      {/* E-mail (desktop) — ícone de usuário + e-mail em link, como no Belasis */}
-      <div className="hidden min-w-0 flex-1 items-center gap-1.5 text-sm sm:flex">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
         <IconUser size={15} className="shrink-0 text-primary" />
         {/* TODO: adicionar `email` ao Professional para preencher esta coluna */}
         <span className="truncate text-muted-ink">—</span>
       </div>
 
-      {/* Ações (hover no desktop, sempre visível no mobile) */}
-      <div className="flex shrink-0 items-center gap-0.5 sm:w-20 sm:justify-end sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+      <div className="flex w-20 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <Button
           variant="ghost"
           size="sm"
@@ -376,6 +459,73 @@ function ProfessionalRow({
           <IconPencil size={16} />
         </Button>
       </div>
+    </li>
+  );
+}
+
+// Card mobile compacto 2-linhas (padrão ComandasPage). Toque abre o drawer;
+// em selectMode alterna a checagem. SEM botões Excluir/Editar fixos.
+function ProfessionalMobileCard({
+  professional: p,
+  selectMode,
+  selected,
+  onToggle,
+  onOpen,
+}: {
+  professional: Professional;
+  selectMode: boolean;
+  selected: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+}) {
+  const onClick = () => (selectMode ? onToggle() : onOpen());
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className={[
+          'flex w-full items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+          selected
+            ? 'border-primary bg-[color-mix(in_oklab,var(--sp-primary)_5%,var(--sp-card,white))]'
+            : 'border-line active:bg-canvas',
+        ].join(' ')}
+      >
+        {selectMode && (
+          <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-line bg-card">
+            {selected && <IconCheck size={14} className="text-primary" />}
+          </span>
+        )}
+        <Avatar size="sm" className="shrink-0">
+          {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
+          <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
+        </Avatar>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {/* linha 1: nome + tag profissão */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-[13px] font-semibold uppercase text-ink">
+              {p.name}
+            </span>
+            {p.profession && (
+              <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
+                {p.profession}
+              </span>
+            )}
+          </div>
+          {/* linha 2: telefone + status pill (se inativo) */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-[12px] text-muted-ink">
+              {p.phone ?? '—'}
+            </span>
+            {!p.active && (
+              <Chip color="default" variant="soft" size="sm" className="shrink-0">
+                Inativo
+              </Chip>
+            )}
+          </div>
+        </div>
+      </button>
     </li>
   );
 }

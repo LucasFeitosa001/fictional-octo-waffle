@@ -212,9 +212,25 @@ export function FornecedoresPage() {
         </div>
       )}
 
-      {/* Barra de busca (toggle) */}
+      {/* Barra de busca mobile — sempre visível no topo */}
+      <div className="mb-3 md:hidden">
+        <TextField
+          value={searchInput}
+          onChange={setSearchInput}
+          aria-label="Buscar fornecedor"
+        >
+          <Input
+            placeholder="Digite para buscar"
+            className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+            onKeyDown={(e) => e.key === 'Enter' && applySearch()}
+            onBlur={applySearch}
+          />
+        </TextField>
+      </div>
+
+      {/* Barra de busca desktop (toggle) */}
       {searchOpen && (
-        <div className="mb-4 flex max-w-xl items-center gap-2">
+        <div className="mb-4 hidden max-w-xl items-center gap-2 md:flex">
           <TextField
             value={searchInput}
             onChange={setSearchInput}
@@ -274,32 +290,62 @@ export function FornecedoresPage() {
           ) : suppliers.isError ? (
             <ErrorState onRetry={() => suppliers.refetch()} />
           ) : rows.length === 0 ? (
-            <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
-              <EmptyState
-                icon={<IconTruck size={32} />}
-                title={
-                  hasFilters
-                    ? 'Nenhum fornecedor encontrado'
-                    : 'Nenhum fornecedor cadastrado'
-                }
-                description={
-                  hasFilters
-                    ? 'Ajuste a busca ou os filtros para ver mais resultados.'
-                    : 'Cadastre seu primeiro fornecedor.'
-                }
-                action={
-                  hasFilters ? (
-                    <Button variant="outline" onClick={clearAll}>
-                      Limpar filtros
-                    </Button>
-                  ) : (
-                    <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                      <IconPlus size={16} /> Novo fornecedor
-                    </Button>
-                  )
-                }
-              />
-            </div>
+            <>
+              {/* Desktop: empty state em Card */}
+              <div className="hidden rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)] md:block">
+                <EmptyState
+                  icon={<IconTruck size={32} />}
+                  title={
+                    hasFilters
+                      ? 'Nenhum fornecedor encontrado'
+                      : 'Nenhum fornecedor cadastrado'
+                  }
+                  description={
+                    hasFilters
+                      ? 'Ajuste a busca ou os filtros para ver mais resultados.'
+                      : 'Cadastre seu primeiro fornecedor.'
+                  }
+                  action={
+                    hasFilters ? (
+                      <Button variant="outline" onClick={clearAll}>
+                        Limpar filtros
+                      </Button>
+                    ) : (
+                      <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                        <IconPlus size={16} /> Novo fornecedor
+                      </Button>
+                    )
+                  }
+                />
+              </div>
+              {/* Mobile: sem Card wrapper */}
+              <div className="md:hidden">
+                <EmptyState
+                  icon={<IconTruck size={32} />}
+                  title={
+                    hasFilters
+                      ? 'Nenhum fornecedor encontrado'
+                      : 'Nenhum fornecedor cadastrado'
+                  }
+                  description={
+                    hasFilters
+                      ? 'Ajuste a busca ou os filtros para ver mais resultados.'
+                      : 'Cadastre seu primeiro fornecedor.'
+                  }
+                  action={
+                    hasFilters ? (
+                      <Button variant="outline" onClick={clearAll}>
+                        Limpar filtros
+                      </Button>
+                    ) : (
+                      <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                        <IconPlus size={16} /> Novo fornecedor
+                      </Button>
+                    )
+                  }
+                />
+              </div>
+            </>
           ) : (
             <>
               {/* ===== Desktop: tabela ===== */}

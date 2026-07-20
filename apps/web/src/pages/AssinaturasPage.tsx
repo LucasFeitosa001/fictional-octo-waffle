@@ -83,9 +83,9 @@ function subCode(m: CustomerMembership): string {
 // ---------------------------------------------------------------------------
 
 type MainTab = 'subscribers' | 'plans' | 'settings';
-const MAIN_TABS: { id: MainTab; label: string }[] = [
-  { id: 'subscribers', label: 'Assinaturas' },
-  { id: 'plans', label: 'Modelos de assinatura' },
+const MAIN_TABS: { id: MainTab; label: string; shortLabel?: string }[] = [
+  { id: 'subscribers', label: 'Assinantes' },
+  { id: 'plans', label: 'Modelos de assinatura', shortLabel: 'Modelos' },
   { id: 'settings', label: 'Configurações' },
 ];
 
@@ -107,7 +107,14 @@ function TabBar({ tab, onTab }: { tab: MainTab; onTab: (t: MainTab) => void }) {
                   : 'text-muted-ink hover:text-foreground',
               ].join(' ')}
             >
-              {t.label}
+              {t.shortLabel ? (
+                <>
+                  <span className="md:hidden">{t.shortLabel}</span>
+                  <span className="hidden md:inline">{t.label}</span>
+                </>
+              ) : (
+                t.label
+              )}
             </button>
           );
         })}
@@ -248,12 +255,26 @@ export function AssinaturasPage() {
   const [paySet, setPaySet] = useState<Set<PayType>>(new Set());
   const [page, setPage] = useState(1);
 
+  // Modelos tab: search + filter
+  const [showPlanSearch, setShowPlanSearch] = useState(false);
+  const [showPlanFilters, setShowPlanFilters] = useState(false);
+  const [planSearch, setPlanSearch] = useState('');
+  const [planOnlyWithServices, setPlanOnlyWithServices] = useState(false);
+
   const memberships = useCustomerMemberships();
   const plans = useMembershipPlans();
   const updateMembership = useUpdateCustomerMembership();
 
   const allSubRows = useMemo(() => memberships.data ?? [], [memberships.data]);
-  const planRows = plans.data ?? [];
+  const allPlanRows = plans.data ?? [];
+  const planRows = useMemo(() => {
+    const term = planSearch.trim().toLowerCase();
+    return allPlanRows.filter((p) => {
+      if (planOnlyWithServices && p.services.length === 0) return false;
+      if (term && !p.name.toLowerCase().includes(term)) return false;
+      return true;
+    });
+  }, [allPlanRows, planSearch, planOnlyWithServices]);
 
   const subRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -288,15 +309,17 @@ export function AssinaturasPage() {
   useSetPageActions(
     tab === 'subscribers'
       ? [
-          { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setShowSearch((v) => !v) },
-          { key: 'filtros', label: 'Filtrar', icon: <IconFilter size={22} />, onClick: () => setShowFilters((v) => !v) },
+          { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setShowSearch((v) => !v), active: showSearch },
+          { key: 'filtros', label: 'Filtrar', icon: <IconFilter size={22} />, onClick: () => setShowFilters((v) => !v), active: showFilters },
           { key: 'novo', label: 'Novo', icon: <IconPlus size={22} />, onClick: () => setCreateSubOpen(true) },
         ]
       : tab === 'plans'
         ? [
+            { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setShowPlanSearch((v) => !v), active: showPlanSearch },
+            { key: 'filtros', label: 'Filtrar', icon: <IconFilter size={22} />, onClick: () => setShowPlanFilters((v) => !v), active: showPlanFilters },
             {
               key: 'novo-modelo',
-              label: 'Novo modelo',
+              label: 'Novo',
               icon: <IconPlus size={22} />,
               onClick: () => {
                 setEditingPlan(null);
@@ -305,7 +328,7 @@ export function AssinaturasPage() {
             },
           ]
         : [],
-    [tab],
+    [tab, showSearch, showFilters, showPlanSearch, showPlanFilters],
   );
 
   function toggleStatus(s: MembershipStatus, on: boolean) {
@@ -390,8 +413,15 @@ export function AssinaturasPage() {
       {tab === 'subscribers' && (
         <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
           <Card.Content className="p-0 md:p-4">
+            {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
+            <div className="mb-3 md:hidden">
+              <TextField value={search} onChange={setSearch} aria-label="Buscar assinatura">
+                <Input placeholder="Digite para buscar" />
+              </TextField>
+            </div>
+            {/* Desktop: continua toggle via botão Buscar. */}
             {showSearch && (
-              <div className="mb-4 max-w-md">
+              <div className="mb-4 hidden max-w-md md:block">
                 <TextField value={search} onChange={setSearch} aria-label="Buscar assinatura" autoFocus>
                   <Input placeholder="Buscar por cliente, modelo ou código…" />
                 </TextField>
@@ -465,36 +495,38 @@ export function AssinaturasPage() {
               </div>
             )}
 
-            <div className="mb-3 flex items-center justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportSubsCsv}
-                isDisabled={subRows.length === 0}
-              >
-                <IconDownload size={16} /> Exportar CSV
-              </Button>
-            </div>
+            {subRows.length > 0 && (
+              <div className="mb-3 flex items-center justify-end">
+                <Button variant="outline" size="sm" onClick={exportSubsCsv}>
+                  <IconDownload size={16} /> Exportar CSV
+                </Button>
+              </div>
+            )}
 
             {memberships.isLoading ? (
               <LoadingState />
             ) : memberships.isError ? (
               <ErrorState onRetry={() => memberships.refetch()} />
             ) : subRows.length === 0 ? (
-              <EmptyState
-                icon={<IconRepeat size={32} />}
-                title="Nenhum item encontrado"
-                description={
-                  allSubRows.length === 0
-                    ? 'Crie uma assinatura vinculando um cliente a um modelo.'
-                    : 'Verifique seus filtros e tente novamente.'
-                }
-                action={
-                  <Button variant="primary" onClick={() => setCreateSubOpen(true)}>
-                    <IconPlus size={16} /> Nova assinatura
-                  </Button>
-                }
-              />
+              <>
+                <EmptyState
+                  icon={<IconRepeat size={32} />}
+                  title="Nenhum registro"
+                  description={
+                    allSubRows.length === 0
+                      ? 'Crie uma assinatura vinculando um cliente a um modelo.'
+                      : 'Verifique seus filtros e tente novamente.'
+                  }
+                  action={
+                    <Button variant="primary" onClick={() => setCreateSubOpen(true)}>
+                      <IconPlus size={16} /> Nova assinatura
+                    </Button>
+                  }
+                />
+                <div className="mt-2 text-center text-xs text-muted">
+                  {subRows.length} registros no total
+                </div>
+              </>
             ) : (
               <>
                 {/* Desktop / tablet: ant-table style */}
@@ -622,14 +654,39 @@ export function AssinaturasPage() {
       {tab === 'plans' && (
         <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
           <Card.Content className="p-0 md:p-4">
+            {/* Mobile: search sempre visível no topo (padrão Belasis). */}
+            <div className="mb-3 md:hidden">
+              <TextField value={planSearch} onChange={setPlanSearch} aria-label="Buscar modelo">
+                <Input placeholder="Digite para buscar" />
+              </TextField>
+            </div>
+            {/* Desktop: toggle via botão Buscar. */}
+            {showPlanSearch && (
+              <div className="mb-4 hidden max-w-md md:block">
+                <TextField value={planSearch} onChange={setPlanSearch} aria-label="Buscar modelo" autoFocus>
+                  <Input placeholder="Buscar por nome do modelo…" />
+                </TextField>
+              </div>
+            )}
+
+            {showPlanFilters && (
+              <div className="mb-4 rounded-xl border border-[var(--color-soft-border)] bg-white p-4">
+                <span className="mb-2 block text-xs font-semibold text-muted-ink">Filtros</span>
+                <CheckRow checked={planOnlyWithServices} onChange={setPlanOnlyWithServices}>
+                  <span className="text-foreground">Somente modelos com serviços incluídos</span>
+                </CheckRow>
+              </div>
+            )}
+
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">
-                Modelos de assinatura
+                <span className="md:hidden">Modelos</span>
+                <span className="hidden md:inline">Modelos de assinatura</span>
                 <span className="ml-2 text-xs font-normal text-muted">
                   {planRows.length} modelo(s)
                 </span>
               </h3>
-              <Button variant="outline" size="sm" onClick={openCreatePlan}>
+              <Button variant="outline" size="sm" className="hidden md:inline-flex" onClick={openCreatePlan}>
                 <IconPlus size={14} /> Novo modelo
               </Button>
             </div>
@@ -638,11 +695,34 @@ export function AssinaturasPage() {
             ) : plans.isError ? (
               <ErrorState onRetry={() => plans.refetch()} />
             ) : planRows.length === 0 ? (
-              <EmptyState
-                icon={<IconRepeat size={32} />}
-                title="Nenhum modelo de assinatura"
-                description="Crie modelos com serviços incluídos e preço recorrente."
-              />
+              <>
+                <EmptyState
+                  icon={<IconRepeat size={32} />}
+                  title="Nenhum registro"
+                  description="Crie modelos com serviços incluídos e preço recorrente."
+                  action={
+                    <div className="flex flex-col items-center gap-2">
+                      <Button variant="primary" onClick={openCreatePlan}>
+                        <IconPlus size={16} /> Novo modelo
+                      </Button>
+                      <p className="text-xs text-muted">
+                        ou{' '}
+                        <button
+                          type="button"
+                          onClick={openCreatePlan}
+                          className="text-primary underline hover:opacity-80"
+                        >
+                          clique aqui
+                        </button>{' '}
+                        para criar o primeiro
+                      </p>
+                    </div>
+                  }
+                />
+                <div className="mt-2 text-center text-xs text-muted">
+                  {planRows.length} registros no total
+                </div>
+              </>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {planRows.map((p) => (
@@ -655,6 +735,28 @@ export function AssinaturasPage() {
       )}
 
       {tab === 'settings' && <SettingsTab subscribers={allSubRows} plans={planRows} />}
+
+      {/* FAB azul flutuante para "Novo" no mobile (padrão Belasis). */}
+      {tab === 'subscribers' && (
+        <button
+          type="button"
+          aria-label="Nova assinatura"
+          onClick={() => setCreateSubOpen(true)}
+          className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+        >
+          <IconPlus size={22} />
+        </button>
+      )}
+      {tab === 'plans' && (
+        <button
+          type="button"
+          aria-label="Novo modelo"
+          onClick={openCreatePlan}
+          className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+        >
+          <IconPlus size={22} />
+        </button>
+      )}
 
       <PlanDrawer
         isOpen={planDrawerOpen}

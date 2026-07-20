@@ -16,6 +16,14 @@ import {
 } from '../../components/icons';
 import { formatDate, formatMoney } from '../../lib/format';
 import { useSetPageActions } from '../../layout/PageActions';
+import { UpsellModal } from '../../components/UpsellModal';
+
+/**
+ * Flag do módulo fiscal. TODO: ler de tenant.features.nfse quando o backend
+ * multi-tenant expuser as features contratadas. Enquanto isso, deixamos
+ * como constante local para facilitar toggle durante a demo.
+ */
+const NFSE_CONTRATADO = false;
 
 /**
  * Tipos de documento fiscal do Belasis. A aba "Configurações" não filtra:
@@ -309,50 +317,109 @@ export function NotasFiscaisPage() {
         </div>
       )}
 
-      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
-        <Card.Content className="p-0 md:p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs text-muted">Ordenado por emissão</span>
-            <span className="text-xs text-muted">
-              {rows.length > 0
-                ? `${rows.length} nota(s)`
-                : '0 nota(s)'}
-            </span>
-          </div>
-          {rows.length === 0 ? (
-            <EmptyState
-              icon={<IconReceipt size={32} />}
-              title={
-                q || activeFilterCount > 0
-                  ? 'Nenhuma nota encontrada'
-                  : 'Nenhuma nota emitida'
-              }
-              description={
-                q || activeFilterCount > 0
-                  ? 'Ajuste a busca ou os filtros para ver mais notas.'
-                  : `A emissão de ${DOC_LABEL[docType]} exige a integração com o provedor fiscal. Configure a integração para começar a emitir notas.`
-              }
-              action={
-                q || activeFilterCount > 0 ? undefined : (
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate('/financeiro/configuracoes')}
-                  >
-                    <IconSettings size={16} /> Configurações financeiras
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <DataTable
-              columns={columns}
-              rows={rows}
-              getKey={(r) => r.id}
-              aria-label="Notas fiscais"
-            />
-          )}
-        </Card.Content>
-      </Card>
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-xs text-muted">Ordenado por emissão</span>
+        <span className="text-xs text-muted">
+          {rows.length > 0 ? `${rows.length} nota(s)` : '0 nota(s)'}
+        </span>
+      </div>
+
+      {/* Desktop: tabela em Card */}
+      <div className="hidden md:block">
+        <Card>
+          <Card.Content className="p-4">
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={<IconReceipt size={32} />}
+                title={
+                  q || activeFilterCount > 0
+                    ? 'Nenhuma nota encontrada'
+                    : 'Nenhuma nota emitida'
+                }
+                description={
+                  q || activeFilterCount > 0
+                    ? 'Ajuste a busca ou os filtros para ver mais notas.'
+                    : `A emissão de ${DOC_LABEL[docType]} exige a integração com o provedor fiscal. Configure a integração para começar a emitir notas.`
+                }
+                action={
+                  q || activeFilterCount > 0 ? undefined : (
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate('/financeiro/configuracoes')}
+                    >
+                      <IconSettings size={16} /> Configurações financeiras
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <DataTable
+                columns={columns}
+                rows={rows}
+                getKey={(r) => r.id}
+                aria-label="Notas fiscais"
+              />
+            )}
+          </Card.Content>
+        </Card>
+      </div>
+
+      {/* Mobile: sem Card wrapper — empty state ou cards compactos */}
+      <div className="md:hidden">
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={<IconReceipt size={32} />}
+            title={
+              q || activeFilterCount > 0
+                ? 'Nenhuma nota encontrada'
+                : 'Nenhuma nota emitida'
+            }
+            description={
+              q || activeFilterCount > 0
+                ? 'Ajuste a busca ou os filtros para ver mais notas.'
+                : `A emissão de ${DOC_LABEL[docType]} exige a integração com o provedor fiscal. Configure a integração para começar a emitir notas.`
+            }
+            action={
+              q || activeFilterCount > 0 ? undefined : (
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/financeiro/configuracoes')}
+                >
+                  <IconSettings size={16} /> Configurações financeiras
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {rows.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-warm-white px-3 py-2.5"
+                onClick={() => setEditing(r)}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {r.number}
+                    </span>
+                    <Chip variant="soft" color={STATUS_COLOR[r.status]} size="sm">
+                      {STATUS_LABEL[r.status]}
+                    </Chip>
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted">
+                    {DOC_LABEL[r.docType]} · {formatDate(r.issuedAt)} ·{' '}
+                    {r.customer || '—'}
+                  </div>
+                </div>
+                <span className="shrink-0 text-sm font-semibold text-foreground">
+                  {formatMoney(r.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <FilterDrawer
         isOpen={filterOpen}
@@ -376,6 +443,19 @@ export function NotasFiscaisPage() {
           defaultDocType={docType}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {/* Módulo não contratado: modal de upsell bloqueia a rota inteira. */}
+      {!NFSE_CONTRATADO && (
+        <UpsellModal
+          title={`${DOC_TITLE[docType]} — não contratada`}
+          tabs={['NFS-e', 'NFC-e', 'Configurações']}
+          onClose={() => navigate('/financeiro')}
+        >
+          A emissão de notas fiscais (NFS-e, NF-e e NFC-e) não está
+          incluída no seu plano atual. Contrate o módulo fiscal para
+          começar a emitir notas direto pelo SalonPass.
+        </UpsellModal>
       )}
     </div>
   );

@@ -93,6 +93,39 @@ export function PageActionsProvider({ children }: { children: ReactNode }) {
   return <PageActionsContext.Provider value={value}>{children}</PageActionsContext.Provider>;
 }
 
+// ─── Shared Create sheet (BottomNav mobile bottom sheet) ────────────────────
+// The BottomNav owns the bottom-sheet UI; the Sidebar's mobile "Novo +" button
+// reuses the same sheet through this context so both entry points open the
+// exact same "Criar novo" UX from anywhere in the app.
+type CreateSheetContextValue = {
+  open: boolean;
+  openSheet: () => void;
+  closeSheet: () => void;
+};
+
+const CreateSheetContext = createContext<CreateSheetContextValue | null>(null);
+
+export function CreateSheetProvider({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const value = useMemo<CreateSheetContextValue>(
+    () => ({ open, openSheet: () => setOpen(true), closeSheet: () => setOpen(false) }),
+    [open],
+  );
+  return <CreateSheetContext.Provider value={value}>{children}</CreateSheetContext.Provider>;
+}
+
+export function useCreateSheet(): CreateSheetContextValue {
+  // Fall back to a no-op so components that render outside DashboardLayout
+  // (e.g. isolated tests) don't crash — the sheet just won't open.
+  return (
+    useContext(CreateSheetContext) ?? {
+      open: false,
+      openSheet: () => {},
+      closeSheet: () => {},
+    }
+  );
+}
+
 /** Consumed by the BottomNav to know what to render. */
 export function usePageActions(): PageAction[] {
   return useContext(PageActionsContext)?.actions ?? [];

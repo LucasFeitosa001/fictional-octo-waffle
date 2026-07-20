@@ -4,6 +4,7 @@ import { Drawer } from '../../components/Drawer';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/States';
 import {
+  IconCheck,
   IconChevron,
   IconDownload,
   IconFilter,
@@ -101,13 +102,19 @@ export function AnamnesesPage() {
 
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<AnamnesisTemplate | null>(null);
   useAutoCreate(() => setCreateOpen(true));
+
+  // Ao sair do modo Selecionar, limpa a seleção (padrão Belasis).
+  useEffect(() => {
+    if (!selectMode) setSelected(new Set());
+  }, [selectMode]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -209,39 +216,33 @@ export function AnamnesesPage() {
     );
   }
 
-  // Mobile: as mesmas ações do header (Buscar / Filtrar / Exportar / Criar)
-  // vivem na BottomNav inferior (padrão Belasis). Cada onClick dispara o
-  // mesmo handler do botão desktop — os setters são estáveis, então só
-  // `rows.length` (que controla o disabled do Exportar) entra nas deps.
+  // Mobile: BottomNav = [Filtros, Selecionar, Novo] (padrão Belasis).
+  // A busca fica sempre visível no topo (input) — sem ação "Buscar" aqui.
+  // "Selecionar" habilita checkbox nos cards; "Filtros" abre bottom-sheet.
   useSetPageActions(
     [
       {
-        key: 'buscar',
-        label: 'Buscar',
-        icon: <IconSearch size={22} />,
-        onClick: () => setShowSearch((v) => !v),
-      },
-      {
         key: 'filtros',
-        label: 'Filtrar',
+        label: 'Filtros',
         icon: <IconFilter size={22} />,
-        onClick: () => setShowFilters((v) => !v),
+        onClick: () => setShowFilters(true),
+        active: showFilters,
       },
       {
-        key: 'exportar',
-        label: 'Exportar',
-        icon: <IconDownload size={22} />,
-        onClick: exportCsv,
-        disabled: rows.length === 0,
+        key: 'selecionar',
+        label: 'Selecionar',
+        icon: <IconCheck size={22} />,
+        onClick: () => setSelectMode((v) => !v),
+        active: selectMode,
       },
       {
-        key: 'criar',
-        label: 'Criar',
+        key: 'novo',
+        label: 'Novo',
         icon: <IconPlus size={22} />,
         onClick: () => setCreateOpen(true),
       },
     ],
-    [rows.length],
+    [showFilters, selectMode],
   );
 
   return (
@@ -271,204 +272,277 @@ export function AnamnesesPage() {
         </div>
       </header>
 
-      {/* ── Campo de busca (revelado pelo botão Buscar) ── */}
-      {showSearch && (
-        <div className="mb-4">
-          <TextField
-            value={search}
-            onChange={(v) => {
-              setSearch(v);
-              setPage(1);
-            }}
-            className="w-full max-w-sm"
-            aria-label="Buscar modelo de anamnese"
+      {/* ── Campo de busca ── Mobile: sempre visível ("Digite para buscar"),
+          padrão Belasis. Desktop: revelado pelo botão "Buscar" da toolbar. */}
+      <div className={showSearch ? 'mb-4' : 'mb-4 md:hidden'}>
+        <TextField
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          aria-label="Buscar modelo de anamnese"
+        >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-ink">
+              <IconSearch size={16} />
+            </span>
+            <Input placeholder="Digite para buscar" className="pl-9" />
+          </div>
+        </TextField>
+      </div>
+
+      {/* Barra de seleção — some sem itens marcados. */}
+      {selectedCount > 0 && (
+        <div
+          className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm text-foreground"
+          style={{ background: primaryTint(8) }}
+        >
+          <span>{selectedCount} selecionado(s)</span>
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline"
           >
-            <Input
-              placeholder="Digite para buscar…"
-              className="focus:border-gold focus:ring-2 focus:ring-gold/25"
-            />
-          </TextField>
+            <IconTrash size={14} /> Excluir
+          </button>
         </div>
       )}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* ── Rail de filtros (Status) ── */}
-        {showFilters && (
-          <aside className="w-full shrink-0 rounded-2xl border border-line bg-card p-4 lg:w-60">
-            <FilterGroup title="Status">
-              <CheckRow
-                label="Todos"
-                checked={statusFilter === 'all'}
-                onChange={() => {
-                  setStatusFilter('all');
-                  setPage(1);
-                }}
-              />
-              <CheckRow
-                label="Ativos"
-                checked={statusFilter === 'active'}
-                onChange={() => {
-                  setStatusFilter('active');
-                  setPage(1);
-                }}
-              />
-              <CheckRow
-                label="Inativos"
-                checked={statusFilter === 'inactive'}
-                onChange={() => {
-                  setStatusFilter('inactive');
-                  setPage(1);
-                }}
-              />
-            </FilterGroup>
-
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="mt-3 text-xs font-medium text-gold hover:underline"
-              >
-                Limpar filtros
-              </button>
-            )}
-          </aside>
-        )}
-
-        {/* ── Conteúdo (tabela desktop / cards mobile + paginação) ── */}
-        <div className="min-w-0 flex-1">
-          {selectedCount > 0 && (
-            <div
-              className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm text-foreground"
-              style={{ background: primaryTint(8) }}
-            >
-              <span>{selectedCount} selecionado(s)</span>
-              <button
-                type="button"
-                onClick={handleBulkDelete}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline"
-              >
-                <IconTrash size={14} /> Excluir
-              </button>
-            </div>
-          )}
-
-          {rows.length === 0 ? (
-            <EmptyState
-              icon={<IconMessage size={32} />}
-              title={hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum modelo de anamnese'}
-              description={
-                hasFilters
-                  ? 'Verifique seus filtros e tente novamente.'
-                  : 'Crie modelos de ficha com perguntas para usar no atendimento.'
-              }
-              action={
-                hasFilters ? undefined : (
-                  <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                    <IconPlus size={16} /> Clique para criar
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <>
-              {/* Desktop: tabela antd-like */}
-              <div className="hidden overflow-hidden rounded-2xl border border-line bg-card sm:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                      <th className="w-10 px-3 py-3">
-                        <Check checked={allChecked} onChange={toggleSelectAll} />
-                      </th>
-                      <th className="px-3 py-3 font-semibold">Nome</th>
-                      <th className="px-3 py-3 font-semibold">Descrição</th>
-                      <th className="px-3 py-3 font-semibold">Perguntas</th>
-                      <th className="px-3 py-3 font-semibold">Status</th>
-                      <th className="px-3 py-3 font-semibold">Criado em</th>
-                      <th className="w-24 px-3 py-3" />
+      {/* ── DESKTOP: tabela antd-like + paginação ── */}
+      <div className="hidden md:block">
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={<IconMessage size={32} />}
+            title={hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum modelo de anamnese'}
+            description={
+              hasFilters
+                ? 'Verifique seus filtros e tente novamente.'
+                : 'Crie modelos de ficha com perguntas para usar no atendimento.'
+            }
+            action={
+              hasFilters ? undefined : (
+                <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                  <IconPlus size={16} /> Clique para criar
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <>
+            <div className="overflow-hidden rounded-2xl border border-line bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                    <th className="w-10 px-3 py-3">
+                      <Check checked={allChecked} onChange={toggleSelectAll} />
+                    </th>
+                    <th className="px-3 py-3 font-semibold">Nome</th>
+                    <th className="px-3 py-3 font-semibold">Descrição</th>
+                    <th className="px-3 py-3 font-semibold">Perguntas</th>
+                    <th className="px-3 py-3 font-semibold">Status</th>
+                    <th className="px-3 py-3 font-semibold">Criado em</th>
+                    <th className="w-24 px-3 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((t) => (
+                    <tr
+                      key={t.id}
+                      className="border-b border-line last:border-0 transition-colors hover:bg-canvas"
+                    >
+                      <td className="px-3 py-2.5">
+                        <Check
+                          checked={selected.has(t.id)}
+                          onChange={() => toggleSelected(t.id)}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(t)}
+                          className="truncate text-left font-medium text-foreground hover:text-gold"
+                        >
+                          {t.name}
+                        </button>
+                      </td>
+                      <td className="max-w-xs px-3 py-2.5 text-muted-ink">
+                        <span className="line-clamp-1">{t.description || '—'}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span
+                          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-gold-strong"
+                          style={{ background: primaryTint(12) }}
+                        >
+                          {t.questions.length}{' '}
+                          {t.questions.length === 1 ? 'pergunta' : 'perguntas'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusBadge active={t.active} />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-muted-ink">
+                        {formatDate(t.createdAt)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <RowActions
+                          onEdit={() => setEditing(t)}
+                          onDelete={() => handleDelete(t)}
+                        />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {pageRows.map((t) => (
-                      <tr
-                        key={t.id}
-                        className="border-b border-line last:border-0 transition-colors hover:bg-canvas"
-                      >
-                        <td className="px-3 py-2.5">
-                          <Check
-                            checked={selected.has(t.id)}
-                            onChange={() => toggleSelected(t.id)}
-                          />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <button
-                            type="button"
-                            onClick={() => setEditing(t)}
-                            className="truncate text-left font-medium text-foreground hover:text-gold"
-                          >
-                            {t.name}
-                          </button>
-                        </td>
-                        <td className="max-w-xs px-3 py-2.5 text-muted-ink">
-                          <span className="line-clamp-1">{t.description || '—'}</span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span
-                            className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-gold-strong"
-                            style={{ background: primaryTint(12) }}
-                          >
-                            {t.questions.length}{' '}
-                            {t.questions.length === 1 ? 'pergunta' : 'perguntas'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <StatusBadge active={t.active} />
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-muted-ink">
-                          {formatDate(t.createdAt)}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <RowActions
-                            onEdit={() => setEditing(t)}
-                            onDelete={() => handleDelete(t)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination total={rows.length} page={page} pageCount={pageCount} onPage={setPage} />
+          </>
+        )}
+      </div>
 
-              {/* Mobile: cards */}
-              <ul className="flex flex-col gap-2 sm:hidden">
-                {pageRows.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex items-center gap-3 rounded-2xl border border-line bg-card p-3"
-                  >
-                    <Check checked={selected.has(t.id)} onChange={() => toggleSelected(t.id)} />
+      {/* ── MOBILE: cards compactos (~70-80px, 2 linhas) sem wrapper Card ──
+          Sem checkbox fixo — só aparece em selectMode (BottomNav → Selecionar).
+          Toque abre edição fora do selectMode; dentro dele, marca/desmarca. */}
+      <div className="md:hidden">
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={<IconMessage size={32} />}
+            title={hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum modelo de anamnese'}
+            description={
+              hasFilters
+                ? 'Verifique seus filtros e tente novamente.'
+                : 'Crie modelos de ficha com perguntas para usar no atendimento.'
+            }
+            action={
+              hasFilters ? undefined : (
+                <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                  <IconPlus size={16} /> Clique para criar
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <>
+            <ul className="flex flex-col gap-2">
+              {pageRows.map((t) => {
+                const isSelected = selected.has(t.id);
+                const onCardClick = () => {
+                  if (selectMode) toggleSelected(t.id);
+                  else setEditing(t);
+                };
+                return (
+                  <li key={t.id}>
                     <button
                       type="button"
-                      onClick={() => setEditing(t)}
-                      className="min-w-0 flex-1 text-left"
+                      onClick={onCardClick}
+                      className={[
+                        'flex w-full items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        isSelected
+                          ? 'border-[var(--sp-primary)]'
+                          : 'border-line active:bg-canvas',
+                      ].join(' ')}
+                      style={
+                        isSelected ? { background: primaryTint(5) } : undefined
+                      }
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate font-medium text-foreground">{t.name}</span>
-                        <StatusBadge active={t.active} />
-                      </div>
-                      <div className="mt-0.5 flex items-center justify-between gap-2 text-sm text-muted-ink">
-                        <span className="truncate">{t.description || '—'}</span>
-                        <span className="shrink-0">{t.questions.length} perg.</span>
+                      {selectMode && (
+                        <span
+                          aria-hidden
+                          className={[
+                            'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors',
+                            isSelected
+                              ? 'border-[var(--sp-primary)] bg-[var(--sp-primary)] text-white'
+                              : 'border-line bg-card',
+                          ].join(' ')}
+                        >
+                          {isSelected && <IconCheck size={13} />}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[13px] font-semibold leading-5 text-foreground">
+                            {t.name}
+                          </span>
+                          <StatusBadge active={t.active} />
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] text-muted-ink">
+                          <span className="truncate">{t.description || '—'}</span>
+                          <span className="shrink-0">{t.questions.length} perg.</span>
+                        </div>
                       </div>
                     </button>
                   </li>
-                ))}
-              </ul>
-
-              <Pagination total={rows.length} page={page} pageCount={pageCount} onPage={setPage} />
-            </>
-          )}
-        </div>
+                );
+              })}
+            </ul>
+            {/* Mobile: "Ver mais" — avança para a próxima página (padrão Belasis). */}
+            {page < pageCount && (
+              <div className="mt-3">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                >
+                  Ver mais
+                </Button>
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Filtrar: Drawer (bottom-sheet no mobile, direita no desktop). */}
+      <Drawer
+        isOpen={showFilters}
+        onClose={() => setShowFilters(false)}
+        title="Filtros"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              className="mr-auto text-muted-ink"
+              onClick={() => {
+                resetFilters();
+              }}
+              isDisabled={!hasFilters}
+            >
+              Limpar
+            </Button>
+            <Button variant="primary" onClick={() => setShowFilters(false)}>
+              Aplicar
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <FilterGroup title="Status">
+            <CheckRow
+              label="Todos"
+              checked={statusFilter === 'all'}
+              onChange={() => {
+                setStatusFilter('all');
+                setPage(1);
+              }}
+            />
+            <CheckRow
+              label="Ativos"
+              checked={statusFilter === 'active'}
+              onChange={() => {
+                setStatusFilter('active');
+                setPage(1);
+              }}
+            />
+            <CheckRow
+              label="Inativos"
+              checked={statusFilter === 'inactive'}
+              onChange={() => {
+                setStatusFilter('inactive');
+                setPage(1);
+              }}
+            />
+          </FilterGroup>
+        </div>
+      </Drawer>
 
       <AnamneseDrawer
         mode="create"

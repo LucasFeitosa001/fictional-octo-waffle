@@ -204,9 +204,26 @@ export function PacotesPredefinidosPage() {
         </div>
       )}
 
-      {/* Barra de busca (toggle) */}
+      {/* Mobile: search sempre visível no topo */}
+      <div className="mb-3 md:hidden">
+        <TextField
+          value={searchInput}
+          onChange={(v) => {
+            setSearchInput(v);
+            setSearch(v.trim());
+          }}
+          aria-label="Buscar pacote"
+        >
+          <Input
+            placeholder="Digite para buscar"
+            className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+          />
+        </TextField>
+      </div>
+
+      {/* Desktop: barra de busca (toggle) */}
       {searchOpen && (
-        <div className="mb-4 flex max-w-xl items-center gap-2">
+        <div className="mb-4 hidden max-w-xl items-center gap-2 md:flex">
           <TextField
             value={searchInput}
             onChange={setSearchInput}
@@ -398,27 +415,27 @@ export function PacotesPredefinidosPage() {
                 </table>
               </div>
 
-              {/* ===== Mobile: cards ===== */}
+              {/* ===== Mobile: cards compactos 2-linhas ===== */}
               <ul className="flex flex-col gap-2 md:hidden">
                 {paged.map((t) => (
                   <li
                     key={t.id}
-                    className="rounded-xl border border-line bg-card p-3 shadow-[var(--shadow-card)]"
+                    className="rounded-xl border border-line bg-card shadow-[var(--shadow-card)]"
                   >
                     <button
                       type="button"
                       onClick={() => setEditing(t)}
-                      className="flex w-full items-center gap-3 text-left"
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
                     >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
-                        <IconLayers size={18} />
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
+                        <IconLayers size={16} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <span className="block min-w-0 truncate font-medium text-ink">
+                        <span className="block min-w-0 truncate text-sm font-medium text-ink">
                           {t.name}
                         </span>
                         <span className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-ink">
-                          <span>
+                          <span className="truncate">
                             {itemsLabel(t.items.length)}
                             {!t.active && ' • Inativo'}
                           </span>
@@ -426,26 +443,6 @@ export function PacotesPredefinidosPage() {
                         </span>
                       </div>
                     </button>
-                    <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-line/60 pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label="Editar"
-                        onClick={() => setEditing(t)}
-                      >
-                        <IconPencil size={14} /> Editar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label="Remover"
-                        className="text-danger"
-                        isDisabled={deleteTemplate.isPending}
-                        onClick={() => handleDelete(t)}
-                      >
-                        <IconTrash size={14} />
-                      </Button>
-                    </div>
                   </li>
                 ))}
               </ul>

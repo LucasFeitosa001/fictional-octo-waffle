@@ -20,6 +20,8 @@ import { AssinaturasPage } from './pages/AssinaturasPage';
 import { FinanceiroPainelPage } from './pages/financeiro/FinanceiroPainelPage';
 import { TransacoesPage } from './pages/financeiro/TransacoesPage';
 import { ContasPage } from './pages/financeiro/ContasPage';
+import { FinanceiroCategoriasPage } from './pages/financeiro/FinanceiroCategoriasPage';
+import { BelasisPayCadastroPage } from './pages/financeiro/BelasisPayCadastroPage';
 import { CaixasAbertosPage } from './pages/financeiro/CaixasAbertosPage';
 import { CaixaHistoricoPage } from './pages/financeiro/CaixaHistoricoPage';
 import { NotasFiscaisPage } from './pages/financeiro/NotasFiscaisPage';
@@ -55,6 +57,9 @@ import { AvaliacoesPage } from './pages/marketing/AvaliacoesPage';
 import { CashbackPage } from './pages/marketing/CashbackPage';
 import { IAAtendimentoPage } from './pages/ia/IAAtendimentoPage';
 import { PerfilPage } from './pages/PerfilPage';
+import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
+import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
+import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
 
 function FullScreenSpinner() {
   return (
@@ -90,15 +95,25 @@ function ProtectedRoutes() {
         <Route path="/fornecedores" element={<FornecedoresPage />} />
         <Route path="/pacotes" element={<PacotesPage />} />
         <Route path="/assinaturas" element={<AssinaturasPage />} />
+        <Route path="/vendas-por-assinatura" element={<AssinaturasPage />} />
         <Route path="/financeiro" element={<FinanceiroPainelPage />} />
         <Route path="/financeiro/transacoes" element={<TransacoesPage />} />
         <Route path="/financeiro/contas" element={<ContasPage />} />
         <Route path="/financeiro/caixas" element={<CaixasAbertosPage />} />
+        <Route path="/financeiro/caixas-abertos" element={<CaixasAbertosPage />} />
         <Route path="/financeiro/caixas/historico" element={<CaixaHistoricoPage />} />
         <Route path="/financeiro/notas-fiscais" element={<NotasFiscaisPage />} />
         <Route path="/financeiro/configuracoes" element={<FinanceiroConfiguracoesPage />} />
+        <Route path="/financeiro/cadastros/categorias" element={<FinanceiroCategoriasPage />} />
+        <Route path="/financeiro/cadastros/formas-pagamento" element={<ContasPage defaultTab="formas" />} />
+        <Route path="/financeiro/cadastros/contas" element={<ContasPage defaultTab="contas" />} />
+        <Route path="/financeiro/belasis-pay" element={<BelasisPayCadastroPage />} />
+        <Route path="/financeiro/historico-caixa" element={<CaixaHistoricoPage />} />
+        <Route path="/financeiro/caixas-abertos/:id" element={<CaixasAbertosPage />} />
         <Route path="/caixa" element={<CaixaPage />} />
         <Route path="/comissoes" element={<ComissoesResumoPage />} />
+        <Route path="/comissoes/resumo" element={<ComissoesResumoPage />} />
+        <Route path="/comissoes/em-aberto" element={<ComissoesResumoPage />} />
         <Route path="/comissoes/pagas" element={<ComissoesResumoPage />} />
         <Route path="/comissoes/config" element={<ComissoesConfigPage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
@@ -127,6 +142,10 @@ function ProtectedRoutes() {
         <Route path="/ajuda/novidades" element={<AjudaPage />} />
         <Route path="/indique" element={<IndiquePage />} />
         <Route path="/perfil" element={<PerfilPage />} />
+        <Route path="/perfil/adicionais" element={<PerfilAdicionaisPage />} />
+        <Route path="/notificacoes" element={<NotificacoesCategoriasPage />} />
+        <Route path="/notificacoes/:tipo" element={<NotificacoesDetalhePage />} />
+        <Route path="/indique-e-ganhe" element={<div className="p-6"><h1 className="text-2xl font-bold">Indique e ganhe</h1><p className="mt-2 text-muted-ink">Em breve.</p></div>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </DashboardLayout>

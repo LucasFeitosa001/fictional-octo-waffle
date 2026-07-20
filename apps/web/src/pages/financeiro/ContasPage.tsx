@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Card, Chip, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { DataTable, type Column } from '../../components/DataTable';
-import { EmptyState, LoadingState } from '../../components/States';
+import { EmptyState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { HelpTooltip } from '../../components/HelpTooltip';
@@ -43,6 +44,9 @@ import { useSetPageActions } from '../../layout/PageActions';
 
 const PAGE_SIZE = 20;
 
+const CARD_CLASS =
+  'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
+
 const ACCOUNT_TYPE_LABEL: Record<FinancialAccountType, string> = {
   cash: 'Caixa',
   bank: 'Banco',
@@ -58,10 +62,56 @@ type TabKey = 'contas' | 'formas' | 'categorias';
 // Abas do Belasis (Contas · Formas de pagamento · Categorias). No mobile o
 // Belasis empilha ícone acima do rótulo (bank/dollar/profile → wallet/dollar/
 // layers); no desktop mantém underline de texto puro.
-const TABS: { id: TabKey; label: string; icon: React.ReactNode }[] = [
+const TABS: { id: TabKey; label: string; shortLabel?: string; icon: React.ReactNode }[] = [
   { id: 'contas', label: 'Contas', icon: <IconWallet size={20} /> },
-  { id: 'formas', label: 'Formas de pagamento', icon: <IconDollar size={20} /> },
+  {
+    id: 'formas',
+    label: 'Formas de pagamento',
+    shortLabel: 'Formas pgto.',
+    icon: <IconDollar size={20} />,
+  },
   { id: 'categorias', label: 'Categorias', icon: <IconLayers size={20} /> },
+];
+
+// Belasis mostra por padrão essas formas mesmo em contas novas sem dados.
+// Mock local: só aparece se o backend do SalonPass não devolver nada.
+const DEFAULT_METHODS: PaymentMethod[] = [
+  {
+    id: 'seed-dinheiro',
+    name: 'Dinheiro',
+    companyId: '',
+    feePercent: '0',
+    settlementDays: 0,
+    defaultAccountId: null,
+    goesToCash: true,
+  },
+  {
+    id: 'seed-pix',
+    name: 'Pix',
+    companyId: '',
+    feePercent: '0',
+    settlementDays: 0,
+    defaultAccountId: null,
+    goesToCash: true,
+  },
+  {
+    id: 'seed-credito',
+    name: 'Cartão de Crédito',
+    companyId: '',
+    feePercent: '0',
+    settlementDays: 30,
+    defaultAccountId: null,
+    goesToCash: false,
+  },
+  {
+    id: 'seed-debito',
+    name: 'Cartão de Débito',
+    companyId: '',
+    feePercent: '0',
+    settlementDays: 1,
+    defaultAccountId: null,
+    goesToCash: false,
+  },
 ];
 
 function byName<T extends { name: string }>(a: T, b: T) {
@@ -107,8 +157,93 @@ function RowActions({
   );
 }
 
-export function ContasPage() {
-  const [tab, setTab] = useState<TabKey>('contas');
+/**
+ * Card mobile 2 linhas: dot de status + nome/subtítulo + ações lápis/lixeira.
+ * Substitui a DataTable no mobile — segue o padrão validado em ComandasPage.
+ */
+function MobileRowCard({
+  active,
+  name,
+  subtitle,
+  onEdit,
+  onRemove,
+  removing,
+  dim,
+}: {
+  active: boolean;
+  name: string;
+  subtitle: string;
+  onEdit: () => void;
+  onRemove: () => void;
+  removing?: boolean;
+  dim?: boolean;
+}) {
+  return (
+    <li className="flex items-center gap-3 border-b border-[var(--color-soft-border)] px-3 py-3 last:border-b-0">
+      <span
+        aria-hidden
+        className={
+          'h-2.5 w-2.5 shrink-0 rounded-full ' +
+          (active ? 'bg-emerald-500' : 'bg-gray-300')
+        }
+      />
+      <div className="min-w-0 flex-1">
+        <div
+          className={
+            'truncate text-sm font-medium ' + (dim ? 'text-muted' : 'text-foreground')
+          }
+        >
+          {name}
+        </div>
+        <div className="truncate text-xs text-muted">{subtitle}</div>
+      </div>
+      <RowActions onEdit={onEdit} onRemove={onRemove} removing={removing} />
+    </li>
+  );
+}
+
+function MobileSkeletonList() {
+  return (
+    <ul className="md:hidden">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <li
+          key={i}
+          className="flex items-center gap-3 border-b border-[var(--color-soft-border)] px-3 py-3 last:border-b-0"
+        >
+          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-gray-200" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3 w-40 animate-pulse rounded bg-gray-200" />
+            <div className="h-2.5 w-24 animate-pulse rounded bg-gray-200" />
+          </div>
+          <div className="h-6 w-16 animate-pulse rounded bg-gray-200" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
+  // Sincroniza aba com querystring (?tab=contas|formas|categorias) para
+  // deep-link e "voltar" preservar contexto. Se veio via rota dedicada
+  // (defaultTab prop) e não há ?tab= na URL, aplica o defaultTab e sincroniza
+  // o querystring para manter consistência de deep-link.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = ((): TabKey => {
+    const t = searchParams.get('tab');
+    if (t === 'formas' || t === 'categorias' || t === 'contas') return t;
+    return defaultTab ?? 'contas';
+  })();
+  const [tab, setTab] = useState<TabKey>(initialTab);
+
+  useEffect(() => {
+    if (defaultTab && !searchParams.get('tab')) {
+      const nextParams = new URLSearchParams(searchParams);
+      if (defaultTab === 'contas') nextParams.delete('tab');
+      else nextParams.set('tab', defaultTab);
+      setSearchParams(nextParams, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [page, setPage] = useState(1);
 
   // Toolbar do Belasis: Buscar (input revelado) · Filtrar (drawer lateral) · Novo.
@@ -137,7 +272,10 @@ export function ContasPage() {
   const categories = useFinancialCategories();
 
   const allAccounts = accounts.data ?? [];
-  const allMethods = methods.data ?? [];
+  const fetchedMethods = methods.data ?? [];
+  // Empresa nova sem formas cadastradas: mostrar seed default (Belasis-like).
+  const allMethods =
+    !methods.isLoading && fetchedMethods.length === 0 ? DEFAULT_METHODS : fetchedMethods;
   const allCategories = categories.data ?? [];
 
   const accountNameById = useMemo(() => {
@@ -428,13 +566,6 @@ export function ContasPage() {
   const pageMethods = filteredMethods.slice(pageStart, pageStart + PAGE_SIZE);
   const pageCategories = filteredCategories.slice(pageStart, pageStart + PAGE_SIZE);
 
-  const searchPlaceholder =
-    tab === 'contas'
-      ? 'Buscar conta…'
-      : tab === 'formas'
-        ? 'Buscar forma de pagamento…'
-        : 'Buscar categoria…';
-
   // Belasis rotula o botão de criação sempre como "Novo" (independente da aba).
   const newLabel = 'Novo';
 
@@ -445,6 +576,10 @@ export function ContasPage() {
   function changeTab(next: TabKey) {
     setTab(next);
     setSearch('');
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === 'contas') nextParams.delete('tab');
+    else nextParams.set('tab', next);
+    setSearchParams(nextParams, { replace: true });
   }
 
   // Mobile: BottomNav do Belasis = Filtros · Criar (Menu/Selecionar vêm do
@@ -541,7 +676,8 @@ export function ContasPage() {
               <span className="md:hidden" aria-hidden>
                 {t.icon}
               </span>
-              {t.label}
+              <span className="md:hidden">{t.shortLabel ?? t.label}</span>
+              <span className="hidden md:inline">{t.label}</span>
             </button>
           );
         })}
@@ -554,7 +690,7 @@ export function ContasPage() {
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
               <IconSearch size={16} />
             </span>
-            <Input placeholder={searchPlaceholder} className="pl-9" />
+            <Input placeholder="Digite para buscar" className="pl-9" />
           </div>
         </TextField>
       </div>
@@ -565,100 +701,236 @@ export function ContasPage() {
         onClick={() => setSortAsc((v) => !v)}
         className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[color:var(--sp-primary,#505afb)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 md:hidden"
       >
-        Ordenando por Nome
+        Ordenado por Nome
         <IconChevron size={16} className={sortAsc ? 'rotate-180' : ''} />
       </button>
 
-      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
-        <Card.Content className="p-0 md:p-4">
-          {tab === 'contas' &&
-            (isLoading ? (
-              <LoadingState />
-            ) : filteredAccounts.length === 0 ? (
-              <EmptyState
-                icon={<IconFolder size={32} />}
-                title="Nenhuma conta encontrada"
-                description="Cadastre caixa ou contas bancárias para registrar movimentações."
-              />
-            ) : (
-              <DataTable
-                aria-label="Contas financeiras"
-                columns={accountColumns}
-                rows={pageAccounts}
-                getKey={(a) => a.id}
-              />
-            ))}
+      {/* DESKTOP: Card + DataTable + paginação — mantém wrapper cor creme */}
+      <div className="hidden md:block">
+        <Card className={CARD_CLASS}>
+          <Card.Content className="p-4">
+            {tab === 'contas' &&
+              (isLoading ? (
+                <MobileSkeletonList />
+              ) : filteredAccounts.length === 0 ? (
+                <EmptyState
+                  icon={<IconFolder size={32} />}
+                  title="Nenhuma conta encontrada"
+                  description="Cadastre caixa ou contas bancárias para registrar movimentações."
+                />
+              ) : (
+                <DataTable
+                  aria-label="Contas financeiras"
+                  columns={accountColumns}
+                  rows={pageAccounts}
+                  getKey={(a) => a.id}
+                />
+              ))}
 
-          {tab === 'formas' &&
-            (isLoading ? (
-              <LoadingState />
-            ) : filteredMethods.length === 0 ? (
-              <EmptyState
-                icon={<IconCreditCard size={32} />}
-                title="Nenhuma forma de pagamento"
-                description="Cadastre dinheiro, pix, crédito ou débito com taxa e prazo de recebimento."
-              />
-            ) : (
-              <DataTable
-                aria-label="Formas de pagamento"
-                columns={methodColumns}
-                rows={pageMethods}
-                getKey={(m) => m.id}
-              />
-            ))}
+            {tab === 'formas' &&
+              (isLoading ? (
+                <MobileSkeletonList />
+              ) : filteredMethods.length === 0 ? (
+                <EmptyState
+                  icon={<IconCreditCard size={32} />}
+                  title="Nenhuma forma de pagamento"
+                  description="Cadastre dinheiro, pix, crédito ou débito com taxa e prazo de recebimento."
+                />
+              ) : (
+                <DataTable
+                  aria-label="Formas de pagamento"
+                  columns={methodColumns}
+                  rows={pageMethods}
+                  getKey={(m) => m.id}
+                />
+              ))}
 
-          {tab === 'categorias' &&
-            (isLoading ? (
-              <LoadingState />
-            ) : filteredCategories.length === 0 ? (
-              <EmptyState
-                icon={<IconFolder size={32} />}
-                title="Nenhuma categoria encontrada"
-                description="Organize o plano de contas por categoria de crédito e débito."
-              />
-            ) : (
-              <DataTable
-                aria-label="Categorias financeiras"
-                columns={categoryColumns}
-                rows={pageCategories}
-                getKey={(c) => c.id}
-              />
-            ))}
+            {tab === 'categorias' &&
+              (isLoading ? (
+                <MobileSkeletonList />
+              ) : filteredCategories.length === 0 ? (
+                <EmptyState
+                  icon={<IconFolder size={32} />}
+                  title="Nenhuma categoria encontrada"
+                  description="Organize o plano de contas por categoria de crédito e débito."
+                />
+              ) : (
+                <DataTable
+                  aria-label="Categorias financeiras"
+                  columns={categoryColumns}
+                  rows={pageCategories}
+                  getKey={(c) => c.id}
+                />
+              ))}
 
-          {/* Paginação do Belasis: "X no total" + prev/next + 20 / página. */}
-          {rowCount > 0 && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
-              <span className="text-xs text-muted">{rowCount} no total</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Página anterior"
-                  isDisabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <IconChevron size={14} className="rotate-90" />
-                </Button>
-                <span className="px-1 text-xs text-muted">
-                  Página {page} de {pageCount}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Próxima página"
-                  isDisabled={page >= pageCount}
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                >
-                  <IconChevron size={14} className="-rotate-90" />
-                </Button>
-                <span className="ml-1 hidden text-xs text-muted sm:inline">
-                  {PAGE_SIZE} / página
-                </span>
+            {/* Paginação do Belasis: "X no total" + prev/next + 20 / página. */}
+            {rowCount > 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
+                <span className="text-xs text-muted">{rowCount} registros no total</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Página anterior"
+                    isDisabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <IconChevron size={14} className="rotate-90" />
+                  </Button>
+                  <span className="px-1 text-xs text-muted">
+                    Página {page} de {pageCount}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Próxima página"
+                    isDisabled={page >= pageCount}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    <IconChevron size={14} className="-rotate-90" />
+                  </Button>
+                  <span className="ml-1 hidden text-xs text-muted sm:inline">
+                    {PAGE_SIZE} / página
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
-        </Card.Content>
-      </Card>
+            )}
+          </Card.Content>
+        </Card>
+      </div>
+
+      {/* MOBILE: lista direto no fluxo, SEM Card wrapper (regra do projeto) */}
+      <div className="md:hidden">
+        {tab === 'contas' &&
+          (isLoading ? (
+            <MobileSkeletonList />
+          ) : filteredAccounts.length === 0 ? (
+            <EmptyState
+              icon={<IconFolder size={32} />}
+              title="Nenhuma conta encontrada"
+              description="Cadastre caixa ou contas bancárias para registrar movimentações."
+            />
+          ) : (
+            <>
+              <ul>
+                {pageAccounts.map((a) => (
+                  <MobileRowCard
+                    key={a.id}
+                    active={a.active}
+                    dim={!a.active}
+                    name={a.name}
+                    subtitle={ACCOUNT_TYPE_LABEL[a.type]}
+                    onEdit={() => {
+                      setEditingAccount(a);
+                      setAccountDrawer(true);
+                    }}
+                    onRemove={() => removeAccount(a)}
+                    removing={delAccount.isPending}
+                  />
+                ))}
+              </ul>
+              {rowCount > 0 && page < pageCount && (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    Ver mais
+                  </Button>
+                </div>
+              )}
+            </>
+          ))}
+
+        {tab === 'formas' &&
+          (isLoading ? (
+            <MobileSkeletonList />
+          ) : filteredMethods.length === 0 ? (
+            <EmptyState
+              icon={<IconCreditCard size={32} />}
+              title="Nenhuma forma de pagamento"
+              description="Cadastre dinheiro, pix, crédito ou débito com taxa e prazo de recebimento."
+            />
+          ) : (
+            <>
+              <ul>
+                {pageMethods.map((m) => {
+                  const fee = `${Number(m.feePercent).toFixed(2)}%`;
+                  const prazo =
+                    m.settlementDays > 0 ? `${m.settlementDays} dia(s)` : 'À vista';
+                  return (
+                    <MobileRowCard
+                      key={m.id}
+                      active
+                      name={m.name}
+                      subtitle={`Taxa ${fee} · ${prazo}`}
+                      onEdit={() => {
+                        setEditingMethod(m);
+                        setMethodDrawer(true);
+                      }}
+                      onRemove={() => removeMethod(m)}
+                      removing={delMethod.isPending}
+                    />
+                  );
+                })}
+              </ul>
+              {rowCount > 0 && page < pageCount && (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    Ver mais
+                  </Button>
+                </div>
+              )}
+            </>
+          ))}
+
+        {tab === 'categorias' &&
+          (isLoading ? (
+            <MobileSkeletonList />
+          ) : filteredCategories.length === 0 ? (
+            <EmptyState
+              icon={<IconFolder size={32} />}
+              title="Nenhuma categoria encontrada"
+              description="Organize o plano de contas por categoria de crédito e débito."
+            />
+          ) : (
+            <>
+              <ul>
+                {pageCategories.map((c) => (
+                  <MobileRowCard
+                    key={c.id}
+                    active={c.active}
+                    dim={!c.active}
+                    name={c.name}
+                    subtitle={`${CATEGORY_KIND_LABEL[c.kind]}${c.countsAsCommission ? ' · Comissiona' : ''}`}
+                    onEdit={() => {
+                      setEditingCategory(c);
+                      setCategoryDrawer(true);
+                    }}
+                    onRemove={() => removeCategory(c)}
+                    removing={delCategory.isPending}
+                  />
+                ))}
+              </ul>
+              {rowCount > 0 && page < pageCount && (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    Ver mais
+                  </Button>
+                </div>
+              )}
+            </>
+          ))}
+      </div>
 
       {/* Filtrar: drawer lateral (direita) com a seção Status do Belasis. */}
       <StatusFilterDrawer
@@ -846,6 +1118,7 @@ function ContaDrawer({
   onClose: () => void;
   editing: FinancialAccount | null;
 }) {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [type, setType] = useState<FinancialAccountType>('cash');
   const [initialBalance, setInitialBalance] = useState('');
@@ -996,7 +1269,19 @@ function ContaDrawer({
 
           {/* Switches inline do Belasis: Belasis Pay (display) · Ativa. */}
           <div className="flex flex-col gap-3">
-            <InlineSwitch label="Belasis Pay" isSelected={belasisPay} onChange={setBelasisPay} />
+            <InlineSwitch
+              label="Belasis Pay"
+              isSelected={belasisPay}
+              onChange={(v) => {
+                setBelasisPay(v);
+                // Ao ativar o toggle, encaminha para o onboarding Belasis Pay
+                // (mesmo fluxo do Belasis: /belasis-pay/panel → cadastro).
+                if (v) {
+                  onClose();
+                  navigate('/financeiro/belasis-pay');
+                }
+              }}
+            />
             <InlineSwitch label="Ativa" isSelected={active} onChange={setActive} />
           </div>
 

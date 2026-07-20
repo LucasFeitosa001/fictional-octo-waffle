@@ -5,6 +5,7 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { FullDrawer } from '../components/FullDrawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
+  IconCheck,
   IconEye,
   IconFilter,
   IconLayers,
@@ -46,7 +47,7 @@ function availability(p: CustomerPackage): 'active' | 'expired' {
 
 const STATUS_LABEL: Record<'finished' | 'ongoing', string> = {
   finished: 'Finalizado',
-  ongoing: 'Em andamento',
+  ongoing: 'Pendente',
 };
 
 const AVAIL_LABEL: Record<'active' | 'expired', string> = {
@@ -70,9 +71,15 @@ export function PacotesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selectMode, setSelectMode] = useState(false);
   // Belasis ordena por Data (desc) por padrão; Ticket/Data/Validade são sortáveis.
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' });
   useAutoCreate(() => setCreateOpen(true));
+
+  // Ao sair do modo Selecionar, limpa a seleção (padrão Belasis).
+  useEffect(() => {
+    if (!selectMode) setSelected(new Set());
+  }, [selectMode]);
 
   const confirm = useConfirm();
   const sold = useCustomerPackages();
@@ -168,20 +175,23 @@ export function PacotesPage() {
     setDateTo('');
   }
 
-  // Mobile: as ações do header vivem na BottomNav (padrão Belasis).
+  // Mobile: BottomNav = [Filtros, Selecionar, Novo]. Busca fica sempre no topo (input),
+  // como no belasis.app — sem toggle. Selecionar habilita checkbox nos cards.
   useSetPageActions(
     [
-      {
-        key: 'buscar',
-        label: 'Buscar',
-        icon: <IconSearch size={22} />,
-        onClick: () => setSearchOpen((v) => !v),
-      },
       {
         key: 'filtros',
         label: 'Filtros',
         icon: <IconFilter size={22} />,
         onClick: () => setFilterOpen((v) => !v),
+        active: filterOpen,
+      },
+      {
+        key: 'selecionar',
+        label: 'Selecionar',
+        icon: <IconCheck size={22} />,
+        onClick: () => setSelectMode((v) => !v),
+        active: selectMode,
       },
       {
         key: 'novo',
@@ -190,7 +200,7 @@ export function PacotesPage() {
         onClick: () => setCreateOpen(true),
       },
     ],
-    [],
+    [filterOpen, selectMode],
   );
 
   async function handleDelete(p: CustomerPackage) {
@@ -240,9 +250,23 @@ export function PacotesPage() {
         </div>
       </header>
 
-      {/* Barra de busca (toggle) */}
+      {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
+      <div className="mb-3 md:hidden">
+        <TextField
+          value={searchInput}
+          onChange={(v) => {
+            setSearchInput(v);
+            setSearch(v.trim());
+          }}
+          aria-label="Buscar cliente"
+        >
+          <Input placeholder="Digite para buscar" />
+        </TextField>
+      </div>
+
+      {/* Desktop: barra de busca (toggle) */}
       {searchOpen && (
-        <div className="mb-4 flex max-w-xl items-center gap-2">
+        <div className="mb-4 hidden max-w-xl items-center gap-2 md:flex">
           <TextField
             value={searchInput}
             onChange={setSearchInput}
@@ -463,65 +487,63 @@ export function PacotesPage() {
                 </table>
               </div>
 
-              {/* ===== Mobile: cards ===== */}
-              <div className="md:hidden">
-                <p className="mb-2 text-xs text-muted-ink">
-                  Ordenando por <span className="font-medium text-ink">Ticket</span>
-                </p>
-                <ul className="flex flex-col gap-2">
-                  {paged.map((p) => {
-                    const av = availability(p);
-                    const cs = consumption(p);
-                    return (
-                      <li
-                        key={p.id}
-                        className="rounded-xl border border-line bg-card p-3 shadow-[var(--shadow-card)]"
+              {/* ===== Mobile: cards compactos padrão Belasis.
+                  Linha 1: [checkbox?] #num CLIENTE  ......  R$ valor
+                  Linha 2: data ...................... [pill status]
+                  Sem "Detalhes"/"Excluir" no card; ambos via drawer/selectMode. */}
+              <ul className="flex flex-col gap-2 md:hidden">
+                {paged.map((p) => {
+                  const cs = consumption(p);
+                  const isSelected = selected.has(p.id);
+                  const onCardClick = () => {
+                    if (selectMode) toggleRow(p.id);
+                    else setDetailId(p.id);
+                  };
+                  return (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={onCardClick}
+                        className={[
+                          'flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                          isSelected
+                            ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
+                            : 'border-[var(--color-soft-border)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]',
+                        ].join(' ')}
                       >
-                        <button
-                          type="button"
-                          onClick={() => setDetailId(p.id)}
-                          className="flex w-full flex-col gap-1 text-left"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-primary">#{p.number}</span>
-                            <div className="flex items-center gap-1.5">
-                              <StatusBadge value={cs} />
-                              <AvailBadge value={av} />
-                            </div>
-                          </div>
-                          <span className="min-w-0 truncate font-medium text-ink">
-                            {p.customer?.name ?? '—'}
-                          </span>
-                          <div className="flex items-center justify-between gap-2 text-sm">
-                            <span className="text-muted-ink">{formatDate(p.createdAt)}</span>
-                            <span className="font-semibold text-ink">{formatMoney(p.price)}</span>
-                          </div>
-                          {p.expiresAt && (
-                            <span className="text-xs text-muted-ink">
-                              Validade: {formatDate(p.expiresAt)}
-                            </span>
-                          )}
-                        </button>
-                        <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-line/60 pt-2">
-                          <Button variant="outline" size="sm" onClick={() => setDetailId(p.id)}>
-                            Detalhes
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            aria-label="Excluir"
-                            className="text-danger"
-                            isDisabled={delSold.isPending}
-                            onClick={() => handleDelete(p)}
+                        {selectMode && (
+                          <span
+                            aria-hidden
+                            className={[
+                              'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors',
+                              isSelected
+                                ? 'border-[var(--sp-primary)] bg-[var(--sp-primary)] text-white'
+                                : 'border-[var(--color-soft-border)] bg-white',
+                            ].join(' ')}
                           >
-                            <IconTrash size={14} /> Excluir
-                          </Button>
+                            {isSelected && <IconCheck size={13} />}
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
+                              <span className="font-semibold text-primary">#{p.number}</span>{' '}
+                              <span className="text-foreground">{p.customer?.name ?? '—'}</span>
+                            </div>
+                            <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground">
+                              {formatMoney(p.price)}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-muted-ink">{formatDate(p.createdAt)}</span>
+                            <StatusBadge value={cs} />
+                          </div>
                         </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
 
               {/* Rodapé: total + paginação ("N no total" / "20 / página") */}
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-xs text-muted-ink">
@@ -557,6 +579,16 @@ export function PacotesPage() {
           )}
         </div>
       </div>
+
+      {/* FAB azul flutuante para "Novo" no mobile (padrão Belasis). */}
+      <button
+        type="button"
+        aria-label="Novo pacote"
+        onClick={() => setCreateOpen(true)}
+        className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+      >
+        <IconPlus size={22} />
+      </button>
 
       {/* Drawer lateral de novo pacote (desliza da direita) */}
       <NovoPacoteDrawer isOpen={createOpen} onClose={() => setCreateOpen(false)} />

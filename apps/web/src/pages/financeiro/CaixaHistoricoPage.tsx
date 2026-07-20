@@ -111,7 +111,19 @@ export function CaixaHistoricoPage() {
       key: 'number',
       header: 'Número',
       isRowHeader: true,
-      render: (c) => <span className="font-semibold text-foreground">#{c.number}</span>,
+      render: (c) => {
+        const responsibleName = c.responsibleUser?.name;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-foreground">#{c.number}</span>
+            {responsibleName && (
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink md:hidden">
+                por {responsibleName}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'openedBy',
@@ -196,73 +208,117 @@ export function CaixaHistoricoPage() {
         </div>
       </div>
 
-      <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
-        <Card.Content className="p-0 md:p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs text-muted">Ordenado por data</span>
-            <span className="text-xs text-muted">
-              {total > 0 ? `${total} no total` : '0 caixa(s)'}
-            </span>
-          </div>
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-xs text-muted">Ordenado por data</span>
+        <span className="text-xs text-muted">
+          {total > 0 ? `${total} registros no total` : '0 registros no total'}
+        </span>
+      </div>
 
-          {history.isLoading ? (
-            <LoadingState />
-          ) : history.isError ? (
-            <ErrorState onRetry={() => history.refetch()} />
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={<IconCash size={32} />}
-              title={
-                hasFilters ? 'Nenhum caixa para os filtros' : 'Nenhum caixa no histórico'
-              }
-              description={
-                hasFilters
-                  ? 'Ajuste os filtros para ver as movimentações.'
-                  : 'Abra um caixa para começar a registrar movimentações.'
-              }
-            />
-          ) : (
+      {/* Desktop: tabela dentro de Card */}
+      <div className="hidden md:block">
+        <Card>
+          <Card.Content className="p-4">
+            {history.isLoading ? (
+              <LoadingState />
+            ) : history.isError ? (
+              <ErrorState onRetry={() => history.refetch()} />
+            ) : rows.length === 0 ? (
+              <EmptyState
+                icon={<IconCash size={32} />}
+                title={
+                  hasFilters ? 'Nenhum caixa para os filtros' : 'Nenhum caixa no histórico'
+                }
+                description={
+                  hasFilters
+                    ? 'Ajuste os filtros para ver as movimentações.'
+                    : 'Abra um caixa para começar a registrar movimentações.'
+                }
+              />
+            ) : (
+              <DataTable
+                aria-label="Histórico de caixa"
+                columns={columns}
+                rows={rows}
+                getKey={(c) => c.id}
+              />
+            )}
+
+            {total > 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
+                <span className="text-xs text-muted">{total} registros no total</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Página anterior"
+                    isDisabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <IconChevron size={14} className="rotate-90" />
+                  </Button>
+                  <span className="px-1 text-xs text-muted">
+                    Página {page} de {pageCount}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Próxima página"
+                    isDisabled={page >= pageCount}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    <IconChevron size={14} className="-rotate-90" />
+                  </Button>
+                  <span className="ml-1 hidden text-xs text-muted sm:inline">
+                    {PAGE_SIZE} / página
+                  </span>
+                </div>
+              </div>
+            )}
+          </Card.Content>
+        </Card>
+      </div>
+
+      {/* Mobile: cards fora de Card wrapper */}
+      <div className="md:hidden">
+        {history.isLoading ? (
+          <LoadingState />
+        ) : history.isError ? (
+          <ErrorState onRetry={() => history.refetch()} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<IconCash size={32} />}
+            title={
+              hasFilters ? 'Nenhum caixa para os filtros' : 'Nenhum caixa no histórico'
+            }
+            description={
+              hasFilters
+                ? 'Ajuste os filtros para ver as movimentações.'
+                : 'Abra um caixa para começar a registrar movimentações.'
+            }
+          />
+        ) : (
+          <>
             <DataTable
               aria-label="Histórico de caixa"
               columns={columns}
               rows={rows}
               getKey={(c) => c.id}
             />
-          )}
-
-          {total > 0 && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
-              <span className="text-xs text-muted">{total} no total</span>
-              <div className="flex items-center gap-2">
+            {page < pageCount && (
+              <div className="mt-3 flex justify-center">
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label="Página anterior"
-                  isDisabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <IconChevron size={14} className="rotate-90" />
-                </Button>
-                <span className="px-1 text-xs text-muted">
-                  Página {page} de {pageCount}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Próxima página"
-                  isDisabled={page >= pageCount}
                   onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                 >
-                  <IconChevron size={14} className="-rotate-90" />
+                  Ver mais
                 </Button>
-                <span className="ml-1 hidden text-xs text-muted sm:inline">
-                  {PAGE_SIZE} / página
-                </span>
               </div>
-            </div>
-          )}
-        </Card.Content>
-      </Card>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Filtrar: drawer lateral (direita) com as seções do Belasis. */}
       <FiltrosDrawer

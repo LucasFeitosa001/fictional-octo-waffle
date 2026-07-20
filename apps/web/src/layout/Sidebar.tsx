@@ -18,7 +18,6 @@ import {
   IconInfo,
   IconLayers,
   IconLink,
-  IconLogout,
   IconMegaphone,
   IconMessage,
   IconPanelLeft,
@@ -40,9 +39,9 @@ import {
   IconUsers,
   IconWhatsApp,
 } from '../components/icons';
-import { signOut, useSession } from '../lib/auth';
+import { useSession } from '../lib/auth';
 import { NotificationBell } from '../components/NotificationBell';
-import { CREATE_GROUPS } from './PageActions';
+import { CREATE_GROUPS, useCreateSheet } from './PageActions';
 
 type IconType = ComponentType<{ size?: number }>;
 
@@ -69,6 +68,9 @@ type NavDirect = NavItem & {
 
 type NavEntry = NavGroup | NavDirect;
 
+// Main navigation — the scrollable body of the sidebar. Utility entries
+// (Configurações, Ajuda, Indique e ganhe) live in FOOTER_NAVIGATION instead so
+// they always sit pinned at the bottom, matching Belasis's mobile menu.
 const NAVIGATION: NavEntry[] = [
   {
     kind: 'link',
@@ -178,13 +180,10 @@ const NAVIGATION: NavEntry[] = [
       { to: '/marketing/cashback', label: 'Cashback', icon: IconGift },
     ],
   },
-  {
-    kind: 'link',
-    key: 'configuracoes',
-    to: '/configuracoes',
-    label: 'Configurações',
-    icon: IconSettings,
-  },
+];
+
+// Pinned footer — Configurações / Ajuda / Indique e ganhe.
+const FOOTER_NAVIGATION: NavEntry[] = [
   {
     kind: 'group',
     key: 'ajuda',
@@ -199,19 +198,28 @@ const NAVIGATION: NavEntry[] = [
   },
   {
     kind: 'link',
+    key: 'configuracoes',
+    to: '/configuracoes',
+    label: 'Configurações',
+    icon: IconSettings,
+  },
+  {
+    kind: 'link',
     key: 'indique',
-    to: '/indique',
+    to: '/indique-e-ganhe',
     label: 'Indique e ganhe',
     icon: IconShare,
   },
 ];
+
+const ALL_ENTRIES: NavEntry[] = [...NAVIGATION, ...FOOTER_NAVIGATION];
 
 const COLLAPSE_KEY = 'sp:sidebar:collapsed';
 // v2 resets the previous default-open preference once. From this version on,
 // every group starts collapsed and subsequent user choices are persisted.
 const GROUP_COLLAPSE_KEY = 'sp:sidebar:groups:v2';
 const DEFAULT_COLLAPSED_GROUPS = new Set(
-  NAVIGATION.filter((entry): entry is NavGroup => entry.kind === 'group').map((entry) => entry.key),
+  ALL_ENTRIES.filter((entry): entry is NavGroup => entry.kind === 'group').map((entry) => entry.key),
 );
 
 function loadCollapsedGroups(): Set<string> {
@@ -241,7 +249,7 @@ function pathIsActive(to: string, pathname: string) {
 // `ant-menu-submenu-selected ant-menu-submenu-open` state). Mirror that so the
 // active page is always visible when the menu (mobile hamburger) opens.
 function findActiveGroupKey(pathname: string): string | null {
-  for (const entry of NAVIGATION) {
+  for (const entry of ALL_ENTRIES) {
     if (entry.kind === 'group' && entry.items.some((item) => pathIsActive(item.to, pathname))) {
       return entry.key;
     }
@@ -278,6 +286,7 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const { data: session } = useSession();
+  const { openSheet: openCreateSheet } = useCreateSheet();
 
   const [collapsed, setCollapsed] = useState(() => {
     if (mobile) return false;
@@ -292,9 +301,7 @@ export function Sidebar({
     return initial;
   });
   const [createOpen, setCreateOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
-  const profileRef = useRef<HTMLDivElement>(null);
 
   const fullName = session?.user?.name?.trim() || 'Usuário';
   const firstName = fullName.split(/\s+/)[0];
@@ -312,7 +319,6 @@ export function Sidebar({
 
   function toggleCollapse() {
     setCreateOpen(false);
-    setProfileOpen(false);
     setCollapsed((previous) => {
       const next = !previous;
       try {
@@ -337,20 +343,14 @@ export function Sidebar({
   }, [activeGroupKey]);
 
   useEffect(() => {
-    if (!createOpen && !profileOpen) return;
+    if (!createOpen) return;
     const closeOnOutsideClick = (event: MouseEvent) => {
       if (createRef.current && !createRef.current.contains(event.target as Node)) {
         setCreateOpen(false);
       }
-      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
-        setProfileOpen(false);
-      }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setCreateOpen(false);
-        setProfileOpen(false);
-      }
+      if (event.key === 'Escape') setCreateOpen(false);
     };
     document.addEventListener('mousedown', closeOnOutsideClick);
     document.addEventListener('keydown', closeOnEscape);
@@ -358,7 +358,7 @@ export function Sidebar({
       document.removeEventListener('mousedown', closeOnOutsideClick);
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [createOpen, profileOpen]);
+  }, [createOpen]);
 
   function quickCreate(to: string) {
     setCreateOpen(false);
@@ -366,10 +366,16 @@ export function Sidebar({
     navigate(to);
   }
 
-  function pickProfileOption(to: string) {
-    setProfileOpen(false);
-    onNavigate?.();
-    navigate(to);
+  // Mobile mirrors Belasis's hamburger: "Novo +" hands off to the BottomNav's
+  // bottom-sheet (shared via CreateSheetProvider), so both entry points open
+  // the same "Criar novo" sheet. Desktop keeps the inline dropdown flyout.
+  function handleCreateClick() {
+    if (mobile) {
+      onNavigate?.();
+      openCreateSheet();
+      return;
+    }
+    setCreateOpen((previous) => !previous);
   }
 
   function renderCollapsedEntry(entry: NavEntry) {
@@ -427,6 +433,58 @@ export function Sidebar({
           )}
         </Tooltip.Content>
       </Tooltip>
+    );
+  }
+
+  function renderExpandedEntry(entry: NavEntry) {
+    const EntryIcon = entry.icon;
+    if (entry.kind === 'link') {
+      return (
+        <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
+          <span className="min-w-0 flex-1 truncate pr-1">{entry.label}</span>
+          {entry.badge && <MenuBadge>{entry.badge}</MenuBadge>}
+        </NavLink>
+      );
+    }
+
+    const groupOpen = !collapsedGroups.has(entry.key);
+    const groupActive = entry.items.some((item) => pathIsActive(item.to, location.pathname));
+    return (
+      <div key={entry.key}>
+        <button
+          type="button"
+          onClick={() => toggleGroup(entry.key)}
+          aria-expanded={groupOpen}
+          className={[
+            'flex min-h-10 w-full items-center justify-between rounded-lg px-0 text-sm font-normal transition-colors',
+            groupActive ? 'bg-white/[0.08] text-white' : 'text-white/75 hover:bg-white/[0.08] hover:text-white',
+          ].join(' ')}
+        >
+          <span className="flex min-w-0 items-center">
+            <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
+            <span className="truncate pr-2">{entry.title}</span>
+          </span>
+          <IconChevron size={14} className={`mr-3 transition-transform duration-200 ${groupOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        <div
+          className={[
+            'overflow-hidden transition-all duration-200',
+            groupOpen ? 'max-h-[600px] py-1 opacity-100' : 'max-h-0 py-0 opacity-0',
+          ].join(' ')}
+        >
+          <div className="flex flex-col gap-1">
+            {entry.items.map(({ to, label, icon: ItemIcon, end, badge }) => (
+              <NavLink key={to} to={to} end={end} onClick={onNavigate} className={subNavLinkClass}>
+                <span className="grid h-9 w-8 shrink-0 place-items-center"><ItemIcon size={17} /></span>
+                <span className="min-w-0 flex-1 truncate pr-1">{label}</span>
+                {badge && <MenuBadge>{badge}</MenuBadge>}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -490,90 +548,44 @@ export function Sidebar({
         </div>
       </div>
 
-      <div ref={profileRef} className="relative mt-3">
-        <button
-          type="button"
-          onClick={() => {
-            setCreateOpen(false);
-            setProfileOpen((previous) => !previous);
-          }}
-          aria-haspopup="menu"
-          aria-expanded={profileOpen}
+      {/* Profile card — a single NavLink straight to /perfil (Belasis mobile
+          menu behaviour). No dropdown; Sair lives on the profile page. */}
+      <NavLink
+        to="/perfil"
+        onClick={onNavigate}
+        className={[
+          'mt-3 flex w-full items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
+          isCollapsed
+            ? 'h-11 justify-center'
+            : mobile
+              ? 'gap-3 px-1 py-2'
+              : 'gap-3 bg-white/[0.06] px-3 py-2.5',
+        ].join(' ')}
+      >
+        <span
           className={[
-            'flex w-full items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
-            isCollapsed
-              ? 'h-11 justify-center'
-              // Belasis mobile hamburger sits the profile flush on the sidebar with
-              // no card; the desktop rail keeps the subtle translucent chip.
-              : mobile
-                ? 'gap-3 px-1 py-2'
-                : 'gap-3 bg-white/[0.06] px-3 py-2.5',
+            'grid shrink-0 place-items-center overflow-hidden bg-gold font-bold text-ink',
+            // Belasis renders a square (ant-avatar-square) 40px avatar in the
+            // mobile menu; the collapsed/desktop rail keeps the round chip.
+            mobile ? 'h-10 w-10 rounded-lg text-base' : 'h-9 w-9 rounded-full text-sm',
           ].join(' ')}
         >
-          <span
-            className={[
-              'grid shrink-0 place-items-center overflow-hidden bg-gold font-bold text-ink',
-              // Belasis renders a square (ant-avatar-square) 40px avatar in the
-              // mobile menu; the collapsed/desktop rail keeps the round chip.
-              mobile ? 'h-10 w-10 rounded-lg text-base' : 'h-9 w-9 rounded-full text-sm',
-            ].join(' ')}
-          >
-            {session?.user?.image ? (
-              <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
-            ) : (
-              avatarInitial
-            )}
-          </span>
-          {!isCollapsed && (
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className={`block truncate text-white ${mobile ? 'text-base font-bold' : 'text-sm font-semibold'}`}>Olá, {firstName.toUpperCase()}</span>
-              <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
-                Meu perfil
-                <IconChevron size={11} className={`transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
-              </span>
-            </span>
+          {session?.user?.image ? (
+            <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
+          ) : (
+            avatarInitial
           )}
-        </button>
-
-        {profileOpen && (
-          <div
-            role="menu"
-            className={[
-              'absolute z-[60] w-56 overflow-hidden rounded-2xl border border-black/[0.08] bg-warm-white p-1.5 text-ink shadow-[var(--shadow-pop)]',
-              isCollapsed ? 'bottom-0 left-full ml-2' : 'inset-x-0 top-full mt-2 w-auto',
-            ].join(' ')}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => pickProfileOption('/perfil')}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors hover:bg-cream"
-            >
-              <IconUsers size={17} /> Minha Conta
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => pickProfileOption('/perfil#assinatura')}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors hover:bg-cream"
-            >
-              <IconCreditCard size={17} /> Assinatura
-            </button>
-            <div className="my-1 h-px bg-black/[0.07]" />
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setProfileOpen(false);
-                void signOut();
-              }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-danger transition-colors hover:bg-danger/10"
-            >
-              <IconLogout size={17} /> Sair
-            </button>
-          </div>
+        </span>
+        {!isCollapsed && (
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className={`block truncate text-white ${mobile ? 'text-base font-bold' : 'text-sm font-semibold'}`}>Olá, {firstName.toUpperCase()}</span>
+            <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
+              Meu perfil
+              <IconChevron size={11} className="-rotate-90" />
+            </span>
+          </span>
         )}
-      </div>
+      </NavLink>
 
       <div ref={createRef} className="relative mt-3">
         {isCollapsed ? (
@@ -581,10 +593,7 @@ export function Sidebar({
             <Tooltip.Trigger className="contents">
               <button
                 type="button"
-                onClick={() => {
-                  setProfileOpen(false);
-                  setCreateOpen((previous) => !previous);
-                }}
+                onClick={handleCreateClick}
                 aria-label="Novo"
                 aria-expanded={createOpen}
                 className="grid h-10 w-full place-items-center rounded-xl bg-white text-ink transition-colors hover:bg-white/90"
@@ -605,19 +614,18 @@ export function Sidebar({
               // desktop expanded rail keeps label-left / plus-right.
               mobile ? 'justify-center gap-2' : 'justify-between',
             ].join(' ')}
-            onClick={() => {
-              setProfileOpen(false);
-              setCreateOpen((previous) => !previous);
-            }}
-            aria-expanded={createOpen}
-            aria-haspopup="menu"
+            onClick={handleCreateClick}
+            aria-expanded={mobile ? undefined : createOpen}
+            aria-haspopup={mobile ? undefined : 'menu'}
           >
             Novo
             <IconPlus size={16} />
           </Button>
         )}
 
-        {createOpen && (
+        {/* Desktop-only inline dropdown. On mobile, the button hands off to the
+            BottomNav bottom-sheet via context. */}
+        {!mobile && createOpen && (
           <div
             role="menu"
             className={[
@@ -654,64 +662,16 @@ export function Sidebar({
         className="db-sidebar-scroll -mr-1 mt-3 flex-1 pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-white/35 scrollbar-active:scrollbar-thumb-white/45"
       >
         <nav className="flex flex-col gap-1">
-          {NAVIGATION.map((entry) => {
-            if (isCollapsed) return renderCollapsedEntry(entry);
-
-            const EntryIcon = entry.icon;
-            if (entry.kind === 'link') {
-              return (
-                <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
-                  <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
-                  <span className="min-w-0 flex-1 truncate pr-1">{entry.label}</span>
-                  {entry.badge && <MenuBadge>{entry.badge}</MenuBadge>}
-                </NavLink>
-              );
-            }
-
-            const groupOpen = !collapsedGroups.has(entry.key);
-            const groupActive = entry.items.some((item) => pathIsActive(item.to, location.pathname));
-            return (
-              <div key={entry.key}>
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(entry.key)}
-                  aria-expanded={groupOpen}
-                  className={[
-                    'flex min-h-10 w-full items-center justify-between rounded-lg px-0 text-sm font-normal transition-colors',
-                    groupActive ? 'bg-white/[0.08] text-white' : 'text-white/75 hover:bg-white/[0.08] hover:text-white',
-                  ].join(' ')}
-                >
-                  <span className="flex min-w-0 items-center">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
-                    <span className="truncate pr-2">{entry.title}</span>
-                  </span>
-                  <IconChevron size={14} className={`mr-3 transition-transform duration-200 ${groupOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                <div
-                  className={[
-                    'overflow-hidden transition-all duration-200',
-                    groupOpen ? 'max-h-[600px] py-1 opacity-100' : 'max-h-0 py-0 opacity-0',
-                  ].join(' ')}
-                >
-                  <div className="flex flex-col gap-1">
-                    {entry.items.map(({ to, label, icon: ItemIcon, end, badge }) => (
-                      <NavLink key={to} to={to} end={end} onClick={onNavigate} className={subNavLinkClass}>
-                        <span className="grid h-9 w-8 shrink-0 place-items-center"><ItemIcon size={17} /></span>
-                        <span className="min-w-0 flex-1 truncate pr-1">{label}</span>
-                        {badge && <MenuBadge>{badge}</MenuBadge>}
-                      </NavLink>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {NAVIGATION.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
         </nav>
       </ScrollShadow>
 
+      {/* Pinned footer — Configurações / Ajuda / Indique e ganhe. */}
       <div className="mt-3 border-t border-white/[0.08] pt-3">
-        {!isCollapsed && <div className="px-2.5 pt-2 text-[10px] text-white/35">v5.7.12</div>}
+        <nav className="flex flex-col gap-1">
+          {FOOTER_NAVIGATION.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
+        </nav>
+        {!isCollapsed && <div className="px-2.5 pt-3 text-[10px] text-white/35">v5.7.12</div>}
       </div>
     </aside>
   );

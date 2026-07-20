@@ -1,7 +1,7 @@
-import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, type ComponentType, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { IconCalendar, IconPlus, IconUsers, IconX } from '../components/icons';
-import { CREATE_GROUPS, usePageActions } from './PageActions';
+import { CREATE_GROUPS, useCreateSheet, usePageActions } from './PageActions';
 
 function IconMenu({ size = 24 }: { size?: number }) {
   return (
@@ -24,7 +24,7 @@ type IconType = ComponentType<{ size?: number }>;
 export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const [createOpen, setCreateOpen] = useState(false);
+  const { open: createOpen, openSheet: openCreateSheet, closeSheet: closeCreateSheet } = useCreateSheet();
   const pageActions = usePageActions();
   const contextual = pageActions.length > 0;
 
@@ -40,7 +40,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
   }, [createOpen]);
 
   function pickCreate(to: string) {
-    setCreateOpen(false);
+    closeCreateSheet();
     navigate(to);
   }
 
@@ -58,7 +58,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
             'absolute inset-0 cursor-pointer bg-black/40 transition-opacity duration-300 ease-out',
             createOpen ? 'opacity-100' : 'opacity-0',
           ].join(' ')}
-          onClick={() => setCreateOpen(false)}
+          onClick={closeCreateSheet}
         />
         {/* Sheet */}
         <div
@@ -80,7 +80,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
             </div>
             <button
               type="button"
-              onClick={() => setCreateOpen(false)}
+              onClick={closeCreateSheet}
               aria-label="Fechar"
               className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#5f5a54] shadow-sm"
             >
@@ -138,7 +138,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
           <div className="flex items-stretch px-1">
             <TabButton label="Menu" icon={IconMenu} active={false} onPress={() => onMenuOpen?.()} />
             <TabButton label="Agenda" icon={IconCalendar} active={isActive('/agenda')} onPress={() => navigate('/agenda')} />
-            <ActionButton label="Criar" icon={<IconPlus size={22} />} onPress={() => setCreateOpen(true)} />
+            <ActionButton label="Criar" icon={<IconPlus size={22} />} onPress={openCreateSheet} />
             <TabButton label="Clientes" icon={IconUsers} active={isActive('/clientes')} onPress={() => navigate('/clientes')} />
           </div>
         )}

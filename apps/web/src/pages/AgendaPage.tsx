@@ -245,13 +245,8 @@ export function AgendaPage() {
     [
       { key: 'calendario', label: 'Calendário', icon: <IconCalendar size={22} />, onClick: () => setMobileViewOpen(true) },
       { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setMobileFilterOpen(true) },
+      { key: 'criar', label: 'Criar', icon: <IconPlus size={22} />, onClick: () => { setNewApptDate(undefined); setIsNewOpen(true); } },
       { key: 'acoes', label: 'Ações', icon: <IconBolt size={22} />, onClick: () => setMobileActionsOpen(true) },
-      {
-        key: 'criar',
-        label: 'Criar',
-        icon: <IconPlus size={22} />,
-        onClick: () => { setNewApptDate(undefined); setIsNewOpen(true); },
-      },
     ],
     [],
   );
@@ -802,7 +797,7 @@ export function AgendaPage() {
               <IconChevron size={17} className="rotate-90" />
             </button>
             <button type="button" onClick={openDateDrawer} aria-haspopup="dialog" aria-expanded={dateDrawerOpen}
-              className="min-w-0 max-w-[52vw] truncate px-2 text-center text-sm font-semibold capitalize text-gold-strong">
+              className="min-w-0 max-w-[52vw] truncate px-2 text-center text-sm font-semibold capitalize text-foreground">
               {periodLabel}
             </button>
             <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
@@ -986,6 +981,7 @@ export function AgendaPage() {
         </div>
       )}
 
+      {/* FAB mobile — abre criação de agendamento */}
       <NewAppointmentModal
         isOpen={isNewOpen}
         onOpenChange={setIsNewOpen}

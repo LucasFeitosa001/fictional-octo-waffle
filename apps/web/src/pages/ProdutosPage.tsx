@@ -193,10 +193,6 @@ export function ProdutosPage() {
     [rows],
   );
 
-  function applySearch() {
-    setSearch(searchInput.trim());
-  }
-
   function clearAll() {
     setSearchInput('');
     setSearch('');
@@ -286,26 +282,28 @@ export function ProdutosPage() {
         </SubTab>
       </div>
 
-      {/* Barra de busca (toggle) */}
-      {searchOpen && (
-        <div className="mb-4 flex max-w-xl items-center gap-2">
-          <TextField
-            value={searchInput}
-            onChange={setSearchInput}
-            className="min-w-0 flex-1"
-            aria-label="Buscar produto"
-          >
+      {/* Busca: sempre visível no mobile (Belasis "Digite para buscar");
+          revelada via botão "Buscar" no desktop. Auto-apply ao digitar. */}
+      <div className={searchOpen ? 'mb-4 max-w-xl' : 'mb-4 md:hidden'}>
+        <TextField
+          value={searchInput}
+          onChange={(v) => {
+            setSearchInput(v);
+            setSearch(v.trim());
+          }}
+          aria-label="Buscar produto"
+        >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-ink">
+              <IconSearch size={16} />
+            </span>
             <Input
               placeholder="Digite para buscar"
-              className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              onKeyDown={(e) => e.key === 'Enter' && applySearch()}
+              className="pl-9 focus:border-primary focus:ring-2 focus:ring-primary/25"
             />
-          </TextField>
-          <Button variant="primary" onClick={applySearch}>
-            Buscar
-          </Button>
-        </div>
-      )}
+          </div>
+        </TextField>
+      </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Painel de filtros lateral (Filtrar) */}
@@ -392,14 +390,160 @@ export function ProdutosPage() {
           </aside>
         )}
 
-        {/* Conteúdo principal: tabela / cards */}
+        {/* Conteúdo principal: tabela (desktop) / cards (mobile) */}
         <div className="min-w-0 flex-1">
-          {products.isLoading ? (
-            <LoadingState />
-          ) : products.isError ? (
-            <ErrorState onRetry={() => products.refetch()} />
-          ) : rows.length === 0 ? (
-            <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
+          {/* ===== Desktop: Card + tabela + paginação ===== */}
+          <div className="hidden md:block">
+            {products.isLoading ? (
+              <LoadingState />
+            ) : products.isError ? (
+              <ErrorState onRetry={() => products.refetch()} />
+            ) : rows.length === 0 ? (
+              <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
+                <EmptyState
+                  icon={<IconBox size={32} />}
+                  title="Nenhum produto encontrado"
+                  description={
+                    hasFilters
+                      ? 'Tente ajustar os filtros.'
+                      : 'Cadastre seu primeiro produto.'
+                  }
+                />
+              </div>
+            ) : (
+              <>
+                <div className="overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)]">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                        <th className="w-10 px-4 py-3">
+                          <Checkbox
+                            checked={allSelected}
+                            onChange={toggleAll}
+                            ariaLabel="Selecionar tudo"
+                          />
+                        </th>
+                        <th className="px-4 py-3 font-semibold">Nome</th>
+                        <th className="px-4 py-3 font-semibold">Marca</th>
+                        <th className="px-4 py-3 font-semibold">Categoria</th>
+                        <th className="px-4 py-3 font-semibold">Estoque</th>
+                        <th className="px-4 py-3 text-right font-semibold">
+                          Preço de venda
+                        </th>
+                        <th className="px-4 py-3 text-right font-semibold">Comissão</th>
+                        <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paged.map((p) => {
+                        const qty = Number(p.stock);
+                        const low = isLow(p);
+                        const comm = commissionOf(p);
+                        return (
+                          <tr
+                            key={p.id}
+                            className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                          >
+                            <td className="px-4 py-2.5">
+                              <Checkbox
+                                checked={selected.has(p.id)}
+                                onChange={() => toggleOne(p.id)}
+                                ariaLabel={`Selecionar ${p.name}`}
+                              />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditing(p)}
+                                className="flex w-full items-center gap-2.5 text-left"
+                              >
+                                <Avatar product={p} />
+                                <span className="min-w-0 truncate font-medium text-ink">
+                                  {p.name}
+                                </span>
+                              </button>
+                            </td>
+                            <td className="px-4 py-2.5 text-muted-ink">
+                              {p.brand?.name ?? '—'}
+                            </td>
+                            <td className="px-4 py-2.5 text-muted-ink">
+                              {p.category?.name ?? '—'}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setMoveProduct(p)}
+                                className={[
+                                  'inline-flex items-center gap-1.5 transition-colors hover:text-primary',
+                                  low ? 'font-medium text-danger' : 'text-ink',
+                                ].join(' ')}
+                                title="Movimentar estoque"
+                              >
+                                {stockLabel(qty, (p as ProductExtra).unit)}
+                                <IconPencil size={13} className="opacity-60" />
+                              </button>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-medium text-ink">
+                              {formatMoney(p.salePrice)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-muted-ink">
+                              {comm != null ? commissionLabel(comm) : '—'}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <RowActions
+                                product={p}
+                                onEdit={() => setEditing(p)}
+                                onDelete={() => handleDelete(p)}
+                                deleting={deleteProduct.isPending}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Rodapé desktop: contagem + paginação */}
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
+                  <span>
+                    {formatNumber(rows.length)} de {formatNumber(total)} produto(s)
+                  </span>
+                  {pageCount > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        isDisabled={safePage <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      >
+                        Anterior
+                      </Button>
+                      <span className="px-1">
+                        {safePage} / {pageCount}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        isDisabled={safePage >= pageCount}
+                        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                      >
+                        Próxima
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ===== Mobile: sem Card wrapper, cards compactos + "Ver mais" ===== */}
+          <div className="md:hidden">
+            {products.isLoading ? (
+              <LoadingState />
+            ) : products.isError ? (
+              <ErrorState onRetry={() => products.refetch()} />
+            ) : rows.length === 0 ? (
               <EmptyState
                 icon={<IconBox size={32} />}
                 title="Nenhum produto encontrado"
@@ -409,214 +553,75 @@ export function ProdutosPage() {
                     : 'Cadastre seu primeiro produto.'
                 }
               />
-            </div>
-          ) : (
-            <>
-              {/* ===== Desktop: tabela ===== */}
-              <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                      <th className="w-10 px-4 py-3">
-                        <Checkbox
-                          checked={allSelected}
-                          onChange={toggleAll}
-                          ariaLabel="Selecionar tudo"
-                        />
-                      </th>
-                      <th className="px-4 py-3 font-semibold">Nome</th>
-                      <th className="px-4 py-3 font-semibold">Marca</th>
-                      <th className="px-4 py-3 font-semibold">Categoria</th>
-                      <th className="px-4 py-3 font-semibold">Estoque</th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Preço de venda
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">Comissão</th>
-                      <th className="px-4 py-3 text-center font-semibold">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paged.map((p) => {
-                      const qty = Number(p.stock);
-                      const low = isLow(p);
-                      const comm = commissionOf(p);
-                      return (
-                        <tr
-                          key={p.id}
-                          className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+            ) : (
+              <>
+                <div className="mb-2 text-[11px] text-muted-ink">
+                  {formatNumber(rows.length)} de {formatNumber(total)} produto(s)
+                </div>
+                {/* Cards Belasis: 2 linhas — [avatar] Nome+★ / marca·estoque + preço. */}
+                <ul className="flex flex-col gap-2">
+                  {paged.map((p) => {
+                    const qty = Number(p.stock);
+                    const low = isLow(p);
+                    const stock = stockLabel(qty, (p as ProductExtra).unit);
+                    const subtitle = p.brand?.name
+                      ? `${p.brand.name} · ${stock}`
+                      : stock;
+                    return (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(p)}
+                          className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-card px-3 py-2 text-left shadow-[var(--shadow-card)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
                         >
-                          <td className="px-4 py-2.5">
-                            <Checkbox
-                              checked={selected.has(p.id)}
-                              onChange={() => toggleOne(p.id)}
-                              ariaLabel={`Selecionar ${p.name}`}
-                            />
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => setEditing(p)}
-                              className="flex w-full items-center gap-2.5 text-left"
-                            >
-                              <Avatar product={p} />
-                              <span className="min-w-0 truncate font-medium text-ink">
+                          <Avatar product={p} size={40} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 truncate text-[13px] font-semibold text-ink">
                                 {p.name}
                               </span>
-                            </button>
-                          </td>
-                          <td className="px-4 py-2.5 text-muted-ink">
-                            {p.brand?.name ?? '—'}
-                          </td>
-                          <td className="px-4 py-2.5 text-muted-ink">
-                            {p.category?.name ?? '—'}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => setMoveProduct(p)}
-                              className={[
-                                'inline-flex items-center gap-1.5 transition-colors hover:text-primary',
-                                low ? 'font-medium text-danger' : 'text-ink',
-                              ].join(' ')}
-                              title="Movimentar estoque"
-                            >
-                              {stockLabel(qty, (p as ProductExtra).unit)}
-                              <IconPencil size={13} className="opacity-60" />
-                            </button>
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-medium text-ink">
-                            {formatMoney(p.salePrice)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-muted-ink">
-                            {comm != null ? commissionLabel(comm) : '—'}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <RowActions
-                              product={p}
-                              onEdit={() => setEditing(p)}
-                              onDelete={() => handleDelete(p)}
-                              deleting={deleteProduct.isPending}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* ===== Mobile: cards ===== */}
-              <ul className="flex flex-col gap-2 md:hidden">
-                {paged.map((p) => {
-                  const qty = Number(p.stock);
-                  const low = isLow(p);
-                  return (
-                    <li
-                      key={p.id}
-                      className="rounded-xl border border-line bg-card p-3 shadow-[var(--shadow-card)]"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setEditing(p)}
-                        className="flex w-full items-center gap-3 text-left"
-                      >
-                        <Avatar product={p} size={44} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="min-w-0 truncate font-medium text-ink">
-                              {p.name}
-                            </span>
-                            <IconStar
-                              size={18}
-                              className={
-                                p.favorite
-                                  ? 'fill-gold text-gold'
-                                  : 'text-muted-ink/40'
-                              }
-                            />
-                          </div>
-                          <div className="mt-0.5 flex items-center justify-between gap-2 text-sm">
-                            <span className="font-semibold text-primary">
-                              {formatMoney(p.salePrice)}
-                            </span>
-                            <span
-                              className={
-                                low ? 'text-danger' : 'text-muted-ink'
-                              }
-                            >
-                              {stockLabel(qty, (p as ProductExtra).unit)}
-                            </span>
-                          </div>
-                          {p.brand?.name && (
-                            <div className="mt-0.5 truncate text-xs text-muted-ink">
-                              {p.brand.name}
+                              {p.favorite && (
+                                <IconStar
+                                  size={14}
+                                  className="shrink-0 fill-gold text-gold"
+                                />
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </button>
-                      <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-line/60 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setMoveProduct(p)}
-                        >
-                          <IconBox size={14} /> Estoque
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Editar"
-                          onClick={() => setEditing(p)}
-                        >
-                          <IconPencil size={14} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Remover"
-                          className="text-danger"
-                          isDisabled={deleteProduct.isPending}
-                          onClick={() => handleDelete(p)}
-                        >
-                          <IconTrash size={14} />
-                        </Button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-
-              {/* Rodapé: contagem + paginação */}
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
-                <span>
-                  {formatNumber(rows.length)} de {formatNumber(total)} produto(s)
-                </span>
-                {pageCount > 1 && (
-                  <div className="flex items-center gap-1.5">
+                            <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                              <span
+                                className={[
+                                  'min-w-0 truncate text-[11.5px]',
+                                  low ? 'font-medium text-danger' : 'text-muted-ink',
+                                ].join(' ')}
+                              >
+                                {subtitle}
+                              </span>
+                              <span className="shrink-0 text-[13px] font-semibold tabular-nums text-primary">
+                                {formatMoney(p.salePrice)}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {/* Mobile: "Ver mais" avança para a próxima página. */}
+                {pageCount > 1 && safePage < pageCount && (
+                  <div className="mt-3">
                     <Button
                       variant="outline"
-                      size="sm"
-                      isDisabled={safePage <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    >
-                      Anterior
-                    </Button>
-                    <span className="px-1">
-                      {safePage} / {pageCount}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isDisabled={safePage >= pageCount}
+                      className="w-full"
+                      isDisabled={products.isFetching}
                       onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                     >
-                      Próxima
+                      {products.isFetching ? 'Carregando…' : 'Ver mais'}
                     </Button>
                   </div>
                 )}
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 

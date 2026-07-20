@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button, ListBox, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../../components/Drawer';
@@ -33,14 +34,36 @@ function IconMinus({ size = 16 }: { size?: number }) {
   );
 }
 
-type View = 'resumido' | 'detalhado';
+type View = 'resumo' | 'detalhado';
 type DrawerMode = 'open' | 'sangria' | 'suprimento' | 'close';
+
+// Exportado para consumidores externos (rota /:id, deep-linking).
+export function openCashDetail(id: string) {
+  // Placeholder — a rota /:id será conectada por outro agente. Deixamos o
+  // helper aqui para o consumo já existir no bundle.
+  return `/financeiro/caixas-abertos/${id}`;
+}
 
 export function CaixasAbertosPage() {
   const opened = useOpenedCashRegisters();
   const rows = opened.data ?? [];
 
-  const [view, setView] = useState<View>('resumido');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab: View = searchParams.get('tab') === 'detalhado' ? 'detalhado' : 'resumo';
+  const [view, setView] = useState<View>(initialTab);
+
+  function changeView(next: View) {
+    setView(next);
+    const params = new URLSearchParams(searchParams);
+    if (next === 'resumo') params.delete('tab');
+    else params.set('tab', next);
+    setSearchParams(params, { replace: true });
+  }
+
+  // Total à receber ainda não existe no backend — só mostramos a linha se
+  // algum caixa expuser algo > 0 no futuro.
+  // TODO(backend): expor "totalAReceber" no summary do caixa.
+  const showTotalAReceber = rows.some((r) => ((r.summary as { totalAReceber?: number }).totalAReceber ?? 0) > 0);
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; register?: CashRegisterDetail } | null>(
     null,
   );
@@ -89,12 +112,12 @@ export function CaixasAbertosPage() {
         </div>
       </div>
 
-      {/* ── Abas (Resumido / Detalhado) — estilo ant-tabs sublinhado ──────── */}
+      {/* ── Abas (Resumo / Detalhado) — estilo ant-tabs sublinhado ────────── */}
       <div className="mb-4 flex items-center gap-6 border-b border-line">
-        <Tab active={view === 'resumido'} onClick={() => setView('resumido')}>
-          Resumido
+        <Tab active={view === 'resumo'} onClick={() => changeView('resumo')}>
+          Resumo
         </Tab>
-        <Tab active={view === 'detalhado'} onClick={() => setView('detalhado')}>
+        <Tab active={view === 'detalhado'} onClick={() => changeView('detalhado')}>
           Detalhado
         </Tab>
       </div>
@@ -122,6 +145,7 @@ export function CaixasAbertosPage() {
               key={reg.id}
               reg={reg}
               view={view}
+              showTotalAReceber={showTotalAReceber}
               onAction={(mode) => setDrawer({ mode, register: reg })}
             />
           ))}
@@ -220,14 +244,20 @@ function Row({
 function InnerCard({
   title,
   help,
+  className,
   children,
 }: {
   title: string;
   help?: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col rounded-xl border border-line bg-card">
+    <div
+      className={['flex h-full flex-col rounded-xl border border-line bg-card', className ?? '']
+        .join(' ')
+        .trim()}
+    >
       <div className="inline-flex items-center border-b border-line px-3 py-2.5 text-sm font-semibold text-ink">
         {title}
         {help ? <HelpTooltip>{help}</HelpTooltip> : null}
@@ -241,34 +271,37 @@ function InnerCard({
 function CashCard({
   reg,
   view,
+  showTotalAReceber,
   onAction,
 }: {
   reg: CashRegisterDetail;
   view: View;
+  showTotalAReceber: boolean;
   onAction: (mode: DrawerMode) => void;
 }) {
   const s = reg.summary;
   const user = reg.responsibleUser;
   const userName = user?.name ?? 'Sem responsável';
+  // TODO(backend): expor "totalAReceber" no summary do caixa.
+  const totalAReceber = (s as { totalAReceber?: number }).totalAReceber ?? 0;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
       {/* Cabeçalho do caixa */}
-      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3.5">
-        <div className="flex min-w-0 items-start gap-3">
-          <Avatar name={userName} url={user?.avatarUrl ?? user?.image} />
-          <div className="min-w-0">
-            <div className="truncate font-semibold text-ink">{userName}</div>
-            {user?.email && <div className="truncate text-xs text-muted-ink">{user.email}</div>}
-            <div className="text-xs text-muted-ink">Caixa aberto em {formatDateTime(reg.openedAt)}</div>
+      <div className="flex items-start gap-3 border-b border-line px-4 py-3.5">
+        <Avatar name={userName} url={user?.avatarUrl ?? user?.image} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold text-ink">
+            {userName} <span className="font-semibold text-muted-ink">#{reg.number}</span>
           </div>
+          {user?.email && <div className="truncate text-xs text-muted-ink">{user.email}</div>}
+          <div className="text-xs text-muted-ink">Caixa aberto em {formatDateTime(reg.openedAt)}</div>
         </div>
-        <span className="shrink-0 text-sm font-semibold text-muted-ink">#{reg.number}</span>
       </div>
 
       {/* Corpo */}
       <div className="px-4 py-4">
-        {view === 'resumido' ? (
+        {view === 'resumo' ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <InnerCard
               title="Conferência de caixa"
@@ -278,7 +311,6 @@ function CashCard({
               {s.byMethod.map((b) => (
                 <Row key={b.name} label={b.name} value={formatMoney(b.total)} />
               ))}
-              <Row label="Saldo inicial" value={formatMoney(s.openingBalance)} />
               <Row label="Movimentações" value={formatMoney(s.movements)} />
               <Row label="Saldo em caixa" value={formatMoney(s.saldoEmCaixa)} positive />
             </InnerCard>
@@ -288,8 +320,9 @@ function CashCard({
             >
               <Row label="Outros pagamentos" value={formatMoney(s.outros)} />
               <Row label="Total recebido" value={formatMoney(s.totalPago)} muted />
-              {/* TODO: backend não expõe "total à receber" para o caixa. */}
-              <Row label="Total à receber" value={formatMoney(0)} muted />
+              {showTotalAReceber && (
+                <Row label="Total à receber" value={formatMoney(totalAReceber)} muted />
+              )}
             </InnerCard>
           </div>
         ) : (
@@ -320,7 +353,7 @@ function CashCard({
         <button
           type="button"
           onClick={() => onAction('close')}
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-danger text-sm font-semibold text-white transition-colors hover:bg-danger/90"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-danger/40 text-sm font-semibold text-danger transition-colors hover:bg-danger/10"
         >
           Fechar caixa
           <HelpTooltip>Conferir saldo e encerrar o caixa</HelpTooltip>
@@ -336,25 +369,18 @@ function DetalhadoBody({ reg }: { reg: CashRegisterDetail }) {
   const movements = reg.movements ?? [];
   const payments = movements.filter((m) => m.refType !== 'sangria' && m.refType !== 'suprimento');
   const others = movements.filter((m) => m.refType === 'sangria' || m.refType === 'suprimento');
+  const lancamentoTotal = payments.reduce(
+    (acc, m) => acc + (m.type === 'out' ? -Number(m.amount) : Number(m.amount)),
+    0,
+  );
+  const hasOthers = others.length > 0 || s.suprimentos > 0 || s.sangrias > 0;
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <InnerCard title="Lançamentos">
-        {payments.length === 0 ? (
-          <p className="py-1.5 text-sm text-muted-ink">Nenhum lançamento.</p>
-        ) : (
-          payments.map((m) => (
-            <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-              <span className="truncate text-muted-ink" style={{ maxWidth: '60%' }}>
-                {m.paymentMethod?.name ?? 'Outros'}
-              </span>
-              <span className={m.type === 'out' ? 'font-medium text-danger' : 'font-medium text-ink'}>
-                {m.type === 'out' ? '- ' : ''}
-                {formatMoney(m.amount)}
-              </span>
-            </div>
-          ))
-        )}
+        <Row label="Saldo inicial" value={formatMoney(s.openingBalance)} />
+        <Row label="Movimentações" value={formatMoney(s.movements)} />
+        <Row label="Lançamento" value={formatMoney(lancamentoTotal)} />
         {s.byMethod.length > 0 && (
           <div className="mt-1 border-t border-line pt-1.5">
             {s.byMethod.map((b) => (
@@ -362,9 +388,27 @@ function DetalhadoBody({ reg }: { reg: CashRegisterDetail }) {
             ))}
           </div>
         )}
+        {payments.length > 0 && (
+          <div className="mt-1 flex flex-col gap-1 border-t border-line pt-1.5">
+            {payments.map((m) => (
+              <div key={m.id} className="flex items-center justify-between text-xs text-muted-ink">
+                <span className="truncate" style={{ maxWidth: '60%' }}>
+                  {m.paymentMethod?.name ?? 'Outros'} · {formatDateTime(m.at)}
+                </span>
+                <span className={m.type === 'out' ? 'text-danger' : ''}>
+                  {m.type === 'out' ? '- ' : ''}
+                  {formatMoney(m.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </InnerCard>
 
-      <InnerCard title="Outras movimentações">
+      <InnerCard
+        title="Outras movimentações"
+        className={hasOthers ? '' : 'hidden sm:flex'}
+      >
         <Row label="Suprimentos (reforço)" value={formatMoney(s.suprimentos)} />
         <Row label="Sangrias (retirada)" value={formatMoney(s.sangrias)} />
         {others.length > 0 && (
@@ -552,11 +596,11 @@ function CashActionDrawer({
               {formatMoney(result.divergence)}
             </span>
           </div>
-          <p className="text-xs text-muted-ink">
+          <div className="text-xs text-muted-ink">
             {Math.abs(result.divergence) < 0.005
               ? 'Caixa fechado sem divergência.'
               : 'Caixa fechado com divergência registrada.'}
-          </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

@@ -124,9 +124,15 @@ export function Drawer({
           'transform-gpu transition-transform duration-[380ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] will-change-transform',
           effectivePlacement === 'right'
             ? `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`
-            : `inset-x-0 bottom-0 max-h-[92dvh] rounded-t-3xl border-t ${show ? 'translate-y-0' : 'translate-y-full'}`,
+            : `inset-x-0 bottom-0 max-h-[90dvh] rounded-t-3xl border-t ${show ? 'translate-y-0' : 'translate-y-full'}`,
         ].join(' ')}
       >
+        {/* Grip mobile (bottom-sheet handle) */}
+        {isMobile && effectivePlacement === 'bottom' && (
+          <div className="flex shrink-0 justify-center pt-2 pb-1">
+            <span className="h-1.5 w-10 rounded-full bg-black/20" />
+          </div>
+        )}
         {/* Header (sticky) */}
         <div className={[
           'sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-soft-border)] bg-warm-white px-4 pb-3.5',
