@@ -5,6 +5,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { DateField } from '../components/DateRangeFilter';
 import { Drawer } from '../components/Drawer';
+import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconCheck,
   IconDownload,
@@ -714,15 +715,26 @@ function RowActions({
 
 function PlanCard({ plan, onEdit }: { plan: MembershipPlan; onEdit: () => void }) {
   const del = useDeleteMembershipPlan();
+  const confirm = useConfirm();
 
   async function handleRemove() {
-    if (!window.confirm(`Remover o plano "${plan.name}"?`)) return;
+    const ok = await confirm({
+      title: `Remover o plano "${plan.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(plan.id);
     } catch (err) {
-      window.alert(
-        err instanceof ApiClientError ? err.message : 'Não foi possível remover o plano.',
-      );
+      await confirm({
+        title: 'Não foi possível remover o plano',
+        message: err instanceof ApiClientError ? err.message : 'Não foi possível remover o plano.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
 

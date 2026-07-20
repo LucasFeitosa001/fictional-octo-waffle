@@ -289,6 +289,13 @@ export const IconX = (p: IconProps) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </Base>
 );
+export const IconAlertTriangle = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 3L2 20h20L12 3z" />
+    <path d="M12 10v5" />
+    <path d="M12 18h.01" />
+  </Base>
+);
 export const IconClock = (p: IconProps) => (
   <Base {...p}>
     <circle cx="12" cy="12" r="9" />

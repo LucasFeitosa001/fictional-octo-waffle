@@ -3,6 +3,7 @@ import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { useSetPageActions } from '../../layout/PageActions';
 import {
   IconChevron,
@@ -65,6 +66,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 export function CashbackPage() {
   const rules = useCashbackRules();
   const del = useDeleteCashbackRule();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState<CashbackRule | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tab, setTab] = useState<CashbackTab>('items');
@@ -110,11 +112,23 @@ export function CashbackPage() {
     setDrawerOpen(true);
   }
   async function handleRemove(r: CashbackRule) {
-    if (!window.confirm('Remover esta regra de cashback?')) return;
+    const ok = await confirm({
+      title: `Excluir regra de "${SCOPE_LABEL[r.scopeType]}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(r.id);
     } catch {
-      window.alert('Não foi possível remover a regra.');
+      await confirm({
+        title: 'Não foi possível',
+        message: 'Não foi possível remover a regra.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
 
@@ -128,7 +142,13 @@ export function CashbackPage() {
   }
   async function removeSelected() {
     if (selected.size === 0) return;
-    if (!window.confirm(`Remover ${selected.size} regra(s) de cashback?`)) return;
+    const ok = await confirm({
+      title: `Excluir ${selected.size} regra(s) de cashback?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     for (const id of selected) {
       try {
         await del.mutateAsync(id);

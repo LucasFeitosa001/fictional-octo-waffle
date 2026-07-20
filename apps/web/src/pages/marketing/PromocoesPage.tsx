@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateField } from '../../components/DateRangeFilter';
@@ -61,6 +62,7 @@ export function PromocoesPage() {
 
   const promotions = usePromotions();
   const del = useDeletePromotion();
+  const confirm = useConfirm();
 
   const allRows = promotions.data ?? [];
 
@@ -89,7 +91,13 @@ export function PromocoesPage() {
   }
 
   async function handleDelete(p: Promotion) {
-    if (!window.confirm(`Excluir a promoção "${p.name}"?`)) return;
+    const ok = await confirm({
+      title: `Excluir a promoção "${p.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(p.id);
       setSelected((prev) => {
@@ -98,14 +106,26 @@ export function PromocoesPage() {
         return next;
       });
     } catch {
-      window.alert('Não foi possível excluir a promoção.');
+      await confirm({
+        title: 'Não foi possível',
+        message: 'Não foi possível excluir a promoção.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
 
   async function handleBulkDelete() {
     const ids = pageRows.filter((p) => selected.has(p.id)).map((p) => p.id);
     if (!ids.length) return;
-    if (!window.confirm(`Excluir ${ids.length} promoção(ões) selecionada(s)?`)) return;
+    const ok = await confirm({
+      title: `Excluir ${ids.length} promoção(ões) selecionada(s)?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     for (const id of ids) await del.mutateAsync(id);
     setSelected(new Set());
   }

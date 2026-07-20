@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { useSetPageActions } from '../../layout/PageActions';
 import { Drawer } from '../../components/Drawer';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/States';
 import {
   IconCopy,
@@ -63,6 +64,7 @@ function nextId() {
 }
 
 export function GeradorDocumentoPage() {
+  const confirm = useConfirm();
   // TODO(backend): substituir por hook de query quando a API existir.
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
 
@@ -106,16 +108,25 @@ export function GeradorDocumentoPage() {
     setClassFilter('todas');
   }
 
-  function handlePrint(t: DocumentTemplate) {
+  async function handlePrint(t: DocumentTemplate) {
     // TODO(backend): POST ${API}/document_templates/generate_document (target=_blank).
-    window.alert(
-      `A geração do documento "${t.name}" ficará disponível quando o backend de ` +
-        'modelos for habilitado.',
-    );
+    await confirm({
+      title: 'Documento não disponível',
+      message: `A geração do documento "${t.name}" ficará disponível quando o backend de modelos for habilitado.`,
+      confirmLabel: 'OK',
+      cancelLabel: undefined,
+      danger: false,
+    });
   }
 
-  function handleDelete(t: DocumentTemplate) {
-    if (!window.confirm(`Excluir o modelo "${t.name}"?`)) return;
+  async function handleDelete(t: DocumentTemplate) {
+    const ok = await confirm({
+      title: `Excluir o modelo "${t.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     // TODO(backend): documentTemplateDelete(id).
     setTemplates((prev) => prev.filter((x) => x.id !== t.id));
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, LoadingState } from '../../components/States';
 import { MonthField } from '../../components/DateRangeFilter';
@@ -115,6 +116,7 @@ export function MetasPage() {
   const [editing, setEditing] = useState<Goal | null>(null);
   const goals = useGoals(period || undefined);
   const del = useDeleteGoal();
+  const confirm = useConfirm();
 
   const rows = goals.data ?? [];
 
@@ -127,11 +129,23 @@ export function MetasPage() {
     setDrawerOpen(true);
   }
   async function handleRemove(g: Goal) {
-    if (!window.confirm('Excluir esta meta?')) return;
+    const ok = await confirm({
+      title: `Excluir meta de ${KIND_LABEL[g.kind]}?`,
+      message: `Meta do período ${periodLabel(g.period)}. Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(g.id);
     } catch {
-      window.alert('Não foi possível excluir a meta.');
+      await confirm({
+        title: 'Não foi possível',
+        message: 'Não foi possível excluir a meta.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
 

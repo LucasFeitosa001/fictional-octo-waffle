@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
@@ -67,6 +68,7 @@ export function PacotesPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   useAutoCreate(() => setCreateOpen(true));
 
+  const confirm = useConfirm();
   const sold = useCustomerPackages();
   const delSold = useDeleteCustomerPackage();
 
@@ -141,11 +143,23 @@ export function PacotesPage() {
   );
 
   async function handleDelete(p: CustomerPackage) {
-    if (!window.confirm(`Excluir o pacote #${p.number}?`)) return;
+    const ok = await confirm({
+      title: `Excluir o pacote #${p.number}?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await delSold.mutateAsync(p.id);
     } catch {
-      window.alert('Não foi possível excluir o pacote.');
+      await confirm({
+        title: 'Não foi possível',
+        message: 'Não foi possível excluir o pacote.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
 

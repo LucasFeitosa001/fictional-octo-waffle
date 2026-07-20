@@ -4,6 +4,7 @@ import { ApiClientError } from '@beautypass/shared';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
+import { useConfirm } from '../../components/ConfirmDialog';
 import {
   IconChevron,
   IconCreditCard,
@@ -174,6 +175,7 @@ export function ContasPage() {
   const delAccount = useDeleteFinancialAccount();
   const delMethod = useDeletePaymentMethod();
   const delCategory = useDeleteFinancialCategory();
+  const confirm = useConfirm();
 
   function openCreate() {
     if (tab === 'contas') {
@@ -189,29 +191,64 @@ export function ContasPage() {
   }
 
   async function removeAccount(a: FinancialAccount) {
-    if (!window.confirm(`Remover a conta "${a.name}"?`)) return;
+    const ok = await confirm({
+      title: `Excluir conta "${a.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await delAccount.mutateAsync(a.id);
     } catch (err) {
-      window.alert(err instanceof ApiClientError ? err.message : 'Não foi possível remover a conta.');
+      await confirm({
+        title: 'Não foi possível',
+        message: err instanceof ApiClientError ? err.message : 'Não foi possível remover a conta.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
   async function removeMethod(m: PaymentMethod) {
-    if (!window.confirm(`Remover a forma "${m.name}"?`)) return;
+    const ok = await confirm({
+      title: `Excluir forma "${m.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await delMethod.mutateAsync(m.id);
     } catch (err) {
-      window.alert(err instanceof ApiClientError ? err.message : 'Não foi possível remover a forma.');
+      await confirm({
+        title: 'Não foi possível',
+        message: err instanceof ApiClientError ? err.message : 'Não foi possível remover a forma.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
   async function removeCategory(c: FinancialCategory) {
-    if (!window.confirm(`Remover a categoria "${c.name}"?`)) return;
+    const ok = await confirm({
+      title: `Excluir categoria "${c.name}"?`,
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await delCategory.mutateAsync(c.id);
     } catch (err) {
-      window.alert(
-        err instanceof ApiClientError ? err.message : 'Não foi possível remover a categoria.',
-      );
+      await confirm({
+        title: 'Não foi possível',
+        message:
+          err instanceof ApiClientError ? err.message : 'Não foi possível remover a categoria.',
+        confirmLabel: 'OK',
+        cancelLabel: undefined,
+        danger: false,
+      });
     }
   }
 
