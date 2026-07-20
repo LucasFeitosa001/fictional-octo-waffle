@@ -1,0 +1,280 @@
+div.ant-drawer.ant-drawer-right.ant-drawer-open
+  div.ant-drawer-mask
+  div.ant-drawer-content-wrapper
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+          div.ant-drawer-title "Novo produto"
+      div.ant-drawer-body
+        div.ant-row
+          form.ant-form.ant-form-vertical
+            button [type="submit"]
+            div.ant-tabs.ant-tabs-left
+              div.ant-tabs-nav [role="tablist"]
+                div.ant-tabs-nav-wrap
+                  div.ant-tabs-nav-list
+                    div.ant-tabs-tab.ant-tabs-tab-active
+                      div.ant-tabs-tab-btn [role="tab"] "Cadastro"
+                    div.ant-tabs-tab
+                      div.ant-tabs-tab-btn [role="tab"] "Configurações"
+                    div.ant-tabs-tab
+                      div.ant-tabs-tab-btn [role="tab"] "Cashback"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Retorno"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Serviços vinculados"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Configurar nota fiscal"
+                    div.ant-tabs-ink-bar.ant-tabs-ink-bar-animated
+                div.ant-tabs-nav-operations.ant-tabs-nav-operations-hidden
+                  button.ant-tabs-nav-more [type="button"]
+                    span.anticon.anticon-ellipsis [role="img" aria-label="ellipsis"]
+              div.ant-tabs-content-holder
+                div.ant-tabs-content.ant-tabs-content-left
+                  div.ant-tabs-tabpane.ant-tabs-tabpane-active [role="tabpanel"]
+                    div.ant-row
+                      input.ant-input.ant-input-outlined [type="hidden"]
+                      span.ant-avatar.ant-avatar-square.ant-avatar-image
+                        img
+                      input [type="file"]
+                      div.ant-space.ant-space-horizontal.ant-space-align-center
+                        div.ant-space-item
+                          button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-sm [type="button"]
+                            span.ant-btn-icon
+                              span.anticon.anticon-upload [role="img" aria-label="upload"]
+                            span "Alterar"
+                      div.ant-col.ant-col-24
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label.ant-form-item-required "Nome"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  input.ant-input.ant-input-outlined [placeholder="Nome" type="text"]
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-has-success.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label.ant-form-item-required "Categoria"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-status-success.ant-select-single
+                                    div.ant-select-selector
+                                    span.ant-select-arrow
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Marca"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-single.ant-select-allow-clear
+                                    div.ant-select-selector
+                                    span.ant-select-arrow
+                      div.ant-col.ant-col-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Preço de venda"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button
+                                    div.ant-input-number-handler-wrap
+                                    div.ant-input-number-input-wrap
+                      div.ant-col.ant-col-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Custo de compra"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button
+                                    div.ant-input-number-handler-wrap
+                                    div.ant-input-number-input-wrap
+                      div.ant-divider.ant-divider-horizontal.ant-divider-with-text.ant-divider-with-text-start [role="separator"]
+                        span.ant-divider-inner-text "Estoque"
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-has-success.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label.ant-form-item-required "Registro de saída"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-status-success.ant-select-single
+                                    div.ant-select-selector
+                                    span.ant-select-arrow
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Uma unidade equivale a"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number-affix-wrapper.ant-input-number-disabled.ant-input-number-affix-wrapper-disabled.ant-input-number-affix-wrapper-without-controls.ant-input-number-outlined
+                                    div.ant-input-number.ant-input-number-in-form-item.ant-input-number-disabled
+                                    span.ant-input-number-suffix "unidade"
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Estoque mínimo"
+                                span.anticon.anticon-question-circle.ant-form-item-tooltip [role="img" aria-label="question-circle"]
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number-affix-wrapper.ant-input-number-outlined
+                                    div.ant-input-number.ant-input-number-in-form-item
+                                    span.ant-input-number-suffix "unidade"
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Estoque inicial"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number-affix-wrapper.ant-input-number-outlined
+                                    div.ant-input-number.ant-input-number-in-form-item
+                                    span.ant-input-number-suffix "unidade"
+                      div.ant-divider.ant-divider-horizontal [role="separator"]
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Preço para profissional"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button
+                                    div.ant-input-number-handler-wrap
+                                    div.ant-input-number-input-wrap
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Custo adicional"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-space-compact.ant-space-compact-block
+                                    div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-compact-item.ant-select-compact-first-item
+                                    div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button.ant-input-number-compact-item
+                      div.ant-col.ant-col-24
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Comissão padrão"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button
+                                    div.ant-input-number-handler-wrap
+                                    div.ant-input-number-input-wrap
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Código do item"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  input.ant-input.ant-input-outlined [placeholder="Código do item" type="text"]
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Código de barras"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  input.ant-input.ant-input-outlined [placeholder="Código de barras" type="text"]
+                      div.ant-col.ant-col-24
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Observações"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  textarea.ant-input.ant-input-outlined [placeholder="Anotações"]
+                  div.ant-tabs-tabpane [role="tabpanel"]
+                    div.left
+                      span "Ativo"
+                      span "Um item desativado não será listado para realizar agendament"
+                    div.right
+                      button.ant-switch.ant-switch-checked [role="switch" type="button"]
+                        div.ant-switch-handle
+                        span.ant-switch-inner
+                          span.ant-switch-inner-checked
+                          span.ant-switch-inner-unchecked
+                    div.left
+                      span "Favorito"
+                      span "Itens marcados como favoritos irão aparecer em primeiro ao r"
+                    div.right
+                      button.ant-switch [role="switch" type="button"]
+                        div.ant-switch-handle
+                        span.ant-switch-inner
+                          span.ant-switch-inner-checked
+                          span.ant-switch-inner-unchecked
+                    div.left
+                      span "Controlar estoque"
+                      span "Ativando essa opção, o estoque será automaticamente ajustado"
+                    div.right
+                      button.ant-switch.ant-switch-checked [role="switch" type="button"]
+                        div.ant-switch-handle
+                        span.ant-switch-inner
+                          span.ant-switch-inner-checked
+                          span.ant-switch-inner-unchecked
+                  div.ant-tabs-tabpane [role="tabpanel"]
+                    div.left
+                      span "Ativo"
+                      span "Essa configuração tem prioridade sobre a configuração geral "
+                    div.right
+                      div.ant-form-item.ant-form-item-vertical
+                        div.ant-row.ant-form-item-row
+                          div.ant-col.ant-form-item-control
+                            div.ant-form-item-control-input
+                              div.ant-form-item-control-input-content
+                                button.ant-switch [role="switch" type="button"]
+                                  div.ant-switch-handle
+                                  span.ant-switch-inner
+                                    span.ant-switch-inner-checked
+                                    span.ant-switch-inner-unchecked
+                    div.left
+                      span "Valor personalizado"
+                      span "Atualmente o valor de cashback padrão para todos os serviços"
+                    div.right
+                      div.ant-space-compact.ant-space-compact-block
+                        div.ant-select.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item.ant-select-single
+                          div.ant-select-selector
+                            span.ant-select-selection-wrap
+                              span.ant-select-selection-search
+                                input.ant-select-selection-search-input [role="combobox" type="search"]
+                              span.ant-select-selection-item "R$"
+                          span.ant-select-arrow
+                            span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                        div.ant-input-number.ant-input-number-outlined.hide-number-button.ant-input-number-compact-item.ant-input-number-compact-last-item
+                          div.ant-input-number-handler-wrap
+                            span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                              span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                            span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                              span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                          div.ant-input-number-input-wrap
+                            input.ant-input-number-input [role="spinbutton"]
+      div.ant-drawer-footer
+        button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined [type="button"]
+          span "Cancelar"
+        button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+          span "Salvar"

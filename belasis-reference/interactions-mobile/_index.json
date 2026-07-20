@@ -1,0 +1,162 @@
+[
+  {
+    "route": "/wow",
+    "slug": "wow",
+    "actions": [],
+    "url": "https://belasis.app/wow",
+    "hash": "73d168e21dd1"
+  },
+  {
+    "route": "/calendar",
+    "slug": "calendar",
+    "actions": [],
+    "url": "https://belasis.app/calendar",
+    "hash": "e70f51746da8"
+  },
+  {
+    "route": "/sales",
+    "slug": "sales",
+    "actions": [],
+    "url": "https://belasis.app/sales",
+    "hash": "264ecb16f79b"
+  },
+  {
+    "route": "/clients",
+    "slug": "clients",
+    "actions": [],
+    "url": "https://belasis.app/clients",
+    "hash": "c8ba54079635"
+  },
+  {
+    "route": "/employees",
+    "slug": "employees",
+    "actions": [],
+    "url": "https://belasis.app/employees",
+    "hash": "67e833d47ba5"
+  },
+  {
+    "route": "/products",
+    "slug": "products",
+    "actions": [],
+    "url": "https://belasis.app/products",
+    "hash": "20c068b2ea7b"
+  },
+  {
+    "route": "/services",
+    "slug": "services",
+    "actions": [],
+    "url": "https://belasis.app/services",
+    "hash": "dddeb5a96f2e"
+  },
+  {
+    "route": "/packages",
+    "slug": "packages",
+    "actions": [],
+    "url": "https://belasis.app/packages",
+    "hash": "d2c264fad927"
+  },
+  {
+    "route": "/subscriptions",
+    "slug": "subscriptions",
+    "actions": [],
+    "url": "https://belasis.app/calendar",
+    "hash": "21795c6023e1",
+    "redirectedTo": "https://belasis.app/calendar"
+  },
+  {
+    "route": "/vendors",
+    "slug": "vendors",
+    "actions": [],
+    "url": "https://belasis.app/vendors",
+    "hash": "cefd1fdfef67"
+  },
+  {
+    "route": "/brands",
+    "slug": "brands",
+    "actions": [],
+    "url": "https://belasis.app/brands",
+    "hash": "e8591572cf02"
+  },
+  {
+    "route": "/finance/transactions",
+    "slug": "finance_transactions",
+    "actions": [],
+    "url": "https://belasis.app/finance/transactions",
+    "hash": "00b5d29cda5e"
+  },
+  {
+    "route": "/finance/accounts",
+    "slug": "finance_accounts",
+    "actions": [],
+    "url": "https://belasis.app/finance/accounts",
+    "hash": "263ffae8e270"
+  },
+  {
+    "route": "/finance/cash",
+    "slug": "finance_cash",
+    "actions": [],
+    "url": "https://belasis.app/calendar",
+    "hash": "5ccf1e47a27b",
+    "redirectedTo": "https://belasis.app/calendar"
+  },
+  {
+    "route": "/finance/dashboard",
+    "slug": "finance_dashboard",
+    "actions": [],
+    "url": "https://belasis.app/finance/dashboard",
+    "hash": "cdf7b7b863a0"
+  },
+  {
+    "route": "/commissions",
+    "slug": "commissions",
+    "actions": [],
+    "url": "https://belasis.app/calendar",
+    "hash": "2e31796a6a5a",
+    "redirectedTo": "https://belasis.app/calendar"
+  },
+  {
+    "route": "/reports",
+    "slug": "reports",
+    "actions": [],
+    "url": "https://belasis.app/reports",
+    "hash": "c754f8afde79"
+  },
+  {
+    "route": "/reports/financial",
+    "slug": "reports_financial",
+    "actions": [],
+    "url": "https://belasis.app/reports/financial",
+    "hash": "527c1407a647"
+  },
+  {
+    "route": "/marketing/agendamento-online",
+    "slug": "marketing_agendamento-online",
+    "actions": [],
+    "url": "https://belasis.app/calendar",
+    "hash": "eb95e59f3749",
+    "redirectedTo": "https://belasis.app/calendar"
+  },
+  {
+    "route": "/marketing/campanhas",
+    "slug": "marketing_campanhas",
+    "actions": [],
+    "url": "https://belasis.app/calendar",
+    "hash": "c4e05302ecbe",
+    "redirectedTo": "https://belasis.app/calendar"
+  },
+  {
+    "route": "/marketing/cashback",
+    "slug": "marketing_cashback",
+    "actions": [],
+    "url": "https://belasis.app/calendar",
+    "hash": "87115116bf46",
+    "redirectedTo": "https://belasis.app/calendar"
+  },
+  {
+    "route": "/settings",
+    "slug": "settings",
+    "actions": [],
+    "url": "https://belasis.app/settings",
+    "hash": "54d570e55826"
+  }
+]

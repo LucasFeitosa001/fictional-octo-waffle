@@ -2,6 +2,7 @@ import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import { Button, Switch } from '@heroui/react';
 import { PageHeader } from '../../components/PageHeader';
 import { Drawer } from '../../components/Drawer';
+import { HelpTooltip } from '../../components/HelpTooltip';
 
 // ---------------------------------------------------------------------------
 // Catálogo de campanhas automáticas do Belasis (rota /campaigns → aba Campanhas).
@@ -252,7 +253,10 @@ function CampaignCard({
       {/* Envio automático (wb__sc-u3tb4c-3) */}
       {campaign.hasAutoSwitch ? (
         <div className="mt-auto flex items-center justify-center gap-2 border-t border-line px-4 py-3.5">
-          <span className="text-sm text-muted-ink">Envio automático</span>
+          <span className="inline-flex items-center text-sm text-muted-ink">
+            Envio automático
+            <HelpTooltip>Ative para enviar esta campanha automaticamente aos seus clientes.</HelpTooltip>
+          </span>
           <Switch isSelected={active} onChange={onToggle} aria-label={`Envio automático — ${campaign.title}`}>
             <Switch.Control>
               <Switch.Thumb />
@@ -297,7 +301,14 @@ function CampaignCard({
 
 // -------------------------------------------------------------- créditos view
 
-const RECARGA_COLUMNS = ['Data', 'Quantidade', 'Valor', 'Pagamento', 'Usuário', 'Status'];
+const RECARGA_COLUMNS: { key: string; label: string; help?: string }[] = [
+  { key: 'Data', label: 'Data', help: 'Data da recarga de créditos' },
+  { key: 'Quantidade', label: 'Quantidade', help: 'Quantidade de mensagens adicionadas na recarga' },
+  { key: 'Valor', label: 'Valor', help: 'Valor pago na recarga' },
+  { key: 'Pagamento', label: 'Pagamento', help: 'Forma de pagamento usada na recarga' },
+  { key: 'Usuário', label: 'Usuário' },
+  { key: 'Status', label: 'Status', help: 'Situação atual da recarga' },
+];
 
 function CreditosView() {
   const [autoRecarga, setAutoRecarga] = useState(false);
@@ -306,7 +317,12 @@ function CreditosView() {
     <div className="flex flex-col gap-6">
       {/* Card de saldo (roxo gradiente) */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-primary to-[color-mix(in_oklab,var(--sp-primary)_78%,black)] p-6 text-primary-foreground shadow-[var(--shadow-card)]">
-        <span className="text-sm opacity-90">Saldo de mensagens</span>
+        <span className="inline-flex items-center text-sm opacity-90">
+          Saldo de mensagens
+          <HelpTooltip className="ml-1 inline-flex items-center text-white/80 hover:text-white">
+            Créditos disponíveis para envio de mensagens automáticas.
+          </HelpTooltip>
+        </span>
         <div className="mt-1 flex items-baseline gap-2">
           {/* TODO: saldo real de mensagens quando a API existir. */}
           <span className="text-4xl font-bold leading-none">200</span>
@@ -314,11 +330,19 @@ function CreditosView() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-          <Button variant="outline" className="border-white/40 bg-white/10 text-primary-foreground hover:bg-white/20">
-            Recarregar
-          </Button>
+          <div className="inline-flex items-center gap-1">
+            <Button variant="outline" className="border-white/40 bg-white/10 text-primary-foreground hover:bg-white/20">
+              Recarregar
+            </Button>
+            <HelpTooltip className="ml-1 inline-flex items-center text-white/80 hover:text-white">
+              Contrate um pacote de mensagens para continuar enviando.
+            </HelpTooltip>
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <span className="opacity-90">Recarga automática</span>
+            <HelpTooltip className="inline-flex items-center text-white/80 hover:text-white">
+              Recarrega o saldo automaticamente quando os créditos acabarem.
+            </HelpTooltip>
             <Switch isSelected={autoRecarga} onChange={setAutoRecarga} aria-label="Recarga automática">
               <Switch.Control>
                 <Switch.Thumb />
@@ -339,10 +363,13 @@ function CreditosView() {
               <tr className="border-b border-line">
                 {RECARGA_COLUMNS.map((col) => (
                   <th
-                    key={col}
+                    key={col.key}
                     className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-muted-ink"
                   >
-                    {col}
+                    <span className="inline-flex items-center">
+                      {col.label}
+                      {col.help && <HelpTooltip>{col.help}</HelpTooltip>}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -445,7 +472,10 @@ export function CampanhasPage() {
 
             {editing.hasAutoSwitch && (
               <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card px-3 py-3">
-                <span className="text-sm text-ink">Envio automático</span>
+                <span className="inline-flex items-center text-sm text-ink">
+                  Envio automático
+                  <HelpTooltip>Quando ativado, a mensagem é enviada sem ação manual sua.</HelpTooltip>
+                </span>
                 <Switch
                   isSelected={editingActive}
                   onChange={(v: boolean) =>
@@ -461,7 +491,10 @@ export function CampanhasPage() {
             )}
 
             <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-ink">Mensagem</span>
+              <span className="inline-flex items-center text-sm font-medium text-ink">
+                Mensagem
+                <HelpTooltip>Texto enviado ao cliente. Use as variáveis para personalizar.</HelpTooltip>
+              </span>
               <span className="text-xs text-muted-ink">
                 Use %NOME% para o nome do cliente e %ESTABELECIMENTO% para o nome do seu negócio.
               </span>

@@ -1,0 +1,254 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Pacotes"
+          span.anticon.anticon-play-circle.wb-icon.ant-dropdown-trigger.no-print [role="img" aria-label="play-circle"]
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+      span.ant-tag.ant-tag-has-color.ant-dropdown-trigger
+        span.anticon.anticon-down [role="img" aria-label="down"]
+        span "Ordenando por Ticket"
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+                div.ant-row.ant-row-space-between
+                  span.react-loading-skeleton "‌"
+                  span.react-loading-skeleton "‌"
+        div.ant-row
+          span.anticon.anticon-loading.anticon-spin.wb-icon [role="img" aria-label="loading"]
+img

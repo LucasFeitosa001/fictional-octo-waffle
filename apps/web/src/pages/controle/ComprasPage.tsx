@@ -8,12 +8,12 @@ import {
   IconClock,
   IconDownload,
   IconFilter,
+  IconInfo,
   IconPlus,
   IconReceipt,
   IconSearch,
   IconSettings,
   IconTrash,
-  IconTruck,
 } from '../../components/icons';
 import { useSetPageActions } from '../../layout/PageActions';
 import { formatDate, formatMoney, formatNumber, isoDate } from '../../lib/format';
@@ -232,7 +232,12 @@ export function ComprasPage() {
     <div className="pb-10">
       {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-ink sm:text-2xl">Compras</h1>
+        <h1 className="flex items-center gap-1.5 text-xl font-semibold text-ink sm:text-2xl">
+          Compras
+          <span className="text-primary" aria-hidden="true" title="Ajuda">
+            <IconInfo size={18} />
+          </span>
+        </h1>
         <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
             <IconSearch size={16} /> Buscar
@@ -257,10 +262,10 @@ export function ComprasPage() {
       {/* Sub-abas: Compras / XMLs Importados */}
       <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-line">
         <SubTab active={tab === 'compras'} onClick={() => setTab('compras')}>
-          <IconTruck size={15} /> Compras
+          Compras
         </SubTab>
         <SubTab active={tab === 'xmls'} onClick={() => setTab('xmls')}>
-          <IconDownload size={15} /> XMLs Importados
+          XMLs Importados
         </SubTab>
       </div>
 
@@ -524,29 +529,27 @@ export function ComprasPage() {
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
                     <span>{formatNumber(total)} no total</span>
                     <div className="flex items-center gap-1.5">
-                      {pageCount > 1 && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            isDisabled={safePage <= 1}
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          >
-                            Anterior
-                          </Button>
-                          <span className="px-1">
-                            {safePage} / {pageCount}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            isDisabled={safePage >= pageCount}
-                            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                          >
-                            Próxima
-                          </Button>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        aria-label="Página anterior"
+                        disabled={safePage <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-card text-muted-ink transition-colors hover:bg-canvas disabled:opacity-40"
+                      >
+                        ‹
+                      </button>
+                      <span className="min-w-6 px-1 text-center font-medium text-ink">
+                        {safePage}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Próxima página"
+                        disabled={safePage >= pageCount}
+                        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-card text-muted-ink transition-colors hover:bg-canvas disabled:opacity-40"
+                      >
+                        ›
+                      </button>
                       <span className="rounded-md border border-line bg-card px-2 py-1">
                         {PAGE_SIZE} / página
                       </span>
@@ -752,7 +755,13 @@ function PurchaseDrawer({
     id: p.id,
     name: p.name,
     costPrice: p.costPrice,
+    salePrice: p.salePrice,
   }));
+
+  function salePriceOf(productId: string) {
+    const prod = productOptions.find((p) => p.id === productId);
+    return formatMoney(prod ? prod.salePrice : 0);
+  }
 
   function updateItem(index: number, patch: Partial<DraftItem>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
@@ -838,30 +847,51 @@ function PurchaseDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'edit' ? 'Editar compra' : 'Nova compra'}
-      widthClass="sm:w-[620px]"
+      title={mode === 'edit' ? 'Editar Compra' : 'Nova Compra'}
+      widthClass="sm:w-[min(1180px,96vw)]"
       footer={
         <>
+          <button
+            type="button"
+            title="Ajuda"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-card px-3 py-2 text-sm font-medium text-muted-ink transition-colors hover:bg-canvas"
+          >
+            <IconInfo size={15} /> Ajuda
+          </button>
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
           <Button variant="primary" isDisabled={!canSave} onClick={handleSave}>
             {pending ? 'Salvando…' : 'Salvar'}
           </Button>
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={handleSave}
+            className="inline-flex items-center rounded-xl px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ backgroundColor: '#40C463' }}
+          >
+            Faturar
+          </button>
         </>
       }
     >
       {loadingDetail ? (
         <LoadingState />
       ) : (
-        <div className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+        <div className="flex flex-col gap-6">
+          {/* Cabeçalho: Número / Fornecedor* / Data */}
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,220px)]">
             <Field label="Número">
-              <div className="flex h-9 items-center rounded-md border border-line bg-canvas px-3 text-sm text-muted-ink">
-                {number != null ? `#${number}` : 'Automático'}
-              </div>
+              <input
+                readOnly
+                aria-label="Número da nota"
+                value={number != null ? `#${number}` : ''}
+                placeholder="Nº Nota"
+                className="h-9 w-full rounded-xl border border-line bg-canvas px-3 text-sm text-muted-ink outline-none placeholder:text-muted-ink/60"
+              />
             </Field>
-            <Field label="Fornecedor">
+            <Field label="Fornecedor" required>
               <SelectField
                 ariaLabel="Fornecedor"
                 value={supplierId}
@@ -881,24 +911,26 @@ function PurchaseDrawer({
           </div>
 
           {/* Itens */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-ink">Itens</label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setItems((prev) => [...prev, emptyItem()])}
-              >
-                <IconPlus size={14} /> Adicionar item
-              </Button>
-            </div>
+          <section className="flex flex-col gap-3">
+            <SectionTitle
+              title="Itens"
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setItems((prev) => [...prev, emptyItem()])}
+                >
+                  <IconPlus size={14} /> Adicionar item
+                </Button>
+              }
+            />
 
             {items.map((it, index) => (
               <div
                 key={index}
-                className="rounded-lg border border-line bg-canvas p-3"
+                className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[minmax(0,1.6fr)_84px_150px_120px_120px_120px_120px_40px]"
               >
-                <div className="mb-2">
+                <ItemCell label="Produto" required={index === 0}>
                   <SelectField
                     ariaLabel="Produto"
                     value={it.productId}
@@ -906,95 +938,126 @@ function PurchaseDrawer({
                     placeholder="Informe um produto"
                     options={productOptions.map((p) => ({ id: p.id, name: p.name }))}
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <MiniField label="Quantidade">
-                    <TextField
-                      value={it.quantity}
-                      onChange={(v) => updateItem(index, { quantity: v })}
-                      aria-label="Quantidade"
-                    >
-                      <Input type="number" min={0} placeholder="0" />
-                    </TextField>
-                  </MiniField>
-                  <MiniField label="Custo">
-                    <TextField
-                      value={it.unitCost}
-                      onChange={(v) => updateItem(index, { unitCost: v })}
-                      aria-label="Custo"
-                    >
-                      <Input type="number" min={0} placeholder="0,00" />
-                    </TextField>
-                  </MiniField>
-                  <MiniField label="Desconto">
-                    <TextField
-                      value={it.discount}
-                      onChange={(v) => updateItem(index, { discount: v })}
-                      aria-label="Desconto do item"
-                    >
-                      <Input type="number" min={0} placeholder="0,00" />
-                    </TextField>
-                  </MiniField>
-                  <MiniField label="Total">
-                    <div className="flex h-9 items-center justify-between gap-1 rounded-md border border-line bg-card px-2 text-sm font-medium text-ink">
-                      <span className="truncate">{formatMoney(lineTotal(it))}</span>
-                      {items.length > 1 && (
-                        <button
-                          type="button"
-                          aria-label="Remover item"
-                          className="text-danger"
-                          onClick={() =>
-                            setItems((prev) => prev.filter((_, i) => i !== index))
-                          }
-                        >
-                          <IconTrash size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </MiniField>
-                </div>
+                </ItemCell>
+                <ItemCell label="Quantidade">
+                  <TextField
+                    value={it.quantity}
+                    onChange={(v) => updateItem(index, { quantity: v })}
+                    aria-label="Quantidade"
+                  >
+                    <Input type="number" min={0} placeholder="0" />
+                  </TextField>
+                </ItemCell>
+                <ItemCell label="Entrada no estoque">
+                  <div className="flex h-9 items-center justify-between rounded-xl border border-line bg-canvas px-3 text-sm text-muted-ink">
+                    <span className="truncate">{it.quantity || '0'}</span>
+                    <span className="text-muted-ink/60">unidade</span>
+                  </div>
+                </ItemCell>
+                <ItemCell label="Lote">
+                  <div className="flex h-9 items-center justify-between rounded-xl border border-line bg-canvas px-3 text-sm text-muted-ink/60">
+                    <span>Lote</span>
+                    <span aria-hidden="true">▾</span>
+                  </div>
+                </ItemCell>
+                <ItemCell label="Custo">
+                  <TextField
+                    value={it.unitCost}
+                    onChange={(v) => updateItem(index, { unitCost: v })}
+                    aria-label="Custo"
+                  >
+                    <Input type="number" min={0} placeholder="0,00" />
+                  </TextField>
+                </ItemCell>
+                <ItemCell label="Venda">
+                  <div className="flex h-9 items-center rounded-xl border border-line bg-canvas px-3 text-sm text-muted-ink">
+                    <span className="truncate">{salePriceOf(it.productId)}</span>
+                  </div>
+                </ItemCell>
+                <ItemCell label="Total">
+                  <div className="flex h-9 items-center rounded-xl border border-line bg-canvas px-3 text-sm font-medium text-ink">
+                    <span className="truncate">{formatMoney(lineTotal(it))}</span>
+                  </div>
+                </ItemCell>
+                <ItemCell label="">
+                  <button
+                    type="button"
+                    aria-label="Remover item"
+                    title="Remover item"
+                    disabled={items.length <= 1}
+                    onClick={() =>
+                      setItems((prev) => prev.filter((_, i) => i !== index))
+                    }
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-canvas text-danger transition-colors hover:bg-danger/10 disabled:text-muted-ink/40 disabled:hover:bg-canvas"
+                  >
+                    <IconTrash size={15} />
+                  </button>
+                </ItemCell>
               </div>
             ))}
-          </div>
+          </section>
 
           {/* Outros valores */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Frete">
-              <TextField value={freight} onChange={setFreight} aria-label="Frete">
-                <Input type="number" min={0} placeholder="0,00" />
-              </TextField>
-            </Field>
-            <Field label="Outras Despesas">
-              <TextField
-                value={otherExpenses}
-                onChange={setOtherExpenses}
-                aria-label="Outras despesas"
-              >
-                <Input type="number" min={0} placeholder="0,00" />
-              </TextField>
-            </Field>
-            <Field label="Desconto">
-              <TextField
-                value={discount}
-                onChange={setDiscount}
-                aria-label="Desconto geral"
-              >
-                <Input type="number" min={0} placeholder="0,00" />
-              </TextField>
-            </Field>
-            <Field label="Outras Receitas">
-              <TextField
-                value={otherIncome}
-                onChange={setOtherIncome}
-                aria-label="Outras receitas"
-              >
-                <Input type="number" min={0} placeholder="0,00" />
-              </TextField>
-            </Field>
-          </div>
+          <section className="flex flex-col gap-3">
+            <SectionTitle title="Outros valores" />
+            <div className="grid gap-4 sm:grid-cols-4">
+              <Field label="Frete">
+                <AffixInput
+                  sign="add"
+                  value={freight}
+                  onChange={setFreight}
+                  ariaLabel="Frete"
+                />
+              </Field>
+              <Field label="Outras Despesas">
+                <AffixInput
+                  sign="add"
+                  value={otherExpenses}
+                  onChange={setOtherExpenses}
+                  ariaLabel="Outras despesas"
+                />
+              </Field>
+              <Field label="Desconto">
+                <AffixInput
+                  sign="sub"
+                  value={discount}
+                  onChange={setDiscount}
+                  ariaLabel="Desconto geral"
+                />
+              </Field>
+              <Field label="Outras Receitas">
+                <AffixInput
+                  sign="sub"
+                  value={otherIncome}
+                  onChange={setOtherIncome}
+                  ariaLabel="Outras receitas"
+                />
+              </Field>
+            </div>
+            <div className="flex justify-end">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-muted-ink">Total :</span>
+                <div className="flex h-9 w-[220px] items-center rounded-xl border border-line bg-canvas px-3 text-sm font-semibold text-ink">
+                  {formatMoney(grandTotal)}
+                </div>
+              </div>
+            </div>
+          </section>
 
-          {/* Pagamento */}
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Observação */}
+          <Field label="Observação">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              aria-label="Observação"
+              placeholder="Observação"
+              rows={3}
+              className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-muted-ink/60 focus:border-primary focus:ring-2 focus:ring-primary/25"
+            />
+          </Field>
+
+          {/* Pagamento (mantido — SPEC lista forma de pagamento p/ Compras) */}
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Conta de pagamento (opcional)">
               <SelectField
                 ariaLabel="Conta de pagamento"
@@ -1016,19 +1079,6 @@ function PurchaseDrawer({
                 options={(methods.data ?? []).map((m) => ({ id: m.id, name: m.name }))}
               />
             </Field>
-          </div>
-
-          <Field label="Observação">
-            <TextField value={notes} onChange={setNotes} aria-label="Observação">
-              <Input placeholder="Anotações sobre a compra" />
-            </TextField>
-          </Field>
-
-          <div className="flex items-center justify-between rounded-lg bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] px-3 py-2">
-            <span className="text-sm font-medium text-primary">Total</span>
-            <span className="text-lg font-bold text-ink">
-              {formatMoney(grandTotal)}
-            </span>
           </div>
 
           <p className="text-xs text-muted-ink">
@@ -1256,20 +1306,95 @@ function SelectField({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted-ink">{label}</label>
+      <label className="text-sm font-medium text-muted-ink">
+        {required && <span className="mr-0.5 text-danger">*</span>}
+        {label}
+      </label>
       {children}
     </div>
   );
 }
 
-function MiniField({ label, children }: { label: string; children: ReactNode }) {
+/** Célula de item na grade da compra: label pequeno + campo. */
+function ItemCell({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-medium text-muted-ink">{label}</label>
+    <div className="flex min-w-0 flex-col gap-1">
+      {label ? (
+        <label className="truncate text-[13px] font-medium text-muted-ink">
+          {required && <span className="mr-0.5 text-danger">*</span>}
+          {label}
+        </label>
+      ) : (
+        <span className="hidden h-[19px] sm:block" aria-hidden="true" />
+      )}
       {children}
+    </div>
+  );
+}
+
+/** Título de seção do drawer (Itens / Outros valores) com filete inferior. */
+function SectionTitle({ title, action }: { title: string; action?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-line pb-1.5">
+      <span className="text-[15px] font-semibold text-ink">{title}</span>
+      {action}
+    </div>
+  );
+}
+
+/** Input monetário com prefixo colorido (+ despesa / − receita), igual Belasis. */
+function AffixInput({
+  sign,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  sign: 'add' | 'sub';
+  value: string;
+  onChange: (v: string) => void;
+  ariaLabel: string;
+}) {
+  const add = sign === 'add';
+  return (
+    <div className="flex h-9 items-stretch overflow-hidden rounded-xl border border-line bg-white">
+      <span
+        aria-hidden="true"
+        className={[
+          'flex w-9 shrink-0 items-center justify-center text-sm font-semibold',
+          add ? 'bg-danger/10 text-danger' : 'bg-[#2fc25b]/12 text-[#2f9d54]',
+        ].join(' ')}
+      >
+        {add ? '+' : '−'}
+      </span>
+      <input
+        type="number"
+        min={0}
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="R$ 0,00"
+        className="min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-ink outline-none placeholder:text-muted-ink/60"
+      />
     </div>
   );
 }

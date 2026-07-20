@@ -13,6 +13,7 @@ import {
   IconDollar,
   IconFolder,
   IconGift,
+  IconHelpCircle,
   IconHome,
   IconInfo,
   IconLayers,
@@ -236,6 +237,18 @@ function pathIsActive(to: string, pathname: string) {
   return pathname === cleanPath || pathname.startsWith(`${cleanPath}/`);
 }
 
+// Belasis keeps the submenu that contains the current route open (its
+// `ant-menu-submenu-selected ant-menu-submenu-open` state). Mirror that so the
+// active page is always visible when the menu (mobile hamburger) opens.
+function findActiveGroupKey(pathname: string): string | null {
+  for (const entry of NAVIGATION) {
+    if (entry.kind === 'group' && entry.items.some((item) => pathIsActive(item.to, pathname))) {
+      return entry.key;
+    }
+  }
+  return null;
+}
+
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return [
     'group flex min-h-10 items-center rounded-lg text-sm font-normal transition-colors',
@@ -272,7 +285,12 @@ export function Sidebar({
   });
   const isCollapsed = !mobile && collapsed;
 
-  const [collapsedGroups, setCollapsedGroups] = useState(loadCollapsedGroups);
+  const activeGroupKey = findActiveGroupKey(location.pathname);
+  const [collapsedGroups, setCollapsedGroups] = useState(() => {
+    const initial = loadCollapsedGroups();
+    if (activeGroupKey) initial.delete(activeGroupKey);
+    return initial;
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
@@ -305,6 +323,18 @@ export function Sidebar({
       return next;
     });
   }
+
+  // Keep the active route's group expanded as navigation changes (no persist —
+  // this only reflects the current selection, never overwrites saved prefs).
+  useEffect(() => {
+    if (!activeGroupKey) return;
+    setCollapsedGroups((previous) => {
+      if (!previous.has(activeGroupKey)) return previous;
+      const next = new Set(previous);
+      next.delete(activeGroupKey);
+      return next;
+    });
+  }, [activeGroupKey]);
 
   useEffect(() => {
     if (!createOpen && !profileOpen) return;
@@ -426,6 +456,27 @@ export function Sidebar({
 
         <div className={isCollapsed ? 'flex flex-col items-center gap-2 text-white' : 'flex items-center gap-1 text-white'}>
           <NotificationBell />
+          {mobile && (
+            <>
+              <NavLink
+                to="/ajuda/suporte"
+                onClick={onNavigate}
+                aria-label="Falar com o suporte"
+                className="relative rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <IconMessage size={22} />
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" aria-hidden />
+              </NavLink>
+              <NavLink
+                to="/ajuda/base-conhecimento"
+                onClick={onNavigate}
+                aria-label="Ajuda"
+                className="rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <IconHelpCircle size={22} />
+              </NavLink>
+            </>
+          )}
           {!mobile && (
             <button
               type="button"
@@ -450,10 +501,23 @@ export function Sidebar({
           aria-expanded={profileOpen}
           className={[
             'flex w-full items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
-            isCollapsed ? 'h-11 justify-center' : 'gap-3 bg-white/[0.06] px-3 py-2.5',
+            isCollapsed
+              ? 'h-11 justify-center'
+              // Belasis mobile hamburger sits the profile flush on the sidebar with
+              // no card; the desktop rail keeps the subtle translucent chip.
+              : mobile
+                ? 'gap-3 px-1 py-2'
+                : 'gap-3 bg-white/[0.06] px-3 py-2.5',
           ].join(' ')}
         >
-          <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-gold text-sm font-bold text-ink">
+          <span
+            className={[
+              'grid shrink-0 place-items-center overflow-hidden bg-gold font-bold text-ink',
+              // Belasis renders a square (ant-avatar-square) 40px avatar in the
+              // mobile menu; the collapsed/desktop rail keeps the round chip.
+              mobile ? 'h-10 w-10 rounded-lg text-base' : 'h-9 w-9 rounded-full text-sm',
+            ].join(' ')}
+          >
             {session?.user?.image ? (
               <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
             ) : (
@@ -462,7 +526,7 @@ export function Sidebar({
           </span>
           {!isCollapsed && (
             <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-sm font-semibold text-white">Olá, {firstName.toUpperCase()}</span>
+              <span className={`block truncate text-white ${mobile ? 'text-base font-bold' : 'text-sm font-semibold'}`}>Olá, {firstName.toUpperCase()}</span>
               <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
                 Meu perfil
                 <IconChevron size={11} className={`transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
@@ -535,7 +599,12 @@ export function Sidebar({
         ) : (
           <Button
             variant="secondary"
-            className="h-10 w-full justify-between rounded-xl bg-white font-semibold text-ink shadow-none hover:bg-white/90"
+            className={[
+              'h-10 w-full rounded-xl bg-white font-semibold text-ink shadow-none hover:bg-white/90',
+              // Belasis mobile hamburger centers the "Novo +" pill content; the
+              // desktop expanded rail keeps label-left / plus-right.
+              mobile ? 'justify-center gap-2' : 'justify-between',
+            ].join(' ')}
             onClick={() => {
               setProfileOpen(false);
               setCreateOpen((previous) => !previous);
@@ -616,7 +685,7 @@ export function Sidebar({
                     <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
                     <span className="truncate pr-2">{entry.title}</span>
                   </span>
-                  <IconChevron size={14} className={`mr-3 transition-transform duration-200 ${groupOpen ? '' : '-rotate-90'}`} />
+                  <IconChevron size={14} className={`mr-3 transition-transform duration-200 ${groupOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 <div

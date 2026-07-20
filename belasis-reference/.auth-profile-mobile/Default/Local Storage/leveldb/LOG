@@ -1,0 +1,22 @@
+2026/07/20-11:24:09.741 10e01 Reusing MANIFEST /home/lucssfeitosa/beautypass/beautypass/belasis-reference/.auth-profile-mobile/Default/Local Storage/leveldb/MANIFEST-000001
+2026/07/20-11:24:09.758 10e01 Recovering log #49
+2026/07/20-11:24:09.763 10e01 Level-0 table #52: started
+2026/07/20-11:24:09.775 10e01 Level-0 table #52: 75134 bytes OK
+2026/07/20-11:24:09.775 10e01 Recovering log #51
+2026/07/20-11:24:09.777 10e01 Reusing old log /home/lucssfeitosa/beautypass/beautypass/belasis-reference/.auth-profile-mobile/Default/Local Storage/leveldb/000051.log 
+2026/07/20-11:24:09.785 10e01 Delete type=0 #49
+2026/07/20-11:24:34.025 10e01 Level-0 table #54: started
+2026/07/20-11:24:34.031 10e01 Level-0 table #54: 74725 bytes OK
+2026/07/20-11:24:34.035 10e01 Delete type=0 #51
+2026/07/20-11:24:34.036 10e01 Compacting 4@0 + 1@1 files
+2026/07/20-11:24:34.065 10e01 Generated table #55@0: 202 keys, 3136815 bytes
+2026/07/20-11:24:34.066 10e01 Compacted 4@0 + 1@1 files => 3136815 bytes
+2026/07/20-11:24:34.071 10e01 compacted to: files[ 0 2 1 0 0 0 0 ]
+2026/07/20-11:24:34.072 10e01 Delete type=2 #48
+2026/07/20-11:24:34.072 10e01 Delete type=2 #52
+2026/07/20-11:24:34.072 10e01 Delete type=2 #46
+2026/07/20-11:24:34.072 10e01 Delete type=2 #54
+2026/07/20-11:24:34.072 10e01 Delete type=2 #50
+2026/07/20-11:25:09.796 10e03 Level-0 table #57: started
+2026/07/20-11:25:09.808 10e03 Level-0 table #57: 545933 bytes OK
+2026/07/20-11:25:09.812 10e03 Delete type=0 #53

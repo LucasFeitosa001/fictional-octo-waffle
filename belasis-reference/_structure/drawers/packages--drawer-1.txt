@@ -1,0 +1,279 @@
+div.ant-drawer.ant-drawer-right
+  div.ant-drawer-mask.ant-drawer-mask-motion-leave.ant-drawer-mask-motion-leave-start.ant-drawer-mask-motion
+  div.ant-drawer-content-wrapper.ant-drawer-panel-motion-right-leave.ant-drawer-panel-motion-right-leave-start.ant-drawer-panel-motion-right
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header.ant-drawer-header-close-only
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+      div.ant-drawer-body
+        div.ant-row
+          div.ant-col.ewueai
+            div.ant-row.ant-row-middle
+              span.ant-avatar.ant-avatar-circle.ant-avatar-image
+                img
+              div.ant-row
+                div.ant-select.ant-select-lg.ant-select-outlined.pointer-events-none-mobile.ant-select-single
+                  div.ant-select-selector
+                    span.ant-select-selection-wrap
+                      span.ant-select-selection-search
+                        input.ant-select-selection-search-input [role="combobox" type="search"]
+                      span.ant-select-selection-placeholder "Busque por um cliente"
+                  span.ant-select-arrow
+                    span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+          div.ant-row
+            div.ant-row
+              span "Novo pacote"
+            div.ant-row
+              form.ant-form.ant-form-vertical
+                div.ant-row
+                  div.ant-col.ant-col-12
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Cliente"
+                            span "*"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-select.ant-select-lg.ant-select-outlined.ant-select-in-form-item.pointer-events-none-mobile
+                                div.ant-select-selector
+                                  span.ant-select-selection-wrap
+                                    span.ant-select-selection-search
+                                    span.ant-select-selection-placeholder "Busque por um cliente"
+                                span.ant-select-arrow
+                                  span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                  div.ant-col.ant-col-6
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Data"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-picker.ant-picker-large.ant-picker-outlined
+                                div.ant-picker-input
+                                  input [placeholder="Selecionar data"]
+                                  span.ant-picker-suffix
+                                    span.anticon.anticon-calendar [role="img" aria-label="calendar"]
+                  div.ant-col.ant-col-6
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Validade"
+                            span.anticon.anticon-question-circle.ant-form-item-tooltip [role="img" aria-label="question-circle"]
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-picker.ant-picker-large.ant-picker-outlined
+                                div.ant-picker-input
+                                  input [placeholder="Selecionar data"]
+                                  span.ant-picker-suffix
+                                    span.anticon.anticon-calendar [role="img" aria-label="calendar"]
+                div.ant-row
+                  div.ant-col.ant-col-12
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Pacote Predefinido"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-select.ant-select-lg.ant-select-outlined.ant-select-in-form-item.ant-select-single
+                                div.ant-select-selector
+                                  span.ant-select-selection-wrap
+                                    span.ant-select-selection-search
+                                    span.ant-select-selection-placeholder "Selecione um pacote predefinido"
+                                span.ant-select-arrow
+                                  span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                  div.ant-col.ant-col-12
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Vendedor"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-select.ant-select-lg.ant-select-outlined.ant-select-in-form-item.pointer-events-none-mobile
+                                div.ant-select-selector
+                                  span.ant-select-selection-wrap
+                                    span.ant-select-selection-search
+                                    span.ant-select-selection-placeholder "Selecione um vendedor"
+                                span.ant-select-arrow
+                                  span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+              span "Itens do pacote"
+              form.ant-form.ant-form-vertical
+                div.ant-row.ant-row-no-wrap
+                  div.ant-col.ant-col-10
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Descrição"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                  div.ant-col
+                    div.ant-row
+                      div.ant-col.ant-col-4
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Qtde."
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                      div.ant-col.ant-col-7
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Valor unitário"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                      div.ant-col.ant-col-7
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Desconto"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                      div.ant-col.ant-col-6
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Total"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                  div.ant-col
+              form.ant-form.ant-form-horizontal
+                div.ant-row.ant-row-no-wrap
+                  div.ant-col.ant-col-10
+                    input.ant-input.ant-input-outlined [type="hidden"]
+                    div.ant-space-compact.ant-space-compact-block
+                      button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined.ant-btn-lg [type="button"]
+                        span.ant-btn-icon
+                          span.anticon.anticon-scissor [role="img" aria-label="scissor"]
+                      div.ant-select.ant-select-lg.ant-select-outlined.ant-select-compact-item.ant-select-compact-last-item
+                        div.ant-select-selector
+                          span.ant-select-selection-wrap
+                            span.ant-select-selection-search
+                              input.ant-select-selection-search-input [role="combobox" type="search"]
+                            span.ant-select-selection-placeholder "Selecionar serviço"
+                        span.ant-select-arrow
+                          span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                  div.ant-col
+                    div.ant-row
+                      div.ant-col.ant-col-4
+                        div.ant-input-number.ant-input-number-lg.ant-input-number-outlined
+                          div.ant-input-number-handler-wrap
+                            span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                              span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                            span.ant-input-number-handler.ant-input-number-handler-down [role="button" aria-label="Decrease Value"]
+                              span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                          div.ant-input-number-input-wrap
+                            input.ant-input-number-input [role="spinbutton" placeholder="Qntd"]
+                      div.ant-col.ant-col-7
+                        div.ant-input-number.ant-input-number-lg.ant-input-number-outlined.hide-number-button
+                          div.ant-input-number-handler-wrap
+                            span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                              span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                            span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                              span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                          div.ant-input-number-input-wrap
+                            input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+                      div.ant-col.ant-col-7
+                        div.ant-space-compact.ant-space-compact-block
+                          div.ant-select.ant-select-lg.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                            div.ant-select-selector
+                              span.ant-select-selection-wrap
+                                span.ant-select-selection-search
+                                  input.ant-select-selection-search-input [role="combobox" type="search"]
+                                span.ant-select-selection-item "R$"
+                            span.ant-select-arrow
+                              span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                          div.ant-input-number.ant-input-number-lg.ant-input-number-outlined.hide-number-button.ant-input-number-compact-item
+                            div.ant-input-number-handler-wrap
+                              span.ant-input-number-handler.ant-input-number-handler-up.ant-input-number-handler-up-disabled [role="button" aria-label="Increase Value"]
+                                span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                              span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                                span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                            div.ant-input-number-input-wrap
+                              input.ant-input-number-input [role="spinbutton"]
+                      div.ant-col.ant-col-6
+                        div.ant-input-number.ant-input-number-lg.ant-input-number-outlined.hide-number-button.ant-input-number-readonly
+                          div.ant-input-number-handler-wrap
+                            span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                              span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                            span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                              span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                          div.ant-input-number-input-wrap
+                            input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+                  div.ant-col
+                    button.ant-btn.ant-btn-primary.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-solid [type="button"]
+                      span.ant-btn-icon
+                        span.anticon.anticon-delete [role="img" aria-label="delete"]
+              div.ant-row.ant-row-bottom
+                div.ant-col.ant-col-24
+                  div.ant-row.ant-row-end
+                    span "Desconto"
+                    div.ant-input-number.ant-input-number-lg.ant-input-number-outlined.hide-number-button
+                      div.ant-input-number-handler-wrap
+                        span.ant-input-number-handler.ant-input-number-handler-up.ant-input-number-handler-up-disabled [role="button" aria-label="Increase Value"]
+                          span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                        span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                          span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                      div.ant-input-number-input-wrap
+                        input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+                  div.ant-row.ant-row-end
+                    span "Crédito"
+                    div.ant-input-number.ant-input-number-lg.ant-input-number-outlined.hide-number-button.ant-input-number-disabled
+                      div.ant-input-number-handler-wrap
+                        span.ant-input-number-handler.ant-input-number-handler-up.ant-input-number-handler-up-disabled [role="button" aria-label="Increase Value"]
+                          span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                        span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                          span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                      div.ant-input-number-input-wrap
+                        input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+                  div.ant-row.ant-row-end
+                    span "Cashback"
+                    div.ant-input-number.ant-input-number-lg.ant-input-number-outlined.hide-number-button.ant-input-number-disabled
+                      div.ant-input-number-handler-wrap
+                        span.ant-input-number-handler.ant-input-number-handler-up.ant-input-number-handler-up-disabled [role="button" aria-label="Increase Value"]
+                          span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                        span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                          span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                      div.ant-input-number-input-wrap
+                        input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+                  div.ant-row.ant-row-end
+                    span "Total"
+                    div.ant-input-number.ant-input-number-lg.ant-input-number-outlined.hide-number-button.ant-input-number-readonly
+                      div.ant-input-number-handler-wrap
+                        span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                          span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                        span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                          span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                      div.ant-input-number-input-wrap
+                        input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+            div.ant-row
+              form.ant-form.ant-form-vertical
+                div.ant-form-item.ant-form-item-vertical
+                  div.ant-row.ant-form-item-row
+                    div.ant-col.ant-form-item-label
+                      label "Observação"
+                    div.ant-col.ant-form-item-control
+                      div.ant-form-item-control-input
+                        div.ant-form-item-control-input-content
+                          textarea.ant-input.ant-input-lg.ant-input-outlined [placeholder="Escreva aqui"]
+          div.ant-row.ant-row-end
+            button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined.ant-btn-lg [type="button"]
+              span.ant-btn-icon
+                span.anticon.anticon-question-circle [role="img" aria-label="question-circle"]
+              span "Ajuda"
+            button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined.ant-btn-lg [type="button"]
+              span "Cancelar"
+            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-lg [type="button"]
+              span "Salvar"
+            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-lg [type="button"]
+              span "Faturar"

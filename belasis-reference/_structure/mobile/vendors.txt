@@ -1,0 +1,434 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Fornecedores"
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "AGESPISA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "ANTONIA ALMONDES"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "BOCA DE FORNO"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "CABELOS BONITOS"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "CARTAO NUBANK"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "CASA DO BOLO"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "COISA NOSSA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "COMERCIAL RUBIAO"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "EDNALDO ELETRICISTA"
+              div.react-tel-input
+                div.special-label "Phone"
+                input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+                div.flag-dropdown
+                  div.selected-flag [role="button"]
+                    div.flag.br
+                      div.arrow
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "ELETROFRIO"
+              div.react-tel-input
+                div.special-label "Phone"
+                input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+                div.flag-dropdown
+                  div.selected-flag [role="button"]
+                    div.flag.br
+                      div.arrow
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "ESPETINHO PADRAO"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "GILSON CAVALCANTE"
+              div.react-tel-input
+                div.special-label "Phone"
+                input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+                div.flag-dropdown
+                  div.selected-flag [role="button"]
+                    div.flag.br
+                      div.arrow
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "GLOBO ARTE"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "IAP COSMETICOS"
+              div.react-tel-input
+                div.special-label "Phone"
+                input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+                div.flag-dropdown
+                  div.selected-flag [role="button"]
+                    div.flag.br
+                      div.arrow
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "IBIAPINO MOVEIS"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "INSTALADOR"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "JAMILE LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "JESUS DISTRIBUIDORA"
+              div.react-tel-input
+                div.special-label "Phone"
+                input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+                div.flag-dropdown
+                  div.selected-flag [role="button"]
+                    div.flag.br
+                      div.arrow
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span "KATIANE SALAO"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

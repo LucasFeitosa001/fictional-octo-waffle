@@ -1,0 +1,268 @@
+div.ant-drawer.ant-drawer-right
+  div.ant-drawer-mask.ant-drawer-mask-motion-leave.ant-drawer-mask-motion-leave-start.ant-drawer-mask-motion
+  div.ant-drawer-content-wrapper.ant-drawer-panel-motion-right-leave.ant-drawer-panel-motion-right-leave-start.ant-drawer-panel-motion-right
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+          div.ant-drawer-title
+            span "Novo cliente"
+      div.ant-drawer-body
+        div.ant-row
+          form.ant-form.ant-form-vertical.ant-form-middle
+            button [type="submit"]
+            div.ant-tabs.ant-tabs-left.ant-tabs-middle
+              div.ant-tabs-nav [role="tablist"]
+                div.ant-tabs-nav-wrap
+                  div.ant-tabs-nav-list
+                    div.ant-tabs-tab.ant-tabs-tab-active
+                      div.ant-tabs-tab-btn [role="tab"] "Cadastro"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Painel"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Débitos"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Créditos"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Cashback"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Agendamentos"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Vendas"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Pacotes"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Mensagens"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Anotações"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Imagens e Arquivos"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Anamneses"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Vendas por Assinatura"
+                    div.ant-tabs-ink-bar.ant-tabs-ink-bar-animated
+                div.ant-tabs-nav-operations.ant-tabs-nav-operations-hidden
+                  button.ant-tabs-nav-more [type="button"]
+                    span.anticon.anticon-ellipsis [role="img" aria-label="ellipsis"]
+              div.ant-tabs-content-holder
+                div.ant-tabs-content.ant-tabs-content-left
+                  div.ant-tabs-tabpane.ant-tabs-tabpane-active [role="tabpanel"]
+                    div.ant-row
+                      div.ant-col.ant-col-xs-24.ant-col-sm-24.ant-col-lg-11
+                        div.ant-row.ant-row-center
+                          span.ant-avatar.ant-avatar-circle.ant-avatar-image
+                            img
+                          input [type="file"]
+                          div.ant-space.ant-space-horizontal.ant-space-align-center
+                            div.ant-space-item
+                              button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-sm [type="button"]
+                                span.ant-btn-icon
+                                  span.anticon.anticon-upload [role="img" aria-label="upload"]
+                                span "Alterar"
+                        div.ant-row
+                          div.ant-col.ant-col-24
+                            input.ant-input.ant-input-outlined [type="hidden"]
+                            input.ant-input.ant-input-outlined [type="hidden"]
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label.ant-form-item-required "Nome"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                          div.ant-col.ant-col-24
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Apelido"
+                                    span.anticon.anticon-question-circle.ant-form-item-tooltip [role="img" aria-label="question-circle"]
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-md-12
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Celular"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                          div.ant-col.ant-col-md-12
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Telefone"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-24
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "E-mail"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-xs-24.ant-col-sm-12
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Aniversário"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                          div.ant-col.ant-col-xs-24.ant-col-sm-12
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "CNPJ"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-xs-24.ant-col-sm-12
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "CPF"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                          div.ant-col.ant-col-xs-24.ant-col-sm-12
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "RG"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-24
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Dependentes"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-xs-24.ant-col-sm-24
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Indicado por"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-xs-24.ant-col-sm-24
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Hashtags"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                        div.ant-row
+                          div.ant-col.ant-col-xs-24.ant-col-sm-24
+                            div.ant-form-item.ant-form-item-vertical
+                              div.ant-row.ant-form-item-row
+                                div.ant-col.ant-form-item-label
+                                  label "Observações"
+                                div.ant-col.ant-form-item-control
+                                  div.ant-form-item-control-input
+                                    div.ant-form-item-control-input-content
+                      div.ant-col.ant-col-xs-0.ant-col-sm-0.ant-col-lg-1
+                        div.ant-row.ant-row-center
+                          div.ant-divider.ant-divider-vertical.ant-divider-md [role="separator"]
+                      div.ant-col.ant-col-xs-24.ant-col-sm-24.ant-col-lg-12
+                        div.ant-collapse.ant-collapse-icon-position-end.ant-collapse-ghost
+                          div.ant-collapse-item
+                            div.ant-collapse-header [role="button"]
+                              div.ant-collapse-expand-icon
+                                span.anticon.anticon-right.ant-collapse-arrow [role="img" aria-label="collapsed"]
+                              span.ant-collapse-header-text
+                                span "Endereço"
+                            div.ant-collapse-content.ant-collapse-content-inactive
+                              div.ant-collapse-content-box
+                                div.ant-row
+                                  div.ant-col.ant-col-xs-12.ant-col-sm-6
+                                    div.ant-form-item.ant-form-item-is-validating.ant-form-item-vertical
+                                  div.ant-col.ant-col-order-1.ant-col-xs-24.ant-col-sm-12
+                                    div.ant-form-item.ant-form-item-is-validating.ant-form-item-vertical
+                                  div.ant-col.ant-col-order-2.ant-col-xs-12.ant-col-sm-6
+                                    div.ant-form-item.ant-form-item-is-validating.ant-form-item-vertical
+                                div.ant-row
+                                  div.ant-col.ant-col-xs-24.ant-col-sm-12
+                                    div.ant-form-item.ant-form-item-vertical
+                                  div.ant-col.ant-col-xs-24.ant-col-sm-12
+                                    div.ant-form-item.ant-form-item-is-validating.ant-form-item-vertical
+                                div.ant-row
+                                  div.ant-col.ant-col-xs-24.ant-col-sm-12
+                                    div.ant-form-item.ant-form-item-is-validating.ant-form-item-vertical
+                                  div.ant-col.ant-col-xs-24.ant-col-sm-12
+                                    div.ant-form-item.ant-form-item-vertical
+                          div.ant-collapse-item
+                            div.ant-collapse-header [role="button"]
+                              div.ant-collapse-expand-icon
+                                span.anticon.anticon-right.ant-collapse-arrow [role="img" aria-label="collapsed"]
+                              span.ant-collapse-header-text
+                                span "Redes sociais"
+                            div.ant-collapse-content.ant-collapse-content-inactive
+                              div.ant-collapse-content-box
+                                div.ant-row
+                                  div.ant-col.ant-col-24
+                                    div.ant-form-item.ant-form-item-vertical
+                                  div.ant-col.ant-col-24
+                                    div.ant-form-item.ant-form-item-vertical
+                          div.ant-collapse-item.ant-collapse-item-active
+                            div.ant-collapse-header [role="button"]
+                              div.ant-collapse-expand-icon
+                                span.anticon.anticon-right.ant-collapse-arrow [role="img" aria-label="expanded"]
+                              span.ant-collapse-header-text
+                                span "Configurações"
+                            div.ant-collapse-content.ant-collapse-content-active
+                              div.ant-collapse-content-box
+                                div.ant-row
+                                  div.ant-col.ant-col-xs-24.ant-col-sm-12
+                                    div.ant-form-item.ant-form-item-vertical
+                                div.ant-row.ant-row-middle
+                                  button.ant-switch.ant-switch-checked [role="switch" type="button"]
+                                    div.ant-switch-handle
+                                    span.ant-switch-inner
+                                  span "Ativo"
+                                  span "Desative um cliente para que ele não apareça mais em agendam"
+                                div.ant-row.ant-row-middle
+                                  button.ant-switch.ant-switch-checked [role="switch" type="button"]
+                                    div.ant-switch-handle
+                                    span.ant-switch-inner
+                                  span "Notificações"
+                                  span "O cliente irá receber notificações (Whatsapp e SMS) sobre no"
+                                div.ant-row.ant-row-middle
+                                  button.ant-switch [role="switch" type="button"]
+                                    div.ant-switch-handle
+                                    span.ant-switch-inner
+                                  span "Bloquear acesso"
+                                  span "Ao bloquear o cliente não terá acesso ao Agendamento Online "
+      div.ant-drawer-footer
+        button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined [type="button"]
+          span "Cancelar"
+        button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+          span "Salvar"

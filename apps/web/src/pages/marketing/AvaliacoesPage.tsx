@@ -4,6 +4,7 @@ import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
+import { HelpTooltip } from '../../components/HelpTooltip';
 import {
   IconArrowDown,
   IconArrowUp,
@@ -127,7 +128,7 @@ function MetricCard({
 }: {
   icon: ReactNode;
   value: ReactNode;
-  label: string;
+  label: ReactNode;
   footer?: ReactNode;
 }) {
   return (
@@ -173,20 +174,35 @@ function PainelTab({
               <MetricCard
                 icon={<IconStar size={26} className="text-gold" />}
                 value={(data?.current.average ?? 0).toFixed(1)}
-                label="Média das avaliações"
+                label={
+                  <span className="inline-flex items-center">
+                    Média das avaliações
+                    <HelpTooltip>Média das notas recebidas no período filtrado.</HelpTooltip>
+                  </span>
+                }
                 footer={<Delta value={(data?.current.average ?? 0) - (data?.previous.average ?? 0)} />}
               />
               <MetricCard
                 icon={<IconMessage size={26} className="text-pink" />}
                 value={data?.current.count ?? 0}
-                label="Quantidade de avaliações"
+                label={
+                  <span className="inline-flex items-center">
+                    Quantidade de avaliações
+                    <HelpTooltip>Total de avaliações recebidas no período.</HelpTooltip>
+                  </span>
+                }
                 footer={<Delta value={(data?.current.count ?? 0) - (data?.previous.count ?? 0)} />}
               />
               <MetricCard
                 icon={<IconPercent size={26} className="text-primary" />}
                 // TODO: Belasis usa response_rate; usamos commentRate (campo disponível).
                 value={`${Math.round((data?.current.commentRate ?? 0) * 100)}%`}
-                label="Taxa de resposta"
+                label={
+                  <span className="inline-flex items-center">
+                    Taxa de resposta
+                    <HelpTooltip>Percentual de avaliações que vieram com comentário.</HelpTooltip>
+                  </span>
+                }
                 footer={
                   <Delta
                     value={
@@ -201,7 +217,10 @@ function PainelTab({
                 icon={data?.best ? <Avatar name={data.best.name} size={32} /> : <IconStar size={26} className="text-gold" />}
                 value={data?.best ? data.best.rating.toFixed(1) : '0.0'}
                 label={
-                  data?.best ? `Melhor avaliado(a) ${firstName(data.best.name)}` : 'Melhor avaliado(a)'
+                  <span className="inline-flex items-center">
+                    {data?.best ? `Melhor avaliado(a) ${firstName(data.best.name)}` : 'Melhor avaliado(a)'}
+                    <HelpTooltip>Profissional com a maior média no período.</HelpTooltip>
+                  </span>
                 }
               />
             </div>
@@ -302,7 +321,10 @@ function AvaliacoesTab({
           <DateRangeFilter from={range.from} to={range.to} onChange={setRange} />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-ink">Nota</span>
+              <span className="inline-flex items-center text-xs font-medium text-muted-ink">
+                Nota
+                <HelpTooltip>Filtre por faixa de nota recebida (1 a 5 estrelas).</HelpTooltip>
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 {RATING_OPTIONS.map(([key, label]) => {
                   const isActive = ratingFilter === key;
@@ -518,7 +540,10 @@ function ConfiguracoesTab() {
             className="flex w-full items-center justify-between gap-3"
           >
             <span className="min-w-0 text-sm text-ink">
-              Solicitar avaliação
+              <span className="inline-flex items-center">
+                Solicitar avaliação
+                <HelpTooltip>Ativa ou desativa o módulo de avaliações do estabelecimento.</HelpTooltip>
+              </span>
               <span className="block text-xs text-muted-ink">
                 Enviar pedido de avaliação aos clientes após o atendimento.
               </span>
@@ -529,7 +554,10 @@ function ConfiguracoesTab() {
           </Switch>
 
           <div className="flex flex-col gap-4 border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-ink">Página de avaliação</h3>
+            <h3 className="inline-flex items-center text-sm font-semibold text-ink">
+              Página de avaliação
+              <HelpTooltip>Textos exibidos ao cliente na página onde ele deixa a avaliação.</HelpTooltip>
+            </h3>
             <LabeledTextarea
               label="Título"
               value={form.headerTitle}
@@ -555,7 +583,10 @@ function ConfiguracoesTab() {
           </div>
 
           <div className="flex flex-col gap-4 border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-ink">Solicitação de avaliação</h3>
+            <h3 className="inline-flex items-center text-sm font-semibold text-ink">
+              Solicitação de avaliação
+              <HelpTooltip>Mensagem enviada ao cliente com o link para avaliar o atendimento.</HelpTooltip>
+            </h3>
             <LabeledTextarea
               label="Mensagem de solicitação"
               hint="Use %NOME% para o nome do cliente e %LINK% para o link da avaliação."

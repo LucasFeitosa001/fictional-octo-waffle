@@ -1,0 +1,226 @@
+{
+  "discovered": [],
+  "routeCount": 55,
+  "routes": [
+    {
+      "slug": "wow",
+      "route": "/wow"
+    },
+    {
+      "slug": "calendar",
+      "route": "/calendar"
+    },
+    {
+      "slug": "sales",
+      "route": "/sales"
+    },
+    {
+      "slug": "packages",
+      "route": "/packages"
+    },
+    {
+      "slug": "package-templates",
+      "route": "/package-templates"
+    },
+    {
+      "slug": "subscriptions",
+      "route": "/customer/subscriptions"
+    },
+    {
+      "slug": "subscription-templates",
+      "route": "/customer/subscription-templates"
+    },
+    {
+      "slug": "subscription-settings",
+      "route": "/customer/subscription-settings"
+    },
+    {
+      "slug": "clients",
+      "route": "/clients"
+    },
+    {
+      "slug": "anamnesis",
+      "route": "/anamnesis"
+    },
+    {
+      "slug": "anamnesis-templates",
+      "route": "/anamnesis-templates"
+    },
+    {
+      "slug": "services",
+      "route": "/services"
+    },
+    {
+      "slug": "products",
+      "route": "/products"
+    },
+    {
+      "slug": "products-batches",
+      "route": "/products/batches"
+    },
+    {
+      "slug": "vendors",
+      "route": "/vendors"
+    },
+    {
+      "slug": "purchases",
+      "route": "/purchases"
+    },
+    {
+      "slug": "purchases-invoices",
+      "route": "/purchases/imported-electronic-invoices"
+    },
+    {
+      "slug": "brands",
+      "route": "/brands"
+    },
+    {
+      "slug": "document-templates",
+      "route": "/document-templates"
+    },
+    {
+      "slug": "employees",
+      "route": "/employees"
+    },
+    {
+      "slug": "groups",
+      "route": "/groups"
+    },
+    {
+      "slug": "finance-dashboard",
+      "route": "/finance/dashboard"
+    },
+    {
+      "slug": "finance-transactions",
+      "route": "/finance/transactions"
+    },
+    {
+      "slug": "finance-accounts",
+      "route": "/finance/accounts"
+    },
+    {
+      "slug": "finance-cash",
+      "route": "/finance/cash-accounting"
+    },
+    {
+      "slug": "finance-cash-history",
+      "route": "/finance/cash-accounting/history"
+    },
+    {
+      "slug": "finance-charts",
+      "route": "/finance/charts"
+    },
+    {
+      "slug": "finance-payment-methods",
+      "route": "/finance/payment-methods"
+    },
+    {
+      "slug": "finance-settings",
+      "route": "/finance/settings"
+    },
+    {
+      "slug": "invoices",
+      "route": "/invoices/invoice"
+    },
+    {
+      "slug": "commissions",
+      "route": "/finance/commissions"
+    },
+    {
+      "slug": "commissions-batch",
+      "route": "/finance/commissions/batch_payments"
+    },
+    {
+      "slug": "commissions-bulk",
+      "route": "/finance/commissions/bulk_commissions"
+    },
+    {
+      "slug": "commissions-settings",
+      "route": "/finance/commissions/settings"
+    },
+    {
+      "slug": "commissions-summary",
+      "route": "/finance/commissions/summary"
+    },
+    {
+      "slug": "reports-dre",
+      "route": "/reports/financial/dre"
+    },
+    {
+      "slug": "reports-favorites",
+      "route": "/reports/favorites"
+    },
+    {
+      "slug": "reports",
+      "route": "/reports"
+    },
+    {
+      "slug": "reviews",
+      "route": "/reviews"
+    },
+    {
+      "slug": "cashback",
+      "route": "/cashback"
+    },
+    {
+      "slug": "goals",
+      "route": "/goals"
+    },
+    {
+      "slug": "online-booking",
+      "route": "/online-booking"
+    },
+    {
+      "slug": "promotions",
+      "route": "/promotions"
+    },
+    {
+      "slug": "campaigns-marketing",
+      "route": "/campaigns-marketing"
+    },
+    {
+      "slug": "whatsapp",
+      "route": "/whatsapp"
+    },
+    {
+      "slug": "belasis-pay",
+      "route": "/belasis-pay/panel"
+    },
+    {
+      "slug": "belasis-pay-transactions",
+      "route": "/belasis-pay/transactions"
+    },
+    {
+      "slug": "belasis-pay-transfers",
+      "route": "/belasis-pay/transfers"
+    },
+    {
+      "slug": "settings",
+      "route": "/settings"
+    },
+    {
+      "slug": "settings-admin",
+      "route": "/settings/admin"
+    },
+    {
+      "slug": "settings-api",
+      "route": "/settings/api"
+    },
+    {
+      "slug": "settings-notifications",
+      "route": "/settings/notifications"
+    },
+    {
+      "slug": "settings-personalize",
+      "route": "/settings/personalize"
+    },
+    {
+      "slug": "notifications",
+      "route": "/notifications"
+    },
+    {
+      "slug": "summary",
+      "route": "/summary"
+    }
+  ]
+}

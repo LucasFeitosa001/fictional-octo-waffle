@@ -1,0 +1,2 @@
+import{r as n,j as o,B as s,t as i}from"./index-Bd9916Am.js";import{aN as m}from"./ClientDrawer-55jCGlAN.js";import{R as c}from"./FilterOutlined-Qp4wXgRp.js";const r=({show_filters:t,setShowFilters:a})=>o.jsx(s,{className:t?"ant-btn-gold":void 0,type:t?"primary":"default",onClick:()=>a(e=>!e),icon:t?o.jsx(m,{}):o.jsx(c,{}),children:i("verbs.filter")});r.displayName="FilterButton";const u=n.memo(r);export{u as F};
+//# sourceMappingURL=FilterButton-xRBUF8AX.js.map

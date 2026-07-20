@@ -1,0 +1,71 @@
+[
+  {
+    "route": "/wow",
+    "slug": "wow",
+    "captured": [
+      "page"
+    ],
+    "htmlBytes": 109481,
+    "scrollH": 4435
+  },
+  {
+    "route": "/calendar",
+    "slug": "calendar",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/sales",
+    "slug": "sales",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/clients",
+    "slug": "clients",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/employees",
+    "slug": "employees",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/products",
+    "slug": "products",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/services",
+    "slug": "services",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/packages",
+    "slug": "packages",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/subscriptions",
+    "slug": "subscriptions",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/vendors",
+    "slug": "vendors",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  },
+  {
+    "route": "/brands",
+    "slug": "brands",
+    "captured": [],
+    "redirectedTo": "https://belasis.app/wow"
+  }
+]

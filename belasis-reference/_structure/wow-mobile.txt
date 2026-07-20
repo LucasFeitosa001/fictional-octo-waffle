@@ -1,0 +1,503 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-reload.wb-icon [role="img" aria-label="reload"]
+      span "Atualizar"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Olá, FATIMA"
+    div.main-content
+      div.ant-row.ant-row-space-between
+        span "Período"
+        span.anticon.anticon-question-circle [role="img" aria-label="question-circle"]
+      div.ant-row
+        span "Data inicial"
+        div.ant-picker.ant-picker-outlined
+          div.ant-picker-input
+            input [placeholder="Selecionar data"]
+            span.ant-picker-suffix
+              span.anticon.anticon-calendar [role="img" aria-label="calendar"]
+        span "Data final"
+        div.ant-picker.ant-picker-outlined
+          div.ant-picker-input
+            input [placeholder="Selecionar data"]
+            span.ant-picker-suffix
+              span.anticon.anticon-calendar [role="img" aria-label="calendar"]
+      div.ant-layout
+        div.ant-row.box-shadow
+          span "05 jul, 2026 19 jul, 2026"
+            span.anticon.anticon-swap-right [role="img" aria-label="swap-right"]
+          span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+        div.ant-card.ant-card-bordered
+          div.ant-card-body
+            div.header
+              div.header-top
+                div.header-left
+                  div.icon-wrapper
+                    span.anticon.anticon-dollar-circle [role="img" aria-label="dollar-circle"]
+                  span "Vendas totais"
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+              div.total "R$ 6.593,69"
+            div.chart-wrapper
+              div.ant-row
+                div.ant-col
+                  span "Vendas do dia"
+                div.ant-col
+                  span "R$ 0,00"
+            div.card-footer
+              span.ant-tag.ant-tag-success
+                span.anticon.anticon-arrow-up [role="img" aria-label="arrow-up"]
+                span "12%"
+                span "Versus período anterior"
+        div.ant-card.ant-card-bordered
+          div.ant-card-body
+            div.header
+              div.header-top
+                div.header-left
+                  div.icon-wrapper
+                    span.anticon.anticon-calendar [role="img" aria-label="calendar"]
+                  span "Agendamentos"
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+              div.total "29"
+            div.chart-wrapper
+              div.recharts-responsive-container
+                div.recharts-wrapper
+                  svg.recharts-surface
+                    g.recharts-layer.recharts-area
+                      g.recharts-layer
+                        path.recharts-curve.recharts-area-area
+                        path.recharts-curve.recharts-area-curve
+                  div.recharts-tooltip-wrapper
+            div.card-footer
+              span.ant-tag.ant-tag-success
+                span.anticon.anticon-arrow-up [role="img" aria-label="arrow-up"]
+                span "38%"
+                span "Taxa de crescimento"
+        div.ant-card.ant-card-bordered
+          div.ant-card-body
+            div.header
+              div.header-top
+                div.header-left
+                  div.icon-wrapper
+                    span.anticon.anticon-container [role="img" aria-label="container"]
+                  span "Comandas"
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+              div.total "43"
+            div.chart-wrapper
+              div.recharts-responsive-container
+                div.recharts-wrapper
+                  svg.recharts-surface
+                    g.recharts-layer.recharts-area
+                      g.recharts-layer
+                        path.recharts-curve.recharts-area-area
+                        path.recharts-curve.recharts-area-curve
+                  div.recharts-tooltip-wrapper
+            div.card-footer
+              span.ant-tag.ant-tag-purple
+                span "100%"
+                span "Taxa de conversão"
+        div.ant-card.ant-card-bordered
+          div.ant-card-body
+            div.ant-tabs.ant-tabs-top.ant-tabs-large
+              div.ant-tabs-nav [role="tablist"]
+                div.ant-tabs-nav-wrap
+                  div.ant-tabs-nav-list
+                    div.ant-tabs-tab.ant-tabs-tab-active
+                      div.ant-tabs-tab-btn [role="tab"] "Agendamentos"
+                    div.ant-tabs-tab
+                      div.ant-tabs-tab-btn [role="tab"] "Comandas"
+                    div.ant-tabs-ink-bar.ant-tabs-ink-bar-animated
+                div.ant-tabs-nav-operations.ant-tabs-nav-operations-hidden
+                  button.ant-tabs-nav-more [type="button"]
+                    span.anticon.anticon-ellipsis [role="img" aria-label="ellipsis"]
+              div.ant-tabs-content-holder
+                div.ant-tabs-content.ant-tabs-content-top
+                  div.ant-tabs-tabpane.ant-tabs-tabpane-active [role="tabpanel"]
+                    span "Tendência de Visitas"
+                    div.recharts-responsive-container
+                      div.recharts-wrapper
+                        svg.recharts-surface
+                          g.recharts-cartesian-grid
+                            g.recharts-cartesian-grid-horizontal
+                          g.recharts-layer.recharts-cartesian-axis.recharts-xAxis
+                            line.recharts-cartesian-axis-line
+                            g.recharts-cartesian-axis-ticks
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                          g.recharts-layer.recharts-cartesian-axis.recharts-yAxis
+                            line.recharts-cartesian-axis-line
+                            g.recharts-cartesian-axis-ticks
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                              g.recharts-layer.recharts-cartesian-axis-tick
+                                text.recharts-text.recharts-cartesian-axis-tick-value
+                          g.recharts-layer.recharts-bar
+                            g.recharts-layer.recharts-bar-rectangles
+                              g.recharts-layer
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                                g.recharts-layer.recharts-bar-rectangle
+                        div.recharts-tooltip-wrapper
+                    span "Agendamentos por status"
+                    div.recharts-responsive-container
+                      div.recharts-wrapper
+                        svg.recharts-surface
+                          g.recharts-layer.recharts-pie
+                            g.recharts-layer
+                              g.recharts-layer.recharts-pie-sector
+                            text.recharts-text.recharts-label
+                              tspan "Total: 29"
+                        div.recharts-tooltip-wrapper
+                    div.ant-space.ant-space-horizontal.ant-space-align-center.ant-space-gap-row-small.ant-space-gap-col-small
+                      div.ant-space-item
+                      div.ant-space-item
+                        span "Confirmado"
+                    span "29 (100%)"
+        div.ant-card.ant-card-bordered
+          div.ant-card-head
+            div.ant-card-head-wrapper
+              div.ant-card-head-title "Ticket médio"
+              div.ant-card-extra
+                span.anticon.anticon-question-circle [role="img" aria-label="question-circle"]
+          div.ant-card-body
+            div.ant-row
+              div.ant-col.ant-col-24
+                span "Ticket médio - Período atual"
+                span "R$ 153,34"
+                span "Versus período anterior:"
+                span "-22%"
+                span.anticon.anticon-caret-down.wb-icon [role="img" aria-label="caret-down"]
+              div.ant-col.ant-col-24
+                span "Comparação entre períodos"
+                div.recharts-responsive-container
+                  div.recharts-wrapper
+                    svg.recharts-surface
+                      g.recharts-cartesian-grid
+                        g.recharts-cartesian-grid-horizontal
+                        g.recharts-cartesian-grid-vertical
+                      g.recharts-layer.recharts-cartesian-axis.recharts-xAxis
+                        line.recharts-cartesian-axis-line
+                        g.recharts-cartesian-axis-ticks
+                          g.recharts-layer.recharts-cartesian-axis-tick
+                            line.recharts-cartesian-axis-tick-line
+                            text.recharts-text.recharts-cartesian-axis-tick-value
+                              tspan "Período anterior"
+                          g.recharts-layer.recharts-cartesian-axis-tick
+                            line.recharts-cartesian-axis-tick-line
+                            text.recharts-text.recharts-cartesian-axis-tick-value
+                              tspan "Período atual"
+                      g.recharts-layer.recharts-cartesian-axis.recharts-yAxis
+                        line.recharts-cartesian-axis-line
+                        g.recharts-cartesian-axis-ticks
+                          g.recharts-layer.recharts-cartesian-axis-tick
+                            line.recharts-cartesian-axis-tick-line
+                            text.recharts-text.recharts-cartesian-axis-tick-value
+                              tspan "R$ 0"
+                          g.recharts-layer.recharts-cartesian-axis-tick
+                            line.recharts-cartesian-axis-tick-line
+                            text.recharts-text.recharts-cartesian-axis-tick-value
+                              tspan "R$ 50"
+                          g.recharts-layer.recharts-cartesian-axis-tick
+                            line.recharts-cartesian-axis-tick-line
+                            text.recharts-text.recharts-cartesian-axis-tick-value
+                              tspan "R$ 100"
+                          g.recharts-layer.recharts-cartesian-axis-tick
+                            line.recharts-cartesian-axis-tick-line
+                            text.recharts-text.recharts-cartesian-axis-tick-value
+                              tspan "R$ 150"
+                          g.recharts-layer.recharts-cartesian-axis-tick
+                            line.recharts-cartesian-axis-tick-line
+                            text.recharts-text.recharts-cartesian-axis-tick-value
+                              tspan "R$ 200"
+                      g.recharts-layer.recharts-bar
+                        g.recharts-layer.recharts-bar-rectangles
+                          g.recharts-layer
+                            g.recharts-layer.recharts-bar-rectangle
+                              path.recharts-rectangle
+                            g.recharts-layer.recharts-bar-rectangle
+                              path.recharts-rectangle
+                    div.recharts-tooltip-wrapper
+        div.ant-card.ant-card-bordered
+          div.ant-card-head
+            div.ant-card-head-wrapper
+              div.ant-card-head-title "Atendimentos por profissional"
+              div.ant-card-extra
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+          div.ant-card-body
+            div.ant-row
+              div.ant-col.ant-col-24
+                span "Atendimentos"
+                span "53"
+                span "29,27%"
+                span.anticon.anticon-caret-up.wb-icon [role="img" aria-label="caret-up"]
+                div.recharts-responsive-container
+                  div.recharts-wrapper
+                    svg.recharts-surface
+                      g.recharts-layer.recharts-area
+                        g.recharts-layer
+                          path.recharts-curve.recharts-area-area
+                          path.recharts-curve.recharts-area-curve
+                    div.recharts-tooltip-wrapper
+            span.anticon.anticon-crown [role="img" aria-label="crown"]
+            span "MARIA"
+            span "34 serviços"
+            span "R$ 145,76"
+            div "1º"
+            span.anticon.anticon-trophy [role="img" aria-label="trophy"]
+            span "LARISSA"
+            span "19 serviços"
+            span "R$ 60,00"
+            div "2º"
+            span.anticon.anticon-trophy [role="img" aria-label="trophy"]
+            span "VIRLENE"
+            span "0 serviços"
+            span "R$ 0,00"
+            div "3º"
+        div.ant-card.ant-card-bordered
+          div.ant-card-head
+            div.ant-card-head-wrapper
+              div.ant-card-head-title "Vendas por categoria"
+              div.ant-card-extra
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+          div.ant-card-body
+            div.recharts-wrapper
+              svg.recharts-surface
+                g.recharts-layer.recharts-pie
+                  g.recharts-layer
+                    g.recharts-layer.recharts-pie-sector
+                    g.recharts-layer.recharts-pie-sector
+                    g.recharts-layer.recharts-pie-sector
+                  text.recharts-text.recharts-label
+                    tspan "Total: R$ 6.593,69"
+            ul
+              li
+                div.dot
+                span "CABELO"
+                span "R$ 5.121,55 (78%)"
+              li
+                div.dot
+                span "UNHAS"
+                span "R$ 1.140,00 (17%)"
+              li
+                div.dot
+                span "PROUTOS NATYLLA"
+                span "R$ 332,14 (5%)"
+        div.ant-card.ant-card-bordered
+          div.ant-card-head
+            div.ant-card-head-wrapper
+              div.ant-card-head-title "Funil de agendamentos"
+              div.ant-card-extra
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+          div.ant-card-body
+            div.recharts-responsive-container
+              div.recharts-wrapper
+                svg.recharts-surface
+                  g.recharts-layer.recharts-trapezoids
+                    g.recharts-layer
+                      g.recharts-layer.recharts-funnel-trapezoid [role="img"]
+                        path.recharts-trapezoid
+                      g.recharts-layer.recharts-funnel-trapezoid [role="img"]
+                        path.recharts-trapezoid
+                      g.recharts-layer.recharts-funnel-trapezoid [role="img"]
+                        path.recharts-trapezoid
+        div.ant-card.ant-card-bordered
+          div.ant-card-head
+            div.ant-card-head-wrapper
+              div.ant-card-head-title "Ocupação da agenda"
+              div.ant-card-extra
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+          div.ant-card-body
+            div "🥇"
+            span.ant-avatar.ant-avatar-circle.ant-avatar-icon
+              span.anticon.anticon-user [role="img" aria-label="user"]
+            span "FATIMA"
+            span "23,3%"
+            span "Baixa ocupação"
+            div "🥈"
+            span.ant-avatar.ant-avatar-circle.ant-avatar-icon
+              span.anticon.anticon-user [role="img" aria-label="user"]
+            span "LARISSA"
+            span "13,5%"
+            span "Baixa ocupação"
+            div "🥉"
+            span.ant-avatar.ant-avatar-circle.ant-avatar-icon
+              span.anticon.anticon-user [role="img" aria-label="user"]
+            span "ESHILEY"
+            span "0,0%"
+            span "Baixa ocupação"
+            div.kqxksx "#4"
+            span.ant-avatar.ant-avatar-circle.ant-avatar-icon
+              span.anticon.anticon-user [role="img" aria-label="user"]
+            span "LAILA"
+            span "0,0%"
+            span "Baixa ocupação"
+            div.kqxksx "#5"
+            span.ant-avatar.ant-avatar-circle.ant-avatar-icon
+              span.anticon.anticon-user [role="img" aria-label="user"]
+            span "VIRLENE"
+            span "0,0%"
+            span "Baixa ocupação"
+        div.ant-card.ant-card-bordered
+          div.ant-card-head
+            div.ant-card-head-wrapper
+              div.ant-card-head-title "Mapa de calor de agendamentos"
+              div.ant-card-extra
+                span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+          div.ant-card-body
+            div "8h"
+            div "0"
+            div "1"
+            div "2"
+            div "0"
+            div "0"
+            div "4"
+            div "0"
+            div "9h"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "1"
+            div "0"
+            div "0"
+            div "10h"
+            div "0"
+            div "0"
+            div "0"
+            div "1"
+            div "0"
+            div "0"
+            div "0"
+            div "11h"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "12h"
+            div "0"
+            div "1"
+            div "0"
+            div "0"
+            div "0"
+            div "1"
+            div "0"
+            div "13h"
+            div "1"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "14h"
+            div "1"
+            div "0"
+            div "2"
+            div "1"
+            div "0"
+            div "1"
+            div "0"
+            div "15h"
+            div "0"
+            div "0"
+            div "3"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "16h"
+            div "0"
+            div "1"
+            div "0"
+            div "1"
+            div "2"
+            div "1"
+            div "0"
+            div "17h"
+            div "0"
+            div "0"
+            div "0"
+            div "0"
+            div "1"
+            div "0"
+            div "0"
+            div "18h"
+            div "0"
+            div "0"
+            div "0"
+            div "1"
+            div "0"
+            div "0"
+            div "0"
+            div "19h"
+            div "0"
+            div "0"
+            div "0"
+            div "1"
+            div "0"
+            div "0"
+            div "0"
+            div "seg"
+            div "ter"
+            div "qua"
+            div "qui"
+            div "sex"
+            div "sáb"
+            div "dom"
+img
+span "05/07"
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

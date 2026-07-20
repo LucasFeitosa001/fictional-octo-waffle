@@ -1,0 +1,192 @@
+[
+  {
+    "slug": "reports-financial",
+    "route": "/reports/financial",
+    "desktop": 102011,
+    "mobile": 36493
+  },
+  {
+    "slug": "reports-financial-dre",
+    "route": "/reports/financial/dre",
+    "desktop": 98714,
+    "mobile": 10446
+  },
+  {
+    "slug": "reports-financial-service-revenue",
+    "route": "/reports/financial/service-revenue",
+    "desktop": 75392,
+    "mobile": 10459
+  },
+  {
+    "slug": "reports-financial-product-revenue",
+    "route": "/reports/financial/product-revenue",
+    "desktop": 75365,
+    "mobile": 10486
+  },
+  {
+    "slug": "reports-financial-billing-projection",
+    "route": "/reports/financial/billing-projection",
+    "desktop": 81214,
+    "mobile": 10489
+  },
+  {
+    "slug": "reports-financial-cash-movements",
+    "route": "/reports/financial/cash-movements",
+    "desktop": 91666,
+    "mobile": 10485
+  },
+  {
+    "slug": "reports-financial-bill-recs",
+    "route": "/reports/financial/bill-recs",
+    "desktop": 85863,
+    "mobile": 10480
+  },
+  {
+    "slug": "reports-financial-bill-pays",
+    "route": "/reports/financial/bill-pays",
+    "desktop": 90175,
+    "mobile": 10480
+  },
+  {
+    "slug": "reports-financial-extract",
+    "route": "/reports/financial/extract",
+    "desktop": 79541,
+    "mobile": 20533
+  },
+  {
+    "slug": "reports-financial-extract-movements",
+    "route": "/reports/financial/extract-movements",
+    "desktop": 88317,
+    "mobile": 10488
+  },
+  {
+    "slug": "report-views-cash-accounting",
+    "route": "/report-views/financial/cash-accounting",
+    "desktop": 14671,
+    "mobile": 14695
+  },
+  {
+    "slug": "reports-favorites",
+    "route": "/reports/favorites",
+    "desktop": 51479,
+    "mobile": 20580
+  },
+  {
+    "slug": "reports-detailed",
+    "route": "/reports/detailed",
+    "desktop": 3840,
+    "mobile": 20522
+  },
+  {
+    "slug": "reports-birthdays",
+    "route": "/reports/birthdays",
+    "desktop": 3805,
+    "mobile": 23541
+  },
+  {
+    "slug": "reports-calendars-all",
+    "route": "/reports/calendars/all",
+    "desktop": 77773,
+    "mobile": 10446
+  },
+  {
+    "slug": "reports-calendars-creation",
+    "route": "/reports/calendars/creation",
+    "desktop": 61020,
+    "mobile": 10478
+  },
+  {
+    "slug": "reports-calendars-deleted",
+    "route": "/reports/calendars/deleted",
+    "desktop": 69692,
+    "mobile": 10451
+  },
+  {
+    "slug": "reports-calendars-origin",
+    "route": "/reports/calendars/origin",
+    "desktop": 72409,
+    "mobile": 10477
+  },
+  {
+    "slug": "reports-clients-all",
+    "route": "/reports/clients/all",
+    "desktop": 83410,
+    "mobile": 20527
+  },
+  {
+    "slug": "reports-clients-birthdays",
+    "route": "/reports/clients/birthdays",
+    "desktop": 62770,
+    "mobile": 10478
+  },
+  {
+    "slug": "reports-clients-inactives",
+    "route": "/reports/clients/inactives",
+    "desktop": 67036,
+    "mobile": 20560
+  },
+  {
+    "slug": "reports-clients-pendings",
+    "route": "/reports/clients/pendings",
+    "desktop": 62845,
+    "mobile": 20544
+  },
+  {
+    "slug": "reports-clients-rank",
+    "route": "/reports/clients/rank",
+    "desktop": 74546,
+    "mobile": 20539
+  },
+  {
+    "slug": "reports-clients-return",
+    "route": "/reports/clients/return",
+    "desktop": 73367,
+    "mobile": 10475
+  },
+  {
+    "slug": "reports-inventory-stock",
+    "route": "/reports/inventory/stock",
+    "desktop": 67248,
+    "mobile": 10449
+  },
+  {
+    "slug": "reports-inventory-products-list",
+    "route": "/reports/inventory/products-list",
+    "desktop": 71132,
+    "mobile": 10457
+  },
+  {
+    "slug": "reports-inventory-products-consumed",
+    "route": "/reports/inventory/products-consumed",
+    "desktop": 76400,
+    "mobile": 20543
+  },
+  {
+    "slug": "reports-inventory-purchase-suggestion",
+    "route": "/reports/inventory/purchase-suggestion",
+    "desktop": 72746,
+    "mobile": 10463
+  },
+  {
+    "slug": "reports-inventory-purchases",
+    "route": "/reports/inventory/purchases",
+    "desktop": 70040,
+    "mobile": 10453
+  },
+  {
+    "slug": "reports-inventory-stock-movement",
+    "route": "/reports/inventory/stock-movement",
+    "desktop": 75323,
+    "mobile": 0
+  },
+  {
+    "slug": "reports-messages-sent",
+    "route": "/reports/messages/sent",
+    "desktop": 63478
+  },
+  {
+    "slug": "reports-nf",
+    "route": "/reports/nf",
+    "desktop": 58540
+  }
+]

@@ -8,14 +8,17 @@ import { ImageUpload } from '../components/ImageUpload';
 import {
   IconDownload,
   IconGrip,
-  IconMail,
+  IconInfo,
   IconPencil,
   IconPlus,
   IconScissors,
   IconSearch,
   IconTrash,
-  IconUsers,
+  IconUser,
+  IconUserMinus,
+  IconUserPlus,
 } from '../components/icons';
+import { HelpTooltip } from '../components/HelpTooltip';
 import { useSetPageActions } from '../layout/PageActions';
 import { downloadCsv } from '../lib/csv';
 import { useProfessionals, useServices } from '../lib/queries';
@@ -46,6 +49,7 @@ export function ProfissionaisPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Professional | null>(null);
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [status, setStatus] = useState<StatusFilter>('active');
   useAutoCreate(() => setCreateOpen(true));
 
@@ -116,15 +120,24 @@ export function ProfissionaisPage() {
 
   return (
     <div>
-      {/* ── Cabeçalho: título + ações (Belasis: título à esquerda, "Novo" à direita) ── */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-ink">Profissionais</h1>
-          {subtitle && <p className="text-sm text-muted-ink">{subtitle}</p>}
+      {/* ── Cabeçalho: título (+ tutorial) à esquerda, Buscar/Novo à direita (Belasis) ── */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Profissionais</h1>
+          {/* Botão tutorial (círculo com play) — decorativo, como no Belasis */}
+          <button
+            type="button"
+            aria-label="Ver tutorial"
+            className="flex size-6 shrink-0 items-center justify-center rounded-full border border-primary text-primary transition-colors hover:bg-primary/10"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </button>
         </div>
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="outline" isDisabled={rows.length === 0} onClick={exportCsv}>
-            <IconDownload size={16} /> Exportar CSV
+          <Button variant="outline" onClick={() => setSearchOpen((v) => !v)}>
+            <IconSearch size={16} /> Buscar
           </Button>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
@@ -132,49 +145,57 @@ export function ProfissionaisPage() {
         </div>
       </div>
 
-      {/* ── Card com toolbar (busca + abas Ativos/Inativos) e a lista ── */}
-      <div className="rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
-        {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 flex-1 items-center rounded-full border border-line bg-canvas px-3 sm:max-w-md">
-            <IconSearch size={16} className="shrink-0 text-muted-ink" />
-            <TextField
-              value={search}
-              onChange={setSearch}
-              className="min-w-0 flex-1"
-              aria-label="Buscar profissional"
-            >
-              <Input
-                placeholder="Procure pelo nome, telefone ou e-mail"
-                className="border-0 bg-transparent px-2 shadow-none focus:ring-0"
-              />
-            </TextField>
-          </div>
+      {/* ── Abas Ativos / Inativos (underline, como no Belasis) ── */}
+      <div className="mb-3 flex items-center gap-6 border-b border-line">
+        <TabButton
+          active={status === 'active'}
+          onClick={() => setStatus('active')}
+          icon={<IconUserPlus size={22} />}
+        >
+          Ativos
+        </TabButton>
+        <TabButton
+          active={status === 'inactive'}
+          onClick={() => setStatus('inactive')}
+          icon={<IconUserMinus size={22} />}
+        >
+          Inativos
+        </TabButton>
+        {subtitle && <span className="ml-auto pb-2 text-xs text-muted-ink">{subtitle}</span>}
+      </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setStatus('active')}
-              className={segClass(status === 'active')}
-            >
-              <IconUsers size={16} /> Ativos
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatus('inactive')}
-              className={segClass(status === 'inactive')}
-            >
-              <IconUsers size={16} /> Inativos
-            </button>
-          </div>
+      {/* Campo de busca: sempre visível no mobile (como no Belasis); no desktop é
+          revelado pelo botão "Buscar". */}
+      <div
+        className={[
+          'mb-3 items-center rounded-full border border-line bg-card px-3 sm:max-w-md',
+          'flex',
+          searchOpen ? 'md:flex' : 'md:hidden',
+        ].join(' ')}
+      >
+          <IconSearch size={16} className="shrink-0 text-muted-ink" />
+          <TextField
+            value={search}
+            onChange={setSearch}
+            className="min-w-0 flex-1"
+            aria-label="Buscar profissional"
+          >
+            <Input
+              placeholder="Procure pelo nome, telefone ou e-mail"
+              className="border-0 bg-transparent px-2 shadow-none focus:ring-0"
+            />
+          </TextField>
         </div>
 
-        {/* Cabeçalho de colunas (só desktop) — Nome · Celular · E-mail, como no Belasis */}
-        <div className="hidden items-center gap-3 border-b border-line px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-ink sm:flex">
-          <span className="w-5 shrink-0" />
+      {/* ── Card com cabeçalho de colunas + lista ──
+          No mobile o "card externo" some e cada linha vira um card próprio (Belasis). */}
+      <div className="rounded-none border-0 bg-transparent shadow-none sm:rounded-2xl sm:border sm:border-line sm:bg-card sm:shadow-[var(--shadow-card)]">
+        {/* Cabeçalho de colunas (só desktop) — ⓘ · Nome · Celular · E-mail, como no Belasis */}
+        <div className="hidden items-center gap-3 border-b border-line px-4 py-3 text-sm font-semibold text-ink sm:flex">
+          <IconInfo size={16} className="w-5 shrink-0 text-primary" />
           <span className="w-10 shrink-0" />
           <span className="min-w-0 flex-1">Nome</span>
-          <span className="w-44 shrink-0">Celular</span>
+          <span className="w-52 shrink-0">Celular</span>
           <span className="min-w-0 flex-1">E-mail</span>
           <span className="w-20 shrink-0" />
         </div>
@@ -219,7 +240,7 @@ export function ProfissionaisPage() {
               />
             </div>
           ) : (
-            <ul>
+            <ul className="flex flex-col gap-3 sm:block sm:gap-0">
               {rows.map((p) => (
                 <ProfessionalRow
                   key={p.id}
@@ -248,14 +269,33 @@ export function ProfissionaisPage() {
   );
 }
 
-// Aba segmentada Ativos/Inativos (pílula preenchida no ativo — 100% themeable).
-function segClass(active: boolean): string {
-  return [
-    'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors',
-    active
-      ? 'bg-primary text-primary-foreground shadow-sm'
-      : 'border border-line bg-card text-muted-ink hover:text-ink',
-  ].join(' ');
+// Aba underline Ativos/Inativos (texto azul + traço inferior no ativo — themeable).
+function TabButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        '-mb-px flex flex-col items-center gap-1 border-b-2 pb-2 text-sm font-medium transition-colors',
+        active
+          ? 'border-primary text-primary'
+          : 'border-transparent text-muted-ink hover:text-ink',
+      ].join(' ')}
+    >
+      {icon}
+      <span>{children}</span>
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------
@@ -270,11 +310,11 @@ function ProfessionalRow({
   onRemove: () => void;
 }) {
   return (
-    <li className="group flex items-center gap-3 border-b border-line px-3 py-2.5 last:border-0 hover:bg-canvas sm:px-4">
-      {/* Alça de reordenação (visual, como no Belasis) */}
+    <li className="group flex items-center gap-3 rounded-2xl border border-line bg-card px-3 py-3.5 shadow-[var(--shadow-card)] hover:bg-canvas sm:rounded-none sm:border-0 sm:border-b sm:border-line sm:py-2.5 sm:shadow-none last:sm:border-0 sm:px-4">
+      {/* Alça de reordenação (visual, como no Belasis) — hambúrguer azul no mobile */}
       <IconGrip
         size={18}
-        className="hidden w-5 shrink-0 cursor-grab text-muted-ink/40 sm:block"
+        className="w-5 shrink-0 cursor-grab text-primary sm:text-muted-ink/40"
       />
 
       {/* Avatar */}
@@ -283,7 +323,7 @@ function ProfessionalRow({
         <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
       </Avatar>
 
-      {/* Nome + tag (+ celular embaixo no mobile) */}
+      {/* Nome (link azul) + tag (+ celular embaixo no mobile) */}
       <button
         type="button"
         onClick={onEdit}
@@ -291,9 +331,9 @@ function ProfessionalRow({
         aria-label={`Editar ${p.name}`}
       >
         <div className="flex items-center gap-2">
-          <span className="truncate font-medium text-ink">{p.name}</span>
+          <span className="truncate font-medium uppercase text-ink sm:text-primary">{p.name}</span>
           {p.profession && (
-            <span className="hidden shrink-0 rounded bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground sm:inline">
+            <span className="hidden shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground sm:inline">
               {p.profession}
             </span>
           )}
@@ -310,22 +350,19 @@ function ProfessionalRow({
       </button>
 
       {/* Celular (desktop) */}
-      <div className="hidden w-44 shrink-0 truncate text-sm text-ink sm:block">
+      <div className="hidden w-52 shrink-0 truncate text-sm text-ink sm:block">
         {p.phone ?? '—'}
       </div>
 
-      {/* E-mail (desktop) — o modelo web não guarda e-mail ainda */}
-      <div className="hidden min-w-0 flex-1 items-center gap-1.5 text-sm text-muted-ink sm:flex">
-        <IconMail size={15} className="shrink-0 opacity-60" />
+      {/* E-mail (desktop) — ícone de usuário + e-mail em link, como no Belasis */}
+      <div className="hidden min-w-0 flex-1 items-center gap-1.5 text-sm sm:flex">
+        <IconUser size={15} className="shrink-0 text-primary" />
         {/* TODO: adicionar `email` ao Professional para preencher esta coluna */}
-        <span className="truncate">—</span>
+        <span className="truncate text-muted-ink">—</span>
       </div>
 
       {/* Ações (hover no desktop, sempre visível no mobile) */}
       <div className="flex shrink-0 items-center gap-0.5 sm:w-20 sm:justify-end sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-        <Button variant="ghost" size="sm" aria-label={`Editar ${p.name}`} onClick={onEdit}>
-          <IconPencil size={16} />
-        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -334,6 +371,9 @@ function ProfessionalRow({
           onClick={onRemove}
         >
           <IconTrash size={16} />
+        </Button>
+        <Button variant="ghost" size="sm" aria-label={`Editar ${p.name}`} onClick={onEdit}>
+          <IconPencil size={16} />
         </Button>
       </div>
     </li>
@@ -369,16 +409,22 @@ function pickAllScopeRule(rules?: ProfessionalCommissionRuleRow[]): CommissionSt
   return { enabled: true, type: rule.type, value: String(rule.value ?? '') };
 }
 
-// Abas verticais do drawer (rótulos do Belasis). As demais abas do Belasis
-// (Usuário, Assinatura digital, Comissões e Auxiliares, Pagar salário, Vales,
-// Permissões, Contas de banco) dependem de módulos que o backend web ainda não
-// expõe — TODO.
+// Abas verticais do drawer — ordem e rótulos EXATOS do Belasis (new-open.html).
+// As abas `disabled` dependem de módulos que o backend web ainda não expõe;
+// ficam listadas e esmaecidas (como no Belasis) para manter a paridade visual.
 const DRAWER_TABS = [
-  { id: 'cadastro', label: 'Cadastro' },
-  { id: 'endereco', label: 'Endereço' },
-  { id: 'expediente', label: 'Expediente' },
-  { id: 'servicos', label: 'Personalizar serviços' },
-  { id: 'comissoes', label: 'Configurar comissões' },
+  { id: 'cadastro', label: 'Cadastro', disabled: false },
+  { id: 'endereco', label: 'Endereço', disabled: false },
+  { id: 'usuario', label: 'Usuário', disabled: true },
+  { id: 'assinatura', label: 'Assinatura digital', disabled: true },
+  { id: 'expediente', label: 'Expediente', disabled: false },
+  { id: 'servicos', label: 'Personalizar serviços', disabled: false },
+  { id: 'comissoes', label: 'Configurar comissões', disabled: false },
+  { id: 'comissoes-aux', label: 'Comissões e Auxiliares', disabled: true },
+  { id: 'salario', label: 'Pagar salário/comissão', disabled: true },
+  { id: 'vales', label: 'Vales e Bonificações', disabled: true },
+  { id: 'permissoes', label: 'Permissões', disabled: true },
+  { id: 'contas', label: 'Contas de banco', disabled: true },
 ] as const;
 
 function ProfessionalDrawer({
@@ -595,7 +641,7 @@ function ProfessionalDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar profissional' : 'Novo profissional'}
-      widthClass="sm:w-[640px]"
+      widthClass="sm:w-[min(1040px,calc(100vw-3rem))]"
       footer={
         <>
           <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
@@ -612,21 +658,25 @@ function ProfessionalDrawer({
         </>
       }
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
-        {/* Navegação de abas — vertical no desktop (como no Belasis), scroll horizontal no mobile */}
-        <nav className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1 pb-2 sm:mx-0 sm:w-48 sm:shrink-0 sm:flex-col sm:border-b-0 sm:border-r sm:px-0 sm:pb-0 sm:pr-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+        {/* Navegação de abas — vertical no desktop (como no Belasis), scroll horizontal no mobile.
+            Abas não implementadas ficam esmaecidas e inativas, preservando a lista completa. */}
+        <nav className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1 pb-2 sm:mx-0 sm:w-52 sm:shrink-0 sm:flex-col sm:gap-0.5 sm:border-b-0 sm:border-r sm:px-0 sm:pb-0 sm:pr-4">
           {DRAWER_TABS.map((t) => {
             const isActive = tab === t.id;
             return (
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setTab(t.id)}
+                disabled={t.disabled}
+                onClick={() => !t.disabled && setTab(t.id)}
                 className={[
-                  'whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-ink hover:bg-canvas hover:text-ink',
+                  'whitespace-nowrap border-l-2 px-3 py-2 text-left text-sm transition-colors',
+                  t.disabled
+                    ? 'cursor-not-allowed border-transparent text-muted-ink/40'
+                    : isActive
+                      ? 'border-primary font-semibold text-primary'
+                      : 'border-transparent font-medium text-muted-ink hover:text-ink',
                 ].join(' ')}
               >
                 {t.label}
@@ -651,18 +701,18 @@ function ProfessionalDrawer({
                 />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Nome">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Field label="Nome" required>
                   <TextField value={name} onChange={setName} aria-label="Nome">
                     <Input placeholder="Nome completo" />
                   </TextField>
                 </Field>
-                <Field label="Apelido">
+                <Field label="Apelido" help="Como o cliente reconhece o profissional">
                   <TextField value={nickname} onChange={setNickname} aria-label="Apelido">
                     <Input placeholder="Como é chamado(a)" />
                   </TextField>
                 </Field>
-                <Field label="Celular">
+                <Field label="Celular" required>
                   <TextField value={phone} onChange={setPhone} aria-label="Celular">
                     <Input placeholder="(00) 00000-0000" />
                   </TextField>
@@ -695,7 +745,7 @@ function ProfessionalDrawer({
                     <Input placeholder="Documento de identidade" />
                   </TextField>
                 </Field>
-                <Field label="Cargo">
+                <Field label="Cargo" help="Função interna no salão (não é exibido ao cliente)">
                   <TextField value={position} onChange={setPosition} aria-label="Cargo">
                     <Input placeholder="Ex: Sócia, Recepção" />
                   </TextField>
@@ -946,7 +996,14 @@ function ProfessionalDrawer({
                           </button>
                         </div>
                       </Field>
-                      <Field label={commission.type === 'percent' ? 'Percentual (%)' : 'Valor (R$)'}>
+                      <Field
+                        label={commission.type === 'percent' ? 'Percentual (%)' : 'Valor (R$)'}
+                        help={
+                          commission.type === 'percent'
+                            ? 'Percentual da venda que vira comissão'
+                            : 'Valor fixo em R$ por atendimento'
+                        }
+                      >
                         <TextField
                           value={commission.value}
                           onChange={(v) => setCommission((c) => ({ ...c, value: v }))}
@@ -1013,10 +1070,24 @@ function ToggleRow({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  help,
+  required,
+  children,
+}: {
+  label: string;
+  help?: React.ReactNode;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted-ink">{label}</label>
+      <label className="inline-flex items-center text-sm font-medium text-ink">
+        {required && <span className="mr-0.5 text-danger">*</span>}
+        <span>{label}</span>
+        {help && <HelpTooltip>{help}</HelpTooltip>}
+      </label>
       {children}
     </div>
   );

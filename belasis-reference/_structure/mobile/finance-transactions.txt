@@ -1,0 +1,489 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-calculator.wb-icon [role="img" aria-label="calculator"]
+      span "Calcular totais"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar"
+    div.ant-row.ant-dropdown-trigger
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Transações"
+          span.anticon.anticon-play-circle.wb-icon.ant-dropdown-trigger.no-print [role="img" aria-label="play-circle"]
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+      span.ant-tag.ant-tag-has-color
+        span.anticon.anticon-down [role="img" aria-label="down"]
+        span "Ordenado por data"
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "18 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 60,00"
+                div.ant-row
+                  span "SIMONE PEREIRA"
+                  span "Referente à comanda #3324 para SIMONE PEREIRA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "18 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 340,00"
+                div.ant-row
+                  span "FRANCISCA (TIQUINHA)"
+                  span "Referente à comanda #3323 para FRANCISCA (TIQUINHA)"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "18 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Dinheiro"
+                  span "R$ 512,62"
+                div.ant-row
+                  span "Fechamento de caixa"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "18 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 63,00"
+                div.ant-row
+                  span "Pagamento de comissão para LARISSA SOUZA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "18 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 17,00"
+                div.ant-row
+                  span "LARISSA SOUZA"
+                  span "Pagamento de vale para LARISSA SOUZA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "18 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Dinheiro"
+                  span "R$ 512,62"
+                div.ant-row
+                  span "Fechamento de caixa"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Cartão de Crédito"
+                  span "R$ 100,00"
+                div.ant-row
+                  span "GIOVANNA SALETE"
+                  span "Referente à comanda #3322 para GIOVANNA SALETE"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Cartão de Crédito"
+                  span "R$ 165,62"
+                div.ant-row
+                  span "CRIS"
+                  span "Referente à comanda #3321 para CRIS"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 130,00"
+                div.ant-row
+                  span "VILIANE ALVES"
+                  span "Referente à comanda #3320 para VILIANE ALVES"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 550,00"
+                div.ant-row
+                  span "CRIS"
+                  span "Referente à comanda #3319 para CRIS"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 60,00"
+                div.ant-row
+                  span "AMELIA DE ARAUJO"
+                  span "Referente à comanda #3318 para AMELIA DE ARAUJO"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 46,00"
+                div.ant-row
+                  span "Pagamento de comissão para LARISSA SOUZA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 20,00"
+                div.ant-row
+                  span "MARMITAS GOURMET"
+                  span "ALMOÇO"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 485,00"
+                div.ant-row
+                  span "NATYLLA"
+                  span "PODUTOS P/ USO SALAO"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "17 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 7,00"
+                div.ant-row
+                  span "LARISSA SOUZA"
+                  span "Pagamento de vale para LARISSA SOUZA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "16 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 65,00"
+                div.ant-row
+                  span "MAISA SERAFIM"
+                  span "Referente à comanda #3317 para MAISA SERAFIM"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "16 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Dinheiro"
+                  span "R$ 230,00"
+                div.ant-row
+                  span "Fechamento de caixa"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row.bill-pay
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "16 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Dinheiro"
+                  span "R$ 230,00"
+                div.ant-row
+                  span "Fechamento de caixa"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "15 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Dinheiro"
+                  span "R$ 100,00"
+                div.ant-row
+                  span "MARIA ELISANGELA"
+                  span "Referente à comanda #3316 para MARIA ELISANGELA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-rollback.wb-icon [role="img" aria-label="rollback"]
+                span "Estornar"
+          div.swipeable-list-item__content
+            div.ant-row.bill-rec
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "15 jul, 2026"
+                  span.ant-tag.ant-tag-green "Pago"
+                    span.anticon.anticon-check [role="img" aria-label="check"]
+                div.ant-row.ant-row-space-between
+                  span "Pix"
+                  span "R$ 45,00"
+                div.ant-row
+                  span "FABIANA NAYARA"
+                  span "Referente à comanda #3315 para FABIANA NAYARA"
+img

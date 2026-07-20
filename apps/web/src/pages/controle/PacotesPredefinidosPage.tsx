@@ -8,16 +8,17 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconChevron,
-  IconDownload,
   IconFilter,
+  IconInfo,
   IconLayers,
+  IconPlay,
   IconPencil,
   IconPlus,
   IconSearch,
+  IconSettings,
   IconTrash,
 } from '../../components/icons';
 import { formatMoney, formatNumber } from '../../lib/format';
-import { downloadCsv } from '../../lib/csv';
 import { useSetPageActions } from '../../layout/PageActions';
 import { useServices } from '../../lib/queries';
 import {
@@ -105,19 +106,6 @@ export function PacotesPredefinidosPage() {
     setStatusFilter('all');
   }
 
-  function exportCsv() {
-    downloadCsv<PackageTemplate>(
-      'pacotes-predefinidos',
-      [
-        { header: 'Nome', value: (t) => t.name },
-        { header: 'Itens', value: (t) => t.items.length },
-        { header: 'Total', value: (t) => t.price },
-        { header: 'Status', value: (t) => (t.active ? 'Ativo' : 'Inativo') },
-      ],
-      rows,
-    );
-  }
-
   async function handleDelete(template: PackageTemplate) {
     setMessage(null);
     const ok = await confirm({
@@ -155,13 +143,6 @@ export function PacotesPredefinidosPage() {
         onClick: () => setFilterOpen((v) => !v),
       },
       {
-        key: 'exportar',
-        label: 'Exportar',
-        icon: <IconDownload size={22} />,
-        onClick: exportCsv,
-        disabled: rows.length === 0,
-      },
-      {
         key: 'novo',
         label: 'Novo',
         icon: <IconPlus size={22} />,
@@ -175,7 +156,26 @@ export function PacotesPredefinidosPage() {
     <div className="pb-10">
       {/* Cabeçalho: título + Buscar / Filtrar / Exportar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-ink sm:text-2xl">Pacotes Predefinidos</h1>
+        {/* Título + atalhos de tutorial/ajuda (play + ?), igual Belasis. */}
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-ink sm:text-2xl">Pacotes Predefinidos</h1>
+          <button
+            type="button"
+            title="Ver tutorial"
+            aria-label="Ver tutorial"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-primary transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)]"
+          >
+            <IconPlay size={14} />
+          </button>
+          <button
+            type="button"
+            title="Ajuda"
+            aria-label="Ajuda"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-ink transition-colors hover:bg-canvas hover:text-primary"
+          >
+            <IconInfo size={16} />
+          </button>
+        </div>
         {/* Desktop apenas — no mobile essas ações ficam na BottomNav. */}
         <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
@@ -191,9 +191,6 @@ export function PacotesPredefinidosPage() {
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <ToolbarButton onClick={exportCsv} disabled={rows.length === 0}>
-            <IconDownload size={16} /> Exportar
           </ToolbarButton>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
@@ -320,7 +317,15 @@ export function PacotesPredefinidosPage() {
                         </button>
                       </th>
                       <th className="px-4 py-3 text-right font-semibold">Total</th>
-                      <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                      <th className="w-14 px-4 py-3 text-center">
+                        <span
+                          className="inline-flex items-center justify-center text-muted-ink"
+                          title="Colunas"
+                          aria-label="Configurar colunas"
+                        >
+                          <IconSettings size={15} />
+                        </span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -449,32 +454,38 @@ export function PacotesPredefinidosPage() {
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
                 <span>
                   {hasFilters
-                    ? `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} pacote(s)`
+                    ? `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} no total`
                     : `${formatNumber(allRows.length)} no total`}
                 </span>
-                {pageCount > 1 && (
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isDisabled={safePage <= 1}
+                {/* Paginação estilo Belasis: ‹ página › + "20 / página". */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label="Página anterior"
+                      disabled={safePage <= 1}
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-line text-muted-ink transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Anterior
-                    </Button>
-                    <span className="px-1">
-                      {safePage} / {pageCount}
+                      <IconChevron size={14} className="rotate-90" />
+                    </button>
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded border border-primary px-2 font-medium text-primary">
+                      {safePage}
                     </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isDisabled={safePage >= pageCount}
+                    <button
+                      type="button"
+                      aria-label="Próxima página"
+                      disabled={safePage >= pageCount}
                       onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-line text-muted-ink transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Próxima
-                    </Button>
+                      <IconChevron size={14} className="-rotate-90" />
+                    </button>
                   </div>
-                )}
+                  <span className="inline-flex h-7 items-center rounded border border-line px-2.5 text-muted-ink">
+                    {PAGE_SIZE} / página
+                  </span>
+                </div>
               </div>
             </>
           )}

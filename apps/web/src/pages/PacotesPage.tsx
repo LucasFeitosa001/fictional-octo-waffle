@@ -5,10 +5,11 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
+  IconEye,
   IconFilter,
   IconLayers,
-  IconPencil,
   IconPlus,
+  IconReceipt,
   IconSearch,
   IconTrash,
 } from '../components/icons';
@@ -55,6 +56,8 @@ const AVAIL_LABEL: Record<'active' | 'expired', string> = {
 
 type AvailFilter = 'all' | PackageStatus;
 
+type SortState = { key: 'ticket' | 'date' | 'validade'; dir: 'asc' | 'desc' };
+
 export function PacotesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -66,6 +69,9 @@ export function PacotesPage() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  // Belasis ordena por Data (desc) por padrão; Ticket/Data/Validade são sortáveis.
+  const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' });
   useAutoCreate(() => setCreateOpen(true));
 
   const confirm = useConfirm();
@@ -93,9 +99,54 @@ export function PacotesPage() {
     });
   }, [allRows, statusFilter, search, dateFrom, dateTo]);
 
+  const sortedRows = useMemo(() => {
+    const arr = [...rows];
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      let d = 0;
+      if (sort.key === 'ticket') d = a.number - b.number;
+      else if (sort.key === 'date')
+        d = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      else
+        d =
+          new Date(a.expiresAt ?? 0).getTime() - new Date(b.expiresAt ?? 0).getTime();
+      return d * dir;
+    });
+    return arr;
+  }, [rows, sort]);
+
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
-  const paged = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paged = sortedRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const pageIds = paged.map((p) => p.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  function toggleAllOnPage() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function toggleRow(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function cycleSort(key: SortState['key']) {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'asc' },
+    );
+  }
 
   useEffect(() => {
     setPage(1);
@@ -304,14 +355,38 @@ export function PacotesPage() {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                      <th className="px-4 py-3 font-semibold">Ticket</th>
-                      <th className="px-4 py-3 font-semibold">Data</th>
-                      <th className="px-4 py-3 font-semibold">Validade</th>
+                      <th className="w-10 px-4 py-3">
+                        <SelectBox
+                          checked={allPageSelected}
+                          onClick={toggleAllOnPage}
+                          aria-label="Selecionar tudo"
+                        />
+                      </th>
+                      <SortHeader
+                        label="Ticket"
+                        active={sort.key === 'ticket'}
+                        dir={sort.dir}
+                        onClick={() => cycleSort('ticket')}
+                        className="text-center"
+                      />
+                      <SortHeader
+                        label="Data"
+                        active={sort.key === 'date'}
+                        dir={sort.dir}
+                        onClick={() => cycleSort('date')}
+                      />
+                      <SortHeader
+                        label="Validade"
+                        active={sort.key === 'validade'}
+                        dir={sort.dir}
+                        onClick={() => cycleSort('validade')}
+                      />
                       <th className="px-4 py-3 font-semibold">Cliente</th>
                       <th className="px-4 py-3 font-semibold">Status</th>
                       <th className="px-4 py-3 font-semibold">Disponibilidade</th>
                       <th className="px-4 py-3 text-right font-semibold">Valor</th>
-                      <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                      <th className="px-4 py-3 font-semibold">Nota Fiscal</th>
+                      <th className="w-12 px-4 py-3" aria-label="Ações" />
                     </tr>
                   </thead>
                   <tbody>
@@ -324,6 +399,13 @@ export function PacotesPage() {
                           className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                         >
                           <td className="px-4 py-2.5">
+                            <SelectBox
+                              checked={selected.has(p.id)}
+                              onClick={() => toggleRow(p.id)}
+                              aria-label={`Selecionar #${p.number}`}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
                             <button
                               type="button"
                               onClick={() => setDetailId(p.id)}
@@ -355,7 +437,20 @@ export function PacotesPage() {
                             {formatMoney(p.price)}
                           </td>
                           <td className="px-4 py-2.5">
-                            <RowActions
+                            {/* Belasis: coluna Nota Fiscal (emissão NFCe/NFe/NFSe).
+                                A emissão de nota não é suportada pela API atual. // TODO */}
+                            <button
+                              type="button"
+                              disabled
+                              aria-label="Nota Fiscal"
+                              title="Nota Fiscal (em breve)"
+                              className="inline-flex items-center gap-1 rounded p-1 text-muted-ink/70 disabled:cursor-not-allowed"
+                            >
+                              <IconReceipt size={16} />
+                            </button>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <RowMenu
                               onDetail={() => setDetailId(p.id)}
                               onDelete={() => handleDelete(p)}
                               deleting={delSold.isPending}
@@ -514,7 +609,92 @@ function AvailBadge({ value }: { value: 'active' | 'expired' }) {
   );
 }
 
-function RowActions({
+// Checkbox estilo Belasis (redondo, primário quando marcado).
+function SelectBox({
+  checked,
+  onClick,
+  'aria-label': ariaLabel,
+}: {
+  checked: boolean;
+  onClick: () => void;
+  'aria-label': string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className={[
+        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+        checked ? 'border-primary bg-primary text-primary-foreground' : 'border-line bg-card',
+      ].join(' ')}
+    >
+      {checked && (
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M2.5 6.5l2.5 2.5 4.5-5"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// Cabeçalho de coluna sortável (carets ▲▼ como o Ant Table do Belasis).
+function SortHeader({
+  label,
+  active,
+  dir,
+  onClick,
+  className,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortState['dir'];
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <th className={`px-4 py-3 font-semibold ${className ?? ''}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={[
+          'inline-flex items-center gap-1 font-semibold uppercase tracking-wide transition-colors',
+          className?.includes('text-center') ? 'justify-center' : '',
+          active ? 'text-primary' : 'text-muted-ink hover:text-ink',
+        ].join(' ')}
+      >
+        {label}
+        <span className="flex flex-col leading-[6px]">
+          <svg width="8" height="6" viewBox="0 0 8 6" aria-hidden="true">
+            <path
+              d="M4 0l4 6H0z"
+              fill="currentColor"
+              opacity={active && dir === 'asc' ? 1 : 0.3}
+            />
+          </svg>
+          <svg width="8" height="6" viewBox="0 0 8 6" aria-hidden="true">
+            <path
+              d="M4 6L0 0h8z"
+              fill="currentColor"
+              opacity={active && dir === 'desc' ? 1 : 0.3}
+            />
+          </svg>
+        </span>
+      </button>
+    </th>
+  );
+}
+
+// Ações da linha = menu (⋮) como no Belasis: Detalhes / Excluir.
+function RowMenu({
   onDetail,
   onDelete,
   deleting,
@@ -523,28 +703,57 @@ function RowActions({
   onDelete: () => void;
   deleting: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="flex items-center justify-center gap-1 text-muted-ink">
+    <div className="relative flex justify-center">
       <button
         type="button"
-        aria-label="Detalhes"
-        title="Detalhes"
-        onClick={onDetail}
-        className="rounded p-1 hover:bg-canvas hover:text-primary"
+        aria-label="Ações"
+        title="Ações"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="rounded p-1 text-muted-ink hover:bg-canvas hover:text-primary"
       >
-        <IconPencil size={16} />
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <circle cx="8" cy="3" r="1.4" />
+          <circle cx="8" cy="8" r="1.4" />
+          <circle cx="8" cy="13" r="1.4" />
+        </svg>
       </button>
-      <span className="h-4 w-px bg-line" />
-      <button
-        type="button"
-        aria-label="Excluir"
-        title="Excluir"
-        onClick={onDelete}
-        disabled={deleting}
-        className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
-      >
-        <IconTrash size={16} />
-      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+          <div
+            role="menu"
+            className="absolute right-0 top-8 z-20 min-w-36 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-[var(--shadow-pop)]"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onDetail();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-canvas"
+            >
+              <IconEye size={16} /> Detalhes
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={deleting}
+              onClick={() => {
+                setOpen(false);
+                onDelete();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
+            >
+              <IconTrash size={16} /> Excluir
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -645,6 +854,7 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   const [validUntil, setValidUntil] = useState('');
   const [templateId, setTemplateId] = useState('');
   const [price, setPrice] = useState('');
+  const [discount, setDiscount] = useState('');
   const [creditNote, setCreditNote] = useState('');
   const [cashback, setCashback] = useState('');
   const [observation, setObservation] = useState('');
@@ -667,6 +877,7 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
       setValidUntil('');
       setTemplateId('');
       setPrice('');
+      setDiscount('');
       setCreditNote('');
       setCashback('');
       setObservation('');
@@ -701,7 +912,8 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
       isOpen={isOpen}
       onClose={onClose}
       title="Novo pacote"
-      widthClass="sm:w-[620px]"
+      // Belasis: drawer largo (rect w=1440 no capture; ~1650px de intenção), limitado a 95vw.
+      widthClass="sm:w-[min(1440px,95vw)]"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -827,30 +1039,39 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Valor (R$)">
-            <TextField value={price} onChange={setPrice} aria-label="Valor">
-              <Input type="number" placeholder="0,00" />
-            </TextField>
-          </Field>
-          <Field label="Crédito">
-            {/* TODO Belasis: crédito não enviado pela API atual */}
-            <TextField value={creditNote} onChange={setCreditNote} aria-label="Crédito">
-              <Input type="number" placeholder="0,00" />
-            </TextField>
-          </Field>
-          <Field label="Cashback">
-            {/* TODO Belasis: cashback não enviado pela API atual */}
-            <TextField value={cashback} onChange={setCashback} aria-label="Cashback">
-              <Input type="number" placeholder="0,00" />
-            </TextField>
-          </Field>
+        {/* Resumo à direita (Belasis: Desconto / Crédito / Cashback / Total).
+            Apenas Total (valor do pacote) é enviado pela API atual. */}
+        <div className="flex justify-end">
+          <div className="w-full sm:max-w-sm">
+            <SummaryRow label="Desconto">
+              <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
+                <Input type="number" placeholder="R$ 0,00" className="text-right" />
+              </TextField>
+            </SummaryRow>
+            <SummaryRow label="Crédito">
+              {/* TODO Belasis: crédito não enviado pela API atual */}
+              <TextField value={creditNote} onChange={setCreditNote} aria-label="Crédito">
+                <Input type="number" placeholder="R$ 0,00" className="text-right" />
+              </TextField>
+            </SummaryRow>
+            <SummaryRow label="Cashback">
+              {/* TODO Belasis: cashback não enviado pela API atual */}
+              <TextField value={cashback} onChange={setCashback} aria-label="Cashback">
+                <Input type="number" placeholder="R$ 0,00" className="text-right" />
+              </TextField>
+            </SummaryRow>
+            <SummaryRow label="Total" strong>
+              <TextField value={price} onChange={setPrice} aria-label="Total">
+                <Input type="number" placeholder="R$ 0,00" className="text-right font-semibold" />
+              </TextField>
+            </SummaryRow>
+          </div>
         </div>
 
         <Field label="Observação">
           {/* TODO Belasis: observação não enviada pela API atual */}
           <TextField value={observation} onChange={setObservation} aria-label="Observação">
-            <Input placeholder="Observação" />
+            <Input placeholder="Escreva aqui" />
           </TextField>
         </Field>
 
@@ -880,6 +1101,35 @@ function Field({
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  strong,
+  children,
+}: {
+  label: string;
+  strong?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={[
+        'flex items-center justify-between gap-3 py-1.5',
+        strong ? 'mt-1 border-t border-line pt-2.5' : '',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'text-sm',
+          strong ? 'font-semibold text-ink' : 'text-muted-ink',
+        ].join(' ')}
+      >
+        {label}
+      </span>
+      <div className="w-36 shrink-0">{children}</div>
     </div>
   );
 }

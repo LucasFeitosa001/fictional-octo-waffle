@@ -1,0 +1,55 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Comissões"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-home.wb-icon [role="img" aria-label="home"]
+          span "Resumo"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-pie-chart.wb-icon [role="img" aria-label="pie-chart"]
+          span "Comissões em aberto"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+          span "Comissões pagas"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-setting.wb-icon [role="img" aria-label="setting"]
+          span "Configurações"
+    div.ant-row.box-shadow
+      span.cciqbq "19 jun, 2026 19 jul, 2026"
+        span.anticon.anticon-swap-right [role="img" aria-label="swap-right"]
+    span "Comissões em aberto"
+    span "R$ 86,72"
+    span "Comissões pagas"
+    span "R$ 0,00"
+    span "Comissões a liberar"
+      span.anticon.anticon-question-circle [role="img" aria-label="question-circle"]
+    span "R$ 0,00"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

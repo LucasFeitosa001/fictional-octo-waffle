@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Autocomplete,
   Button,
   Input,
   ListBox,
+  SearchField,
   Select,
   Tabs,
   TextField,
@@ -268,9 +270,6 @@ export function ProdutosPage() {
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <ToolbarButton onClick={exportCsv} disabled={rows.length === 0}>
-            <IconDownload size={16} /> Exportar
           </ToolbarButton>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
@@ -920,6 +919,7 @@ function ProductDrawer({
   const [defaultCommissionPercent, setDefaultCommissionPercent] = useState('');
   const [active, setActive] = useState(true);
   const [favorite, setFavorite] = useState(false);
+  const [trackStock, setTrackStock] = useState(true);
   const [tab, setTab] = useState('cadastro');
   const [error, setError] = useState<string | null>(null);
 
@@ -953,6 +953,7 @@ function ProductDrawer({
     );
     setActive(product?.active ?? true);
     setFavorite(product?.favorite ?? false);
+    setTrackStock(true);
     setTab('cadastro');
     setError(null);
   }, [isOpen, product]);
@@ -1012,7 +1013,8 @@ function ProductDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar produto' : 'Novo produto'}
-      widthClass="sm:w-[560px]"
+      /* Belasis pixel: .ant-drawer-content-wrapper rect w=1024 @1440 (0.3s ease). */
+      widthClass="sm:w-[min(1024px,94vw)]"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -1025,9 +1027,21 @@ function ProductDrawer({
       }
     >
       <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
+        {/* Belasis pixel: abas register/settings/cashback ativas + client_return/
+            linked_services/electronic_invoice desabilitadas (mesma ordem/labels). */}
         <Tabs.List className="w-full overflow-x-auto">
           <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
           <Tabs.Tab id="config">Configurações</Tabs.Tab>
+          <Tabs.Tab id="cashback">Cashback</Tabs.Tab>
+          <Tabs.Tab id="retorno" isDisabled>
+            Retorno
+          </Tabs.Tab>
+          <Tabs.Tab id="linked" isDisabled>
+            Serviços vinculados
+          </Tabs.Tab>
+          <Tabs.Tab id="invoice" isDisabled>
+            Configurar nota fiscal
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel id="cadastro" className="flex flex-col gap-4 pt-4">
@@ -1048,16 +1062,16 @@ function ProductDrawer({
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Categoria (opcional)">
-              <SelectField
+            <Field label="Categoria">
+              <AutocompleteField
                 ariaLabel="Categoria"
                 value={categoryId}
                 onChange={setCategoryId}
                 options={categories}
               />
             </Field>
-            <Field label="Marca (opcional)">
-              <SelectField
+            <Field label="Marca">
+              <AutocompleteField
                 ariaLabel="Marca"
                 value={brandId}
                 onChange={setBrandId}
@@ -1088,6 +1102,40 @@ function ProductDrawer({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={mode === 'edit' ? 'Estoque' : 'Estoque inicial'}>
+              <TextField value={stock} onChange={setStock} aria-label="Estoque">
+                <Input type="number" placeholder="0" />
+              </TextField>
+            </Field>
+            <Field label="Uma unidade equivale a">
+              <TextField
+                value={unitEquivalence}
+                onChange={setUnitEquivalence}
+                aria-label="Uma unidade equivale a"
+              >
+                <Input type="number" placeholder="0" />
+              </TextField>
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Estoque mínimo">
+              <TextField
+                value={minStock}
+                onChange={setMinStock}
+                aria-label="Estoque mínimo"
+              >
+                <Input type="number" placeholder="0" />
+              </TextField>
+            </Field>
+            <Field label="Unidade">
+              <TextField value={unit} onChange={setUnit} aria-label="Unidade">
+                <Input placeholder="un, ml, g…" />
+              </TextField>
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Preço para profissional">
               <TextField
                 value={employeePrice}
@@ -1108,39 +1156,15 @@ function ProductDrawer({
             </Field>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Estoque">
-              <TextField value={stock} onChange={setStock} aria-label="Estoque">
-                <Input type="number" placeholder="Estoque" />
-              </TextField>
-            </Field>
-            <Field label="Estoque mínimo">
-              <TextField
-                value={minStock}
-                onChange={setMinStock}
-                aria-label="Estoque mínimo"
-              >
-                <Input type="number" placeholder="Estoque mínimo" />
-              </TextField>
-            </Field>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Unidade">
-              <TextField value={unit} onChange={setUnit} aria-label="Unidade">
-                <Input placeholder="un, ml, g…" />
-              </TextField>
-            </Field>
-            <Field label="Uma unidade equivale a">
-              <TextField
-                value={unitEquivalence}
-                onChange={setUnitEquivalence}
-                aria-label="Uma unidade equivale a"
-              >
-                <Input type="number" placeholder="0" />
-              </TextField>
-            </Field>
-          </div>
+          <Field label="Comissão padrão (%)">
+            <TextField
+              value={defaultCommissionPercent}
+              onChange={setDefaultCommissionPercent}
+              aria-label="Comissão padrão"
+            >
+              <Input type="number" min={0} max={100} step="0.01" placeholder="% 0.0" />
+            </TextField>
+          </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Código do item">
@@ -1162,34 +1186,6 @@ function ProductDrawer({
               </TextField>
             </Field>
           </div>
-        </Tabs.Panel>
-
-        <Tabs.Panel id="config" className="flex flex-col gap-4 pt-4">
-          <Field label="Comissão padrão (%)">
-            <TextField
-              value={defaultCommissionPercent}
-              onChange={setDefaultCommissionPercent}
-              aria-label="Comissão padrão"
-            >
-              <Input type="number" min={0} max={100} step="0.01" placeholder="% 0.0" />
-            </TextField>
-            <span className="text-xs text-muted-ink">
-              Percentual de comissão aplicado ao profissional na venda deste produto.
-            </span>
-          </Field>
-
-          <Field label="Cashback (%)">
-            <TextField
-              value={cashbackPercent}
-              onChange={setCashbackPercent}
-              aria-label="Cashback"
-            >
-              <Input type="number" min={0} max={100} step="0.01" placeholder="0" />
-            </TextField>
-            <span className="text-xs text-muted-ink">
-              Percentual de cashback concedido ao cliente nas compras deste produto.
-            </span>
-          </Field>
 
           <Field label="Observações">
             <TextField
@@ -1200,21 +1196,47 @@ function ProductDrawer({
               <Input placeholder="Anotações internas sobre o produto" />
             </TextField>
           </Field>
+        </Tabs.Panel>
 
+        <Tabs.Panel id="config" className="flex flex-col gap-4 pt-4">
           <div className="flex flex-col gap-3 rounded-md border border-line bg-canvas p-3">
             <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
             <span className="text-xs text-muted-ink">
               Produtos favoritos aparecem no topo da listagem.
             </span>
+            <Toggle
+              label="Controlar estoque"
+              checked={trackStock}
+              onChange={setTrackStock}
+            />
+            <span className="text-xs text-muted-ink">
+              Quando ativo, o estoque deste produto é movimentado nas vendas.
+            </span>
             {mode === 'edit' && (
               <>
                 <Toggle label="Ativo" checked={active} onChange={setActive} />
                 <span className="text-xs text-muted-ink">
-                  Produtos inativos ficam ocultos nas vendas, mas mantêm o histórico.
+                  Um item desativado não será listado nas vendas, mas mantém o histórico.
                 </span>
               </>
             )}
           </div>
+        </Tabs.Panel>
+
+        <Tabs.Panel id="cashback" className="flex flex-col gap-4 pt-4">
+          <Field label="Cashback (%)">
+            <TextField
+              value={cashbackPercent}
+              onChange={setCashbackPercent}
+              aria-label="Cashback"
+            >
+              <Input type="number" min={0} max={100} step="0.01" placeholder="0" />
+            </TextField>
+            <span className="text-xs text-muted-ink">
+              Essa configuração tem prioridade sobre a configuração geral do módulo de
+              cashback. O cliente receberá o valor configurado ao comprar este produto.
+            </span>
+          </Field>
         </Tabs.Panel>
       </Tabs>
 
@@ -1358,7 +1380,8 @@ function StockMovementDrawer({
 // Campos reutilizáveis
 // ---------------------------------------------------------------------
 
-function SelectField({
+// Select unificado com busca (Belasis Categoria/Marca são comboboxes filtráveis).
+function AutocompleteField({
   ariaLabel,
   value,
   onChange,
@@ -1370,28 +1393,38 @@ function SelectField({
   options: Option[];
 }) {
   return (
-    <Select
+    <Autocomplete
       aria-label={ariaLabel}
       selectedKey={value || null}
       onSelectionChange={(k) => onChange(k ? String(k) : NONE)}
     >
-      <Select.Trigger>
-        <Select.Value>
+      <Autocomplete.Trigger>
+        <Autocomplete.Value>
           {({ isPlaceholder, selectedText }) =>
             isPlaceholder ? 'Selecione' : selectedText
           }
-        </Select.Value>
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          {options.map((o) => (
-            <ListBox.Item key={o.id} id={o.id} textValue={o.name}>
-              {o.name}
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+        </Autocomplete.Value>
+        <Autocomplete.Indicator />
+      </Autocomplete.Trigger>
+      <Autocomplete.Popover>
+        <Autocomplete.Filter
+          filter={(textValue, inputValue) =>
+            textValue.toLowerCase().includes(inputValue.trim().toLowerCase())
+          }
+        >
+          <SearchField aria-label={`Buscar ${ariaLabel}`} autoFocus className="mb-1">
+            <SearchField.Input placeholder="Buscar" />
+          </SearchField>
+          <ListBox>
+            {options.map((o) => (
+              <ListBox.Item key={o.id} id={o.id} textValue={o.name}>
+                {o.name}
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Autocomplete.Filter>
+      </Autocomplete.Popover>
+    </Autocomplete>
   );
 }
 

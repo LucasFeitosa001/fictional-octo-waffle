@@ -1,0 +1,204 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-container.wb-icon [role="img" aria-label="container"]
+      span "Comandas"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Configurações"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-home.wb-icon [role="img" aria-label="home"]
+          span "Resumo"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-pie-chart.wb-icon [role="img" aria-label="pie-chart"]
+          span "Comissões em aberto"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+          span "Comissões pagas"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-setting.wb-icon [role="img" aria-label="setting"]
+          span "Configurações"
+    div.main-content
+      form.ant-form.ant-form-vertical
+        div.ant-alert.ant-alert-info.ant-alert-no-icon [role="alert"]
+          div.ant-alert-content
+            div.ant-alert-message "Caso haja alguma negociação diferenciada para um profissiona"
+              strong "Estas são as configurações padrões das comissões."
+              span "listagem de profissionais"
+        div.ant-row
+          span "Filtro por data"
+          span "O valor fica disponível para pagamento no dia em que o servi"
+            strong "Data de competência:"
+            strong "Data de Disponibilidade:"
+        div.ant-radio-group.ant-radio-group-outline
+          label.ant-radio-wrapper.ant-radio-wrapper-checked
+            span.ant-radio.ant-wave-target.ant-radio-checked
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Competência"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Disponibilidade"
+        div.ant-row
+          span "Tipo de comanda"
+          span "O valor fica disponível para pagamento independente do statu"
+            strong "Todas as Comandas:"
+            strong "Somente Finalizadas:"
+        div.ant-radio-group.ant-radio-group-outline
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Todas"
+          label.ant-radio-wrapper.ant-radio-wrapper-checked
+            span.ant-radio.ant-wave-target.ant-radio-checked
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Finalizadas"
+        div.ant-row
+          span "Taxas"
+          span "Defina quanto e quem pagará as taxas de cartão de crédito, b"
+        div.ant-radio-group.ant-radio-group-outline
+          label.ant-radio-wrapper.ant-radio-wrapper-checked
+            span.ant-radio.ant-wave-target.ant-radio-checked
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Proporcional ao comissionamento"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Estabelecimento arca com 100%"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Profissional arca com 100%"
+        div.ant-row
+          span "Descontos"
+          span "Defina quem será responsável pelo pagamento dos descontos ap"
+        div.ant-radio-group.ant-radio-group-outline
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Proporcional ao comissionamento"
+          label.ant-radio-wrapper.ant-radio-wrapper-checked
+            span.ant-radio.ant-wave-target.ant-radio-checked
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Estabelecimento arca com 100%"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Profissional arca com 100%"
+        div.ant-row
+          span "Custo adicional dos serviços"
+          span "Se , ao informar um custo adicional no cadastro do serviço, "
+            strong "sim"
+            strong "não"
+        button.ant-switch [role="switch" type="button"]
+          div.ant-switch-handle
+          span.ant-switch-inner
+            span.ant-switch-inner-checked
+            span.ant-switch-inner-unchecked
+        div.ant-row
+          span "Origem do desconto dos produtos consumidos"
+          span "O valor dos produtos consumidos é descontado integralmente d"
+            strong "Comissão do profissional:"
+            strong "Serviço:"
+        div.ant-radio-group.ant-radio-group-outline
+          label.ant-radio-wrapper.ant-radio-wrapper-checked
+            span.ant-radio.ant-wave-target.ant-radio-checked
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Comissão do profissional"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Serviço"
+        div.ant-row
+          span "Descontar produtos consumidos a partir de"
+          span "Essa configuração completa a configuração . Aqui você escolh"
+            strong "Descontar produtos consumidos"
+            strong "Não descontar:"
+            strong "Descontar em "Preço de Custo":"
+            strong "Descontar em "Preço de Venda":"
+            strong "Descontar em Preço para Profissional":"
+        div.ant-radio-group.ant-radio-group-outline
+          label.ant-radio-wrapper.ant-radio-wrapper-checked
+            span.ant-radio.ant-wave-target.ant-radio-checked
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Não descontar"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Preço de custo"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Preço de venda"
+          label.ant-radio-wrapper
+            span.ant-radio.ant-wave-target
+              input.ant-radio-input [type="radio"]
+              span.ant-radio-inner
+            span.ant-radio-label "Preço para profissional"
+        div.ant-row
+          span "Exibir valor bruto no relatório de comissões"
+          span ", ao tirar o relatório de comissões pagas o valor bruto é ex"
+            strong "Sim"
+            strong "Não"
+        button.ant-switch [role="switch" type="button"]
+          div.ant-switch-handle
+          span.ant-switch-inner
+            span.ant-switch-inner-checked
+            span.ant-switch-inner-unchecked
+        div.ant-row
+          span "Recebimento de comissão"
+          span "Texto que aparecerá quando a comissão for impressa."
+            div.ant-form-item.ant-form-item-vertical
+              div.ant-row.ant-form-item-row
+                div.ant-col.ant-form-item-control
+                  div.ant-form-item-control-input
+                    div.ant-form-item-control-input-content
+                      textarea.ant-input.ant-input-outlined "Declaro que recebi de teste, o valor de R$ %VALOR% referente"
+            span "Clique para inserir os termos abaixo em sua mensagem"
+            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-sm [type="button"]
+              span "Valor"
+            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-sm [type="button"]
+              span "Nome da empresa"
+        div.ant-row.ant-row-end
+          button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-lg [type="button"]
+            span "Salvar"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

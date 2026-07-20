@@ -1,0 +1,450 @@
+[
+  {
+    "route": "/wow",
+    "slug": "wow",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 109464,
+    "scrollH": 4435,
+    "hamburger": 28317,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/calendar",
+    "slug": "calendar",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 86456,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/sales",
+    "slug": "sales",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 145456,
+    "scrollH": 3599,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/clients",
+    "slug": "clients",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 178072,
+    "scrollH": 3339,
+    "hamburger": 29873,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/employees",
+    "slug": "employees",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 31122,
+    "scrollH": 764,
+    "hamburger": 29872,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/products",
+    "slug": "products",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 134554,
+    "scrollH": 3580,
+    "hamburger": 29698,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/services",
+    "slug": "services",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 229690,
+    "scrollH": 4758,
+    "hamburger": 29697,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/packages",
+    "slug": "packages",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 54055,
+    "scrollH": 1378,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/subscriptions",
+    "slug": "subscriptions",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 96499,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/vendors",
+    "slug": "vendors",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 120400,
+    "scrollH": 3103,
+    "hamburger": 29872,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/brands",
+    "slug": "brands",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 75053,
+    "scrollH": 1863,
+    "hamburger": 29697,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/finance/transactions",
+    "slug": "finance_transactions",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 113738,
+    "scrollH": 5626,
+    "hamburger": 33361,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/finance/accounts",
+    "slug": "finance_accounts",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 30144,
+    "scrollH": 664,
+    "hamburger": 33360,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/finance/cash",
+    "slug": "finance_cash",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 86430,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/finance/dashboard",
+    "slug": "finance_dashboard",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 28661,
+    "scrollH": 1153,
+    "hamburger": 33360,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/commissions",
+    "slug": "commissions",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 86413,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/commissions/settings",
+    "slug": "commissions_settings",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 86425,
+    "scrollH": 941,
+    "hamburger": 28316,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/reports",
+    "slug": "reports",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 12172,
+    "scrollH": 664,
+    "hamburger": 24770,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/reports/financial",
+    "slug": "reports_financial",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 39344,
+    "scrollH": 1788,
+    "hamburger": 24707,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/reports/clients/all",
+    "slug": "reports_clients_all",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 22293,
+    "scrollH": 664,
+    "hamburger": 24771,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/reports/calendars/all",
+    "slug": "reports_calendars_all",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 12191,
+    "scrollH": 664,
+    "hamburger": 24577,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/reports/inventory/stock",
+    "slug": "reports_inventory_stock",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 22275,
+    "scrollH": 664,
+    "hamburger": 24771,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/marketing/agendamento-online",
+    "slug": "marketing_agendamento-online",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 86433,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/marketing/campanhas",
+    "slug": "marketing_campanhas",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 86425,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/marketing/cashback",
+    "slug": "marketing_cashback",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 86423,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/marketing/promocoes",
+    "slug": "marketing_promocoes",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 96528,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/marketing/avaliacoes",
+    "slug": "marketing_avaliacoes",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 96508,
+    "scrollH": 941,
+    "hamburger": 28510,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  },
+  {
+    "route": "/settings",
+    "slug": "settings",
+    "captured": [
+      "page",
+      "hamburger"
+    ],
+    "htmlBytes": 22174,
+    "scrollH": 664,
+    "hamburger": 22606,
+    "newViaUrl": {
+      "via": "query-param",
+      "bytes": 0,
+      "note": "sem drawer"
+    }
+  }
+]

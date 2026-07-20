@@ -1,0 +1,747 @@
+[
+  {
+    "slug": "calendar",
+    "viewport": "desktop",
+    "route": "/calendar",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Busque pelo cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 1,
+        "label": "Cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 2,
+        "label": "Status",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 3,
+        "label": "Cor",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 4,
+        "label": "Selecionar serviço",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 5,
+        "label": "FATIMA LACERDA",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 6,
+        "label": "08:35",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 7,
+        "label": "15 min",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 8,
+        "label": "Além deste, repetir mais",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 9,
+        "label": "Data",
+        "kind": ".ant-picker:not(.ant-picker-range) input",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 10,
+        "label": "Status",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 11,
+        "label": "Cor",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 12,
+        "label": "Além deste, repetir mais",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "sales",
+    "viewport": "desktop",
+    "route": "/sales",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Busque pelo cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 1,
+        "label": "Cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 2,
+        "label": "Selecionar serviço",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 3,
+        "label": "FATIMA LACERDA",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 4,
+        "label": "R$",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 5,
+        "label": "Data",
+        "kind": ".ant-picker:not(.ant-picker-range) input",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 6,
+        "label": "R$ 0,00",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "clients",
+    "viewport": "desktop",
+    "route": "/clients",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Indicado por",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 1,
+        "label": "Hashtags",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 2,
+        "label": "Desconto padrão",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 3,
+        "label": "Desconto padrão",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "employees",
+    "viewport": "desktop",
+    "route": "/employees",
+    "pickers": [],
+    "tabs": [
+      {
+        "index": 0,
+        "label": "Cadastro"
+      },
+      {
+        "index": 1,
+        "label": "Endereço"
+      },
+      {
+        "index": 2,
+        "label": "Usuário"
+      },
+      {
+        "index": 3,
+        "label": "Assinatura digital"
+      },
+      {
+        "index": 4,
+        "label": "Expediente"
+      },
+      {
+        "index": 5,
+        "label": "Personalizar serviços"
+      },
+      {
+        "index": 6,
+        "label": "Configurar comissões"
+      },
+      {
+        "index": 7,
+        "label": "Comissões e Auxiliares"
+      },
+      {
+        "index": 8,
+        "label": "Pagar salário/comissão"
+      },
+      {
+        "index": 9,
+        "label": "Vales e Bonificações"
+      },
+      {
+        "index": 10,
+        "label": "Permissões"
+      },
+      {
+        "index": 11,
+        "label": "Contas de banco"
+      }
+    ],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "products",
+    "viewport": "desktop",
+    "route": "/products",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Categoria",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 1,
+        "label": "Marca",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 2,
+        "label": "Registro de saída",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 3,
+        "label": "Custo adicional",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 4,
+        "label": "Registro de saída",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "services",
+    "viewport": "desktop",
+    "route": "/services",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Categoria",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 1,
+        "label": "Preço de venda",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 2,
+        "label": "Custo adicional",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 3,
+        "label": "Duração",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 4,
+        "label": "Preço de venda",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "packages",
+    "viewport": "desktop",
+    "route": "/packages",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Busque por um cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 1,
+        "label": "* Cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 2,
+        "label": "Pacote Predefinido",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 3,
+        "label": "Vendedor",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 4,
+        "label": "Selecionar serviço",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 5,
+        "label": "R$",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 6,
+        "label": "Data",
+        "kind": ".ant-picker:not(.ant-picker-range) input",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 7,
+        "label": "Validade",
+        "kind": ".ant-picker:not(.ant-picker-range) input",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 8,
+        "label": "Pacote Predefinido",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 9,
+        "label": "R$ 0,00",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "subscriptions",
+    "viewport": "desktop",
+    "route": "/subscriptions",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Busque pelo cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 1,
+        "label": "Cliente",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 2,
+        "label": "Status",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 3,
+        "label": "Cor",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 4,
+        "label": "Selecionar serviço",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 5,
+        "label": "FATIMA LACERDA",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 6,
+        "label": "08:35",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 7,
+        "label": "15 min",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 8,
+        "label": "Além deste, repetir mais",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 9,
+        "label": "Data",
+        "kind": ".ant-picker:not(.ant-picker-range) input",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 10,
+        "label": "Status",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 11,
+        "label": "Cor",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 12,
+        "label": "Além deste, repetir mais",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "vendors",
+    "viewport": "desktop",
+    "route": "/vendors",
+    "pickers": [],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "brands",
+    "viewport": "desktop",
+    "route": "/brands",
+    "pickers": [],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "finance-transactions",
+    "viewport": "desktop",
+    "route": "/finance/transactions",
+    "pickers": [],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?"
+    ],
+    "newTrigger": "BUTTON[rank=21].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid ant-dropdo · text=\"Novo\"",
+    "newMenuItem": null
+  },
+  {
+    "slug": "finance-accounts",
+    "viewport": "desktop",
+    "route": "/finance/accounts",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Acesso",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      },
+      {
+        "index": 1,
+        "label": "Acesso",
+        "kind": "input[readonly]:not([disabled])",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3832
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "purchases",
+    "viewport": "desktop",
+    "route": "/purchases",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Fornecedor",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 1,
+        "label": "Informe um produto",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 2,
+        "label": "Lote",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "index": 3,
+        "label": "Data",
+        "kind": ".ant-picker:not(.ant-picker-range) input",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "BUTTON[rank=18].ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid · text=\"Novo\""
+  },
+  {
+    "slug": "package-templates",
+    "viewport": "desktop",
+    "route": "/package-templates",
+    "pickers": [],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?"
+    ]
+  },
+  {
+    "slug": "calendar",
+    "viewport": "mobile",
+    "route": "/calendar",
+    "pickers": [
+      {
+        "index": 0,
+        "label": "Confirmado",
+        "kind": ".ant-select-selector",
+        "overlaySelector": ".ant-drawer.ant-drawer-bottom.ant-drawer-open .ant-drawer-content",
+        "bytes": 17969
+      }
+    ],
+    "tabs": [],
+    "captured": [
+      "page",
+      "chrome",
+      "rowMenu?",
+      "deleteConfirm?",
+      "faturadoFlow?",
+      "newOpen"
+    ],
+    "newTrigger": "Criar"
+  }
+]

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Input, ListBox, Select, TextField } from '@heroui/react';
+import { Autocomplete, Button, Card, Input, ListBox, SearchField, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
@@ -789,6 +789,57 @@ function Field({
   );
 }
 
+/**
+ * Autocomplete unificado (desktop) — espelha o campo "Busque por um cliente" do
+ * Belasis: gatilho com placeholder, popover com busca e ListBox filtrável.
+ */
+function AutocompleteField({
+  ariaLabel,
+  placeholder,
+  value,
+  onChange,
+  options,
+}: {
+  ariaLabel: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; name: string }[];
+}) {
+  return (
+    <Autocomplete
+      aria-label={ariaLabel}
+      selectedKey={value || null}
+      onSelectionChange={(k) => onChange(k ? String(k) : '')}
+    >
+      <Autocomplete.Trigger>
+        <Autocomplete.Value>
+          {({ isPlaceholder, selectedText }) => (isPlaceholder ? placeholder : selectedText)}
+        </Autocomplete.Value>
+        <Autocomplete.Indicator />
+      </Autocomplete.Trigger>
+      <Autocomplete.Popover>
+        <Autocomplete.Filter
+          filter={(textValue, inputValue) =>
+            textValue.toLowerCase().includes(inputValue.trim().toLowerCase())
+          }
+        >
+          <SearchField aria-label={`Buscar ${ariaLabel}`} autoFocus className="mb-1">
+            <SearchField.Input placeholder="Buscar" />
+          </SearchField>
+          <ListBox>
+            {options.map((o) => (
+              <ListBox.Item key={o.id} id={o.id} textValue={o.name}>
+                {o.name}
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Autocomplete.Filter>
+      </Autocomplete.Popover>
+    </Autocomplete>
+  );
+}
+
 function FormError({ message }: { message: string }) {
   return (
     <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -875,7 +926,7 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
-            Fechar
+            Cancelar
           </Button>
           <Button variant="primary" isDisabled={!canSave || create.isPending} onClick={handleSave}>
             <IconCheck size={16} /> {create.isPending ? 'Salvando…' : 'Faturar'}
@@ -886,56 +937,26 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1.6fr_0.7fr_1fr]">
           <Field label="Cliente" required>
-            <Select
-              aria-label="Cliente"
-              selectedKey={customerId || null}
-              onSelectionChange={(k) => setCustomerId(k ? String(k) : '')}
-            >
-              <Select.Trigger>
-                <Select.Value>
-                  {({ isPlaceholder, selectedText }) =>
-                    isPlaceholder ? 'Busque por um cliente' : selectedText
-                  }
-                </Select.Value>
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {customerList.map((c) => (
-                    <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                      {c.name}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+            <AutocompleteField
+              ariaLabel="Cliente"
+              placeholder="Busque por um cliente"
+              value={customerId}
+              onChange={setCustomerId}
+              options={customerList.map((c) => ({ id: c.id, name: c.name }))}
+            />
           </Field>
           <Field label="Data">
             {/* TODO: data editável quando o endpoint aceitar a data da assinatura. */}
             <Input value={today} disabled aria-label="Data" />
           </Field>
           <Field label="Modelo de assinatura">
-            <Select
-              aria-label="Modelo de assinatura"
-              selectedKey={membershipPlanId || null}
-              onSelectionChange={(k) => setMembershipPlanId(k ? String(k) : '')}
-            >
-              <Select.Trigger>
-                <Select.Value>
-                  {({ isPlaceholder, selectedText }) =>
-                    isPlaceholder ? 'Selecione um modelo de assinatura' : selectedText
-                  }
-                </Select.Value>
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {planList.map((p) => (
-                    <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
-                      {p.name}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+            <AutocompleteField
+              ariaLabel="Modelo de assinatura"
+              placeholder="Selecione um modelo de assinatura"
+              value={membershipPlanId}
+              onChange={setMembershipPlanId}
+              options={planList.map((p) => ({ id: p.id, name: p.name }))}
+            />
           </Field>
         </div>
 
@@ -1053,7 +1074,7 @@ function EditarAssinaturaDrawer({
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
-            Fechar
+            Cancelar
           </Button>
           <Button variant="primary" isDisabled={update.isPending} onClick={handleSave}>
             {update.isPending ? 'Salvando…' : 'Salvar'}
@@ -1216,7 +1237,7 @@ function PlanDrawer({
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
-            Fechar
+            Cancelar
           </Button>
           <Button variant="primary" isDisabled={!canSave || isPending} onClick={handleSave}>
             {isPending ? 'Salvando…' : 'Salvar'}
@@ -1247,28 +1268,13 @@ function PlanDrawer({
           <div className="mb-2 text-xs font-semibold text-muted-ink">Serviços incluídos</div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[150px] flex-1">
-              <Select
-                aria-label="Serviço"
-                selectedKey={serviceId || null}
-                onSelectionChange={(k) => setServiceId(k ? String(k) : '')}
-              >
-                <Select.Trigger>
-                  <Select.Value>
-                    {({ isPlaceholder, selectedText }) =>
-                      isPlaceholder ? 'Selecionar serviço' : selectedText
-                    }
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {serviceList.map((s) => (
-                      <ListBox.Item key={s.id} id={s.id} textValue={s.name}>
-                        {s.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
+              <AutocompleteField
+                ariaLabel="Serviço"
+                placeholder="Selecionar serviço"
+                value={serviceId}
+                onChange={setServiceId}
+                options={serviceList.map((s) => ({ id: s.id, name: s.name }))}
+              />
             </div>
             <div className="w-24">
               <TextField value={qty} onChange={setQty} aria-label="Quantidade por ciclo">

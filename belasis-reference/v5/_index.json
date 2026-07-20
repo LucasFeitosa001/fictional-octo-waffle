@@ -1,0 +1,390 @@
+[
+  {
+    "slug": "wow",
+    "viewport": "desktop",
+    "route": "/wow",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 2886,
+    "funilValores": {
+      "Vendas totais": "R$",
+      "Agendamentos": "29",
+      "Comandas": "43",
+      "Ticket médio": "-"
+    }
+  },
+  {
+    "slug": "calendar",
+    "viewport": "desktop",
+    "route": "/calendar",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 954,
+    "funilValores": {}
+  },
+  {
+    "slug": "sales",
+    "viewport": "desktop",
+    "route": "/sales",
+    "captured": [
+      "scroll+snaps",
+      "funil",
+      "salesDetail"
+    ],
+    "htmlBefore": 1176,
+    "funilValores": {}
+  },
+  {
+    "slug": "clients",
+    "viewport": "desktop",
+    "route": "/clients",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1206,
+    "funilValores": {}
+  },
+  {
+    "slug": "employees",
+    "viewport": "desktop",
+    "route": "/employees",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 900,
+    "funilValores": {}
+  },
+  {
+    "slug": "products",
+    "viewport": "desktop",
+    "route": "/products",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1236,
+    "funilValores": {}
+  },
+  {
+    "slug": "services",
+    "viewport": "desktop",
+    "route": "/services",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1204,
+    "funilValores": {}
+  },
+  {
+    "slug": "packages",
+    "viewport": "desktop",
+    "route": "/packages",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 900,
+    "funilValores": {}
+  },
+  {
+    "slug": "subscriptions",
+    "viewport": "desktop",
+    "route": "/subscriptions",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 954,
+    "funilValores": {}
+  },
+  {
+    "slug": "vendors",
+    "viewport": "desktop",
+    "route": "/vendors",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1156,
+    "funilValores": {}
+  },
+  {
+    "slug": "brands",
+    "viewport": "desktop",
+    "route": "/brands",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1156,
+    "funilValores": {}
+  },
+  {
+    "slug": "finance-transactions",
+    "viewport": "desktop",
+    "route": "/finance/transactions",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 2056,
+    "funilValores": {}
+  },
+  {
+    "slug": "finance-accounts",
+    "viewport": "desktop",
+    "route": "/finance/accounts",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 900,
+    "funilValores": {}
+  },
+  {
+    "slug": "finance-cash",
+    "viewport": "desktop",
+    "route": "/finance/cash",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 954,
+    "funilValores": {}
+  },
+  {
+    "slug": "commissions",
+    "viewport": "desktop",
+    "route": "/commissions",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 954,
+    "funilValores": {}
+  },
+  {
+    "slug": "reports",
+    "viewport": "desktop",
+    "route": "/reports",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 900,
+    "funilValores": {}
+  },
+  {
+    "slug": "reports-financial",
+    "viewport": "desktop",
+    "route": "/reports/financial",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1217,
+    "funilValores": {}
+  },
+  {
+    "slug": "wow",
+    "viewport": "mobile",
+    "route": "/wow",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 4450,
+    "funilValores": {
+      "Todos": "29",
+      "Confirmados": "29",
+      "Faturados": "29",
+      "Vendas totais": "R$",
+      "Agendamentos": "29",
+      "Comandas": "43",
+      "Ticket médio": "-"
+    }
+  },
+  {
+    "slug": "calendar",
+    "viewport": "mobile",
+    "route": "/calendar",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 941,
+    "funilValores": {}
+  },
+  {
+    "slug": "sales",
+    "viewport": "mobile",
+    "route": "/sales",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1979,
+    "funilValores": {}
+  },
+  {
+    "slug": "clients",
+    "viewport": "mobile",
+    "route": "/clients",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1873,
+    "funilValores": {}
+  },
+  {
+    "slug": "employees",
+    "viewport": "mobile",
+    "route": "/employees",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 844,
+    "funilValores": {}
+  },
+  {
+    "slug": "products",
+    "viewport": "mobile",
+    "route": "/products",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 2023,
+    "funilValores": {}
+  },
+  {
+    "slug": "services",
+    "viewport": "mobile",
+    "route": "/services",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1844,
+    "funilValores": {}
+  },
+  {
+    "slug": "packages",
+    "viewport": "mobile",
+    "route": "/packages",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1378,
+    "funilValores": {}
+  },
+  {
+    "slug": "subscriptions",
+    "viewport": "mobile",
+    "route": "/subscriptions",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 941,
+    "funilValores": {}
+  },
+  {
+    "slug": "vendors",
+    "viewport": "mobile",
+    "route": "/vendors",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1694,
+    "funilValores": {}
+  },
+  {
+    "slug": "brands",
+    "viewport": "mobile",
+    "route": "/brands",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1863,
+    "funilValores": {}
+  },
+  {
+    "slug": "finance-transactions",
+    "viewport": "mobile",
+    "route": "/finance/transactions",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 3001,
+    "funilValores": {}
+  },
+  {
+    "slug": "finance-accounts",
+    "viewport": "mobile",
+    "route": "/finance/accounts",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 844,
+    "funilValores": {}
+  },
+  {
+    "slug": "finance-cash",
+    "viewport": "mobile",
+    "route": "/finance/cash",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 941,
+    "funilValores": {}
+  },
+  {
+    "slug": "commissions",
+    "viewport": "mobile",
+    "route": "/commissions",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 941,
+    "funilValores": {}
+  },
+  {
+    "slug": "reports",
+    "viewport": "mobile",
+    "route": "/reports",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 844,
+    "funilValores": {}
+  },
+  {
+    "slug": "reports-financial",
+    "viewport": "mobile",
+    "route": "/reports/financial",
+    "captured": [
+      "scroll+snaps",
+      "funil"
+    ],
+    "htmlBefore": 1788,
+    "funilValores": {}
+  }
+]

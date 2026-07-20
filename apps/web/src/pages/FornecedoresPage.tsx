@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, TextField } from '@heroui/react';
+import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
@@ -7,7 +7,6 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
-  IconDownload,
   IconFilter,
   IconMail,
   IconPencil,
@@ -18,7 +17,6 @@ import {
   IconTruck,
 } from '../components/icons';
 import { formatNumber } from '../lib/format';
-import { downloadCsv } from '../lib/csv';
 import { useSetPageActions } from '../layout/PageActions';
 import {
   useCreateSupplier,
@@ -31,6 +29,12 @@ import {
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 const PAGE_SIZE = 20;
+
+// UFs para o select de Estado (o Belasis usa um <select> nativo aqui).
+const BR_STATES = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+];
 
 // ---------------------------------------------------------------------
 // addressJson: o backend guarda um objeto livre. O Belasis expõe endereço
@@ -67,6 +71,8 @@ export function FornecedoresPage() {
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Seleção (checkbox por linha — visual, igual à ant-table do Belasis)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const suppliers = useSuppliers(search || undefined);
   const remove = useDeleteSupplier();
@@ -108,19 +114,23 @@ export function FornecedoresPage() {
     setStatus('all');
   }
 
-  function exportCsv() {
-    downloadCsv<Supplier>(
-      'fornecedores',
-      [
-        { header: 'Fornecedor', value: (s) => s.name },
-        { header: 'E-mail', value: (s) => s.email ?? '' },
-        { header: 'Telefone', value: (s) => readAddress(s.addressJson).phone2 ?? '' },
-        { header: 'Celular', value: (s) => s.phone ?? '' },
-        { header: 'CNPJ', value: (s) => s.cnpj ?? '' },
-        { header: 'Status', value: (s) => (s.active ? 'Ativo' : 'Inativo') },
-      ],
-      rows,
-    );
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const allSelected = paged.length > 0 && paged.every((r) => selected.has(r.id));
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) paged.forEach((r) => next.delete(r.id));
+      else paged.forEach((r) => next.add(r.id));
+      return next;
+    });
   }
 
   async function handleRemove(s: Supplier) {
@@ -143,7 +153,7 @@ export function FornecedoresPage() {
     }
   }
 
-  // Mobile: as mesmas ações do header (Buscar / Filtrar / Exportar / Novo) vão
+  // Mobile: as mesmas ações do header (Buscar / Filtrar / Novo) vão
   // para a BottomNav inferior; cada onClick dispara o mesmo handler do desktop.
   useSetPageActions(
     [
@@ -160,13 +170,6 @@ export function FornecedoresPage() {
         onClick: () => setFilterOpen((v) => !v),
       },
       {
-        key: 'exportar',
-        label: 'Exportar',
-        icon: <IconDownload size={22} />,
-        onClick: exportCsv,
-        disabled: rows.length === 0,
-      },
-      {
         key: 'novo',
         label: 'Novo',
         icon: <IconPlus size={22} />,
@@ -178,7 +181,7 @@ export function FornecedoresPage() {
 
   return (
     <div className="pb-10">
-      {/* Cabeçalho: título + Buscar / Filtrar / Exportar / Novo (igual Belasis) */}
+      {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Fornecedores</h1>
         {/* Desktop: barra de ações inline. No mobile essas ações vivem na BottomNav. */}
@@ -196,9 +199,6 @@ export function FornecedoresPage() {
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <ToolbarButton onClick={exportCsv} disabled={rows.length === 0}>
-            <IconDownload size={16} /> Exportar
           </ToolbarButton>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
@@ -307,6 +307,15 @@ export function FornecedoresPage() {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                      <th className="w-10 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          aria-label="Selecionar todos"
+                          checked={allSelected}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 accent-primary"
+                        />
+                      </th>
                       <th className="px-4 py-3 font-semibold">
                         <button
                           type="button"
@@ -337,6 +346,15 @@ export function FornecedoresPage() {
                           key={s.id}
                           className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                         >
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="checkbox"
+                              aria-label={`Selecionar ${s.name}`}
+                              checked={selected.has(s.id)}
+                              onChange={() => toggleSelect(s.id)}
+                              className="h-4 w-4 accent-primary"
+                            />
+                          </td>
                           <td className="px-4 py-2.5">
                             <button
                               type="button"
@@ -810,7 +828,7 @@ function SupplierDrawer({
             <Field label="Logradouro">
               <TextField value={logradouro} onChange={setLogradouro} aria-label="Logradouro">
                 <Input
-                  placeholder="Logradouro"
+                  placeholder="Rua, Avenida, Travessa..."
                   className="focus:border-primary focus:ring-2 focus:ring-primary/25"
                 />
               </TextField>
@@ -840,12 +858,28 @@ function SupplierDrawer({
               </TextField>
             </Field>
             <Field label="Estado">
-              <TextField value={estado} onChange={setEstado} aria-label="Estado">
-                <Input
-                  placeholder="Estado"
-                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-                />
-              </TextField>
+              <Select
+                aria-label="Estado"
+                selectedKey={estado || null}
+                onSelectionChange={(k) => setEstado(k ? String(k) : '')}
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ isPlaceholder, selectedText }) =>
+                      isPlaceholder ? 'Estado' : selectedText
+                    }
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {BR_STATES.map((uf) => (
+                      <ListBox.Item key={uf} id={uf} textValue={uf}>
+                        {uf}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             </Field>
             <Field label="Cidade">
               <TextField value={cidade} onChange={setCidade} aria-label="Cidade">

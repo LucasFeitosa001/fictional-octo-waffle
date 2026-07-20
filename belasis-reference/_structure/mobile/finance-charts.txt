@@ -1,0 +1,289 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Cadastros"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-bank.wb-icon [role="img" aria-label="bank"]
+          span "Contas"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-dollar.wb-icon [role="img" aria-label="dollar"]
+          span "Formas de pagamento"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-profile.wb-icon [role="img" aria-label="profile"]
+          span "Categorias"
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Água/Luz"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Aluguel"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Comissão"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+                div "Comissão"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Compra de Equipamentos"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Despesas"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+                div "Despesas"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Despesas Pessoais"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Impostos"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Materiais de Consumo"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+                div "Compras"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Pacotes"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-green "Crédito"
+                div "Pacotes"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Pro Labore"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+                div "Pró-labore"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Produtos"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-green "Crédito"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Receitas"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-green "Crédito"
+                div "Receitas"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Salário"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+                div "Salário"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Serviços"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-green "Crédito"
+                div "Comandas"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Telefone/Internet"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Transferência"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-green "Crédito"
+                div "Transferência"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Transferência"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+                div "Transferência"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                span "Vales"
+              div.ant-row.ant-row-space-between
+                span.ant-tag.ant-tag-red "Débito"
+                div "Vale"
+        span "18 registros no total"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

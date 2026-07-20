@@ -1,0 +1,249 @@
+[
+  {
+    "route": "/wow",
+    "slug": "wow",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 99401,
+    "scrollH": 4435,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/calendar",
+    "slug": "calendar",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 96586,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/sales",
+    "slug": "sales",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 135377,
+    "scrollH": 3599,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/clients",
+    "slug": "clients",
+    "captured": [
+      "page"
+    ],
+    "htmlBytes": 178095,
+    "scrollH": 3339,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/employees",
+    "slug": "employees",
+    "captured": [
+      "page"
+    ],
+    "htmlBytes": 41227,
+    "scrollH": 764,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/products",
+    "slug": "products",
+    "captured": [
+      "page"
+    ],
+    "htmlBytes": 455169,
+    "scrollH": 3580,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/services",
+    "slug": "services",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 158296,
+    "scrollH": 3340,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/packages",
+    "slug": "packages",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 43990,
+    "scrollH": 1378,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/subscriptions",
+    "slug": "subscriptions",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 86461,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/vendors",
+    "slug": "vendors",
+    "captured": [
+      "page"
+    ],
+    "htmlBytes": 130548,
+    "scrollH": 3103,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/brands",
+    "slug": "brands",
+    "captured": [
+      "page"
+    ],
+    "htmlBytes": 75119,
+    "scrollH": 1863,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/finance/transactions",
+    "slug": "finance_transactions",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 66459,
+    "scrollH": 3001,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/finance/accounts",
+    "slug": "finance_accounts",
+    "captured": [
+      "page"
+    ],
+    "htmlBytes": 30183,
+    "scrollH": 664,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/finance/cash",
+    "slug": "finance_cash",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 86461,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/finance/dashboard",
+    "slug": "finance_dashboard",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 18594,
+    "scrollH": 1153,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/commissions",
+    "slug": "commissions",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 86459,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/commissions/settings",
+    "slug": "commissions_settings",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 86496,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/reports",
+    "slug": "reports",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 12229,
+    "scrollH": 664,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/reports/financial",
+    "slug": "reports_financial",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 26454,
+    "scrollH": 1698,
+    "newStrategy": "hamburger→Novo"
+  },
+  {
+    "route": "/marketing/agendamento-online",
+    "slug": "marketing_agendamento-online",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 96594,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/marketing/campanhas",
+    "slug": "marketing_campanhas",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 86437,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/marketing/cashback",
+    "slug": "marketing_cashback",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 86424,
+    "scrollH": 941,
+    "newStrategy": "bottom-nav"
+  },
+  {
+    "route": "/settings",
+    "slug": "settings",
+    "captured": [
+      "page",
+      "newPanel"
+    ],
+    "htmlBytes": 22186,
+    "scrollH": 664,
+    "newStrategy": "bottom-nav"
+  }
+]

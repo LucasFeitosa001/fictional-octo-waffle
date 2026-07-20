@@ -1,0 +1,56 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Compras"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-shopping-cart.wb-icon [role="img" aria-label="shopping-cart"]
+          span "Compras"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-file-excel.wb-icon [role="img" aria-label="file-excel"]
+          span "XMLs Importados"
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+      span.ant-tag.ant-tag-has-color.ant-dropdown-trigger
+        span.anticon.anticon-down [role="img" aria-label="down"]
+        span "Ordenando por Ticket"
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.ant-empty.ant-empty-normal
+          div.ant-empty-image
+            title "Não há dados"
+          div.ant-empty-description
+            div.ant-row
+              span "Nenhum item encontrado"
+              span "Verifique seus filtros e tente novamente."
+              button [type="button"] "Clique para criar"
+        span "0 registros no total"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

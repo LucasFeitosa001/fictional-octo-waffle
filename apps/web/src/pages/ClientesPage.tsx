@@ -3,14 +3,19 @@ import { Avatar } from '@heroui/react';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconChevron,
+  IconCircleCheck,
   IconFilter,
   IconPencil,
+  IconPlay,
   IconPlus,
   IconSearch,
+  IconSettings,
   IconStar,
   IconTrash,
+  IconUser,
   IconUsers,
 } from '../components/icons';
+import { HelpTooltip } from '../components/HelpTooltip';
 import { useCustomers } from '../lib/queries';
 import { useDeleteCustomer } from '../lib/queries/clientes';
 import { formatDate, initials } from '../lib/format';
@@ -31,6 +36,9 @@ export function ClientesPage() {
   // Busca
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  // Campo de busca desktop: revelado pelo botão "Buscar" do header (no Belasis
+  // não há barra de busca fixa no desktop). No mobile fica sempre visível.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -48,9 +56,17 @@ export function ClientesPage() {
 
   // Seleção (checkbox por linha — visual, igual ao Belasis)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Modo de seleção do mobile: os checkboxes das linhas só aparecem quando
+  // ativado pelo botão "Selecionar" da BottomNav (igual ao Belasis, onde a lista
+  // fica limpa até você entrar em modo de seleção).
+  const [selectionMode, setSelectionMode] = useState(false);
 
   // "Vá até página" (input de salto do rodapé, igual ao Belasis)
   const [gotoInput, setGotoInput] = useState('');
+
+  // Ordenação por nome — pílula "Ordenando por Nome" do mobile (Belasis).
+  // Reordena, client-side, as linhas já carregadas; chevron ↑ = ascendente.
+  const [sortAsc, setSortAsc] = useState(true);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [perfil, setPerfil] = useState<CustomerFull | null>(null);
@@ -58,6 +74,7 @@ export function ClientesPage() {
   const confirm = useConfirm();
 
   // Ações contextuais do mobile: renderizadas na BottomNav (não no header).
+  // Ordem espelha o Belasis mobile: Filtros · Selecionar · Criar.
   useSetPageActions(
     [
       {
@@ -67,8 +84,19 @@ export function ClientesPage() {
         onClick: () => setFiltersOpen((v) => !v),
       },
       {
-        key: 'novo',
-        label: 'Novo',
+        key: 'selecionar',
+        label: 'Selecionar',
+        icon: <IconCircleCheck size={22} />,
+        onClick: () =>
+          setSelectionMode((v) => {
+            // Ao sair do modo de seleção, limpa a seleção acumulada.
+            if (v) setSelected(new Set());
+            return !v;
+          }),
+      },
+      {
+        key: 'criar',
+        label: 'Criar',
         icon: <IconPlus size={22} />,
         onClick: () => setCreateOpen(true),
       },
@@ -88,7 +116,7 @@ export function ClientesPage() {
     const start = monthDay(birthdayStart);
     const end = monthDay(birthdayEnd);
     const tag = tagQuery.trim().toLowerCase();
-    return allRows.filter((c) => {
+    const filtered = allRows.filter((c) => {
       // Status
       if (statusAtivos || statusInativos) {
         if (statusAtivos && !statusInativos && !c.active) return false;
@@ -112,6 +140,11 @@ export function ClientesPage() {
       }
       return true;
     });
+    return filtered.sort((a, b) =>
+      sortAsc
+        ? a.name.localeCompare(b.name, 'pt-BR')
+        : b.name.localeCompare(a.name, 'pt-BR'),
+    );
   }, [
     allRows,
     statusAtivos,
@@ -121,6 +154,7 @@ export function ClientesPage() {
     tagQuery,
     birthdayStart,
     birthdayEnd,
+    sortAsc,
   ]);
 
   function applySearch() {
@@ -175,12 +209,29 @@ export function ClientesPage() {
     <div className="flex flex-col gap-4">
       {/* ── Cabeçalho ─────────────────────────────────────────── */}
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-semibold text-ink">Clientes</h2>
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-2xl font-semibold text-ink">Clientes</h2>
+          {/* Botão "assista o tutorial" ao lado do título (Belasis) */}
+          <span
+            aria-hidden
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gold text-primary-foreground ring-4 ring-gold/25"
+          >
+            <IconPlay size={15} className="ml-0.5" />
+          </span>
+          {/* Ajuda da página (question-circle ao lado do título — Belasis) */}
+          <HelpTooltip size={20} className="inline-flex items-center text-muted-ink hover:text-ink">
+            Gerencie seus clientes: busque, filtre, cadastre e edite os cadastros.
+          </HelpTooltip>
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={applySearch}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink transition-colors hover:bg-canvas"
+            onClick={() => setSearchOpen((v) => !v)}
+            className={`hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors md:inline-flex ${
+              searchOpen
+                ? 'border-gold bg-gold text-primary-foreground'
+                : 'border-line bg-card text-ink hover:bg-canvas'
+            }`}
           >
             <IconSearch size={16} />
             <span className="hidden sm:inline">Buscar</span>
@@ -208,27 +259,37 @@ export function ClientesPage() {
         </div>
       </header>
 
-      {/* ── Busca (mobile-first, sempre visível) ─────────────── */}
-      <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-line bg-card px-3">
-          <IconSearch size={16} className="shrink-0 text-muted-ink" />
+      {/* ── Busca (sempre visível no mobile; revelada via "Buscar" no desktop) ── */}
+      <div className={`items-center gap-2 ${searchOpen ? 'flex' : 'flex md:hidden'}`}>
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-line bg-card px-4 shadow-[var(--shadow-card)] md:rounded-lg md:px-3 md:shadow-none">
+          <IconSearch size={18} className="shrink-0 text-muted-ink" />
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applySearch()}
-            placeholder="Buscar por nome…"
+            placeholder="Digite para buscar"
             aria-label="Buscar cliente"
-            className="h-10 min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-muted-ink"
+            className="h-12 min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-muted-ink md:h-10 md:text-sm"
           />
         </div>
         <button
           type="button"
           onClick={applySearch}
-          className="inline-flex h-10 items-center rounded-lg bg-gold px-4 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-gold)] transition-colors hover:bg-gold-strong"
+          className="hidden h-10 items-center rounded-lg bg-gold px-4 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-gold)] transition-colors hover:bg-gold-strong md:inline-flex"
         >
           Buscar
         </button>
       </div>
+
+      {/* Pílula de ordenação — visível no mobile (Belasis) */}
+      <button
+        type="button"
+        onClick={() => setSortAsc((v) => !v)}
+        className="inline-flex w-fit items-center gap-2 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-gold)] transition-colors hover:bg-gold-strong md:hidden"
+      >
+        Ordenando por Nome
+        <IconChevron size={16} className={sortAsc ? 'rotate-180' : ''} />
+      </button>
 
       <div className="flex flex-col gap-4 lg:flex-row">
         {/* ── Painel de filtros ─────────────────────────────── */}
@@ -324,7 +385,7 @@ export function ClientesPage() {
 
         {/* ── Resultados ────────────────────────────────────── */}
         <div className="min-w-0 flex-1">
-          <div className="rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
+          <div className="md:rounded-2xl md:border md:border-line md:bg-card md:shadow-[var(--shadow-card)]">
             {customers.isLoading ? (
               <div className="p-6">
                 <LoadingState />
@@ -366,13 +427,32 @@ export function ClientesPage() {
                             className="h-4 w-4 accent-gold"
                           />
                         </th>
-                        <th className="px-4 py-3">Nome</th>
+                        <th className="px-4 py-3">
+                          {/* Nome — coluna ordenável (sorter ⇅ igual ao Belasis) */}
+                          <button
+                            type="button"
+                            onClick={() => setSortAsc((v) => !v)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink hover:text-ink"
+                            aria-label="Ordenar por nome"
+                          >
+                            Nome
+                            <IconChevron
+                              size={14}
+                              className={sortAsc ? 'rotate-180 text-gold' : 'text-gold'}
+                            />
+                          </button>
+                        </th>
                         <th className="px-4 py-3">E-mail</th>
                         <th className="px-4 py-3">Celular</th>
                         <th className="px-4 py-3">Nascimento</th>
-                        <th className="px-4 py-3 text-right">Créditos</th>
+                        <th className="px-4 py-3">Créditos</th>
                         <th className="px-4 py-3">Observações</th>
-                        <th className="w-20 px-4 py-3 text-center" />
+                        <th className="w-20 px-4 py-3 text-center">
+                          {/* Configuração de colunas (gear — Belasis) */}
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-ink">
+                            <IconSettings size={16} />
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -415,7 +495,7 @@ export function ClientesPage() {
                           <td className="px-4 py-2.5 text-ink">
                             {c.birthday ? formatDate(c.birthday) : ''}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-2.5 text-right text-ink">
+                          <td className="whitespace-nowrap px-4 py-2.5 text-ink">
                             {/* TODO: sem saldo de créditos na listagem */}
                             R$&nbsp;0,00
                           </td>
@@ -449,56 +529,44 @@ export function ClientesPage() {
                   </table>
                 </div>
 
-                {/* Cards — mobile */}
-                <ul className="flex flex-col md:hidden">
+                {/* Cards — mobile (cada cliente em card elevado, igual ao Belasis) */}
+                <ul className="flex flex-col gap-3 md:hidden">
                   {rows.map((c) => (
                     <li
                       key={c.id}
-                      className="flex items-center gap-3 border-b border-line px-3 py-3 last:border-0"
+                      className="flex items-center gap-3 rounded-2xl border border-line bg-card px-4 py-4 shadow-[var(--shadow-card)]"
                     >
-                      <input
-                        type="checkbox"
-                        aria-label={`Selecionar ${c.name}`}
-                        checked={selected.has(c.id)}
-                        onChange={() => toggleSelect(c.id)}
-                        className="h-4 w-4 shrink-0 accent-gold"
-                      />
+                      {selectionMode && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Selecionar ${c.name}`}
+                          checked={selected.has(c.id)}
+                          onChange={() => toggleSelect(c.id)}
+                          className="h-4 w-4 shrink-0 accent-gold"
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={() => setPerfil(c)}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
                       >
                         <Avatar size="lg">
                           {c.avatarUrl && (
                             <Avatar.Image src={c.avatarUrl} alt={c.name} />
                           )}
-                          <Avatar.Fallback>{initials(c.name)}</Avatar.Fallback>
+                          <Avatar.Fallback>
+                            <IconUser size={22} className="text-gold" />
+                          </Avatar.Fallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <div className="truncate font-medium text-ink">{c.name}</div>
+                          <div className="truncate text-base font-medium text-ink">
+                            {c.name}
+                          </div>
                           <div className="truncate text-sm text-muted-ink">
                             {c.phone ?? 'Sem telefone'}
                           </div>
                         </div>
                       </button>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          aria-label="Editar"
-                          onClick={() => setPerfil(c)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-ink hover:text-gold"
-                        >
-                          <IconPencil size={18} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Remover"
-                          onClick={() => handleRemove(c)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-pink"
-                        >
-                          <IconTrash size={18} />
-                        </button>
-                      </div>
                     </li>
                   ))}
                 </ul>

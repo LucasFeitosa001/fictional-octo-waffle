@@ -1,0 +1,148 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-container.wb-icon [role="img" aria-label="container"]
+      span "Comandas"
+    span "Notificações"
+      span.anticon.anticon-arrow-left [role="img" aria-label="arrow-left"]
+    form.ant-form.ant-form-horizontal
+      div.main-content
+        div.ant-row
+          div.ant-col.ant-col-24
+            span "No computador"
+            div.ant-row
+              span "Novo agendamento"
+              span "Receba notificações de novos agendamentos."
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Exclusão e cancelamento de agendamentos"
+              span "Seja notificado quando um agendamento é cancelado ou excluíd"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Novas avaliações"
+              span "Receba notificações quando o cliente avaliar o seu serviço."
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Respostas de SMS"
+              span "Seja avisado quando um cliente responder o SMS para continua"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Retorno de cliente"
+              span "Seja notificado quando estiver na hora do cliente retornar p"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Metas"
+              span "Seja notificado toda segunda feira sobre o andamento de suas"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Cliente aguardando"
+              span "Seja notificado quando seu cliente estiver esperando"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+          div.ant-divider.ant-divider-horizontal [role="separator"]
+          div.ant-col.ant-col-24
+            span "No aplicativo"
+            div.ant-row
+              span "Novo agendamento"
+              span "Receba notificações de novos agendamentos."
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Exclusão e cancelamento de agendamentos"
+              span "Seja notificado quando um agendamento é cancelado ou excluíd"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Novas avaliações"
+              span "Receba notificações quando o cliente avaliar o seu serviço."
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Respostas de SMS"
+              span "Seja avisado quando um cliente responder o SMS para continua"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Retorno de cliente"
+              span "Seja notificado quando estiver na hora do cliente retornar p"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Metas"
+              span "Seja notificado toda segunda feira sobre o andamento de suas"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            div.ant-row
+              span "Cliente aguardando"
+              span "Seja notificado quando seu cliente estiver esperando"
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

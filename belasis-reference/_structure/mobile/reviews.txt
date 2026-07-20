@@ -1,0 +1,161 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-container.wb-icon [role="img" aria-label="container"]
+      span "Comandas"
+    div.ant-row
+      div.ant-row
+        div.ant-row.ant-row-space-between
+          span "Avaliações"
+        span.ant-badge
+          button [type="button"]
+            span.anticon.anticon-home.wb-icon [role="img" aria-label="home"]
+            span "Painel"
+        span.ant-badge
+          button [type="button"]
+            span.anticon.anticon-star.wb-icon [role="img" aria-label="star"]
+            span "Avaliações"
+        span.ant-badge
+          button [type="button"]
+            span.anticon.anticon-setting.wb-icon [role="img" aria-label="setting"]
+            span "Configurações"
+      div.ant-row.box-shadow
+        div "19 jun, 2026 19 jul, 2026"
+          span.anticon.anticon-swap-right [role="img" aria-label="swap-right"]
+      div.main-content
+        div.ant-row
+          span "Métricas do seu estabelecimento"
+          span.anticon.anticon-star.wb-icon [role="img" aria-label="star"]
+          span "0.0"
+          span "Média das avaliações"
+          span.anticon.anticon-heart.wb-icon [role="img" aria-label="heart"]
+          span "0"
+          span "Quantidade de avaliações"
+          span.anticon.anticon-percentage.wb-icon [role="img" aria-label="percentage"]
+          span "0"
+          span "Taxa de resposta"
+          span.ant-avatar.ant-avatar-circle.ant-avatar-image
+            img
+          span "0.0"
+          span "Melhor avaliado(a) FATIMA"
+          span "Médias dos profissionais"
+          span.ant-avatar.ant-avatar-circle.ant-avatar-image
+            img
+          span "ESHILEY"
+          span.anticon.anticon-star.wb-icon [role="img" aria-label="star"]
+          span "0.0"
+          span.ant-avatar.ant-avatar-circle.ant-avatar-image
+            img
+          span "FATIMA"
+          span.anticon.anticon-star.wb-icon [role="img" aria-label="star"]
+          span "0.0"
+          span.ant-avatar.ant-avatar-circle.ant-avatar-image
+            img
+          span "LAILA"
+          span.anticon.anticon-star.wb-icon [role="img" aria-label="star"]
+          span "0.0"
+          span.ant-avatar.ant-avatar-circle.ant-avatar-image
+            img
+          span "LARISSA"
+          span.anticon.anticon-lock.wb-icon [role="img" aria-label="lock"]
+          span.ant-avatar.ant-avatar-circle.ant-avatar-image
+            img
+          span "VIRLENE"
+          span.anticon.anticon-lock.wb-icon [role="img" aria-label="lock"]
+img
+div.wootric-powered-by--enabled.wootric-aria.wootric-mobile-modal.wootric-mobile-modal-zoomed.wootric-survey-type-nps [role="dialog" aria-label="A feedback form has popped up."]
+  div.wootric-beacon-parent
+    form
+      div.wootric-beacon-contents
+        div.wootric-close-right [role="button" aria-label="Close survey"]
+          div.wootric-x-wrapper
+          div "descartar"
+        div.wootric-modal-hidden
+          div.wootric-select.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            svg.wootric-select-toggle
+              path.active-path
+              path.active-path
+          input [role="button" type="submit"]
+        div.thanks.wootric-modal-hidden
+        div.wootric-modal-hidden
+          ul
+        div.wootric-feedback-wrapper.wootric-modal-collapsed
+          div.shadow-box
+            textarea [role="textbox" placeholder=""]
+            input.wootric-submit [role="button" type="submit"]
+        div.wootric-share-wrapper.wootric-modal-collapsed
+          div.wootric-followup
+          div.wootric-followup-btns
+            div.followup-btns
+              div.wootric-like-button [role="button" aria-label="Like on Facebook"] "Share"
+                svg.fb-icon
+                  path.fb-icon
+              div.wootric-twitter-button [role="button" aria-label="Tweet on Twitter"] "Tweet"
+                svg.twitter-icon
+              input.wootric-thank-you-button-outline [role="button" type="button"]
+              input.wootric-no-thanks-button [role="button " type="button"]
+        div.wootric-question [aria-label="Feedback form"]
+          p [role="heading" aria-label="Qual a probabilidade de você i"] "Qual a probabilidade de você indicar o sistema Belasis para "
+        div.wootric-modal-hidden [aria-label="Authorize share feedback"]
+          input [type="checkbox"]
+        div.wootric-score.nps.wootric-score--nps [aria-label="0 Muito improvável 10 Muito pr"]
+          label "Muito improvável"
+          ul
+            li.wootric-visible [role="button"] "0"
+            li.wootric-visible [role="button"] "1"
+            li.wootric-visible [role="button"] "2"
+            li.wootric-visible [role="button"] "3"
+            li.wootric-visible [role="button"] "4"
+            li.wootric-visible [role="button"] "5"
+            li.wootric-visible [role="button"] "6"
+            li.wootric-visible [role="button"] "7"
+            li.wootric-visible [role="button"] "8"
+            li.wootric-visible [role="button"] "9"
+            li.wootric-visible [role="button"] "10"
+          label "Muito provável"
+          div.wootric-alt-anchors
+            label.wootric-alt-anchors__anchor.wootric-alt-anchors__anchor--negative "Muito improvável"
+            span.wootric-alt-anchors__spacer
+            label.wootric-alt-anchors__anchor.wootric-alt-anchors__anchor--positive "Muito provável"
+        div.wootric-feedback-wrapper.wootric-modal-collapsed
+          input.wootric-submit [role="button" type="submit"]
+    div.wootric-footer
+      div.wootric-powered-by [aria-label="powered by inmoment"] "powered by"
+        a.wootric-link [role="link" href="//www.wootric.com"] "InMoment"
+      span.wootric-modal-hidden
+        div.wootric-separator "•"
+        div.wootric-opt-out [aria-label="opt out from surveys"] "opt out"
+      span.wootric-modal-hidden
+        div.wootric-separator "•"
+        div.wootric-feedback-disclaimer [aria-label="Learn how we handle your data"]
+          a.wootric-disclaimer-link [role="link" href="//"] "here"
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

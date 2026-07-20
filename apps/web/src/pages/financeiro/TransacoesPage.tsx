@@ -21,9 +21,9 @@ import {
   IconCheck,
   IconChevron,
   IconDollar,
-  IconDownload,
   IconFilter,
   IconPencil,
+  IconPlay,
   IconPlus,
   IconRepeat,
   IconSearch,
@@ -32,11 +32,10 @@ import {
 import { DateFieldBR } from '../../components/DateRangeFilter';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
+import { HelpTooltip } from '../../components/HelpTooltip';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
-import { downloadCsv } from '../../lib/csv';
 import { useCustomers, useProfessionals } from '../../lib/queries';
 import {
-  fetchAllTransactions,
   useCreateTransaction,
   useCreateTransfer,
   useFinancialAccounts,
@@ -66,11 +65,6 @@ const MODE_LABEL: Record<LancamentoMode, string> = {
   despesa: 'Despesa',
   vale: 'Vale',
   transferencia: 'Transferência',
-};
-
-const KIND_LABEL: Record<TransactionKind, string> = {
-  income: 'Receita',
-  expense: 'Despesa',
 };
 
 const STATUS_LABEL: Record<PaymentStatus, string> = {
@@ -191,39 +185,6 @@ export function TransacoesPage() {
     setMethodFilter(ALL);
   }
 
-  const [exporting, setExporting] = useState(false);
-  async function exportCsv() {
-    setExporting(true);
-    try {
-      // Exporta o conjunto INTEIRO do filtro atual, não apenas a página visível.
-      const all = await fetchAllTransactions({
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
-        from: from || undefined,
-        to: to || undefined,
-        includeReversed: showReversed,
-      });
-      downloadCsv<TransactionRow>(
-        `transacoes-${isoDate(new Date())}`,
-        [
-          { header: 'Descrição', value: (t) => describe(t) },
-          { header: 'Tipo', value: (t) => KIND_LABEL[t.kind] },
-          { header: 'Categoria', value: (t) => t.category?.name ?? '' },
-          { header: 'Forma', value: (t) => t.paymentMethod?.name ?? '' },
-          { header: 'Conta', value: (t) => t.account?.name ?? '' },
-          { header: 'Valor', value: (t) => Number(t.grossAmount).toFixed(2) },
-          { header: 'Vencimento', value: (t) => t.dueDate ?? '' },
-          { header: 'Status', value: (t) => STATUS_LABEL[t.status] },
-        ],
-        all,
-      );
-    } catch {
-      window.alert('Não foi possível exportar as transações.');
-    } finally {
-      setExporting(false);
-    }
-  }
-
   function openForm(mode: LancamentoMode) {
     setEditing(null);
     setFormMode(mode);
@@ -241,12 +202,13 @@ export function TransacoesPage() {
   // vivem na navbar inferior — não inline no header. Cada onClick dispara EXATAMENTE
   // o mesmo handler do botão desktop. Setters são estáveis e openForm é hoisted, por
   // isso o registro é criado uma vez (deps []) e limpo ao desmontar.
+  // Mobile: BottomNav do Belasis = Filtros · Calcular totais · Criar (Menu/Selecionar
+  // vêm do shell). A busca fica sempre visível no topo, então não há ação "Buscar".
   useSetPageActions(
     [
-      { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setSearchOpen((o) => !o) },
       { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen(true) },
-      { key: 'totais', label: 'Totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
-      { key: 'novo', label: 'Novo', icon: <IconPlus size={22} />, onClick: () => openForm('recebimento') },
+      { key: 'totais', label: 'Calcular totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
+      { key: 'novo', label: 'Criar', icon: <IconPlus size={22} />, onClick: () => openForm('recebimento') },
     ],
     [],
   );
@@ -377,7 +339,7 @@ export function TransacoesPage() {
       key: 'pago',
       header: 'Pago',
       className: 'text-center',
-      // Belasis: coluna "Pago" é um toggle (aceso quando pago).
+      // Belasis: coluna "Pago" é um switch (44×22, aceso azul quando pago).
       render: (t) => {
         const paid = t.status === 'paid';
         return (
@@ -385,13 +347,13 @@ export function TransacoesPage() {
             role="img"
             aria-label={paid ? 'Pago' : 'Em aberto'}
             title={paid ? 'Pago' : 'Em aberto'}
-            className={`inline-flex h-5 w-9 items-center rounded-full p-0.5 transition-colors ${
+            className={`inline-flex h-[22px] w-11 items-center rounded-full p-0.5 transition-colors duration-200 ${
               paid
                 ? 'justify-end bg-primary'
                 : 'justify-start bg-[var(--color-soft-border)]'
             }`}
           >
-            <span className="h-4 w-4 rounded-full bg-white shadow-sm" />
+            <span className="h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-all duration-200" />
           </span>
         );
       },
@@ -401,17 +363,29 @@ export function TransacoesPage() {
       header: '',
       render: (t) =>
         t.status === 'reversed' ? null : (
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => openEdit(t)}>
-              <IconPencil size={15} /> Editar
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              aria-label="Editar"
+              onClick={() => openEdit(t)}
+            >
+              <span title="Editar">
+                <IconPencil size={16} />
+              </span>
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
+              isIconOnly
+              aria-label="Estornar"
               isDisabled={reverse.isPending}
               onClick={() => handleReverse(t)}
             >
-              <IconRepeat size={15} /> Estornar
+              <span title="Estornar">
+                <IconRepeat size={16} />
+              </span>
             </Button>
           </div>
         ),
@@ -424,10 +398,19 @@ export function TransacoesPage() {
           Buscar · Filtrar · Calcular totais · Exportar · Novo ▾. */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
-            Transações
-          </h1>
-          <p className="mt-1 text-sm leading-snug text-muted">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
+              Transações
+            </h1>
+            {/* Botão "assista o tutorial" ao lado do título (play-circle do Belasis) */}
+            <span
+              aria-hidden
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--sp-primary,#505afb)]/10 text-[color:var(--sp-primary,#505afb)]"
+            >
+              <IconPlay size={16} className="ml-0.5" />
+            </span>
+          </div>
+          <p className="mt-1 hidden text-sm leading-snug text-muted sm:block">
             Recebimentos, despesas, vales e transferências
           </p>
         </div>
@@ -456,19 +439,10 @@ export function TransacoesPage() {
           >
             <IconCalculator size={16} /> Calcular totais
           </Button>
-          <Button
-            variant="outline"
-            onClick={exportCsv}
-            isDisabled={total === 0 || exporting}
-            aria-label="Exportar CSV"
-          >
-            <IconDownload size={16} />
-            <span className="sm:hidden"> {exporting ? 'Exportando…' : 'Exportar'}</span>
-          </Button>
           <Dropdown>
             <Dropdown.Trigger>
               <Button variant="primary">
-                <IconPlus size={16} /> Novo <IconChevron size={14} />
+                <IconPlus size={16} /> Novo
               </Button>
             </Dropdown.Trigger>
             <Dropdown.Popover>
@@ -477,22 +451,30 @@ export function TransacoesPage() {
                   textValue="Recebimento"
                   onAction={() => openForm('recebimento')}
                 >
-                  Recebimento
+                  <span className="inline-flex items-center gap-2">
+                    <IconArrowUp size={15} className="text-success" /> Recebimento
+                  </span>
                 </Dropdown.Item>
                 <Dropdown.Item
                   textValue="Despesa"
                   onAction={() => openForm('despesa')}
                 >
-                  Despesa
+                  <span className="inline-flex items-center gap-2">
+                    <IconArrowDown size={15} className="text-danger" /> Despesa
+                  </span>
                 </Dropdown.Item>
                 <Dropdown.Item textValue="Vale" onAction={() => openForm('vale')}>
-                  Vale
+                  <span className="inline-flex items-center gap-2">
+                    <IconWallet size={15} className="text-primary" /> Vale
+                  </span>
                 </Dropdown.Item>
                 <Dropdown.Item
                   textValue="Transferência"
                   onAction={() => openForm('transferencia')}
                 >
-                  Transferência
+                  <span className="inline-flex items-center gap-2">
+                    <IconRepeat size={15} className="text-gold-strong" /> Transferência
+                  </span>
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown.Popover>
@@ -500,23 +482,18 @@ export function TransacoesPage() {
         </div>
       </div>
 
-      {/* Buscar (revelado ao clicar em Buscar) */}
-      {searchOpen && (
-        <div className="mb-4">
-          <TextField value={query} onChange={setQuery} aria-label="Buscar transações">
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                <IconSearch size={16} />
-              </span>
-              <Input
-                autoFocus
-                placeholder="Buscar por titular ou descrição…"
-                className="pl-9"
-              />
-            </div>
-          </TextField>
-        </div>
-      )}
+      {/* Busca: sempre visível no mobile (Belasis "Digite para buscar");
+          revelada via "Buscar" no desktop. */}
+      <div className={searchOpen ? 'mb-4' : 'mb-4 md:hidden'}>
+        <TextField value={query} onChange={setQuery} aria-label="Buscar transações">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+              <IconSearch size={16} />
+            </span>
+            <Input placeholder="Digite para buscar" className="pl-9" />
+          </div>
+        </TextField>
+      </div>
 
       {/* Totais sob demanda (botão "Calcular totais", como no Belasis) */}
       {showTotals && (
@@ -524,28 +501,38 @@ export function TransacoesPage() {
           <TotalCard
             icon={<IconArrowUp size={16} />}
             label="Receitas"
+            help="Entradas de caixa no período filtrado"
             value={formatMoney(totals.income)}
             tone="success"
           />
           <TotalCard
             icon={<IconArrowDown size={16} />}
             label="Despesas"
+            help="Saídas de caixa no período filtrado"
             value={formatMoney(totals.expense)}
             tone="danger"
           />
           <TotalCard
             icon={<IconWallet size={16} />}
             label="Saldo filtrado"
+            help="Receitas menos despesas do período filtrado"
             value={formatMoney(totals.balance)}
             tone="accent"
           />
         </div>
       )}
 
+      {/* Pílula "Ordenado por data" do Belasis — visível no mobile.
+          O servidor ordena por data (fixo), então é apresentação. */}
+      <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[color:var(--sp-primary,#505afb)] px-4 py-2 text-sm font-semibold text-white shadow-sm md:hidden">
+        Ordenado por data
+        <IconChevron size={16} />
+      </div>
+
       <Card className={CARD_CLASS}>
         <Card.Content className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs text-muted">Ordenado por data</span>
+            <span className="hidden text-xs text-muted md:inline">Ordenado por data</span>
             <span className="text-xs text-muted">
               {total > 0 ? `${total} no total` : '0 lançamento(s)'}
             </span>
@@ -578,6 +565,15 @@ export function TransacoesPage() {
               rows={visibleRows}
               getKey={(t) => t.id}
               aria-label="Transações"
+              // Belasis tinge as linhas por natureza: receitas em verde, despesas
+              // em vermelho; estornadas ficam neutras/apagadas.
+              rowClassName={(t) =>
+                t.status === 'reversed'
+                  ? 'opacity-60'
+                  : t.kind === 'income'
+                    ? 'bg-success/5'
+                    : 'bg-danger/5'
+              }
             />
           )}
           {total > 0 && (
@@ -781,7 +777,10 @@ function FiltrosDrawer({
             onChange={setShowReversed}
             className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
           >
-            <span className="text-sm text-foreground">Mostrar estornadas</span>
+            <span className="inline-flex items-center text-sm text-foreground">
+              Mostrar estornadas
+              <HelpTooltip>Incluir transações canceladas/estornadas na listagem</HelpTooltip>
+            </span>
             <Switch.Control>
               <Switch.Thumb />
             </Switch.Control>
@@ -813,11 +812,13 @@ function FilterSection({
 function TotalCard({
   icon,
   label,
+  help,
   value,
   tone,
 }: {
   icon: React.ReactNode;
   label: string;
+  help?: string;
   value: string;
   tone: 'success' | 'danger' | 'accent';
 }) {
@@ -840,7 +841,10 @@ function TotalCard({
           <span className={`grid h-8 w-8 place-items-center rounded-lg ${iconWrap}`}>
             {icon}
           </span>
-          <span className="text-sm font-medium text-muted">{label}</span>
+          <span className="inline-flex items-center text-sm font-medium text-muted">
+            {label}
+            {help ? <HelpTooltip>{help}</HelpTooltip> : null}
+          </span>
         </div>
         <span className={`text-lg font-bold ${toneText}`}>{value}</span>
       </Card.Content>

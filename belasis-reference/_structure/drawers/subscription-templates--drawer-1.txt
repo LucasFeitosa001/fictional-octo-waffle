@@ -1,0 +1,199 @@
+div.ant-drawer.ant-drawer-right
+  div.ant-drawer-mask.ant-drawer-mask-motion-leave.ant-drawer-mask-motion-leave-start.ant-drawer-mask-motion
+  div.ant-drawer-content-wrapper.ant-drawer-panel-motion-right-leave.ant-drawer-panel-motion-right-leave-start.ant-drawer-panel-motion-right
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+          div.ant-drawer-title "Modelo de assinatura"
+      div.ant-drawer-body
+        form.ant-form.ant-form-vertical
+          input.ant-input.ant-input-outlined [type="hidden"]
+          div.ant-row
+            div.ant-col.ant-col-24
+              div.ant-row.ant-row-center
+                span.ant-avatar.ant-avatar-square.ant-avatar-image
+                  img
+                input [type="file"]
+                div.ant-space.ant-space-horizontal.ant-space-align-center
+                  div.ant-space-item
+                    button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-sm [type="button"]
+                      span.ant-btn-icon
+                        span.anticon.anticon-upload [role="img" aria-label="upload"]
+                      span "Alterar"
+                  div.ant-space-item
+                    button.ant-btn.ant-btn-primary.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-solid [type="button"]
+                      span.ant-btn-icon
+                        span.anticon.anticon-delete [role="img" aria-label="delete"]
+                      span "Remover"
+          div.ant-row
+            div.ant-col.ant-col-24
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label.ant-form-item-required "Nome"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        input.ant-input.ant-input-outlined [placeholder="Nome" type="text"]
+          div.ant-row
+            div.ant-col.ant-col-24
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label "Descrição"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        span.ant-input-affix-wrapper.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count.ant-input-show-count.ant-input-outlined
+                          textarea.ant-input [placeholder="Informe uma descrição curta so"]
+                          span.ant-input-suffix
+                            span.ant-input-data-count "0 / 750"
+          div.ant-row.ant-row-middle
+            button.ant-switch.ant-switch-checked [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            span "Ativo"
+            span "Modelos de assinatura desativados não aparecem como sugestão"
+          div.ant-row.ant-row-middle
+            button.ant-switch [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+            span "Visível"
+            span "Defina se o modelo deve ou não aparecer no agendamento onlin"
+          div.ant-divider.ant-divider-horizontal.ant-divider-with-text.ant-divider-with-text-start [role="separator"]
+            span.ant-divider-inner-text "Itens"
+          div.ant-row
+            input.ant-input.ant-input-outlined [type="hidden"]
+            input.ant-input.ant-input-outlined [type="hidden"]
+            div.ant-col.ant-col-8
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label "Serviço/Produto"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        div.ant-select.ant-select-outlined.ant-select-in-form-item.pointer-events-none-mobile.ant-select-single
+                          div.ant-select-selector
+                            span.ant-select-selection-wrap
+                              span.ant-select-selection-search
+                                input.ant-select-selection-search-input [role="combobox" type="search"]
+                              span.ant-select-selection-placeholder "Selecionar serviço/produto"
+                          span.ant-select-arrow
+                            span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+            div.ant-col.ant-col-2
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label "Qtde."
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined
+                          div.ant-input-number-handler-wrap
+                            span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                              span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                            span.ant-input-number-handler.ant-input-number-handler-down [role="button" aria-label="Decrease Value"]
+                              span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                          div.ant-input-number-input-wrap
+                            input.ant-input-number-input [role="spinbutton"]
+            div.ant-col.ant-col-4
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label "Preço unitário"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button
+                          div.ant-input-number-handler-wrap
+                            span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                              span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                            span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                              span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                          div.ant-input-number-input-wrap
+                            input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+            div.ant-col.ant-col-5
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label "Desconto"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        div.ant-space-compact.ant-space-compact-block
+                          div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-compact-item.ant-select-compact-first-item
+                            div.ant-select-selector
+                              span.ant-select-selection-wrap
+                                span.ant-select-selection-search
+                                  input.ant-select-selection-search-input [role="combobox" type="search"]
+                                span.ant-select-selection-item "R$"
+                            span.ant-select-arrow
+                              span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                          div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button.ant-input-number-compact-item
+                            div.ant-input-number-handler-wrap
+                              span.ant-input-number-handler.ant-input-number-handler-up.ant-input-number-handler-up-disabled [role="button" aria-label="Increase Value"]
+                                span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                              span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                                span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                            div.ant-input-number-input-wrap
+                              input.ant-input-number-input [role="spinbutton"]
+            div.ant-col
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label "Total"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button.ant-input-number-disabled
+                          div.ant-input-number-handler-wrap
+                            span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                              span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                            span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                              span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                          div.ant-input-number-input-wrap
+                            input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+            div.ant-col
+              button.ant-btn.ant-btn-primary.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-solid [type="button"]
+                span.ant-btn-icon
+                  span.anticon.anticon-delete [role="img" aria-label="delete"]
+          div.ant-divider.ant-divider-horizontal.ant-divider-with-text.ant-divider-with-text-start [role="separator"]
+            span.ant-divider-inner-text "Itens avulsos"
+              span.anticon.anticon-info-circle.csnpvf.wb-icon [role="img" aria-label="info-circle"]
+          div.ant-row
+            div.ant-col
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        input.ant-input.ant-input-outlined [placeholder="Digite para adicionar" type="text"]
+            div.ant-col
+              button.ant-btn.ant-btn-primary.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-solid [type="button"]
+                span.ant-btn-icon
+                  span.anticon.anticon-delete [role="img" aria-label="delete"]
+          div.ant-row.ant-row-end
+            div.ant-row.ant-row-end
+              div.label
+                span "Total"
+              div.ant-col.ant-col-6
+                div.ant-input-number.ant-input-number-outlined.hide-number-button.ant-input-number-disabled
+                  div.ant-input-number-handler-wrap
+                    span.ant-input-number-handler.ant-input-number-handler-up [role="button" aria-label="Increase Value"]
+                      span.anticon.anticon-up.ant-input-number-handler-up-inner [role="img" aria-label="up"]
+                    span.ant-input-number-handler.ant-input-number-handler-down.ant-input-number-handler-down-disabled [role="button" aria-label="Decrease Value"]
+                      span.anticon.anticon-down.ant-input-number-handler-down-inner [role="img" aria-label="down"]
+                  div.ant-input-number-input-wrap
+                    input.ant-input-number-input [role="spinbutton" placeholder="R$ 0,00"]
+      div.ant-drawer-footer
+        button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined [type="button"]
+          span "Cancelar"
+        button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+          span "Salvar"

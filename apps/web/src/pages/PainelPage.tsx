@@ -29,7 +29,6 @@ import {
   IconClock,
   IconDollar,
   IconFilter,
-  IconInfo,
   IconReceipt,
   IconRefresh,
   IconUsers,
@@ -39,6 +38,7 @@ import type { Dashboard } from '../lib/queries/dashboard';
 import { formatMoney, formatNumber, isoDate } from '../lib/format';
 import { useSession } from '../lib/auth';
 import { useThemeColors } from '../theme/useThemeColors';
+import { HelpTooltip, LabelWithHelp } from '../components/HelpTooltip';
 
 /** "2026-07-05" → "05 jul, 2026" (mesmo formato de período do topo do painel). */
 const MESES_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -240,12 +240,14 @@ function MetricCard({
   total,
   children,
   footer,
+  help,
 }: {
   icon: React.ReactNode;
   title: string;
   total: string;
   children?: React.ReactNode;
   footer?: React.ReactNode;
+  help?: React.ReactNode;
 }) {
   return (
     <Card className={`min-w-0 ${CARD}`}>
@@ -261,7 +263,7 @@ function MetricCard({
               </span>
               <span className="text-base text-ink">{title}</span>
             </div>
-            <InfoIcon />
+            {help ? <HelpTooltip>{help}</HelpTooltip> : <InfoIcon />}
           </div>
           <div className="text-[28px] font-bold leading-[1.2] text-ink">{total}</div>
         </div>
@@ -277,10 +279,12 @@ function SectionCard({
   title,
   icon,
   children,
+  help,
 }: {
   title: string;
   icon?: React.ReactNode;
   children: React.ReactNode;
+  help?: React.ReactNode;
 }) {
   return (
     <Card className={`min-w-0 ${CARD}`}>
@@ -292,6 +296,7 @@ function SectionCard({
             </span>
           )}
           <p className="font-brand text-sm font-semibold text-ink">{title}</p>
+          {help && <HelpTooltip>{help}</HelpTooltip>}
         </div>
         {children}
       </Card.Content>
@@ -326,6 +331,7 @@ function TendenciaVisitasBars({
   return (
     <div className={fullWidth ? 'w-full min-w-0' : 'min-w-0 flex-[1_1_520px]'}>
       <span className="text-base font-semibold text-ink">{title}</span>
+      <HelpTooltip>Evolução diária de {dataKey === 'agendamentos' ? 'agendamentos' : 'comandas'} no período</HelpTooltip>
       {empty ? (
         <p className="py-10 text-center text-sm text-muted">Sem visitas no período.</p>
       ) : (
@@ -373,7 +379,10 @@ function StatusDonut({ slices }: { slices: Dashboard['agendamentosPorStatus'] })
   const total = data.reduce((a, b) => a + b.value, 0);
   return (
     <div className="flex min-w-0 flex-[1_1_260px] flex-col">
-      <span className="text-base font-semibold text-ink">Agendamentos por status</span>
+      <span className="text-base font-semibold text-ink">
+        Agendamentos por status
+        <HelpTooltip>Distribuição dos agendamentos por status</HelpTooltip>
+      </span>
       {data.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted">Sem agendamentos no período.</p>
       ) : (
@@ -470,12 +479,17 @@ function TicketMedioCard({
     <Card className={`min-w-0 ${CARD}`}>
       <div className="flex items-center gap-1.5 border-b border-line px-4 pb-3 pt-4 sm:px-5">
         <p className="font-brand text-sm font-semibold text-ink">Ticket médio</p>
-        <IconInfo size={14} className="text-muted-ink/70" aria-label="Como o Ticket Médio é calculado?" />
+        <HelpTooltip>Valor médio recebido por cliente no período</HelpTooltip>
       </div>
       <Card.Content className="flex flex-col gap-4 p-4 sm:p-5">
         {/* (1) caixa métrica */}
         <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-line p-6 text-center">
-          <span className="text-sm text-muted-ink">Ticket médio - Período atual</span>
+          <LabelWithHelp
+            label="Ticket médio - Período atual"
+            help="Ticket médio calculado no período selecionado"
+            className="text-sm text-muted-ink"
+          />
+
           <span className="text-2xl font-bold text-ink">{formatMoney(ticket.valor)}</span>
           <div className="flex items-center gap-1">
             <span className="text-sm leading-none text-muted-ink">Versus período anterior:</span>
@@ -486,7 +500,10 @@ function TicketMedioCard({
         </div>
         {/* (2) caixa do gráfico */}
         <div className="rounded-xl border border-line p-4 sm:p-5">
-          <p className="mb-4 block text-center text-base text-ink">Comparação entre períodos</p>
+          <p className="mb-4 block text-center text-base text-ink">
+            Comparação entre períodos
+            <HelpTooltip>Compara o período atual com o anterior</HelpTooltip>
+          </p>
           {empty ? (
             <p className="py-8 text-center text-sm text-muted">Sem vendas para comparar.</p>
           ) : (
@@ -534,7 +551,11 @@ function AtendimentosPorProfissional({
   const c = useThemeColors();
   const totalAtend = data.reduce((s, p) => s + p.servicos, 0);
   return (
-    <SectionCard title="Atendimentos por profissional" icon={<IconUsers size={18} />}>
+    <SectionCard
+      title="Atendimentos por profissional"
+      icon={<IconUsers size={18} />}
+      help="Ranking de profissionais por número de serviços no período"
+    >
       {data.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted">Sem atendimentos no período.</p>
       ) : (
@@ -606,7 +627,11 @@ function VendasPorCategoria({ data }: { data: Dashboard['vendasPorCategoria'] })
   const c = useThemeColors();
   const total = data.reduce((s, d) => s + d.valor, 0);
   return (
-    <SectionCard title="Vendas por categoria" icon={<IconDollar size={18} />}>
+    <SectionCard
+      title="Vendas por categoria"
+      icon={<IconDollar size={18} />}
+      help="Distribuição das vendas por categoria de item"
+    >
       {data.length === 0 || total === 0 ? (
         <p className="py-8 text-center text-sm text-muted">Sem vendas no período.</p>
       ) : (
@@ -677,7 +702,11 @@ function FunilWidget({ data }: { data: Dashboard['funil'] }) {
     },
   ];
   return (
-    <SectionCard title="Funil de agendamentos" icon={<IconReceipt size={18} />}>
+    <SectionCard
+      title="Funil de agendamentos"
+      icon={<IconReceipt size={18} />}
+      help="Jornada do agendamento: agendado, confirmado, atendido"
+    >
       {empty ? (
         <p className="py-8 text-center text-sm text-muted">Sem agendamentos no período.</p>
       ) : (
@@ -717,7 +746,11 @@ function FunilWidget({ data }: { data: Dashboard['funil'] }) {
 function OcupacaoAgenda({ data }: { data: Dashboard['ocupacaoAgenda'] }) {
   const ranked = useMemo(() => [...data].sort((a, b) => b.pct - a.pct), [data]);
   return (
-    <SectionCard title="Ocupação da agenda" icon={<IconClock size={18} />}>
+    <SectionCard
+      title="Ocupação da agenda"
+      icon={<IconClock size={18} />}
+      help="Percentual da agenda ocupada por profissional no período"
+    >
       {ranked.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted">Sem dados de ocupação.</p>
       ) : (
@@ -780,7 +813,11 @@ function MapaCalor({ data }: { data: Dashboard['mapaCalor'] }) {
     return `color-mix(in oklab, #505afb ${a}%, transparent)`;
   }
   return (
-    <SectionCard title="Mapa de calor de agendamentos" icon={<IconCalendar size={18} />}>
+    <SectionCard
+      title="Mapa de calor de agendamentos"
+      icon={<IconCalendar size={18} />}
+      help="Densidade de agendamentos por dia da semana e horário"
+    >
       {!hasData ? (
         <p className="py-8 text-center text-sm text-muted">Sem agendamentos para o mapa.</p>
       ) : (
@@ -912,10 +949,15 @@ export function PainelPage() {
               icon={<IconDollar size={24} />}
               title="Vendas totais"
               total={formatMoney(d.vendasTotais.valor)}
+              help="Soma de todas as vendas do período filtrado"
               footer={<StatusPill pct={d.vendasTotais.deltaPct} label="Versus período anterior" />}
             >
               <div className="flex w-full flex-col p-2">
-                <span className="text-sm text-muted-ink">Vendas do dia</span>
+                <LabelWithHelp
+                  label="Vendas do dia"
+                  help="Soma das vendas realizadas hoje"
+                  className="text-sm text-muted-ink"
+                />
                 <span className="text-[18px] font-semibold text-ink">{formatMoney(d.vendasDia)}</span>
               </div>
             </MetricCard>
@@ -923,6 +965,7 @@ export function PainelPage() {
               icon={<IconCalendar size={24} />}
               title="Agendamentos"
               total={formatNumber(d.agendamentosCount.valor)}
+              help="Total de agendamentos no período"
               footer={<StatusPill pct={d.agendamentosCount.deltaPct} label="Taxa de crescimento" />}
             >
               <Sparkline data={d.tendenciaVisitas} dataKey="agendamentos" color={themeColors.primary} />
@@ -931,6 +974,7 @@ export function PainelPage() {
               icon={<IconReceipt size={24} />}
               title="Comandas"
               total={formatNumber(d.comandasCount.valor)}
+              help="Quantidade de comandas abertas no período"
               footer={<StatusPill pct={d.comandasCount.taxaConversao} label="Taxa de conversão" variant="conversao" />}
             >
               <Sparkline data={d.tendenciaVisitas} dataKey="comandas" color={themeColors.pink} />

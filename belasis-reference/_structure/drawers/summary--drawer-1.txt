@@ -1,0 +1,246 @@
+div.ant-drawer.ant-drawer-right
+  div.ant-drawer-mask.ant-drawer-mask-motion-leave.ant-drawer-mask-motion-leave-start.ant-drawer-mask-motion
+  div.ant-drawer-content-wrapper.ant-drawer-panel-motion-right-leave.ant-drawer-panel-motion-right-leave-start.ant-drawer-panel-motion-right
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header.ant-drawer-header-close-only
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+      div.ant-drawer-body
+        div.ant-row
+          div.ant-col
+            div.ant-row.ant-row-middle
+              span.ant-avatar.ant-avatar-circle.ant-avatar-image
+                img
+              div.ant-row
+                div.ant-select.ant-select-lg.ant-select-outlined.pointer-events-none-mobile.ant-select-single
+                  div.ant-select-selector
+                    span.ant-select-selection-wrap
+                      span.ant-select-selection-search
+                        input.ant-select-selection-search-input [role="combobox" type="search"]
+                      span.ant-select-selection-placeholder "Busque pelo cliente"
+                  span.ant-select-arrow
+                    span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+          div.ant-row
+            div.ant-row
+              span "Novo agendamento"
+            div.ant-row
+              form.ant-form.ant-form-vertical
+                div.ant-row
+                  div.ant-col.ant-col-10
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Cliente"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-select.ant-select-lg.ant-select-outlined.ant-select-in-form-item.pointer-events-none-mobile
+                                div.ant-select-selector
+                                  span.ant-select-selection-wrap
+                                    span.ant-select-selection-search
+                                    span.ant-select-selection-placeholder "Busque por um cliente"
+                                span.ant-select-arrow
+                                  span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                  div.ant-col.ant-col-4
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Data"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-picker.ant-picker-large.ant-picker-outlined
+                                div.ant-picker-input
+                                  input [placeholder="Selecionar data"]
+                                  span.ant-picker-suffix
+                                    span.anticon.anticon-calendar [role="img" aria-label="calendar"]
+                  div.ant-col.ant-col-5
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Status"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-select.ant-select-lg.ant-select-outlined.ant-select-in-form-item.ant-select-single
+                                div.ant-select-selector
+                                  span.ant-select-selection-wrap
+                                    span.ant-select-selection-search
+                                    span.ant-select-selection-item
+                                span.ant-select-arrow
+                                  span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                  div.ant-col.ant-col-5
+                    div.ant-form-item.ant-form-item-vertical
+                      div.ant-row.ant-form-item-row
+                        div.ant-col.ant-form-item-label
+                          label "Cor"
+                        div.ant-col.ant-form-item-control
+                          div.ant-form-item-control-input
+                            div.ant-form-item-control-input-content
+                              div.ant-select.ant-select-lg.ant-select-outlined.ant-select-in-form-item.ant-select-single
+                                div.ant-select-selector
+                                  span.ant-select-selection-wrap
+                                    span.ant-select-selection-search
+                                    span.ant-select-selection-placeholder "Padrão"
+                                span.ant-select-arrow
+                                  span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+              span "Itens do agendamento"
+              form.ant-form.ant-form-vertical
+                div.ant-row
+                  div.ant-col.ant-col-16
+                    div.ant-row
+                      div.ant-col.ant-col-14
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Descrição"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                      div.ant-col.ant-col-10
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Profissional"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                  div.ant-col
+                    div.ant-row
+                      div.ant-col.ant-col-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Horário"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                      div.ant-col.ant-col-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Duração"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+              div.ant-row.ant-row-no-wrap
+                div.ant-col.ant-col-16
+                  div.ant-row
+                    div.ant-col.ant-col-14
+                      div.ant-select.ant-select-lg.ant-select-outlined.pointer-events-none-mobile.ant-select-single
+                        div.ant-select-selector
+                          span.ant-select-selection-wrap
+                            span.ant-select-selection-search
+                              input.ant-select-selection-search-input [role="combobox" type="search"]
+                            span.ant-select-selection-placeholder "Selecionar serviço"
+                        span.ant-select-arrow
+                          span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                    div.ant-col.ant-col-10
+                      div.ant-select.ant-select-lg.ant-select-outlined.pointer-events-none-mobile.ant-select-single
+                        div.ant-select-selector
+                          span.ant-select-selection-wrap
+                            span.ant-select-selection-search
+                              input.ant-select-selection-search-input [role="combobox" type="search"]
+                            span.ant-select-selection-item
+                              div.ant-row
+                                div.ant-col.ant-col-24 "FATIMA LACERDA"
+                        span.ant-select-arrow
+                          span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                div.ant-col.ant-col-8
+                  div.ant-row
+                    div.ant-col.ant-col-12
+                      div.ant-select.ant-select-lg.ant-select-outlined.ant-select-single.ant-select-show-arrow
+                        div.ant-select-selector
+                          span.ant-select-selection-wrap
+                            span.ant-select-selection-search
+                              input.ant-select-selection-search-input [role="combobox" type="search"]
+                            span.ant-select-selection-item "11:40h"
+                        span.ant-select-arrow
+                          span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                    div.ant-col.ant-col-9
+                      div.ant-select.ant-select-lg.ant-select-outlined.ant-select-single.ant-select-show-arrow
+                        div.ant-select-selector
+                          span.ant-select-selection-wrap
+                            span.ant-select-selection-search
+                              input.ant-select-selection-search-input [role="combobox" type="search"]
+                            span.ant-select-selection-item "15 min"
+                        span.ant-select-arrow
+                          span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                    div.ant-col.ant-col-3
+                      button.ant-btn.ant-btn-primary.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-solid [type="button"]
+                        span.ant-btn-icon
+                          span.anticon.anticon-delete [role="img" aria-label="delete"]
+              div.ant-row
+                div.ant-row
+                  div.ant-col
+                    div.ant-row
+                      button.ant-switch.ant-switch-checked [role="switch" type="button"]
+                        div.ant-switch-handle
+                        span.ant-switch-inner
+                          span.ant-switch-inner-checked
+                          span.ant-switch-inner-unchecked
+                      span "Enviar lembrete"
+                  div.ant-col
+                    div.ant-row
+                      button.ant-switch [role="switch" type="button"]
+                        div.ant-switch-handle
+                        span.ant-switch-inner
+                          span.ant-switch-inner-checked
+                          span.ant-switch-inner-unchecked
+                      span "Encaixar agendamento"
+                form.ant-form.ant-form-vertical
+                  div.ant-row
+                    div.ant-col.ant-col-10
+                      div.ant-form-item.ant-form-item-vertical
+                        div.ant-row.ant-form-item-row
+                          div.ant-col.ant-form-item-label
+                            label "Além deste, repetir mais"
+                          div.ant-col.ant-form-item-control
+                            div.ant-form-item-control-input
+                              div.ant-form-item-control-input-content
+                                div.ant-select.ant-cascader.ant-select-lg.ant-select-outlined.ant-select-in-form-item
+                                  div.ant-select-selector
+                                    span.ant-select-selection-wrap
+                                  span.ant-select-arrow
+                                    span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+                    div.ant-col.ant-col-0
+                      div.ant-form-item.ant-form-item-vertical
+                        div.ant-row.ant-form-item-row
+                          div.ant-col.ant-form-item-control
+                            div.ant-form-item-control-input
+                              div.ant-form-item-control-input-content
+                                div.ant-row
+                                  button.ant-switch [role="switch" type="button"]
+                                    div.ant-switch-handle
+                                    span.ant-switch-inner
+                                  span "Aplicar alterações para os próximos"
+                  div.ant-form-item.ant-form-item-hidden.ant-form-item-vertical
+                    div.ant-row.ant-form-item-row
+                      div.ant-col.ant-form-item-label
+                        label "Próximos agendamentos"
+                      div.ant-col.ant-form-item-control
+                        div.ant-form-item-control-input
+                          div.ant-form-item-control-input-content
+                            div.ant-row
+            div.ant-row
+              form.ant-form.ant-form-vertical
+                div.ant-form-item.ant-form-item-vertical
+                  div.ant-row.ant-form-item-row
+                    div.ant-col.ant-form-item-label
+                      label "Observações"
+                    div.ant-col.ant-form-item-control
+                      div.ant-form-item-control-input
+                        div.ant-form-item-control-input-content
+                          textarea.ant-input.ant-input-lg.ant-input-outlined [placeholder="Escreva aqui"]
+          div.ant-row
+            button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined.ant-btn-lg [type="button"]
+              span.ant-btn-icon
+                span.anticon.anticon-question-circle [role="img" aria-label="question-circle"]
+              span "Ajuda"
+            button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined.ant-btn-lg [type="button"]
+              span "Cancelar"
+            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-lg [type="button"]
+              span "Salvar"
+            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-lg [type="button"]
+              span "Criar comanda"

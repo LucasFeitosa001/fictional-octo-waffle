@@ -1,0 +1,2 @@
+import{t as i}from"./index-Bd9916Am.js";const a=o=>({pct:o.some(s=>s.assistant_commission_type!=="value")?`${i("words.commission")} %`:null,value:o.some(s=>s.assistant_commission_type==="value")?`${i("words.commission")}`:null}),m=(o,s)=>({...s.pct?{[s.pct]:o.assistant_commission_type==="value"?"":o.considered_commission_percentage}:{},...s.value?{[s.value]:o.assistant_commission_type==="value"?o.assistant_commission_value:""}:{}});export{m as c,a as g};
+//# sourceMappingURL=commissionColumns-Bvau0eIu.js.map

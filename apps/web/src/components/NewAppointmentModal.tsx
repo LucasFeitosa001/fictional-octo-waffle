@@ -8,6 +8,7 @@ import {
   TextField,
 } from '@heroui/react';
 import { Drawer } from './Drawer';
+import { IconCalendar, IconInfo } from './icons';
 import { ApiClientError, APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import {
   useAvailability,
@@ -53,15 +54,6 @@ const FREQ_OPTIONS: { id: Freq; label: string }[] = [
   { id: 'monthly', label: 'Mensal' },
 ];
 
-const dateFullFmt = new Intl.DateTimeFormat('pt-BR', {
-  weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
-});
-function formatFullDate(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const s = dateFullFmt.format(new Date(y, (m ?? 1) - 1, d ?? 1));
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 function nextDate(base: Date, freq: Freq, times: number): Date {
   const d = new Date(base);
   if (freq === 'weekly') d.setDate(d.getDate() + 7 * times);
@@ -70,51 +62,86 @@ function nextDate(base: Date, freq: Freq, times: number): Date {
   return d;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+// Belasis usa formulário horizontal: label 13px 600 acima de cada controle.
+function Field({
+  label,
+  className = '',
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <section className="flex flex-col gap-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{title}</h3>
+    <div className={'flex min-w-0 flex-col gap-1.5 ' + className}>
+      <label className="text-[13px] font-semibold text-foreground">{label}</label>
       {children}
-    </section>
+    </div>
   );
 }
 
-function Toggle({
+// Switch inline (ant-switch): knob desliza 180ms; ligado = primário Belasis.
+function InlineToggle({
   checked,
   onChange,
   label,
-  description,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
-  description?: string;
 }) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between gap-3 rounded-xl border border-default-200 px-3.5 py-3 text-left"
+      className="inline-flex items-center gap-2.5"
     >
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-foreground">{label}</span>
-        {description && <span className="block text-xs text-muted">{description}</span>}
-      </span>
       <span
         className={
-          'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ' +
-          (checked ? 'bg-gold' : 'bg-default-300')
+          'relative inline-flex h-[22px] w-11 shrink-0 items-center rounded-full transition-colors duration-[180ms] ' +
+          (checked ? 'bg-primary' : 'bg-default-300')
         }
       >
         <span
           className={
-            'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ' +
-            (checked ? 'translate-x-6' : 'translate-x-1')
+            'inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition-transform duration-[180ms] ' +
+            (checked ? 'translate-x-[23px]' : 'translate-x-[3px]')
           }
         />
       </span>
+      <span className={'text-sm ' + (checked ? 'font-medium text-foreground' : 'text-muted')}>
+        {label}
+      </span>
     </button>
   );
+}
+
+// Avatar padrão do cliente (rail esquerdo do drawer).
+function UserGlyph() {
+  return (
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21v-1a7 7 0 0 1 14 0v1" />
+    </svg>
+  );
+}
+
+// dd/mm/yyyy a partir de um ISO yyyy-mm-dd (campo Data do Belasis).
+function shortDate(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return y && m && d ? `${d}/${m}/${y}` : iso;
 }
 
 export function NewAppointmentModal({
@@ -341,9 +368,9 @@ export function NewAppointmentModal({
     </Button>
   ) : (
     <>
-      {/* Belasis: "Ajuda" fica à esquerda; ações de confirmação à direita. */}
-      <Button variant="ghost" className="mr-auto text-muted" onClick={() => onOpenChange(false)}>
-        Ajuda
+      {/* Belasis: "Ajuda" à esquerda; ações à direita; "Criar comanda" verde. */}
+      <Button variant="outline" className="mr-auto gap-1.5 text-muted" onClick={() => onOpenChange(false)}>
+        Ajuda <IconInfo size={15} />
       </Button>
       <Button variant="outline" onClick={() => onOpenChange(false)}>
         Cancelar
@@ -351,11 +378,18 @@ export function NewAppointmentModal({
       <Button variant="primary" isDisabled={!canConfirm} onClick={handleConfirm}>
         {isBusy ? 'Salvando…' : 'Salvar'}
       </Button>
-      <Button variant="outline" isDisabled={!canConfirm} onClick={handleComanda}>
+      <Button
+        variant="primary"
+        className="bg-success text-white hover:bg-success/90"
+        isDisabled={!canConfirm}
+        onClick={handleComanda}
+      >
         Criar comanda
       </Button>
     </>
   );
+
+  const triggerCls = 'h-11 w-full rounded-lg border border-default-200 bg-white text-sm shadow-none';
 
   return (
     <Drawer
@@ -363,347 +397,360 @@ export function NewAppointmentModal({
       onClose={() => onOpenChange(false)}
       title="Novo agendamento"
       footer={footer}
+      widthClass="sm:w-[min(1180px,94vw)]"
     >
-      <div className="flex flex-col gap-6">
-        {success ? (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F3E7D6] text-2xl text-accent">
-                    ✓
+      {success ? (
+        <div className="flex flex-col items-center gap-2 py-16 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F3E7D6] text-2xl text-accent">
+            ✓
+          </div>
+          <p className="text-base font-semibold text-foreground">Agendamento criado com sucesso!</p>
+          <p className="text-sm text-muted">A agenda foi atualizada.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
+          {/* ── Rail esquerdo: avatar + busca de cliente ─────────────────── */}
+          <aside className="flex shrink-0 flex-col items-center gap-4 lg:w-[190px] lg:pt-1">
+            <div className="grid h-[120px] w-[120px] place-items-center rounded-full bg-cream text-primary/70">
+              <UserGlyph />
+            </div>
+            <div className="w-full max-w-[220px] truncate rounded-lg border border-default-200 bg-white px-3 py-2.5 text-center text-sm text-muted">
+              {selectedCustomerName ?? 'Busque pelo cliente'}
+            </div>
+          </aside>
+
+          {/* ── Formulário principal ─────────────────────────────────────── */}
+          <div className="flex min-w-0 flex-1 flex-col gap-6">
+            {/* Linha 1: Cliente | Data | Status | Cor */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
+              <Field label="Cliente" className="lg:col-span-5">
+                {creatingNew ? (
+                  <div className="flex flex-col gap-2">
+                    <TextField value={newName} onChange={setNewName} aria-label="Nome do cliente">
+                      <Input className={triggerCls} placeholder="Nome do cliente" />
+                    </TextField>
+                    <TextField value={newPhone} onChange={setNewPhone} aria-label="Telefone">
+                      <Input className={triggerCls} placeholder="Telefone (WhatsApp)" />
+                    </TextField>
                   </div>
-                  <p className="text-base font-semibold text-foreground">
-                    Agendamento criado com sucesso!
-                  </p>
-                  <p className="text-sm text-muted">A agenda foi atualizada.</p>
-                </div>
-              ) : (
-                <>
-                  {/* ── Cliente ─────────────────────────────────────────── */}
-                  <Section title="Cliente">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted">
-                        {creatingNew
-                          ? 'Novo cliente'
-                          : selectedCustomerName ?? 'Selecionar cliente'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCreatingNew((v) => !v);
-                          setCustomerId('');
-                          setCustomerSearch('');
-                          setNewName('');
-                          setNewPhone('');
-                        }}
-                        className="text-xs font-medium text-gold-strong hover:underline"
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <TextField value={customerSearch} onChange={setCustomerSearch} aria-label="Buscar cliente">
+                      <Input className={triggerCls} placeholder="Busque por um cliente" />
+                    </TextField>
+                    {(customerSearch.trim() || customerId) && (
+                      <Select
+                        aria-label="Cliente"
+                        selectedKey={customerId || null}
+                        onSelectionChange={(k) => setCustomerId(k ? String(k) : NONE)}
                       >
-                        {creatingNew ? 'Buscar existente' : '+ Novo cliente'}
-                      </button>
-                    </div>
-                    {creatingNew ? (
-                      <div className="flex flex-col gap-2">
-                        <TextField value={newName} onChange={setNewName} aria-label="Nome do cliente">
-                          <Input placeholder="Nome do cliente" />
-                        </TextField>
-                        <TextField value={newPhone} onChange={setNewPhone} aria-label="Telefone">
-                          <Input placeholder="Telefone (WhatsApp)" />
-                        </TextField>
-                      </div>
-                    ) : (
-                      <>
-                        <TextField value={customerSearch} onChange={setCustomerSearch} aria-label="Buscar cliente">
-                          <Input placeholder="Buscar cliente por nome…" />
-                        </TextField>
-                        <Select
-                          aria-label="Cliente"
-                          selectedKey={customerId || null}
-                          onSelectionChange={(k) => setCustomerId(k ? String(k) : NONE)}
-                        >
-                          <Select.Trigger>
-                            <Select.Value>
-                              {({ isPlaceholder, selectedText }) =>
-                                isPlaceholder ? 'Selecionar cliente' : selectedText
-                              }
-                            </Select.Value>
-                          </Select.Trigger>
-                          <Select.Popover>
-                            <ListBox>
-                              {customerItems.map((c) => (
-                                <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                                  {c.name}
-                                </ListBox.Item>
-                              ))}
-                            </ListBox>
-                          </Select.Popover>
-                        </Select>
-                      </>
+                        <Select.Trigger className={triggerCls}>
+                          <Select.Value>
+                            {({ isPlaceholder, selectedText }) =>
+                              isPlaceholder ? 'Selecionar cliente' : selectedText
+                            }
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {customerItems.map((c) => (
+                              <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                                {c.name}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
                     )}
-                  </Section>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatingNew((v) => !v);
+                    setCustomerId('');
+                    setCustomerSearch('');
+                    setNewName('');
+                    setNewPhone('');
+                  }}
+                  className="self-start text-xs font-medium text-gold-strong hover:underline"
+                >
+                  {creatingNew ? 'Buscar existente' : '+ Novo cliente'}
+                </button>
+              </Field>
 
-                  {/* ── Data ────────────────────────────────────────────── */}
-                  <Section title="Data">
-                    <div className="rounded-xl border border-default-200 px-3.5 py-3">
-                      <div className="text-sm font-semibold text-foreground">{formatFullDate(date)}</div>
-                      <label className="mt-1 flex items-center gap-2 text-xs font-medium text-gold-strong">
-                        Buscar no calendário
-                        <input
-                          type="date"
-                          value={date}
-                          onChange={(e) => setDate(e.target.value)}
-                          className="bg-transparent text-xs text-gold-strong outline-none"
-                        />
-                      </label>
-                    </div>
-                  </Section>
+              <Field label="Data" className="lg:col-span-2">
+                <div className="relative">
+                  <div className="flex h-11 items-center justify-between gap-2 rounded-lg border border-default-200 bg-white px-3 text-sm text-foreground">
+                    <span>{shortDate(date)}</span>
+                    <IconCalendar size={16} className="text-muted" />
+                  </div>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    aria-label="Data"
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                </div>
+              </Field>
 
-                  {/* ── Status ──────────────────────────────────────────── */}
-                  <Section title="Status">
+              <Field label="Status" className="lg:col-span-3">
+                <Select
+                  aria-label="Status"
+                  selectedKey={status}
+                  onSelectionChange={(k) => setStatus(String(k) as AppointmentStatus)}
+                >
+                  <Select.Trigger className={triggerCls}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: STATUS_COLOR[status] }}
+                      />
+                      <Select.Value />
+                    </span>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {(Object.entries(APPOINTMENT_STATUS_LABELS) as [AppointmentStatus, string][]).map(
+                        ([id, label]) => (
+                          <ListBox.Item key={id} id={id} textValue={label}>
+                            <span className="flex items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: STATUS_COLOR[id] }}
+                              />
+                              {label}
+                            </span>
+                          </ListBox.Item>
+                        ),
+                      )}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </Field>
+
+              <Field label="Cor" className="lg:col-span-2">
+                <div className="flex h-11 items-center gap-2.5 rounded-lg border border-default-200 bg-white px-3">
+                  <span
+                    className="h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+                    style={{ backgroundColor: STATUS_COLOR[status] }}
+                  />
+                  <span className="text-sm text-muted">Padrão</span>
+                </div>
+              </Field>
+            </div>
+
+            {/* ── Itens do agendamento ─────────────────────────────────── */}
+            <div className="flex flex-col gap-3">
+              <h3 className="text-base font-semibold text-foreground">Itens do agendamento</h3>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12 lg:items-end">
+                <Field label="Descrição" className="lg:col-span-5">
+                  <Select
+                    aria-label="Serviço"
+                    selectedKey={serviceId || null}
+                    onSelectionChange={(k) => setServiceId(k ? String(k) : NONE)}
+                  >
+                    <Select.Trigger className={triggerCls}>
+                      <Select.Value>
+                        {({ isPlaceholder, selectedText }) =>
+                          isPlaceholder ? 'Selecionar serviço' : selectedText
+                        }
+                      </Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {serviceItems.map((s) => (
+                          <ListBox.Item key={s.id} id={s.id} textValue={s.name}>
+                            {s.name} · {formatDuration(s.durationMin)} · {formatMoney(s.price)}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </Field>
+
+                <Field label="Profissional" className="lg:col-span-3">
+                  <Select
+                    aria-label="Profissional"
+                    selectedKey={professionalId || null}
+                    onSelectionChange={(k) => setProfessionalId(k ? String(k) : NONE)}
+                  >
+                    <Select.Trigger className={triggerCls}>
+                      <Select.Value>
+                        {({ isPlaceholder, selectedText }) =>
+                          isPlaceholder ? 'Selecionar profissional' : selectedText
+                        }
+                      </Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {professionalItems.map((p) => (
+                          <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                            {p.name}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </Field>
+
+                <Field label="Horário" className="lg:col-span-2">
+                  <Select
+                    aria-label="Horário"
+                    selectedKey={slotStart || null}
+                    isDisabled={!canPickSlot || slots.length === 0}
+                    onSelectionChange={(k) => { setSlotStart(k ? String(k) : NONE); setFormError(null); }}
+                  >
+                    <Select.Trigger className={triggerCls}>
+                      <Select.Value>
+                        {({ isPlaceholder, selectedText }) =>
+                          isPlaceholder ? 'Horário' : selectedText
+                        }
+                      </Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {slots.map((slot: AvailabilitySlot) => (
+                          <ListBox.Item key={slot.start} id={slot.start} textValue={formatSlotTime(slot.start)}>
+                            {formatSlotTime(slot.start)}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </Field>
+
+                <div className="flex items-end gap-2 lg:col-span-2">
+                  <Field label="Duração" className="flex-1">
                     <Select
-                      aria-label="Status"
-                      selectedKey={status}
-                      onSelectionChange={(k) => setStatus(String(k) as AppointmentStatus)}
+                      aria-label="Duração"
+                      selectedKey={durationMin ? String(durationMin) : null}
+                      onSelectionChange={(k) => setDurationMin(Number(k) || 0)}
                     >
-                      <Select.Trigger><Select.Value /></Select.Trigger>
+                      <Select.Trigger className={triggerCls}>
+                        <Select.Value>
+                          {({ isPlaceholder, selectedText }) =>
+                            isPlaceholder ? 'Duração' : selectedText
+                          }
+                        </Select.Value>
+                      </Select.Trigger>
                       <Select.Popover>
                         <ListBox>
-                          {(Object.entries(APPOINTMENT_STATUS_LABELS) as [AppointmentStatus, string][]).map(
-                            ([id, label]) => (
-                              <ListBox.Item key={id} id={id} textValue={label}>
-                                {label}
-                              </ListBox.Item>
-                            ),
-                          )}
+                          {durationOptions.map((m) => (
+                            <ListBox.Item key={m} id={String(m)} textValue={formatDuration(m)}>
+                              {formatDuration(m)}
+                            </ListBox.Item>
+                          ))}
                         </ListBox>
                       </Select.Popover>
                     </Select>
-                  </Section>
+                  </Field>
+                  <button
+                    type="button"
+                    aria-label="Remover item"
+                    title="Remover item"
+                    onClick={() => { setServiceId(''); setSlotStart(''); setDurationMin(0); }}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-default-200 text-muted transition-colors hover:border-danger/40 hover:text-danger"
+                  >
+                    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
-                  {/* ── Cor ─────────────────────────────────────────────── */}
-                  <Section title="Cor">
-                    <div className="flex items-center gap-2.5 rounded-xl border border-default-200 px-3.5 py-3">
-                      <span
-                        className="h-4 w-4 shrink-0 rounded-full ring-2 ring-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
-                        style={{ backgroundColor: STATUS_COLOR[status] }}
-                      />
-                      <span className="text-sm text-foreground">Padrão</span>
-                      {/* TODO: cor personalizada por agendamento (Belasis) — hoje segue a cor do status */}
-                    </div>
-                  </Section>
-
-                  {/* ── Itens do agendamento ────────────────────────────── */}
-                  <Section title="Itens do agendamento">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-muted">Serviço</label>
-                      <Select
-                        aria-label="Serviço"
-                        selectedKey={serviceId || null}
-                        onSelectionChange={(k) => setServiceId(k ? String(k) : NONE)}
-                      >
-                        <Select.Trigger>
-                          <Select.Value>
-                            {({ isPlaceholder, selectedText }) =>
-                              isPlaceholder ? 'Selecionar serviço' : selectedText
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {serviceItems.map((s) => (
-                              <ListBox.Item key={s.id} id={s.id} textValue={s.name}>
-                                {s.name} · {formatDuration(s.durationMin)} · {formatMoney(s.price)}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                    </div>
-
-                    {selectedService?.description && (
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-muted">Descrição</label>
-                        <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted">
-                          {selectedService.description}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-muted">Profissional</label>
-                      <Select
-                        aria-label="Profissional"
-                        selectedKey={professionalId || null}
-                        onSelectionChange={(k) => setProfessionalId(k ? String(k) : NONE)}
-                      >
-                        <Select.Trigger>
-                          <Select.Value>
-                            {({ isPlaceholder, selectedText }) =>
-                              isPlaceholder ? 'Selecionar profissional' : selectedText
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {professionalItems.map((p) => (
-                              <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
-                                {p.name}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                    </div>
-
-                    {/* Horário (selecionável) */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-muted">Horário</label>
-                      <Select
-                        aria-label="Horário"
-                        selectedKey={slotStart || null}
-                        isDisabled={!canPickSlot || slots.length === 0}
-                        onSelectionChange={(k) => { setSlotStart(k ? String(k) : NONE); setFormError(null); }}
-                      >
-                        <Select.Trigger>
-                          <Select.Value>
-                            {({ isPlaceholder, selectedText }) =>
-                              isPlaceholder ? 'Selecionar horário' : selectedText
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {slots.map((slot: AvailabilitySlot) => (
-                              <ListBox.Item key={slot.start} id={slot.start} textValue={formatSlotTime(slot.start)}>
-                                {formatSlotTime(slot.start)}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                      {canPickSlot && availability.isFetching && (
-                        <span className="flex items-center gap-2 text-xs text-muted">
-                          <Spinner size="sm" /> Buscando horários…
-                        </span>
-                      )}
-                      {canPickSlot && !availability.isFetching && slots.length === 0 && (
-                        <span className="text-xs text-muted">Nenhum horário disponível nesta data.</span>
-                      )}
-                    </div>
-
-                    {/* Duração (selecionável) */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-muted">Duração</label>
-                      <Select
-                        aria-label="Duração"
-                        selectedKey={durationMin ? String(durationMin) : null}
-                        onSelectionChange={(k) => setDurationMin(Number(k) || 0)}
-                      >
-                        <Select.Trigger>
-                          <Select.Value>
-                            {({ isPlaceholder, selectedText }) =>
-                              isPlaceholder ? 'Selecionar duração' : selectedText
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {durationOptions.map((m) => (
-                              <ListBox.Item key={m} id={String(m)} textValue={formatDuration(m)}>
-                                {formatDuration(m)}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                    </div>
-                  </Section>
-
-                  {/* ── Ações ───────────────────────────────────────────── */}
-                  <Section title="Ações">
-                    <Toggle
-                      checked={sendReminder}
-                      onChange={setSendReminder}
-                      label="Enviar lembrete"
-                      description="Avisa o cliente pelo WhatsApp"
-                    />
-                    <Toggle
-                      checked={squeezeIn}
-                      onChange={setSqueezeIn}
-                      label="Encaixar agendamento"
-                      description="Permite sobrepor outro horário"
-                    />
-                  </Section>
-
-                  {/* ── Recorrência ─────────────────────────────────────── */}
-                  <Section title="Recorrência">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-muted">Frequência</label>
-                      <Select
-                        aria-label="Frequência"
-                        selectedKey={freq}
-                        onSelectionChange={(k) => setFreq((k ? String(k) : 'none') as Freq)}
-                      >
-                        <Select.Trigger>
-                          <Select.Value>
-                            {({ selectedText }) => selectedText || 'Não repete'}
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {FREQ_OPTIONS.map((f) => (
-                              <ListBox.Item key={f.id} id={f.id} textValue={f.label}>
-                                {f.label}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
-                    </div>
-
-                    {freq !== 'none' && (
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-muted">Além deste, repetir mais</label>
-                        <Select
-                          aria-label="Repetir mais"
-                          selectedKey={String(repeatMore)}
-                          onSelectionChange={(k) => setRepeatMore(Number(k) || 1)}
-                        >
-                          <Select.Trigger>
-                            <Select.Value>
-                              {({ selectedText }) => selectedText || '1 vez'}
-                            </Select.Value>
-                          </Select.Trigger>
-                          <Select.Popover>
-                            <ListBox>
-                              {Array.from({ length: 11 }, (_, i) => i + 1).map((n) => (
-                                <ListBox.Item key={n} id={String(n)} textValue={`${n} ${n === 1 ? 'vez' : 'vezes'}`}>
-                                  {n} {n === 1 ? 'vez' : 'vezes'}
-                                </ListBox.Item>
-                              ))}
-                            </ListBox>
-                          </Select.Popover>
-                        </Select>
-                      </div>
-                    )}
-                  </Section>
-
-                  {/* ── Observações ─────────────────────────────────────── */}
-                  <Section title="Observações">
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      rows={3}
-                      placeholder="Alguma observação…"
-                      className="resize-none rounded-xl border border-default-200 bg-transparent px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-gold"
-                    />
-                  </Section>
-
-                  {formError && (
-                    <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                      {formError}
-                    </div>
-                  )}
-                </>
+              {selectedService?.description && (
+                <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted">
+                  {selectedService.description}
+                </p>
               )}
-      </div>
+              {canPickSlot && availability.isFetching && (
+                <span className="flex items-center gap-2 text-xs text-muted">
+                  <Spinner size="sm" /> Buscando horários…
+                </span>
+              )}
+              {canPickSlot && !availability.isFetching && slots.length === 0 && (
+                <span className="text-xs text-muted">Nenhum horário disponível nesta data.</span>
+              )}
+            </div>
+
+            {/* ── Ações (switches inline) ──────────────────────────────── */}
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+              <InlineToggle checked={sendReminder} onChange={setSendReminder} label="Enviar lembrete" />
+              <InlineToggle checked={squeezeIn} onChange={setSqueezeIn} label="Encaixar agendamento" />
+            </div>
+
+            {/* ── Além deste, repetir mais ─────────────────────────────── */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
+              <Field label="Além deste, repetir mais" className="lg:col-span-5">
+                <Select
+                  aria-label="Além deste, repetir mais"
+                  selectedKey={freq}
+                  onSelectionChange={(k) => setFreq((k ? String(k) : 'none') as Freq)}
+                >
+                  <Select.Trigger className={triggerCls}>
+                    <Select.Value>
+                      {({ selectedText }) => selectedText || 'Agendamento não se repete'}
+                    </Select.Value>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {FREQ_OPTIONS.map((f) => (
+                        <ListBox.Item key={f.id} id={f.id} textValue={f.label}>
+                          {f.label}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </Field>
+
+              {freq !== 'none' && (
+                <Field label="Repetições" className="lg:col-span-3">
+                  <Select
+                    aria-label="Repetir mais"
+                    selectedKey={String(repeatMore)}
+                    onSelectionChange={(k) => setRepeatMore(Number(k) || 1)}
+                  >
+                    <Select.Trigger className={triggerCls}>
+                      <Select.Value>
+                        {({ selectedText }) => selectedText || '1 vez'}
+                      </Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {Array.from({ length: 11 }, (_, i) => i + 1).map((n) => (
+                          <ListBox.Item key={n} id={String(n)} textValue={`${n} ${n === 1 ? 'vez' : 'vezes'}`}>
+                            {n} {n === 1 ? 'vez' : 'vezes'}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </Field>
+              )}
+            </div>
+
+            {/* ── Observações ──────────────────────────────────────────── */}
+            <Field label="Observações">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Escreva aqui"
+                className="resize-none rounded-lg border border-default-200 bg-white px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
+              />
+            </Field>
+
+            {formError && (
+              <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {formError}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </Drawer>
   );
 }

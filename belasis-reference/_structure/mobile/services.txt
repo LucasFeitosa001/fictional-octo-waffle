@@ -1,0 +1,618 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Serviços"
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+      span.ant-tag.ant-tag-has-color.ant-dropdown-trigger
+        span.anticon.anticon-up [role="img" aria-label="up"]
+        span "Ordenando por Nome"
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ADIANTAMENTO DE MAKE"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 50,00"
+                span "5 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ADIANTAMENTO DE SELAGEM"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 50,00"
+                span "5 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ADIANTAMENTO MECHAS"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 100,00"
+                span "5 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ADIANTAMENTO MORENO ILUMINADO"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 0,00"
+                span "15 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ADIANTAMENTO PENTEADO"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 50,00"
+                span "5 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ADIANTAMENTO UNHAS"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 0,00"
+                span "5 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ALISAMENTO {A PARTIR DE 200$}"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 200,00"
+                span "02:30 h"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "ALONGAMENTO MOLD F1"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 130,00"
+                span "02:30 h"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "APLICACO DE PRODUTO"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 15,00"
+                span "20 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "AVALIAÇÃO"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 0,00"
+                span "30 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "BABYLISS"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 40,00"
+                span "30 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "BANHO DE BRILHO"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 60,00"
+                span "40 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "BANHO EM GEL"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 100,00"
+                span "02:00 h"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "BLED DE OLEOS"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 120,00"
+                span "01:10 h"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "BLOND DE PROTEINAS"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 110,00"
+                span "40 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "BOTOX"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 120,00"
+                span "02:00 h"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "BUÇO"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 15,00"
+                span "10 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "CAMUFLAGEM"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 0,00"
+                span "30 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "COLORAÇAO"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 80,00"
+                span "40 min"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-square.ant-avatar-image
+                img
+              div.ant-row.ant-row-space-between
+                span "COLORAÇÃO CLIENTE"
+                span.anticon.anticon-star [role="img" aria-label="star"]
+              div.ant-row.ant-row-space-between
+                span "R$ 40,00"
+                span "40 min"
+img
+div.wootric-powered-by--enabled.wootric-aria.wootric-mobile-modal.wootric-mobile-modal-zoomed.wootric-survey-type-nps [role="dialog" aria-label="A feedback form has popped up."]
+  div.wootric-beacon-parent
+    form
+      div.wootric-beacon-contents
+        div.wootric-close-right [role="button" aria-label="Close survey"]
+          div.wootric-x-wrapper
+          div "descartar"
+        div.wootric-modal-hidden
+          div.wootric-select.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            svg.wootric-select-toggle
+              path.active-path
+              path.active-path
+          input [role="button" type="submit"]
+        div.thanks.wootric-modal-hidden
+        div.wootric-modal-hidden
+          ul
+        div.wootric-feedback-wrapper.wootric-modal-collapsed
+          div.shadow-box
+            textarea [role="textbox" placeholder=""]
+            input.wootric-submit [role="button" type="submit"]
+        div.wootric-share-wrapper.wootric-modal-collapsed
+          div.wootric-followup
+          div.wootric-followup-btns
+            div.followup-btns
+              div.wootric-like-button [role="button" aria-label="Like on Facebook"] "Share"
+                svg.fb-icon
+                  path.fb-icon
+              div.wootric-twitter-button [role="button" aria-label="Tweet on Twitter"] "Tweet"
+                svg.twitter-icon
+              input.wootric-thank-you-button-outline [role="button" type="button"]
+              input.wootric-no-thanks-button [role="button " type="button"]
+        div.wootric-question [aria-label="Feedback form"]
+          p [role="heading" aria-label="Qual a probabilidade de você i"] "Qual a probabilidade de você indicar o sistema Belasis para "
+        div.wootric-modal-hidden [aria-label="Authorize share feedback"]
+          input [type="checkbox"]
+        div.wootric-score.nps.wootric-score--nps [aria-label="0 Muito improvável 10 Muito pr"]
+          label "Muito improvável"
+          ul
+            li.wootric-visible [role="button"] "0"
+            li.wootric-visible [role="button"] "1"
+            li.wootric-visible [role="button"] "2"
+            li.wootric-visible [role="button"] "3"
+            li.wootric-visible [role="button"] "4"
+            li.wootric-visible [role="button"] "5"
+            li.wootric-visible [role="button"] "6"
+            li.wootric-visible [role="button"] "7"
+            li.wootric-visible [role="button"] "8"
+            li.wootric-visible [role="button"] "9"
+            li.wootric-visible [role="button"] "10"
+          label "Muito provável"
+          div.wootric-alt-anchors
+            label.wootric-alt-anchors__anchor.wootric-alt-anchors__anchor--negative "Muito improvável"
+            span.wootric-alt-anchors__spacer
+            label.wootric-alt-anchors__anchor.wootric-alt-anchors__anchor--positive "Muito provável"
+        div.wootric-feedback-wrapper.wootric-modal-collapsed
+          input.wootric-submit [role="button" type="submit"]
+    div.wootric-footer
+      div.wootric-powered-by [aria-label="powered by inmoment"] "powered by"
+        a.wootric-link [role="link" href="//www.wootric.com"] "InMoment"
+      span.wootric-modal-hidden
+        div.wootric-separator "•"
+        div.wootric-opt-out [aria-label="opt out from surveys"] "opt out"
+      span.wootric-modal-hidden
+        div.wootric-separator "•"
+        div.wootric-feedback-disclaimer [aria-label="Learn how we handle your data"]
+          a.wootric-disclaimer-link [role="link" href="//"] "here"
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

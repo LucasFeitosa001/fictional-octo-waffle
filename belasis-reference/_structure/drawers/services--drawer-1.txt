@@ -1,0 +1,141 @@
+div.ant-drawer.ant-drawer-right
+  div.ant-drawer-mask.ant-drawer-mask-motion-leave.ant-drawer-mask-motion-leave-start.ant-drawer-mask-motion
+  div.ant-drawer-content-wrapper.ant-drawer-panel-motion-right-leave.ant-drawer-panel-motion-right-leave-start.ant-drawer-panel-motion-right
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+          div.ant-drawer-title "Novo serviço"
+      div.ant-drawer-body
+        div.ant-row
+          form.ant-form.ant-form-vertical
+            div.ant-tabs.ant-tabs-left
+              div.ant-tabs-nav [role="tablist"]
+                div.ant-tabs-nav-wrap
+                  div.ant-tabs-nav-list
+                    div.ant-tabs-tab.ant-tabs-tab-active
+                      div.ant-tabs-tab-btn [role="tab"] "Cadastro"
+                    div.ant-tabs-tab
+                      div.ant-tabs-tab-btn [role="tab"] "Configurações"
+                    div.ant-tabs-tab
+                      div.ant-tabs-tab-btn [role="tab"] "Cashback"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Cuidados"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Retorno"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Comissões e Auxiliares"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Personalizar"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Produtos consumidos"
+                    div.ant-tabs-tab.ant-tabs-tab-disabled
+                      div.ant-tabs-tab-btn [role="tab"]
+                        span "Configurar nota fiscal"
+                    div.ant-tabs-ink-bar.ant-tabs-ink-bar-animated
+                div.ant-tabs-nav-operations.ant-tabs-nav-operations-hidden
+                  button.ant-tabs-nav-more [type="button"]
+                    span.anticon.anticon-ellipsis [role="img" aria-label="ellipsis"]
+              div.ant-tabs-content-holder
+                div.ant-tabs-content.ant-tabs-content-left
+                  div.ant-tabs-tabpane.ant-tabs-tabpane-active [role="tabpanel"]
+                    div.ant-row
+                      input.ant-input.ant-input-outlined [type="hidden"]
+                      div.ant-col.ant-col-24
+                        span.ant-avatar.ant-avatar-square.ant-avatar-image
+                          img
+                        input [type="file"]
+                        div.ant-space.ant-space-horizontal.ant-space-align-center
+                          div.ant-space-item
+                            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-sm [type="button"]
+                              span.ant-btn-icon
+                                span.anticon.anticon-upload [role="img" aria-label="upload"]
+                              span "Alterar"
+                      div.ant-col.ant-col-24
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label.ant-form-item-required "Nome"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  input.ant-input.ant-input-outlined [placeholder="Informe o nome" type="text"]
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-has-success.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label.ant-form-item-required "Categoria"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-status-success.ant-select-single
+                                    div.ant-select-selector
+                                    span.ant-select-arrow
+                      div.ant-col.ant-col-xs-24.ant-col-sm-12
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Preço de venda"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-space-compact.ant-space-compact-block
+                                    div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-compact-item.ant-select-compact-first-item
+                                    div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button.ant-input-number-compact-item
+                      div.ant-col.ant-col-xs-12.ant-col-sm-8
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label
+                                div "Custo adicional"
+                                  span.anticon.anticon-info-circle.csnpvf.wb-icon [role="img" aria-label="info-circle"]
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-space-compact.ant-space-compact-block
+                                    div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-compact-item.ant-select-compact-first-item
+                                    div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button.ant-input-number-compact-item
+                      div.ant-col.ant-col-xs-12.ant-col-sm-8
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label
+                                div "Comissão"
+                                  span.anticon.anticon-info-circle.csnpvf.wb-icon [role="img" aria-label="info-circle"]
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-input-number.ant-input-number-in-form-item.ant-input-number-outlined.hide-number-button
+                                    div.ant-input-number-handler-wrap
+                                    div.ant-input-number-input-wrap
+                      div.ant-col.ant-col-xs-24.ant-col-sm-8
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Duração"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-single.ant-select-show-arrow
+                                    div.ant-select-selector
+                                    span.ant-select-arrow
+                      div.ant-col.ant-col-24
+                        div.ant-form-item.ant-form-item-vertical
+                          div.ant-row.ant-form-item-row
+                            div.ant-col.ant-form-item-label
+                              label "Descrição"
+                            div.ant-col.ant-form-item-control
+                              div.ant-form-item-control-input
+                                div.ant-form-item-control-input-content
+                                  textarea.ant-input.ant-input-outlined [placeholder="Essa descrição aparecerá para "]
+      div.ant-drawer-footer
+        button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined [type="button"]
+          span "Cancelar"
+        button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+          span "Salvar"

@@ -1,0 +1,259 @@
+[
+  {
+    "route": "/wow",
+    "slug": "wow",
+    "actions": [
+      {
+        "kind": "header",
+        "text": "Ver minha assinatura",
+        "overlay": false,
+        "bytes": 0
+      }
+    ],
+    "hash": "ffbc75705084",
+    "candidates": {
+      "header": 1,
+      "tabs": 2,
+      "rows": 0,
+      "links": 0,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/calendar",
+    "slug": "calendar",
+    "actions": [
+      {
+        "kind": "row",
+        "index": 0,
+        "text": "282930108:30MELRY MAISACOLORAÇÃO CLIENTE08:30MELRY MAISAESCO",
+        "overlay": false,
+        "bytes": 0
+      },
+      {
+        "kind": "row",
+        "index": 1,
+        "text": "282930108:30MELRY MAISACOLORAÇÃO CLIENTE08:30MELRY MAISAESCO",
+        "overlay": false,
+        "bytes": 0
+      },
+      {
+        "kind": "row",
+        "index": 2,
+        "text": "5613:00MARIANA LUSTOSAMANUTENCAO MOLD F1712:00JULIANA SANTOS",
+        "overlay": false,
+        "bytes": 0
+      },
+      {
+        "kind": "link",
+        "index": 0,
+        "text": "08:30MELRY MAISACOLORAÇÃO CLIENTE",
+        "overlay": true,
+        "bytes": 14259
+      },
+      {
+        "kind": "link",
+        "index": 1,
+        "text": "08:30MELRY MAISAESCOVA (A PARTIR DE R$ 45,00)",
+        "overlay": true,
+        "bytes": 14265
+      },
+      {
+        "kind": "link",
+        "index": 2,
+        "text": "15:00NADJANY MENDES DA SILVAUNHAS - PES",
+        "overlay": true,
+        "bytes": 19970
+      }
+    ],
+    "hash": "e371317e3b8d",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 3,
+      "links": 48,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/sales",
+    "slug": "sales",
+    "actions": [],
+    "hash": "6c9b52979b7f",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 0,
+      "links": 0,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/clients",
+    "slug": "clients",
+    "actions": [],
+    "hash": "4fb8f7c2e547",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 0,
+      "links": 0,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/employees",
+    "slug": "employees",
+    "actions": [],
+    "hash": "ba2732c83be3",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 0,
+      "links": 0,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/products",
+    "slug": "products",
+    "actions": [],
+    "hash": "77fc964febfd",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 0,
+      "links": 0,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/services",
+    "slug": "services",
+    "actions": [],
+    "hash": "e58cbbd743bc",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 0,
+      "links": 0,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/packages",
+    "slug": "packages",
+    "actions": [],
+    "hash": "3723297fa5be",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 0,
+      "links": 0,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/subscriptions",
+    "slug": "subscriptions",
+    "actions": [],
+    "hash": "bcec91d9c374",
+    "candidates": {
+      "header": 0,
+      "tabs": 0,
+      "rows": 3,
+      "links": 48,
+      "bnav": 0
+    }
+  },
+  {
+    "route": "/vendors",
+    "slug": "vendors",
+    "actions": []
+  },
+  {
+    "route": "/brands",
+    "slug": "brands",
+    "actions": []
+  },
+  {
+    "route": "/finance/transactions",
+    "slug": "finance_transactions",
+    "actions": []
+  },
+  {
+    "route": "/finance/accounts",
+    "slug": "finance_accounts",
+    "actions": []
+  },
+  {
+    "route": "/finance/cash",
+    "slug": "finance_cash",
+    "actions": []
+  },
+  {
+    "route": "/finance/dashboard",
+    "slug": "finance_dashboard",
+    "actions": []
+  },
+  {
+    "route": "/commissions",
+    "slug": "commissions",
+    "actions": []
+  },
+  {
+    "route": "/commissions/settings",
+    "slug": "commissions_settings",
+    "actions": []
+  },
+  {
+    "route": "/reports",
+    "slug": "reports",
+    "actions": []
+  },
+  {
+    "route": "/reports/financial",
+    "slug": "reports_financial",
+    "actions": []
+  },
+  {
+    "route": "/reports/clients/all",
+    "slug": "reports_clients_all",
+    "actions": []
+  },
+  {
+    "route": "/reports/calendars/all",
+    "slug": "reports_calendars_all",
+    "actions": []
+  },
+  {
+    "route": "/marketing/agendamento-online",
+    "slug": "marketing_agendamento-online",
+    "actions": []
+  },
+  {
+    "route": "/marketing/campanhas",
+    "slug": "marketing_campanhas",
+    "actions": []
+  },
+  {
+    "route": "/marketing/cashback",
+    "slug": "marketing_cashback",
+    "actions": []
+  },
+  {
+    "route": "/marketing/promocoes",
+    "slug": "marketing_promocoes",
+    "actions": []
+  },
+  {
+    "route": "/marketing/avaliacoes",
+    "slug": "marketing_avaliacoes",
+    "actions": []
+  },
+  {
+    "route": "/settings",
+    "slug": "settings",
+    "actions": []
+  }
+]

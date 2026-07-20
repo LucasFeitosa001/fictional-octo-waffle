@@ -1,0 +1,573 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Clientes"
+          span.anticon.anticon-play-circle.wb-icon.ant-dropdown-trigger.no-print [role="img" aria-label="play-circle"]
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+      span.ant-tag.ant-tag-has-color.ant-dropdown-trigger
+        span.anticon.anticon-up [role="img" aria-label="up"]
+        span "Ordenando por Nome"
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADELIA ARAUJO"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADELINA"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRIANA BEZERRA"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRIANA GALDINO"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRIANA LOPES LEAL"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRIANA RODRIGUES"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRIANE BARBOSA"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRIELLE DE MOURA"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRYELLE DO CARMO SANTOS"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ADRYELLE DUCARMO"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "AISHA ESTEFFANY"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALANE SOUZA"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALANNA LAISLA"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALCINO"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALDENIR"
+              span "Sem telefone"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALDENORA MARIA"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALDILEIA DA SILVA"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALESSANDRA SOUSA"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALESSIANE HIPOLITO"
+              div.ant-phone-input-wrapper
+                div.ant-space-compact
+                  div.ant-select.ant-select-sm.ant-select-outlined.ant-select-compact-item.ant-select-compact-first-item
+                    div.ant-select-selector
+                      span.ant-select-selection-wrap
+                        span.ant-select-selection-search
+                          input.ant-select-selection-search-input [role="combobox" type="search"]
+                        span.ant-select-selection-item
+                          div.flag.br
+                          span.anticon [role="img"]
+                            svg.icon
+                  input.ant-input.ant-input-sm.ant-input-borderless.ant-input-compact-item.ant-input-compact-last-item [placeholder="Telefone" type="tel"]
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              span.ant-avatar.ant-avatar-lg.ant-avatar-circle.ant-avatar-image
+                img
+              span "ALICE BEZERRA"
+              span "Sem telefone"
+img

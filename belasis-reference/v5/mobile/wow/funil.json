@@ -1,0 +1,14 @@
+{
+  "valores": {
+    "Todos": "29",
+    "Confirmados": "29",
+    "Faturados": "29",
+    "Vendas totais": "R$",
+    "Agendamentos": "29",
+    "Comandas": "43",
+    "Ticket médio": "-"
+  },
+  "funilContainerHtml": "<text offset=\"5\" width=\"134\" height=\"86.66666666666667\" name=\"Faturados\" stroke=\"none\" x=\"164\" y=\"221.66666666666669\" class=\"recharts-text recharts-label\" text-anchor=\"middle\" fill=\"#22232B\"><tspan x=\"164\" dy=\"0.355em\">Faturados: 29 (100%)</tspan></text>",
+  "funilContainerText": "",
+  "bodyBytes": 109985
+}

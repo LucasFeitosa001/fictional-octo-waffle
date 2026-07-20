@@ -1,0 +1,377 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Comissões"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-home.wb-icon [role="img" aria-label="home"]
+          span "Resumo"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-pie-chart.wb-icon [role="img" aria-label="pie-chart"]
+          span "Comissões em aberto"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+          span "Comissões pagas"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-setting.wb-icon [role="img" aria-label="setting"]
+          span "Configurações"
+    div.main-content
+      span "Pagamento de comissões"
+      span "Período:"
+        strong "19 jun, 2026 até 31 jul, 2026"
+      div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "18 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 63,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 63,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "17 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 63,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 17,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 46,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "14 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 105,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 60,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 45,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "13 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 105,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 105,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "11 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 91,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 10,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 81,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "10 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 66,50"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 66,50"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "09 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 129,50"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 10,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 119,50"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "07 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 70,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 70,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "06 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 259,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 8,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 251,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "01 jul, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 38,50"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 38,50"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "23 jun, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 84,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 84,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content
+            div.ant-row
+              div.ant-row.ant-row-space-between
+                span "LARISSA SOUZA"
+                span "20 jun, 2026"
+              div.ant-row.ant-row-space-between
+                span "Comissões"
+                span "R$ 182,00"
+              div.ant-row.ant-row-space-between
+                span "Vales"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Bonificações"
+                span "R$ 0,00"
+              div.ant-row.ant-row-space-between
+                span "Total"
+                span "R$ 182,00"
+              div.ant-row
+                span.ant-tag.ant-tag-red "Não assinada digitalmente"
+img
+div.ant-modal-root
+  div.ant-modal-wrap.ant-modal-centered
+    div.ant-modal [role="dialog"]
+      div.ant-modal-content
+        button.ant-modal-close [aria-label="Close" type="button"]
+          span.ant-modal-close-x [aria-label="Fechar"]
+            span.anticon.anticon-close.ant-modal-close-icon [role="img" aria-label="close"]
+        div.ant-modal-body
+          form.ant-form.ant-form-vertical
+            input.ant-input.ant-input-outlined [type="hidden"]
+            div.ant-form-item.ant-form-item-vertical
+              div.ant-row.ant-form-item-row
+                div.ant-col.ant-form-item-label
+                  label.ant-form-item-required "Justificativa"
+                div.ant-col.ant-form-item-control
+                  div.ant-form-item-control-input
+                    div.ant-form-item-control-input-content
+                      textarea.ant-input.ant-input-outlined [placeholder="Justificativa"]
+          span "Esse pagamento está atrelado a um fechamento de caixa. Para "
+        div.ant-modal-footer
+          div.ant-space.ant-space-horizontal.ant-space-align-center.ant-space-gap-row-small.ant-space-gap-col-small
+            div.ant-space-item
+              button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined.ant-btn-lg [type="button"]
+                span "Cancelar"
+            div.ant-space-item
+              button.ant-btn.ant-btn-primary.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-solid [type="button"]
+                span "Excluir"
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

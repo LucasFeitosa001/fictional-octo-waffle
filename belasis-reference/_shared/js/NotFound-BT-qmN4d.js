@@ -1,0 +1,2 @@
+import{r as n,j as e,l as o,T as t}from"./index-Luv7NjvT.js";import{E as s}from"./ErrorIcon-D9KGst6_.js";const l=({prefix:r="Estabelecimento"})=>(n.useEffect(()=>{document.title="Não encontrado"},[]),e.jsxs(o,{$fullWidth:!0,$alignCenter:!0,$justifyCenter:!0,$column:!0,style:{height:"100vh"},children:[e.jsx(s,{}),e.jsxs(t,{$size:18,$paddings:[20,20,5,20],$alignCenter:!0,children:[r," não encontrado"]}),e.jsx(t,{$color:"gray",$paddings:[0,20],$alignCenter:!0,children:"Verifique o link e tente novamente"})]}));export{l as N};
+//# sourceMappingURL=NotFound-BT-qmN4d.js.map

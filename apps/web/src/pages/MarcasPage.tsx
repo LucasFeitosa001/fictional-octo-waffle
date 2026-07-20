@@ -2,16 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../components/Drawer';
+import { HelpTooltip } from '../components/HelpTooltip';
 import { useConfirm } from '../components/ConfirmDialog';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCheck,
   IconChevron,
   IconFilter,
   IconPencil,
+  IconPlay,
   IconPlus,
   IconSearch,
+  IconSettings,
   IconTag,
   IconTrash,
 } from '../components/icons';
@@ -30,8 +34,10 @@ type ProductFilter = 'all' | 'with' | 'without';
 const PAGE_SIZE = 20;
 
 function itemsLabel(count: number) {
+  // Belasis: "Possui um item associado" / "Possui N itens associados".
   if (count <= 0) return 'Nenhum item associado';
-  return `Possui ${formatNumber(count)} ${count === 1 ? 'item associado' : 'itens associados'}`;
+  if (count === 1) return 'Possui um item associado';
+  return `Possui ${formatNumber(count)} itens associados`;
 }
 
 export function MarcasPage() {
@@ -50,28 +56,31 @@ export function MarcasPage() {
   const [productFilter, setProductFilter] = useState<ProductFilter>('all');
   const [sortAsc, setSortAsc] = useState(true);
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Mobile: "Selecionar" na BottomNav revela os checkboxes nos cards (Belasis).
+  const [selectMode, setSelectMode] = useState(false);
 
   const allRows = brands.data ?? [];
 
-  // No mobile, os botões do header (Buscar / Filtrar / Novo) migram para a
-  // BottomNav — mesmos handlers do desktop. O header inline fica hidden md:flex.
+  // No mobile a busca fica sempre visível, então a BottomNav do Belasis expõe
+  // Filtros / Selecionar / Criar — mesmos handlers do desktop.
   useSetPageActions(
     [
       {
-        key: 'buscar',
-        label: 'Buscar',
-        icon: <IconSearch size={22} />,
-        onClick: () => setSearchOpen((v) => !v),
-      },
-      {
-        key: 'filtrar',
-        label: 'Filtrar',
+        key: 'filtros',
+        label: 'Filtros',
         icon: <IconFilter size={22} />,
         onClick: () => setFilterOpen((v) => !v),
       },
       {
-        key: 'novo',
-        label: 'Novo',
+        key: 'selecionar',
+        label: 'Selecionar',
+        icon: <IconCheckCircle size={22} />,
+        onClick: () => setSelectMode((v) => !v),
+      },
+      {
+        key: 'criar',
+        label: 'Criar',
         icon: <IconPlus size={22} />,
         onClick: () => setCreateOpen(true),
       },
@@ -97,6 +106,27 @@ export function MarcasPage() {
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const paged = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const allPageSelected =
+    paged.length > 0 && paged.every((b) => selected.has(b.id));
+
+  function toggleRow(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllPage() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) paged.forEach((b) => next.delete(b.id));
+      else paged.forEach((b) => next.add(b.id));
+      return next;
+    });
+  }
 
   useEffect(() => {
     setPage(1);
@@ -137,9 +167,23 @@ export function MarcasPage() {
 
   return (
     <div className="pb-10">
-      {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
+      {/* Cabeçalho: título + tutorial/ajuda + Buscar / Filtrar / Novo (igual Belasis) */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-ink sm:text-2xl">Marcas</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="text-xl font-semibold text-ink sm:text-2xl">Marcas</h1>
+          {/* play-circle: botão de tutorial ao lado do título (Belasis) */}
+          <button
+            type="button"
+            aria-label="Ver tutorial"
+            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ring-4 ring-primary/20 transition-colors hover:bg-primary/90"
+          >
+            <IconPlay size={12} className="ml-0.5" />
+          </button>
+          {/* question-circle: ajuda contextual da listagem (Belasis) */}
+          <HelpTooltip className="hidden items-center text-muted-ink hover:text-ink md:inline-flex">
+            Cadastre marcas para classificar seus produtos e filtrar a listagem.
+          </HelpTooltip>
+        </div>
         <div className="hidden flex-wrap items-center gap-2 md:flex">
           <ToolbarButton
             active={searchOpen}
@@ -170,9 +214,46 @@ export function MarcasPage() {
         </div>
       )}
 
-      {/* Barra de busca (toggle) */}
+      {/* Mobile: busca sempre visível + pílula de ordenação (igual Belasis).
+          No desktop a busca continua sendo toggle pela toolbar. */}
+      <div className="mb-4 flex flex-col gap-3 md:hidden">
+        <div className="relative">
+          <IconSearch
+            size={18}
+            className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-ink"
+          />
+          <TextField
+            value={searchInput}
+            onChange={(v) => {
+              setSearchInput(v);
+              setSearch(v.trim());
+            }}
+            aria-label="Buscar marca"
+          >
+            <Input
+              placeholder="Digite para buscar"
+              className="pl-9 focus:border-primary focus:ring-2 focus:ring-primary/25"
+            />
+          </TextField>
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={() => setSortAsc((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Ordenando por Nome
+            <IconChevron
+              size={16}
+              className={sortAsc ? 'rotate-180' : ''}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Barra de busca (toggle desktop) */}
       {searchOpen && (
-        <div className="mb-4 flex max-w-xl items-center gap-2">
+        <div className="mb-4 hidden max-w-xl items-center gap-2 md:flex">
           <TextField
             value={searchInput}
             onChange={setSearchInput}
@@ -270,24 +351,41 @@ export function MarcasPage() {
               <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
                 <table className="w-full border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                    <tr className="border-b border-line text-left text-sm font-semibold text-ink/75">
+                      <th className="w-10 py-3 pl-4 pr-2">
+                        <CheckBox
+                          checked={allPageSelected}
+                          onClick={toggleAllPage}
+                          label="Selecionar todas"
+                        />
+                      </th>
                       <th className="px-4 py-3 font-semibold">
                         <button
                           type="button"
                           onClick={() => setSortAsc((v) => !v)}
-                          className="inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-primary"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-primary"
                           title="Ordenar por nome"
                         >
                           Nome
-                          {sortAsc ? (
-                            <IconArrowUp size={13} className="text-primary" />
-                          ) : (
-                            <IconArrowDown size={13} className="text-primary" />
-                          )}
+                          <span className="flex flex-col leading-none">
+                            <IconArrowUp
+                              size={11}
+                              className={sortAsc ? 'text-primary' : 'text-line'}
+                            />
+                            <IconArrowDown
+                              size={11}
+                              className={!sortAsc ? 'text-primary' : 'text-line'}
+                            />
+                          </span>
                         </button>
                       </th>
                       <th className="px-4 py-3 font-semibold">Itens</th>
-                      <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                      <th className="w-24 px-4 py-3 text-center font-semibold">
+                        <IconSettings
+                          size={15}
+                          className="mx-auto text-muted-ink"
+                        />
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -298,12 +396,19 @@ export function MarcasPage() {
                           key={b.id}
                           className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                         >
+                          <td className="py-2.5 pl-4 pr-2">
+                            <CheckBox
+                              checked={selected.has(b.id)}
+                              onClick={() => toggleRow(b.id)}
+                              label={`Selecionar ${b.name}`}
+                            />
+                          </td>
                           <td className="px-4 py-2.5">
                             <button
                               type="button"
                               onClick={() => setEditing(b)}
                               title={b.name}
-                              className="block w-full truncate text-left font-medium text-ink transition-colors hover:text-primary"
+                              className="block w-full truncate text-left font-medium text-primary transition-colors hover:underline"
                             >
                               {b.name}
                             </button>
@@ -313,8 +418,10 @@ export function MarcasPage() {
                               type="button"
                               onClick={() => setEditing(b)}
                               className={[
-                                'text-left transition-colors hover:text-primary',
-                                count > 0 ? 'text-ink' : 'text-muted-ink',
+                                'text-left transition-colors',
+                                count > 0
+                                  ? 'text-primary hover:underline'
+                                  : 'text-muted-ink',
                               ].join(' ')}
                             >
                               {itemsLabel(count)}
@@ -334,51 +441,42 @@ export function MarcasPage() {
                 </table>
               </div>
 
-              {/* ===== Mobile: cards ===== */}
-              <ul className="flex flex-col gap-2 md:hidden">
+              {/* ===== Mobile: cards (Belasis: nome + itens, toque abre edição) ===== */}
+              <ul className="flex flex-col gap-3 md:hidden">
                 {paged.map((b) => {
                   const count = b.productCount ?? 0;
                   return (
                     <li
                       key={b.id}
-                      className="rounded-xl border border-line bg-card p-3 shadow-[var(--shadow-card)]"
+                      className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
                     >
-                      <button
-                        type="button"
-                        onClick={() => setEditing(b)}
-                        className="block w-full text-left"
-                      >
-                        <span className="block min-w-0 truncate font-medium text-ink">
-                          {b.name}
-                        </span>
-                        <span
-                          className={[
-                            'mt-0.5 block text-xs',
-                            count > 0 ? 'text-muted-ink' : 'text-muted-ink/70',
-                          ].join(' ')}
+                      <div className="flex items-center gap-3">
+                        {selectMode && (
+                          <CheckBox
+                            checked={selected.has(b.id)}
+                            onClick={() => toggleRow(b.id)}
+                            label={`Selecionar ${b.name}`}
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            selectMode ? toggleRow(b.id) : setEditing(b)
+                          }
+                          className="block min-w-0 flex-1 text-left"
                         >
-                          {itemsLabel(count)}
-                        </span>
-                      </button>
-                      <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-line/60 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Editar"
-                          onClick={() => setEditing(b)}
-                        >
-                          <IconPencil size={14} /> Editar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Remover"
-                          className="text-danger"
-                          isDisabled={deleteBrand.isPending}
-                          onClick={() => handleDelete(b)}
-                        >
-                          <IconTrash size={14} />
-                        </Button>
+                          <span className="block min-w-0 truncate font-medium text-ink">
+                            {b.name}
+                          </span>
+                          <span
+                            className={[
+                              'mt-0.5 block text-sm',
+                              count > 0 ? 'text-primary' : 'text-muted-ink',
+                            ].join(' ')}
+                          >
+                            {itemsLabel(count)}
+                          </span>
+                        </button>
                       </div>
                     </li>
                   );
@@ -422,6 +520,25 @@ export function MarcasPage() {
 // ---------------------------------------------------------------------
 // Subcomponentes de apresentação
 // ---------------------------------------------------------------------
+
+// BottomNav "Selecionar": círculo com check (igual Belasis mobile).
+function IconCheckCircle({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8.5 12 2.5 2.5 4.5-5" />
+    </svg>
+  );
+}
 
 function RowActions({
   onEdit,
@@ -601,6 +718,34 @@ function CheckRow({
   );
 }
 
+function CheckBox({
+  checked,
+  onClick,
+  label,
+}: {
+  checked: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onClick}
+      className={[
+        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+        checked
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-line bg-card hover:border-primary',
+      ].join(' ')}
+    >
+      {checked && <IconCheck size={11} />}
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------
 // Drawer lateral de cadastro/edição de marca
 // ---------------------------------------------------------------------
@@ -659,6 +804,8 @@ function BrandDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar marca' : 'Nova marca'}
+      // Belasis: content-wrapper rect w=600px (new-open.css.json), slide 0.3s ease.
+      widthClass="sm:w-[600px]"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>

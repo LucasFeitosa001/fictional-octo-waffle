@@ -6,6 +6,7 @@ import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { DropdownButton } from '../components/DropdownButton';
 import { Drawer } from '../components/Drawer';
+import { HelpTooltip } from '../components/HelpTooltip';
 import { useSetPageActions } from '../layout/PageActions';
 import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
 import { IconCalendar, IconChevron, IconEye, IconPlus } from '../components/icons';
@@ -71,6 +72,14 @@ function IconPlayCircle({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+// Belasis marca cada item do painel "Filtrar" com um checkbox (check branco).
+function IconCheck({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12.5 10 17.5 19 6.5" />
+    </svg>
+  );
+}
 function IconSettings({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -84,6 +93,8 @@ type View = 'day' | 'week' | 'month' | 'year';
 
 const VIEW_KEY = 'sp:agenda:view:belasis-month';
 const WEEKDAY_LETTERS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+// Cabeçalho do mês no Belasis (FullCalendar dayGridMonth): minúsculo + ponto.
+const MONTH_WEEKDAYS = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 function startOfMonth(d: Date): Date {
@@ -121,6 +132,15 @@ const peekFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeri
 const weekdayFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' });
 const timeFmt = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
+
+// Glyph do WhatsApp para o botão verde "Conversar" (native do Belasis).
+function IconWhatsApp({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M17.5 14.4c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51-.17-.01-.37-.01-.57-.01-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.06 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.77-.72 2.02-1.42.25-.7.25-1.29.17-1.42-.07-.13-.27-.2-.57-.35zM12.05 21.5h-.01a9.5 9.5 0 01-4.84-1.32l-.35-.21-3.6.94.96-3.51-.23-.36a9.46 9.46 0 01-1.45-5.05c0-5.23 4.26-9.49 9.5-9.49a9.43 9.43 0 016.72 2.78 9.44 9.44 0 012.78 6.72c0 5.23-4.26 9.49-9.49 9.49zm5.6-15.09A11.36 11.36 0 0012.05 2C5.75 2 .63 7.12.62 13.42c0 2.01.53 3.98 1.53 5.71L.5 25.5l6.53-1.71a11.4 11.4 0 005.02 1.28h.01c6.3 0 11.42-5.12 11.42-11.42 0-3.05-1.19-5.92-3.35-8.08z" />
+    </svg>
+  );
+}
 
 function useIsDesktop(): boolean {
   const [desktop, setDesktop] = useState(
@@ -515,22 +535,20 @@ export function AgendaPage() {
 
   const renderFilterPanel = (close: () => void) => (
     <div className="flex flex-col gap-4">
-          {/* Profissionais (multi) */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
+          {/* Profissionais — lista de checkboxes (painel "Filtrar" do Belasis) */}
+          <div className="flex flex-col gap-2 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
             <div className="flex items-center justify-between">
-              <div>
-                <span className="block text-xs font-semibold text-ink">Profissionais</span>
-                <span className="text-[11px] text-muted-ink">Selecione um ou mais</span>
-              </div>
-              {professionalIds.length > 0 && (
-                <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-gold-strong hover:underline">
-                  Desmarcar
-                </button>
-              )}
+              <span className="inline-flex items-center text-xs font-semibold text-ink">
+                Profissionais
+                <HelpTooltip>Filtra a agenda pelos profissionais selecionados</HelpTooltip>
+              </span>
+              <button type="button" onClick={() => setProfessionalIds([])} className="text-[11px] font-medium text-gold-strong hover:underline">
+                Desmarcar tudo
+              </button>
             </div>
-            <div className="flex max-h-36 flex-wrap content-start gap-2 overflow-y-auto pr-1">
+            <div className="-mx-1 flex max-h-44 flex-col overflow-y-auto pr-1">
               {profList.length === 0 ? (
-                <span className="text-xs text-muted">Nenhum profissional.</span>
+                <span className="px-1 text-xs text-muted">Nenhum profissional.</span>
               ) : profList.map((p) => {
                 const checked = professionalIds.includes(p.id);
                 return (
@@ -539,52 +557,54 @@ export function AgendaPage() {
                     type="button"
                     onClick={() => toggleProfessional(p.id)}
                     aria-pressed={checked}
-                    className={[
-                      'inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all',
-                      checked
-                        ? 'border-ink bg-ink text-white shadow-sm'
-                        : 'border-black/10 bg-white text-muted-ink hover:border-gold/70 hover:bg-warm-white',
-                    ].join(' ')}
+                    className="group flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-cream"
                   >
-                    <span className={['h-2 w-2 shrink-0 rounded-full', checked ? 'bg-gold' : 'bg-black/15'].join(' ')} />
-                    <span className="truncate">{p.name}</span>
+                    <span className={[
+                      'grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border transition-colors',
+                      checked ? 'border-gold-strong bg-gold-strong text-white' : 'border-black/20 bg-white text-transparent',
+                    ].join(' ')}>
+                      <IconCheck size={12} />
+                    </span>
+                    <span className="flex-1 truncate text-xs font-medium uppercase tracking-tight text-ink">{p.name}</span>
+                    <span className="shrink-0 text-muted-ink/50 transition-colors group-hover:text-muted-ink" aria-hidden>
+                      <IconSettings size={14} />
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Status (multi) */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
+          {/* Status — lista de checkboxes coloridos (painel "Filtrar" do Belasis) */}
+          <div className="flex flex-col gap-2 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
             <div className="flex items-center justify-between">
-              <div>
-                <span className="block text-xs font-semibold text-ink">Status</span>
-                <span className="text-[11px] text-muted-ink">Combine os estados desejados</span>
-              </div>
-              {statuses.length > 0 && (
-                <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-gold-strong hover:underline">
-                  Desmarcar
-                </button>
-              )}
+              <span className="inline-flex items-center text-xs font-semibold text-ink">
+                Status
+                <HelpTooltip>Combine os estados de agendamento a exibir</HelpTooltip>
+              </span>
+              <button type="button" onClick={() => setStatuses([])} className="text-[11px] font-medium text-gold-strong hover:underline">
+                Padrão
+              </button>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="-mx-1 flex flex-col">
               {STATUS_ORDER.map((s) => {
                 const checked = statuses.includes(s);
+                const color = STATUS_DOT_COLOR[s];
                 return (
                   <button
                     key={s}
                     type="button"
                     onClick={() => toggleStatus(s)}
                     aria-pressed={checked}
-                    className={[
-                      'inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all',
-                      checked
-                        ? 'border-ink bg-ink text-white shadow-sm'
-                        : 'border-black/10 bg-white text-muted-ink hover:border-black/25 hover:bg-warm-white',
-                    ].join(' ')}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-cream"
                   >
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white/70" style={{ backgroundColor: STATUS_DOT_COLOR[s] }} />
-                    {APPOINTMENT_STATUS_LABELS[s]}
+                    <span
+                      className={['grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border text-white transition-colors', checked ? '' : 'border-black/20 bg-white text-transparent'].join(' ')}
+                      style={checked ? { backgroundColor: color, borderColor: color } : undefined}
+                    >
+                      <IconCheck size={12} />
+                    </span>
+                    <span className="flex-1 truncate text-xs font-medium text-ink">{APPOINTMENT_STATUS_LABELS[s]}</span>
                   </button>
                 );
               })}
@@ -593,7 +613,10 @@ export function AgendaPage() {
 
           {/* Serviço (single) */}
           <div className="flex flex-col gap-2 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
-            <span className="text-xs font-semibold text-ink">Serviço</span>
+            <span className="inline-flex items-center text-xs font-semibold text-ink">
+              Serviço
+              <HelpTooltip>Mostra somente agendamentos deste serviço</HelpTooltip>
+            </span>
             <Select aria-label="Serviço" selectedKey={serviceFilter || 'all'}
               onSelectionChange={(k) => setServiceFilter(String(k) === 'all' ? '' : String(k))}>
               <Select.Trigger className="rounded-full border border-black/10 bg-white shadow-none"><Select.Value /></Select.Trigger>
@@ -610,7 +633,10 @@ export function AgendaPage() {
 
           {/* Busca por cliente */}
           <div className="flex flex-col gap-2 rounded-2xl border border-black/[0.06] bg-cream/55 p-3">
-            <span className="text-xs font-semibold text-ink">Cliente</span>
+            <span className="inline-flex items-center text-xs font-semibold text-ink">
+              Cliente
+              <HelpTooltip>Busca por nome do cliente entre os agendamentos</HelpTooltip>
+            </span>
             <TextField value={customerQuery} onChange={setCustomerQuery} aria-label="Buscar cliente">
               <Input className="rounded-full border border-black/10 bg-white shadow-none" placeholder="Buscar por nome…" />
             </TextField>
@@ -753,20 +779,28 @@ export function AgendaPage() {
           </div>
         </div>
 
-        {/* The original mobile header is a centered, translucent date navigator. */}
+        {/* The original mobile header is a centered, translucent date navigator.
+            Belasis (FullCalendar) keeps the "voltar para hoje" play-circle to the
+            right of the interval arrows on mobile too. */}
         <div className="bg-white/80 backdrop-blur-[2px] lg:hidden">
-          <div className="grid h-11 grid-cols-[44px_minmax(0,1fr)_44px] items-center justify-center px-4">
+          <div className="flex h-11 items-center justify-center px-4">
             <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
-              className="grid h-11 w-11 place-items-center text-gold-strong active:bg-cream">
+              className="grid h-11 w-11 shrink-0 place-items-center text-gold-strong active:bg-cream">
               <IconChevron size={17} className="rotate-90" />
             </button>
             <button type="button" onClick={openDateDrawer} aria-haspopup="dialog" aria-expanded={dateDrawerOpen}
-              className="min-w-0 truncate px-2 text-center text-sm font-semibold capitalize text-gold-strong">
+              className="min-w-0 max-w-[52vw] truncate px-2 text-center text-sm font-semibold capitalize text-gold-strong">
               {periodLabel}
             </button>
             <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
-              className="grid h-11 w-11 place-items-center text-gold-strong active:bg-cream">
+              className="grid h-11 w-11 shrink-0 place-items-center text-gold-strong active:bg-cream">
               <IconChevron size={17} className="-rotate-90" />
+            </button>
+            <button type="button" aria-label="Voltar para hoje" title="Hoje" onClick={() => setAnchor(new Date())}
+              className="ml-1 grid h-11 w-11 shrink-0 place-items-center text-gold-strong active:opacity-80">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-gold/10">
+                <IconPlayCircle size={20} />
+              </span>
             </button>
           </div>
         </div>
@@ -913,7 +947,10 @@ export function AgendaPage() {
       {/* Selection action bar (batch Ações) */}
       {selectMode && (
         <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-black/[0.08] bg-warm-white px-3 py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:bottom-0">
-          <span className="text-sm font-semibold text-foreground">{selectedIds.size} selecionado(s)</span>
+          <span className="inline-flex items-center text-sm font-semibold text-foreground">
+            {selectedIds.size} selecionado(s)
+            <HelpTooltip>Agendamentos marcados para confirmar ou cancelar em lote</HelpTooltip>
+          </span>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="primary" size="sm" isDisabled={selectedIds.size === 0 || statusMutation.isPending}
               onClick={() => batchStatus('confirmed')}>
@@ -1062,27 +1099,52 @@ export function AgendaPage() {
       >
               {selected && (
                 <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-start gap-3">
                     <span className="h-10 w-1.5 shrink-0 rounded-full"
                       style={{ backgroundColor: eventColor(selected) }} />
                     <div className="min-w-0 flex-1">
                       <div className="text-base font-semibold text-foreground">
                         {selected.customer?.name ?? 'Sem cliente'}
                       </div>
-                      <div className="text-sm text-muted">
-                        {dateFmt.format(new Date(selected.start))} · {formatTime(selected.start)} - {formatTime(selected.end)}
+                      {selected.customer?.phone && (
+                        <div className="text-sm text-muted">{selected.customer.phone}</div>
+                      )}
+                      <div className="mt-0.5 text-sm font-medium text-foreground">
+                        {formatTime(selected.start)} - {formatTime(selected.end)}
+                      </div>
+                      <div className="text-xs capitalize text-muted">
+                        {longDateFmt.format(new Date(selected.start))} às {formatTime(selected.start)}h
                       </div>
                     </div>
                     <AppointmentStatusChip status={selected.status} />
                   </div>
 
+                  {/* Belasis: botão verde "Conversar" (WhatsApp) sob o cabeçalho */}
+                  {selected.customer?.phone && (
+                    <a
+                      href={`https://wa.me/${selected.customer.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex w-fit items-center gap-2 rounded-full bg-[#25d366] px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    >
+                      <IconWhatsApp size={16} />
+                      Conversar
+                    </a>
+                  )}
+
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <dt className="text-xs font-medium text-muted">Profissional</dt>
+                      <dt className="inline-flex items-center text-xs font-medium text-muted">
+                        Profissional
+                        <HelpTooltip>Profissional responsável por este atendimento</HelpTooltip>
+                      </dt>
                       <dd className="text-foreground">{selected.professional?.name ?? '-'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs font-medium text-muted">Total</dt>
+                      <dt className="inline-flex items-center text-xs font-medium text-muted">
+                        Total
+                        <HelpTooltip>Soma dos valores dos serviços do agendamento</HelpTooltip>
+                      </dt>
                       <dd className="text-foreground">
                         {formatMoney((selected.items ?? []).reduce((s, i) => s + Number(i.price ?? 0), 0))}
                       </dd>
@@ -1090,8 +1152,9 @@ export function AgendaPage() {
                   </dl>
 
                   {selected.items && selected.items.length > 0 && (
-                    <div className="text-xs text-muted">
+                    <div className="inline-flex items-center text-xs text-muted">
                       {selected.items.length} servico(s)
+                      <HelpTooltip>Serviços incluídos neste agendamento</HelpTooltip>
                     </div>
                   )}
 
@@ -1100,7 +1163,10 @@ export function AgendaPage() {
                   )}
 
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-muted">Alterar status</span>
+                    <span className="inline-flex items-center text-xs font-medium text-muted">
+                      Alterar status
+                      <HelpTooltip>Atualiza a situação do agendamento e notifica o cliente</HelpTooltip>
+                    </span>
                     <Select aria-label="Status" selectedKey={selected.status}
                       onSelectionChange={(k) => changeStatus(selected, String(k) as AppointmentRow['status'])}
                       isDisabled={statusMutation.isPending}>
@@ -1116,6 +1182,10 @@ export function AgendaPage() {
                   </div>
 
                   {/* Per-appointment actions */}
+                  <span className="inline-flex items-center text-xs font-medium text-muted">
+                    Ações do agendamento
+                    <HelpTooltip>Reagende ou gere uma comanda para faturar este atendimento</HelpTooltip>
+                  </span>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={() => openReschedule(selected)}>
                       Reagendar
@@ -1229,10 +1299,10 @@ function MonthView({
   const todayIso = isoDate(new Date());
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-white pb-20 lg:pb-0">
-      {/* Weekday header */}
+      {/* Weekday header — Belasis: rótulos minúsculos com ponto, alinhados à esquerda */}
       <div className="sticky top-0 z-10 grid grid-cols-7 border-b border-black/[0.06] bg-white">
-        {WEEKDAY_LETTERS.map((w) => (
-          <div key={w} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-ink">
+        {MONTH_WEEKDAYS.map((w) => (
+          <div key={w} className="px-2 py-2 text-left text-xs font-medium text-muted-ink">
             {w}
           </div>
         ))}
@@ -1242,7 +1312,11 @@ function MonthView({
         {cells.map((d) => {
           const iso = isoDate(d);
           const list = apptsByDay.get(iso) ?? [];
-          const visible = list.slice(0, 2);
+          // Belasis (FullCalendar dayMaxEvents): a cell fits ~2 slots. When it
+          // overflows, the "+N more" link takes a slot, so only 1 event shows;
+          // otherwise both fit.
+          const hasMore = list.length > 2;
+          const visible = hasMore ? list.slice(0, 1) : list.slice(0, 2);
           const extra = list.length - visible.length;
           const inMonth = d.getMonth() === anchorMonth;
           const isCurrentDay = iso === todayIso;
@@ -1256,14 +1330,20 @@ function MonthView({
               title="Novo agendamento"
               className={[
                 'relative flex min-w-0 cursor-pointer flex-col gap-1 overflow-hidden border-b border-r border-line/50 p-1 transition-colors',
-                inMonth ? 'bg-white hover:bg-cream' : 'bg-canvas',
+                isCurrentDay
+                  ? 'bg-gold/[0.08] hover:bg-gold/[0.12]'
+                  : inMonth
+                    ? 'bg-white hover:bg-cream'
+                    : 'bg-canvas',
               ].join(' ')}
             >
+              {/* Belasis (FullCalendar dayGridMonth): today is a highlighted cell
+                  with a plain day number — no filled pill. */}
               <span
                 className={[
                   'grid h-6 w-6 shrink-0 place-items-center self-end rounded-full text-[11px] font-semibold lg:h-7 lg:w-7 lg:text-xs',
                   isCurrentDay
-                    ? 'bg-gold text-ink'
+                    ? 'text-gold-strong'
                     : inMonth
                       ? 'text-foreground'
                       : 'text-muted-ink',
@@ -1310,9 +1390,9 @@ function MonthView({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onSeeDay(d); }}
-                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-muted-ink hover:text-gold-strong lg:text-[10px]"
+                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-gold-strong hover:underline lg:text-[10px]"
                 >
-                  +{extra} mais
+                  +{extra} more
                 </button>
               )}
             </div>

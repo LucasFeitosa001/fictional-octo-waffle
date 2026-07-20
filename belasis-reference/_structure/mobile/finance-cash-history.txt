@@ -1,0 +1,726 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Histórico de caixa"
+    div.ant-row
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#574"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "16 jul, 2026"
+                    span "Data fechamento"
+                    span "17 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 512,62"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#573"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "15 jul, 2026"
+                    span "Data fechamento"
+                    span "15 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 230,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#572"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "14 jul, 2026"
+                    span "Data fechamento"
+                    span "14 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 175,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#571"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "13 jul, 2026"
+                    span "Data fechamento"
+                    span "13 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 555,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#570"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "11 jul, 2026"
+                    span "Data fechamento"
+                    span "11 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 670,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#569"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "10 jul, 2026"
+                    span "Data fechamento"
+                    span "10 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 840,85"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#568"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "09 jul, 2026"
+                    span "Data fechamento"
+                    span "09 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,08"
+                    span "Saldo conferido"
+                    span "R$ 240,58"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#567"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "08 jul, 2026"
+                    span "Data fechamento"
+                    span "08 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 650,08"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#566"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "07 jul, 2026"
+                    span "Data fechamento"
+                    span "07 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 1.332,14"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#565"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "06 jul, 2026"
+                    span "Data fechamento"
+                    span "06 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 442,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#564"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "03 jul, 2026"
+                    span "Data fechamento"
+                    span "04 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 470,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#563"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "02 jul, 2026"
+                    span "Data fechamento"
+                    span "02 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 989,25"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#562"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "01 jul, 2026"
+                    span "Data fechamento"
+                    span "01 jul, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 548,50"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#561"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "30 jun, 2026"
+                    span "Data fechamento"
+                    span "30 jun, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 290,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#560"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "29 jun, 2026"
+                    span "Data fechamento"
+                    span "29 jun, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 0,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#559"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "27 jun, 2026"
+                    span "Data fechamento"
+                    span "27 jun, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 140,00"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#558"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "26 jun, 2026"
+                    span "Data fechamento"
+                    span "26 jun, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 956,93"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#557"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "25 jun, 2026"
+                    span "Data fechamento"
+                    span "25 jun, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 876,66"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#556"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "23 jun, 2026"
+                    span "Data fechamento"
+                    span "24 jun, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 268,03"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+        div.swipeable-list-item
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.swipeable-list-item
+                div.swipeable-list-item__content-left
+                  div.ant-row.ant-row-end
+                    div.ant-row
+                      span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                      span "Excluir"
+                div.swipeable-list-item__content-right
+                  div.ant-row.ant-row-start
+                    div.ant-row
+                      span.anticon.anticon-undo.wb-icon [role="img" aria-label="undo"]
+                      span "Reabrir"
+                div.swipeable-list-item__content
+                  div.ant-row
+                    div.ant-row.ant-row-space-between
+                      span "#555"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    span "Data abertura"
+                    span "20 jun, 2026"
+                    span "Data fechamento"
+                    span "20 jun, 2026"
+                    span "Saldo inicial"
+                    span "R$ 0,00"
+                    span "Saldo conferido"
+                    span "R$ 718,08"
+                    div.ant-divider.ant-divider-horizontal [role="separator"]
+                    div.ant-row.ant-row-space-between
+                      span "FATIMA LACERDA"
+                      span "FATIMA LACERDA"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

@@ -1,0 +1,21 @@
+{
+  "headerButtons": [
+    {
+      "text": "Ver minha assinatura",
+      "class": "ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary an"
+    }
+  ],
+  "tabs": [
+    {
+      "index": 0,
+      "text": "Agendamentos"
+    },
+    {
+      "index": 1,
+      "text": "Comandas"
+    }
+  ],
+  "rows": [],
+  "links": [],
+  "bnItems": []
+}

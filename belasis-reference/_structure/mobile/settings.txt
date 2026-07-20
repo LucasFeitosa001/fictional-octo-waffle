@@ -1,0 +1,59 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-container.wb-icon [role="img" aria-label="container"]
+      span "Comandas"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Configurações"
+          span.anticon.anticon-play-circle.wb-icon [role="img" aria-label="play-circle"]
+    div.ant-row
+      a [href="/settings/salon-configuration"]
+        div.hA-dvKJ "Detalhes da empresa"
+          span.anticon.anticon-home [role="img" aria-label="home"]
+        span.anticon.anticon-right [role="img" aria-label="right"]
+      a [href="/settings/notifications"]
+        div.hA-dvKJ "Notificações"
+          span.anticon.anticon-notification [role="img" aria-label="notification"]
+        span.anticon.anticon-right [role="img" aria-label="right"]
+      a [href="/settings/personalize"]
+        div.hA-dvKJ "Personalizar"
+          span.anticon.anticon-translation [role="img" aria-label="translation"]
+        span.anticon.anticon-right [role="img" aria-label="right"]
+      a [href="/settings/admin"]
+        div.hA-dvKJ "Admin"
+          span.anticon.anticon-lock [role="img" aria-label="lock"]
+        span.anticon.anticon-right [role="img" aria-label="right"]
+      a [href="/settings/api"]
+        div.hA-dvKJ "API"
+          span.anticon.anticon-api [role="img" aria-label="api"]
+        span.anticon.anticon-right [role="img" aria-label="right"]
+      a [href="/settings"]
+        div.hA-dvKJ "Minha Conta"
+          span.anticon.anticon-user [role="img" aria-label="user"]
+        span.anticon.anticon-right [role="img" aria-label="right"]
+      a [href="/logout"]
+        div.hA-dvKJ "Sair"
+          span.anticon.anticon-logout [role="img" aria-label="logout"]
+        span.anticon.anticon-right [role="img" aria-label="right"]
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

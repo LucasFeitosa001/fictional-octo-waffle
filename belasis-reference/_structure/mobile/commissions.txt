@@ -1,0 +1,54 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar tudo"
+    div.ant-row.ant-dropdown-trigger
+      span.anticon.anticon-dollar.wb-icon [role="img" aria-label="dollar"]
+      span "Pagar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Comissões"
+          span.anticon.anticon-play-circle.wb-icon [role="img" aria-label="play-circle"]
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-home.wb-icon [role="img" aria-label="home"]
+          span "Resumo"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-pie-chart.wb-icon [role="img" aria-label="pie-chart"]
+          span "Comissões em aberto"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+          span "Comissões pagas"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-setting.wb-icon [role="img" aria-label="setting"]
+          span "Configurações"
+    div.main-content
+      div.ant-empty
+        div.ant-empty-image
+          title "Não há dados"
+        div.ant-empty-description
+          div.ant-row "Nenhuma comissão encontrada"
+            button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+              span "Selecionar profissional"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

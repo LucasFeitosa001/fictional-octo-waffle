@@ -1,0 +1,41 @@
+div.ant-drawer.ant-drawer-right
+  div.ant-drawer-mask.ant-drawer-mask-motion-leave.ant-drawer-mask-motion-leave-start.ant-drawer-mask-motion
+  div.ant-drawer-content-wrapper.ant-drawer-panel-motion-right-leave.ant-drawer-panel-motion-right-leave-start.ant-drawer-panel-motion-right
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+          div.ant-drawer-title "Nova categoria"
+      div.ant-drawer-body
+        form.ant-form.ant-form-vertical
+          button [type="submit"]
+          div.ant-row
+            input.ant-input.ant-input-outlined [type="hidden"]
+            div.ant-col
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label.ant-form-item-required "Nome"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        input.ant-input.ant-input-outlined [placeholder="Nome" type="text"]
+            div.ant-col
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label "Ativo"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        button.ant-switch.ant-switch-checked [role="switch" type="button"]
+                          div.ant-switch-handle
+                          span.ant-switch-inner
+                            span.ant-switch-inner-checked
+                            span.ant-switch-inner-unchecked
+      div.ant-drawer-footer
+        button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined [type="button"]
+          span "Cancelar"
+        button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+          span "Salvar"

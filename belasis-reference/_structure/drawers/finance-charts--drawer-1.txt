@@ -1,0 +1,62 @@
+div.ant-drawer.ant-drawer-right.ant-drawer-open
+  div.ant-drawer-mask
+  div.ant-drawer-content-wrapper
+    div.ant-drawer-content [role="dialog"]
+      div.ant-drawer-header
+        div.ant-drawer-header-title
+          button.ant-drawer-close [aria-label="Fechar" type="button"]
+            span.anticon.anticon-close [role="img" aria-label="close"]
+          div.ant-drawer-title "Categoria"
+      div.ant-drawer-body
+        form.ant-form.ant-form-vertical
+          button [type="submit"]
+          div.ant-row
+            input.ant-input.ant-input-outlined [type="hidden"]
+            div.ant-col.ant-col-24
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label.ant-form-item-required "Nome"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        input.ant-input.ant-input-outlined [placeholder="Nome" type="text"]
+            div.ant-col.ant-col-xs-24.ant-col-md-12
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label.ant-form-item-required "Tipo"
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-single.ant-select-show-arrow
+                          div.ant-select-selector
+                            span.ant-select-selection-wrap
+                              span.ant-select-selection-search
+                                input.ant-select-selection-search-input [role="combobox" type="search"]
+                              span.ant-select-selection-item "Crédito"
+                          span.ant-select-arrow
+                            span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+            div.ant-col.ant-col-xs-24.ant-col-md-12
+              div.ant-form-item.ant-form-item-vertical
+                div.ant-row.ant-form-item-row
+                  div.ant-col.ant-form-item-label
+                    label
+                      span "Tela padrão"
+                        span.anticon.anticon-info-circle [role="img" aria-label="info-circle"]
+                  div.ant-col.ant-form-item-control
+                    div.ant-form-item-control-input
+                      div.ant-form-item-control-input-content
+                        div.ant-select.ant-select-outlined.ant-select-in-form-item.ant-select-single.ant-select-show-arrow
+                          div.ant-select-selector
+                            span.ant-select-selection-wrap
+                              span.ant-select-selection-search
+                                input.ant-select-selection-search-input [role="combobox" type="search"]
+                              span.ant-select-selection-placeholder "Tela padrão"
+                          span.ant-select-arrow
+                            span.anticon.anticon-down.ant-select-suffix [role="img" aria-label="down"]
+      div.ant-drawer-footer
+        button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined [type="button"]
+          span "Cancelar"
+        button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+          span "Salvar"

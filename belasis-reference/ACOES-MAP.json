@@ -1,0 +1,1160 @@
+{
+  "brands": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 75074,
+      "hamburgerBytes": 29706,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "e8591572cf02",
+      "url": "https://belasis.app/brands"
+    }
+  },
+  "calendar": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-busque-pelo-cliente",
+        "02-cliente",
+        "03-status",
+        "04-cor",
+        "05-selecionar-servico",
+        "06-fatima-lacerda",
+        "07-08-35",
+        "08-15-min",
+        "09-alem-deste-repetir-mais",
+        "10-data",
+        "11-status",
+        "12-cor",
+        "13-alem-deste-repetir-mais"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 86476,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "e70f51746da8",
+      "url": "https://belasis.app/calendar"
+    }
+  },
+  "clients": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-indicado-por",
+        "02-hashtags",
+        "03-desconto-padrao",
+        "04-desconto-padrao"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 178093,
+      "hamburgerBytes": 29880,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "c8ba54079635",
+      "url": "https://belasis.app/clients"
+    }
+  },
+  "commissions": {
+    "desktop": {
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 86433,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "2e31796a6a5a",
+      "url": "https://belasis.app/calendar"
+    }
+  },
+  "commissions_settings": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 86445,
+      "hamburgerBytes": 28323,
+      "newViaUrl": false
+    }
+  },
+  "employees": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [],
+      "tabs": [
+        "01-cadastro",
+        "02-endereco",
+        "03-usuario",
+        "04-assinatura-digital",
+        "05-expediente",
+        "06-personalizar-servicos",
+        "07-configurar-comissoes",
+        "08-comissoes-e-auxiliares",
+        "09-pagar-salario-comissao",
+        "10-vales-e-bonificacoes",
+        "11-permissoes",
+        "12-contas-de-banco"
+      ],
+      "hasRowMenu": false,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 31128,
+      "hamburgerBytes": 29879,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "67e833d47ba5",
+      "url": "https://belasis.app/employees"
+    }
+  },
+  "finance_accounts": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 30165,
+      "hamburgerBytes": 33377,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "263ffae8e270",
+      "url": "https://belasis.app/finance/accounts"
+    }
+  },
+  "finance_cash": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 86450,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "5ccf1e47a27b",
+      "url": "https://belasis.app/calendar"
+    }
+  },
+  "finance_dashboard": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 28682,
+      "hamburgerBytes": 33377,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "cdf7b7b863a0",
+      "url": "https://belasis.app/finance/dashboard"
+    }
+  },
+  "finance_transactions": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 113781,
+      "hamburgerBytes": 33378,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "00b5d29cda5e",
+      "url": "https://belasis.app/finance/transactions"
+    }
+  },
+  "marketing_agendamento-online": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 86453,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "eb95e59f3749",
+      "url": "https://belasis.app/calendar"
+    }
+  },
+  "marketing_avaliacoes": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 96543,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false
+    }
+  },
+  "marketing_campanhas": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 86445,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "c4e05302ecbe",
+      "url": "https://belasis.app/calendar"
+    }
+  },
+  "marketing_cashback": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 86443,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "87115116bf46",
+      "url": "https://belasis.app/calendar"
+    }
+  },
+  "marketing_promocoes": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 96563,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false
+    }
+  },
+  "packages": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-busque-por-um-cliente",
+        "02-cliente",
+        "03-pacote-predefinido",
+        "04-vendedor",
+        "05-selecionar-servico",
+        "06-r",
+        "07-data",
+        "08-validade",
+        "09-pacote-predefinido",
+        "10-r-0-00"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 54082,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "d2c264fad927",
+      "url": "https://belasis.app/packages"
+    }
+  },
+  "products": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-categoria",
+        "02-marca",
+        "03-registro-de-saida",
+        "04-custo-adicional",
+        "05-registro-de-saida"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 134578,
+      "hamburgerBytes": 29707,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "20c068b2ea7b",
+      "url": "https://belasis.app/products"
+    }
+  },
+  "reports": {
+    "desktop": {
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 12178,
+      "hamburgerBytes": 24777,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "c754f8afde79",
+      "url": "https://belasis.app/reports"
+    }
+  },
+  "reports_calendars_all": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 12197,
+      "hamburgerBytes": 24584,
+      "newViaUrl": false
+    }
+  },
+  "reports_clients_all": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 22314,
+      "hamburgerBytes": 24778,
+      "newViaUrl": false
+    }
+  },
+  "reports_financial": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 39365,
+      "hamburgerBytes": 24714,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "527c1407a647",
+      "url": "https://belasis.app/reports/financial"
+    }
+  },
+  "reports_inventory_stock": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 22296,
+      "hamburgerBytes": 24778,
+      "newViaUrl": false
+    }
+  },
+  "sales": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-busque-pelo-cliente",
+        "02-cliente",
+        "03-selecionar-servico",
+        "04-fatima-lacerda",
+        "05-r",
+        "06-data",
+        "07-r-0-00"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": true,
+        "hasFaturarButton": false,
+        "detailActions": [
+          {
+            "text": "Ver minha assinatura",
+            "tag": "BUTTON",
+            "class": "ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid",
+            "href": null,
+            "rect": {
+              "x": 859,
+              "y": 14,
+              "w": 170,
+              "h": 32
+            }
+          },
+          {
+            "text": "Novo",
+            "tag": "BUTTON",
+            "class": "ant-btn css-1b6d0i7 ant-btn-default ant-btn-color-default ant-btn-variant-outlined ant-btn-block ant",
+            "href": null,
+            "rect": {
+              "x": 10,
+              "y": 107,
+              "w": 210,
+              "h": 40
+            }
+          },
+          {
+            "text": "Buscar",
+            "tag": "BUTTON",
+            "class": "ant-btn css-1b6d0i7 ant-btn-default ant-btn-color-default ant-btn-variant-outlined",
+            "href": null,
+            "rect": {
+              "x": 1133,
+              "y": 70,
+              "w": 100,
+              "h": 32
+            }
+          },
+          {
+            "text": "Filtrar",
+            "tag": "BUTTON",
+            "class": "ant-btn css-1b6d0i7 ant-btn-default ant-btn-color-default ant-btn-variant-outlined",
+            "href": null,
+            "rect": {
+              "x": 1241,
+              "y": 70,
+              "w": 92,
+              "h": 32
+            }
+          },
+          {
+            "text": "Novo",
+            "tag": "BUTTON",
+            "class": "ant-btn css-1b6d0i7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid",
+            "href": null,
+            "rect": {
+              "x": 1341,
+              "y": 70,
+              "w": 89,
+              "h": 32
+            }
+          },
+          {
+            "text": "#3327",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 176,
+              "w": 41,
+              "h": 16
+            }
+          },
+          {
+            "text": "ADELIA ARAUJO",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 176,
+              "w": 105,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3326",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 224,
+              "w": 41,
+              "h": 16
+            }
+          },
+          {
+            "text": "ADELIA ARAUJO",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 224,
+              "w": 105,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3325",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 272,
+              "w": 41,
+              "h": 16
+            }
+          },
+          {
+            "text": "ADELIA ARAUJO",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 272,
+              "w": 105,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3324",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 320,
+              "w": 41,
+              "h": 16
+            }
+          },
+          {
+            "text": "SIMONE PEREIRA",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 320,
+              "w": 111,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3323",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 368,
+              "w": 41,
+              "h": 16
+            }
+          },
+          {
+            "text": "FRANCISCA (TIQUINHA)",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 368,
+              "w": 155,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3322",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 416,
+              "w": 41,
+              "h": 16
+            }
+          },
+          {
+            "text": "GIOVANNA SALETE",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 416,
+              "w": 124,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3321",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 464,
+              "w": 38,
+              "h": 16
+            }
+          },
+          {
+            "text": "CRIS",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 464,
+              "w": 30,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3320",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 512,
+              "w": 41,
+              "h": 16
+            }
+          },
+          {
+            "text": "VILIANE ALVES",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 512,
+              "w": 96,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3319",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 560,
+              "w": 39,
+              "h": 16
+            }
+          },
+          {
+            "text": "CRIS",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 560,
+              "w": 30,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3318",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 608,
+              "w": 39,
+              "h": 16
+            }
+          },
+          {
+            "text": "AMELIA DE ARAUJO",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 608,
+              "w": 129,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3317",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 656,
+              "w": 38,
+              "h": 16
+            }
+          },
+          {
+            "text": "MAISA SERAFIM",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 656,
+              "w": 104,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3316",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 704,
+              "w": 39,
+              "h": 16
+            }
+          },
+          {
+            "text": "MARIA ELISANGELA",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 704,
+              "w": 128,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3315",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 752,
+              "w": 38,
+              "h": 16
+            }
+          },
+          {
+            "text": "FABIANA NAYARA",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 752,
+              "w": 114,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3314",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 800,
+              "w": 39,
+              "h": 16
+            }
+          },
+          {
+            "text": "GIOVANNA SALETE",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 800,
+              "w": 124,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3313",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 848,
+              "w": 39,
+              "h": 16
+            }
+          },
+          {
+            "text": "LARISSA SALÃO",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 848,
+              "w": 103,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3312",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 896,
+              "w": 38,
+              "h": 16
+            }
+          },
+          {
+            "text": "TEREZA NUNES",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 896,
+              "w": 101,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3311",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 944,
+              "w": 36,
+              "h": 16
+            }
+          },
+          {
+            "text": "LARISSA SALÃO",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 944,
+              "w": 103,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3310",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 992,
+              "w": 39,
+              "h": 16
+            }
+          },
+          {
+            "text": "ANA SOFIA ALVES",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 992,
+              "w": 117,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3309",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 1040,
+              "w": 42,
+              "h": 16
+            }
+          },
+          {
+            "text": "CRIS",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 1040,
+              "w": 30,
+              "h": 16
+            }
+          },
+          {
+            "text": "#3308",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 292,
+              "y": 1088,
+              "w": 42,
+              "h": 16
+            }
+          },
+          {
+            "text": "DANYELLA MARQUES GUIMARAES",
+            "tag": "BUTTON",
+            "class": "wb__sc-1d9hylv-0 jIGSYa",
+            "href": null,
+            "rect": {
+              "x": 483,
+              "y": 1088,
+              "w": 223,
+              "h": 16
+            }
+          }
+        ]
+      }
+    },
+    "mobile": {
+      "pageBytes": 145479,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "264ecb16f79b",
+      "url": "https://belasis.app/sales"
+    }
+  },
+  "services": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-categoria",
+        "02-preco-de-venda",
+        "03-custo-adicional",
+        "04-duracao",
+        "05-preco-de-venda"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 229713,
+      "hamburgerBytes": 29706,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "dddeb5a96f2e",
+      "url": "https://belasis.app/services"
+    }
+  },
+  "settings": {
+    "desktop": {},
+    "mobile": {
+      "pageBytes": 22184,
+      "hamburgerBytes": 22613,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "54d570e55826",
+      "url": "https://belasis.app/settings"
+    }
+  },
+  "subscriptions": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-busque-pelo-cliente",
+        "02-cliente",
+        "03-status",
+        "04-cor",
+        "05-selecionar-servico",
+        "06-fatima-lacerda",
+        "07-08-35",
+        "08-15-min",
+        "09-alem-deste-repetir-mais",
+        "10-data",
+        "11-status",
+        "12-cor",
+        "13-alem-deste-repetir-mais"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 96534,
+      "hamburgerBytes": 28517,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "21795c6023e1",
+      "url": "https://belasis.app/calendar"
+    }
+  },
+  "vendors": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 120407,
+      "hamburgerBytes": 29879,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "cefd1fdfef67",
+      "url": "https://belasis.app/vendors"
+    }
+  },
+  "wow": {
+    "desktop": {
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {
+      "pageBytes": 109526,
+      "hamburgerBytes": 28324,
+      "newViaUrl": false,
+      "actions": [],
+      "bottomNav": 0,
+      "duplicateOf": null,
+      "hash": "73d168e21dd1",
+      "url": "https://belasis.app/wow"
+    }
+  },
+  "finance-accounts": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-acesso",
+        "02-acesso"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {}
+  },
+  "finance-transactions": {
+    "desktop": {
+      "hasNewDrawer": false,
+      "pickers": [],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false,
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {}
+  },
+  "package-templates": {
+    "desktop": {
+      "hasNewDrawer": false,
+      "pickers": [],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false
+    },
+    "mobile": {}
+  },
+  "purchases": {
+    "desktop": {
+      "hasNewDrawer": true,
+      "pickers": [
+        "01-fornecedor",
+        "02-informe-um-produto",
+        "03-lote",
+        "04-data"
+      ],
+      "tabs": [],
+      "hasRowMenu": true,
+      "hasDeleteConfirm": false
+    },
+    "mobile": {}
+  },
+  "finance-cash": {
+    "desktop": {
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {}
+  },
+  "reports-financial": {
+    "desktop": {
+      "v5": {
+        "hasSalesDetail": false,
+        "hasFaturarButton": false,
+        "detailActions": null
+      }
+    },
+    "mobile": {}
+  }
+}

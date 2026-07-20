@@ -12,6 +12,7 @@ import {
   IconPlus,
   IconScissors,
   IconSearch,
+  IconSettings,
   IconStar,
   IconTrash,
 } from "../components/icons";
@@ -38,6 +39,9 @@ const primaryTint = (pct: number) =>
 
 type StatusFilter = "all" | "active" | "inactive";
 type FavFilter = "all" | "starred" | "unstarred";
+// Belasis torna ordenáveis: Nome, Valor, Comissão, Duração, Mostra no site.
+// Categoria NÃO é ordenável (sem seta no header capturado).
+type SortKey = "name" | "price" | "commission" | "duration" | "site";
 
 type ServiceBelasisFields = ServiceRow & {
   additionalCost?: string | number | null;
@@ -76,6 +80,7 @@ export function ServicosPage() {
   const [showFilters, setShowFilters] = useState(true);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [favFilter, setFavFilter] = useState<FavFilter>("all");
   const [categorySet, setCategorySet] = useState<Set<string>>(new Set());
@@ -120,12 +125,47 @@ export function ServicosPage() {
             (favFilter === "starred" ? Boolean(s.favorite) : !s.favorite)),
       )
       .sort((a, b) => {
-        const compared = a.name.localeCompare(b.name, "pt-BR", {
-          sensitivity: "base",
-        });
+        let compared: number;
+        switch (sortKey) {
+          case "price":
+            compared = Number(a.price) - Number(b.price);
+            break;
+          case "commission":
+            compared = (commissionOf(a) ?? 0) - (commissionOf(b) ?? 0);
+            break;
+          case "duration":
+            compared = a.durationMin - b.durationMin;
+            break;
+          case "site":
+            compared =
+              Number(Boolean(a.visible ?? a.onlineBookable)) -
+              Number(Boolean(b.visible ?? b.onlineBookable));
+            break;
+          default:
+            compared = a.name.localeCompare(b.name, "pt-BR", {
+              sensitivity: "base",
+            });
+        }
+        // Empate estável por nome (mesma quebra que o antd usa por índice).
+        if (compared === 0) {
+          compared = a.name.localeCompare(b.name, "pt-BR", {
+            sensitivity: "base",
+          });
+        }
         return sortAsc ? compared : -compared;
       });
-  }, [allRows, search, categorySet, statusFilter, favFilter, sortAsc]);
+  }, [allRows, search, categorySet, statusFilter, favFilter, sortAsc, sortKey]);
+
+  function toggleSort(key: SortKey) {
+    setSortKey((prevKey) => {
+      if (prevKey === key) {
+        setSortAsc((asc) => !asc);
+        return prevKey;
+      }
+      setSortAsc(true);
+      return key;
+    });
+  }
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   useEffect(() => {
@@ -458,12 +498,15 @@ export function ServicosPage() {
           <div className="mb-3 flex justify-end lg:hidden">
             <button
               type="button"
-              onClick={() => setSortAsc((value) => !value)}
+              onClick={() => toggleSort("name")}
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
               aria-label="Alternar ordenação por nome"
             >
               Ordenando por Nome
-              <IconChevron size={12} className={sortAsc ? "rotate-180" : ""} />
+              <IconChevron
+                size={12}
+                className={sortKey === "name" && !sortAsc ? "rotate-180" : ""}
+              />
             </button>
           </div>
 
@@ -517,35 +560,57 @@ export function ServicosPage() {
                           onChange={toggleSelectAll}
                         />
                       </th>
-                      <th className="w-[28%] px-3 py-3.5 font-semibold">
-                        <button
-                          type="button"
-                          onClick={() => setSortAsc((value) => !value)}
-                          className="inline-flex items-center gap-1.5 hover:text-primary"
-                        >
-                          Nome
-                          <IconChevron
-                            size={12}
-                            className={sortAsc ? "rotate-180" : ""}
-                          />
-                        </button>
-                      </th>
-                      <th className="w-[12%] px-3 py-3.5 text-right font-semibold">
-                        Valor
-                      </th>
-                      <th className="w-[12%] px-3 py-3.5 text-right font-semibold">
-                        Comissão
-                      </th>
-                      <th className="w-[10%] px-3 py-3.5 font-semibold">
-                        Duração
-                      </th>
+                      <SortableTh
+                        className="w-[28%]"
+                        label="Nome"
+                        sortKey="name"
+                        activeKey={sortKey}
+                        asc={sortAsc}
+                        onSort={toggleSort}
+                      />
+                      <SortableTh
+                        className="w-[12%]"
+                        align="right"
+                        label="Valor"
+                        sortKey="price"
+                        activeKey={sortKey}
+                        asc={sortAsc}
+                        onSort={toggleSort}
+                      />
+                      <SortableTh
+                        className="w-[12%]"
+                        align="right"
+                        label="Comissão"
+                        sortKey="commission"
+                        activeKey={sortKey}
+                        asc={sortAsc}
+                        onSort={toggleSort}
+                      />
+                      <SortableTh
+                        className="w-[10%]"
+                        label="Duração"
+                        sortKey="duration"
+                        activeKey={sortKey}
+                        asc={sortAsc}
+                        onSort={toggleSort}
+                      />
                       <th className="w-[16%] px-3 py-3.5 font-semibold">
                         Categoria
                       </th>
-                      <th className="w-[11%] px-3 py-3.5 text-center font-semibold">
-                        Mostra no site
+                      <SortableTh
+                        className="w-[11%]"
+                        align="center"
+                        label="Mostra no site"
+                        sortKey="site"
+                        activeKey={sortKey}
+                        asc={sortAsc}
+                        onSort={toggleSort}
+                      />
+                      <th className="w-[114px] px-3 py-3.5 text-right">
+                        <span className="inline-grid h-7 w-7 place-items-center text-muted-ink">
+                          <IconSettings size={16} />
+                        </span>
                       </th>
-                      <th className="w-[114px] px-3 py-3.5" />
                     </tr>
                   </thead>
                   <tbody>
@@ -725,6 +790,72 @@ function ToolbarButton({
     >
       {icon} {label}
     </button>
+  );
+}
+
+// Cabeçalho ordenável estilo antd: rótulo + par de setas (▲▼) com a direção
+// ativa destacada em --sp-primary. Belasis usa este controle em cada coluna.
+function SortableTh({
+  className,
+  label,
+  sortKey,
+  activeKey,
+  asc,
+  onSort,
+  align = "left",
+}: {
+  className: string;
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey;
+  asc: boolean;
+  onSort: (key: SortKey) => void;
+  align?: "left" | "right" | "center";
+}) {
+  const active = activeKey === sortKey;
+  const justify =
+    align === "right"
+      ? "justify-end"
+      : align === "center"
+        ? "justify-center"
+        : "justify-start";
+  return (
+    <th className={`${className} px-3 py-3.5 font-semibold`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`Ordenar por ${label}`}
+        className={`inline-flex w-full items-center gap-1.5 ${justify} transition-colors hover:text-primary ${
+          active ? "text-primary" : ""
+        }`}
+      >
+        {label}
+        <SortIcon direction={active ? (asc ? "asc" : "desc") : null} />
+      </button>
+    </th>
+  );
+}
+
+function SortIcon({ direction }: { direction: "asc" | "desc" | null }) {
+  const idle = "var(--sp-muted-ink, currentColor)";
+  const on = "var(--sp-primary)";
+  return (
+    <span className="inline-flex flex-col leading-[0]" aria-hidden>
+      <svg width="8" height="5" viewBox="0 0 8 5" className="-mb-px">
+        <path
+          d="M4 0 8 5H0z"
+          fill={direction === "asc" ? on : idle}
+          opacity={direction === "asc" ? 1 : 0.45}
+        />
+      </svg>
+      <svg width="8" height="5" viewBox="0 0 8 5">
+        <path
+          d="M4 5 0 0h8z"
+          fill={direction === "desc" ? on : idle}
+          opacity={direction === "desc" ? 1 : 0.45}
+        />
+      </svg>
+    </span>
   );
 }
 

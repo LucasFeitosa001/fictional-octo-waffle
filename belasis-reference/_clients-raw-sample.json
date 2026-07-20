@@ -1,0 +1,38 @@
+{
+  "apiReq": {
+    "url": "https://client.crisp.chat/settings/website/185f0793-27f9-48d0-aec0-02bb6fbfb0f2/?1784283733814",
+    "method": "GET"
+  },
+  "envelopeKeys": [
+    "website",
+    "domain",
+    "mailer",
+    "settings",
+    "operators",
+    "plugins",
+    "online",
+    "trial",
+    "overlay",
+    "channels"
+  ],
+  "sample": [
+    {
+      "user_id": "f89f1999-dea9-453c-a929-cb4f0edccaab",
+      "avatar": null,
+      "nickname": "Andressa",
+      "timestamp": 1784387533100
+    },
+    {
+      "user_id": "75ba5c86-0aec-44e8-ad38-3c6242d643a6",
+      "avatar": "https://storage.crisp.chat/users/avatar/operator/-/7/e/b/d/7ebd245c7d470800/captura-de-tela-2026-04-29-155_1beargp.png",
+      "nickname": "Ana",
+      "timestamp": 1784386506678
+    },
+    {
+      "user_id": "32e3db9d-8533-4550-9807-9b3f4eff45b5",
+      "avatar": "https://storage.crisp.chat/users/avatar/operator/-/2/1/8/8/21889913add82800/whatsapp-image-2026-07-08-at-1_9jum39.jpeg",
+      "nickname": "Maria",
+      "timestamp": 1784326568732
+    }
+  ]
+}

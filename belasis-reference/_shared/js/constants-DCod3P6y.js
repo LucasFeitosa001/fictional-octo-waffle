@@ -1,0 +1,2 @@
+import{t as a}from"./index-Bd9916Am.js";const t={PENDING:a("asaas.transfers.status_map.PENDING"),BANK_PROCESSING:a("asaas.transfers.status_map.BANK_PROCESSING"),DONE:a("asaas.transfers.status_map.DONE"),CANCELED:a("asaas.transfers.status_map.CANCELED"),FAILED:a("asaas.transfers.status_map.FAILED")},E={PENDING:"orange",BANK_PROCESSING:"orange",DONE:"green",CANCELED:"red",FAILED:"red"};export{t as M,E as a};
+//# sourceMappingURL=constants-DCod3P6y.js.map

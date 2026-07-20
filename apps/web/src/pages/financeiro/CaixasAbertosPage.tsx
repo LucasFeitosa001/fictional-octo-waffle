@@ -14,6 +14,7 @@ import {
 import { usePaymentMethods } from '../../lib/queries/financeiro';
 import { formatDateTime, formatMoney } from '../../lib/format';
 import { useSetPageActions } from '../../layout/PageActions';
+import { HelpTooltip } from '../../components/HelpTooltip';
 
 // ── Ícones anticon reproduzidos (play-circle, minus) ─────────────────────────
 function IconPlayCircle({ size = 16 }: { size?: number }) {
@@ -83,6 +84,7 @@ export function CaixasAbertosPage() {
           </Button>
           <Button variant="primary" onClick={() => setDrawer({ mode: 'open' })}>
             Abrir caixa
+            <HelpTooltip>Iniciar novo caixa com saldo inicial</HelpTooltip>
           </Button>
         </div>
       </div>
@@ -215,10 +217,21 @@ function Row({
 }
 
 // ── Sub-card interno (Conferência de caixa / Outros pagamentos) ──────────────
-function InnerCard({ title, children }: { title: string; children: React.ReactNode }) {
+function InnerCard({
+  title,
+  help,
+  children,
+}: {
+  title: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex h-full flex-col rounded-xl border border-line bg-card">
-      <div className="border-b border-line px-3 py-2.5 text-sm font-semibold text-ink">{title}</div>
+      <div className="inline-flex items-center border-b border-line px-3 py-2.5 text-sm font-semibold text-ink">
+        {title}
+        {help ? <HelpTooltip>{help}</HelpTooltip> : null}
+      </div>
       <div className="px-3 py-2.5">{children}</div>
     </div>
   );
@@ -257,7 +270,10 @@ function CashCard({
       <div className="px-4 py-4">
         {view === 'resumido' ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <InnerCard title="Conferência de caixa">
+            <InnerCard
+              title="Conferência de caixa"
+              help="Saldo esperado no caixa por forma de pagamento"
+            >
               <Row label="Saldo inicial" value={formatMoney(s.openingBalance)} />
               {s.byMethod.map((b) => (
                 <Row key={b.name} label={b.name} value={formatMoney(b.total)} />
@@ -266,7 +282,10 @@ function CashCard({
               <Row label="Movimentações" value={formatMoney(s.movements)} />
               <Row label="Saldo em caixa" value={formatMoney(s.saldoEmCaixa)} positive />
             </InnerCard>
-            <InnerCard title="Outros pagamentos">
+            <InnerCard
+              title="Outros pagamentos"
+              help="Recebimentos que não passam pelo caixa físico"
+            >
               <Row label="Outros pagamentos" value={formatMoney(s.outros)} />
               <Row label="Total recebido" value={formatMoney(s.totalPago)} muted />
               {/* TODO: backend não expõe "total à receber" para o caixa. */}
@@ -287,6 +306,7 @@ function CashCard({
             className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-success/60 text-sm font-medium text-success transition-colors hover:bg-success/10"
           >
             <IconPlus size={16} /> Suprimento
+            <HelpTooltip>Adicionar valor ao caixa (reforço)</HelpTooltip>
           </button>
           <button
             type="button"
@@ -294,6 +314,7 @@ function CashCard({
             className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-danger/60 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
           >
             <IconMinus size={16} /> Sangria
+            <HelpTooltip>Retirar valor do caixa</HelpTooltip>
           </button>
         </div>
         <button
@@ -302,6 +323,7 @@ function CashCard({
           className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-danger text-sm font-semibold text-white transition-colors hover:bg-danger/90"
         >
           Fechar caixa
+          <HelpTooltip>Conferir saldo e encerrar o caixa</HelpTooltip>
         </button>
       </div>
     </div>

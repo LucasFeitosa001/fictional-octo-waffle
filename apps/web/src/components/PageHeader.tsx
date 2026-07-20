@@ -7,6 +7,8 @@ interface PageHeaderProps {
   subtitle?: string;
   onFilter?: () => void;
   actions?: ReactNode;
+  /** Adorno inline à direita do título (ex.: botão de tour do Painel). */
+  titleAdornment?: ReactNode;
 }
 
 export function PageHeader({
@@ -14,11 +16,15 @@ export function PageHeader({
   subtitle,
   onFilter,
   actions,
+  titleAdornment,
 }: PageHeaderProps) {
   return (
     <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">{title}</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">{title}</h1>
+          {titleAdornment}
+        </div>
         {subtitle && <p className="mt-1 text-sm leading-snug text-muted">{subtitle}</p>}
       </div>
       <div className="page-header-actions flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">

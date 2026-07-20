@@ -1,0 +1,2 @@
+import{r as t,m as n,t as e,k as m}from"./index-Bd9916Am.js";const l=(s,o,a)=>t.useCallback(r=>{if(!s){n.warning(e("phrases.no_permission_to_do_this"));return}m.confirm({centered:!0,className:"webook-modal",title:e("words.attention"),maskClosable:!0,content:o(r),okText:e("phrases.yes_delete"),okType:"danger",cancelText:e("verbs.cancel"),onOk:()=>a(r)})},[a,s,o]);export{l as u};
+//# sourceMappingURL=useConfirmDestroy-Ced6r-tG.js.map

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../../components/States';
+import { HelpTooltip } from '../../components/HelpTooltip';
 import {
   IconChart,
   IconCircleCheck,
@@ -208,6 +209,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
       <div className={`${CARD_CLASS} px-4 sm:px-6`}>
         <SettingRow
           title="Filtro por data"
+          help="Define a data-base usada para liberar a comissão para pagamento."
           description={
             <>
               <strong>Data de competência:</strong> O valor fica disponível para pagamento no dia em
@@ -232,6 +234,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
 
         <SettingRow
           title="Tipo de comanda"
+          help="Quais comandas geram comissão liberada: todas ou só finalizadas."
           description={
             <>
               <strong>Todas as Comandas:</strong> O valor fica disponível para pagamento independente
@@ -255,6 +258,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
 
         <SettingRow
           title="Taxas"
+          help="Quem arca com as taxas de cartão, boleto e outras formas de pagamento."
           description="Defina quanto e quem pagará as taxas de cartão de crédito, boleto e outros."
         >
           <RadioGroup
@@ -267,6 +271,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
 
         <SettingRow
           title="Descontos"
+          help="Quem absorve o desconto aplicado na venda ao calcular a comissão."
           description="Defina quem será responsável pelo pagamento dos descontos aplicados nas vendas."
         >
           <RadioGroup
@@ -279,6 +284,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
 
         <SettingRow
           title="Custo adicional dos serviços"
+          help="Descontar o custo adicional do serviço antes de calcular a comissão."
           description={
             <>
               Se <strong>sim</strong>, ao informar um custo adicional no cadastro do serviço, o
@@ -299,6 +305,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
 
         <SettingRow
           title="Origem do desconto dos produtos consumidos"
+          help="De onde sai o valor dos produtos consumidos no serviço."
           description={
             <>
               <strong>Comissão do profissional:</strong> O valor dos produtos consumidos é descontado
@@ -323,6 +330,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
 
         <SettingRow
           title="Descontar produtos consumidos a partir de"
+          help="Define qual preço do produto consumido é descontado da comissão."
           description={
             <>
               Essa configuração completa a configuração{' '}
@@ -354,6 +362,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
 
         <SettingRow
           title="Exibir valor bruto no relatório de comissões"
+          help="Mostra o valor bruto da venda no relatório de comissões pagas."
           description={
             <>
               <strong>Sim</strong>, ao tirar o relatório de comissões pagas o valor bruto é exibido.
@@ -373,6 +382,7 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
         <SettingRow
           last
           title="Recebimento de comissão"
+          help="Texto impresso no comprovante de pagamento da comissão."
           description="Texto que aparecerá quando a comissão for impressa."
         >
           <div className="w-full">
@@ -442,11 +452,13 @@ function SettingRow({
   description,
   children,
   last,
+  help,
 }: {
   title: string;
   description: ReactNode;
   children: ReactNode;
   last?: boolean;
+  help?: string;
 }) {
   return (
     <div
@@ -456,7 +468,10 @@ function SettingRow({
       }
     >
       <div className="min-w-0 sm:max-w-[62%]">
-        <div className="text-[0.95rem] font-semibold text-ink">{title}</div>
+        <div className="inline-flex items-center text-[0.95rem] font-semibold text-ink">
+          {title}
+          {help && <HelpTooltip>{help}</HelpTooltip>}
+        </div>
         <p className="mt-1 text-sm leading-relaxed text-muted-ink">{description}</p>
       </div>
       <div className="shrink-0 sm:min-w-[220px]">{children}</div>

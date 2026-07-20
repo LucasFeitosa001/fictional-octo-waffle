@@ -1,0 +1,128 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-container.wb-icon [role="img" aria-label="container"]
+      span "Comandas"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Comissões"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-home.wb-icon [role="img" aria-label="home"]
+          span "Resumo"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-pie-chart.wb-icon [role="img" aria-label="pie-chart"]
+          span "Comissões em aberto"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+          span "Comissões pagas"
+      span.ant-badge
+        button [type="button"]
+          span.anticon.anticon-setting.wb-icon [role="img" aria-label="setting"]
+          span "Configurações"
+    div.main-content
+      div.ant-row
+        span "Filtros"
+        span "Selecione um período e escolha o profissional"
+        div.ant-row
+          div.ant-picker.ant-picker-range.ant-picker-outlined
+            div.ant-picker-input
+              input [placeholder="Data inicial"]
+            div.ant-picker-range-separator
+              span.ant-picker-separator [aria-label="to"]
+                span.anticon.anticon-swap-right [role="img" aria-label="swap-right"]
+            div.ant-picker-input
+              input [placeholder="Data final"]
+            div.ant-picker-active-bar
+            span.ant-picker-suffix
+              span.anticon.anticon-calendar [role="img" aria-label="calendar"]
+        div.ant-row
+          span "Mostrar comissões anteriores"
+            button.ant-switch [role="switch" type="button"]
+              div.ant-switch-handle
+              span.ant-switch-inner
+                span.ant-switch-inner-checked
+                span.ant-switch-inner-unchecked
+        div.ant-row
+          button.ant-btn.ant-btn-link.ant-btn-color-link.ant-btn-variant-link [type="button"]
+            span "Selecionar tudo"
+        span.ant-avatar.ant-avatar-circle.ant-avatar-image
+          img
+        div.ant-row
+          span "FATIMA LACERDA"
+          div.react-tel-input
+            div.special-label "Phone"
+            input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+            div.flag-dropdown
+              div.selected-flag [role="button"]
+                div.flag.br
+                  div.arrow
+        span.ant-avatar.ant-avatar-circle.ant-avatar-image
+          img
+        div.ant-row
+          span "LAILA ARAUJO LUZ SOUSA"
+          div.react-tel-input
+            div.special-label "Phone"
+            input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+            div.flag-dropdown
+              div.selected-flag [role="button"]
+                div.flag.br
+                  div.arrow
+        span.ant-avatar.ant-avatar-circle.ant-avatar-image
+          img
+        div.ant-row
+          span "LARISSA SOUZA"
+          div.react-tel-input
+            div.special-label "Phone"
+            input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+            div.flag-dropdown
+              div.selected-flag [role="button"]
+                div.flag.br
+                  div.arrow
+        span.ant-avatar.ant-avatar-circle.ant-avatar-image
+          img
+        div.ant-row
+          span "ESHILEY SILVA COSTA"
+          div.react-tel-input
+            div.special-label "Phone"
+            input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+            div.flag-dropdown
+              div.selected-flag [role="button"]
+                div.flag.br
+                  div.arrow
+        span.ant-avatar.ant-avatar-circle.ant-avatar-image
+          img
+        div.ant-row
+          span "VIRLENE"
+          div.react-tel-input
+            div.special-label "Phone"
+            input.form-control [placeholder="1 (702) 123-4567" type="tel"]
+            div.flag-dropdown
+              div.selected-flag [role="button"]
+                div.flag.br
+                  div.arrow
+        button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+          span "Buscar comissões"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

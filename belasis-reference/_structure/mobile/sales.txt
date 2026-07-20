@@ -1,0 +1,560 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Comandas"
+          span.anticon.anticon-play-circle.wb-icon.ant-dropdown-trigger.no-print [role="img" aria-label="play-circle"]
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "SIMONE PEREIRA"
+                    span "#3324"
+                  span "R$ 60,00"
+                div.ant-row.ant-row-space-between
+                  span "18/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "FRANCISCA (TIQUINHA)"
+                    span "#3323"
+                  span "R$ 340,00"
+                div.ant-row.ant-row-space-between
+                  span "18/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "GIOVANNA SALETE"
+                    span "#3322"
+                  span "R$ 100,00"
+                div.ant-row.ant-row-space-between
+                  span "17/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "CRIS"
+                    span "#3321"
+                  span "R$ 165,62"
+                div.ant-row.ant-row-space-between
+                  span "17/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "VILIANE ALVES"
+                    span "#3320"
+                  span "R$ 130,00"
+                div.ant-row.ant-row-space-between
+                  span "17/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "CRIS"
+                    span "#3319"
+                  span "R$ 550,00"
+                div.ant-row.ant-row-space-between
+                  span "17/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "AMELIA DE ARAUJO"
+                    span "#3318"
+                  span "R$ 60,00"
+                div.ant-row.ant-row-space-between
+                  span "17/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "MAISA SERAFIM"
+                    span "#3317"
+                  span "R$ 65,00"
+                div.ant-row.ant-row-space-between
+                  span "16/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "MARIA ELISANGELA"
+                    span "#3316"
+                  span "R$ 100,00"
+                div.ant-row.ant-row-space-between
+                  span "15/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "FABIANA NAYARA"
+                    span "#3315"
+                  span "R$ 45,00"
+                div.ant-row.ant-row-space-between
+                  span "15/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "GIOVANNA SALETE"
+                    span "#3314"
+                  span "R$ 40,00"
+                div.ant-row.ant-row-space-between
+                  span "15/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "LARISSA SALÃO"
+                    span "#3313"
+                  span "R$ 30,00"
+                div.ant-row.ant-row-space-between
+                  span "15/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "TEREZA NUNES"
+                    span "#3312"
+                  span "R$ 15,00"
+                div.ant-row.ant-row-space-between
+                  span "15/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "LARISSA SALÃO"
+                    span "#3311"
+                  span "R$ 30,00"
+                div.ant-row.ant-row-space-between
+                  span "14/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "ANA SOFIA ALVES"
+                    span "#3310"
+                  span "R$ 90,00"
+                div.ant-row.ant-row-space-between
+                  span "14/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "CRIS"
+                    span "#3309"
+                  span "R$ 100,00"
+                div.ant-row.ant-row-space-between
+                  span "14/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "DANYELLA MARQUES GUIMARAES"
+                    span "#3308"
+                  span "R$ 60,00"
+                div.ant-row.ant-row-space-between
+                  span "13/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "MARIA CLARA SANTOS"
+                    span "#3307"
+                  span "R$ 450,00"
+                div.ant-row.ant-row-space-between
+                  span "13/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "MARILIA PINHEIRO"
+                    span "#3306"
+                  span "R$ 100,00"
+                div.ant-row.ant-row-space-between
+                  span "13/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+        div.swipeable-list-item
+          div.swipeable-list-item__content-left
+            div.ant-row.ant-row-end
+              div.ant-row
+                span.anticon.anticon-delete.wb-icon [role="img" aria-label="delete"]
+                span "Excluir"
+          div.swipeable-list-item__content-right
+            div.ant-row.ant-row-start
+              div.ant-row
+                span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+                span "Selecionar"
+          div.swipeable-list-item__content
+            div.ant-row
+              label.ant-checkbox-wrapper
+                span.ant-checkbox.ant-wave-target
+                  input.ant-checkbox-input [type="checkbox"]
+                  span.ant-checkbox-inner
+              div.ant-row
+                div.ant-row.ant-row-space-between
+                  span "ANA SOFIA ALVES"
+                    span "#3305"
+                  span "R$ 50,00"
+                div.ant-row.ant-row-space-between
+                  span "13/07/2026"
+                  span.ant-tag.ant-tag-has-color "Finalizado"
+                div.ant-row
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

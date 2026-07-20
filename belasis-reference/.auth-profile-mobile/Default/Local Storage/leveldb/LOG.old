@@ -1,0 +1,28 @@
+2026/07/20-09:58:57.777 705e Reusing MANIFEST /home/lucssfeitosa/beautypass/beautypass/belasis-reference/.auth-profile-mobile/Default/Local Storage/leveldb/MANIFEST-000001
+2026/07/20-09:58:57.809 705e Recovering log #38
+2026/07/20-09:58:57.813 705e Level-0 table #41: started
+2026/07/20-09:58:57.833 705e Level-0 table #41: 74560 bytes OK
+2026/07/20-09:58:57.834 705e Recovering log #40
+2026/07/20-09:58:57.835 705e Reusing old log /home/lucssfeitosa/beautypass/beautypass/belasis-reference/.auth-profile-mobile/Default/Local Storage/leveldb/000040.log 
+2026/07/20-09:58:57.844 705e Delete type=0 #38
+2026/07/20-09:59:57.847 705e Level-0 table #43: started
+2026/07/20-09:59:57.856 705e Level-0 table #43: 74687 bytes OK
+2026/07/20-09:59:57.862 705e Delete type=0 #40
+2026/07/20-10:01:58.689 705e Level-0 table #45: started
+2026/07/20-10:01:58.699 705e Level-0 table #45: 76795 bytes OK
+2026/07/20-10:01:58.704 705e Delete type=0 #42
+2026/07/20-10:01:58.704 705e Compacting 4@0 + 1@1 files
+2026/07/20-10:01:58.740 705e Generated table #46@0: 163 keys, 3136061 bytes
+2026/07/20-10:01:58.741 705e Compacted 4@0 + 1@1 files => 3136061 bytes
+2026/07/20-10:01:58.746 705e compacted to: files[ 0 2 1 0 0 0 0 ]
+2026/07/20-10:01:58.748 705e Delete type=2 #41
+2026/07/20-10:01:58.748 705e Delete type=2 #37
+2026/07/20-10:01:58.748 705e Delete type=2 #39
+2026/07/20-10:01:58.748 705e Delete type=2 #45
+2026/07/20-10:01:58.748 705e Delete type=2 #43
+2026/07/20-10:03:58.687 7060 Level-0 table #48: started
+2026/07/20-10:03:58.692 7060 Level-0 table #48: 74976 bytes OK
+2026/07/20-10:03:58.696 7060 Delete type=0 #44
+2026/07/20-10:05:58.687 7060 Level-0 table #50: started
+2026/07/20-10:05:58.694 7060 Level-0 table #50: 74719 bytes OK
+2026/07/20-10:05:58.698 7060 Delete type=0 #47

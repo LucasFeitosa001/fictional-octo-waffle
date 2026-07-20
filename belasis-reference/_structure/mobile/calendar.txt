@@ -1,0 +1,124 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Calendário"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row.ant-dropdown-trigger
+      span.anticon.anticon-thunderbolt.wb-icon [role="img" aria-label="thunderbolt"]
+      span "Ações"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    button [type="button"]
+      span.anticon.anticon-left.wb-icon [role="img" aria-label="left"]
+    span "Julho, 2026"
+    button [type="button"]
+      span.anticon.anticon-right.wb-icon [role="img" aria-label="right"]
+    span.anticon.anticon-play-circle.wb-icon.ant-dropdown-trigger.no-print [role="img" aria-label="play-circle"]
+    div.main-content
+      div.fc.fc-media-screen.fc-direction-ltr.fc-theme-standard
+        div.fc-view-harness.fc-view-harness-passive
+          div.fc-dayGridMonth-view.fc-view.fc-daygrid
+            table.fc-scrollgrid [role="grid"]
+              thead [role="rowgroup"]
+                tr.fc-scrollgrid-section.fc-scrollgrid-section-header.fc-scrollgrid-section-sticky [role="presentation"]
+                  th [role="presentation"]
+                    div.fc-scroller-harness
+                      div.fc-scroller
+                        table.fc-col-header [role="presentation"]
+                          thead [role="presentation"]
+                            tr [role="row"]
+                              th.fc-col-header-cell.fc-day.fc-day-sun [role="columnheader"]
+                                div.fc-scrollgrid-sync-inner
+                              th.fc-col-header-cell.fc-day.fc-day-mon [role="columnheader"]
+                                div.fc-scrollgrid-sync-inner
+                              th.fc-col-header-cell.fc-day.fc-day-tue [role="columnheader"]
+                                div.fc-scrollgrid-sync-inner
+                              th.fc-col-header-cell.fc-day.fc-day-wed [role="columnheader"]
+                                div.fc-scrollgrid-sync-inner
+                              th.fc-col-header-cell.fc-day.fc-day-thu [role="columnheader"]
+                                div.fc-scrollgrid-sync-inner
+                              th.fc-col-header-cell.fc-day.fc-day-fri [role="columnheader"]
+                                div.fc-scrollgrid-sync-inner
+                              th.fc-col-header-cell.fc-day.fc-day-sat [role="columnheader"]
+                                div.fc-scrollgrid-sync-inner
+              tbody [role="rowgroup"]
+                tr.fc-scrollgrid-section.fc-scrollgrid-section-body [role="presentation"]
+                  td [role="presentation"]
+                    div.fc-scroller-harness
+                      div.fc-scroller
+                        div.fc-daygrid-body.fc-daygrid-body-unbalanced.fc-daygrid-body-natural
+                          table.fc-scrollgrid-sync-table [role="presentation"]
+                            tbody [role="presentation"]
+                              tr [role="row"]
+                                td.fc-day.fc-day-sun.fc-day-past.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-mon.fc-day-past.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-tue.fc-day-past.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-wed.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-thu.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-fri.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-sat.fc-day-past.fc-daygrid-day [role="gridcell"]
+                              tr [role="row"]
+                                td.fc-day.fc-day-sun.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-mon.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-tue.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-wed.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-thu.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-fri.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-sat.fc-day-past.fc-daygrid-day [role="gridcell"]
+                              tr [role="row"]
+                                td.fc-day.fc-day-sun.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-mon.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-tue.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-wed.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-thu.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-fri.fc-day-past.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-sat.fc-day-past.fc-daygrid-day [role="gridcell"]
+                              tr [role="row"]
+                                td.fc-day.fc-day-sun.fc-day-today.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-mon.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-tue.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-wed.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-thu.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-fri.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-sat.fc-day-future.fc-daygrid-day [role="gridcell"]
+                              tr [role="row"]
+                                td.fc-day.fc-day-sun.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-mon.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-tue.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-wed.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-thu.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-fri.fc-day-future.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-sat.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+                              tr [role="row"]
+                                td.fc-day.fc-day-sun.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-mon.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-tue.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-wed.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-thu.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-fri.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+                                td.fc-day.fc-day-sat.fc-day-future.fc-day-other.fc-daygrid-day [role="gridcell"]
+              tfoot [role="rowgroup"]
+                tr.fc-scrollgrid-section.fc-scrollgrid-section-footer.fc-scrollgrid-section-sticky [role="presentation"]
+                  th [role="presentation"]
+                    div.fc-scroller-harness
+                      div.fc-scroller
+                        div.fc-scrollgrid-sticky-shim
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

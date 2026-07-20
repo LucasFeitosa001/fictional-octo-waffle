@@ -1,0 +1,143 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-container.wb-icon [role="img" aria-label="container"]
+      span "Comandas"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Configurações"
+    div.main-content
+      form.ant-form.ant-form-horizontal
+        div.ant-row
+          span "Permitir lançamentos retroativos?"
+          span "Ative essa opção se precisar lançar recebimentos e despesas "
+        button.ant-switch.ant-switch-checked [role="switch" type="button"]
+          div.ant-switch-handle
+          span.ant-switch-inner
+            span.ant-switch-inner-checked
+            span.ant-switch-inner-unchecked
+        div.ant-row
+          span "Permitir alterações de faturas após a sua conferência no cai"
+          span "Se , será possível alterar todas as informações dos recebime"
+            strong "sim"
+            strong "não"
+        button.ant-switch.ant-switch-checked [role="switch" type="button"]
+          div.ant-switch-handle
+          span.ant-switch-inner
+            span.ant-switch-inner-checked
+            span.ant-switch-inner-unchecked
+        div.ant-row
+          span "Permitir movimentações financeiras com o caixa fechado?"
+          span "Se , você permite que inserções, edições e exclusões finance"
+            strong "sim"
+            strong "não"
+        button.ant-switch [role="switch" type="button"]
+          div.ant-switch-handle
+          span.ant-switch-inner
+            span.ant-switch-inner-checked
+            span.ant-switch-inner-unchecked
+        div.ant-row
+          span "Permitir múltiplos caixas por operador?"
+          span "Permite que cada operador abra e feche o próprio caixa de fo"
+        button.ant-switch [role="switch" type="button"]
+          div.ant-switch-handle
+          span.ant-switch-inner
+            span.ant-switch-inner-checked
+            span.ant-switch-inner-unchecked
+img
+div.wootric-powered-by--enabled.wootric-aria.wootric-mobile-modal.wootric-mobile-modal-zoomed.wootric-survey-type-nps [role="dialog" aria-label="A feedback form has popped up."]
+  div.wootric-beacon-parent
+    form
+      div.wootric-beacon-contents
+        div.wootric-close-right [role="button" aria-label="Close survey"]
+          div.wootric-x-wrapper
+          div "descartar"
+        div.wootric-modal-hidden
+          div.wootric-select.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            option.wootric-modal-hidden
+            svg.wootric-select-toggle
+              path.active-path
+              path.active-path
+          input [role="button" type="submit"]
+        div.thanks.wootric-modal-hidden
+        div.wootric-modal-hidden
+          ul
+        div.wootric-feedback-wrapper.wootric-modal-collapsed
+          div.shadow-box
+            textarea [role="textbox" placeholder=""]
+            input.wootric-submit [role="button" type="submit"]
+        div.wootric-share-wrapper.wootric-modal-collapsed
+          div.wootric-followup
+          div.wootric-followup-btns
+            div.followup-btns
+              div.wootric-like-button [role="button" aria-label="Like on Facebook"] "Share"
+                svg.fb-icon
+                  path.fb-icon
+              div.wootric-twitter-button [role="button" aria-label="Tweet on Twitter"] "Tweet"
+                svg.twitter-icon
+              input.wootric-thank-you-button-outline [role="button" type="button"]
+              input.wootric-no-thanks-button [role="button " type="button"]
+        div.wootric-question [aria-label="Feedback form"]
+          p [role="heading" aria-label="Qual a probabilidade de você i"] "Qual a probabilidade de você indicar o sistema Belasis para "
+        div.wootric-modal-hidden [aria-label="Authorize share feedback"]
+          input [type="checkbox"]
+        div.wootric-score.nps.wootric-score--nps [aria-label="0 Muito improvável 10 Muito pr"]
+          label "Muito improvável"
+          ul
+            li.wootric-visible [role="button"] "0"
+            li.wootric-visible [role="button"] "1"
+            li.wootric-visible [role="button"] "2"
+            li.wootric-visible [role="button"] "3"
+            li.wootric-visible [role="button"] "4"
+            li.wootric-visible [role="button"] "5"
+            li.wootric-visible [role="button"] "6"
+            li.wootric-visible [role="button"] "7"
+            li.wootric-visible [role="button"] "8"
+            li.wootric-visible [role="button"] "9"
+            li.wootric-visible [role="button"] "10"
+          label "Muito provável"
+          div.wootric-alt-anchors
+            label.wootric-alt-anchors__anchor.wootric-alt-anchors__anchor--negative "Muito improvável"
+            span.wootric-alt-anchors__spacer
+            label.wootric-alt-anchors__anchor.wootric-alt-anchors__anchor--positive "Muito provável"
+        div.wootric-feedback-wrapper.wootric-modal-collapsed
+          input.wootric-submit [role="button" type="submit"]
+    div.wootric-footer
+      div.wootric-powered-by [aria-label="powered by inmoment"] "powered by"
+        a.wootric-link [role="link" href="//www.wootric.com"] "InMoment"
+      span.wootric-modal-hidden
+        div.wootric-separator "•"
+        div.wootric-opt-out [aria-label="opt out from surveys"] "opt out"
+      span.wootric-modal-hidden
+        div.wootric-separator "•"
+        div.wootric-feedback-disclaimer [aria-label="Learn how we handle your data"]
+          a.wootric-disclaimer-link [role="link" href="//"] "here"
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

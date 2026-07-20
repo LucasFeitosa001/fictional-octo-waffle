@@ -16,7 +16,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
 import { Drawer } from '../../components/Drawer';
-import { IconChevron, IconFilter } from '../../components/icons';
+import { IconChevron, IconFilter, IconPlay } from '../../components/icons';
 import { useSetPageActions } from '../../layout/PageActions';
 import { useFinancialSummary } from '../../lib/queries/financeiro';
 import { useThemeColors } from '../../theme/useThemeColors';
@@ -198,7 +198,18 @@ export function FinanceiroPainelPage() {
 
   return (
     <div>
-      <PageHeader title="Painel" />
+      <PageHeader
+        title="Painel"
+        titleAdornment={
+          <button
+            type="button"
+            aria-label="Assistir tutorial do Painel"
+            className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-primary pl-0.5 text-primary transition hover:bg-primary/10"
+          >
+            <IconPlay size={14} />
+          </button>
+        }
+      />
 
       {/* Intervalo de datas (desktop). No mobile o filtro vive na BottomNav. */}
       <div className={`mb-4 hidden rounded-xl bg-card p-4 md:block ${SHADOW}`}>

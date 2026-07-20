@@ -13,6 +13,7 @@ import {
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../components/Drawer';
+import { HelpTooltip } from '../components/HelpTooltip';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconCalendar,
@@ -57,16 +58,21 @@ import type { CustomerDebt, CustomerFull } from '../lib/types';
 
 function Field({
   label,
+  help,
   children,
   className,
 }: {
   label: string;
+  help?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <div className={`flex flex-col gap-1${className ? ` ${className}` : ''}`}>
-      <label className="text-xs font-medium text-muted">{label}</label>
+      <label className="inline-flex items-center text-xs font-medium text-muted">
+        <span>{label}</span>
+        {help && <HelpTooltip>{help}</HelpTooltip>}
+      </label>
       {children}
     </div>
   );
@@ -83,11 +89,13 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function ToggleRow({
   label,
   hint,
+  help,
   checked,
   onChange,
 }: {
   label: string;
   hint?: string;
+  help?: React.ReactNode;
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
@@ -98,7 +106,10 @@ function ToggleRow({
       className="flex w-full items-center justify-between gap-3 py-1.5"
     >
       <span className="min-w-0 text-sm text-foreground">
-        {label}
+        <span className="inline-flex items-center">
+          {label}
+          {help && <HelpTooltip>{help}</HelpTooltip>}
+        </span>
         {hint && <span className="block text-xs text-muted">{hint}</span>}
       </span>
       <Switch.Control>
@@ -327,7 +338,10 @@ function CustomerForm({
       <div className="flex flex-col gap-2">
         <SectionTitle>Configuração</SectionTitle>
         <div className="max-w-xs">
-          <Field label="Desconto padrão (%)">
+          <Field
+            label="Desconto padrão (%)"
+            help="Percentual aplicado automaticamente nas vendas deste cliente"
+          >
             <TextField value={discount} onChange={setDiscount} aria-label="Desconto padrão">
               <Input type="number" placeholder="0" />
             </TextField>
@@ -344,6 +358,7 @@ function CustomerForm({
           <ToggleRow
             label="Bloquear acesso online"
             hint="Impede login/agendamento online"
+            help="Cliente não consegue entrar no app nem agendar pela internet"
             checked={onlineAccessBlocked}
             onChange={setOnlineAccessBlocked}
           />
@@ -354,7 +369,7 @@ function CustomerForm({
       {/* --- Relacionamento --- */}
       <div className="flex flex-col gap-3">
         <SectionTitle>Relacionamento</SectionTitle>
-        <Field label="Indicado por">
+        <Field label="Indicado por" help="Cliente que indicou esta pessoa ao salão">
           <Select
             aria-label="Indicado por"
             selectedKey={referredById || 'none'}
@@ -421,7 +436,7 @@ function CustomerForm({
           </div>
         </Field>
 
-        <Field label="Dependentes">
+        <Field label="Dependentes" help="Pessoas vinculadas a este cliente (ex: filhos)">
           <div className="flex flex-col gap-2">
             {dependents.map((d, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -496,11 +511,13 @@ function CustomerForm({
 function MetricCard({
   icon,
   label,
+  help,
   value,
   tone,
 }: {
   icon: React.ReactNode;
   label: string;
+  help?: React.ReactNode;
   value: string;
   tone?: 'danger' | 'success';
 }) {
@@ -510,6 +527,7 @@ function MetricCard({
         <div className="flex items-center gap-1.5 text-muted">
           {icon}
           <span className="text-xs">{label}</span>
+          {help && <HelpTooltip>{help}</HelpTooltip>}
         </div>
         <span
           className={`text-lg font-semibold ${
@@ -541,34 +559,40 @@ function PainelTab({ customerId }: { customerId: string }) {
         <MetricCard
           icon={<IconCash size={14} />}
           label="Faturamento"
+          help="Total faturado por este cliente"
           value={formatMoney(p.faturamento)}
         />
         <MetricCard
           icon={<IconCalendar size={14} />}
           label="Dias sem vir"
+          help="Dias desde o último atendimento"
           value={p.diasSemVir != null ? `${p.diasSemVir} dia(s)` : '—'}
         />
         <MetricCard
           icon={<IconReceipt size={14} />}
           label="Débitos"
+          help="Saldo devedor em aberto do cliente"
           value={formatMoney(p.debitosTotal)}
           tone={p.debitosTotal > 0 ? 'danger' : undefined}
         />
         <MetricCard
           icon={<IconWallet size={14} />}
           label="Crédito"
+          help="Saldo de créditos disponível para uso"
           value={formatMoney(p.creditosSaldo)}
           tone={p.creditosSaldo > 0 ? 'success' : undefined}
         />
         <MetricCard
           icon={<IconGift size={14} />}
           label="Cashback"
+          help="Saldo de cashback acumulado"
           value={formatMoney(p.cashbackSaldo)}
           tone={p.cashbackSaldo > 0 ? 'success' : undefined}
         />
         <MetricCard
           icon={<IconInfo size={14} />}
           label="Pacotes em aberto"
+          help="Pacotes com sessões ainda disponíveis"
           value={String(p.pacotesEmAberto)}
         />
       </div>
@@ -918,12 +942,14 @@ function CreditosTab({ customerId }: { customerId: string }) {
         <MetricCard
           icon={<IconWallet size={14} />}
           label="Saldo de crédito"
+          help="Total de créditos disponíveis para abater em compras"
           value={formatMoney(data.creditosSaldo)}
           tone={data.creditosSaldo > 0 ? 'success' : undefined}
         />
         <MetricCard
           icon={<IconGift size={14} />}
           label="Saldo de cashback"
+          help="Total de cashback acumulado em serviços anteriores"
           value={formatMoney(data.cashbackSaldo)}
           tone={data.cashbackSaldo > 0 ? 'success' : undefined}
         />
@@ -986,6 +1012,7 @@ function CashbackTab({ customerId }: { customerId: string }) {
         <MetricCard
           icon={<IconGift size={14} />}
           label="Saldo de cashback"
+          help="Cashback disponível para abater em novos atendimentos"
           value={formatMoney(data.saldo)}
           tone={data.saldo > 0 ? 'success' : undefined}
         />
@@ -1443,7 +1470,12 @@ export function CustomerCreateModal({
   onClose: () => void;
 }) {
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title="Novo cliente" widthClass="sm:w-[520px]">
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Novo cliente"
+      widthClass="sm:w-[83vw] sm:max-w-[1200px]"
+    >
       {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
     </Drawer>
   );
@@ -1494,7 +1526,7 @@ export function ClientePerfilModal({
       isOpen={isOpen}
       onClose={onClose}
       title={customer?.name ?? 'Cliente'}
-      widthClass="sm:w-[760px]"
+      widthClass="sm:w-[83vw] sm:max-w-[1200px]"
     >
       {customer && (
         <div className="flex flex-col gap-4">
@@ -1520,7 +1552,7 @@ export function ClientePerfilModal({
             {/* Menu interno lateral */}
             <nav
               aria-label="Seções do cliente"
-              className="flex shrink-0 gap-1 overflow-x-auto border-b border-line pb-2 sm:w-52 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
+              className="flex shrink-0 gap-1 overflow-x-auto border-b border-line pb-2 sm:w-[173px] sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
             >
               {PERFIL_MENU.map((m) => (
                 <button

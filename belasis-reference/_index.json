@@ -1,0 +1,387 @@
+[
+  {
+    "slug": "wow",
+    "route": "/wow",
+    "desktop": 140188,
+    "drawers": 0,
+    "mobile": 96638
+  },
+  {
+    "slug": "calendar",
+    "route": "/calendar",
+    "desktop": 144072,
+    "drawers": 1,
+    "mobile": 84714
+  },
+  {
+    "slug": "sales",
+    "route": "/sales",
+    "desktop": 127857,
+    "drawers": 1,
+    "mobile": 72682
+  },
+  {
+    "slug": "packages",
+    "route": "/packages",
+    "desktop": 92169,
+    "drawers": 1,
+    "mobile": 38170
+  },
+  {
+    "slug": "package-templates",
+    "route": "/package-templates",
+    "desktop": 0,
+    "drawers": 0,
+    "mobile": 0
+  },
+  {
+    "slug": "subscriptions",
+    "route": "/customer/subscriptions",
+    "desktop": 71880,
+    "drawers": 1,
+    "mobile": 17151
+  },
+  {
+    "slug": "subscription-templates",
+    "route": "/customer/subscription-templates",
+    "desktop": 56719,
+    "drawers": 1,
+    "mobile": 16477
+  },
+  {
+    "slug": "subscription-settings",
+    "route": "/customer/subscription-settings",
+    "desktop": 54793,
+    "drawers": 0,
+    "mobile": 28060
+  },
+  {
+    "slug": "clients",
+    "route": "/clients",
+    "desktop": 1209435,
+    "drawers": 1,
+    "mobile": 885445
+  },
+  {
+    "slug": "anamnesis",
+    "route": "/anamnesis",
+    "desktop": 0,
+    "drawers": 0,
+    "mobile": 0
+  },
+  {
+    "slug": "anamnesis-templates",
+    "route": "/anamnesis-templates",
+    "desktop": 47234,
+    "drawers": 0,
+    "mobile": 16846
+  },
+  {
+    "slug": "services",
+    "route": "/services",
+    "desktop": 142438,
+    "drawers": 1,
+    "mobile": 93844
+  },
+  {
+    "slug": "products",
+    "route": "/products",
+    "desktop": 1082597,
+    "drawers": 1,
+    "mobile": 76799
+  },
+  {
+    "slug": "products-batches",
+    "route": "/products/batches",
+    "desktop": 72888,
+    "drawers": 1,
+    "mobile": 23395
+  },
+  {
+    "slug": "vendors",
+    "route": "/vendors",
+    "desktop": 100579,
+    "drawers": 1,
+    "mobile": 63985
+  },
+  {
+    "slug": "purchases",
+    "route": "/purchases",
+    "desktop": 74731,
+    "drawers": 1,
+    "mobile": 14580
+  },
+  {
+    "slug": "purchases-invoices",
+    "route": "/purchases/imported-electronic-invoices",
+    "desktop": 66233,
+    "drawers": 1,
+    "mobile": 24177
+  },
+  {
+    "slug": "brands",
+    "route": "/brands",
+    "desktop": 99971,
+    "drawers": 1,
+    "mobile": 63227
+  },
+  {
+    "slug": "document-templates",
+    "route": "/document-templates",
+    "desktop": 0,
+    "drawers": 0,
+    "mobile": 0
+  },
+  {
+    "slug": "employees",
+    "route": "/employees",
+    "desktop": 64563,
+    "drawers": 1,
+    "mobile": 39439
+  },
+  {
+    "slug": "groups",
+    "route": "/groups",
+    "desktop": 102242,
+    "drawers": 1,
+    "mobile": 63203
+  },
+  {
+    "slug": "finance-dashboard",
+    "route": "/finance/dashboard",
+    "desktop": 98178,
+    "drawers": 0,
+    "mobile": 26912
+  },
+  {
+    "slug": "finance-transactions",
+    "route": "/finance/transactions",
+    "desktop": 155999,
+    "drawers": 0,
+    "mobile": 62695
+  },
+  {
+    "slug": "finance-accounts",
+    "route": "/finance/accounts",
+    "desktop": 70807,
+    "drawers": 1,
+    "mobile": 18302
+  },
+  {
+    "slug": "finance-cash",
+    "route": "/finance/cash-accounting",
+    "desktop": 50128,
+    "drawers": 0,
+    "mobile": 16922
+  },
+  {
+    "slug": "finance-cash-history",
+    "route": "/finance/cash-accounting/history",
+    "desktop": 104726,
+    "drawers": 0,
+    "mobile": 96554
+  },
+  {
+    "slug": "finance-charts",
+    "route": "/finance/charts",
+    "desktop": 96681,
+    "drawers": 1,
+    "mobile": 34209
+  },
+  {
+    "slug": "finance-payment-methods",
+    "route": "/finance/payment-methods",
+    "desktop": 70129,
+    "drawers": 1,
+    "mobile": 35585
+  },
+  {
+    "slug": "finance-settings",
+    "route": "/finance/settings",
+    "desktop": 54663,
+    "drawers": 0,
+    "mobile": 23936
+  },
+  {
+    "slug": "invoices",
+    "route": "/invoices/invoice",
+    "desktop": 60756,
+    "drawers": 0,
+    "mobile": 28009
+  },
+  {
+    "slug": "commissions",
+    "route": "/finance/commissions",
+    "desktop": 53954,
+    "drawers": 0,
+    "mobile": 17700
+  },
+  {
+    "slug": "commissions-batch",
+    "route": "/finance/commissions/batch_payments",
+    "desktop": 82635,
+    "drawers": 0,
+    "mobile": 48234
+  },
+  {
+    "slug": "commissions-bulk",
+    "route": "/finance/commissions/bulk_commissions",
+    "desktop": 59417,
+    "drawers": 0,
+    "mobile": 22823
+  },
+  {
+    "slug": "commissions-settings",
+    "route": "/finance/commissions/settings",
+    "desktop": 54524,
+    "drawers": 0,
+    "mobile": 28447
+  },
+  {
+    "slug": "commissions-summary",
+    "route": "/finance/commissions/summary",
+    "desktop": 64123,
+    "drawers": 0,
+    "mobile": 17191
+  },
+  {
+    "slug": "reports-dre",
+    "route": "/reports/financial/dre",
+    "desktop": 88712,
+    "drawers": 0,
+    "mobile": 10447
+  },
+  {
+    "slug": "reports-favorites",
+    "route": "/reports/favorites",
+    "desktop": 48540,
+    "drawers": 0,
+    "mobile": 32645
+  },
+  {
+    "slug": "reports",
+    "route": "/reports",
+    "desktop": 3778,
+    "drawers": 0,
+    "mobile": 20560
+  },
+  {
+    "slug": "reviews",
+    "route": "/reviews",
+    "desktop": 179486,
+    "drawers": 0,
+    "mobile": 34194
+  },
+  {
+    "slug": "cashback",
+    "route": "/cashback",
+    "desktop": 0,
+    "drawers": 0,
+    "mobile": 50219
+  },
+  {
+    "slug": "goals",
+    "route": "/goals",
+    "desktop": 63371,
+    "err": "page.evaluate: Execution context was destroyed, most likely ",
+    "mobile": 19982
+  },
+  {
+    "slug": "online-booking",
+    "route": "/online-booking",
+    "desktop": 67840,
+    "drawers": 0,
+    "mobile": 16707
+  },
+  {
+    "slug": "promotions",
+    "route": "/promotions",
+    "desktop": 0,
+    "drawers": 0,
+    "mobile": 18381
+  },
+  {
+    "slug": "campaigns-marketing",
+    "route": "/campaigns-marketing",
+    "desktop": 74997,
+    "drawers": 0,
+    "mobile": 46256
+  },
+  {
+    "slug": "whatsapp",
+    "route": "/whatsapp",
+    "desktop": 54437,
+    "drawers": 0,
+    "mobile": 23366
+  },
+  {
+    "slug": "belasis-pay",
+    "route": "/belasis-pay/panel",
+    "desktop": 27336,
+    "drawers": 0,
+    "mobile": 27084
+  },
+  {
+    "slug": "belasis-pay-transactions",
+    "route": "/belasis-pay/transactions",
+    "desktop": 51484,
+    "drawers": 0,
+    "mobile": 22202
+  },
+  {
+    "slug": "belasis-pay-transfers",
+    "route": "/belasis-pay/transfers",
+    "desktop": 50329,
+    "drawers": 0,
+    "mobile": 12094
+  },
+  {
+    "slug": "settings",
+    "route": "/settings",
+    "desktop": 55417,
+    "drawers": 0,
+    "mobile": 20430
+  },
+  {
+    "slug": "settings-admin",
+    "route": "/settings/admin",
+    "desktop": 58368,
+    "drawers": 0,
+    "mobile": 16917
+  },
+  {
+    "slug": "settings-api",
+    "route": "/settings/api",
+    "desktop": 0,
+    "drawers": 0,
+    "mobile": 0
+  },
+  {
+    "slug": "settings-notifications",
+    "route": "/settings/notifications",
+    "desktop": 62490,
+    "drawers": 0,
+    "mobile": 20814
+  },
+  {
+    "slug": "settings-personalize",
+    "route": "/settings/personalize",
+    "desktop": 56122,
+    "drawers": 0,
+    "mobile": 14747
+  },
+  {
+    "slug": "notifications",
+    "route": "/notifications",
+    "desktop": 50906,
+    "drawers": 0,
+    "mobile": 20123
+  },
+  {
+    "slug": "summary",
+    "route": "/summary",
+    "desktop": 124039,
+    "drawers": 1,
+    "mobile": 84740
+  }
+]

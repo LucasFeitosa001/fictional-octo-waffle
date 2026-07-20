@@ -4,6 +4,7 @@ import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { HelpTooltip, LabelWithHelp } from '../../components/HelpTooltip';
 import { useSetPageActions } from '../../layout/PageActions';
 import {
   IconChevron,
@@ -191,7 +192,12 @@ export function CashbackPage() {
       {/* ── Cabeçalho: título + ações primárias ───────────────────────── */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Cashback</h1>
+          <h1 className="inline-flex items-center text-xl font-semibold text-ink">
+            Cashback
+            <HelpTooltip>
+              Devolva parte do valor pago ao cliente como crédito para próximas compras.
+            </HelpTooltip>
+          </h1>
           <p className="mt-0.5 text-sm text-muted-ink">
             Regras de cashback por serviço, produto ou categoria
           </p>
@@ -301,6 +307,7 @@ export function CashbackPage() {
                 >
                   <IconCircleCheck size={16} /> Selecionar
                 </button>
+                <HelpTooltip>Marque várias regras para excluir em massa.</HelpTooltip>
 
                 {/* Ordenação */}
                 <button
@@ -315,6 +322,7 @@ export function CashbackPage() {
                   />
                   Ordenando por Nome
                 </button>
+                <HelpTooltip>Clique para alternar entre ordem crescente e decrescente.</HelpTooltip>
               </div>
             </div>
 
@@ -553,7 +561,11 @@ function CashbackDrawer({
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-ink">Escopo</label>
+            <LabelWithHelp
+              className="text-xs font-medium text-muted-ink"
+              label="Escopo"
+              help="Aplica a regra a todos os itens, ou apenas serviço/produto/categoria."
+            />
             <Select
               aria-label="Escopo"
               selectedKey={scopeType}
@@ -583,13 +595,21 @@ function CashbackDrawer({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted-ink">Cashback (%)</label>
+              <LabelWithHelp
+                className="text-xs font-medium text-muted-ink"
+                label="Cashback (%)"
+                help="Percentual do valor da compra devolvido como crédito."
+              />
               <TextField value={percent} onChange={setPercent} aria-label="Cashback">
                 <Input placeholder="0,00" inputMode="decimal" />
               </TextField>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted-ink">Validade (dias)</label>
+              <LabelWithHelp
+                className="text-xs font-medium text-muted-ink"
+                label="Validade (dias)"
+                help="Prazo para usar o cashback. Use 0 para não expirar."
+              />
               <TextField value={validityDays} onChange={setValidityDays} aria-label="Validade">
                 <Input placeholder="0 = sem expiração" inputMode="numeric" />
               </TextField>
@@ -604,6 +624,7 @@ function CashbackDrawer({
               className="h-4 w-4 accent-[var(--sp-primary)]"
             />
             Regra ativa
+            <HelpTooltip>Se desligado, a regra fica salva mas não é aplicada.</HelpTooltip>
           </label>
 
           {formError && (

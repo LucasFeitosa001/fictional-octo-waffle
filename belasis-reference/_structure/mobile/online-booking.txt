@@ -1,0 +1,58 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-dashboard.wb-icon [role="img" aria-label="dashboard"]
+      span "Painel"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-container.wb-icon [role="img" aria-label="container"]
+      span "Comandas"
+    div.main-content
+      div.ant-row
+        div.ant-row.ant-row-space-between
+          span "Agendamento Online"
+            span.anticon.anticon-play-circle.wb-icon.ant-dropdown-trigger.no-print [role="img" aria-label="play-circle"]
+      div.ant-row "Defina a logo, o endereço e os dados para contato do seu est"
+        span "Detalhes da empresa"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Personalize e gerencie os links de agendamento online para a"
+        span "Links"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Informe ao seu cliente quais dias e horários o seu estabelec"
+        span "Horário de atendimento"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Mostre às pessoas que você está nas redes sociais e garanta "
+        span "Site e redes sociais"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Conte para todos quais benefícios o seu espaço possui, desde"
+        span "Benefícios"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Adicione fotos do seu trabalho e mostre às pessoas que desej"
+        span "Galeria de fotos"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Selecione quais serviços podem ser agendados com seus respec"
+        span "Serviços"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Defina aqui as configurações finais para o seu agendamento o"
+        span "Configurações"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+      div.ant-row "Configurações de pagamentos"
+        span "Pagamentos"
+      span.anticon.anticon-right [role="img" aria-label="right"]
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

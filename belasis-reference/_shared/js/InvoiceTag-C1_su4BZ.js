@@ -1,0 +1,2 @@
+import{j as c,y as i}from"./index-Bd9916Am.js";import{T as d}from"./ClientDrawer-55jCGlAN.js";const a=e=>({issued:"#4eb660",canceled:"#faa84f",pending:"#1194f6",denied:"#e44e4d",cancel_denied:"#e44e4d"})[e]||"#1194f6",r=({label:e,id:o,status:n,disabled:t})=>{const s=o?a(n):t?"#808080":"";return c.jsx(l,{color:s,children:e})};r.displayName="InvoiceTag";const l=i(d).withConfig({componentId:"wb__sc-1jitx2m-0"})(["width:60px;text-align:center;"]);export{r as I};
+//# sourceMappingURL=InvoiceTag-C1_su4BZ.js.map

@@ -15,6 +15,8 @@ interface DataTableProps<T> {
   rows: T[];
   getKey: (row: T) => string;
   'aria-label': string;
+  /** Optional per-row background/tint (Belasis tinta linhas por natureza). */
+  rowClassName?: (row: T) => string | undefined;
 }
 
 /** A header counts as "empty" (no label) when it renders nothing. */
@@ -35,6 +37,7 @@ export function DataTable<T>({
   rows,
   getKey,
   'aria-label': ariaLabel,
+  rowClassName,
 }: DataTableProps<T>) {
   const titleCol = columns.find((c) => c.isRowHeader) ?? columns[0];
   const actionCols = columns.filter(
@@ -60,7 +63,11 @@ export function DataTable<T>({
               </Table.Header>
               <Table.Body>
                 {rows.map((row) => (
-                  <Table.Row key={getKey(row)} id={getKey(row)}>
+                  <Table.Row
+                    key={getKey(row)}
+                    id={getKey(row)}
+                    className={rowClassName?.(row)}
+                  >
                     {columns.map((c) => (
                       <Table.Cell key={c.key} className={c.className}>
                         {c.render(row)}
@@ -79,7 +86,9 @@ export function DataTable<T>({
         {rows.map((row) => (
           <li
             key={getKey(row)}
-            className="overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white p-4 shadow-[var(--shadow-soft)]"
+            className={`overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white p-4 shadow-[var(--shadow-soft)] ${
+              rowClassName?.(row) ?? ''
+            }`}
           >
             {titleCol && (
               <div className="mb-3 text-[15px] font-semibold leading-snug text-foreground">

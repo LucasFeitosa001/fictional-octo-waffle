@@ -1,0 +1,71 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-filter.wb-icon [role="img" aria-label="filter"]
+      span "Filtros"
+    div.ant-row
+      span.anticon.anticon-check-circle.wb-icon [role="img" aria-label="check-circle"]
+      span "Selecionar"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Criar"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Promoções"
+      span.ant-input-affix-wrapper.ant-input-affix-wrapper-lg.ant-input-outlined
+        span.ant-input-prefix
+          span.anticon.anticon-search [role="img" aria-label="search"]
+        input.ant-input.ant-input-lg [placeholder="Digite para buscar" type="text"]
+        span.ant-input-suffix
+          button.ant-input-clear-icon.ant-input-clear-icon-hidden [type="button"]
+            span.anticon.anticon-close-circle [role="img" aria-label="close-circle"]
+    div.ant-row
+      span.ant-tag.ant-tag-has-color.ant-dropdown-trigger
+        span.anticon.anticon-down [role="img" aria-label="down"]
+        span "Ordenando por Nome"
+    div.infinite-scroll-component__outerdiv
+      div.infinite-scroll-component
+        div.ant-empty.ant-empty-normal
+          div.ant-empty-image
+            title "Não há dados"
+          div.ant-empty-description
+            div.ant-row
+              span "Nenhum item encontrado"
+              span "Verifique seus filtros e tente novamente."
+              button [type="button"] "Clique para criar"
+        span "0 registros no total"
+img
+div.ant-modal-root
+  div.ant-modal-mask.ant-fade-leave.ant-fade-leave-start.ant-fade
+  div.ant-modal-wrap.ant-modal-confirm-centered.ant-modal-centered
+    div.ant-modal.ant-modal-confirm.ant-modal-confirm-confirm.webook-modal.ant-zoom-leave [role="dialog"]
+      div.ant-modal-content
+        button.ant-modal-close [aria-label="Close" type="button"]
+          span.ant-modal-close-x [aria-label="Fechar"]
+            span.anticon.anticon-close.ant-modal-close-icon [role="img" aria-label="close"]
+        div.ant-modal-body
+          div.ant-modal-confirm-body-wrapper
+            div.ant-modal-confirm-body
+              div.ant-modal-confirm-paragraph
+                div.ant-modal-confirm-content
+                  div.ant-row.ant-row-middle
+                    span "Você ainda não possui essa funcionalidade contratada"
+            div.ant-modal-confirm-btns
+              button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined [type="button"]
+                span "Fechar"
+              button.ant-btn.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid [type="button"]
+                span "Contratar"
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

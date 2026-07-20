@@ -6,6 +6,7 @@ import { DataTable, type Column } from '../../components/DataTable';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateField } from '../../components/DateRangeFilter';
+import { HelpTooltip } from '../../components/HelpTooltip';
 import {
   IconChart,
   IconChevron,
@@ -13,7 +14,6 @@ import {
   IconDownload,
   IconFilter,
   IconHome,
-  IconInfo,
   IconPercent,
   IconReceipt,
   IconSearch,
@@ -200,17 +200,54 @@ export function ComissoesResumoPage() {
       isRowHeader: true,
       render: (r) => <span className="font-medium text-foreground">{r.professionalName}</span>,
     },
-    { key: 'vendido', header: 'Valor vendido', render: (r) => formatMoney(r.valorVendido) },
-    { key: 'comissao', header: 'Comissão', render: (r) => formatMoney(r.comissao) },
-    { key: 'bonus', header: 'Bônus', render: (r) => formatMoney(r.bonus) },
+    {
+      key: 'vendido',
+      header: (
+        <span className="inline-flex items-center">
+          Valor vendido
+          <HelpTooltip>Soma bruta vendida pelo profissional no período.</HelpTooltip>
+        </span>
+      ),
+      render: (r) => formatMoney(r.valorVendido),
+    },
+    {
+      key: 'comissao',
+      header: (
+        <span className="inline-flex items-center">
+          Comissão
+          <HelpTooltip>Percentual sobre o valor vendido, conforme regra configurada.</HelpTooltip>
+        </span>
+      ),
+      render: (r) => formatMoney(r.comissao),
+    },
+    {
+      key: 'bonus',
+      header: (
+        <span className="inline-flex items-center">
+          Bônus
+          <HelpTooltip>Bonificações extras somadas à comissão do profissional.</HelpTooltip>
+        </span>
+      ),
+      render: (r) => formatMoney(r.bonus),
+    },
     {
       key: 'total',
-      header: 'Total',
+      header: (
+        <span className="inline-flex items-center">
+          Total
+          <HelpTooltip>Comissão + bônus. Valor líquido a pagar ao profissional.</HelpTooltip>
+        </span>
+      ),
       render: (r) => <span className="font-semibold text-foreground">{formatMoney(r.total)}</span>,
     },
     {
       key: 'status',
-      header: 'Status',
+      header: (
+        <span className="inline-flex items-center">
+          Status
+          <HelpTooltip>Situação da comissão: em aberto (a pagar) ou já paga.</HelpTooltip>
+        </span>
+      ),
       render: (r) => (
         <Chip color={r.status === 'paid' ? 'success' : 'warning'} variant="soft" size="sm">
           {r.status === 'paid' ? 'Pago' : 'Em aberto'}
@@ -219,7 +256,12 @@ export function ComissoesResumoPage() {
     },
     {
       key: 'signed',
-      header: 'Assinatura',
+      header: (
+        <span className="inline-flex items-center">
+          Assinatura
+          <HelpTooltip>Indica se o profissional assinou digitalmente o recibo da comissão.</HelpTooltip>
+        </span>
+      ),
       render: (r) => (
         <Chip color={r.signed ? 'success' : 'default'} variant="soft" size="sm">
           {r.signed ? 'Assinado' : 'Não assinado'}
@@ -305,12 +347,14 @@ export function ComissoesResumoPage() {
           label="Comissões em aberto"
           value={formatMoney(ov?.emAberto.total ?? 0)}
           color={CARD_COLORS.open}
+          tooltip="Comissões geradas e ainda não pagas ao profissional."
           loading={overview.isLoading}
         />
         <KpiCard
           label="Comissões pagas"
           value={formatMoney(ov?.pagas.total ?? 0)}
           color={CARD_COLORS.paid}
+          tooltip="Comissões já quitadas no período filtrado."
           loading={overview.isLoading}
         />
         <KpiCard
@@ -469,11 +513,9 @@ function KpiCard({
       <div className="flex items-center justify-center gap-1 text-[1.05rem] font-medium text-white">
         <span>{label}</span>
         {tooltip && (
-          <IconInfo
-            size={15}
-            className="cursor-help opacity-90"
-            aria-label={tooltip}
-          />
+          <HelpTooltip className="ml-1 inline-flex items-center text-white opacity-90 hover:opacity-100">
+            {tooltip}
+          </HelpTooltip>
         )}
       </div>
       <div className="mt-1 text-2xl font-bold text-white">{loading ? '—' : value}</div>
@@ -555,9 +597,22 @@ function DetailDrawer({
         {/* Card de comissão do profissional */}
         <div className="rounded-lg border border-[var(--color-soft-border)] bg-white p-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Metric label="Bonificações" value={formatMoney(d?.totals.bonus ?? 0)} />
-            <Metric label="Comissão" value={formatMoney(d?.totals.comissao ?? 0)} />
-            <Metric label="Total" value={formatMoney(d?.totals.total ?? 0)} strong />
+            <Metric
+              label="Bonificações"
+              value={formatMoney(d?.totals.bonus ?? 0)}
+              help="Valores extras somados à comissão (metas, campanhas, prêmios)."
+            />
+            <Metric
+              label="Comissão"
+              value={formatMoney(d?.totals.comissao ?? 0)}
+              help="Comissão calculada sobre o serviço/produto vendido."
+            />
+            <Metric
+              label="Total"
+              value={formatMoney(d?.totals.total ?? 0)}
+              help="Valor líquido a pagar (comissão + bonificações)."
+              strong
+            />
           </div>
           <div className="mt-3 flex items-center gap-2">
             <span className="text-xs font-medium text-muted">Assinatura digital</span>
@@ -595,10 +650,23 @@ function DetailDrawer({
   );
 }
 
-function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Metric({
+  label,
+  value,
+  strong,
+  help,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  help?: string;
+}) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs font-medium text-muted">{label}</span>
+      <span className="inline-flex items-center text-xs font-medium text-muted">
+        {label}
+        {help && <HelpTooltip>{help}</HelpTooltip>}
+      </span>
       <span
         className={
           strong

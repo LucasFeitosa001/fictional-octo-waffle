@@ -5,15 +5,20 @@ import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { HelpTooltip } from '../../components/HelpTooltip';
 import {
   IconChevron,
   IconCreditCard,
+  IconDollar,
   IconFilter,
   IconFolder,
+  IconLayers,
   IconPencil,
+  IconPlay,
   IconPlus,
   IconSearch,
   IconTrash,
+  IconWallet,
 } from '../../components/icons';
 import {
   useCreateFinancialAccount,
@@ -53,12 +58,13 @@ const CATEGORY_KIND_LABEL: Record<FinancialCategoryKind, string> = {
 
 type TabKey = 'contas' | 'formas' | 'categorias';
 
-// Abas do Belasis: badges de texto puro (Contas · Formas de pagamento ·
-// Categorias), sem ícones.
-const TABS: { id: TabKey; label: string }[] = [
-  { id: 'contas', label: 'Contas' },
-  { id: 'formas', label: 'Formas de pagamento' },
-  { id: 'categorias', label: 'Categorias' },
+// Abas do Belasis (Contas · Formas de pagamento · Categorias). No mobile o
+// Belasis empilha ícone acima do rótulo (bank/dollar/profile → wallet/dollar/
+// layers); no desktop mantém underline de texto puro.
+const TABS: { id: TabKey; label: string; icon: React.ReactNode }[] = [
+  { id: 'contas', label: 'Contas', icon: <IconWallet size={20} /> },
+  { id: 'formas', label: 'Formas de pagamento', icon: <IconDollar size={20} /> },
+  { id: 'categorias', label: 'Categorias', icon: <IconLayers size={20} /> },
 ];
 
 function byName<T extends { name: string }>(a: T, b: T) {
@@ -113,6 +119,10 @@ export function ContasPage() {
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
 
+  // Ordenação por nome — pílula "Ordenando por Nome" do mobile (Belasis).
+  // Alterna asc/desc mantendo a ordenação por nome (só apresentação).
+  const [sortAsc, setSortAsc] = useState(true);
+
   // Filtro de Status do Belasis: caixas "Ativada" / "Desativada". Padrão do
   // Belasis é mostrar apenas as ativadas.
   const [showActive, setShowActive] = useState(true);
@@ -150,22 +160,20 @@ export function ContasPage() {
   // Status só se aplica onde o backend expõe `active` (contas e categorias).
   const supportsStatus = tab !== 'formas';
 
-  const filteredAccounts = useMemo(
-    () =>
-      allAccounts.filter((a) => matchActive(a.active) && matchSearch(a.name)).sort(byName),
-    [allAccounts, showActive, showInactive, q],
-  );
-  const filteredCategories = useMemo(
-    () =>
-      allCategories
-        .filter((c) => matchActive(c.active) && matchSearch(c.name))
-        .sort(byName),
-    [allCategories, showActive, showInactive, q],
-  );
-  const filteredMethods = useMemo(
-    () => allMethods.filter((m) => matchSearch(m.name)).sort(byName),
-    [allMethods, q],
-  );
+  const filteredAccounts = useMemo(() => {
+    const r = allAccounts.filter((a) => matchActive(a.active) && matchSearch(a.name)).sort(byName);
+    return sortAsc ? r : r.reverse();
+  }, [allAccounts, showActive, showInactive, q, sortAsc]);
+  const filteredCategories = useMemo(() => {
+    const r = allCategories
+      .filter((c) => matchActive(c.active) && matchSearch(c.name))
+      .sort(byName);
+    return sortAsc ? r : r.reverse();
+  }, [allCategories, showActive, showInactive, q, sortAsc]);
+  const filteredMethods = useMemo(() => {
+    const r = allMethods.filter((m) => matchSearch(m.name)).sort(byName);
+    return sortAsc ? r : r.reverse();
+  }, [allMethods, q, sortAsc]);
 
   // Qualquer mudança de aba/busca/filtro volta para a primeira página.
   useEffect(() => {
@@ -266,11 +274,8 @@ export function ContasPage() {
     {
       key: 'details',
       header: 'Detalhes',
-      render: (a) => (
-        <Chip variant="soft" color="accent" size="sm">
-          {ACCOUNT_TYPE_LABEL[a.type]}
-        </Chip>
-      ),
+      // Belasis mostra o detalhe como texto simples (ex.: "Caixa"), sem chip.
+      render: (a) => <span className="text-foreground">{ACCOUNT_TYPE_LABEL[a.type]}</span>,
     },
     {
       key: 'actions',
@@ -297,7 +302,12 @@ export function ContasPage() {
     },
     {
       key: 'fee',
-      header: 'Taxa',
+      header: (
+        <span className="inline-flex items-center">
+          Taxa
+          <HelpTooltip>Percentual retido pela operadora sobre o valor recebido</HelpTooltip>
+        </span>
+      ),
       render: (m) => `${Number(m.feePercent).toFixed(2)}%`,
     },
     {
@@ -312,12 +322,22 @@ export function ContasPage() {
     },
     {
       key: 'settlement',
-      header: 'Prazo de recebimento',
+      header: (
+        <span className="inline-flex items-center">
+          Prazo de recebimento
+          <HelpTooltip>Dias até o valor cair na conta após o pagamento</HelpTooltip>
+        </span>
+      ),
       render: (m) => (m.settlementDays > 0 ? `${m.settlementDays} dia(s)` : 'À vista'),
     },
     {
       key: 'cash',
-      header: 'Baixa no financeiro',
+      header: (
+        <span className="inline-flex items-center">
+          Baixa no financeiro
+          <HelpTooltip>Se a transação entra no financeiro automaticamente</HelpTooltip>
+        </span>
+      ),
       render: (m) => (
         <Chip variant="soft" color={m.goesToCash ? 'success' : 'default'} size="sm">
           {m.goesToCash ? 'Automática' : 'Manual'}
@@ -353,7 +373,12 @@ export function ContasPage() {
     },
     {
       key: 'kind',
-      header: 'Crédito/Débito',
+      header: (
+        <span className="inline-flex items-center">
+          Crédito/Débito
+          <HelpTooltip>Crédito = entrada de dinheiro; Débito = saída</HelpTooltip>
+        </span>
+      ),
       render: (c) => (
         <Chip variant="soft" color={c.kind === 'credit' ? 'success' : 'danger'} size="sm">
           {CATEGORY_KIND_LABEL[c.kind]}
@@ -362,7 +387,12 @@ export function ContasPage() {
     },
     {
       key: 'commission',
-      header: 'Comissionável',
+      header: (
+        <span className="inline-flex items-center">
+          Comissionável
+          <HelpTooltip>Se lançamentos desta categoria entram no cálculo de comissão</HelpTooltip>
+        </span>
+      ),
       render: (c) => (c.countsAsCommission ? 'Sim' : 'Não'),
     },
     {
@@ -420,16 +450,10 @@ export function ContasPage() {
     setSearch('');
   }
 
-  // Mobile: as ações da toolbar (Buscar · Filtrar · Novo) vivem na BottomNav
-  // (padrão Belasis). Cada onClick dispara o mesmo handler do botão desktop.
+  // Mobile: BottomNav do Belasis = Filtros · Criar (Menu/Selecionar vêm do
+  // shell). A busca fica sempre visível no topo, então não há ação "Buscar".
   useSetPageActions(
     [
-      {
-        key: 'buscar',
-        label: 'Buscar',
-        icon: <IconSearch size={22} />,
-        onClick: () => setSearchOpen((o) => !o),
-      },
       ...(supportsStatus
         ? [
             {
@@ -455,10 +479,17 @@ export function ContasPage() {
       {/* Cabeçalho + toolbar do Belasis: título à esquerda; à direita
           Buscar · Filtrar · Novo. */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2.5">
           <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
             Cadastros
           </h1>
+          {/* Botão "assista o tutorial" ao lado do título (play-circle do Belasis) */}
+          <span
+            aria-hidden
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--sp-primary,#505afb)]/10 text-[color:var(--sp-primary,#505afb)]"
+          >
+            <IconPlay size={16} className="ml-0.5" />
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
           <Button
@@ -492,8 +523,9 @@ export function ContasPage() {
         </div>
       </div>
 
-      {/* Abas (pílulas) do Belasis: Contas · Formas de pagamento · Categorias. */}
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+      {/* Abas (underline) do Belasis: Contas · Formas de pagamento · Categorias.
+          Aba ativa em azul primário com barra inferior; inativas em texto suave. */}
+      <div className="mb-4 flex justify-between gap-2 overflow-x-auto border-b border-[var(--color-soft-border)] md:justify-start md:gap-6">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
@@ -502,41 +534,46 @@ export function ContasPage() {
               type="button"
               onClick={() => changeTab(t.id)}
               className={
-                'inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors ' +
+                'relative -mb-px flex flex-1 shrink-0 flex-col items-center gap-1 whitespace-nowrap border-b-2 px-1 pb-2.5 pt-1 text-[11px] font-medium transition-colors md:flex-none md:flex-row md:text-sm ' +
                 (active
-                  ? 'bg-gold text-ink shadow-[var(--shadow-gold)]'
-                  : 'border border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream')
+                  ? 'border-[color:var(--sp-primary,#505afb)] text-[color:var(--sp-primary,#505afb)]'
+                  : 'border-transparent text-muted hover:text-foreground')
               }
             >
+              {/* Ícone acima do rótulo só no mobile (Belasis) */}
+              <span className="md:hidden" aria-hidden>
+                {t.icon}
+              </span>
               {t.label}
             </button>
           );
         })}
       </div>
 
-      {/* Buscar (revelado ao clicar em Buscar) */}
-      {searchOpen && (
-        <div className="mb-4">
-          <TextField value={search} onChange={setSearch} aria-label="Buscar">
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                <IconSearch size={16} />
-              </span>
-              <Input autoFocus placeholder={searchPlaceholder} className="pl-9" />
-            </div>
-          </TextField>
-        </div>
-      )}
+      {/* Busca: sempre visível no mobile (Belasis); revelada via "Buscar" no desktop. */}
+      <div className={searchOpen ? 'mb-4' : 'mb-4 md:hidden'}>
+        <TextField value={search} onChange={setSearch} aria-label="Buscar">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+              <IconSearch size={16} />
+            </span>
+            <Input placeholder={searchPlaceholder} className="pl-9" />
+          </div>
+        </TextField>
+      </div>
+
+      {/* Pílula "Ordenando por Nome" do Belasis — visível no mobile. */}
+      <button
+        type="button"
+        onClick={() => setSortAsc((v) => !v)}
+        className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[color:var(--sp-primary,#505afb)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 md:hidden"
+      >
+        Ordenando por Nome
+        <IconChevron size={16} className={sortAsc ? 'rotate-180' : ''} />
+      </button>
 
       <Card className={CARD_CLASS}>
         <Card.Content className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs text-muted">Ordenado por Nome</span>
-            <span className="text-xs text-muted">
-              {rowCount > 0 ? `${rowCount} no total` : '0 registro(s)'}
-            </span>
-          </div>
-
           {tab === 'contas' &&
             (isLoading ? (
               <LoadingState />
@@ -724,17 +761,28 @@ function StatusFilterDrawer({
 }
 
 /** Rótulo de campo do formulário dos drawers. */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-foreground">{label}</label>
+      <label className="text-sm font-medium text-foreground">
+        {required && <span className="mr-0.5 text-danger">*</span>}
+        {label}
+      </label>
       {children}
     </div>
   );
 }
 
-/** Switch de linha (label à esquerda, controle à direita) dos drawers. */
-function RowSwitch({
+/** Switch inline estilo Belasis: controle à esquerda, rótulo à direita, sem caixa. */
+function InlineSwitch({
   label,
   isSelected,
   onChange,
@@ -747,9 +795,38 @@ function RowSwitch({
     <Switch
       isSelected={isSelected}
       onChange={onChange}
+      className="flex items-center gap-2 text-sm text-foreground"
+    >
+      <Switch.Control>
+        <Switch.Thumb />
+      </Switch.Control>
+      <span>{label}</span>
+    </Switch>
+  );
+}
+
+/** Switch de linha (label à esquerda, controle à direita) dos drawers. */
+function RowSwitch({
+  label,
+  help,
+  isSelected,
+  onChange,
+}: {
+  label: string;
+  help?: string;
+  isSelected: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <Switch
+      isSelected={isSelected}
+      onChange={onChange}
       className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
     >
-      <span className="text-sm text-foreground">{label}</span>
+      <span className="inline-flex items-center text-sm text-foreground">
+        {label}
+        {help ? <HelpTooltip>{help}</HelpTooltip> : null}
+      </span>
       <Switch.Control>
         <Switch.Thumb />
       </Switch.Control>
@@ -776,6 +853,8 @@ function ContaDrawer({
   const [type, setType] = useState<FinancialAccountType>('cash');
   const [initialBalance, setInitialBalance] = useState('');
   const [active, setActive] = useState(true);
+  // Belasis Pay: toggle exibido no drawer do Belasis (sem backing no SalonPass).
+  const [belasisPay, setBelasisPay] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const create = useCreateFinancialAccount();
@@ -789,11 +868,13 @@ function ContaDrawer({
         setType(editing.type);
         setInitialBalance(String(editing.initialBalance));
         setActive(editing.active);
+        setBelasisPay(false);
       } else {
         setName('');
         setType('cash');
         setInitialBalance('');
         setActive(true);
+        setBelasisPay(false);
       }
       setFormError(null);
       setSuccess(false);
@@ -854,10 +935,10 @@ function ContaDrawer({
         <SuccessBlock text="Conta criada com sucesso!" />
       ) : (
         <div className="flex flex-col gap-4">
-          {/* Nome (2/3) + Saldo (1/3), como no Belasis */}
+          {/* Nome (2/3) + Saldo (1/3), como no Belasis (col-16 / col-8) */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
-              <Field label="Nome">
+              <Field label="Nome" required>
                 <TextField value={name} onChange={setName} aria-label="Nome">
                   <Input placeholder="Nome" />
                 </TextField>
@@ -876,8 +957,24 @@ function ContaDrawer({
             </div>
           </div>
 
+          {/* Acesso — select do Belasis (id="admin_only"). Opção única exibida. */}
+          <Field label="Acesso">
+            <Select aria-label="Acesso" selectedKey="all" onSelectionChange={() => {}}>
+              <Select.Trigger>
+                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="all" textValue="Qualquer usuário pode acessar">
+                    Qualquer usuário pode acessar
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Field>
+
           {/* Tipo — não existe no drawer do Belasis (usa Belasis Pay), mas o
-              backend do SalonPass separa Caixa/Banco. */}
+              backend do SalonPass separa Caixa/Banco: mantido p/ data-wiring. */}
           <Field label="Tipo">
             <Select
               aria-label="Tipo"
@@ -900,14 +997,11 @@ function ContaDrawer({
             </Select>
           </Field>
 
-          {/* Acesso (somente leitura, como no Belasis) */}
-          <Field label="Acesso">
-            <div className="rounded-md border border-[var(--color-soft-border)] bg-cream/40 px-3 py-2 text-sm text-muted">
-              Qualquer usuário pode acessar
-            </div>
-          </Field>
-
-          <RowSwitch label="Ativa" isSelected={active} onChange={setActive} />
+          {/* Switches inline do Belasis: Belasis Pay (display) · Ativa. */}
+          <div className="flex flex-col gap-3">
+            <InlineSwitch label="Belasis Pay" isSelected={belasisPay} onChange={setBelasisPay} />
+            <InlineSwitch label="Ativa" isSelected={active} onChange={setActive} />
+          </div>
 
           {formError && <FormError message={formError} />}
         </div>
@@ -1064,6 +1158,7 @@ function FormaDrawer({
 
           <RowSwitch
             label="Baixa automática no financeiro"
+            help="Se marcada, a forma dá baixa no caixa sem intervenção manual"
             isSelected={goesToCash}
             onChange={setGoesToCash}
           />
@@ -1200,10 +1295,16 @@ function CategoriaDrawer({
 
           <RowSwitch
             label="Conta como comissão"
+            help="Se lançamentos desta categoria entram no cálculo de comissão"
             isSelected={countsAsCommission}
             onChange={setCountsAsCommission}
           />
-          <RowSwitch label="Ativa" isSelected={active} onChange={setActive} />
+          <RowSwitch
+            label="Ativa"
+            help="Categorias inativas não aparecem em novos lançamentos"
+            isSelected={active}
+            onChange={setActive}
+          />
 
           {formError && <FormError message={formError} />}
         </div>

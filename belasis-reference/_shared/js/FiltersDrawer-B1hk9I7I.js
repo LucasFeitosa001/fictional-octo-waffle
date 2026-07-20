@@ -1,0 +1,2 @@
+import{r as o,j as s,y as n,ar as i}from"./index-Bd9916Am.js";const r=({setVisible:e,children:t,...a})=>s.jsx(d,{onClose:()=>e(!1),width:"100%",height:"100%",placement:"bottom",...a,children:t});r.displayName="FiltersDrawer";const l=o.memo(r),d=n(i).withConfig({componentId:"wb__sc-kgs7nw-0"})(["z-index:1051;.ant-drawer-header{background-color:#f8f8f8;}.ant-drawer-body{position:relative;background-color:#f8f8f8;padding:0 15px !important;}"]);export{l as F};
+//# sourceMappingURL=FiltersDrawer-B1hk9I7I.js.map

@@ -6,6 +6,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { DateField } from '../components/DateRangeFilter';
 import { Drawer } from '../components/Drawer';
+import { HelpTooltip } from '../components/HelpTooltip';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconCheck,
@@ -501,7 +502,10 @@ export function ComandasPage() {
           {showFilters && (
             <div className="mb-4 flex flex-col gap-4 rounded-xl border border-[var(--color-soft-border)] bg-white p-4">
               <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold text-muted-ink">Status</span>
+                <span className="inline-flex items-center text-xs font-semibold text-muted-ink">
+                  Status
+                  <HelpTooltip>Filtra comandas pela situação (aberta, finalizada, excluída)</HelpTooltip>
+                </span>
                 <div className="inline-flex flex-wrap gap-1 rounded-lg border border-[var(--color-soft-border)] bg-canvas p-0.5">
                   {STATUS_FILTERS.map((t) => (
                     <button
@@ -523,7 +527,10 @@ export function ComandasPage() {
 
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-muted-ink">Período</span>
+                  <span className="inline-flex items-center text-xs font-semibold text-muted-ink">
+                    Período
+                    <HelpTooltip>Intervalo de datas usado para filtrar as comandas</HelpTooltip>
+                  </span>
                   <div className="flex flex-wrap items-end gap-2">
                     <DateField
                       label="De"
@@ -541,7 +548,10 @@ export function ComandasPage() {
                 </div>
 
                 <div className="flex min-w-52 flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-muted-ink">Cliente</span>
+                  <span className="inline-flex items-center text-xs font-semibold text-muted-ink">
+                    Cliente
+                    <HelpTooltip>Mostra somente comandas deste cliente</HelpTooltip>
+                  </span>
                   <Select
                     aria-label="Cliente"
                     selectedKey={customerId}
@@ -563,8 +573,9 @@ export function ComandasPage() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-muted-ink">
+                  <span className="inline-flex items-center text-xs font-semibold text-muted-ink">
                     Status de pagamento
+                    <HelpTooltip>Situação do pagamento: pago ou pendente</HelpTooltip>
                   </span>
                   <div className="inline-flex gap-1 rounded-lg border border-[var(--color-soft-border)] bg-canvas p-0.5">
                     {PAY_FILTERS.map((p) => (
@@ -647,13 +658,34 @@ export function ComandasPage() {
                           onChange={toggleAll}
                         />
                       </th>
-                      <th className={th}>Ticket</th>
-                      <th className={th}>Data</th>
-                      <th className={th}>Cliente</th>
-                      <th className={th}>Status</th>
-                      <th className={`${th} text-right`}>Valor</th>
-                      <th className={th}>Pagamento</th>
-                      <th className={th}>Nota Fiscal</th>
+                      <th className={th}>
+                        Ticket
+                        <HelpTooltip>Número sequencial da comanda</HelpTooltip>
+                      </th>
+                      <th className={th}>
+                        Data
+                        <HelpTooltip>Data de abertura da comanda</HelpTooltip>
+                      </th>
+                      <th className={th}>
+                        Cliente
+                        <HelpTooltip>Cliente vinculado à comanda (Avulso se sem cadastro)</HelpTooltip>
+                      </th>
+                      <th className={th}>
+                        Status
+                        <HelpTooltip>Situação atual da comanda</HelpTooltip>
+                      </th>
+                      <th className={`${th} text-right`}>
+                        Valor
+                        <HelpTooltip>Valor líquido da comanda após descontos</HelpTooltip>
+                      </th>
+                      <th className={th}>
+                        Pagamento
+                        <HelpTooltip>Situação do pagamento desta comanda</HelpTooltip>
+                      </th>
+                      <th className={th}>
+                        Nota Fiscal
+                        <HelpTooltip>Emissão de NFe, NFC-e e NFS-e</HelpTooltip>
+                      </th>
                       <th className={`${th} w-12 text-center`} aria-label="Ações" />
                     </tr>
                   </thead>
@@ -788,16 +820,21 @@ export function ComandasPage() {
 /** Vertical form field with a label above the control (ant-form-vertical). */
 function Field({
   label,
+  help,
   children,
   className,
 }: {
   label: string;
+  help?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <div className={['flex flex-col gap-1.5', className].filter(Boolean).join(' ')}>
-      <label className="text-xs font-medium text-muted-ink">{label}</label>
+      <label className="inline-flex items-center text-xs font-medium text-muted-ink">
+        {label}
+        {help && <HelpTooltip>{help}</HelpTooltip>}
+      </label>
       {children}
     </div>
   );
@@ -853,7 +890,8 @@ function NovoComandaDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title="Nova comanda"
-      widthClass="sm:w-[640px]"
+      // Belasis: content-wrapper renderiza 1650px (near-fullscreen), cap em 95vw.
+      widthClass="sm:w-[1180px] lg:w-[1650px] sm:max-w-[95vw]"
       footer={
         <>
           <Button variant="ghost" className="mr-auto text-muted-ink" onClick={onClose}>
@@ -872,82 +910,86 @@ function NovoComandaDrawer({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Cliente" className="col-span-2">
-            <Select
-              aria-label="Cliente"
-              selectedKey={customerId || null}
-              onSelectionChange={(k) => setCustomerId(k ? String(k) : '')}
-            >
-              <Select.Trigger>
-                <Select.Value>
-                  {({ isPlaceholder, selectedText }) =>
-                    isPlaceholder ? 'Busque por um cliente' : selectedText
-                  }
-                </Select.Value>
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {customerList.map((c) => (
-                    <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                      {c.name}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </Field>
-          <Field label="Data">
-            {/* TODO: data editável quando o endpoint aceitar a data da comanda. */}
-            <Input value={today} disabled aria-label="Data" />
-          </Field>
-          <Field label="Número da comanda">
-            {/* TODO: número é gerado automaticamente pelo backend. */}
-            <Input value="Automático" disabled aria-label="Número da comanda" />
-          </Field>
-        </div>
-
-        {/* Itens da comanda — apresentação fiel; wiring de itens ainda não existe
-            no endpoint de criação, então mostramos o cabeçalho e um placeholder. */}
-        <div>
-          <div className="mb-2 text-sm font-semibold text-foreground">
-            Itens da comanda
+      {/* Belasis: drawer largo (1650px) → coluna principal (form + itens) e
+          aside de totais à direita, como na captura new-open. */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Cliente" className="col-span-2">
+              <Select
+                aria-label="Cliente"
+                selectedKey={customerId || null}
+                onSelectionChange={(k) => setCustomerId(k ? String(k) : '')}
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ isPlaceholder, selectedText }) =>
+                      isPlaceholder ? 'Busque pelo cliente' : selectedText
+                    }
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {customerList.map((c) => (
+                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                        {c.name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
+            <Field label="Data">
+              {/* TODO: data editável quando o endpoint aceitar a data da comanda. */}
+              <Input value={today} disabled aria-label="Data" />
+            </Field>
+            <Field label="Número da comanda" help="Gerado automaticamente ao salvar a comanda">
+              {/* TODO: número é gerado automaticamente pelo backend. */}
+              <Input value="Automático" disabled aria-label="Número da comanda" />
+            </Field>
           </div>
-          <div className="overflow-hidden rounded-xl border border-[var(--color-soft-border)]">
-            <div className="grid grid-cols-[1.6fr_1.2fr_0.6fr_1fr_1fr_0.9fr] gap-2 border-b border-[var(--color-soft-border)] bg-[color-mix(in_oklab,var(--sp-ink)_3%,transparent)] px-3 py-2 text-[11px] font-semibold text-muted-ink">
-              <span>Descrição</span>
-              <span>Profissional</span>
-              <span className="text-right">Qtde.</span>
-              <span className="text-right">Valor unitário</span>
-              <span className="text-right">Desconto</span>
-              <span className="text-right">Total</span>
+
+          {/* Itens da comanda — apresentação fiel; wiring de itens ainda não existe
+              no endpoint de criação, então mostramos o cabeçalho e um placeholder. */}
+          <div>
+            <div className="mb-2 text-sm font-semibold text-foreground">
+              Itens da comanda
             </div>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-3 text-left text-sm text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
-            >
-              <IconPlus size={15} /> Selecionar serviço
-            </button>
+            <div className="overflow-hidden rounded-xl border border-[var(--color-soft-border)]">
+              <div className="grid grid-cols-[1.6fr_1.2fr_0.6fr_1fr_1fr_0.9fr] gap-2 border-b border-[var(--color-soft-border)] bg-[color-mix(in_oklab,var(--sp-ink)_3%,transparent)] px-3 py-2 text-[11px] font-semibold text-muted-ink">
+                <span>Descrição</span>
+                <span>Profissional</span>
+                <span className="text-right">Qtde.</span>
+                <span className="text-right">Valor unitário</span>
+                <span className="text-right">Desconto</span>
+                <span className="text-right">Total</span>
+              </div>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-3 text-left text-sm text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+              >
+                <IconPlus size={15} /> Selecionar serviço
+              </button>
+            </div>
           </div>
+
+          <Field label="Observações">
+            <TextField value={notes} onChange={setNotes} aria-label="Observações">
+              <Input placeholder="Escreva aqui" />
+            </TextField>
+          </Field>
+
+          {error && <FormError message={error} />}
         </div>
 
-        {/* Totais (apresentação — TODO: cálculo real com itens/crédito/cashback). */}
-        <div className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
+        {/* Aside de totais (apresentação — TODO: cálculo real com itens/crédito/cashback). */}
+        <aside className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm lg:sticky lg:top-0">
           <TotalLine label="Desconto" value={formatMoney(0)} />
           <TotalLine label="Crédito" value={formatMoney(0)} />
           <TotalLine label="Cashback" value={formatMoney(0)} />
           <div className="my-1 border-t border-[var(--color-soft-border)]" />
           <TotalLine label="Total" value={formatMoney(0)} strong />
-        </div>
-
-        <Field label="Observações">
-          <TextField value={notes} onChange={setNotes} aria-label="Observações">
-            <Input placeholder="Ex.: Atendimento agendado" />
-          </TextField>
-        </Field>
-
-        {error && <FormError message={error} />}
+        </aside>
       </div>
     </Drawer>
   );
@@ -1047,7 +1089,7 @@ function EditarComandaDrawer({
             </Field>
           </div>
         )}
-        <Field label="Status">
+        <Field label="Status" help="Finalizada registra o faturamento; Cancelada não computa no caixa">
           <Select
             aria-label="Status"
             selectedKey={status}

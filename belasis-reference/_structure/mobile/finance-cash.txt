@@ -1,0 +1,105 @@
+div.wb
+  div.ant-app
+    div.ant-row
+      span.anticon.anticon-menu.wb-icon [role="img" aria-label="menu"]
+      span "Menu"
+    div.ant-row
+      span.anticon.anticon-calendar.wb-icon [role="img" aria-label="calendar"]
+      span "Agenda"
+    div.ant-row
+      span.anticon.anticon-reload.wb-icon [role="img" aria-label="reload"]
+      span "Atualizar"
+    div.ant-row
+      span.anticon.anticon-plus.wb-icon [role="img" aria-label="plus"]
+      span "Abrir caixa"
+    div.ant-row
+      div.ant-row.ant-row-space-between
+        span "Caixas abertos"
+          span.anticon.anticon-play-circle.wb-icon [role="img" aria-label="play-circle"]
+    div.ant-tabs.ant-tabs-top
+      div.ant-tabs-nav [role="tablist"]
+        div.ant-tabs-nav-wrap
+          div.ant-tabs-nav-list
+            div.ant-tabs-tab.ant-tabs-tab-active
+              div.ant-tabs-tab-btn [role="tab"] "Resumido"
+            div.ant-tabs-tab
+              div.ant-tabs-tab-btn [role="tab"] "Detalhado"
+            div.ant-tabs-ink-bar.ant-tabs-ink-bar-animated
+        div.ant-tabs-nav-operations.ant-tabs-nav-operations-hidden
+          button.ant-tabs-nav-more [type="button"]
+            span.anticon.anticon-ellipsis [role="img" aria-label="ellipsis"]
+      div.ant-tabs-content-holder
+        div.ant-tabs-content.ant-tabs-content-top
+          div.ant-tabs-tabpane.ant-tabs-tabpane-active [role="tabpanel"]
+    div.main-content
+      div.ant-card.ant-card-bordered.box-shadow
+        div.ant-card-head
+          div.ant-card-head-wrapper
+            div.ant-card-head-title
+              span.ant-avatar.ant-avatar-circle.ant-avatar-image
+                img
+              span.ant-avatar.ant-avatar-circle.ant-avatar-image.ant-avatar-icon
+                img
+              div.ant-space.ant-space-horizontal.ant-space-align-center.ant-space-gap-row-small.ant-space-gap-col-small
+                div.ant-space-item
+                  span "FATIMA LACERDA"
+              span "franciscoffdc14@gmail.com"
+              span "Caixa aberto em 18/07/2026, 12:31h"
+              span "#575"
+        div.ant-card-body
+          div.ant-card.ant-card-bordered
+            div.ant-card-head
+              div.ant-card-head-wrapper
+                div.ant-card-head-title "Conferência de caixa"
+            div.ant-card-body
+              div.black
+                span.left "Saldo inicial"
+                span.right "R$ 0,00"
+              div.black
+                span.left "Pix"
+                span.right "R$ 320,00"
+              div.black
+                span.left "Saldo inicial"
+                span.right "R$ 0,00"
+              div.black
+                span.left "Movimentações"
+                span.right "R$ 320,00"
+              div.positive
+                span.left "Saldo em caixa"
+                span.right "R$ 320,00"
+          div.ant-card.ant-card-bordered
+            div.ant-card-head
+              div.ant-card-head-wrapper
+                div.ant-card-head-title "Outros pagamentos"
+            div.ant-card-body
+              div.black
+                span.left "Outros pagamentos"
+                span.right "R$ 0,00"
+              span.left "Total recebido"
+              span.right "R$ 0,00"
+              span.left "Total à receber"
+              span.right "R$ 0,00"
+        ul.ant-card-actions
+          li
+            button.ant-btn.ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined.ant-btn-lg [type="button"]
+              span.ant-btn-icon
+                span.anticon.anticon-plus [role="img" aria-label="plus"]
+              span "Suprimento"
+            button.ant-btn.ant-btn-default.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-outlined [type="button"]
+              span.ant-btn-icon
+                span.anticon.anticon-minus [role="img" aria-label="minus"]
+              span "Sangria"
+            button.ant-btn.ant-btn-primary.ant-btn-dangerous.ant-btn-color-dangerous.ant-btn-variant-solid [type="button"]
+              span "Fechar caixa"
+img
+div.crisp-client
+  div.cc-11i2a
+  div.cc-165wh
+    div.cc-lk42u.cc-2ob4j.cc-1sof5.cc-y7mhy
+      div.cc-13wro [role="button" aria-label="Bate-papo aberto"]
+        span.cc-11p4p
+        span.cc-1gfkz
+          span.cc-2gk6o
+            span.cc-1er0q.cc-nch8a
+  div.cc-165wh.cc-1frb5
+  div.cc-165wh.cc-84c2j

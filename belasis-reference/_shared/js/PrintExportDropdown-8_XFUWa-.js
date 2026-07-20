@@ -1,0 +1,2 @@
+import{j as o,t as r}from"./index-Bd9916Am.js";import{D as p}from"./ClientDrawer-55jCGlAN.js";import{R as n}from"./FileExcelOutlined-KTkDII2n.js";const s=({onPrint:t,onExportXls:e,disabled:i})=>o.jsx(p.Button,{type:"primary",disabled:i,trigger:["click"],onClick:t,style:{width:"auto"},menu:{items:[{key:"export_to_excel",label:r("reports.export_to_excel"),icon:o.jsx(n,{}),onClick:e,style:{color:"#0f9d58"}}]},children:r("verbs.print")});s.displayName="PrintExportDropdown";export{s as P};
+//# sourceMappingURL=PrintExportDropdown-8_XFUWa-.js.map

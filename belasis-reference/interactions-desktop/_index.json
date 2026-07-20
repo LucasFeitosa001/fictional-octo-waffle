@@ -1,0 +1,154 @@
+[
+  {
+    "route": "/wow",
+    "slug": "wow",
+    "actions": [
+      {
+        "name": "filtrar",
+        "clicked": "Filtrar",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "name": "atualizar",
+        "clicked": "Atualizar",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "name": "row-overlay",
+        "clicked": "IABeta",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      }
+    ],
+    "url": "https://belasis.app/wow",
+    "hash": "81bce90cd275"
+  },
+  {
+    "route": "/calendar",
+    "slug": "calendar",
+    "actions": [
+      {
+        "name": "filtrar",
+        "clicked": "Filtrar",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "name": "link-overlay",
+        "clicked": "28",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      },
+      {
+        "name": "row-overlay",
+        "clicked": "282930108:30MELRY MAISACOLORAÇÃO CLIENTE08:30MELRY MAISAESCOVA (A PARTIR DE R$ 4",
+        "overlaySelector": ".ant-dropdown:not(.ant-dropdown-hidden)",
+        "bytes": 3833
+      }
+    ],
+    "url": "https://belasis.app/calendar",
+    "hash": "fd3cf58aed25"
+  },
+  {
+    "route": "/sales",
+    "slug": "sales",
+    "actions": []
+  },
+  {
+    "route": "/clients",
+    "slug": "clients",
+    "actions": []
+  },
+  {
+    "route": "/employees",
+    "slug": "employees",
+    "actions": []
+  },
+  {
+    "route": "/products",
+    "slug": "products",
+    "actions": []
+  },
+  {
+    "route": "/services",
+    "slug": "services",
+    "actions": []
+  },
+  {
+    "route": "/packages",
+    "slug": "packages",
+    "actions": []
+  },
+  {
+    "route": "/subscriptions",
+    "slug": "subscriptions",
+    "actions": []
+  },
+  {
+    "route": "/vendors",
+    "slug": "vendors",
+    "actions": []
+  },
+  {
+    "route": "/brands",
+    "slug": "brands",
+    "actions": []
+  },
+  {
+    "route": "/finance/transactions",
+    "slug": "finance_transactions",
+    "actions": []
+  },
+  {
+    "route": "/finance/accounts",
+    "slug": "finance_accounts",
+    "actions": []
+  },
+  {
+    "route": "/finance/cash",
+    "slug": "finance_cash",
+    "actions": []
+  },
+  {
+    "route": "/finance/dashboard",
+    "slug": "finance_dashboard",
+    "actions": []
+  },
+  {
+    "route": "/commissions",
+    "slug": "commissions",
+    "actions": []
+  },
+  {
+    "route": "/reports",
+    "slug": "reports",
+    "actions": []
+  },
+  {
+    "route": "/reports/financial",
+    "slug": "reports_financial",
+    "actions": []
+  },
+  {
+    "route": "/marketing/agendamento-online",
+    "slug": "marketing_agendamento-online",
+    "actions": []
+  },
+  {
+    "route": "/marketing/campanhas",
+    "slug": "marketing_campanhas",
+    "actions": []
+  },
+  {
+    "route": "/marketing/cashback",
+    "slug": "marketing_cashback",
+    "actions": []
+  },
+  {
+    "route": "/settings",
+    "slug": "settings",
+    "actions": []
+  }
+]
