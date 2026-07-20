@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { IconX } from './icons';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // FullDrawer — drawer QUASE FULLSCREEN estilo Belasis (1200px+):
 //   ┌──────────────────────────────────────────────────────────┐
@@ -61,6 +62,7 @@ export function FullDrawer({
   const [mounted, setMounted] = useState(isOpen);
   const [show, setShow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (isOpen) {
@@ -95,14 +97,15 @@ export function FullDrawer({
         ].join(' ')}
         onClick={onClose}
       />
-      {/* panel — quase fullscreen (100% mobile, 1200px desktop) sliding from right */}
+      {/* panel — mobile: bottom-sheet sobe (translate-y). desktop: right-slide (translate-x, 1200px). */}
       <div
         ref={panelRef}
         className={[
-          'absolute bottom-0 right-0 top-0 flex h-dvh w-full flex-col border-l border-line bg-warm-white shadow-[var(--shadow-pop)]',
-          widthClass,
+          'absolute flex w-full flex-col border-line bg-warm-white shadow-[var(--shadow-pop)]',
           'transform-gpu transition-transform duration-[380ms] will-change-transform [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
-          show ? 'translate-x-0' : 'translate-x-full',
+          isMobile
+            ? `inset-x-0 bottom-0 max-h-[92dvh] rounded-t-3xl border-t ${show ? 'translate-y-0' : 'translate-y-full'}`
+            : `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`,
         ].join(' ')}
       >
         {/* HEADER */}

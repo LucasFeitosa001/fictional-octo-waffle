@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { IconX } from './icons';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface DrawerProps {
   isOpen: boolean;
@@ -21,12 +22,11 @@ const EXIT_MS = 380;
 /**
  * Reusable side drawer, mobile-first.
  *
- * - Mobile (<sm): covers the viewport and slides in from the right.
- * - Desktop (sm+): slides in from the right, full height, ~440px wide.
+ * - Mobile (<md): bottom-sheet que sobe (translate-y) — padrão Belasis.
+ * - Desktop (md+): desliza da direita (translate-x), ~440px.
  *
- * Rendered in a portal at `z-[70]` so it sits above modals and the bottom nav.
- * Closes on backdrop click and Esc, locks body scroll while open, and exposes a
- * sticky header + scrolling body + optional sticky footer.
+ * Se `placement="bottom"` explícito, força bottom-sheet em qualquer breakpoint
+ * (usado pelos drawers de Filtrar/Ações da BottomNav).
  */
 export function Drawer({
   isOpen,
@@ -37,6 +37,9 @@ export function Drawer({
   widthClass = 'sm:w-[440px]',
   placement = 'right',
 }: DrawerProps) {
+  const isMobile = useIsMobile();
+  const effectivePlacement: 'right' | 'bottom' =
+    placement === 'bottom' ? 'bottom' : (isMobile ? 'bottom' : 'right');
   // `mounted` keeps the drawer in the DOM through the exit animation; `show`
   // drives the slide / fade transition.
   const [mounted, setMounted] = useState(isOpen);
@@ -119,7 +122,7 @@ export function Drawer({
         className={[
           'absolute flex w-full flex-col border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-pop)] outline-none',
           'transform-gpu transition-transform duration-[380ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] will-change-transform',
-          placement === 'right'
+          effectivePlacement === 'right'
             ? `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`
             : `inset-x-0 bottom-0 max-h-[92dvh] rounded-t-3xl border-t ${show ? 'translate-y-0' : 'translate-y-full'}`,
         ].join(' ')}
@@ -127,7 +130,7 @@ export function Drawer({
         {/* Header (sticky) */}
         <div className={[
           'sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-soft-border)] bg-warm-white px-4 pb-3.5',
-          placement === 'right' ? 'pt-[max(0.875rem,env(safe-area-inset-top))]' : 'pt-3.5',
+          effectivePlacement === 'right' ? 'pt-[max(0.875rem,env(safe-area-inset-top))]' : 'pt-3.5',
         ].join(' ')}>
           <h2 className="min-w-0 truncate text-base font-semibold text-foreground">{title}</h2>
           <button
