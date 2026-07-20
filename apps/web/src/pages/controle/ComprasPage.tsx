@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { DateField } from '../../components/DateRangeFilter';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
@@ -103,10 +104,18 @@ export function ComprasPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'todas' | string>('todas');
-  const [paymentFilter, setPaymentFilter] = useState<
-    'todos' | 'pendente' | 'finalizado'
-  >('todos');
+  // Status: checkboxes "Excluídas" (status='cancelada') / "Não excluídas".
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [showNotExcluded, setShowNotExcluded] = useState(true);
+  // Período: intervalo de datas (ISO YYYY-MM-DD).
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  // Fornecedor: single-select.
+  const [supplierFilter, setSupplierFilter] = useState('');
+  // Status de pagamento: RADIO (2 opções, sem "Todos").
+  const [paymentFilter, setPaymentFilter] = useState<'finalizado' | 'pendente'>(
+    'finalizado',
+  );
   const [sortKey, setSortKey] = useState<SortKey>('ticket');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
@@ -117,6 +126,7 @@ export function ComprasPage() {
   const confirm = useConfirm();
   const purchases = usePurchases(search || undefined);
   const methods = usePaymentMethods();
+  const suppliersQ = useSuppliers();
   const deletePurchase = useDeletePurchase();
 
   const methodName = useMemo(() => {
@@ -128,18 +138,42 @@ export function ComprasPage() {
   const allRows = purchases.data?.data ?? [];
   const total = purchases.data?.total ?? 0;
 
-  // Filtro por status/pagamento é client-side (a API só filtra por busca).
+  // Filtros client-side (a API só filtra por busca).
   const filtered = useMemo(() => {
+    const fromMs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
+    const toMs = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null;
     return allRows.filter((p) => {
-      if (statusFilter !== 'todas' && p.status !== statusFilter) return false;
-      if (paymentFilter !== 'todos') {
-        const paid = Boolean(p.paymentMethodId);
-        if (paymentFilter === 'finalizado' && !paid) return false;
-        if (paymentFilter === 'pendente' && paid) return false;
+      // Status: "Excluídas" = cancelada; "Não excluídas" = qualquer outro.
+      const isExcluded = p.status === 'cancelada';
+      if (isExcluded && !showExcluded) return false;
+      if (!isExcluded && !showNotExcluded) return false;
+
+      // Período
+      if (fromMs != null || toMs != null) {
+        const t = new Date(p.date).getTime();
+        if (fromMs != null && t < fromMs) return false;
+        if (toMs != null && t > toMs) return false;
       }
+
+      // Fornecedor
+      if (supplierFilter && p.supplierId !== supplierFilter) return false;
+
+      // Pagamento (radio: finalizado / pendente)
+      const paid = Boolean(p.paymentMethodId);
+      if (paymentFilter === 'finalizado' && !paid) return false;
+      if (paymentFilter === 'pendente' && paid) return false;
+
       return true;
     });
-  }, [allRows, statusFilter, paymentFilter]);
+  }, [
+    allRows,
+    showExcluded,
+    showNotExcluded,
+    dateFrom,
+    dateTo,
+    supplierFilter,
+    paymentFilter,
+  ]);
 
   const rows = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -157,10 +191,25 @@ export function ComprasPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, paymentFilter, sortKey, sortDir]);
+  }, [
+    search,
+    showExcluded,
+    showNotExcluded,
+    dateFrom,
+    dateTo,
+    supplierFilter,
+    paymentFilter,
+    sortKey,
+    sortDir,
+  ]);
 
+  // Contagem de filtros "não default" (default: só não-excluídas + finalizado).
   const activeFilterCount =
-    (statusFilter !== 'todas' ? 1 : 0) + (paymentFilter !== 'todos' ? 1 : 0);
+    (showExcluded ? 1 : 0) +
+    (!showNotExcluded ? 1 : 0) +
+    (dateFrom || dateTo ? 1 : 0) +
+    (supplierFilter ? 1 : 0) +
+    (paymentFilter !== 'finalizado' ? 1 : 0);
   const hasFilters = Boolean(search) || activeFilterCount > 0;
 
   function applySearch() {
@@ -170,8 +219,12 @@ export function ComprasPage() {
   function clearAll() {
     setSearchInput('');
     setSearch('');
-    setStatusFilter('todas');
-    setPaymentFilter('todos');
+    setShowExcluded(false);
+    setShowNotExcluded(true);
+    setDateFrom('');
+    setDateTo('');
+    setSupplierFilter('');
+    setPaymentFilter('finalizado');
   }
 
   function toggleSort(key: SortKey) {
@@ -309,51 +362,66 @@ export function ComprasPage() {
                   )}
                 </div>
 
+                <FilterGroup title="Status">
+                  <CheckboxRow
+                    checked={showExcluded}
+                    onClick={() => setShowExcluded((v) => !v)}
+                  >
+                    Excluídas
+                  </CheckboxRow>
+                  <CheckboxRow
+                    checked={showNotExcluded}
+                    onClick={() => setShowNotExcluded((v) => !v)}
+                  >
+                    Não excluídas
+                  </CheckboxRow>
+                </FilterGroup>
+
+                <FilterGroup title="Período">
+                  <div className="flex flex-col gap-2">
+                    <DateField
+                      label="De"
+                      value={dateFrom}
+                      max={dateTo || undefined}
+                      onChange={setDateFrom}
+                    />
+                    <DateField
+                      label="Até"
+                      value={dateTo}
+                      min={dateFrom || undefined}
+                      onChange={setDateTo}
+                    />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title="Fornecedor">
+                  <SelectField
+                    ariaLabel="Fornecedor"
+                    value={supplierFilter}
+                    onChange={setSupplierFilter}
+                    placeholder="Todos os fornecedores"
+                    options={[
+                      { id: '', name: 'Todos os fornecedores' },
+                      ...(suppliersQ.data?.data ?? []).map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                      })),
+                    ]}
+                  />
+                </FilterGroup>
+
                 <FilterGroup title="Status de pagamento">
-                  <CheckRow
-                    checked={paymentFilter === 'todos'}
-                    onClick={() => setPaymentFilter('todos')}
-                  >
-                    Todos
-                  </CheckRow>
-                  <CheckRow
-                    checked={paymentFilter === 'pendente'}
-                    onClick={() => setPaymentFilter('pendente')}
-                  >
-                    Pendente
-                  </CheckRow>
                   <CheckRow
                     checked={paymentFilter === 'finalizado'}
                     onClick={() => setPaymentFilter('finalizado')}
                   >
                     Finalizado
                   </CheckRow>
-                </FilterGroup>
-
-                <FilterGroup title="Status">
                   <CheckRow
-                    checked={statusFilter === 'todas'}
-                    onClick={() => setStatusFilter('todas')}
+                    checked={paymentFilter === 'pendente'}
+                    onClick={() => setPaymentFilter('pendente')}
                   >
-                    Todas
-                  </CheckRow>
-                  <CheckRow
-                    checked={statusFilter === 'lancada'}
-                    onClick={() => setStatusFilter('lancada')}
-                  >
-                    Lançadas
-                  </CheckRow>
-                  <CheckRow
-                    checked={statusFilter === 'rascunho'}
-                    onClick={() => setStatusFilter('rascunho')}
-                  >
-                    Rascunho
-                  </CheckRow>
-                  <CheckRow
-                    checked={statusFilter === 'cancelada'}
-                    onClick={() => setStatusFilter('cancelada')}
-                  >
-                    Canceladas
+                    Pendente
                   </CheckRow>
                 </FilterGroup>
               </aside>
@@ -425,16 +493,13 @@ export function ComprasPage() {
                           return (
                             <tr
                               key={p.id}
-                              className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                              onClick={() => setEditId(p.id)}
+                              className="cursor-pointer border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                             >
                               <td className="px-4 py-2.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditId(p.id)}
-                                  className="font-semibold text-primary hover:underline"
-                                >
+                                <span className="font-semibold text-primary">
                                   {purchaseLabel(p)}
-                                </button>
+                                </span>
                               </td>
                               <td className="px-4 py-2.5 text-muted-ink">
                                 {formatDate(p.date)}
@@ -458,7 +523,10 @@ export function ComprasPage() {
                                   methodName.get(p.paymentMethodId)) ||
                                   '—'}
                               </td>
-                              <td className="px-4 py-2.5">
+                              <td
+                                className="px-4 py-2.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <RowActions
                                   onDelete={() => handleDelete(p)}
                                   deleting={deletePurchase.isPending}
@@ -1261,6 +1329,47 @@ function CheckRow({
         ].join(' ')}
       >
         {checked && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+      </span>
+      <span className="min-w-0 truncate">{children}</span>
+    </button>
+  );
+}
+
+/** Checkbox de filtro (multi-seleção). Distinto do CheckRow (radio). */
+function CheckboxRow({
+  checked,
+  onClick,
+  children,
+}: {
+  checked: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onClick}
+      className="flex items-center gap-2 rounded px-1 py-1 text-left text-sm text-ink hover:bg-canvas"
+    >
+      <span
+        className={[
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+          checked ? 'border-primary bg-primary text-primary-foreground' : 'border-line bg-card',
+        ].join(' ')}
+      >
+        {checked && (
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path
+              d="M2.5 6.5L5 9l4.5-5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
       </span>
       <span className="min-w-0 truncate">{children}</span>
     </button>

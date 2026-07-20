@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../components/ConfirmDialog';
-import { Drawer } from '../components/Drawer';
+import { FullDrawer } from '../components/FullDrawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconArrowDown,
@@ -653,6 +653,7 @@ function SupplierDrawer({
   const [stateRegistration, setStateRegistration] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [active, setActive] = useState(true);
+  const [section, setSection] = useState<'cadastro' | 'contatos' | 'endereco' | 'config'>('cadastro');
   // Endereço
   const [cep, setCep] = useState('');
   const [logradouro, setLogradouro] = useState('');
@@ -681,6 +682,7 @@ function SupplierDrawer({
     setEstado(addr.estado ?? '');
     setCidade(addr.cidade ?? '');
     setError(null);
+    setSection('cadastro');
   }, [isOpen, supplier]);
 
   const pending = create.isPending || update.isPending;
@@ -724,12 +726,24 @@ function SupplierDrawer({
     }
   }
 
+  const title =
+    mode === 'edit'
+      ? `Editando fornecedor${supplier?.name ? ` — ${supplier.name}` : ''}`
+      : 'Novo fornecedor';
+
   return (
-    <Drawer
+    <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'edit' ? 'Editar fornecedor' : 'Novo fornecedor'}
-      widthClass="sm:w-[650px]"
+      title={title}
+      sections={[
+        { key: 'cadastro', label: 'Cadastro' },
+        { key: 'contatos', label: 'Contatos' },
+        { key: 'endereco', label: 'Endereço' },
+        { key: 'config', label: 'Configurações' },
+      ]}
+      activeSection={section}
+      onSectionChange={(k) => setSection(k as typeof section)}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -742,80 +756,73 @@ function SupplierDrawer({
       }
     >
       <div className="flex flex-col gap-4">
-        {/* Grade 2 colunas (ant-col-sm-12 no Belasis) */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Nome" required>
-            <TextField value={name} onChange={setName} aria-label="Nome">
-              <Input
-                placeholder="Nome"
-                className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              />
-            </TextField>
-          </Field>
-          <Field label="E-mail">
-            <TextField value={email} onChange={setEmail} aria-label="E-mail">
-              <Input
-                type="email"
-                placeholder="E-mail"
-                className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              />
-            </TextField>
-          </Field>
-          <Field label="Celular">
-            <TextField value={phone} onChange={setPhone} aria-label="Celular">
-              <Input
-                placeholder="(00) 00000-0000"
-                className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              />
-            </TextField>
-          </Field>
-          <Field label="Telefone">
-            <TextField value={phone2} onChange={setPhone2} aria-label="Telefone">
-              <Input
-                placeholder="(00) 0000-0000"
-                className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              />
-            </TextField>
-          </Field>
-          <Field label="Inscrição estadual">
-            <TextField
-              value={stateRegistration}
-              onChange={setStateRegistration}
-              aria-label="Inscrição estadual"
-            >
-              <Input
-                placeholder="Inscrição estadual"
-                className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              />
-            </TextField>
-          </Field>
-          <Field label="CNPJ">
-            <TextField value={cnpj} onChange={setCnpj} aria-label="CNPJ">
-              <Input
-                placeholder="00.000.000/0000-00"
-                className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              />
-            </TextField>
-          </Field>
-        </div>
-
-        {/* Ativo — toggle com descrição (igual Belasis) */}
-        <div className="flex items-center justify-between rounded-md border border-line bg-canvas p-3">
-          <div className="flex min-w-0 flex-col pr-3">
-            <span className="text-sm font-medium text-ink">Ativo</span>
-            <span className="text-xs text-muted-ink">
-              Se ativo, aparecerá na listagem do sistema para compras, movimentações
-              financeiras etc
-            </span>
+        {/* ============ CADASTRO ============ */}
+        {section === 'cadastro' && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nome" required>
+              <TextField value={name} onChange={setName} aria-label="Nome">
+                <Input
+                  placeholder="Nome"
+                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              </TextField>
+            </Field>
+            <Field label="Inscrição estadual">
+              <TextField
+                value={stateRegistration}
+                onChange={setStateRegistration}
+                aria-label="Inscrição estadual"
+              >
+                <Input
+                  placeholder="Inscrição estadual"
+                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              </TextField>
+            </Field>
+            <Field label="CNPJ">
+              <TextField value={cnpj} onChange={setCnpj} aria-label="CNPJ">
+                <Input
+                  placeholder="00.000.000/0000-00"
+                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              </TextField>
+            </Field>
           </div>
-          <Switch checked={active} onChange={setActive} label="Ativo" />
-        </div>
+        )}
 
-        {/* Endereço */}
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
-            Endereço
-          </p>
+        {/* ============ CONTATOS ============ */}
+        {section === 'contatos' && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="E-mail">
+              <TextField value={email} onChange={setEmail} aria-label="E-mail">
+                <Input
+                  type="email"
+                  placeholder="E-mail"
+                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              </TextField>
+            </Field>
+            <Field label="Celular">
+              <TextField value={phone} onChange={setPhone} aria-label="Celular">
+                <Input
+                  placeholder="(00) 00000-0000"
+                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              </TextField>
+            </Field>
+            <Field label="Telefone">
+              <TextField value={phone2} onChange={setPhone2} aria-label="Telefone">
+                <Input
+                  placeholder="(00) 0000-0000"
+                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              </TextField>
+            </Field>
+          </div>
+        )}
+
+        {/* ============ ENDEREÇO ============ */}
+        {section === 'endereco' && (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="CEP">
               <TextField value={cep} onChange={setCep} aria-label="CEP">
@@ -890,7 +897,21 @@ function SupplierDrawer({
               </TextField>
             </Field>
           </div>
-        </div>
+        )}
+
+        {/* ============ CONFIGURAÇÕES ============ */}
+        {section === 'config' && (
+          <div className="flex items-center justify-between rounded-md border border-line bg-canvas p-3">
+            <div className="flex min-w-0 flex-col pr-3">
+              <span className="text-sm font-medium text-ink">Ativo</span>
+              <span className="text-xs text-muted-ink">
+                Se ativo, aparecerá na listagem do sistema para compras, movimentações
+                financeiras etc
+              </span>
+            </div>
+            <Switch checked={active} onChange={setActive} label="Ativo" />
+          </div>
+        )}
 
         {error && (
           <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -898,7 +919,7 @@ function SupplierDrawer({
           </div>
         )}
       </div>
-    </Drawer>
+    </FullDrawer>
   );
 }
 

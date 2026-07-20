@@ -29,8 +29,6 @@ import {
   type Brand,
 } from '../lib/queries/catalogo';
 
-type ProductFilter = 'all' | 'with' | 'without';
-
 const PAGE_SIZE = 20;
 
 function itemsLabel(count: number) {
@@ -53,7 +51,11 @@ export function MarcasPage() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [productFilter, setProductFilter] = useState<ProductFilter>('all');
+  // Belasis: filtro de Status (Ativos / Inativos) com checkboxes independentes.
+  // A API de /brands ainda não expõe `active`; tratamos todas as marcas como
+  // ativas (o Drawer já assume isso). "Inativos" isolado => lista vazia.
+  const [statusAtivos, setStatusAtivos] = useState(true);
+  const [statusInativos, setStatusInativos] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -91,9 +93,12 @@ export function MarcasPage() {
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
     const filtered = allRows.filter((b) => {
-      const count = b.productCount ?? 0;
-      if (productFilter === 'with' && count === 0) return false;
-      if (productFilter === 'without' && count > 0) return false;
+      // API não expõe status; todas as marcas são tratadas como ativas.
+      const isActive = true;
+      if (statusAtivos || statusInativos) {
+        if (statusAtivos && !statusInativos && !isActive) return false;
+        if (statusInativos && !statusAtivos && isActive) return false;
+      }
       if (term && !b.name.toLowerCase().includes(term)) return false;
       return true;
     });
@@ -101,7 +106,7 @@ export function MarcasPage() {
       const cmp = a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
       return sortAsc ? cmp : -cmp;
     });
-  }, [allRows, search, productFilter, sortAsc]);
+  }, [allRows, search, statusAtivos, statusInativos, sortAsc]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -130,9 +135,12 @@ export function MarcasPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, productFilter, sortAsc]);
+  }, [search, statusAtivos, statusInativos, sortAsc]);
 
-  const activeFilterCount = productFilter !== 'all' ? 1 : 0;
+  // "Ativos ligado / Inativos desligado" é o default; qualquer outra
+  // combinação conta como filtro ativo (para o badge do toolbar).
+  const statusFilterActive = !(statusAtivos && !statusInativos);
+  const activeFilterCount = statusFilterActive ? 1 : 0;
   const hasFilters = Boolean(search.trim()) || activeFilterCount > 0;
 
   function applySearch() {
@@ -142,7 +150,8 @@ export function MarcasPage() {
   function clearAll() {
     setSearchInput('');
     setSearch('');
-    setProductFilter('all');
+    setStatusAtivos(true);
+    setStatusInativos(false);
   }
 
   async function handleDelete(brand: Brand) {
@@ -289,24 +298,18 @@ export function MarcasPage() {
               )}
             </div>
 
-            <FilterGroup title="Produtos">
+            <FilterGroup title="Status">
               <CheckRow
-                checked={productFilter === 'all'}
-                onClick={() => setProductFilter('all')}
+                checked={statusAtivos}
+                onClick={() => setStatusAtivos((v) => !v)}
               >
-                Todas
+                Ativos
               </CheckRow>
               <CheckRow
-                checked={productFilter === 'with'}
-                onClick={() => setProductFilter('with')}
+                checked={statusInativos}
+                onClick={() => setStatusInativos((v) => !v)}
               >
-                Com produtos
-              </CheckRow>
-              <CheckRow
-                checked={productFilter === 'without'}
-                onClick={() => setProductFilter('without')}
-              >
-                Sem produtos
+                Inativos
               </CheckRow>
             </FilterGroup>
           </aside>
@@ -394,9 +397,13 @@ export function MarcasPage() {
                       return (
                         <tr
                           key={b.id}
-                          className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                          onClick={() => setEditing(b)}
+                          className="cursor-pointer border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                         >
-                          <td className="py-2.5 pl-4 pr-2">
+                          <td
+                            className="py-2.5 pl-4 pr-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <CheckBox
                               checked={selected.has(b.id)}
                               onClick={() => toggleRow(b.id)}
@@ -404,30 +411,27 @@ export function MarcasPage() {
                             />
                           </td>
                           <td className="px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => setEditing(b)}
+                            <span
                               title={b.name}
-                              className="block w-full truncate text-left font-medium text-primary transition-colors hover:underline"
+                              className="block w-full truncate text-left font-medium text-primary"
                             >
                               {b.name}
-                            </button>
+                            </span>
                           </td>
                           <td className="px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => setEditing(b)}
+                            <span
                               className={[
-                                'text-left transition-colors',
-                                count > 0
-                                  ? 'text-primary hover:underline'
-                                  : 'text-muted-ink',
+                                'text-left',
+                                count > 0 ? 'text-primary' : 'text-muted-ink',
                               ].join(' ')}
                             >
                               {itemsLabel(count)}
-                            </button>
+                            </span>
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td
+                            className="px-4 py-2.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <RowActions
                               onEdit={() => setEditing(b)}
                               onDelete={() => handleDelete(b)}

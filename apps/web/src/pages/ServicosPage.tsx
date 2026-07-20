@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Input, ListBox, Select, TextField } from "@heroui/react";
 import { ApiClientError } from "@beautypass/shared";
 import { Drawer } from "../components/Drawer";
+import { FullDrawer } from "../components/FullDrawer";
 import { ImageUpload } from "../components/ImageUpload";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
 import {
@@ -1210,12 +1211,26 @@ function ServiceDrawer({
     }
   }
 
+  // Belasis: drawer quase fullscreen (1200px) com menu vertical de seções.
+  // Seções sem implementação ficam desabilitadas mas visíveis (paridade visual).
+  const sections = drawerTabs.map((item) => ({
+    key: item.id,
+    label: item.label,
+    disabled: !item.available,
+  }));
+  const title =
+    mode === "edit"
+      ? `Editando serviço${service?.name ? ` — ${service.name}` : ""}`
+      : "Novo serviço";
+
   return (
-    <Drawer
+    <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === "edit" ? "Editando serviço" : "Novo serviço"}
-      widthClass="sm:w-[min(1024px,calc(100vw-48px))]"
+      title={title}
+      sections={sections}
+      activeSection={tab}
+      onSectionChange={(key) => setTab(key as DrawerTab)}
       footer={
         <>
           <Button
@@ -1236,233 +1251,210 @@ function ServiceDrawer({
         </>
       }
     >
-      <div className="flex min-h-[560px] flex-col gap-5 sm:flex-row">
-        {/* O Belasis usa navegação vertical no drawer de serviço. */}
-        <nav className="flex shrink-0 overflow-x-auto border-b border-line sm:w-52 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r">
-          {drawerTabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              disabled={!item.available}
-              onClick={() => setTab(item.id)}
-              className={`relative whitespace-nowrap px-3 py-2.5 text-left text-sm transition-colors after:absolute after:bg-primary disabled:cursor-not-allowed disabled:opacity-45 sm:after:bottom-0 sm:after:right-[-1px] sm:after:top-0 sm:after:w-0.5 ${
-                tab === item.id
-                  ? "border-b-2 border-primary text-primary sm:border-b-0 sm:after:block"
-                  : "border-b-2 border-transparent text-muted-ink hover:bg-canvas hover:text-ink sm:border-b-0 sm:after:hidden"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
+      {tab === "cadastro" && (
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-center py-1">
+            <ImageUpload
+              value={imageUrls[0] ?? null}
+              onChange={(url) =>
+                setImageUrls((current) =>
+                  url ? [url, ...current.slice(1)] : current.slice(1),
+                )
+              }
+              kind="service"
+              shape="square"
+              size={120}
+              placeholder="Foto"
+            />
+          </div>
 
-        <div className="min-w-0 flex-1 sm:pl-5">
-          {tab === "cadastro" && (
-            <div className="flex flex-col gap-4">
-              <div className="flex justify-center py-1">
-                <ImageUpload
-                  value={imageUrls[0] ?? null}
-                  onChange={(url) =>
-                    setImageUrls((current) =>
-                      url ? [url, ...current.slice(1)] : current.slice(1),
-                    )
-                  }
-                  kind="service"
-                  shape="square"
-                  size={120}
-                  placeholder="Foto"
-                />
-              </div>
+          <Field label="Nome" required>
+            <TextField value={name} onChange={setName} aria-label="Nome">
+              <Input placeholder="Informe o nome" />
+            </TextField>
+          </Field>
 
-              <Field label="Nome" required>
-                <TextField value={name} onChange={setName} aria-label="Nome">
-                  <Input placeholder="Informe o nome" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Categoria" required>
+              <Select
+                aria-label="Categoria"
+                selectedKey={categoryId || null}
+                onSelectionChange={(k) =>
+                  setCategoryId(k ? String(k) : NONE)
+                }
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ isPlaceholder, selectedText }) =>
+                      isPlaceholder ? "Selecione" : selectedText
+                    }
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {categories.map((c) => (
+                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                        {c.name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
+            <Field label="Preço de venda">
+              <div className="flex min-w-0 items-stretch">
+                <span className="inline-flex shrink-0 items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
+                  Preço fixo
+                  <IconChevron size={12} />
+                </span>
+                <TextField
+                  value={price}
+                  onChange={setPrice}
+                  aria-label="Preço de venda"
+                  className="min-w-0 flex-1"
+                >
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="R$ 0,00"
+                    className="rounded-l-none"
+                  />
                 </TextField>
-              </Field>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Categoria" required>
-                  <Select
-                    aria-label="Categoria"
-                    selectedKey={categoryId || null}
-                    onSelectionChange={(k) =>
-                      setCategoryId(k ? String(k) : NONE)
-                    }
-                  >
-                    <Select.Trigger>
-                      <Select.Value>
-                        {({ isPlaceholder, selectedText }) =>
-                          isPlaceholder ? "Selecione" : selectedText
-                        }
-                      </Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {categories.map((c) => (
-                          <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                            {c.name}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </Field>
-                <Field label="Preço de venda">
-                  <div className="flex min-w-0 items-stretch">
-                    <span className="inline-flex shrink-0 items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
-                      Preço fixo
-                      <IconChevron size={12} />
-                    </span>
-                    <TextField
-                      value={price}
-                      onChange={setPrice}
-                      aria-label="Preço de venda"
-                      className="min-w-0 flex-1"
-                    >
-                      <Input
-                        type="number"
-                        min="0"
-                        placeholder="R$ 0,00"
-                        className="rounded-l-none"
-                      />
-                    </TextField>
-                  </div>
-                </Field>
               </div>
+            </Field>
+          </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Field label="Custo adicional" info>
-                  <div className="flex min-w-0 items-stretch">
-                    <span className="inline-flex items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
-                      R$
-                      <IconChevron size={12} />
-                    </span>
-                    <TextField
-                      value={additionalCost}
-                      onChange={setAdditionalCost}
-                      aria-label="Custo adicional"
-                      className="min-w-0 flex-1"
-                    >
-                      <Input
-                        type="number"
-                        min="0"
-                        placeholder="0,00"
-                        className="rounded-l-none"
-                      />
-                    </TextField>
-                  </div>
-                </Field>
-                <Field label="Comissão" info>
-                  <TextField
-                    value={commission}
-                    onChange={setCommission}
-                    aria-label="Comissão"
-                  >
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="% 0,00"
-                    />
-                  </TextField>
-                </Field>
-                <Field label="Duração">
-                  <Select
-                    aria-label="Duração"
-                    selectedKey={durationMin}
-                    onSelectionChange={(key) =>
-                      key && setDurationMin(String(key))
-                    }
-                  >
-                    <Select.Trigger>
-                      <Select.Value />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {availableDurations.map((minutes) => (
-                          <ListBox.Item
-                            key={minutes}
-                            id={String(minutes)}
-                            textValue={durationOptionLabel(minutes)}
-                          >
-                            {durationOptionLabel(minutes)}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </Field>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Custo adicional" info>
+              <div className="flex min-w-0 items-stretch">
+                <span className="inline-flex items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
+                  R$
+                  <IconChevron size={12} />
+                </span>
+                <TextField
+                  value={additionalCost}
+                  onChange={setAdditionalCost}
+                  aria-label="Custo adicional"
+                  className="min-w-0 flex-1"
+                >
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0,00"
+                    className="rounded-l-none"
+                  />
+                </TextField>
               </div>
-
-              <Field label="Descrição">
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  rows={4}
-                  placeholder="Essa descrição aparecerá para o seu cliente quando ele for agendar online"
-                  aria-label="Descrição"
-                  className="w-full resize-y rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none placeholder:text-muted-ink focus:border-primary focus:ring-2 focus:ring-primary/20"
+            </Field>
+            <Field label="Comissão" info>
+              <TextField
+                value={commission}
+                onChange={setCommission}
+                aria-label="Comissão"
+              >
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="% 0,00"
                 />
-              </Field>
-            </div>
-          )}
+              </TextField>
+            </Field>
+            <Field label="Duração">
+              <Select
+                aria-label="Duração"
+                selectedKey={durationMin}
+                onSelectionChange={(key) =>
+                  key && setDurationMin(String(key))
+                }
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {availableDurations.map((minutes) => (
+                      <ListBox.Item
+                        key={minutes}
+                        id={String(minutes)}
+                        textValue={durationOptionLabel(minutes)}
+                      >
+                        {durationOptionLabel(minutes)}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
+          </div>
 
-          {tab === "config" && (
-            <div className="flex flex-col gap-3">
-              <Toggle
-                label="Agendamento online"
-                checked={onlineBookable}
-                onChange={setOnlineBookable}
-              />
-              <Toggle
-                label="Favorito"
-                checked={favorite}
-                onChange={setFavorite}
-              />
-              <Toggle
-                label="Visível no catálogo"
-                checked={visible}
-                onChange={setVisible}
-              />
-              {mode === "edit" && (
-                <Toggle label="Ativo" checked={active} onChange={setActive} />
-              )}
-            </div>
-          )}
+          <Field label="Descrição">
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={4}
+              placeholder="Essa descrição aparecerá para o seu cliente quando ele for agendar online"
+              aria-label="Descrição"
+              className="w-full resize-y rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none placeholder:text-muted-ink focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </Field>
+        </div>
+      )}
 
-          {tab === "cashback" && (
-            <div className="flex flex-col gap-4">
-              <div className="rounded-md border border-line bg-canvas px-3 py-2 text-xs text-muted-ink">
-                O cashback é próprio do serviço e independente da comissão do
-                profissional.
-              </div>
-              <Toggle
-                label="Ativar cashback neste serviço"
-                checked={cashbackEnabled}
-                onChange={setCashbackEnabled}
-              />
-              {cashbackEnabled && (
-                <Field label="Cashback (%)">
-                  <TextField
-                    value={cashbackPercent}
-                    onChange={setCashbackPercent}
-                    aria-label="Cashback"
-                  >
-                    <Input type="number" placeholder="0" />
-                  </TextField>
-                </Field>
-              )}
-            </div>
-          )}
-
-          {error && (
-            <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {error}
-            </div>
+      {tab === "config" && (
+        <div className="flex flex-col gap-3">
+          <Toggle
+            label="Agendamento online"
+            checked={onlineBookable}
+            onChange={setOnlineBookable}
+          />
+          <Toggle
+            label="Favorito"
+            checked={favorite}
+            onChange={setFavorite}
+          />
+          <Toggle
+            label="Visível no catálogo"
+            checked={visible}
+            onChange={setVisible}
+          />
+          {mode === "edit" && (
+            <Toggle label="Ativo" checked={active} onChange={setActive} />
           )}
         </div>
-      </div>
-    </Drawer>
+      )}
+
+      {tab === "cashback" && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-md border border-line bg-canvas px-3 py-2 text-xs text-muted-ink">
+            O cashback é próprio do serviço e independente da comissão do
+            profissional.
+          </div>
+          <Toggle
+            label="Ativar cashback neste serviço"
+            checked={cashbackEnabled}
+            onChange={setCashbackEnabled}
+          />
+          {cashbackEnabled && (
+            <Field label="Cashback (%)">
+              <TextField
+                value={cashbackPercent}
+                onChange={setCashbackPercent}
+                aria-label="Cashback"
+              >
+                <Input type="number" placeholder="0" />
+              </TextField>
+            </Field>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </div>
+      )}
+    </FullDrawer>
   );
 }
 

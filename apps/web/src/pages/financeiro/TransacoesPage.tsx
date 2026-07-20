@@ -32,6 +32,7 @@ import {
 import { DateFieldBR } from '../../components/DateRangeFilter';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
+import { FullDrawer } from '../../components/FullDrawer';
 import { HelpTooltip } from '../../components/HelpTooltip';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { useCustomers, useProfessionals } from '../../lib/queries';
@@ -925,6 +926,10 @@ function LancamentoModal({
   const [dueDate, setDueDate] = useState(() => isoDate(new Date()));
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  // Menu vertical estilo Belasis: agrupa os campos por afinidade.
+  const [section, setSection] = useState<'dados' | 'classificacao' | 'observacoes'>(
+    'dados',
+  );
 
   const categories = useFinancialCategories();
   const paymentMethods = usePaymentMethods();
@@ -958,6 +963,7 @@ function LancamentoModal({
     }
     setFormError(null);
     setSuccess(false);
+    setSection('dados');
   }, [editing, mode]);
 
   const isPending = createTransaction.isPending || updateTransaction.isPending;
@@ -1053,7 +1059,19 @@ function LancamentoModal({
   );
 
   return (
-    <Drawer isOpen onClose={onClose} title={title} footer={footer} widthClass="sm:w-[460px]">
+    <FullDrawer
+      isOpen
+      onClose={onClose}
+      title={title}
+      sections={[
+        { key: 'dados', label: 'Dados do lançamento' },
+        { key: 'classificacao', label: 'Categoria & Conta' },
+        { key: 'observacoes', label: 'Observações' },
+      ]}
+      activeSection={section}
+      onSectionChange={(k) => setSection(k as 'dados' | 'classificacao' | 'observacoes')}
+      footer={footer}
+    >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-3xl text-gold-strong">
@@ -1064,107 +1082,117 @@ function LancamentoModal({
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {/* Ordem espelha o Belasis: Valor → Descrição → Vencimento → Forma → Conta. */}
-          {/* 1. Valor */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-foreground">Valor (R$)</label>
-            <TextField value={amount} onChange={setAmount} aria-label="Valor">
-              <Input placeholder="0,00" inputMode="decimal" />
-            </TextField>
-          </div>
+        <div className="flex flex-col gap-4 max-w-3xl">
+          {/* SEÇÃO 1: Dados do lançamento — Valor, Vencimento, Titular, Status. */}
+          {section === 'dados' && (
+            <>
+              {/* 1. Valor */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Valor (R$)</label>
+                <TextField value={amount} onChange={setAmount} aria-label="Valor">
+                  <Input placeholder="0,00" inputMode="decimal" />
+                </TextField>
+              </div>
 
-          {/* 2. Descrição */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-foreground">Descrição</label>
-            <TextField value={description} onChange={setDescription} aria-label="Descrição">
-              <Input placeholder="Gerada automaticamente se vazio" />
-            </TextField>
-          </div>
+              {/* 2. Vencimento (dd/mm/aaaa) */}
+              <DateFieldBR
+                label="Vencimento"
+                value={dueDate}
+                onChange={setDueDate}
+                className="min-w-0"
+              />
 
-          {/* 3. Vencimento (dd/mm/aaaa) */}
-          <DateFieldBR
-            label="Vencimento"
-            value={dueDate}
-            onChange={setDueDate}
-            className="min-w-0"
-          />
+              {/* 3. Titular: cliente (recebimento) ou profissional (vale/despesa) */}
+              {mode === 'recebimento' && (
+                <FieldSelect
+                  label="Recebido de (cliente)"
+                  placeholder="Selecione (opcional)"
+                  value={partyId}
+                  onChange={setPartyId}
+                  options={(customers.data?.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+                />
+              )}
+              {(mode === 'vale' || mode === 'despesa') && (
+                <FieldSelect
+                  label={isVale ? 'Profissional (obrigatório)' : 'Pago para (profissional)'}
+                  placeholder={isVale ? 'Selecione' : 'Selecione (opcional)'}
+                  value={partyId}
+                  onChange={setPartyId}
+                  options={(professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name }))}
+                />
+              )}
 
-          {/* 4. Forma de pagamento */}
-          <FieldSelect
-            label="Forma de pagamento"
-            placeholder="Selecione (opcional)"
-            value={paymentMethodId}
-            onChange={setPaymentMethodId}
-            options={(paymentMethods.data ?? []).map((m) => ({ id: m.id, name: m.name }))}
-          />
-
-          {/* 5. Conta */}
-          <FieldSelect
-            label="Conta"
-            placeholder="Selecione (opcional)"
-            value={accountId}
-            onChange={setAccountId}
-            options={(accounts.data ?? []).map((a) => ({ id: a.id, name: a.name }))}
-          />
-
-          <div className="my-1 h-px bg-[var(--color-soft-border)]" />
-
-          {/* Extras (não existem no Belasis, mas úteis no nosso app). */}
-          {/* Categoria (oculto no vale) */}
-          {!isVale && (
-            <FieldSelect
-              label="Categoria"
-              placeholder="Selecione (opcional)"
-              value={categoryId}
-              onChange={setCategoryId}
-              options={(categories.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
-            />
+              {/* 4. Status */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Status</label>
+                <Select
+                  aria-label="Status"
+                  selectedKey={status}
+                  onSelectionChange={(k) => setStatus(String(k) as PaymentStatus)}
+                >
+                  <Select.Trigger>
+                    <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      <ListBox.Item id="paid" textValue="Pago">
+                        Pago
+                      </ListBox.Item>
+                      <ListBox.Item id="pending" textValue="Pendente">
+                        Pendente
+                      </ListBox.Item>
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
+            </>
           )}
 
-          {/* Titular: cliente (recebimento) ou profissional (vale/despesa) */}
-          {mode === 'recebimento' && (
-            <FieldSelect
-              label="Recebido de (cliente)"
-              placeholder="Selecione (opcional)"
-              value={partyId}
-              onChange={setPartyId}
-              options={(customers.data?.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
-            />
-          )}
-          {(mode === 'vale' || mode === 'despesa') && (
-            <FieldSelect
-              label={isVale ? 'Profissional (obrigatório)' : 'Pago para (profissional)'}
-              placeholder={isVale ? 'Selecione' : 'Selecione (opcional)'}
-              value={partyId}
-              onChange={setPartyId}
-              options={(professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name }))}
-            />
+          {/* SEÇÃO 2: Categoria & Conta — Forma de pagamento, Conta, Categoria. */}
+          {section === 'classificacao' && (
+            <>
+              <FieldSelect
+                label="Forma de pagamento"
+                placeholder="Selecione (opcional)"
+                value={paymentMethodId}
+                onChange={setPaymentMethodId}
+                options={(paymentMethods.data ?? []).map((m) => ({ id: m.id, name: m.name }))}
+              />
+
+              <FieldSelect
+                label="Conta"
+                placeholder="Selecione (opcional)"
+                value={accountId}
+                onChange={setAccountId}
+                options={(accounts.data ?? []).map((a) => ({ id: a.id, name: a.name }))}
+              />
+
+              {/* Categoria (oculto no vale — vale não é categorizável). */}
+              {!isVale && (
+                <FieldSelect
+                  label="Categoria"
+                  placeholder="Selecione (opcional)"
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  options={(categories.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+                />
+              )}
+            </>
           )}
 
-          {/* Status */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-foreground">Status</label>
-            <Select
-              aria-label="Status"
-              selectedKey={status}
-              onSelectionChange={(k) => setStatus(String(k) as PaymentStatus)}
-            >
-              <Select.Trigger>
-                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  <ListBox.Item id="paid" textValue="Pago">
-                    Pago
-                  </ListBox.Item>
-                  <ListBox.Item id="pending" textValue="Pendente">
-                    Pendente
-                  </ListBox.Item>
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </div>
+          {/* SEÇÃO 3: Observações — Descrição do lançamento. */}
+          {section === 'observacoes' && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Descrição</label>
+              <TextField value={description} onChange={setDescription} aria-label="Descrição">
+                <Input placeholder="Gerada automaticamente se vazio" />
+              </TextField>
+              <p className="text-xs text-muted">
+                Se em branco, será preenchida automaticamente com base no tipo de
+                lançamento e no titular selecionado.
+              </p>
+            </div>
+          )}
 
           {formError && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -1173,7 +1201,7 @@ function LancamentoModal({
           )}
         </div>
       )}
-    </Drawer>
+    </FullDrawer>
   );
 }
 

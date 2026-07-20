@@ -5,6 +5,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { DateField } from '../components/DateRangeFilter';
 import { Drawer } from '../components/Drawer';
+import { FullDrawer } from '../components/FullDrawer';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconCheck,
@@ -877,6 +878,8 @@ function TotalLine({
 // Drawer: Nova assinatura (Belasis "Novo")
 // ---------------------------------------------------------------------------
 
+type NovaSection = 'cliente' | 'data' | 'itens' | 'recorrencia' | 'observacoes';
+
 function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const create = useCreateCustomerMembership();
   const customers = useCustomers('');
@@ -885,6 +888,7 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const [membershipPlanId, setMembershipPlanId] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [section, setSection] = useState<NovaSection>('cliente');
 
   const customerList = useMemo(() => customers.data?.data ?? [], [customers.data]);
   const planList = useMemo(() => plans.data ?? [], [plans.data]);
@@ -897,6 +901,7 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
       setMembershipPlanId('');
       setNotes('');
       setError(null);
+      setSection('cliente');
     }
   }, [isOpen]);
 
@@ -918,11 +923,19 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const total = formatMoney(selectedPlan?.recurringPrice ?? 0);
 
   return (
-    <Drawer
+    <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
       title="Nova assinatura"
-      widthClass="sm:w-[720px]"
+      sections={[
+        { key: 'cliente', label: 'Cliente' },
+        { key: 'data', label: 'Data' },
+        { key: 'itens', label: 'Itens da assinatura' },
+        { key: 'recorrencia', label: 'Recorrência' },
+        { key: 'observacoes', label: 'Observações' },
+      ]}
+      activeSection={section}
+      onSectionChange={(k) => setSection(k as NovaSection)}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -935,87 +948,128 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
       }
     >
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1.6fr_0.7fr_1fr]">
-          <Field label="Cliente" required>
-            <AutocompleteField
-              ariaLabel="Cliente"
-              placeholder="Busque por um cliente"
-              value={customerId}
-              onChange={setCustomerId}
-              options={customerList.map((c) => ({ id: c.id, name: c.name }))}
-            />
-          </Field>
-          <Field label="Data">
-            {/* TODO: data editável quando o endpoint aceitar a data da assinatura. */}
-            <Input value={today} disabled aria-label="Data" />
-          </Field>
-          <Field label="Modelo de assinatura">
-            <AutocompleteField
-              ariaLabel="Modelo de assinatura"
-              placeholder="Selecione um modelo de assinatura"
-              value={membershipPlanId}
-              onChange={setMembershipPlanId}
-              options={planList.map((p) => ({ id: p.id, name: p.name }))}
-            />
-          </Field>
-        </div>
+        {section === 'cliente' && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Cliente" required>
+              <AutocompleteField
+                ariaLabel="Cliente"
+                placeholder="Busque por um cliente"
+                value={customerId}
+                onChange={setCustomerId}
+                options={customerList.map((c) => ({ id: c.id, name: c.name }))}
+              />
+            </Field>
+            <Field label="Modelo de assinatura" required>
+              <AutocompleteField
+                ariaLabel="Modelo de assinatura"
+                placeholder="Selecione um modelo de assinatura"
+                value={membershipPlanId}
+                onChange={setMembershipPlanId}
+                options={planList.map((p) => ({ id: p.id, name: p.name }))}
+              />
+            </Field>
+          </div>
+        )}
 
-        {/* Itens de assinatura */}
-        <div>
-          <div className="mb-2 text-sm font-semibold text-foreground">Itens de assinatura</div>
-          <div className="overflow-hidden rounded-xl border border-[var(--color-soft-border)]">
-            <div className="grid grid-cols-[1.6fr_0.6fr_1fr_0.9fr_0.9fr] gap-2 border-b border-[var(--color-soft-border)] bg-[color-mix(in_oklab,var(--sp-ink)_3%,transparent)] px-3 py-2 text-[11px] font-semibold text-muted-ink">
-              <span>Descrição</span>
-              <span className="text-right">Qtde.</span>
-              <span className="text-right">Valor unitário</span>
-              <span className="text-right">Desconto</span>
-              <span className="text-right">Total</span>
+        {section === 'data' && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Data">
+              {/* TODO: data editável quando o endpoint aceitar a data da assinatura. */}
+              <Input value={today} disabled aria-label="Data" />
+            </Field>
+          </div>
+        )}
+
+        {section === 'itens' && (
+          <>
+            {/* Itens de assinatura */}
+            <div>
+              <div className="mb-2 text-sm font-semibold text-foreground">Itens de assinatura</div>
+              <div className="overflow-hidden rounded-xl border border-[var(--color-soft-border)]">
+                <div className="grid grid-cols-[1.6fr_0.6fr_1fr_0.9fr_0.9fr] gap-2 border-b border-[var(--color-soft-border)] bg-[color-mix(in_oklab,var(--sp-ink)_3%,transparent)] px-3 py-2 text-[11px] font-semibold text-muted-ink">
+                  <span>Descrição</span>
+                  <span className="text-right">Qtde.</span>
+                  <span className="text-right">Valor unitário</span>
+                  <span className="text-right">Desconto</span>
+                  <span className="text-right">Total</span>
+                </div>
+                {selectedPlan && selectedPlan.services.length > 0 ? (
+                  <ul>
+                    {selectedPlan.services.map((s) => (
+                      <li
+                        key={s.serviceId}
+                        className="grid grid-cols-[1.6fr_0.6fr_1fr_0.9fr_0.9fr] items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2 text-sm last:border-b-0"
+                      >
+                        <span className="truncate text-foreground">{s.service?.name ?? '—'}</span>
+                        <span className="text-right tabular-nums text-muted-ink">
+                          {s.quantityPerCycle}
+                        </span>
+                        <span className="text-right tabular-nums text-muted-ink">—</span>
+                        <span className="text-right tabular-nums text-muted-ink">
+                          {formatMoney(0)}
+                        </span>
+                        <span className="text-right tabular-nums text-foreground">—</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-ink">
+                    <IconScissors size={15} />
+                    {/* TODO: adicionar itens avulsos quando o endpoint suportar. */}
+                    Selecione um modelo para carregar os serviços incluídos.
+                  </div>
+                )}
+              </div>
             </div>
-            {selectedPlan && selectedPlan.services.length > 0 ? (
-              <ul>
-                {selectedPlan.services.map((s) => (
-                  <li
-                    key={s.serviceId}
-                    className="grid grid-cols-[1.6fr_0.6fr_1fr_0.9fr_0.9fr] items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2 text-sm last:border-b-0"
-                  >
-                    <span className="truncate text-foreground">{s.service?.name ?? '—'}</span>
-                    <span className="text-right tabular-nums text-muted-ink">
-                      {s.quantityPerCycle}
-                    </span>
-                    <span className="text-right tabular-nums text-muted-ink">—</span>
-                    <span className="text-right tabular-nums text-muted-ink">
-                      {formatMoney(0)}
-                    </span>
-                    <span className="text-right tabular-nums text-foreground">—</span>
-                  </li>
-                ))}
-              </ul>
+
+            {/* Totais (apresentação — valor recorrente do modelo). */}
+            <div className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
+              <TotalLine label="Desconto" value={formatMoney(0)} />
+              <div className="my-1 border-t border-[var(--color-soft-border)]" />
+              <TotalLine label="Total" value={total} strong />
+            </div>
+          </>
+        )}
+
+        {section === 'recorrencia' && (
+          <div className="flex flex-col gap-3">
+            {selectedPlan ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Intervalo">
+                  <Input
+                    value={`A cada ${selectedPlan.intervalMonths ?? 1} mês(es)`}
+                    disabled
+                    aria-label="Intervalo"
+                  />
+                </Field>
+                <Field label="Mensalidade">
+                  <Input
+                    value={formatMoney(selectedPlan.recurringPrice)}
+                    disabled
+                    aria-label="Mensalidade"
+                  />
+                </Field>
+              </div>
             ) : (
-              <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-ink">
-                <IconScissors size={15} />
-                {/* TODO: adicionar itens avulsos quando o endpoint suportar. */}
-                Selecione um modelo para carregar os serviços incluídos.
+              <div className="rounded-xl border border-dashed border-[var(--color-soft-border)] bg-canvas p-4 text-sm text-muted-ink">
+                {/* TODO: permitir override de recorrência quando o endpoint aceitar. */}
+                Selecione um modelo de assinatura para ver a recorrência.
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Totais (apresentação — valor recorrente do modelo). */}
-        <div className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
-          <TotalLine label="Desconto" value={formatMoney(0)} />
-          <div className="my-1 border-t border-[var(--color-soft-border)]" />
-          <TotalLine label="Total" value={total} strong />
-        </div>
-
-        <Field label="Observações">
-          <TextField value={notes} onChange={setNotes} aria-label="Observações">
-            <Input placeholder="Escreva aqui" />
-          </TextField>
-        </Field>
+        {section === 'observacoes' && (
+          <Field label="Observações">
+            <TextField value={notes} onChange={setNotes} aria-label="Observações">
+              <Input placeholder="Escreva aqui" />
+            </TextField>
+          </Field>
+        )}
 
         {error && <FormError message={error} />}
       </div>
-    </Drawer>
+    </FullDrawer>
   );
 }
 

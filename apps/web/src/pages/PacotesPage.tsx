@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../components/ConfirmDialog';
-import { Drawer } from '../components/Drawer';
+import { FullDrawer } from '../components/FullDrawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconEye,
@@ -859,6 +859,9 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   const [cashback, setCashback] = useState('');
   const [observation, setObservation] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [section, setSection] = useState<'cliente' | 'itens' | 'pagamentos' | 'observacoes'>(
+    'cliente',
+  );
 
   const customerList = useMemo(() => customers.data?.data ?? [], [customers.data]);
   const templateList = useMemo(() => templates.data ?? [], [templates.data]);
@@ -882,6 +885,7 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
       setCashback('');
       setObservation('');
       setError(null);
+      setSection('cliente');
     }
   }, [isOpen]);
 
@@ -908,12 +912,20 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   }
 
   return (
-    <Drawer
+    <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
       title="Novo pacote"
-      // Belasis: drawer largo (rect w=1440 no capture; ~1650px de intenção), limitado a 95vw.
-      widthClass="sm:w-[min(1440px,95vw)]"
+      sections={[
+        { key: 'cliente', label: 'Cliente / Dados' },
+        { key: 'itens', label: 'Itens do pacote' },
+        { key: 'pagamentos', label: 'Pagamentos' },
+        { key: 'observacoes', label: 'Observações' },
+      ]}
+      activeSection={section}
+      onSectionChange={(k) =>
+        setSection(k as 'cliente' | 'itens' | 'pagamentos' | 'observacoes')
+      }
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -926,154 +938,170 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
       }
     >
       <div className="flex flex-col gap-4">
-        <Field label="Cliente" required>
-          <Select
-            aria-label="Cliente"
-            selectedKey={customerId || null}
-            onSelectionChange={(k) => setCustomerId(k ? String(k) : NONE)}
-          >
-            <Select.Trigger>
-              <Select.Value>
-                {({ isPlaceholder, selectedText }) =>
-                  isPlaceholder ? 'Busque por um cliente' : selectedText
-                }
-              </Select.Value>
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                {customerList.map((c) => (
-                  <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                    {c.name}
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-        </Field>
+        {section === 'cliente' && (
+          <>
+            <Field label="Cliente" required>
+              <Select
+                aria-label="Cliente"
+                selectedKey={customerId || null}
+                onSelectionChange={(k) => setCustomerId(k ? String(k) : NONE)}
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ isPlaceholder, selectedText }) =>
+                      isPlaceholder ? 'Busque por um cliente' : selectedText
+                    }
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {customerList.map((c) => (
+                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                        {c.name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Data">
-            {/* TODO Belasis: data de emissão não é enviada pela API atual */}
-            <TextField value={date} onChange={setDate} aria-label="Data">
-              <Input type="date" />
-            </TextField>
-          </Field>
-          <Field label="Validade">
-            {/* TODO Belasis: validade manual não é enviada pela API atual */}
-            <TextField value={validUntil} onChange={setValidUntil} aria-label="Validade">
-              <Input type="date" />
-            </TextField>
-          </Field>
-        </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Data">
+                {/* TODO Belasis: data de emissão não é enviada pela API atual */}
+                <TextField value={date} onChange={setDate} aria-label="Data">
+                  <Input type="date" />
+                </TextField>
+              </Field>
+              <Field label="Validade">
+                {/* TODO Belasis: validade manual não é enviada pela API atual */}
+                <TextField value={validUntil} onChange={setValidUntil} aria-label="Validade">
+                  <Input type="date" />
+                </TextField>
+              </Field>
+            </div>
 
-        <Field label="Pacote Predefinido">
-          <Select
-            aria-label="Pacote Predefinido"
-            selectedKey={templateId || null}
-            onSelectionChange={(k) => setTemplateId(k ? String(k) : NONE)}
-          >
-            <Select.Trigger>
-              <Select.Value>
-                {({ isPlaceholder, selectedText }) =>
-                  isPlaceholder ? 'Selecione um pacote predefinido' : selectedText
-                }
-              </Select.Value>
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                {templateList.map((t) => (
-                  <ListBox.Item key={t.id} id={t.id} textValue={t.name}>
-                    {t.name}
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-        </Field>
+            <Field label="Pacote Predefinido">
+              <Select
+                aria-label="Pacote Predefinido"
+                selectedKey={templateId || null}
+                onSelectionChange={(k) => setTemplateId(k ? String(k) : NONE)}
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ isPlaceholder, selectedText }) =>
+                      isPlaceholder ? 'Selecione um pacote predefinido' : selectedText
+                    }
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {templateList.map((t) => (
+                      <ListBox.Item key={t.id} id={t.id} textValue={t.name}>
+                        {t.name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
 
-        <Field label="Vendedor">
-          {/* TODO Belasis: seleção de vendedor não suportada pela API de venda atual */}
-          <div className="rounded-md border border-line bg-canvas px-3 py-2 text-sm text-muted-ink">
-            Selecione um vendedor
-          </div>
-        </Field>
+            <Field label="Vendedor">
+              {/* TODO Belasis: seleção de vendedor não suportada pela API de venda atual */}
+              <div className="rounded-md border border-line bg-canvas px-3 py-2 text-sm text-muted-ink">
+                Selecione um vendedor
+              </div>
+            </Field>
+          </>
+        )}
 
-        {/* Itens do pacote — prévia do modelo selecionado (Belasis: tabela de itens) */}
-        <div className="rounded-lg border border-line">
-          <div className="border-b border-line px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
-            Itens do pacote
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-muted-ink">
-                  <th className="px-3 py-2 font-semibold">Descrição</th>
-                  <th className="px-3 py-2 text-center font-semibold">Qtde.</th>
-                  <th className="px-3 py-2 text-right font-semibold">Valor unitário</th>
-                  <th className="px-3 py-2 text-right font-semibold">Desconto</th>
-                  <th className="px-3 py-2 text-right font-semibold">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedTemplate && selectedTemplate.items.length > 0 ? (
-                  selectedTemplate.items.map((it) => (
-                    <tr key={it.id} className="border-b border-line/60 last:border-0">
-                      <td className="px-3 py-2 text-ink">
-                        {it.service?.name ?? serviceMap.get(it.serviceId) ?? 'Serviço'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-muted-ink">{it.sessions}</td>
-                      <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
-                      <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
-                      <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-4 text-center text-sm text-muted-ink">
-                      Selecionar serviço
-                    </td>
+        {section === 'itens' && (
+          /* Itens do pacote — prévia do modelo selecionado (Belasis: tabela de itens) */
+          <div className="rounded-lg border border-line">
+            <div className="border-b border-line px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Itens do pacote
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-muted-ink">
+                    <th className="px-3 py-2 font-semibold">Descrição</th>
+                    <th className="px-3 py-2 text-center font-semibold">Qtde.</th>
+                    <th className="px-3 py-2 text-right font-semibold">Valor unitário</th>
+                    <th className="px-3 py-2 text-right font-semibold">Desconto</th>
+                    <th className="px-3 py-2 text-right font-semibold">Total</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {selectedTemplate && selectedTemplate.items.length > 0 ? (
+                    selectedTemplate.items.map((it) => (
+                      <tr key={it.id} className="border-b border-line/60 last:border-0">
+                        <td className="px-3 py-2 text-ink">
+                          {it.service?.name ?? serviceMap.get(it.serviceId) ?? 'Serviço'}
+                        </td>
+                        <td className="px-3 py-2 text-center text-muted-ink">{it.sessions}</td>
+                        <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
+                        <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
+                        <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-4 text-center text-sm text-muted-ink">
+                        {templateId
+                          ? 'Selecionar serviço'
+                          : 'Selecione um Pacote Predefinido na aba "Cliente / Dados".'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Resumo à direita (Belasis: Desconto / Crédito / Cashback / Total).
-            Apenas Total (valor do pacote) é enviado pela API atual. */}
-        <div className="flex justify-end">
-          <div className="w-full sm:max-w-sm">
-            <SummaryRow label="Desconto">
-              <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
-                <Input type="number" placeholder="R$ 0,00" className="text-right" />
-              </TextField>
-            </SummaryRow>
-            <SummaryRow label="Crédito">
-              {/* TODO Belasis: crédito não enviado pela API atual */}
-              <TextField value={creditNote} onChange={setCreditNote} aria-label="Crédito">
-                <Input type="number" placeholder="R$ 0,00" className="text-right" />
-              </TextField>
-            </SummaryRow>
-            <SummaryRow label="Cashback">
-              {/* TODO Belasis: cashback não enviado pela API atual */}
-              <TextField value={cashback} onChange={setCashback} aria-label="Cashback">
-                <Input type="number" placeholder="R$ 0,00" className="text-right" />
-              </TextField>
-            </SummaryRow>
-            <SummaryRow label="Total" strong>
-              <TextField value={price} onChange={setPrice} aria-label="Total">
-                <Input type="number" placeholder="R$ 0,00" className="text-right font-semibold" />
-              </TextField>
-            </SummaryRow>
+        {section === 'pagamentos' && (
+          /* Resumo à direita (Belasis: Desconto / Crédito / Cashback / Total).
+             Apenas Total (valor do pacote) é enviado pela API atual. */
+          <div className="flex justify-end">
+            <div className="w-full sm:max-w-sm">
+              <SummaryRow label="Desconto">
+                <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
+                  <Input type="number" placeholder="R$ 0,00" className="text-right" />
+                </TextField>
+              </SummaryRow>
+              <SummaryRow label="Crédito">
+                {/* TODO Belasis: crédito não enviado pela API atual */}
+                <TextField value={creditNote} onChange={setCreditNote} aria-label="Crédito">
+                  <Input type="number" placeholder="R$ 0,00" className="text-right" />
+                </TextField>
+              </SummaryRow>
+              <SummaryRow label="Cashback">
+                {/* TODO Belasis: cashback não enviado pela API atual */}
+                <TextField value={cashback} onChange={setCashback} aria-label="Cashback">
+                  <Input type="number" placeholder="R$ 0,00" className="text-right" />
+                </TextField>
+              </SummaryRow>
+              <SummaryRow label="Total" strong>
+                <TextField value={price} onChange={setPrice} aria-label="Total">
+                  <Input
+                    type="number"
+                    placeholder="R$ 0,00"
+                    className="text-right font-semibold"
+                  />
+                </TextField>
+              </SummaryRow>
+            </div>
           </div>
-        </div>
+        )}
 
-        <Field label="Observação">
-          {/* TODO Belasis: observação não enviada pela API atual */}
-          <TextField value={observation} onChange={setObservation} aria-label="Observação">
-            <Input placeholder="Escreva aqui" />
-          </TextField>
-        </Field>
+        {section === 'observacoes' && (
+          <Field label="Observação">
+            {/* TODO Belasis: observação não enviada pela API atual */}
+            <TextField value={observation} onChange={setObservation} aria-label="Observação">
+              <Input placeholder="Escreva aqui" />
+            </TextField>
+          </Field>
+        )}
 
         {error && (
           <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -1081,7 +1109,7 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
           </div>
         )}
       </div>
-    </Drawer>
+    </FullDrawer>
   );
 }
 

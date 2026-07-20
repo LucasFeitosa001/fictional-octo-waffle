@@ -6,12 +6,12 @@ import {
   ListBox,
   SearchField,
   Select,
-  Tabs,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../components/ConfirmDialog';
 import { Drawer } from '../components/Drawer';
+import { FullDrawer } from '../components/FullDrawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { ImageUpload } from '../components/ImageUpload';
 import {
@@ -1009,12 +1009,26 @@ function ProductDrawer({
   }
 
   return (
-    <Drawer
+    <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'edit' ? 'Editar produto' : 'Novo produto'}
-      /* Belasis pixel: .ant-drawer-content-wrapper rect w=1024 @1440 (0.3s ease). */
-      widthClass="sm:w-[min(1024px,94vw)]"
+      title={
+        mode === 'edit'
+          ? `Editando produto${product ? ` — ${product.name}` : ''}`
+          : 'Novo produto'
+      }
+      /* Belasis pixel: abas register/settings/cashback ativas + client_return/
+         linked_services/electronic_invoice desabilitadas (mesma ordem/labels). */
+      sections={[
+        { key: 'cadastro', label: 'Cadastro' },
+        { key: 'config', label: 'Configurações' },
+        { key: 'cashback', label: 'Cashback' },
+        { key: 'retorno', label: 'Retorno', disabled: true },
+        { key: 'linked', label: 'Serviços vinculados', disabled: true },
+        { key: 'invoice', label: 'Configurar nota fiscal', disabled: true },
+      ]}
+      activeSection={tab}
+      onSectionChange={setTab}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -1026,25 +1040,8 @@ function ProductDrawer({
         </>
       }
     >
-      <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-        {/* Belasis pixel: abas register/settings/cashback ativas + client_return/
-            linked_services/electronic_invoice desabilitadas (mesma ordem/labels). */}
-        <Tabs.List className="w-full overflow-x-auto">
-          <Tabs.Tab id="cadastro">Cadastro</Tabs.Tab>
-          <Tabs.Tab id="config">Configurações</Tabs.Tab>
-          <Tabs.Tab id="cashback">Cashback</Tabs.Tab>
-          <Tabs.Tab id="retorno" isDisabled>
-            Retorno
-          </Tabs.Tab>
-          <Tabs.Tab id="linked" isDisabled>
-            Serviços vinculados
-          </Tabs.Tab>
-          <Tabs.Tab id="invoice" isDisabled>
-            Configurar nota fiscal
-          </Tabs.Tab>
-        </Tabs.List>
-
-        <Tabs.Panel id="cadastro" className="flex flex-col gap-4 pt-4">
+      {tab === 'cadastro' && (
+        <div className="flex flex-col gap-4">
           <ImageUpload
             value={imageUrl}
             onChange={setImageUrl}
@@ -1196,9 +1193,11 @@ function ProductDrawer({
               <Input placeholder="Anotações internas sobre o produto" />
             </TextField>
           </Field>
-        </Tabs.Panel>
+        </div>
+      )}
 
-        <Tabs.Panel id="config" className="flex flex-col gap-4 pt-4">
+      {tab === 'config' && (
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 rounded-md border border-line bg-canvas p-3">
             <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
             <span className="text-xs text-muted-ink">
@@ -1221,9 +1220,11 @@ function ProductDrawer({
               </>
             )}
           </div>
-        </Tabs.Panel>
+        </div>
+      )}
 
-        <Tabs.Panel id="cashback" className="flex flex-col gap-4 pt-4">
+      {tab === 'cashback' && (
+        <div className="flex flex-col gap-4">
           <Field label="Cashback (%)">
             <TextField
               value={cashbackPercent}
@@ -1237,15 +1238,15 @@ function ProductDrawer({
               cashback. O cliente receberá o valor configurado ao comprar este produto.
             </span>
           </Field>
-        </Tabs.Panel>
-      </Tabs>
+        </div>
+      )}
 
       {error && (
         <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
         </div>
       )}
-    </Drawer>
+    </FullDrawer>
   );
 }
 
