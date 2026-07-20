@@ -130,6 +130,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
                 icon={action.icon}
                 onPress={action.onClick}
                 disabled={action.disabled}
+                active={action.active}
               />
             ))}
           </div>
@@ -178,18 +179,24 @@ function ActionButton({
   icon,
   onPress,
   disabled = false,
+  active = false,
 }: {
   label: string;
   icon: ReactNode;
   onPress: () => void;
   disabled?: boolean;
+  active?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onPress}
       disabled={disabled}
-      className="flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2 text-[10px] font-medium text-white/70 transition-colors hover:text-white active:text-gold disabled:cursor-not-allowed disabled:opacity-45"
+      aria-pressed={active}
+      className={[
+        'flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45',
+        active ? 'text-gold' : 'text-white/70 hover:text-white active:text-gold',
+      ].join(' ')}
     >
       {icon}
       <span className="max-w-full truncate">{label}</span>

@@ -323,17 +323,23 @@ export function ComandasPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<OrderRow | null>(null);
   const [viewing, setViewing] = useState<OrderRow | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
   useAutoCreate(() => setCreateOpen(true));
 
-  // Mobile: the header Buscar/Filtrar/Novo controls move to the BottomNav
-  // (Belasis pattern). Each fires the exact same handler as the desktop button.
+  // Ao sair do modo Selecionar, limpa a seleção (padrão Belasis).
+  useEffect(() => {
+    if (!selectMode) setSelected(new Set());
+  }, [selectMode]);
+
+  // Mobile: BottomNav = [Filtros, Selecionar, Novo]. Busca fica sempre no topo (input),
+  // como no belasis.app — sem toggle. Selecionar habilita checkbox nos cards.
   useSetPageActions(
     [
-      { key: 'buscar', label: 'Buscar', icon: <IconSearch size={22} />, onClick: () => setShowSearch((v) => !v) },
-      { key: 'filtros', label: 'Filtrar', icon: <IconFilter size={22} />, onClick: () => setShowFilters((v) => !v) },
+      { key: 'filtros', label: 'Filtrar', icon: <IconFilter size={22} />, onClick: () => setShowFilters((v) => !v), active: showFilters },
+      { key: 'selecionar', label: 'Selecionar', icon: <IconCheck size={22} />, onClick: () => setSelectMode((v) => !v), active: selectMode },
       { key: 'novo', label: 'Novo', icon: <IconPlus size={22} />, onClick: () => setCreateOpen(true) },
     ],
-    [],
+    [selectMode, showFilters],
   );
 
   const customerOptions = useMemo(() => {
@@ -473,9 +479,16 @@ export function ComandasPage() {
       />
 
       <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
-        <Card.Content className="p-4">
+        <Card.Content className="p-3 sm:p-4">
+          {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
+          <div className="mb-3 md:hidden">
+            <TextField value={search} onChange={setSearch} aria-label="Buscar comanda">
+              <Input placeholder="Digite para buscar" />
+            </TextField>
+          </div>
+          {/* Desktop: continua sendo toggle via botão Buscar. */}
           {showSearch && (
-            <div className="mb-4 max-w-md">
+            <div className="mb-4 hidden max-w-md md:block">
               <TextField
                 value={search}
                 onChange={setSearch}
@@ -765,51 +778,61 @@ export function ComandasPage() {
                 </table>
               </div>
 
-              {/* Mobile: stacked cards (Belasis layout) */}
-              <ul className="flex flex-col gap-3 md:hidden">
-                {pageRows.map((o) => (
-                  <li
-                    key={o.id}
-                    className="rounded-2xl border border-[var(--color-soft-border)] bg-white p-4 shadow-[var(--shadow-soft)]"
-                  >
-                    <div className="mb-2 flex items-center justify-between">
+              {/* Mobile: cards compactos padrão Belasis.
+                  Linha 1: [checkbox?] #num NOME  ......  R$ valor
+                  Linha 2: data ...................... [pill status]
+                  Sem "Excluir" no card; sem "Selecionar" fixo — ambos via BottomNav ⇒ selectMode. */}
+              <ul className="flex flex-col gap-2 md:hidden">
+                {pageRows.map((o) => {
+                  const isSelected = selected.has(o.id);
+                  const onCardClick = () => {
+                    if (selectMode) toggleOne(o.id);
+                    else setViewing(o);
+                  };
+                  return (
+                    <li key={o.id}>
                       <button
                         type="button"
-                        onClick={() => handleRemove(o)}
-                        disabled={o.status === 'canceled' || del.isPending}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-danger disabled:opacity-40"
+                        onClick={onCardClick}
+                        className={[
+                          'flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                          isSelected
+                            ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
+                            : 'border-[var(--color-soft-border)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]',
+                        ].join(' ')}
                       >
-                        <IconTrash size={13} /> Excluir
+                        {selectMode && (
+                          <span
+                            aria-hidden
+                            className={[
+                              'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors',
+                              isSelected
+                                ? 'border-[var(--sp-primary)] bg-[var(--sp-primary)] text-white'
+                                : 'border-[var(--color-soft-border)] bg-white',
+                            ].join(' ')}
+                          >
+                            {isSelected && <IconCheck size={13} />}
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
+                              <span className="font-semibold text-primary">#{o.number}</span>{' '}
+                              <span className="text-foreground">{o.customer?.name ?? 'Avulso'}</span>
+                            </div>
+                            <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground">
+                              {formatMoney(o.netTotal)}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-muted-ink">{formatDate(o.date)}</span>
+                            <StatusTag status={o.status} />
+                          </div>
+                        </div>
                       </button>
-                      <label className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-ink">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-[var(--sp-primary)]"
-                          checked={selected.has(o.id)}
-                          onChange={() => toggleOne(o.id)}
-                        />
-                        Selecionar
-                      </label>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setViewing(o)}
-                      className="text-left"
-                    >
-                      <div className="text-base font-bold text-primary">#{o.number}</div>
-                      <div className="mt-0.5 font-medium text-foreground">
-                        {o.customer?.name ?? 'Avulso'}
-                      </div>
-                    </button>
-                    <div className="mt-1 text-lg font-bold tabular-nums text-foreground">
-                      {formatMoney(o.netTotal)}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-xs text-muted-ink">{formatDate(o.date)}</span>
-                      <StatusTag status={o.status} />
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
 
               <Pagination page={page} total={rows.length} onPage={setPage} />
