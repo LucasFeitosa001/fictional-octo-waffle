@@ -22,6 +22,7 @@ import {
 import { PageHeader } from '../components/PageHeader';
 import { DateRangeFilter } from '../components/DateRangeFilter';
 import { Drawer } from '../components/Drawer';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useSetPageActions } from '../layout/PageActions';
 import { EmptyState, LoadingState } from '../components/States';
 import {
@@ -29,6 +30,7 @@ import {
   IconClock,
   IconDollar,
   IconFilter,
+  IconX,
   IconReceipt,
   IconRefresh,
   IconUsers,
@@ -873,6 +875,9 @@ export function PainelPage() {
   const [range, setRange] = useState(defaultRange);
   const [mobileRange, setMobileRange] = useState(range);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false);
+  const [desktopRange, setDesktopRange] = useState(range);
+  const isMobile = useIsMobile();
 
   const dashboard = useDashboard(range.from, range.to);
   const d = dashboard.data;
@@ -916,14 +921,23 @@ export function PainelPage() {
       {/* (1) Cabeçalho + saudação */}
       <PageHeader title={`Olá, ${firstName}`} subtitle="Resumo do seu salão" />
 
-      {/* (1) Chip de período — clicável, reabre o drawer de seleção (Belasis `.box-shadow`). */}
+      {/* (1) Chip de período — mobile abre Drawer, desktop toggle painel lateral inline. */}
       <button
         type="button"
         onClick={() => {
-          setMobileRange(range);
-          setMobileFiltersOpen(true);
+          if (isMobile) {
+            setMobileRange(range);
+            setMobileFiltersOpen(true);
+          } else {
+            setDesktopRange(range);
+            setDesktopFiltersOpen((v) => !v);
+          }
         }}
-        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-2.5 text-center text-sm font-medium text-ink shadow-[var(--shadow-card)] transition-colors hover:border-gold"
+        aria-expanded={isMobile ? undefined : desktopFiltersOpen}
+        className={[
+          'mb-4 flex w-full items-center justify-center gap-2 rounded-xl border bg-card px-4 py-2.5 text-center text-sm font-medium text-ink shadow-[var(--shadow-card)] transition-colors hover:border-gold',
+          desktopFiltersOpen && !isMobile ? 'border-gold' : 'border-line',
+        ].join(' ')}
       >
         <IconCalendar size={16} className="shrink-0 text-gold-strong" />
         <span>
@@ -934,6 +948,57 @@ export function PainelPage() {
         <InfoIcon size={14} />
       </button>
 
+      {/* Layout: desktop com painel de filtros inline à esquerda quando aberto.
+          Mobile continua usando o Drawer (regra: drawer é só mobile). */}
+      <div className={desktopFiltersOpen ? 'lg:flex lg:items-start lg:gap-6' : ''}>
+        {/* Desktop-only inline filter panel — animação padrão dropdown. */}
+        {!isMobile && (
+          <aside
+            aria-hidden={!desktopFiltersOpen}
+            className={[
+              'hidden shrink-0 self-start rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]',
+              'origin-left transition-all duration-200 ease-out',
+              desktopFiltersOpen
+                ? 'pointer-events-auto lg:block lg:w-[280px] translate-x-0 scale-100 opacity-100'
+                : 'pointer-events-none w-0 -translate-x-2 scale-[0.98] opacity-0',
+            ].join(' ')}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-ink">Filtros do painel</span>
+              <button
+                type="button"
+                onClick={() => setDesktopFiltersOpen(false)}
+                aria-label="Fechar filtros"
+                className="rounded-md p-1 text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-muted">Escolha o período dos indicadores.</p>
+            <DateRangeFilter
+              from={desktopRange.from}
+              to={desktopRange.to}
+              onChange={setDesktopRange}
+              fromLabel="Data inicial"
+              toLabel="Data final"
+              className="flex-col items-stretch [&>label]:!w-full"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDesktopFiltersOpen(false)}>Fechar</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setRange(desktopRange);
+                  setDesktopFiltersOpen(false);
+                }}
+              >
+                Aplicar
+              </Button>
+            </div>
+          </aside>
+        )}
+
+        <div className="min-w-0 flex-1">
       {dashboard.isLoading ? (
         <LoadingState />
       ) : dashboard.isError || !d ? (
@@ -1003,6 +1068,8 @@ export function PainelPage() {
           </div>
         </div>
       )}
+        </div>
+      </div>
 
       <Drawer
         isOpen={mobileFiltersOpen}

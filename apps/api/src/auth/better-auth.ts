@@ -109,6 +109,21 @@ export const auth = betterAuth({
       // 'customer' = public-portal booker (no Company; books at salons).
       accountType: { type: 'string', required: false, input: true, defaultValue: 'staff' },
     },
+    // Enable POST /api/v1/auth/change-email. Staff accounts have
+    // emailVerified=false (we don't run a verification gate here), and Better
+    // Auth v1.6 refuses to touch the email unless one of three flows is
+    // available. `updateEmailWithoutVerification: true` is the flow that
+    // matches our world: rewrite the address in place for unverified users.
+    // We still ship a no-op sendChangeEmailVerification so a future verified
+    // user hitting this endpoint gets a graceful pass instead of a runtime
+    // crash.
+    changeEmail: {
+      enabled: true,
+      updateEmailWithoutVerification: true,
+      sendChangeEmailVerification: async () => {
+        // No transactional email in this environment; verification is a no-op.
+      },
+    },
   },
   databaseHooks: {
     user: {

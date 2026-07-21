@@ -29,7 +29,7 @@ export interface CustomerBody {
   active?: boolean;
   // Cliente — profundidade (P0)
   rg?: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
   referredById?: string;
   defaultDiscountPercent?: number;
   notificationsEnabled?: boolean;

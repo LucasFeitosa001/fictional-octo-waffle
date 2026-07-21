@@ -43,6 +43,7 @@ const PAGE_META: { path: string; title: string; description: string }[] = [
   { path: '/marketing/avaliacoes', title: 'Avaliações', description: 'O feedback dos clientes' },
   { path: '/marketing/cashback', title: 'Cashback', description: 'Programa de recompensas' },
   { path: '/configuracoes', title: 'Configurações', description: 'Preferências do studio' },
+  { path: '/perfil/assinatura', title: 'Assinatura', description: 'Plano, cobrança e histórico' },
   { path: '/perfil/adicionais', title: 'Adicionais', description: 'Recursos extras do seu plano' },
   { path: '/perfil', title: 'Meu perfil', description: 'Conta, acesso e plano' },
   { path: '/notificacoes', title: 'Notificações', description: 'Central de avisos e alertas' },
@@ -152,11 +153,17 @@ export function Topbar() {
             </span>
           </button>
 
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-1.5 shadow-[var(--shadow-pop)]"
-            >
+          <div
+            role="menu"
+            aria-hidden={!menuOpen}
+            className={[
+              'absolute right-0 top-full z-50 mt-2 w-56 origin-top overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-1.5 shadow-[var(--shadow-pop)]',
+              'transition-all duration-200 ease-out',
+              menuOpen
+                ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+                : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+            ].join(' ')}
+          >
               <div className="flex items-center gap-3 px-2.5 py-2">
                 <Avatar size="sm">
                   {image && <Avatar.Image src={image} alt={name} />}
@@ -190,7 +197,6 @@ export function Topbar() {
                 <IconLogout size={17} /> Sair
               </button>
             </div>
-          )}
         </div>
       </div>
       </header>

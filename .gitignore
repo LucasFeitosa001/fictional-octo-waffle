@@ -35,3 +35,6 @@ coverage/
 .gstack/
 silvia-erp-backup-*.json
 belasis-reference/.auth-profile*
+
+# local uploads (dev fallback when S3 is not configured)
+apps/api/uploads/

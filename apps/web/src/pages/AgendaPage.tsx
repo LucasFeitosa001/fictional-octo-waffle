@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Label, ListBox, Select, TextField } from '@heroui/react';
 import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../components/States';
@@ -44,9 +44,11 @@ const STATUS_DOT_COLOR: Record<AppointmentStatus, string> = {
   canceled: '#ff6b68',
 };
 
-/** Belasis colore cada evento pela cor do status (fundo sólido, texto branco). */
+/** Belasis colore cada evento pela cor do status (fundo sólido, texto branco).
+ * Fallback é tokenizado (--sp-event-bg) para status desconhecidos — cores dos
+ * status conhecidos continuam fixas (paleta Belasis). */
 function eventColor(a: AppointmentRow): string {
-  return STATUS_DOT_COLOR[a.status] ?? '#2196F3';
+  return STATUS_DOT_COLOR[a.status] ?? 'var(--sp-event-bg, #6b7280)';
 }
 
 // Local glyphs (the shared icon set has no filter/bolt icon).
@@ -143,26 +145,11 @@ function IconWhatsApp({ size = 16 }: { size?: number }) {
   );
 }
 
-function useIsDesktop(): boolean {
-  const [desktop, setDesktop] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const on = () => setDesktop(mq.matches);
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return desktop;
-}
-
 const HOUR_H = 60;
 const TOTAL_MIN = (END_HOUR - START_HOUR) * 60;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
 
 export function AgendaPage() {
-  const isDesktop = useIsDesktop();
   const [view, setView] = useState<View>(() => {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(VIEW_KEY) : null;
     return saved === 'day' || saved === 'week' || saved === 'month' || saved === 'year' ? saved : 'month';
@@ -172,6 +159,11 @@ export function AgendaPage() {
     try { localStorage.setItem(VIEW_KEY, view); } catch { /* ignore */ }
   }, [view]);
   const [anchor, setAnchor] = useState(() => new Date());
+
+  // Deep-link do sino de notificações: /agenda?appointmentId=<id> abre o drawer
+  // do agendamento (busca por id, ajusta o âncora pra data do compromisso e
+  // consome o param pra não re-abrir se o usuário fechar o drawer).
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ── Filters (Belasis "Filtrar" panel): professional (multi), status (multi),
   // service, and a customer search.
@@ -388,6 +380,17 @@ export function AgendaPage() {
           ? `${rangeFmt.format(days[0])} – ${rangeFmt.format(days[6])}`
           : longDateFmt.format(days[0]);
 
+  // Belasis exibe o intervalo atual ("Diário/Semanal/Mensal") ao lado do título
+  // — usamos o mesmo rótulo no chip inline do header mobile.
+  const viewLabel =
+    effectiveView === 'day'
+      ? 'Diário'
+      : effectiveView === 'week'
+        ? 'Semanal'
+        : effectiveView === 'month'
+          ? 'Mensal'
+          : 'Anual';
+
   function flash(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -507,6 +510,45 @@ export function AgendaPage() {
     setCancelReason('');
     setShowReschedule(false);
   }
+
+  // Consome ?appointmentId=<id> vindo do sino de notificações. Busca o
+  // agendamento por id (funciona mesmo se ele não estiver no range atual),
+  // move o calendário pra data dele e abre o drawer de visualização.
+  const deepLinkApptId = searchParams.get('appointmentId');
+  useEffect(() => {
+    if (!deepLinkApptId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const appt = await api.get<AppointmentRow>(`/appointments/${deepLinkApptId}`);
+        if (cancelled) return;
+        const when = new Date(appt.start);
+        // Preserva a view atual (day/week/month/year), só desloca o âncora pra
+        // a data do compromisso — o refetch da agenda vai trazer o slot.
+        setAnchor(new Date(when.getFullYear(), when.getMonth(), when.getDate()));
+        openDetail(appt);
+      } catch {
+        // agendamento foi deletado ou id inválido — silêncio (o param é
+        // consumido no finally, então não re-tenta em loop).
+      } finally {
+        if (!cancelled) {
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('appointmentId');
+              return next;
+            },
+            { replace: true },
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Depende só do param — quando ele muda (ou é limpo), o efeito re-avalia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkApptId]);
 
   // In selection mode a block toggles selection; otherwise it opens the detail.
   function onBlockClick(a: AppointmentRow) {
@@ -789,26 +831,59 @@ export function AgendaPage() {
 
         {/* The original mobile header is a centered, translucent date navigator.
             Belasis (FullCalendar) keeps the "voltar para hoje" play-circle to the
-            right of the interval arrows on mobile too. */}
+            right of the interval arrows on mobile too. Adicionamos ao lado do
+            título um chip de "Visualização" (dropdown → drawer bottom) e à
+            direita o botão "Filtrar" (com badge de filtros ativos). */}
         <div className="bg-white/80 backdrop-blur-[2px] lg:hidden">
-          <div className="flex h-11 items-center justify-center px-4">
+          <div className="flex h-12 items-center gap-0.5 px-2">
             <button type="button" aria-label="Anterior" onClick={() => navigate(-1)}
-              className="grid h-11 w-11 shrink-0 place-items-center text-gold-strong active:bg-cream">
+              className="grid h-10 w-10 shrink-0 place-items-center text-gold-strong active:bg-cream">
               <IconChevron size={17} className="rotate-90" />
             </button>
-            <button type="button" onClick={openDateDrawer} aria-haspopup="dialog" aria-expanded={dateDrawerOpen}
-              className="min-w-0 max-w-[52vw] truncate px-2 text-center text-sm font-semibold capitalize text-foreground">
-              {periodLabel}
-            </button>
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
+              <button type="button" onClick={openDateDrawer} aria-haspopup="dialog" aria-expanded={dateDrawerOpen}
+                className="min-w-0 truncate px-1 text-center text-sm font-semibold capitalize text-foreground">
+                {periodLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileViewOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={mobileViewOpen}
+                aria-label={`Visualização: ${viewLabel}`}
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-black/[0.08] bg-white px-2 py-1 text-[11px] font-semibold text-gold-strong active:bg-cream"
+              >
+                <span className="max-w-[60px] truncate">{viewLabel}</span>
+                <IconChevron size={12} className="-rotate-90" />
+              </button>
+            </div>
             <button type="button" aria-label="Próximo" onClick={() => navigate(1)}
-              className="grid h-11 w-11 shrink-0 place-items-center text-gold-strong active:bg-cream">
+              className="grid h-10 w-10 shrink-0 place-items-center text-gold-strong active:bg-cream">
               <IconChevron size={17} className="-rotate-90" />
             </button>
             <button type="button" aria-label="Voltar para hoje" title="Hoje" onClick={() => setAnchor(new Date())}
-              className="ml-1 grid h-11 w-11 shrink-0 place-items-center text-gold-strong active:opacity-80">
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-gold/10">
-                <IconPlayCircle size={20} />
+              className="grid h-10 w-10 shrink-0 place-items-center text-gold-strong active:opacity-80">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-gold/10">
+                <IconPlayCircle size={18} />
               </span>
+            </button>
+            <button
+              type="button"
+              aria-label="Filtrar"
+              onClick={() => setMobileFilterOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={mobileFilterOpen}
+              className={[
+                'relative grid h-10 w-10 shrink-0 place-items-center rounded-lg active:bg-cream',
+                activeFilterCount > 0 ? 'text-gold-strong' : 'text-muted-ink',
+              ].join(' ')}
+            >
+              <IconFilter size={18} />
+              {activeFilterCount > 0 && (
+                <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[9px] font-bold text-ink">
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -833,10 +908,6 @@ export function AgendaPage() {
           apptsByDay={apptsByDay}
           serviceById={serviceById}
           onNewForDay={(d) => openNew(isoDate(d))}
-          onSeeDay={(d) => {
-            if (isDesktop) setPeekDay(d);
-            else { setAnchor(d); setView('day'); }
-          }}
           onPickAppt={openDetail}
         />
       ) : (
@@ -1336,7 +1407,6 @@ function MonthView({
   apptsByDay,
   serviceById,
   onNewForDay,
-  onSeeDay,
   onPickAppt,
 }: {
   cells: Date[];
@@ -1344,10 +1414,32 @@ function MonthView({
   apptsByDay: Map<string, AppointmentRow[]>;
   serviceById: Map<string, string>;
   onNewForDay: (d: Date) => void;
-  onSeeDay: (d: Date) => void;
   onPickAppt: (a: AppointmentRow) => void;
 }) {
   const todayIso = isoDate(new Date());
+  // Popover ancorado no cell do "+N more" — mostra a lista completa do dia
+  // como um dropdown (padrão FullCalendar). Não muda a view do calendário.
+  const [popover, setPopover] = useState<{ iso: string; date: Date; rect: DOMRect } | null>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!popover) return;
+    function onDown(e: MouseEvent) {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) setPopover(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setPopover(null);
+    }
+    // Delay one tick so the click that opened the popover doesn't immediately close it.
+    const t = setTimeout(() => {
+      document.addEventListener('mousedown', onDown);
+      document.addEventListener('keydown', onKey);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [popover]);
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-white pb-20 lg:pb-0">
       {/* Weekday header — Belasis: rótulos minúsculos com ponto, alinhados à esquerda */}
@@ -1440,16 +1532,96 @@ function MonthView({
               {extra > 0 && (
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); onSeeDay(d); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const cell = (e.currentTarget as HTMLElement).closest('[role="button"]') as HTMLElement | null;
+                    const rect = (cell ?? (e.currentTarget as HTMLElement)).getBoundingClientRect();
+                    setPopover({ iso, date: d, rect });
+                  }}
                   className="w-full truncate px-1 text-left text-[9px] font-semibold text-gold-strong hover:underline lg:text-[10px]"
                 >
-                  +{extra} more
+                  +{extra} mais
                 </button>
               )}
             </div>
           );
         })}
       </div>
+
+      {/* Popover "mais agendamentos" — abre no clique do "+N mais".
+          Posicionado próximo do cell, clamped no viewport. Fecha no outside
+          click / Escape / X. Não muda a view do calendário. */}
+      {popover && (() => {
+        const list = apptsByDay.get(popover.iso) ?? [];
+        const width = 280;
+        const margin = 8;
+        // Prefere abrir alinhado à direita do cell; se estourar, alinha à esquerda.
+        let left = popover.rect.right - width;
+        if (left < margin) left = popover.rect.left;
+        if (left + width > window.innerWidth - margin) left = window.innerWidth - width - margin;
+        // Vertical: prefere abaixo do cell; se não couber, acima.
+        const desiredTop = popover.rect.top + 4;
+        const maxHeight = Math.min(360, window.innerHeight - desiredTop - margin);
+        const top = maxHeight < 200 ? Math.max(margin, popover.rect.bottom - 360) : desiredTop;
+        const dLabel = popover.date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+        return (
+          <div
+            ref={popRef}
+            role="dialog"
+            aria-label={`Agendamentos de ${dLabel}`}
+            style={{ position: 'fixed', top, left, width, maxHeight, zIndex: 60 }}
+            className="flex flex-col overflow-hidden rounded-xl border border-black/[0.08] bg-white shadow-[var(--shadow-pop)]"
+          >
+            <div className="flex items-center justify-between border-b border-line/70 px-3 py-2">
+              <span className="text-sm font-semibold text-foreground">{dLabel}</span>
+              <button
+                type="button"
+                onClick={() => setPopover(null)}
+                aria-label="Fechar"
+                className="rounded-md p-1 text-muted-ink transition-colors hover:bg-cream hover:text-foreground"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex flex-col gap-1 overflow-y-auto p-2">
+              {list.map((appointment) => {
+                const color = eventColor(appointment);
+                const canceled = appointment.status === 'canceled';
+                const customer = appointment.customer?.name ?? 'Sem cliente';
+                const service = appointment.items?.[0]
+                  ? serviceById.get(appointment.items[0].serviceId)
+                  : undefined;
+                return (
+                  <button
+                    key={appointment.id}
+                    type="button"
+                    onClick={() => { setPopover(null); onPickAppt(appointment); }}
+                    style={{ backgroundColor: color }}
+                    className={[
+                      'flex min-w-0 flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left leading-tight text-white transition-shadow hover:shadow-md',
+                      canceled ? 'opacity-60' : '',
+                    ].join(' ')}
+                  >
+                    <span className="w-full truncate text-[11px] font-bold">
+                      {formatTime(appointment.start)}
+                    </span>
+                    <span className="w-full truncate text-[11px] font-semibold">
+                      {customer}
+                    </span>
+                    {service && (
+                      <span className="w-full truncate text-[10px] text-white/85">
+                        {service}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

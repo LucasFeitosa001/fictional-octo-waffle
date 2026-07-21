@@ -8,6 +8,7 @@ import {
   TextField,
 } from '@heroui/react';
 import { Drawer } from './Drawer';
+import { useNavigate } from 'react-router-dom';
 import { IconCalendar, IconChevron, IconInfo, IconSearch } from './icons';
 import {
   ApiClientError,
@@ -155,6 +156,7 @@ export function NewAppointmentModal({
   onCreated,
   initialDate,
 }: NewAppointmentModalProps) {
+  const nav = useNavigate();
   const [serviceId, setServiceId] = useState('');
   const [professionalId, setProfessionalId] = useState('');
   const [status, setStatus] = useState<AppointmentStatus>('confirmed');
@@ -378,19 +380,28 @@ export function NewAppointmentModal({
     </Button>
   ) : (
     <>
-      {/* Belasis: "Ajuda" à esquerda; ações à direita; "Criar comanda" verde. */}
-      <Button variant="outline" className="mr-auto gap-1.5 text-muted" onClick={() => onOpenChange(false)}>
+      {/* Belasis: "Ajuda" à esquerda; ações à direita; "Criar comanda" verde.
+          Mobile: Ajuda oculto pra dar espaço; Cancelar/Salvar full-width empilhados;
+          Criar comanda esconde no mobile (user pode criar comanda a partir do
+          drawer do agendamento depois — evita layout quebrado com 4 botões). */}
+      <Button variant="outline" className="mr-auto hidden gap-1.5 text-muted md:inline-flex" onClick={() => onOpenChange(false)}>
         Ajuda <IconInfo size={15} />
       </Button>
-      <Button variant="outline" onClick={() => onOpenChange(false)}>
+      {/* Dica de validação mobile — só quando Salvar tá disabled */}
+      {!canConfirm && !isBusy && (
+        <span className="mr-auto w-full text-[11px] text-muted-ink md:hidden">
+          {!serviceId ? 'Escolha um serviço' : !professionalId ? 'Escolha um profissional' : !slotStart ? 'Escolha um horário' : ''}
+        </span>
+      )}
+      <Button variant="outline" className="flex-1 md:flex-none" onClick={() => onOpenChange(false)}>
         Cancelar
       </Button>
-      <Button variant="primary" isDisabled={!canConfirm} onClick={handleConfirm}>
+      <Button variant="primary" className="flex-1 md:flex-none" isDisabled={!canConfirm} onClick={handleConfirm}>
         {isBusy ? 'Salvando…' : 'Salvar'}
       </Button>
       <Button
         variant="primary"
-        className="bg-success text-white hover:bg-success/90"
+        className="hidden bg-success text-white hover:bg-success/90 md:inline-flex"
         isDisabled={!canConfirm}
         onClick={handleComanda}
       >
@@ -687,7 +698,19 @@ export function NewAppointmentModal({
                 </span>
               )}
               {canPickSlot && !availability.isFetching && slots.length === 0 && (
-                <span className="text-xs text-muted">Nenhum horário disponível nesta data.</span>
+                <div className="flex flex-col gap-1 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-foreground">
+                  <span className="font-medium">Nenhum horário disponível nesta data.</span>
+                  <span className="text-muted-ink">
+                    Verifique se o profissional tem <strong>expediente</strong> e <strong>serviços vinculados</strong> cadastrados. Muitos profissionais importados não têm essa configuração.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { onOpenChange(false); nav('/profissionais'); }}
+                    className="mt-1 self-start text-xs font-semibold text-primary hover:underline"
+                  >
+                    Configurar profissional →
+                  </button>
+                </div>
               )}
             </div>
 

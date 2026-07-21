@@ -24,6 +24,7 @@ export interface NotificationRow {
   type: string;
   title: string;
   body: string | null;
+  entityId: string | null;
   readAt: Date | null;
   createdAt: Date;
 }
@@ -80,13 +81,24 @@ export class NotificationsService {
       await this.dispatchClient(event, companyId, messages);
 
       // Studio channel — always an in-app notification (the panel bell).
+      // `entityId = appointmentId` habilita o deep-link do sino → drawer do
+      // agendamento (o clique navega para /agenda?appointmentId=<id>).
       await this.prisma.client.notification.create({
         data: {
           companyId,
           type: `appointment.${event}`,
           title: messages.studio.title,
           body: messages.studio.body,
+          entityId: appointmentId,
         },
+      });
+
+      // Studio owners que tem notifyEmail=true recebem por e-mail também.
+      // Silent quando RESEND_API_KEY ausente (EmailService.send loga warning
+      // e retorna sem falhar) — permite ativar depois só setando a chave.
+      await this.dispatchStudioEmail(companyId, {
+        subject: messages.studio.title,
+        body: messages.studio.body,
       });
 
       // Client channel — when the customer has a registered account (club app),
@@ -99,6 +111,7 @@ export class NotificationsService {
             type: `appointment.${event}`,
             title: messages.client.title,
             body: messages.client.body,
+            entityId: appointmentId,
           },
         });
       }
@@ -152,6 +165,35 @@ export class NotificationsService {
       data: { readAt: new Date() },
     });
     return { ok: true };
+  }
+
+  /**
+   * Envia o mesmo aviso do "studio bell" por e-mail para cada usuário da
+   * empresa que ativou `notifyEmail` no drawer Minha conta. Silent-fail se
+   * RESEND_API_KEY não estiver configurada — o EmailService loga um warning
+   * mas não estoura, então o notifyAppointment segue funcionando in-app.
+   */
+  private async dispatchStudioEmail(
+    companyId: string,
+    msg: { subject: string; body: string },
+  ): Promise<void> {
+    try {
+      const recipients = await this.prisma.client.user.findMany({
+        where: { companyId, notifyEmail: true, email: { not: '' } },
+        select: { email: true },
+      });
+      if (recipients.length === 0) return;
+      const html = `<p>${msg.body.replace(/\n/g, '<br>')}</p>`;
+      await Promise.all(
+        recipients
+          .filter((r): r is { email: string } => Boolean(r.email))
+          .map((r) => this.email.send({ to: r.email, subject: msg.subject, html })),
+      );
+    } catch (err) {
+      this.logger.warn(
+        `dispatchStudioEmail(company=${companyId}) falhou: ${(err as Error).message}`,
+      );
+    }
   }
 
   private async dispatchClient(

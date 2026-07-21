@@ -8,6 +8,7 @@ import { Drawer } from '../../components/Drawer';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { HelpTooltip } from '../../components/HelpTooltip';
 import {
+  IconCheck,
   IconChevron,
   IconCreditCard,
   IconDollar,
@@ -62,14 +63,9 @@ type TabKey = 'contas' | 'formas' | 'categorias';
 // Abas do Belasis (Contas · Formas de pagamento · Categorias). No mobile o
 // Belasis empilha ícone acima do rótulo (bank/dollar/profile → wallet/dollar/
 // layers); no desktop mantém underline de texto puro.
-const TABS: { id: TabKey; label: string; shortLabel?: string; icon: React.ReactNode }[] = [
+const TABS: { id: TabKey; label: string; icon: React.ReactNode }[] = [
   { id: 'contas', label: 'Contas', icon: <IconWallet size={20} /> },
-  {
-    id: 'formas',
-    label: 'Formas de pagamento',
-    shortLabel: 'Formas pgto.',
-    icon: <IconDollar size={20} />,
-  },
+  { id: 'formas', label: 'Formas de pagamento', icon: <IconDollar size={20} /> },
   { id: 'categorias', label: 'Categorias', icon: <IconLayers size={20} /> },
 ];
 
@@ -160,6 +156,11 @@ function RowActions({
 /**
  * Card mobile 2 linhas: dot de status + nome/subtítulo + ações lápis/lixeira.
  * Substitui a DataTable no mobile — segue o padrão validado em ComandasPage.
+ *
+ * Em selectMode: exibe checkbox no lugar do dot, ações inline ficam ocultas
+ * e o tap no card alterna a seleção (padrão Belasis / ComandasPage).
+ * showInlineActions=false esconde as ações mesmo fora do selectMode — usado
+ * nas abas onde a edição vem via tap simples no card (Contas / Categorias).
  */
 function MobileRowCard({
   active,
@@ -169,6 +170,10 @@ function MobileRowCard({
   onRemove,
   removing,
   dim,
+  selectMode,
+  selected,
+  onToggleSelect,
+  showInlineActions = true,
 }: {
   active: boolean;
   name: string;
@@ -177,16 +182,39 @@ function MobileRowCard({
   onRemove: () => void;
   removing?: boolean;
   dim?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+  showInlineActions?: boolean;
 }) {
-  return (
-    <li className="flex items-center gap-3 border-b border-[var(--color-soft-border)] px-3 py-3 last:border-b-0">
-      <span
-        aria-hidden
-        className={
-          'h-2.5 w-2.5 shrink-0 rounded-full ' +
-          (active ? 'bg-emerald-500' : 'bg-gray-300')
-        }
-      />
+  const handleTap = () => {
+    if (selectMode) onToggleSelect?.();
+    else onEdit();
+  };
+  const isSelectable = selectMode || !showInlineActions;
+  const content = (
+    <>
+      {selectMode ? (
+        <span
+          aria-hidden
+          className={
+            'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors ' +
+            (selected
+              ? 'border-[color:var(--sp-primary,#505afb)] bg-[color:var(--sp-primary,#505afb)] text-white'
+              : 'border-[var(--color-soft-border)] bg-white')
+          }
+        >
+          {selected && <IconCheck size={13} />}
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={
+            'h-2.5 w-2.5 shrink-0 rounded-full ' +
+            (active ? 'bg-emerald-500' : 'bg-gray-300')
+          }
+        />
+      )}
       <div className="min-w-0 flex-1">
         <div
           className={
@@ -197,7 +225,27 @@ function MobileRowCard({
         </div>
         <div className="truncate text-xs text-muted">{subtitle}</div>
       </div>
-      <RowActions onEdit={onEdit} onRemove={onRemove} removing={removing} />
+      {showInlineActions && !selectMode && (
+        <RowActions onEdit={onEdit} onRemove={onRemove} removing={removing} />
+      )}
+    </>
+  );
+
+  const baseClass =
+    'flex w-full items-center gap-3 border-b border-[var(--color-soft-border)] px-3 py-3 text-left last:border-b-0 transition-colors ' +
+    (selected
+      ? 'bg-[color-mix(in_oklab,var(--sp-primary,#505afb)_5%,white)]'
+      : 'active:bg-[color-mix(in_oklab,var(--sp-primary,#505afb)_4%,white)]');
+
+  return (
+    <li>
+      {isSelectable ? (
+        <button type="button" onClick={handleTap} className={baseClass}>
+          {content}
+        </button>
+      ) : (
+        <div className={baseClass}>{content}</div>
+      )}
     </li>
   );
 }
@@ -260,6 +308,12 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   const [showActive, setShowActive] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
 
+  // Modo Selecionar (mobile) para contas/categorias — padrão Belasis:
+  // ativado pela BottomNav; oculta ações inline e transforma o card em
+  // alvo de seleção com checkbox. Formas mantém ações inline (Belasis).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
   const [accountDrawer, setAccountDrawer] = useState(false);
   const [methodDrawer, setMethodDrawer] = useState(false);
   const [categoryDrawer, setCategoryDrawer] = useState(false);
@@ -314,6 +368,24 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   useEffect(() => {
     setPage(1);
   }, [tab, q, showActive, showInactive]);
+
+  // Ao sair do selectMode ou trocar de aba, limpa a seleção (padrão Belasis).
+  useEffect(() => {
+    if (!selectMode) setSelected(new Set());
+  }, [selectMode]);
+  useEffect(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+  }, [tab]);
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const delAccount = useDeleteFinancialAccount();
   const delMethod = useDeletePaymentMethod();
@@ -463,7 +535,10 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
           <HelpTooltip>Dias até o valor cair na conta após o pagamento</HelpTooltip>
         </span>
       ),
-      render: (m) => (m.settlementDays > 0 ? `${m.settlementDays} dia(s)` : 'À vista'),
+      render: (m) =>
+        m.settlementDays > 0
+          ? `${m.settlementDays} dia${m.settlementDays === 1 ? '' : 's'}`
+          : 'À vista',
     },
     {
       key: 'cash',
@@ -582,8 +657,11 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
     setSearchParams(nextParams, { replace: true });
   }
 
-  // Mobile: BottomNav do Belasis = Filtros · Criar (Menu/Selecionar vêm do
-  // shell). A busca fica sempre visível no topo, então não há ação "Buscar".
+  // Mobile: BottomNav do Belasis = Filtros · Selecionar · Novo. A busca fica
+  // sempre visível no topo (Belasis), então não há ação "Buscar". Selecionar
+  // só é oferecido na aba Contas — Formas mantém ações inline e Categorias
+  // hoje não usa selectMode nos cards (RowActions inline via tap no card).
+  const supportsSelectMode = tab === 'contas';
   useSetPageActions(
     [
       ...(supportsStatus
@@ -596,6 +674,17 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
             },
           ]
         : []),
+      ...(supportsSelectMode
+        ? [
+            {
+              key: 'selecionar',
+              label: 'Selecionar',
+              icon: <IconCheck size={22} />,
+              onClick: () => setSelectMode((v) => !v),
+              active: selectMode,
+            },
+          ]
+        : []),
       {
         key: 'novo',
         label: newLabel,
@@ -603,7 +692,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
         onClick: openCreate,
       },
     ],
-    [tab, supportsStatus],
+    [tab, supportsStatus, supportsSelectMode, selectMode],
   );
 
   return (
@@ -666,7 +755,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
               type="button"
               onClick={() => changeTab(t.id)}
               className={
-                'relative -mb-px flex flex-1 shrink-0 flex-col items-center gap-1 whitespace-nowrap border-b-2 px-1 pb-2.5 pt-1 text-[11px] font-medium transition-colors md:flex-none md:flex-row md:text-sm ' +
+                'relative -mb-px flex flex-1 shrink-0 flex-col items-center gap-1 border-b-2 px-1 pb-2.5 pt-1 text-center text-[11px] font-medium leading-tight transition-colors md:flex-none md:flex-row md:whitespace-nowrap md:text-sm ' +
                 (active
                   ? 'border-[color:var(--sp-primary,#505afb)] text-[color:var(--sp-primary,#505afb)]'
                   : 'border-transparent text-muted hover:text-foreground')
@@ -676,7 +765,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
               <span className="md:hidden" aria-hidden>
                 {t.icon}
               </span>
-              <span className="md:hidden">{t.shortLabel ?? t.label}</span>
+              <span className="md:hidden">{t.label}</span>
               <span className="hidden md:inline">{t.label}</span>
             </button>
           );
@@ -701,7 +790,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
         onClick={() => setSortAsc((v) => !v)}
         className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[color:var(--sp-primary,#505afb)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 md:hidden"
       >
-        Ordenado por Nome
+        Ordenando por Nome
         <IconChevron size={16} className={sortAsc ? 'rotate-180' : ''} />
       </button>
 
@@ -826,6 +915,10 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                     }}
                     onRemove={() => removeAccount(a)}
                     removing={delAccount.isPending}
+                    showInlineActions={false}
+                    selectMode={selectMode}
+                    selected={selected.has(a.id)}
+                    onToggleSelect={() => toggleSelected(a.id)}
                   />
                 ))}
               </ul>
@@ -858,7 +951,9 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                 {pageMethods.map((m) => {
                   const fee = `${Number(m.feePercent).toFixed(2)}%`;
                   const prazo =
-                    m.settlementDays > 0 ? `${m.settlementDays} dia(s)` : 'À vista';
+                    m.settlementDays > 0
+                      ? `${m.settlementDays} dia${m.settlementDays === 1 ? '' : 's'}`
+                      : 'À vista';
                   return (
                     <MobileRowCard
                       key={m.id}
@@ -875,6 +970,10 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                   );
                 })}
               </ul>
+              {/* Contador rodapé mobile — mesma copy da paginação desktop. */}
+              <div className="mt-3 px-3 text-xs text-muted">
+                {rowCount} {rowCount === 1 ? 'registro' : 'registros'} no total
+              </div>
               {rowCount > 0 && page < pageCount && (
                 <div className="mt-3">
                   <Button

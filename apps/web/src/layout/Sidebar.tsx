@@ -18,6 +18,7 @@ import {
   IconInfo,
   IconLayers,
   IconLink,
+  IconLogout,
   IconMegaphone,
   IconMessage,
   IconPanelLeft,
@@ -35,12 +36,14 @@ import {
   IconTag,
   IconTarget,
   IconTruck,
+  IconUser,
   IconUserPlus,
   IconUsers,
   IconWhatsApp,
 } from '../components/icons';
-import { useSession } from '../lib/auth';
+import { useSession, signOut } from '../lib/auth';
 import { NotificationBell } from '../components/NotificationBell';
+import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
 import { CREATE_GROUPS, useCreateSheet } from './PageActions';
 
 type IconType = ComponentType<{ size?: number }>;
@@ -279,9 +282,13 @@ function MenuBadge({ children }: { children: 'Beta' | 'novo' }) {
 export function Sidebar({
   onNavigate,
   mobile = false,
+  mobileOpen = false,
 }: {
   onNavigate?: () => void;
   mobile?: boolean;
+  /** Sinaliza (edge false→true) que o drawer mobile abriu — reseta collapsedGroups
+   *  sem remontar (remount quebra a animação de saída do drawer parent). */
+  mobileOpen?: boolean;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -296,12 +303,39 @@ export function Sidebar({
 
   const activeGroupKey = findActiveGroupKey(location.pathname);
   const [collapsedGroups, setCollapsedGroups] = useState(() => {
+    // Mobile: sempre começa com TODOS os grupos colapsados (ignora localStorage
+    // e não expande o grupo ativo). O user quer sempre abrir o drawer "reclusos".
+    if (mobile) return new Set(DEFAULT_COLLAPSED_GROUPS);
     const initial = loadCollapsedGroups();
     if (activeGroupKey) initial.delete(activeGroupKey);
     return initial;
   });
+  // Mobile: cada vez que o drawer ABRE (mobileOpen false→true), reseta pra
+  // todos colapsados. Sem remontar — assim a animação de saída do parent roda.
+  useEffect(() => {
+    if (mobile && mobileOpen) {
+      setCollapsedGroups(new Set(DEFAULT_COLLAPSED_GROUPS));
+    }
+  }, [mobile, mobileOpen]);
   const [createOpen, setCreateOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const [minhaContaOpen, setMinhaContaOpen] = useState(false);
+  // Fecha o dropdown do perfil ao clicar fora ou Esc.
+  useEffect(() => {
+    if (!profileOpen) return;
+    function onDown(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setProfileOpen(false); }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [profileOpen]);
 
   const fullName = session?.user?.name?.trim() || 'Usuário';
   const firstName = fullName.split(/\s+/)[0];
@@ -493,7 +527,7 @@ export function Sidebar({
       className={[
         'db-sidebar flex h-full shrink-0 flex-col py-4 transition-[width] duration-300 ease-out',
         mobile ? 'db-sidebar-mobile' : '',
-        isCollapsed ? 'w-[76px] px-1' : mobile ? 'w-[208px] px-1' : 'w-[224px] px-1',
+        isCollapsed ? 'w-[76px] px-1' : mobile ? 'w-[220px] px-1' : 'w-[240px] px-1',
       ].join(' ')}
     >
       <div className={isCollapsed
@@ -548,44 +582,109 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Profile card — a single NavLink straight to /perfil (Belasis mobile
-          menu behaviour). No dropdown; Sair lives on the profile page. */}
-      <NavLink
-        to="/perfil"
-        onClick={onNavigate}
-        className={[
-          'mt-3 flex w-full items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
-          isCollapsed
-            ? 'h-11 justify-center'
-            : mobile
-              ? 'gap-3 px-1 py-2'
-              : 'gap-3 bg-white/[0.06] px-3 py-2.5',
-        ].join(' ')}
-      >
-        <span
+      {/* Profile card — button que abre dropdown "Minha conta" / "Assinatura"
+          com animação (fade + slide). Colapsado → navega direto pra /perfil. */}
+      <div ref={profileRef} className="relative mt-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (isCollapsed) {
+              onNavigate?.();
+              navigate('/perfil');
+              return;
+            }
+            setProfileOpen((v) => !v);
+          }}
+          aria-haspopup="menu"
+          aria-expanded={profileOpen}
           className={[
-            'grid shrink-0 place-items-center overflow-hidden bg-gold font-bold text-ink',
-            // Belasis renders a square (ant-avatar-square) 40px avatar in the
-            // mobile menu; the collapsed/desktop rail keeps the round chip.
-            mobile ? 'h-10 w-10 rounded-lg text-base' : 'h-9 w-9 rounded-full text-sm',
+            'flex w-full items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
+            isCollapsed
+              ? 'h-11 justify-center'
+              : mobile
+                ? 'gap-3 px-1 py-2'
+                : 'gap-3 bg-white/[0.06] px-3 py-2.5',
+            profileOpen && !isCollapsed ? 'bg-white/[0.12]' : '',
           ].join(' ')}
         >
-          {session?.user?.image ? (
-            <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
-          ) : (
-            avatarInitial
-          )}
-        </span>
-        {!isCollapsed && (
-          <span className="min-w-0 flex-1 leading-tight">
-            <span className={`block truncate text-white ${mobile ? 'text-base font-bold' : 'text-sm font-semibold'}`}>Olá, {firstName.toUpperCase()}</span>
-            <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
-              Meu perfil
-              <IconChevron size={11} className="-rotate-90" />
-            </span>
+          <span
+            className={[
+              'grid shrink-0 place-items-center overflow-hidden bg-gold font-bold text-ink',
+              mobile ? 'h-10 w-10 rounded-lg text-base' : 'h-9 w-9 rounded-full text-sm',
+            ].join(' ')}
+          >
+            {session?.user?.image ? (
+              <img src={session.user.image} alt="user-avatar" className="h-full w-full object-cover" />
+            ) : (
+              avatarInitial
+            )}
           </span>
+          {!isCollapsed && (
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className={`block truncate text-white ${mobile ? 'text-base font-bold' : 'text-sm font-semibold'}`}>Olá, {firstName.toUpperCase()}</span>
+              <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
+                Meu perfil
+                <IconChevron size={11} className={`transition-transform duration-200 ${profileOpen ? '-rotate-180' : '-rotate-90'}`} />
+              </span>
+            </span>
+          )}
+        </button>
+
+        {/* Dropdown — animação fade + slide-y. z-50 pra ficar sobre outros itens. */}
+        {!isCollapsed && (
+          <div
+            role="menu"
+            aria-hidden={!profileOpen}
+            className={[
+              'absolute inset-x-0 top-full z-50 mt-2 origin-top overflow-hidden rounded-xl border border-white/[0.1] bg-ink-soft p-1.5 shadow-[var(--shadow-pop)]',
+              'transition-all duration-200 ease-out',
+              profileOpen
+                ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+                : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+            ].join(' ')}
+          >
+            <button
+              type="button"
+              onClick={() => { setProfileOpen(false); setMinhaContaOpen(true); }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-white transition-colors hover:bg-white/[0.08]"
+              role="menuitem"
+            >
+              <IconUser size={16} className="text-white/70" />
+              Minha conta
+            </button>
+            <NavLink
+              to="/perfil/assinatura"
+              onClick={() => { setProfileOpen(false); onNavigate?.(); }}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-white transition-colors hover:bg-white/[0.08]"
+              role="menuitem"
+            >
+              <IconCreditCard size={16} className="text-white/70" />
+              Assinatura
+            </NavLink>
+            <div className="my-1 border-t border-white/[0.08]" />
+            <button
+              type="button"
+              onClick={async () => {
+                setProfileOpen(false);
+                try {
+                  await signOut();
+                } finally {
+                  // Full reload — signOut() não invalida a session cache do Better
+                  // Auth instantaneamente. navigate() faria ProtectedRoutes ler
+                  // stale session e re-roteia pra Painel. window.location.href
+                  // reset o SPA todo e a session cache junto.
+                  window.location.href = '/login';
+                }
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-danger transition-colors hover:bg-danger/10"
+              role="menuitem"
+            >
+              <IconLogout size={16} />
+              Sair
+            </button>
+          </div>
         )}
-      </NavLink>
+      </div>
 
       <div ref={createRef} className="relative mt-3">
         {isCollapsed ? (
@@ -624,36 +723,39 @@ export function Sidebar({
         )}
 
         {/* Desktop-only inline dropdown. On mobile, the button hands off to the
-            BottomNav bottom-sheet via context. */}
+            BottomNav bottom-sheet via context.
+            Seções:
+              - Principal (1 linha)
+              - Cadastros (2 linhas, grid 4 cols)
+              - Financeiro (1 linha, grid 4 cols) */}
         {!mobile && createOpen && (
           <div
             role="menu"
-            className={[
-              'absolute top-full z-50 mt-2 max-h-[min(520px,65vh)] w-[264px] overflow-y-auto rounded-2xl border border-black/[0.06] bg-warm-white p-1.5 shadow-[var(--shadow-pop)]',
-              isCollapsed ? 'left-0' : 'left-0 right-0 w-auto',
-            ].join(' ')}
+            className="absolute left-0 top-full z-50 mt-2 max-h-[min(560px,72vh)] w-[336px] overflow-y-auto rounded-2xl border border-black/[0.06] bg-warm-white p-3 shadow-[var(--shadow-pop)]"
           >
             {CREATE_GROUPS.map((group) => (
-              <div key={group.label} className="pb-1">
-                <div className="px-2.5 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9AA0A6]">
+              <div key={group.label} className="mb-3 last:mb-0">
+                <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9AA0A6]">
                   {group.label}
                 </div>
-                {group.items.map(({ to, label, icon: Icon, disabled = false, disabledReason }) => (
-                  <button
-                    key={`${group.label}-${label}`}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => (disabled ? undefined : quickCreate(to))}
-                    disabled={disabled}
-                    title={disabled ? disabledReason ?? 'Em breve' : undefined}
-                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
-                  >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink text-gold">
-                      <Icon size={16} />
-                    </span>
-                    <span className="min-w-0 truncate text-sm font-normal text-ink">{label}</span>
-                  </button>
-                ))}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {group.items.map(({ to, label, icon: Icon, disabled = false, disabledReason }) => (
+                    <button
+                      key={`${group.label}-${label}`}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => (disabled ? undefined : quickCreate(to))}
+                      disabled={disabled}
+                      title={disabled ? disabledReason ?? 'Em breve' : label}
+                      className="flex flex-col items-center gap-1 rounded-xl px-1 py-2 transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+                    >
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink text-gold">
+                        <Icon size={16} />
+                      </span>
+                      <span className="w-full truncate text-center text-[11px] font-normal leading-tight text-ink">{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -665,16 +767,32 @@ export function Sidebar({
       >
         <nav className="flex flex-col gap-1">
           {NAVIGATION.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
+          {/* Ajuda / Configurações / Indique e ganhe seguem a ordem do menu
+              (não são mais pinned no rodapé — scrollam junto com o resto). */}
+          {FOOTER_NAVIGATION.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
+          {/* Mobile: Sair segue a ordem também, como último item da lista. */}
+          {mobile && !isCollapsed && (
+            <button
+              type="button"
+              onClick={async () => {
+                onNavigate?.();
+                try {
+                  await signOut();
+                } finally {
+                  window.location.href = '/login';
+                }
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+            >
+              <IconLogout size={18} />
+              Sair da conta
+            </button>
+          )}
+          {!isCollapsed && <div className="px-2.5 pt-3 text-[10px] text-white/35">v5.7.12</div>}
         </nav>
       </ScrollShadow>
 
-      {/* Pinned footer — Configurações / Ajuda / Indique e ganhe. */}
-      <div className="mt-3 border-t border-white/[0.08] pt-3">
-        <nav className="flex flex-col gap-1">
-          {FOOTER_NAVIGATION.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
-        </nav>
-        {!isCollapsed && <div className="px-2.5 pt-3 text-[10px] text-white/35">v5.7.12</div>}
-      </div>
+      <MinhaContaDrawer isOpen={minhaContaOpen} onClose={() => setMinhaContaOpen(false)} />
     </aside>
   );
 }

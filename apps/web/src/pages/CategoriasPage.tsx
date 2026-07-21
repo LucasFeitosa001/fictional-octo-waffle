@@ -299,18 +299,34 @@ export function CategoriasPage() {
             {rows.map((c) => (
               <li
                 key={c.id}
-                className="rounded-md border border-[var(--color-soft-border)] bg-warm-white px-3 py-2 shadow-[var(--shadow-card)]"
-                onClick={() => setEditing(c)}
+                className="flex items-center gap-2 rounded-md border border-[var(--color-soft-border)] bg-warm-white px-3 py-2 shadow-[var(--shadow-card)]"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-foreground">
-                    {c.name}
-                  </span>
-                  <ActiveChip active={c.active} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {c.name}
+                    </span>
+                    <ActiveChip active={c.active} />
+                  </div>
                 </div>
-                <div className="mt-1 text-xs text-muted">
-                  Toque para editar
-                </div>
+                {/* Botões inline — mesmos ações do desktop (Editar lápis + Excluir lixeira). */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setEditing(c); }}
+                  aria-label={`Editar ${c.name}`}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-ink transition-colors hover:bg-canvas hover:text-primary"
+                >
+                  <IconPencil size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleDelete(c); }}
+                  disabled={deleteCategory.isPending}
+                  aria-label={`Excluir ${c.name}`}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-danger transition-colors hover:bg-danger/10 disabled:opacity-40"
+                >
+                  <IconTrash size={16} />
+                </button>
               </li>
             ))}
           </ul>
@@ -327,6 +343,11 @@ export function CategoriasPage() {
         category={editing}
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
+        onDelete={async (c) => {
+          await handleDelete(c);
+          setEditing(null);
+        }}
+        deletePending={deleteCategory.isPending}
       />
     </div>
   );
@@ -337,11 +358,15 @@ function CategoryModal({
   category,
   isOpen,
   onClose,
+  onDelete,
+  deletePending,
 }: {
   mode: 'create' | 'edit';
   category?: ProductCategory | null;
   isOpen: boolean;
   onClose: () => void;
+  onDelete?: (c: ProductCategory) => void | Promise<void>;
+  deletePending?: boolean;
 }) {
   const create = useCreateProductCategory();
   const update = useUpdateProductCategory();
@@ -409,13 +434,23 @@ function CategoryModal({
               </div>
             )}
           </Modal.Body>
-          <Modal.Footer className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
+          <Modal.Footer className="flex flex-wrap items-center justify-end gap-2">
+            {mode === 'edit' && category && onDelete && (
+              <Button
+                variant="ghost"
+                className="h-11 shrink-0 text-danger mr-auto"
+                isDisabled={deletePending || pending}
+                onClick={() => onDelete(category)}
+              >
+                <IconTrash size={16} /> Excluir
+              </Button>
+            )}
+            <Button variant="outline" className="h-11 shrink-0" onClick={onClose}>
               Cancelar
             </Button>
             <Button
               variant="primary"
-              className="w-full sm:w-auto"
+              className="h-11 shrink-0"
               isDisabled={!canSave}
               onClick={handleSave}
             >

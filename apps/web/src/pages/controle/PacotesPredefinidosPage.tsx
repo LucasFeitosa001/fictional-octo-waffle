@@ -496,6 +496,13 @@ export function PacotesPredefinidosPage() {
         template={editing}
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
+        onDelete={async () => {
+          if (!editing) return;
+          const t = editing;
+          setEditing(null);
+          await handleDelete(t);
+        }}
+        deleting={deleteTemplate.isPending}
       />
     </div>
   );
@@ -644,11 +651,15 @@ function TemplateDrawer({
   template,
   isOpen,
   onClose,
+  onDelete,
+  deleting,
 }: {
   mode: 'create' | 'edit';
   template?: PackageTemplate | null;
   isOpen: boolean;
   onClose: () => void;
+  onDelete?: () => void | Promise<void>;
+  deleting?: boolean;
 }) {
   const create = useCreatePackageTemplate();
   const update = useUpdatePackageTemplate();
@@ -734,6 +745,16 @@ function TemplateDrawer({
       widthClass="sm:w-[520px]"
       footer={
         <>
+          {mode === 'edit' && onDelete && (
+            <Button
+              variant="outline"
+              onClick={() => onDelete()}
+              isDisabled={deleting || pending}
+              className="mr-auto border-danger/40 text-danger hover:bg-danger/10"
+            >
+              <IconTrash size={16} /> {deleting ? 'Excluindo…' : 'Excluir'}
+            </Button>
+          )}
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>

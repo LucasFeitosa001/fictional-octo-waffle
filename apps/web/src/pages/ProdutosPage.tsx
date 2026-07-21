@@ -44,6 +44,13 @@ import { useSetPageActions } from '../layout/PageActions';
 const NONE = '';
 const PAGE_SIZE = 20;
 
+type SortBy = 'name' | 'price' | 'stock';
+const SORT_LABEL: Record<SortBy, string> = {
+  name: 'Nome',
+  price: 'Preço',
+  stock: 'Estoque',
+};
+
 // Campos extras vindos da API mas ainda não tipados no client compartilhado.
 type ProductExtra = Product & {
   employeePrice?: string | null;
@@ -100,29 +107,39 @@ export function ProdutosPage() {
   const [moveProduct, setMoveProduct] = useState<Product | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<SortBy>('name');
+  // Belasis: banner de assinatura condicional no topo. Mock por ora — no futuro
+  // virá do endpoint de billing/plano.
+  const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(true);
   useAutoCreate(() => setCreateOpen(true));
 
   const products = useProducts({ search: search || undefined, lowStock });
   const categories = useProductCategories();
   const brands = useBrands();
   const deleteProduct = useDeleteProduct();
+  const updateProduct = useUpdateProduct();
 
   const allRows = products.data?.data ?? [];
   const total = products.data?.total ?? 0;
 
   // Categoria/marca/favoritos/status não são suportados server-side → filtro client-side.
-  const rows = useMemo(
-    () =>
-      allRows.filter(
-        (p) =>
-          (!categoryFilter || p.categoryId === categoryFilter) &&
-          (!brandFilter || p.brandId === brandFilter) &&
-          (!favoritesOnly || p.favorite) &&
-          (statusFilter === 'all' ||
-            (statusFilter === 'active' ? p.active : !p.active)),
-      ),
-    [allRows, categoryFilter, brandFilter, favoritesOnly, statusFilter],
-  );
+  // Ordenação também é client-side (Belasis expõe "Ordenando por Nome/Preço/Estoque").
+  const rows = useMemo(() => {
+    const filtered = allRows.filter(
+      (p) =>
+        (!categoryFilter || p.categoryId === categoryFilter) &&
+        (!brandFilter || p.brandId === brandFilter) &&
+        (!favoritesOnly || p.favorite) &&
+        (statusFilter === 'all' ||
+          (statusFilter === 'active' ? p.active : !p.active)),
+    );
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === 'price') return Number(b.salePrice) - Number(a.salePrice);
+      if (sortBy === 'stock') return Number(b.stock) - Number(a.stock);
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
+    return sorted;
+  }, [allRows, categoryFilter, brandFilter, favoritesOnly, statusFilter, sortBy]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -236,6 +253,15 @@ export function ProdutosPage() {
     });
     if (!ok) return;
     await deleteProduct.mutateAsync(p.id);
+    // Fecha o drawer se o produto excluído estava sendo editado.
+    if (editing?.id === p.id) setEditing(null);
+  }
+
+  async function toggleFavorite(p: Product) {
+    await updateProduct.mutateAsync({
+      id: p.id,
+      body: { favorite: !p.favorite },
+    });
   }
 
   const categoryOptions = (categories.data ?? []).map((c) => ({
@@ -272,6 +298,31 @@ export function ProdutosPage() {
           </Button>
         </div>
       </header>
+
+      {/* Belasis: banner condicional de assinatura no topo. */}
+      {showSubscriptionBanner && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-[color-mix(in_oklab,var(--sp-primary)_6%,transparent)] px-4 py-3">
+          <span className="text-sm text-ink">
+            Aproveite mais recursos do seu plano.
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)]"
+            >
+              Ver minha assinatura
+            </button>
+            <button
+              type="button"
+              aria-label="Fechar aviso"
+              onClick={() => setShowSubscriptionBanner(false)}
+              className="rounded-md p-1 text-muted-ink hover:bg-canvas hover:text-ink"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Sub-abas: Produtos / Lotes e validades */}
       <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-line">
@@ -412,6 +463,9 @@ export function ProdutosPage() {
               </div>
             ) : (
               <>
+                <div className="mb-2 flex items-center justify-end">
+                  <SortSelect value={sortBy} onChange={setSortBy} />
+                </div>
                 <div className="overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)]">
                   <table className="w-full border-collapse text-sm">
                     <thead>
@@ -437,7 +491,8 @@ export function ProdutosPage() {
                     <tbody>
                       {paged.map((p) => {
                         const qty = Number(p.stock);
-                        const low = isLow(p);
+                        const outOfStock = qty <= 0;
+                        const low = !outOfStock && isLow(p);
                         const comm = commissionOf(p);
                         return (
                           <tr
@@ -475,7 +530,11 @@ export function ProdutosPage() {
                                 onClick={() => setMoveProduct(p)}
                                 className={[
                                   'inline-flex items-center gap-1.5 transition-colors hover:text-primary',
-                                  low ? 'font-medium text-danger' : 'text-ink',
+                                  outOfStock
+                                    ? 'font-semibold text-danger'
+                                    : low
+                                      ? 'font-medium text-danger'
+                                      : 'text-ink',
                                 ].join(' ')}
                                 title="Movimentar estoque"
                               >
@@ -555,43 +614,46 @@ export function ProdutosPage() {
               />
             ) : (
               <>
-                <div className="mb-2 text-[11px] text-muted-ink">
-                  {formatNumber(rows.length)} de {formatNumber(total)} produto(s)
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-normal text-muted-ink/80">
+                    {formatNumber(rows.length)} produto(s)
+                  </span>
+                  <SortSelect value={sortBy} onChange={setSortBy} />
                 </div>
-                {/* Cards Belasis: 2 linhas — [avatar] Nome+★ / marca·estoque + preço. */}
+                {/* Cards Belasis: 2 linhas — [avatar] Nome / marca·estoque + preço.
+                    ★ é um botão irmão (absolute) para toggle inline sem aninhar <button>. */}
                 <ul className="flex flex-col gap-2">
                   {paged.map((p) => {
                     const qty = Number(p.stock);
-                    const low = isLow(p);
+                    const outOfStock = qty <= 0;
+                    const low = !outOfStock && isLow(p);
                     const stock = stockLabel(qty, (p as ProductExtra).unit);
                     const subtitle = p.brand?.name
                       ? `${p.brand.name} · ${stock}`
                       : stock;
                     return (
-                      <li key={p.id}>
+                      <li key={p.id} className="relative">
                         <button
                           type="button"
                           onClick={() => setEditing(p)}
-                          className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-card px-3 py-2 text-left shadow-[var(--shadow-card)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
+                          className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-card px-3 py-2 pr-9 text-left shadow-[var(--shadow-card)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
                         >
                           <Avatar product={p} size={40} />
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
                               <span className="min-w-0 truncate text-[13px] font-semibold text-ink">
                                 {p.name}
                               </span>
-                              {p.favorite && (
-                                <IconStar
-                                  size={14}
-                                  className="shrink-0 fill-gold text-gold"
-                                />
-                              )}
                             </div>
                             <div className="mt-0.5 flex items-baseline justify-between gap-2">
                               <span
                                 className={[
                                   'min-w-0 truncate text-[11.5px]',
-                                  low ? 'font-medium text-danger' : 'text-muted-ink',
+                                  outOfStock
+                                    ? 'font-semibold text-danger'
+                                    : low
+                                      ? 'font-medium text-danger'
+                                      : 'text-muted-ink',
                                 ].join(' ')}
                               >
                                 {subtitle}
@@ -601,6 +663,21 @@ export function ProdutosPage() {
                               </span>
                             </div>
                           </div>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={
+                            p.favorite ? 'Remover dos favoritos' : 'Marcar como favorito'
+                          }
+                          aria-pressed={p.favorite}
+                          disabled={updateProduct.isPending}
+                          onClick={() => toggleFavorite(p)}
+                          className="absolute right-2 top-2 rounded-full p-1.5 text-muted-ink/50 hover:bg-canvas hover:text-gold disabled:opacity-50"
+                        >
+                          <IconStar
+                            size={16}
+                            className={p.favorite ? 'fill-gold text-gold' : ''}
+                          />
                         </button>
                       </li>
                     );
@@ -640,6 +717,9 @@ export function ProdutosPage() {
         onClose={() => setEditing(null)}
         categories={categoryOptions}
         brands={brandOptions}
+        onDelete={editing ? () => handleDelete(editing) : undefined}
+        onMoveStock={editing ? () => setMoveProduct(editing) : undefined}
+        deleting={deleteProduct.isPending}
       />
       <StockMovementDrawer
         product={moveProduct}
@@ -762,6 +842,39 @@ function Checkbox({
         </svg>
       )}
     </button>
+  );
+}
+
+// Belasis: "Ordenando por [Nome ▾]" — texto discreto sempre visível acima da lista.
+function SortSelect({
+  value,
+  onChange,
+}: {
+  value: SortBy;
+  onChange: (v: SortBy) => void;
+}) {
+  return (
+    <label className="relative inline-flex items-center gap-1 text-[12px] text-muted-ink">
+      <span>Ordenando por</span>
+      <span className="relative inline-flex items-center">
+        <span className="pointer-events-none pr-3.5 font-medium text-primary">
+          {SORT_LABEL[value]}
+        </span>
+        <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[10px] text-primary">
+          ▾
+        </span>
+        <select
+          aria-label="Ordenar por"
+          value={value}
+          onChange={(e) => onChange(e.target.value as SortBy)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        >
+          <option value="name">Nome</option>
+          <option value="price">Preço</option>
+          <option value="stock">Estoque</option>
+        </select>
+      </span>
+    </label>
   );
 }
 
@@ -895,6 +1008,9 @@ function ProductDrawer({
   onClose,
   categories,
   brands,
+  onDelete,
+  onMoveStock,
+  deleting,
 }: {
   mode: 'create' | 'edit';
   product?: Product | null;
@@ -902,6 +1018,9 @@ function ProductDrawer({
   onClose: () => void;
   categories: Option[];
   brands: Option[];
+  onDelete?: () => void;
+  onMoveStock?: () => void;
+  deleting?: boolean;
 }) {
   const create = useCreateProduct();
   const update = useUpdateProduct();
@@ -1036,6 +1155,17 @@ function ProductDrawer({
       onSectionChange={setTab}
       footer={
         <>
+          {mode === 'edit' && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting || pending}
+              className="mr-auto inline-flex items-center gap-1.5 rounded-md border border-danger/40 bg-danger/5 px-3 py-1.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <IconTrash size={16} />
+              {deleting ? 'Excluindo…' : 'Excluir'}
+            </button>
+          )}
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
@@ -1049,7 +1179,16 @@ function ProductDrawer({
         <div className="flex flex-col gap-4">
           <ImageUpload
             value={imageUrl}
-            onChange={setImageUrl}
+            onChange={(url) => {
+              setImageUrl(url);
+              // Editing an existing product: persist the new image right away
+              // so the thumbnail sticks even if the user closes the drawer
+              // without pressing "Salvar" (otherwise the uploaded file would
+              // be orphaned).
+              if (mode === 'edit' && product) {
+                update.mutate({ id: product.id, body: { imageUrl: url } });
+              }
+            }}
             kind="product"
             shape="square"
             size={88}
@@ -1108,6 +1247,15 @@ function ProductDrawer({
               <TextField value={stock} onChange={setStock} aria-label="Estoque">
                 <Input type="number" placeholder="0" />
               </TextField>
+              {mode === 'edit' && onMoveStock && (
+                <button
+                  type="button"
+                  onClick={onMoveStock}
+                  className="mt-1 inline-flex w-fit items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                >
+                  <IconLayers size={13} /> Movimentar estoque
+                </button>
+              )}
             </Field>
             <Field label="Uma unidade equivale a">
               <TextField

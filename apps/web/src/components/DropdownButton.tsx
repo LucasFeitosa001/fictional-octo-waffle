@@ -77,17 +77,20 @@ export function DropdownButton({
         />
       </Button>
 
-      {open && (
-        <div
-          role="menu"
-          className={[
-            'absolute top-full z-50 mt-2 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-black/[0.08] bg-white shadow-[var(--shadow-pop)]',
-            align === 'end' ? 'right-0' : 'left-0',
-          ].join(' ')}
-        >
-          {typeof children === 'function' ? children(close) : children}
-        </div>
-      )}
+      <div
+        role="menu"
+        aria-hidden={!open}
+        className={[
+          'absolute top-full z-50 mt-2 max-w-[calc(100vw-1.5rem)] origin-top overflow-hidden rounded-xl border border-black/[0.08] bg-white shadow-[var(--shadow-pop)]',
+          'transition-all duration-200 ease-out',
+          align === 'end' ? 'right-0' : 'left-0',
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+        ].join(' ')}
+      >
+        {typeof children === 'function' ? children(close) : children}
+      </div>
     </div>
   );
 }

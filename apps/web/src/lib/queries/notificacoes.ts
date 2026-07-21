@@ -6,6 +6,12 @@ export interface NotificationItem {
   type: string;
   title: string;
   body: string | null;
+  /**
+   * ID da entidade referenciada. Para `type` começando com `appointment.`,
+   * carrega o `appointmentId` — é o que habilita o deep-link do sino → drawer
+   * do agendamento em /agenda.
+   */
+  entityId: string | null;
   readAt: string | null;
   createdAt: string;
 }

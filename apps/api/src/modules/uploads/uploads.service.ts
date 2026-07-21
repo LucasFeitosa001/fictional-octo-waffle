@@ -1,5 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PresignUploadDto } from './dto';
@@ -13,18 +15,41 @@ const ALLOWED = new Set([
   'image/svg+xml',
 ]);
 
+export interface StoredUpload {
+  url: string;
+  key: string;
+}
+
 @Injectable()
 export class UploadsService {
+  private readonly logger = new Logger(UploadsService.name);
   private readonly region = process.env.AWS_REGION ?? 'us-east-1';
   private readonly bucket = process.env.UPLOADS_BUCKET ?? '';
   private readonly publicBase =
     process.env.UPLOADS_PUBLIC_BASE ??
     (this.bucket ? `https://${this.bucket}.s3.${this.region}.amazonaws.com` : '');
-  private readonly s3 = new S3Client({ region: this.region });
+  private readonly s3 = this.bucket ? new S3Client({ region: this.region }) : null;
 
+  // Local storage root — apps/api/uploads/. Resolved from cwd since the
+  // compiled main.js runs from apps/api/dist and process.cwd() stays apps/api.
+  private readonly localRoot = path.resolve(process.cwd(), 'uploads');
+
+  /** True when the S3 provider is fully configured (bucket set). */
+  get s3Enabled(): boolean {
+    return Boolean(this.bucket);
+  }
+
+  get provider(): 's3' | 'local' {
+    return this.s3Enabled ? 's3' : 'local';
+  }
+
+  /**
+   * Backward-compat: presigned PUT flow.
+   * Requires S3 configuration; otherwise raises BadRequest.
+   */
   async presign(companyId: string, dto: PresignUploadDto) {
-    if (!this.bucket) {
-      throw new BadRequestException('Uploads não configurados (UPLOADS_BUCKET ausente).');
+    if (!this.s3Enabled || !this.s3) {
+      throw new BadRequestException('Uploads S3 não configurados (UPLOADS_BUCKET ausente).');
     }
     if (!ALLOWED.has(dto.contentType.toLowerCase())) {
       throw new BadRequestException('Tipo de arquivo não suportado.');
@@ -47,6 +72,89 @@ export class UploadsService {
 
     return { uploadUrl, publicUrl: `${this.publicBase.replace(/\/$/, '')}/${key}`, key };
   }
+
+  /**
+   * Direct upload: writes bytes to storage in a single request and returns
+   * a stable public URL the client can attach to a domain entity.
+   *
+   * Uses S3 when configured; otherwise falls back to local disk under
+   * apps/api/uploads/, which is served by GET /uploads/file/:name.
+   */
+  async upload(params: {
+    companyId: string;
+    kind?: string;
+    filename: string;
+    contentType: string;
+    buffer: Buffer;
+    baseUrl: string; // e.g. "http://localhost:3334"
+  }): Promise<StoredUpload> {
+    const contentType = (params.contentType || '').toLowerCase();
+    if (!ALLOWED.has(contentType)) {
+      throw new BadRequestException(
+        `Tipo de arquivo não suportado: ${params.contentType || '(vazio)'}`,
+      );
+    }
+
+    const ext = extFromName(params.filename) || extFromMime(contentType) || 'bin';
+    const folder = normalizeKind(params.kind);
+    const id = randomUUID();
+    const relPath = `${params.companyId}/${folder}/${id}.${ext}`;
+
+    if (this.s3Enabled && this.s3) {
+      const key = `uploads/${relPath}`;
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: params.buffer,
+          ContentType: contentType,
+          CacheControl: 'public, max-age=31536000, immutable',
+        }),
+      );
+      return {
+        url: `${this.publicBase.replace(/\/$/, '')}/${key}`,
+        key,
+      };
+    }
+
+    // Local fallback — flatten to a single dir with a company/folder prefix
+    // embedded in the filename so we can serve everything via one static route.
+    const name = `${params.companyId}__${folder}__${id}.${ext}`;
+    const full = path.join(this.localRoot, name);
+    await fs.mkdir(this.localRoot, { recursive: true });
+    await fs.writeFile(full, params.buffer);
+
+    const base = params.baseUrl.replace(/\/$/, '');
+    return {
+      url: `${base}/api/v1/uploads/file/${name}`,
+      key: name,
+    };
+  }
+
+  /**
+   * Absolute path on disk for a stored local file, or null when the name is
+   * unsafe or the file does not exist. Only used by GET /uploads/file/:name.
+   */
+  async resolveLocalFile(name: string): Promise<string | null> {
+    // Path traversal guard: only allow basename characters we generated.
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) return null;
+    const full = path.join(this.localRoot, name);
+    // Extra safety: make sure the resolved path stays inside localRoot.
+    if (!full.startsWith(this.localRoot + path.sep)) return null;
+    try {
+      const stat = await fs.stat(full);
+      if (!stat.isFile()) return null;
+      return full;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function normalizeKind(kind: string | undefined): string {
+  const allowed = new Set(['logo', 'professional', 'product', 'service', 'customer', 'misc']);
+  if (kind && allowed.has(kind)) return kind;
+  return 'misc';
 }
 
 function extFromName(name: string): string | undefined {

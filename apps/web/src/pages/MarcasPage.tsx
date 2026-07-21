@@ -184,7 +184,7 @@ export function MarcasPage() {
           <button
             type="button"
             aria-label="Ver tutorial"
-            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ring-4 ring-primary/20 transition-colors hover:bg-primary/90"
+            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white ring-4 ring-amber-500/20 transition-colors hover:bg-amber-600"
           >
             <IconPlay size={12} className="ml-0.5" />
           </button>
@@ -491,8 +491,8 @@ export function MarcasPage() {
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-xs text-muted-ink">
                 <span className="mr-auto">
                   {hasFilters
-                    ? `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} marca(s)`
-                    : `${formatNumber(allRows.length)} no total`}
+                    ? `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} registro(s)`
+                    : `${formatNumber(allRows.length)} registro(s) no total`}
                 </span>
                 <Pagination
                   page={safePage}

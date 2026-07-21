@@ -225,28 +225,39 @@ export function FinanceiroCategoriasPage() {
                 </table>
               </div>
 
-              {/* Mobile: cards compactos padrão Belasis (Comandas). */}
+              {/* Mobile: cards padrão Belasis com Editar (lápis) + Excluir (lixeira) inline. */}
               <ul className="flex flex-col gap-2 md:hidden">
                 {filtered.map((c) => (
-                  <li key={c.id}>
+                  <li
+                    key={c.id}
+                    className="flex items-center gap-2 rounded-xl border border-[var(--color-soft-border)] bg-white px-3 py-2.5 shadow-[var(--shadow-soft)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-foreground">
+                          {c.name}
+                        </span>
+                        <TypeChip type={c.type} />
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-muted-ink">
+                        {c.active ? 'Ativa' : 'Inativa'}
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setEditing(c)}
-                      className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--color-soft-border)] bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]"
+                      onClick={(e) => { e.stopPropagation(); setEditing(c); }}
+                      aria-label={`Editar ${c.name}`}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-ink transition-colors hover:bg-canvas hover:text-primary"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-foreground">
-                            {c.name}
-                          </span>
-                          <TypeChip type={c.type} />
-                        </div>
-                        <div className="mt-0.5 flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-muted-ink">
-                            {c.active ? 'Ativa' : 'Inativa'}
-                          </span>
-                        </div>
-                      </div>
+                      <IconPencil size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleRemove(c); }}
+                      aria-label={`Excluir ${c.name}`}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-danger transition-colors hover:bg-danger/10"
+                    >
+                      <IconTrash size={16} />
                     </button>
                   </li>
                 ))}
@@ -264,6 +275,10 @@ export function FinanceiroCategoriasPage() {
           setEditing(null);
         }}
         onSave={handleSave}
+        onDelete={async (c) => {
+          await handleRemove(c);
+          setEditing(null);
+        }}
       />
     </div>
   );
@@ -274,11 +289,13 @@ function CategoriaDrawer({
   initial,
   onClose,
   onSave,
+  onDelete,
 }: {
   isOpen: boolean;
   initial: FinanceCategory | null;
   onClose: () => void;
   onSave: (c: FinanceCategory) => void;
+  onDelete: (c: FinanceCategory) => void | Promise<void>;
 }) {
   const [name, setName] = useState('');
   const [type, setType] = useState<FinanceCategoryType>('despesa');
@@ -309,6 +326,15 @@ function CategoriaDrawer({
       title={initial ? 'Editar categoria' : 'Nova categoria'}
       footer={
         <>
+          {initial ? (
+            <Button
+              variant="outline"
+              className="!text-danger !border-danger/40 hover:!bg-danger/10"
+              onClick={() => onDelete(initial)}
+            >
+              <IconTrash size={16} /> Excluir
+            </Button>
+          ) : null}
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>

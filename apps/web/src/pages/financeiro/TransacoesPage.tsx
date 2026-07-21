@@ -80,6 +80,21 @@ const STATUS_COLOR: Record<PaymentStatus, 'success' | 'warning' | 'danger'> = {
   reversed: 'danger',
 };
 
+/**
+ * Data no formato Belasis mobile: "20 jul, 2026" (dia + mês abreviado + ano).
+ * Difere de formatDate() (que retorna "20/07/2026", pt-BR short).
+ */
+const MESES_ABBR = [
+  'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+  'jul', 'ago', 'set', 'out', 'nov', 'dez',
+];
+function formatDateBR(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${d.getDate()} ${MESES_ABBR[d.getMonth()]}, ${d.getFullYear()}`;
+}
+
 /** Descrição automática referenciando comanda/cliente quando houver. */
 function describe(t: TransactionRow): string {
   if (t.description && t.description.trim()) return t.description.trim();
@@ -129,6 +144,22 @@ export function TransacoesPage() {
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [showTotals, setShowTotals] = useState(false);
+
+  // Mobile selectMode (Belasis): habilitado via BottomNav "Selecionar". Enquanto
+  // ativo, tocar num card alterna a seleção em vez de abrir edição. Sair do
+  // modo limpa a seleção acumulada — padrão canônico das outras páginas.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!selectMode) setSelected(new Set());
+  }, [selectMode]);
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
@@ -209,9 +240,16 @@ export function TransacoesPage() {
     [
       { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen(true) },
       { key: 'totais', label: 'Calcular totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
+      {
+        key: 'selecionar',
+        label: 'Selecionar',
+        icon: <IconCheck size={22} />,
+        onClick: () => setSelectMode((v) => !v),
+        active: selectMode,
+      },
       { key: 'novo', label: 'Criar', icon: <IconPlus size={22} />, onClick: () => openForm('recebimento') },
     ],
-    [],
+    [selectMode],
   );
 
   async function handleReverse(t: TransactionRow) {
@@ -610,72 +648,96 @@ export function TransacoesPage() {
             {/* Mobile: cards Belasis — fundo tingido (verde=receita, vermelho=despesa),
                 3 linhas: (1) data + pill status; (2) método + valor preto bold;
                 (3) NOME bold + descrição/referência abaixo. Toque abre edição. */}
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-1.5">
               {visibleRows.map((t) => {
                 const isIncome = t.kind === 'income';
                 const reversed = t.status === 'reversed';
                 const method = t.paymentMethod?.name ?? '—';
                 const desc = describe(t);
                 const holder = titular(t);
+                const isChecked = selected.has(t.id);
                 const tint = reversed
                   ? 'bg-white border-[var(--color-soft-border)]'
                   : isIncome
                     ? 'bg-[color-mix(in_oklab,#22c55e_10%,white)] border-[color-mix(in_oklab,#22c55e_20%,var(--color-soft-border))]'
                     : 'bg-[color-mix(in_oklab,#ef4444_8%,white)] border-[color-mix(in_oklab,#ef4444_18%,var(--color-soft-border))]';
+                const handleActivate = () => {
+                  if (reversed) return;
+                  if (selectMode) toggleSelected(t.id);
+                  else openEdit(t);
+                };
+                // Card compacto de 2 linhas (densidade Belasis): (1) data à esquerda
+                // + pill status à direita; (2) NOME/titular à esquerda + valor à
+                // direita. Método/descrição vão pro drawer de edição.
+                // Toggle Pago/Pendente removido do card — mover pra menu/detalhe.
                 return (
                   <li key={t.id}>
                     <div
                       role="button"
                       tabIndex={reversed ? -1 : 0}
                       aria-disabled={reversed}
-                      onClick={() => !reversed && openEdit(t)}
+                      aria-pressed={selectMode ? isChecked : undefined}
+                      onClick={handleActivate}
                       onKeyDown={(e) => {
                         if (reversed) return;
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          openEdit(t);
+                          handleActivate();
                         }
                       }}
                       className={[
-                        'flex w-full flex-col gap-1.5 rounded-xl border px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        'flex w-full items-stretch gap-2 rounded-xl border px-2.5 py-2 text-left shadow-[var(--shadow-soft)] transition-colors',
                         tint,
                         reversed ? 'opacity-60' : 'cursor-pointer',
+                        selectMode && isChecked ? 'ring-2 ring-primary/60' : '',
                       ].join(' ')}
                     >
-                      {/* linha 1: data + pill status */}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[12px] font-medium text-muted-ink">
-                          {formatDate(t.dueDate)}
-                        </span>
-                        <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
-                          {STATUS_LABEL[t.status]}
-                        </Chip>
-                      </div>
-                      {/* linha 2: método + valor */}
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
-                          {method}
-                        </span>
+                      {selectMode && !reversed && (
                         <span
+                          aria-hidden
                           className={[
-                            'shrink-0 text-[14px] font-bold tabular-nums text-foreground',
-                            reversed ? 'line-through' : '',
+                            'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition-colors',
+                            isChecked
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-[var(--color-soft-border)] bg-white',
                           ].join(' ')}
                         >
-                          {formatMoney(t.grossAmount)}
+                          {isChecked && <IconCheck size={14} />}
                         </span>
+                      )}
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        {/* linha 1: data + pill status */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11.5px] font-medium text-muted-ink">
+                            {formatDateBR(t.dueDate)}
+                          </span>
+                          <Chip variant="soft" color={STATUS_COLOR[t.status]} size="sm">
+                            {STATUS_LABEL[t.status]}
+                          </Chip>
+                        </div>
+                        {/* linha 2: NOME/titular à esquerda + valor à direita.
+                            Descrição secundária cabe abaixo do nome (truncada). */}
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[13px] font-semibold text-foreground">
+                              {holder || method}
+                            </div>
+                            {desc && desc !== holder && (
+                              <div className="truncate text-[11px] leading-snug text-muted-ink">
+                                {desc}
+                              </div>
+                            )}
+                          </div>
+                          <span
+                            className={[
+                              'shrink-0 text-[14px] font-bold tabular-nums',
+                              reversed ? 'line-through text-foreground' : isIncome ? 'text-success' : 'text-danger',
+                            ].join(' ')}
+                          >
+                            {isIncome ? '+' : '−'}{formatMoney(t.grossAmount)}
+                          </span>
+                        </div>
                       </div>
-                      {/* linha 3: NOME bold + descrição/referência abaixo */}
-                      {holder && (
-                        <div className="text-[13px] font-semibold text-foreground">
-                          {holder}
-                        </div>
-                      )}
-                      {desc && desc !== holder && (
-                        <div className="text-[11.5px] leading-snug text-muted-ink">
-                          {desc}
-                        </div>
-                      )}
                     </div>
                   </li>
                 );
@@ -727,32 +789,23 @@ export function TransacoesPage() {
           mode={formMode}
           editing={editing}
           onClose={closeForm}
+          onReverse={
+            editing && editing.status !== 'reversed'
+              ? async () => {
+                  const t = editing;
+                  closeForm();
+                  await handleReverse(t);
+                }
+              : undefined
+          }
+          isReversing={reverse.isPending}
         />
       ) : null}
 
-      {/* FAB chat mobile (bottom-right). TODO: abrir chat de suporte real. */}
-      <button
-        type="button"
-        aria-label="Abrir chat de suporte"
-        onClick={() => {
-          /* TODO: integrar chat de suporte */
-        }}
-        className="fixed bottom-24 right-4 z-30 grid h-12 w-12 place-items-center rounded-full bg-[color:var(--sp-primary,#505afb)] text-white shadow-[var(--shadow-pop,0_8px_24px_rgba(0,0,0,0.18))] transition-transform active:scale-95 md:hidden"
-      >
-        <svg
-          width={22}
-          height={22}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      </button>
+      {/* FAB chat mobile removido: as ações principais vivem na BottomNav
+          (Filtros · Totais · Selecionar · Criar) e o FAB duplicava affordance
+          + colidia com a barra inferior. Retomar quando o chat de suporte
+          real for integrado. */}
     </div>
   );
 }
@@ -1019,10 +1072,14 @@ function LancamentoModal({
   mode,
   editing,
   onClose,
+  onReverse,
+  isReversing,
 }: {
   mode: LancamentoMode;
   editing: TransactionRow | null;
   onClose: () => void;
+  onReverse?: () => void;
+  isReversing?: boolean;
 }) {
   const isVale = mode === 'vale';
   const kind: TransactionKind = mode === 'recebimento' ? 'income' : 'expense';
@@ -1155,6 +1212,18 @@ function LancamentoModal({
     </Button>
   ) : (
     <>
+      {/* Estornar aparece à esquerda quando editando (equivalente ao "Excluir"
+          do padrão canônico — transação não se apaga, se estorna). */}
+      {onReverse && (
+        <Button
+          variant="ghost"
+          className="w-full text-danger sm:mr-auto sm:w-auto"
+          isDisabled={isReversing || isPending}
+          onClick={onReverse}
+        >
+          <IconRepeat size={16} /> {isReversing ? 'Estornando…' : 'Estornar'}
+        </Button>
+      )}
       <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
         Cancelar
       </Button>

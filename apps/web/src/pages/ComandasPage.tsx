@@ -110,7 +110,10 @@ function PaymentTag({ status }: { status: OrderRow['status'] }) {
       Pago
     </span>
   ) : (
-    <span className="inline-flex items-center rounded-[4px] border border-[#ffd591] bg-[#fff7e6] px-2 py-0.5 text-xs font-medium text-[#d46b08]">
+    <span
+      className="inline-flex items-center rounded-[4px] px-2 py-0.5 text-xs font-medium text-white"
+      style={{ backgroundColor: '#faad14' }}
+    >
       Pendente
     </span>
   );
@@ -172,19 +175,27 @@ function RowMenu({
       >
         <MenuIcon />
       </button>
-      {open && (
-        <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-[var(--color-soft-border)] bg-warm-white py-1 shadow-[var(--shadow-pop)]">
-          <MenuItem onClick={() => { setOpen(false); onView(); }}>Ver comanda</MenuItem>
-          <MenuItem onClick={() => { setOpen(false); onEdit(); }}>Editar</MenuItem>
-          <MenuItem
-            danger
-            disabled={disableRemove}
-            onClick={() => { setOpen(false); onRemove(); }}
-          >
-            Excluir
-          </MenuItem>
-        </div>
-      )}
+      <div
+        role="menu"
+        aria-hidden={!open}
+        className={[
+          'absolute right-0 z-20 mt-1 w-40 origin-top overflow-hidden rounded-lg border border-[var(--color-soft-border)] bg-warm-white py-1 shadow-[var(--shadow-pop)]',
+          'transition-all duration-200 ease-out',
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+        ].join(' ')}
+      >
+        <MenuItem onClick={() => { setOpen(false); onView(); }}>Ver comanda</MenuItem>
+        <MenuItem onClick={() => { setOpen(false); onEdit(); }}>Editar</MenuItem>
+        <MenuItem
+          danger
+          disabled={disableRemove}
+          onClick={() => { setOpen(false); onRemove(); }}
+        >
+          Excluir
+        </MenuItem>
+      </div>
     </div>
   );
 }
@@ -449,6 +460,11 @@ export function ComandasPage() {
     <div>
       <PageHeader
         title="Comandas"
+        titleAdornment={
+          <HelpTooltip>
+            Gerencie as comandas do salão: abertura, itens, pagamentos e fechamento.
+          </HelpTooltip>
+        }
         actions={
           <>
             <Button
@@ -816,7 +832,8 @@ export function ComandasPage() {
             {/* Linha 1: [checkbox?] #num NOME  ......  R$ valor
                 Linha 2: data ...................... [pill status]
                 Sem "Excluir" no card; sem "Selecionar" fixo — ambos via BottomNav ⇒ selectMode. */}
-            <ul className="flex flex-col gap-2">
+            {/* pb extra evita que o FAB de chat cubra a última comanda. */}
+            <ul className="flex flex-col gap-2 pb-24">
               {pageRows.map((o) => {
                 const isSelected = selected.has(o.id);
                 const onCardClick = () => {
@@ -852,7 +869,11 @@ export function ComandasPage() {
                         <div className="flex items-baseline justify-between gap-2">
                           <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
                             <span className="font-semibold text-primary">#{o.number}</span>{' '}
-                            <span className="text-foreground">{o.customer?.name ?? 'Avulso'}</span>
+                            {o.customer?.name ? (
+                              <span className="font-semibold text-foreground">{o.customer.name}</span>
+                            ) : (
+                              <span className="italic text-muted">Avulso</span>
+                            )}
                           </div>
                           <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground">
                             {formatMoney(o.netTotal)}

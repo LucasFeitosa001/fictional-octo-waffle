@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { Button, Input, ListBox, Select, TextField } from "@heroui/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Input, ListBox, Select, Spinner, TextField } from "@heroui/react";
 import { ApiClientError } from "@beautypass/shared";
 import { Drawer } from "../components/Drawer";
 import { FullDrawer } from "../components/FullDrawer";
-import { ImageUpload } from "../components/ImageUpload";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
+import { useUploadImage } from "../hooks/useUploadImage";
 import {
   IconChevron,
   IconCircleCheck,
@@ -89,6 +89,9 @@ export function ServicosPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceRow | null>(null);
+  // Belasis: banner de assinatura condicional no topo. Mock por ora — no
+  // futuro virá do endpoint de billing/plano (só aplicável ao tenant).
+  const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(true);
   useAutoCreate(() => setCreateOpen(true));
   const confirm = useConfirm();
 
@@ -444,6 +447,32 @@ export function ServicosPage() {
           </Button>
         </div>
       </header>
+
+      {/* Belasis: banner condicional de assinatura no topo (CTA "Ver minha
+          assinatura"). Mock por ora — condicional ao tenant. */}
+      {showSubscriptionBanner && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-[color-mix(in_oklab,var(--sp-primary)_6%,transparent)] px-4 py-3">
+          <span className="text-sm text-ink">
+            Aproveite mais recursos do seu plano.
+          </span>
+          <div className="flex items-center gap-2">
+            <a
+              href="/perfil/assinatura"
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)]"
+            >
+              Ver minha assinatura
+            </a>
+            <button
+              type="button"
+              aria-label="Fechar aviso"
+              onClick={() => setShowSubscriptionBanner(false)}
+              className="rounded-md p-1 text-muted-ink hover:bg-canvas hover:text-ink"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* O Belasis mantém título e busca sempre visíveis no catálogo móvel. */}
       <section className="mb-3 lg:hidden">
@@ -1132,6 +1161,59 @@ function ServiceDrawer({
   const [active, setActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Upload de foto do serviço (multipart /api/v1/uploads).
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const uploadImage = useUploadImage();
+
+  async function handlePickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError(null);
+    try {
+      const { url } = await uploadImage.mutateAsync({ file, kind: "service" });
+      const nextImages = [url, ...imageUrls.slice(1)];
+      setImageUrls(nextImages);
+      // Editing an existing service: persist the new cover right away so the
+      // thumbnail sticks even if the user closes the drawer without pressing
+      // "Salvar" (otherwise the uploaded file would be orphaned).
+      if (mode === "edit" && service) {
+        await update.mutateAsync({
+          id: service.id,
+          body: { imageUrls: nextImages },
+        });
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Não foi possível enviar a foto.",
+      );
+    }
+  }
+
+  async function handleRemovePhoto() {
+    const nextImages = imageUrls.slice(1);
+    setImageUrls(nextImages);
+    if (mode === "edit" && service) {
+      setError(null);
+      try {
+        await update.mutateAsync({
+          id: service.id,
+          body: { imageUrls: nextImages },
+        });
+      } catch (err) {
+        setError(
+          err instanceof ApiClientError
+            ? err.message
+            : "Não foi possível remover a foto.",
+        );
+      }
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return;
     setTab("cadastro");
@@ -1253,18 +1335,62 @@ function ServiceDrawer({
     >
       {tab === "cadastro" && (
         <div className="flex flex-col gap-4">
-          <div className="flex justify-center py-1">
-            <ImageUpload
-              value={imageUrls[0] ?? null}
-              onChange={(url) =>
-                setImageUrls((current) =>
-                  url ? [url, ...current.slice(1)] : current.slice(1),
-                )
-              }
-              kind="service"
-              shape="square"
-              size={120}
-              placeholder="Foto"
+          <div className="flex flex-col items-center gap-2 py-1">
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadImage.isPending}
+              className="relative flex h-[120px] w-[120px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-line bg-canvas text-muted-ink transition-colors hover:border-[var(--sp-primary)] disabled:opacity-70"
+              aria-label={imageUrls[0] ? "Alterar foto do serviço" : "Enviar foto do serviço"}
+            >
+              {imageUrls[0] ? (
+                <img
+                  src={imageUrls[0]}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="px-1 text-center text-xs font-semibold leading-tight">
+                  Foto
+                </span>
+              )}
+              {uploadImage.isPending && (
+                <span className="absolute inset-0 flex items-center justify-center bg-white/70">
+                  <Spinner size="sm" />
+                </span>
+              )}
+            </button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                isDisabled={uploadImage.isPending}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                {uploadImage.isPending
+                  ? "Enviando…"
+                  : imageUrls[0]
+                    ? "Alterar foto"
+                    : "Enviar foto"}
+              </Button>
+              {imageUrls[0] && !uploadImage.isPending && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-danger"
+                  isDisabled={update.isPending}
+                  onClick={handleRemovePhoto}
+                >
+                  Remover
+                </Button>
+              )}
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handlePickPhoto}
             />
           </div>
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@heroui/react';
 import {
   Bar,
@@ -16,7 +17,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
 import { Drawer } from '../../components/Drawer';
-import { IconChevron, IconFilter, IconPlay } from '../../components/icons';
+import { IconChevron, IconFilter } from '../../components/icons';
 import { useSetPageActions } from '../../layout/PageActions';
 import { useFinancialSummary } from '../../lib/queries/financeiro';
 import { useThemeColors } from '../../theme/useThemeColors';
@@ -73,16 +74,19 @@ function SummaryRow({
   label,
   value,
   tone,
+  onClick,
 }: {
   label: string;
   value: string;
   tone: 'success' | 'danger';
+  onClick?: () => void;
 }) {
   const color = tone === 'success' ? 'text-success' : 'text-danger';
   return (
     <button
       type="button"
-      className={`flex w-full items-center justify-between gap-3 rounded-xl bg-card p-2.5 text-left ${SHADOW}`}
+      onClick={onClick}
+      className={`flex w-full items-center justify-between gap-3 rounded-xl bg-card p-2.5 text-left ${SHADOW} transition hover:brightness-95 active:brightness-90`}
     >
       <div className={color}>
         <span className="block text-lg font-medium leading-tight">{label}</span>
@@ -136,16 +140,19 @@ function TotalTile({
   value,
   bg,
   fg,
+  onClick,
 }: {
   label: string;
   value: string;
   bg: string;
   fg: string;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
-      className={`flex items-center justify-between gap-2 rounded-xl p-2.5 text-left ${bg} ${fg} ${SHADOW}`}
+      onClick={onClick}
+      className={`flex items-center justify-between gap-2 rounded-xl p-2.5 text-left ${bg} ${fg} ${SHADOW} transition hover:brightness-95 active:brightness-90`}
     >
       <div className="min-w-0">
         <span className="block text-lg font-medium leading-tight">{label}</span>
@@ -159,7 +166,16 @@ function TotalTile({
 }
 
 export function FinanceiroPainelPage() {
+  const navigate = useNavigate();
   const [range, setRange] = useState(defaultRange);
+
+  // Navega para a lista de transações com filtros pré-aplicados via querystring.
+  // TODO: a TransacoesPage ainda não lê estes params — plugar useSearchParams lá
+  // para hidratar `statusFilter`, `from`, `to`, `kind` (income/expense).
+  function goToTransacoes(params: Record<string, string>) {
+    const qs = new URLSearchParams(params).toString();
+    navigate(`/financeiro/transacoes${qs ? `?${qs}` : ''}`);
+  }
   // Filtro mobile: no Belasis o "Filtrar" fica na BottomNav e abre um drawer.
   // Reutiliza exatamente o mesmo `setRange` do filtro inline do desktop.
   const [mobileRange, setMobileRange] = useState(range);
@@ -198,18 +214,10 @@ export function FinanceiroPainelPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Painel"
-        titleAdornment={
-          <button
-            type="button"
-            aria-label="Assistir tutorial do Painel"
-            className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-primary pl-0.5 text-primary transition hover:bg-primary/10"
-          >
-            <IconPlay size={14} />
-          </button>
-        }
-      />
+      {/* Belasis mostra um botão "play" ao lado do título que abriria um tutorial;
+          removido enquanto não houver conteúdo real de tutorial para não frustrar
+          o usuário (era um botão morto sem onClick). */}
+      <PageHeader title="Painel" />
 
       {/* Intervalo de datas (desktop). No mobile o filtro vive na BottomNav. */}
       <div className={`mb-4 hidden rounded-xl bg-card p-4 md:block ${SHADOW}`}>
@@ -230,11 +238,29 @@ export function FinanceiroPainelPage() {
                   label="A receber hoje"
                   value={formatMoney(d?.receivableToday ?? 0)}
                   tone="success"
+                  onClick={() => {
+                    const today = isoDate(new Date());
+                    goToTransacoes({
+                      kind: 'income',
+                      status: 'pending',
+                      from: today,
+                      to: today,
+                    });
+                  }}
                 />
                 <SummaryRow
                   label="A pagar hoje"
                   value={formatMoney(d?.payableToday ?? 0)}
                   tone="danger"
+                  onClick={() => {
+                    const today = isoDate(new Date());
+                    goToTransacoes({
+                      kind: 'expense',
+                      status: 'pending',
+                      from: today,
+                      to: today,
+                    });
+                  }}
                 />
               </div>
             </section>
@@ -274,24 +300,56 @@ export function FinanceiroPainelPage() {
                   value={formatMoney(d?.totals.received ?? 0)}
                   bg="bg-success"
                   fg="text-success-foreground"
+                  onClick={() =>
+                    goToTransacoes({
+                      kind: 'income',
+                      status: 'paid',
+                      from: range.from,
+                      to: range.to,
+                    })
+                  }
                 />
                 <TotalTile
                   label="A Receber"
                   value={formatMoney(d?.totals.toReceive ?? 0)}
                   bg="bg-primary"
                   fg="text-primary-foreground"
+                  onClick={() =>
+                    goToTransacoes({
+                      kind: 'income',
+                      status: 'pending',
+                      from: range.from,
+                      to: range.to,
+                    })
+                  }
                 />
                 <TotalTile
                   label="Pagos"
                   value={formatMoney(d?.totals.paid ?? 0)}
                   bg="bg-warning"
                   fg="text-warning-foreground"
+                  onClick={() =>
+                    goToTransacoes({
+                      kind: 'expense',
+                      status: 'paid',
+                      from: range.from,
+                      to: range.to,
+                    })
+                  }
                 />
                 <TotalTile
                   label="A Pagar"
                   value={formatMoney(d?.totals.toPay ?? 0)}
                   bg="bg-danger"
                   fg="text-danger-foreground"
+                  onClick={() =>
+                    goToTransacoes({
+                      kind: 'expense',
+                      status: 'pending',
+                      from: range.from,
+                      to: range.to,
+                    })
+                  }
                 />
               </div>
             </section>

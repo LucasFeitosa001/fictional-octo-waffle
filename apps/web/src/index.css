@@ -474,9 +474,10 @@ h1, h2, h3, h4, h5, h6,
   }
 
   .db-sidebar-mobile {
-    width: min(296px, calc(100vw - 3rem));
-    padding-top: max(1.25rem, env(safe-area-inset-top));
-    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    /* Não fixa width aqui — Tailwind w-[NNNpx] no componente decide.
+       Só ajusta paddings pra safe area do notch. */
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }
 

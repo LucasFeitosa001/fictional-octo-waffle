@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Modal, Spinner } from '@heroui/react';
-import { api } from '../lib/api';
+import { ApiClientError } from '@beautypass/shared';
+import { API_BASE_URL } from '../lib/config';
 import { IconPlus, IconX } from './icons';
 
 type UploadKind = 'logo' | 'professional' | 'product' | 'service' | 'customer' | 'misc';
 
-interface PresignResponse {
-  uploadUrl: string;
-  publicUrl: string;
+interface DirectUploadResponse {
+  url: string;
   key: string;
 }
 
@@ -29,22 +29,44 @@ const OUTPUT_SIZE = 768;
 const VIEWPORT = 300;
 
 /**
- * Upload a JPEG blob to S3 via a presigned PUT and return its public url.
+ * Upload a JPEG blob via the direct multipart endpoint (`POST /uploads`) and
+ * return its public url. Uses cookie auth (credentials: 'include') consistent
+ * with the rest of the web app. This endpoint works with S3 when configured
+ * and falls back to local disk otherwise (see uploads.service.ts).
  * Shared by both the single ImageUpload and the multi ImageGalleryUpload.
  */
 async function uploadImageBlob(blob: Blob, kind: UploadKind): Promise<string> {
-  const { uploadUrl, publicUrl } = await api.post<PresignResponse>('/uploads/presign', {
-    filename: 'image.jpg',
-    contentType: 'image/jpeg',
-    kind,
+  const form = new FormData();
+  form.append('file', blob, 'image.jpg');
+  form.append('kind', kind);
+
+  const res = await window.fetch(`${API_BASE_URL}/uploads`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
   });
-  const res = await window.fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'image/jpeg' },
-    body: blob,
-  });
-  if (!res.ok) throw new Error(`Falha no upload (${res.status})`);
-  return publicUrl;
+
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = text ? JSON.parse(text) : undefined;
+  } catch {
+    json = undefined;
+  }
+
+  if (!res.ok) {
+    const body = json as { message?: string | string[] } | undefined;
+    const message = body?.message
+      ? Array.isArray(body.message)
+        ? body.message.join(', ')
+        : body.message
+      : res.statusText || `Falha no upload (${res.status})`;
+    throw new ApiClientError(res.status, message);
+  }
+
+  const result = json as Partial<DirectUploadResponse> | undefined;
+  if (!result?.url) throw new Error('Resposta de upload inválida (sem url).');
+  return result.url;
 }
 
 /**
@@ -52,8 +74,9 @@ async function uploadImageBlob(blob: Blob, kind: UploadKind): Promise<string> {
  * a file, an editor opens so they can frame the best part of the photo. On
  * confirm the selection is rendered to a canvas and exported as JPEG, which
  * both guarantees a bucket-supported format (iPhone HEIC, etc. are normalised)
- * and keeps every upload square. The JPEG is then uploaded to S3 via a
- * presigned PUT and the public url is returned through onChange.
+ * and keeps every upload square. The JPEG is then uploaded via the direct
+ * multipart endpoint (POST /uploads) and the public url is returned through
+ * onChange.
  */
 export function ImageUpload({
   value,
@@ -256,8 +279,17 @@ function ImageCropModal({ src, shape, onCancel, onConfirm }: ImageCropModalProps
 
   return (
     <Modal isOpen onOpenChange={(open) => !open && onCancel()}>
-      <Modal.Backdrop>
-        <Modal.Container size="sm" placement="center">
+      {/*
+        HeroUI Modal.Backdrop defaults to z-50 (see @heroui/styles modal.css),
+        which sits BEHIND our Drawer (z-[70]) and FullDrawer (z-[80]). Since
+        both HeroUI Modal and our Drawers portal to document.body, the crop
+        modal was disappearing behind the parent drawer whenever the user
+        opened it from a photo picker inside a drawer/full-drawer flow.
+        Force z-[100] on the backdrop AND the container so both the overlay
+        and the dialog paint above every drawer surface.
+      */}
+      <Modal.Backdrop className="z-[100]">
+        <Modal.Container className="z-[100]" size="sm" placement="center">
           <Modal.Dialog>
             <Modal.Header>
               <Modal.Heading>Ajustar imagem</Modal.Heading>

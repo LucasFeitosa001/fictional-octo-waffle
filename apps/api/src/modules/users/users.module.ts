@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
@@ -20,6 +20,14 @@ class CreateUserDto {
   @IsString() @MinLength(6) password: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() roleId?: string;
+}
+
+// Perfil → Notificações: canais que a conta aceita receber. Persistido no User
+// (colunas booleanas), separado das preferências de Cliente (que ficam em
+// Customer.whatsappOptIn/smsOptIn) porque isso é sobre o operador do salão.
+class NotificationPrefsDto {
+  @IsOptional() @IsBoolean() email?: boolean;
+  @IsOptional() @IsBoolean() sms?: boolean;
 }
 
 @Injectable()
@@ -57,6 +65,26 @@ export class UsersService {
       select: { id: true, name: true, email: true, phone: true, active: true, provider: true },
     });
   }
+
+  async getNotificationPrefs(userId: string) {
+    const row = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: { notifyEmail: true, notifySms: true },
+    });
+    return { email: row?.notifyEmail ?? true, sms: row?.notifySms ?? false };
+  }
+
+  async updateNotificationPrefs(userId: string, dto: NotificationPrefsDto) {
+    const data: { notifyEmail?: boolean; notifySms?: boolean } = {};
+    if (dto.email !== undefined) data.notifyEmail = dto.email;
+    if (dto.sms !== undefined) data.notifySms = dto.sms;
+    const row = await this.prisma.client.user.update({
+      where: { id: userId },
+      data,
+      select: { notifyEmail: true, notifySms: true },
+    });
+    return { email: row.notifyEmail, sms: row.notifySms };
+  }
 }
 
 @UseGuards(JwtAuthGuard)
@@ -67,6 +95,21 @@ export class UsersController {
   @Get()
   list(@CurrentUser('companyId') companyId: string) {
     return this.service.list(companyId);
+  }
+
+  // Notification prefs are scoped to the caller (`me`). Declared BEFORE the
+  // `:id` routes so Nest doesn't match "me" as an id and hit findOne.
+  @Get('me/notification-prefs')
+  getMyNotificationPrefs(@CurrentUser('userId') userId: string) {
+    return this.service.getNotificationPrefs(userId);
+  }
+
+  @Post('me/notification-prefs')
+  updateMyNotificationPrefs(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: NotificationPrefsDto,
+  ) {
+    return this.service.updateNotificationPrefs(userId, dto);
   }
 
   @Get(':id')

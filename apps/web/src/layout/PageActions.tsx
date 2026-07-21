@@ -13,7 +13,6 @@ import {
   IconArrowUp,
   IconBox,
   IconCalendar,
-  IconDollar,
   IconFolder,
   IconLayers,
   IconReceipt,
@@ -21,7 +20,6 @@ import {
   IconScissors,
   IconTag,
   IconTruck,
-  IconUser,
   IconUserPlus,
   IconUsers,
   IconWallet,
@@ -45,14 +43,10 @@ export type CreateGroup = { label: string; items: CreateItem[] };
 
 export const CREATE_GROUPS: CreateGroup[] = [
   {
-    label: 'Financeiro',
+    label: 'Principal',
     items: [
       { to: '/agenda?new=1', label: 'Agendamento', icon: IconCalendar },
       { to: '/comandas?new=1', label: 'Comanda', icon: IconReceipt },
-      { to: '/financeiro/transacoes?new=despesa', label: 'Despesa', icon: IconArrowUp },
-      { to: '/financeiro/transacoes?new=recebimento', label: 'Receita', icon: IconArrowDown },
-      { to: '/financeiro/transacoes?new=transferencia', label: 'Transferência', icon: IconRepeat },
-      { to: '/financeiro/transacoes?new=vale', label: 'Vale', icon: IconWallet },
     ],
   },
   {
@@ -66,8 +60,15 @@ export const CREATE_GROUPS: CreateGroup[] = [
       { to: '/fornecedores?new=1', label: 'Fornecedor', icon: IconTruck },
       { to: '/marcas?new=1', label: 'Marca', icon: IconTag },
       { to: '#', label: 'Etiqueta', icon: IconLayers, disabled: true },
-      { to: '#', label: 'Usuário', icon: IconUser, disabled: true },
-      { to: '#', label: 'Tributação', icon: IconDollar, disabled: true },
+    ],
+  },
+  {
+    label: 'Financeiro',
+    items: [
+      { to: '/financeiro/transacoes?new=despesa', label: 'Despesa', icon: IconArrowUp },
+      { to: '/financeiro/transacoes?new=recebimento', label: 'Receita', icon: IconArrowDown },
+      { to: '/financeiro/transacoes?new=transferencia', label: 'Transferência', icon: IconRepeat },
+      { to: '/financeiro/transacoes?new=vale', label: 'Vale', icon: IconWallet },
     ],
   },
 ];

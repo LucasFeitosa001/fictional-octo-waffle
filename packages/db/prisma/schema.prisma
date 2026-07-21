@@ -297,6 +297,11 @@ model User {
   avatarUrl     String?
   provider      AuthProvider @default(local)
   active        Boolean      @default(true)
+  // Per-user notification preferences (Perfil → Notificações). Default ON so
+  // legacy accounts keep receiving mail; SMS opt-in stays off until the user
+  // wires up their number.
+  notifyEmail   Boolean      @default(true)
+  notifySms     Boolean      @default(false)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -1756,6 +1761,9 @@ model Notification {
   type      String
   title     String
   body      String?
+  // Identificador da entidade referenciada (ex.: appointmentId para type
+  // "appointment.*"). Habilita o deep-link do sino → drawer do agendamento.
+  entityId  String?
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
@@ -1764,6 +1772,7 @@ model Notification {
 
   @@index([companyId])
   @@index([userId])
+  @@index([entityId])
 }
 
 model AuditLog {
@@ -1966,4 +1975,24 @@ model GalleryPhoto {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+}
+
+// Belasis Etapa 2 — Central de Ajuda (Help Center).
+// Artigos carregados a partir de docs/help/*.md no boot da API (frontmatter
+// via gray-matter). Não é multi-tenant: base de conhecimento é global do
+// produto SalonPass. Usados pelo módulo /help (list/getBySlug/search/chat).
+model HelpArticle {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  category  String
+  tags      String[]
+  excerpt   String
+  icon      String?
+  faq       Boolean  @default(false)
+  body      String   @db.Text
+  updatedAt DateTime @default(now())
+
+  @@index([category])
+  @@index([faq])
 }

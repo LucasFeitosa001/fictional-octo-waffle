@@ -1,6 +1,21 @@
 import type { ReactNode } from 'react';
 import { Button, Spinner } from '@heroui/react';
 
+/**
+ * Spinner de tela cheia para o carregamento INICIAL de uma query (sem dados
+ * em cache). Não usar durante refetch em background — isso faz a UI piscar
+ * e perder contexto para o usuário.
+ *
+ * Padrão correto com react-query v5:
+ *   if (q.isLoading) return <LoadingState />;   // ok — em v5, isLoading só
+ *                                               // é true quando isPending
+ *                                               // && isFetching (nunca em
+ *                                               // background refetch com
+ *                                               // dados em cache).
+ *
+ * NÃO fazer:
+ *   if (q.isFetching) return <LoadingState />;  // pisca a cada refetch.
+ */
 export function LoadingState({ label = 'Carregando…' }: { label?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted">

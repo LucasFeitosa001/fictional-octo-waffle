@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { Spinner } from '@heroui/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from './lib/auth';
 import { LoginPage } from './pages/LoginPage';
@@ -34,6 +33,7 @@ import { GeradorDocumentoPage } from './pages/controle/GeradorDocumentoPage';
 import { AgendamentoOnlinePage } from './pages/marketing/AgendamentoOnlinePage';
 import { CampanhasPage } from './pages/marketing/CampanhasPage';
 import { AjudaPage } from './pages/AjudaPage';
+import { HelpArticlePage } from './pages/HelpArticlePage';
 import { IndiquePage } from './pages/IndiquePage';
 import { ComissoesResumoPage } from './pages/comissoes/ComissoesResumoPage';
 import { ComissoesConfigPage } from './pages/comissoes/ComissoesConfigPage';
@@ -60,18 +60,53 @@ import { PerfilPage } from './pages/PerfilPage';
 import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
 import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
 import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
+import { PerfilAssinaturaPage } from './pages/PerfilAssinaturaPage';
 
-function FullScreenSpinner() {
-  return (
-    <div className="flex h-dvh w-full items-center justify-center">
-      <Spinner size="lg" />
-    </div>
-  );
+/**
+ * Splash fade-out controller.
+ *
+ * The pre-hydration splash lives in index.html at the <body> level (outside
+ * #root). It stays visible on top of everything until we set
+ * `data-app-ready="1"` on <html>, which triggers the CSS opacity transition,
+ * then we remove the element from the DOM after the transition ends.
+ *
+ * Called ONCE from <App> as soon as the initial session query resolves
+ * (isPending flips from true → false). This eliminates the reload flash
+ * cascade: splash covers the screen from t=0 until the app has actually
+ * decided what to render (LoginPage vs DashboardLayout).
+ */
+function useHideSplashWhenReady(ready: boolean) {
+  const done = useRef(false);
+  useEffect(() => {
+    if (!ready || done.current) return;
+    done.current = true;
+    // Two RAFs: give React a paint to commit the real UI beneath the splash
+    // BEFORE we start fading, so the reveal is content-first (never a flash
+    // of empty cream body). done.current guards against StrictMode re-invoke.
+    let timeoutId: number | undefined;
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.documentElement.dataset.appReady = '1';
+        timeoutId = window.setTimeout(() => {
+          document.getElementById('splash')?.remove();
+        }, 260);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [ready]);
 }
 
 function ProtectedRoutes() {
   const { data: session, isPending } = useSession();
-  if (isPending) return <FullScreenSpinner />;
+  // Render null SOMENTE no primeiro load (sem session em cache). Better Auth
+  // dispara isPending=true também em REFETCHES (blur/focus, mutations, etc.);
+  // retornar null nesses casos VIRA A APP INTEIRA em branco → parece reload
+  // ao voltar pra aba. Manter a app renderizada com session cached quando
+  // refetching preserva o UX. Splash HTML só cobre no primeiro paint.
+  if (isPending && !session) return null;
   if (!session) return <Navigate to="/login" replace />;
   return (
     <DashboardLayout>
@@ -140,9 +175,11 @@ function ProtectedRoutes() {
         <Route path="/ajuda/base-conhecimento" element={<AjudaPage />} />
         <Route path="/ajuda/feedback" element={<AjudaPage />} />
         <Route path="/ajuda/novidades" element={<AjudaPage />} />
+        <Route path="/ajuda/artigo/:slug" element={<HelpArticlePage />} />
         <Route path="/indique" element={<IndiquePage />} />
-        <Route path="/perfil" element={<PerfilPage />} />
+        <Route path="/perfil/assinatura" element={<PerfilAssinaturaPage />} />
         <Route path="/perfil/adicionais" element={<PerfilAdicionaisPage />} />
+        <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/notificacoes" element={<NotificacoesCategoriasPage />} />
         <Route path="/notificacoes/:tipo" element={<NotificacoesDetalhePage />} />
         <Route path="/indique-e-ganhe" element={<div className="p-6"><h1 className="text-2xl font-bold">Indique e ganhe</h1><p className="mt-2 text-muted-ink">Em breve.</p></div>} />
@@ -155,6 +192,11 @@ function ProtectedRoutes() {
 export function App() {
   const { data: session, isPending } = useSession();
   const queryClient = useQueryClient();
+
+  // Hand off from the pre-hydration HTML splash to React exactly once, the
+  // first time the session query resolves. Until this fires, the splash sits
+  // on top of everything and any React tree can render null underneath.
+  useHideSplashWhenReady(!isPending);
 
   // Tenant isolation: every cached query (services, customers, dashboard, etc.)
   // is scoped to the logged-in user's company on the server, but TanStack Query
@@ -199,9 +241,9 @@ export function App() {
       <Route
         path="/login"
         element={
-          isPending ? (
-            <FullScreenSpinner />
-          ) : session ? (
+          // Só oculta no PRIMEIRO load (sem session). Refetch em background
+          // (blur/focus) mantém a rota renderizada com session cached.
+          (isPending && !session) ? null : session ? (
             <Navigate to="/" replace />
           ) : (
             <LoginPage />

@@ -14,11 +14,28 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      // Auto-atualiza ao voltar o foco à janela/aba e ao reconectar — substitui
-      // o antigo botão "Atualizar" manual (o app se mantém fresco sozinho).
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
+      // staleTime 30s: revisitar uma rota em <30s NÃO dispara refetch nem
+      // spinner (dados considerados frescos). Passado esse tempo, ocorre
+      // refetch em background — como as páginas gateiam LoadingState em
+      // `isLoading` (v5: true só quando não há data em cache), o refetch
+      // silencioso mantém os dados stale na tela enquanto atualiza.
       staleTime: 30_000,
+      // gcTime 30min: mantém o cache vivo mesmo quando não há observers
+      // (usuário navegou pra outra rota). Isso evita que voltar pra uma
+      // tela recém-visitada volte pro estado inicial "sem dados" e
+      // reapresente o spinner de LoadingState.
+      gcTime: 30 * 60_000,
+      // refetchOnWindowFocus desligado: voltar pra aba não deve disparar
+      // refetch de todas as queries montadas (era ruído de rede + risco de
+      // layout tremer). Reconexão de rede continua invalidando, pois é
+      // sinal real de que dados podem ter mudado enquanto estávamos offline.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: 'always',
+    },
+    mutations: {
+      // Mutations não devem retry por padrão — evita duplicar POSTs/PATCHes
+      // não-idempotentes quando o servidor demora ou devolve 5xx transitório.
+      retry: 0,
     },
   },
 });

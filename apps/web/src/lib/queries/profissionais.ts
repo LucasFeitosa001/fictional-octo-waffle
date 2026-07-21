@@ -131,7 +131,12 @@ export function useUpdateProfessional() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<ProfessionalBody> }) =>
       api.patch<Professional>(`/professionals/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['professionals'] }),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['professionals'] });
+      // Invalidate the detail query too so the open drawer picks up
+      // side-effect PATCHes like an inline avatar upload.
+      qc.invalidateQueries({ queryKey: ['professional', id] });
+    },
   });
 }
 

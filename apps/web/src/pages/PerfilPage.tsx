@@ -78,7 +78,7 @@ export function PerfilPage() {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await api.patch('/auth/update-user', { name: name.trim() });
+      await api.post('/auth/update-user', { name: name.trim() });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {

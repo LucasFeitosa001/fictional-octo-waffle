@@ -12,13 +12,12 @@ import {
   IconSettings,
   IconStar,
   IconTrash,
-  IconUser,
   IconUsers,
 } from '../components/icons';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { useCustomers } from '../lib/queries';
 import { useDeleteCustomer } from '../lib/queries/clientes';
-import { formatDate, initials } from '../lib/format';
+import { formatDate, formatPhone, initials } from '../lib/format';
 import type { CustomerFull } from '../lib/types';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { useSetPageActions } from '../layout/PageActions';
@@ -206,7 +205,7 @@ export function ClientesPage() {
   }, [page, totalPages]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-24 md:pb-0">
       {/* ── Cabeçalho ─────────────────────────────────────────── */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -491,7 +490,7 @@ export function ClientesPage() {
                           <td className="max-w-[220px] truncate px-4 py-2.5 text-muted-ink">
                             {c.email ?? ''}
                           </td>
-                          <td className="px-4 py-2.5 text-ink">{c.phone ?? ''}</td>
+                          <td className="px-4 py-2.5 text-ink">{formatPhone(c.phone)}</td>
                           <td className="px-4 py-2.5 text-ink">
                             {c.birthday ? formatDate(c.birthday) : ''}
                           </td>
@@ -554,16 +553,14 @@ export function ClientesPage() {
                           {c.avatarUrl && (
                             <Avatar.Image src={c.avatarUrl} alt={c.name} />
                           )}
-                          <Avatar.Fallback>
-                            <IconUser size={22} className="text-gold" />
-                          </Avatar.Fallback>
+                          <Avatar.Fallback>{initials(c.name)}</Avatar.Fallback>
                         </Avatar>
                         <div className="min-w-0">
                           <div className="truncate text-base font-medium text-ink">
                             {c.name}
                           </div>
                           <div className="truncate text-sm text-muted-ink">
-                            {c.phone ?? 'Sem telefone'}
+                            {c.phone ? formatPhone(c.phone) : 'Sem telefone'}
                           </div>
                         </div>
                       </button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -30,6 +30,7 @@ import {
   IconX,
 } from '../components/icons';
 import { formatDate, formatDateTime, formatMoney, initials, toDateInput } from '../lib/format';
+import { useUploadImage } from '../hooks/useUploadImage';
 import { useCustomers } from '../lib/queries';
 import {
   useCreateAnamnesis,
@@ -164,6 +165,51 @@ function CustomerForm({
 
   const [error, setError] = useState<string | null>(null);
 
+  // Upload de foto do cliente
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadImage = useUploadImage();
+
+  async function handlePickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError(null);
+    try {
+      const { url } = await uploadImage.mutateAsync({ file, kind: 'customer' });
+      setAvatarUrl(url);
+      // Editing an existing customer: persist the new avatar right away so
+      // the thumbnail sticks even if the user closes the drawer without
+      // pressing "Salvar" (otherwise the uploaded file would be orphaned).
+      if (mode === 'edit' && customer) {
+        await update.mutateAsync({ id: customer.id, body: { avatarUrl: url } });
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Não foi possível enviar a foto.',
+      );
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    setAvatarUrl('');
+    if (mode === 'edit' && customer) {
+      setError(null);
+      try {
+        await update.mutateAsync({ id: customer.id, body: { avatarUrl: '' } });
+      } catch (err) {
+        setError(
+          err instanceof ApiClientError
+            ? err.message
+            : 'Não foi possível remover a foto.',
+        );
+      }
+    }
+  }
+
   useEffect(() => {
     setName(customer?.name ?? '');
     setNickname(customer?.nickname ?? '');
@@ -263,15 +309,54 @@ function CustomerForm({
       {/* --- Cadastro --- */}
       <div className="flex flex-col gap-3">
         <SectionTitle>Cadastro</SectionTitle>
-        {avatarUrl.trim() && (
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
+          <div className="relative">
             <Avatar size="lg">
-              <Avatar.Image src={avatarUrl} alt={name} />
+              {avatarUrl.trim() && <Avatar.Image src={avatarUrl} alt={name} />}
               <Avatar.Fallback>{initials(name || '?')}</Avatar.Fallback>
             </Avatar>
-            <span className="text-xs text-muted">Prévia da foto</span>
+            {uploadImage.isPending && (
+              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70">
+                <Spinner size="sm" />
+              </span>
+            )}
           </div>
-        )}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted">Foto do cliente</span>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                isDisabled={uploadImage.isPending}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadImage.isPending
+                  ? 'Enviando…'
+                  : avatarUrl.trim()
+                    ? 'Alterar foto'
+                    : 'Enviar foto'}
+              </Button>
+              {avatarUrl.trim() && !uploadImage.isPending && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-danger"
+                  isDisabled={update.isPending}
+                  onClick={handleRemoveAvatar}
+                >
+                  Remover
+                </Button>
+              )}
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handlePickAvatar}
+          />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Nome">
             <TextField value={name} onChange={setName} aria-label="Nome">
@@ -324,11 +409,6 @@ function CustomerForm({
           <Field label="RG">
             <TextField value={rg} onChange={setRg} aria-label="RG">
               <Input placeholder="00.000.000-0" />
-            </TextField>
-          </Field>
-          <Field label="Foto (URL)">
-            <TextField value={avatarUrl} onChange={setAvatarUrl} aria-label="Foto (URL)">
-              <Input placeholder="https://…" />
             </TextField>
           </Field>
         </div>

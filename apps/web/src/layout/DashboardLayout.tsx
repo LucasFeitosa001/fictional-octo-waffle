@@ -1,30 +1,15 @@
 import { useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { Topbar } from './Topbar';
 import { BottomNav } from './BottomNav';
 import { CreateSheetProvider, PageActionsProvider } from './PageActions';
 import { ConfirmProvider } from '../components/ConfirmDialog';
-
-function IconClose({ size = 24 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 6l12 12M18 6 6 18" />
-    </svg>
-  );
-}
+import { ChatSupportDrawer } from '../components/ChatSupportDrawer';
+import { IconMessage } from '../components/icons';
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const { pathname } = useLocation();
   // Full-bleed pages manage their own height + scroll (no page padding,
   // no max-width, no main scroll). The agenda is one big internal scroller.
@@ -66,27 +51,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             drawerOpen ? 'translate-x-0' : '-translate-x-full',
           ].join(' ')}
         >
-          <Sidebar mobile onNavigate={() => setDrawerOpen(false)} />
+          {/* mobileOpen sinaliza pra Sidebar resetar collapsedGroups (via useEffect)
+              sem remontar — remount quebra a animação de saída do drawer. */}
+          <Sidebar mobile mobileOpen={drawerOpen} onNavigate={() => setDrawerOpen(false)} />
         </div>
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(false)}
-          aria-label="Fechar menu"
-          tabIndex={drawerOpen ? 0 : -1}
-          className={[
-            'absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-black/45 px-3 py-2 text-xs font-medium text-white shadow-lg backdrop-blur-sm transition-opacity duration-300',
-            drawerOpen ? 'opacity-100' : 'opacity-0',
-          ].join(' ')}
-        >
-          <IconClose size={17} />
-          Fechar
-        </button>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Desktop top bar */}
-        <Topbar />
-
         {fullBleed ? (
           <main className="db-canvas flex min-h-0 flex-1 flex-col overflow-hidden">
             {children}
@@ -102,6 +73,22 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom tab bar (same style as the club) */}
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
+
+      {/* Chat FAB global — visível em todas as páginas exceto Agenda
+          (Belasis /calendar não tem FAB nesta rota). */}
+      {!fullBleed && (
+        <button
+          type="button"
+          aria-label="Abrir chat de suporte"
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-24 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow-pop)] transition-transform active:scale-95 md:bottom-6 md:right-6"
+        >
+          <IconMessage size={22} />
+        </button>
+      )}
+
+      {/* Drawer do chat de suporte — POST /help/chat (Claude Haiku). */}
+      <ChatSupportDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
     </ConfirmProvider>
     </CreateSheetProvider>

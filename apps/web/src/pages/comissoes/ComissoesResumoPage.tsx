@@ -100,10 +100,13 @@ export function ComissoesResumoPage() {
   const [to, setTo] = useState(() => isoDate(new Date()));
   const [professionalId, setProfessionalId] = useState('');
   const [status, setStatus] = useState('');
-  const [showPrevious, setShowPrevious] = useState(false); // TODO: sem wiring de query ainda
   const [error, setError] = useState<string | null>(null);
   const [detailFor, setDetailFor] = useState<CommissionSummaryRow | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  function openFilters() {
+    setFilterOpen(true);
+  }
 
   const professionals = useProfessionals();
   const overview = useCommissionOverview({
@@ -152,7 +155,7 @@ export function ComissoesResumoPage() {
         key: 'filtros',
         label: 'Filtros',
         icon: <IconFilter size={22} />,
-        onClick: () => setFilterOpen(true),
+        onClick: openFilters,
       },
       {
         key: 'exportar',
@@ -335,7 +338,7 @@ export function ComissoesResumoPage() {
       {/* Barra de período (clicável — abre o drawer de filtros) */}
       <button
         type="button"
-        onClick={() => setFilterOpen(true)}
+        onClick={openFilters}
         className={`mb-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-base font-medium text-foreground ${CARD_CLASS}`}
       >
         <span>{rangeLabel}</span>
@@ -470,15 +473,6 @@ export function ComissoesResumoPage() {
             </Select>
           </Field>
 
-          <label className="flex items-center gap-2 text-sm text-foreground">
-            <input
-              type="checkbox"
-              checked={showPrevious}
-              onChange={(e) => setShowPrevious(e.target.checked)}
-              className="h-4 w-4 accent-[var(--sp-primary)]"
-            />
-            Mostrar comissões anteriores
-          </label>
         </div>
       </Drawer>
 

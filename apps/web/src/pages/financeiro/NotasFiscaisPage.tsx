@@ -415,6 +415,18 @@ export function NotasFiscaisPage() {
                 <span className="shrink-0 text-sm font-semibold text-foreground">
                   {formatMoney(r.amount)}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Baixar XML"
+                  className="shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // TODO: baixar XML da nota quando o provedor fiscal estiver integrado.
+                  }}
+                >
+                  <IconDownload size={16} />
+                </Button>
               </li>
             ))}
           </ul>

@@ -1,14 +1,21 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { LoadingState, ErrorState } from '../components/States';
 import { ImageUpload } from '../components/ImageUpload';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { WhatsappConnectionCard } from '../components/WhatsappConnectionCard';
+import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconHome,
   IconBell,
   IconSparkles,
   IconWhatsApp,
   IconChevron,
+  IconUser,
+  IconUsers,
+  IconLink,
+  IconLogout,
+  IconPlay,
 } from '../components/icons';
 import {
   useEmpresa,
@@ -17,6 +24,7 @@ import {
 } from '../lib/queries/empresa';
 import { useProfessionals } from '../lib/queries';
 import { useUpdateProfessional } from '../lib/queries/profissionais';
+import { signOut } from '../lib/auth';
 
 /* ------------------------------------------------------------------ *
  * Clone 100% fiel da página /settings do Belasis.
@@ -64,6 +72,24 @@ const TABS: { id: TabId; label: string; Icon: (p: { size?: number }) => ReactNod
   { id: 'notificacoes', label: 'Notificações', Icon: IconBell },
   { id: 'personalizar', label: 'Personalizar', Icon: IconSparkles },
   { id: 'whatsapp', label: 'WhatsApp', Icon: IconWhatsApp },
+];
+
+/* Itens extras que aparecem na lista mobile (paridade Belasis): links
+ * externos e ação de sair. Não são "tabs" internas — cada um navega ou
+ * dispara uma ação. */
+type ExtraKind = 'link' | 'signout';
+const EXTRA_ITEMS: {
+  id: string;
+  label: string;
+  Icon: (p: { size?: number }) => ReactNode;
+  to?: string;
+  kind: ExtraKind;
+  danger?: boolean;
+}[] = [
+  { id: 'minhaConta', label: 'Minha conta', Icon: IconUser, to: '/perfil', kind: 'link' },
+  { id: 'admin', label: 'Admin', Icon: IconUsers, to: '/admin', kind: 'link' },
+  { id: 'api', label: 'API', Icon: IconLink, to: '/api', kind: 'link' },
+  { id: 'sair', label: 'Sair', Icon: IconLogout, kind: 'signout', danger: true },
 ];
 
 /* --- form primitives (visual do ant-form outlined, themeable) --- */
@@ -123,6 +149,24 @@ export function ConfiguracoesPage() {
   const professionals = useProfessionals();
   const updateProfessional = useUpdateProfessional();
   const profItems = (professionals.data as any)?.data ?? [];
+  const confirm = useConfirm();
+
+  async function handleSignOut() {
+    const ok = await confirm({
+      title: 'Sair da conta?',
+      message: 'Você precisará fazer login novamente para acessar o sistema.',
+      confirmLabel: 'Sair',
+      cancelLabel: 'Cancelar',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await signOut();
+    } finally {
+      // Full reload — signOut() não invalida cache session instantâneo.
+      window.location.href = '/login';
+    }
+  }
 
   // `active` null => mobile mostra a lista de seções; no desktop cai em 'detalhes'.
   const [active, setActive] = useState<TabId | null>(null);
@@ -208,6 +252,24 @@ export function ConfiguracoesPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      {/* Banner topo — CTA de assinatura (paridade Belasis) */}
+      {active === null && (
+        <Link
+          to="/perfil/assinatura"
+          className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)] px-4 py-3 text-sm shadow-[var(--shadow-card)] transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)]"
+        >
+          <span className="flex items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <IconSparkles size={16} />
+            </span>
+            <span className="font-medium text-ink">Ver minha assinatura</span>
+          </span>
+          <span className="-rotate-90 text-muted-ink">
+            <IconChevron size={16} />
+          </span>
+        </Link>
+      )}
+
       {/* Header: título + abas (desktop) */}
       <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         {/* Voltar (mobile, quando uma seção está aberta) */}
@@ -223,10 +285,28 @@ export function ConfiguracoesPage() {
             {TABS.find((t) => t.id === active)?.label}
           </button>
         ) : (
-          <h1 className="text-xl font-semibold text-ink lg:text-2xl">Configurações</h1>
+          <h1 className="flex items-center gap-2 text-xl font-semibold text-ink lg:text-2xl">
+            Configurações
+            <button
+              type="button"
+              aria-label="Tutorial: Configurações"
+              title="Tutorial: Configurações"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] text-primary transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_22%,transparent)]"
+            >
+              <IconPlay size={14} />
+            </button>
+          </h1>
         )}
-        <h1 className="hidden text-xl font-semibold text-ink lg:block lg:text-2xl">
+        <h1 className="hidden text-xl font-semibold text-ink lg:flex lg:items-center lg:gap-2 lg:text-2xl">
           Configurações
+          <button
+            type="button"
+            aria-label="Tutorial: Configurações"
+            title="Tutorial: Configurações"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] text-primary transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_22%,transparent)]"
+          >
+            <IconPlay size={14} />
+          </button>
         </h1>
 
         {/* Abas — só desktop */}
@@ -272,6 +352,50 @@ export function ConfiguracoesPage() {
               </span>
             </button>
           ))}
+
+          {/* Extras (paridade Belasis): Minha conta / Admin / API / Sair */}
+          {EXTRA_ITEMS.map((it) => {
+            const iconWrap = it.danger
+              ? 'bg-[color-mix(in_oklab,var(--sp-danger)_14%,transparent)] text-danger'
+              : 'bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] text-primary';
+            const labelCls = it.danger ? 'text-danger' : 'text-ink';
+            const commonInner = (
+              <>
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconWrap}`}>
+                  <it.Icon size={20} />
+                </span>
+                <span className={`flex-1 text-sm font-semibold ${labelCls}`}>{it.label}</span>
+                {it.kind === 'link' && (
+                  <span className="-rotate-90 text-muted-ink">
+                    <IconChevron size={18} />
+                  </span>
+                )}
+              </>
+            );
+
+            if (it.kind === 'signout') {
+              return (
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={handleSignOut}
+                  className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-4 text-left shadow-[var(--shadow-card)] transition-colors active:bg-[color-mix(in_oklab,var(--sp-danger)_8%,transparent)]"
+                >
+                  {commonInner}
+                </button>
+              );
+            }
+
+            return (
+              <Link
+                key={it.id}
+                to={it.to ?? '#'}
+                className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-4 text-left shadow-[var(--shadow-card)] transition-colors active:bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)]"
+              >
+                {commonInner}
+              </Link>
+            );
+          })}
         </div>
       )}
 
@@ -578,6 +702,11 @@ export function ConfiguracoesPage() {
                   onChange={(url) => {
                     setLogoUrl(url);
                     markDirty();
+                    // Persist the logo change right away — otherwise a user
+                    // that uploads and then leaves the page without pressing
+                    // "Salvar" would orphan the uploaded file and lose the
+                    // logo. The company record always exists (no create mode).
+                    update.mutate({ logoUrl: url });
                   }}
                   kind="logo"
                   shape="square"

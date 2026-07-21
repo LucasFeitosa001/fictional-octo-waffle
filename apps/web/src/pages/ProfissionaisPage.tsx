@@ -843,7 +843,19 @@ function ProfessionalDrawer({
               <div className="flex justify-center sm:justify-start">
                 <ImageUpload
                   value={avatarUrl}
-                  onChange={setAvatarUrl}
+                  onChange={(url) => {
+                    setAvatarUrl(url);
+                    // Editing an existing professional: persist the new avatar
+                    // right away so the thumbnail sticks even if the user
+                    // closes the drawer without pressing "Salvar" (otherwise
+                    // the uploaded file would be orphaned).
+                    if (mode === 'edit' && professional) {
+                      update.mutate({
+                        id: professional.id,
+                        body: { avatarUrl: url },
+                      });
+                    }
+                  }}
                   kind="professional"
                   shape="circle"
                   label="Foto"

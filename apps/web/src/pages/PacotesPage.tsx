@@ -487,13 +487,20 @@ export function PacotesPage() {
                 </table>
               </div>
 
+              {/* Mobile: chip "Ordenando por …" acima da lista (Belasis). */}
+              <div className="mb-2 md:hidden">
+                <SortChip sort={sort} onChange={setSort} />
+              </div>
+
               {/* ===== Mobile: cards compactos padrão Belasis.
                   Linha 1: [checkbox?] #num CLIENTE  ......  R$ valor
-                  Linha 2: data ...................... [pill status]
+                  Linha 2: Data: dd/mm/yyyy ......... [pill status] [pill validade]
+                  Linha 3: Expira em: dd/mm/yyyy | Não expira
                   Sem "Detalhes"/"Excluir" no card; ambos via drawer/selectMode. */}
               <ul className="flex flex-col gap-2 md:hidden">
                 {paged.map((p) => {
                   const cs = consumption(p);
+                  const av = availability(p);
                   const isSelected = selected.has(p.id);
                   const onCardClick = () => {
                     if (selectMode) toggleRow(p.id);
@@ -535,8 +542,18 @@ export function PacotesPage() {
                             </span>
                           </div>
                           <div className="mt-0.5 flex items-center justify-between gap-2">
-                            <span className="text-[11px] text-muted-ink">{formatDate(p.createdAt)}</span>
-                            <StatusBadge value={cs} />
+                            <span className="text-[11px] text-muted-ink">
+                              Data: {formatDate(p.createdAt)}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <StatusBadge value={cs} />
+                              <AvailBadge value={av} />
+                            </div>
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-muted-ink">
+                            {p.expiresAt
+                              ? `Expira em: ${formatDate(p.expiresAt)}`
+                              : 'Não expira'}
                           </div>
                         </div>
                       </button>
@@ -606,6 +623,72 @@ export function PacotesPage() {
 // ---------------------------------------------------------------------
 // Subcomponentes de apresentação
 // ---------------------------------------------------------------------
+
+// Chip mobile "Ordenando por …" (dropdown Ticket/Data/Validade). Belasis.
+const SORT_LABEL: Record<SortState['key'], string> = {
+  ticket: 'Ticket',
+  date: 'Data',
+  validade: 'Validade',
+};
+
+function SortChip({
+  sort,
+  onChange,
+}: {
+  sort: SortState;
+  onChange: (s: SortState) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const options: SortState['key'][] = ['ticket', 'date', 'validade'];
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1 text-xs font-medium text-ink shadow-[var(--shadow-soft)]"
+      >
+        Ordenando por {SORT_LABEL[sort.key]}
+        <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+          <path d="M0 0l5 6 5-6z" fill="currentColor" />
+        </svg>
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+      )}
+      <div
+        role="menu"
+        aria-hidden={!open}
+        className={[
+          'absolute left-0 top-8 z-20 min-w-36 origin-top overflow-hidden rounded-lg border border-line bg-card py-1 shadow-[var(--shadow-pop)]',
+          'transition-all duration-200 ease-out',
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+        ].join(' ')}
+      >
+        {options.map((k) => (
+          <button
+            key={k}
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onChange({ key: k, dir: k === 'date' ? 'desc' : 'asc' });
+            }}
+            className={[
+              'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas',
+              sort.key === k ? 'text-primary font-semibold' : 'text-ink',
+            ].join(' ')}
+          >
+            {SORT_LABEL[k]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Coluna "Status" (consumo das sessões) — Belasis: Finalizado (cinza) / Em andamento (azul).
 function StatusBadge({ value }: { value: 'finished' | 'ongoing' }) {
@@ -754,38 +837,43 @@ function RowMenu({
         </svg>
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <div
-            role="menu"
-            className="absolute right-0 top-8 z-20 min-w-36 overflow-hidden rounded-lg border border-line bg-card py-1 shadow-[var(--shadow-pop)]"
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onDetail();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-canvas"
-            >
-              <IconEye size={16} /> Detalhes
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              disabled={deleting}
-              onClick={() => {
-                setOpen(false);
-                onDelete();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
-            >
-              <IconTrash size={16} /> Excluir
-            </button>
-          </div>
-        </>
+        <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
       )}
+      <div
+        role="menu"
+        aria-hidden={!open}
+        className={[
+          'absolute right-0 top-8 z-20 min-w-36 origin-top overflow-hidden rounded-lg border border-line bg-card py-1 shadow-[var(--shadow-pop)]',
+          'transition-all duration-200 ease-out',
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+        ].join(' ')}
+      >
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            setOpen(false);
+            onDetail();
+          }}
+          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-canvas"
+        >
+          <IconEye size={16} /> Detalhes
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={deleting}
+          onClick={() => {
+            setOpen(false);
+            onDelete();
+          }}
+          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
+        >
+          <IconTrash size={16} /> Excluir
+        </button>
+      </div>
     </div>
   );
 }

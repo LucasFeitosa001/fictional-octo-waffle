@@ -55,9 +55,20 @@ const listeners = new Set<() => void>();
 /** Apply a theme to <html>, persist it, and notify subscribers. */
 export function applyTheme(id: ThemeId): void {
   document.documentElement.dataset.theme = id;
-  // Keep the browser chrome / PWA status bar in sync with the sidebar color.
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', THEMES.find((t) => t.id === id)?.swatches[0] ?? '#111111');
+  // Mobile browser chrome (Chrome/Safari address bar area + PWA status bar) usa
+  // a cor PRIMARY do tema — salonpass = gold, belasis = roxo.
+  const primary = THEMES.find((t) => t.id === id)?.swatches[2] ?? '#f2b33d';
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', primary));
+  // Status-bar iOS: escurece se cor primary é escura, senão default. Detecta luma.
+  const luma = ((): number => {
+    const hex = primary.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  })();
+  const statusStyle = luma < 0.6 ? 'black-translucent' : 'default';
+  document.querySelectorAll('meta[name="apple-mobile-web-app-status-bar-style"]').forEach((m) => m.setAttribute('content', statusStyle));
   try {
     localStorage.setItem(STORAGE_KEY, id);
   } catch {

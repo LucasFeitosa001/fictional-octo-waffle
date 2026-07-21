@@ -135,7 +135,12 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateProductBody }) =>
       api.patch<Product>(`/products/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      // Invalidate the detail query too so the open drawer picks up
+      // side-effect PATCHes like an inline image upload.
+      qc.invalidateQueries({ queryKey: ['product', id] });
+    },
   });
 }
 

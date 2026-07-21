@@ -69,6 +69,34 @@ export function formatDuration(min: number | null | undefined): string {
   return r ? `${h}h ${r}min` : `${h}h`;
 }
 
+/**
+ * Formata telefone BR a partir de string bruta (dígitos com/sem DDI).
+ * Ex.: "5589981228494" → "+55 (89) 98122-8494"; "11987654321" → "(11) 98765-4321".
+ * Retorna a string original quando não bate com um padrão conhecido.
+ */
+export function formatPhone(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+  // 13 dígitos: DDI 55 + DDD + 9 dígitos (celular)
+  if (digits.length === 13 && digits.startsWith('55')) {
+    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+  // 12 dígitos: DDI 55 + DDD + 8 dígitos (fixo)
+  if (digits.length === 12 && digits.startsWith('55')) {
+    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+  // 11 dígitos: DDD + celular
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  // 10 dígitos: DDD + fixo
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return raw;
+}
+
 export function initials(name: string | null | undefined): string {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
