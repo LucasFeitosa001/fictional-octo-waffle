@@ -19,6 +19,9 @@ import {
   IconUserPlus,
 } from '../components/icons';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { useSelectMode, buildSelectActions, type BulkAction } from '../hooks/useSelectMode';
 import { useSetPageActions } from '../layout/PageActions';
 import { downloadCsv } from '../lib/csv';
 import { useProfessionals, useServices } from '../lib/queries';
@@ -51,8 +54,7 @@ export function ProfissionaisPage() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [status, setStatus] = useState<StatusFilter>('active');
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [actionsOpen, setActionsOpen] = useState(false);
   useAutoCreate(() => setCreateOpen(true));
 
   const rows = useMemo(() => {
@@ -69,19 +71,9 @@ export function ProfissionaisPage() {
 
   const hasFilters = Boolean(search.trim());
 
-  // Ao sair do selectMode, limpa a seleção acumulada (padrão ComandasPage).
-  useEffect(() => {
-    if (!selectMode) setSelected(new Set());
-  }, [selectMode]);
-
-  function toggleOne(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids VISÍVEIS.
+  const ids = useMemo(() => rows.map((r) => r.id), [rows]);
+  const sel = useSelectMode(ids);
 
   function exportCsv() {
     downloadCsv<Professional>(
@@ -108,53 +100,72 @@ export function ProfissionaisPage() {
     remove.mutate(p.id);
   }
 
-  async function handleRemoveSelected() {
-    const ids = [...selected];
-    if (ids.length === 0) return;
-    const ok = await confirm({
-      title: `Remover ${ids.length} profissional(is)?`,
-      message: 'Essa ação não pode ser desfeita.',
-      confirmLabel: 'Remover',
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
       danger: true,
-    });
-    if (!ok) return;
-    for (const id of ids) {
-      try {
-        await remove.mutateAsync(id);
-      } catch {
-        // Continua com os demais mesmo se um falhar.
-      }
-    }
-    setSelected(new Set());
-    setSelectMode(false);
-  }
+      icon: <IconTrash size={18} />,
+      disabled: remove.isPending,
+      onClick: async () => {
+        const ok = await confirm({
+          title: `Remover ${sel.count} profissional(is)?`,
+          message: 'Essa ação não pode ser desfeita.',
+          confirmLabel: 'Remover',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await Promise.all([...sel.selected].map((id) => remove.mutateAsync(id)));
+          setActionsOpen(false);
+          sel.cancel();
+        } catch (err) {
+          window.alert(
+            err instanceof ApiClientError
+              ? err.message
+              : 'Não foi possível remover os profissionais.',
+          );
+        }
+      },
+    },
+  ];
 
-  // Mobile: BottomNav = [Selecionar, Novo, Exportar] — disparando os mesmos
-  // handlers dos botões desktop (Belasis-style).
+  // Mobile: enquanto selectMode ativo, a barra vira [Cancelar · Selecionar
+  // todos · Ações] (buildSelectActions); senão, [Selecionar · Novo · Exportar].
   useSetPageActions(
-    [
-      {
-        key: 'selecionar',
-        label: 'Selecionar',
-        icon: <IconCheck size={22} />,
-        onClick: () => setSelectMode((v) => !v),
-        active: selectMode,
-      },
-      {
-        key: 'novo',
-        label: 'Novo',
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-      {
-        key: 'exportar',
-        label: 'Exportar',
-        icon: <IconDownload size={22} />,
-        onClick: () => exportCsv(),
-        disabled: rows.length === 0,
-      },
-    ],
-    [rows, selectMode],
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          {
+            key: 'selecionar',
+            label: 'Selecionar',
+            icon: <IconCheck size={22} />,
+            onClick: sel.enter,
+          },
+          {
+            key: 'novo',
+            label: 'Novo',
+            icon: <IconPlus size={22} />,
+            onClick: () => setCreateOpen(true),
+          },
+          {
+            key: 'exportar',
+            label: 'Exportar',
+            icon: <IconDownload size={22} />,
+            onClick: () => exportCsv(),
+            disabled: rows.length === 0,
+          },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count, rows],
   );
 
   const totalLoaded = professionals.data?.total ?? allRows.length;
@@ -182,6 +193,12 @@ export function ProfissionaisPage() {
         <div className="hidden items-center gap-2 md:flex">
           <Button variant="outline" onClick={() => setSearchOpen((v) => !v)}>
             <IconSearch size={16} /> Buscar
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => (sel.selectMode ? sel.cancel() : sel.enter())}
+          >
+            <IconCheck size={16} /> {sel.selectMode ? 'Cancelar' : 'Selecionar'}
           </Button>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <IconPlus size={16} /> Novo
@@ -223,17 +240,23 @@ export function ProfissionaisPage() {
         {subtitle && <span className="ml-auto pb-2 text-xs text-muted-ink">{subtitle}</span>}
       </div>
 
-      {/* Barra de ações da seleção (mobile e desktop) */}
-      {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-2">
+      {/* Barra de ações da seleção — desktop (no mobile isso vive na BottomNav) */}
+      {sel.selectMode && (
+        <div className="mb-3 hidden flex-wrap items-center gap-2 md:flex">
+          <Button variant="outline" size="sm" onClick={() => sel.selectAll()}>
+            <IconCheck size={14} /> {sel.allSelected ? 'Limpar seleção' : 'Selecionar todos'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
             className="text-danger"
-            isDisabled={remove.isPending}
-            onClick={handleRemoveSelected}
+            isDisabled={remove.isPending || sel.count === 0}
+            onClick={() => void bulkActions[0].onClick()}
           >
-            <IconTrash size={14} /> Remover ({selected.size})
+            <IconTrash size={14} /> Excluir selecionados ({sel.count})
+          </Button>
+          <Button variant="ghost" size="sm" onClick={sel.cancel}>
+            Cancelar
           </Button>
         </div>
       )}
@@ -289,6 +312,9 @@ export function ProfissionaisPage() {
                     <ProfessionalDesktopRow
                       key={p.id}
                       professional={p}
+                      selectMode={sel.selectMode}
+                      selected={sel.isSelected(p.id)}
+                      onToggle={() => sel.toggle(p.id)}
                       onEdit={() => setEditing(p)}
                       onRemove={() => handleRemove(p)}
                     />
@@ -340,9 +366,9 @@ export function ProfissionaisPage() {
               <ProfessionalMobileCard
                 key={p.id}
                 professional={p}
-                selectMode={selectMode}
-                selected={selected.has(p.id)}
-                onToggle={() => toggleOne(p.id)}
+                selectMode={sel.selectMode}
+                selected={sel.isSelected(p.id)}
+                onToggle={() => sel.toggle(p.id)}
                 onOpen={() => setEditing(p)}
               />
             ))}
@@ -360,6 +386,13 @@ export function ProfissionaisPage() {
         professional={editing}
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
+      />
+
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
     </div>
   );
@@ -398,16 +431,38 @@ function TabButton({
 // Linha desktop — espelha o Belasis: avatar · Nome(+tag) · Celular · E-mail.
 function ProfessionalDesktopRow({
   professional: p,
+  selectMode,
+  selected,
+  onToggle,
   onEdit,
   onRemove,
 }: {
   professional: Professional;
+  selectMode: boolean;
+  selected: boolean;
+  onToggle: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }) {
   return (
-    <li className="group flex items-center gap-3 border-b border-line py-2.5 last:border-0 hover:bg-canvas">
-      <span className="w-5 shrink-0" />
+    <li
+      className={[
+        'group flex items-center gap-3 border-b border-line py-2.5 last:border-0 transition-colors',
+        selected ? 'bg-primary/5 ring-1 ring-inset ring-primary/40' : 'hover:bg-canvas',
+      ].join(' ')}
+    >
+      {selectMode ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="ml-0.5 shrink-0"
+          aria-label={`Selecionar ${p.name}`}
+        >
+          <AnimatedCheckbox checked={selected} />
+        </button>
+      ) : (
+        <span className="w-5 shrink-0" />
+      )}
       <Avatar size="sm" className="shrink-0">
         {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
         <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
@@ -415,9 +470,9 @@ function ProfessionalDesktopRow({
 
       <button
         type="button"
-        onClick={onEdit}
+        onClick={() => (selectMode ? onToggle() : onEdit())}
         className="min-w-0 flex-1 text-left"
-        aria-label={`Editar ${p.name}`}
+        aria-label={selectMode ? `Selecionar ${p.name}` : `Editar ${p.name}`}
       >
         <div className="flex items-center gap-2">
           <span className="truncate font-medium uppercase text-primary">{p.name}</span>
@@ -491,11 +546,7 @@ function ProfessionalMobileCard({
             : 'border-line active:bg-canvas',
         ].join(' ')}
       >
-        {selectMode && (
-          <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-line bg-card">
-            {selected && <IconCheck size={14} className="text-primary" />}
-          </span>
-        )}
+        {selectMode && <AnimatedCheckbox checked={selected} />}
         <Avatar size="sm" className="shrink-0">
           {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
           <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
@@ -577,7 +628,7 @@ const DRAWER_TABS = [
   { id: 'contas', label: 'Contas de banco', disabled: true },
 ] as const;
 
-function ProfessionalDrawer({
+export function ProfessionalDrawer({
   mode,
   professional,
   isOpen,

@@ -116,6 +116,10 @@ export function VendasPage() {
 
   function gerarRelatorio() {
     setRange(pending);
+    // refetch() garante feedback (loading + dados) mesmo quando o período não
+    // mudou — senão o React Query vê a mesma queryKey e não faz nada, dando a
+    // sensação de "botão morto".
+    void query.refetch();
   }
 
   function exportCsv() {

@@ -79,6 +79,8 @@ export interface FinancialAccount {
   type: FinancialAccountType;
   initialBalance: string;
   active: boolean;
+  // Wave 2/3: conta visível apenas para administradores.
+  adminOnly: boolean;
 }
 
 export interface PaymentMethod {
@@ -89,6 +91,11 @@ export interface PaymentMethod {
   settlementDays: number;
   defaultAccountId?: string | null;
   goesToCash: boolean;
+  // Wave 2/3: taxa fixa por transação, ativo/inativo, tipo e favorito.
+  feeFixed: string;
+  active: boolean;
+  kind?: string | null;
+  favorite: boolean;
 }
 
 export interface FinancialCategory {
@@ -145,6 +152,7 @@ export interface CreateFinancialAccountBody {
   name: string;
   type?: FinancialAccountType;
   initialBalance?: number;
+  adminOnly?: boolean;
 }
 
 export interface CreatePaymentMethodBody {
@@ -153,6 +161,10 @@ export interface CreatePaymentMethodBody {
   settlementDays?: number;
   defaultAccountId?: string;
   goesToCash?: boolean;
+  feeFixed?: number;
+  active?: boolean;
+  kind?: string;
+  favorite?: boolean;
 }
 
 export interface CreateFinancialCategoryBody {

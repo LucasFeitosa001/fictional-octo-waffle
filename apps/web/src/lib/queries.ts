@@ -14,6 +14,7 @@ import type {
   OrderRow,
   Paginated,
   Professional,
+  ProductBatch,
   Service,
 } from './types';
 
@@ -188,6 +189,8 @@ export function useOrders(status?: string) {
 export interface CreateOrderBody {
   customerId?: string;
   professionalId?: string;
+  /** ISO date/datetime for the comanda. Defaults to "today" server-side. */
+  date?: string;
   notes?: string;
 }
 
@@ -284,11 +287,146 @@ export function useRemoveOrderItem(id: string) {
   });
 }
 
+// =====================================================================
+// Editar item (drawer com abas) — PATCH Dados/Lote, Auxiliares e
+// Produtos consumidos. Endpoints novos do backend da Etapa 2.
+// =====================================================================
+
+export interface UpdateOrderItemBody {
+  professionalId?: string;
+  unitPrice?: number;
+  quantity?: number;
+  discount?: number;
+  /** Aba "Lote" (itens de produto). null limpa o lote. */
+  batchId?: string | null;
+}
+
+/** PATCH /orders/:id/items/:itemId — salva a aba "Dados" (+ batchId da aba "Lote"). */
+export function useUpdateOrderItem(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, body }: { itemId: string; body: UpdateOrderItemBody }) =>
+      api.patch<OrderDetail>(`/orders/${id}/items/${itemId}`, body),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export interface AddOrderItemAuxiliaryBody {
+  professionalId: string;
+  discountFrom: 'establishment' | 'professional';
+  valueType: 'percent' | 'value';
+  value: number;
+}
+
+/** POST /orders/:id/items/:itemId/auxiliaries — adiciona rateio de comissão (não altera total). */
+export function useAddOrderItemAuxiliary(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, body }: { itemId: string; body: AddOrderItemAuxiliaryBody }) =>
+      api.post<OrderDetail>(`/orders/${id}/items/${itemId}/auxiliaries`, body),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+/** DELETE /orders/:id/items/:itemId/auxiliaries/:auxId. */
+export function useRemoveOrderItemAuxiliary(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, auxId }: { itemId: string; auxId: string }) =>
+      api.delete<OrderDetail>(`/orders/${id}/items/${itemId}/auxiliaries/${auxId}`),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+export interface AddConsumedProductBody {
+  productId: string;
+  quantity: number;
+  unitValue?: number;
+  batchId?: string;
+  unit?: string;
+  extraQuantity?: number;
+}
+
+/** Shared invalidation p/ consumo: além da comanda, mexe no estoque/lotes. */
+function invalidateConsumed(queryClient: ReturnType<typeof useQueryClient>, id: string) {
+  invalidateOrder(queryClient, id);
+  queryClient.invalidateQueries({ queryKey: ['products'] });
+  queryClient.invalidateQueries({ queryKey: ['product-batches'] });
+}
+
+/** POST /orders/:id/items/:itemId/consumed-products — baixa estoque via InventoryMovement out. */
+export function useAddConsumedProduct(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, body }: { itemId: string; body: AddConsumedProductBody }) =>
+      api.post(`/orders/${id}/items/${itemId}/consumed-products`, body),
+    onSuccess: () => invalidateConsumed(queryClient, id),
+  });
+}
+
+/** DELETE /orders/:id/items/:itemId/consumed-products/:consumedId — estorna (in). */
+export function useRemoveConsumedProduct(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, consumedId }: { itemId: string; consumedId: string }) =>
+      api.delete(`/orders/${id}/items/${itemId}/consumed-products/${consumedId}`),
+    onSuccess: () => invalidateConsumed(queryClient, id),
+  });
+}
+
+/** GET /product-batches?productId= — lotes ativos primeiro, por validade. */
+export function useProductBatches(productId: string | undefined) {
+  return useQuery({
+    queryKey: ['product-batches', productId ?? null],
+    enabled: Boolean(productId),
+    queryFn: () =>
+      api.get<ProductBatch[]>('/product-batches', productId ? { productId } : undefined),
+  });
+}
+
 export function useAddOrderDiscount(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: AddOrderDiscountBody) =>
       api.post<OrderRow>(`/orders/${id}/discounts`, body),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+/** POST /orders/:id/credit — abate saldo de crédito do cliente na comanda. */
+export function useApplyOrderCredit(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (amount: number) =>
+      api.post<OrderRow>(`/orders/${id}/credit`, { amount }),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+/** DELETE /orders/:id/credit — remove o crédito aplicado (volta a R$0,00). */
+export function useRemoveOrderCredit(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<OrderRow>(`/orders/${id}/credit`),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+/** POST /orders/:id/cashback — abate saldo de cashback do cliente na comanda. */
+export function useApplyOrderCashback(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (amount: number) =>
+      api.post<OrderRow>(`/orders/${id}/cashback`, { amount }),
+    onSuccess: () => invalidateOrder(queryClient, id),
+  });
+}
+
+/** DELETE /orders/:id/cashback — remove o cashback aplicado (volta a R$0,00). */
+export function useRemoveOrderCashback(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<OrderRow>(`/orders/${id}/cashback`),
     onSuccess: () => invalidateOrder(queryClient, id),
   });
 }

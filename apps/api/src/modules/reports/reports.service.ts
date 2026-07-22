@@ -10,6 +10,36 @@ function buildRange(from?: string, to?: string) {
   return { range, hasRange };
 }
 
+/** Data válida ou undefined. */
+function toDate(iso?: string): Date | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+/**
+ * Janela de datas com fim-de-dia: quando `to` é só data (YYYY-MM-DD) estica
+ * até 23:59:59.999 (UTC) para incluir o dia inteiro. Mesma convenção do
+ * FinancialService.
+ */
+function dateRange(from?: string, to?: string) {
+  const gte = toDate(from);
+  const lte = toDate(to);
+  if (lte && to && to.length <= 10) lte.setUTCHours(23, 59, 59, 999);
+  const range = { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) };
+  return { range, gte, lte, hasRange: Boolean(gte || lte) };
+}
+
+/** "YYYY-MM" (UTC) de uma data — usado para agrupar por mês. */
+function monthKey(d: Date): string {
+  return d.toISOString().slice(0, 7);
+}
+
+/** "YYYY-MM-DD" (UTC) de uma data — usado para agrupar por dia. */
+function dayKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -670,5 +700,548 @@ export class ReportsService {
       byProfessional,
       byCategory,
     };
+  }
+
+  // ==================================================================
+  // FINANCEIRO — sobre Order/OrderItem/Transaction (sem migration)
+  // ==================================================================
+
+  // GET /reports/service-revenue?from&to — resultado líquido por SERVIÇO
+  // (OrderItem kind=service em comandas finalizadas): qtd, bruto, desconto, líquido.
+  serviceRevenue(companyId: string, from?: string, to?: string) {
+    return this.itemRevenue(companyId, 'service', from, to);
+  }
+
+  // GET /reports/product-revenue?from&to — idem para PRODUTO (OrderItem kind=product).
+  productRevenue(companyId: string, from?: string, to?: string) {
+    return this.itemRevenue(companyId, 'product', from, to);
+  }
+
+  private async itemRevenue(
+    companyId: string,
+    kind: 'service' | 'product',
+    from?: string,
+    to?: string,
+  ) {
+    const { range, hasRange } = dateRange(from, to);
+    const dateWhere = hasRange ? { date: range } : {};
+
+    const orders = await this.prisma.client.order.findMany({
+      where: { companyId, status: 'finished', ...dateWhere },
+      select: {
+        items: {
+          where: { kind },
+          select: { refId: true, quantity: true, grossValue: true, discount: true },
+        },
+      },
+    });
+
+    const agg = new Map<
+      string,
+      { qtd: number; bruto: number; desconto: number }
+    >();
+    for (const o of orders) {
+      for (const it of o.items) {
+        const cur = agg.get(it.refId) ?? { qtd: 0, bruto: 0, desconto: 0 };
+        cur.qtd += Number(it.quantity);
+        cur.bruto += Number(it.grossValue);
+        cur.desconto += Number(it.discount);
+        agg.set(it.refId, cur);
+      }
+    }
+
+    const ids = Array.from(agg.keys());
+    const named = ids.length
+      ? kind === 'service'
+        ? await this.prisma.client.service.findMany({
+            where: { id: { in: ids }, companyId },
+            select: { id: true, name: true },
+          })
+        : await this.prisma.client.product.findMany({
+            where: { id: { in: ids }, companyId },
+            select: { id: true, name: true },
+          })
+      : [];
+    const nameById = new Map<string, string>(
+      named.map((n) => [n.id, n.name] as [string, string]),
+    );
+
+    const removedLabel = kind === 'service' ? 'Serviço removido' : 'Produto removido';
+    const idKey = kind === 'service' ? 'serviceId' : 'productId';
+    const rows = Array.from(agg.entries())
+      .map(([id, v]) => ({
+        [idKey]: id,
+        name: nameById.get(id) ?? removedLabel,
+        qtd: v.qtd,
+        bruto: v.bruto,
+        desconto: v.desconto,
+        liquido: v.bruto - v.desconto,
+      }))
+      .sort((a, b) => b.liquido - a.liquido);
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.qtd += r.qtd;
+        acc.bruto += r.bruto;
+        acc.desconto += r.desconto;
+        acc.liquido += r.liquido;
+        return acc;
+      },
+      { qtd: 0, bruto: 0, desconto: 0, liquido: 0 },
+    );
+
+    return { period: { from: from ?? null, to: to ?? null }, rows, totals };
+  }
+
+  // GET /reports/billing-projection — projeção de contas a receber futuras
+  // (Transaction income pendente com dueDate > hoje) agrupado por mês.
+  async billingProjection(companyId: string) {
+    const now = new Date();
+    const txs = await this.prisma.client.transaction.findMany({
+      where: {
+        companyId,
+        kind: 'income',
+        status: 'pending',
+        dueDate: { gt: now },
+      },
+      select: { dueDate: true, grossAmount: true },
+    });
+
+    const byMonth = new Map<string, { total: number; count: number }>();
+    for (const t of txs) {
+      if (!t.dueDate) continue;
+      const k = monthKey(t.dueDate);
+      const cur = byMonth.get(k) ?? { total: 0, count: 0 };
+      cur.total += Number(t.grossAmount);
+      cur.count += 1;
+      byMonth.set(k, cur);
+    }
+
+    const rows = Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, v]) => ({ month, total: v.total, count: v.count }));
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.total += r.total;
+        acc.count += r.count;
+        return acc;
+      },
+      { total: 0, count: 0 },
+    );
+
+    return { asOf: now.toISOString(), rows, totals };
+  }
+
+  // GET /reports/receivables?from&to — Recebimentos (Transaction income) no
+  // período por status. Regime: pagos por paidAt, pendentes por dueDate.
+  async receivables(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const txs = await this.prisma.client.transaction.findMany({
+      where: {
+        companyId,
+        kind: 'income',
+        ...(hasRange ? { OR: [{ paidAt: range }, { dueDate: range }] } : {}),
+      },
+      select: { status: true, grossAmount: true },
+    });
+
+    const byStatus = new Map<string, { total: number; count: number }>([
+      ['paid', { total: 0, count: 0 }],
+      ['pending', { total: 0, count: 0 }],
+    ]);
+    for (const t of txs) {
+      const cur = byStatus.get(t.status) ?? { total: 0, count: 0 };
+      cur.total += Number(t.grossAmount);
+      cur.count += 1;
+      byStatus.set(t.status, cur);
+    }
+
+    const statusLabels: Record<string, string> = {
+      paid: 'Pago',
+      pending: 'Pendente',
+      reversed: 'Estornado',
+    };
+    const rows = Array.from(byStatus.entries()).map(([status, v]) => ({
+      status,
+      label: statusLabels[status] ?? status,
+      total: v.total,
+      count: v.count,
+    }));
+
+    const paid = byStatus.get('paid') ?? { total: 0, count: 0 };
+    const pending = byStatus.get('pending') ?? { total: 0, count: 0 };
+    const totals = {
+      total: rows.reduce((a, r) => a + r.total, 0),
+      count: rows.reduce((a, r) => a + r.count, 0),
+      paid: paid.total,
+      pending: pending.total,
+    };
+
+    return { period: { from: from ?? null, to: to ?? null }, rows, totals };
+  }
+
+  // GET /reports/expenses?from&to — Despesas (Transaction expense) no período
+  // por categoria financeira. Considera período por paidAt OU dueDate.
+  async expenses(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const txs = await this.prisma.client.transaction.findMany({
+      where: {
+        companyId,
+        kind: 'expense',
+        ...(hasRange ? { OR: [{ paidAt: range }, { dueDate: range }] } : {}),
+      },
+      select: { categoryId: true, status: true, grossAmount: true },
+    });
+
+    const agg = new Map<
+      string,
+      { total: number; count: number; paid: number; pending: number }
+    >();
+    for (const t of txs) {
+      const key = t.categoryId ?? '__none__';
+      const cur = agg.get(key) ?? { total: 0, count: 0, paid: 0, pending: 0 };
+      const v = Number(t.grossAmount);
+      cur.total += v;
+      cur.count += 1;
+      if (t.status === 'paid') cur.paid += v;
+      else if (t.status === 'pending') cur.pending += v;
+      agg.set(key, cur);
+    }
+
+    const categoryIds = Array.from(agg.keys()).filter((k) => k !== '__none__');
+    const categories = categoryIds.length
+      ? await this.prisma.client.financialCategory.findMany({
+          where: { id: { in: categoryIds }, companyId },
+          select: { id: true, name: true },
+        })
+      : [];
+    const categoryName = new Map<string, string>(
+      categories.map((c) => [c.id, c.name] as [string, string]),
+    );
+
+    const rows = Array.from(agg.entries())
+      .map(([id, v]) => ({
+        categoryId: id === '__none__' ? null : id,
+        category:
+          id === '__none__' ? 'Sem categoria' : (categoryName.get(id) ?? 'Categoria removida'),
+        total: v.total,
+        count: v.count,
+        paid: v.paid,
+        pending: v.pending,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.total += r.total;
+        acc.count += r.count;
+        acc.paid += r.paid;
+        acc.pending += r.pending;
+        return acc;
+      },
+      { total: 0, count: 0, paid: 0, pending: 0 },
+    );
+
+    return { period: { from: from ?? null, to: to ?? null }, rows, totals };
+  }
+
+  // ==================================================================
+  // AGENDA — sobre Appointment (sem migration)
+  // ==================================================================
+
+  // GET /reports/appointments-deleted?from&to — agendamentos cancelados no
+  // período (Appointment.status=canceled, filtrado por start).
+  async appointmentsDeleted(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const appts = await this.prisma.client.appointment.findMany({
+      where: {
+        companyId,
+        status: 'canceled',
+        ...(hasRange ? { start: range } : {}),
+      },
+      select: {
+        id: true,
+        start: true,
+        end: true,
+        notes: true,
+        updatedAt: true,
+        customer: { select: { name: true } },
+        professional: { select: { name: true } },
+      },
+      orderBy: { start: 'desc' },
+    });
+
+    const rows = appts.map((a) => ({
+      id: a.id,
+      start: a.start,
+      end: a.end,
+      customer: a.customer?.name ?? null,
+      professional: a.professional?.name ?? null,
+      notes: a.notes,
+      canceledAt: a.updatedAt,
+    }));
+
+    return {
+      period: { from: from ?? null, to: to ?? null },
+      rows,
+      totals: { count: rows.length },
+    };
+  }
+
+  // GET /reports/appointments-origin?from&to — contagem por origem/canal
+  // (Appointment.source: admin | online), filtrado por start.
+  async appointmentsOrigin(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const grouped = await this.prisma.client.appointment.groupBy({
+      by: ['source'],
+      _count: { _all: true },
+      where: { companyId, ...(hasRange ? { start: range } : {}) },
+    });
+
+    const sourceLabels: Record<string, string> = {
+      admin: 'Administrativo',
+      online: 'Online',
+    };
+    const rows = grouped
+      .map((g) => ({
+        source: g.source,
+        label: sourceLabels[g.source] ?? g.source,
+        count: g._count._all,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      period: { from: from ?? null, to: to ?? null },
+      rows,
+      totals: { count: rows.reduce((a, r) => a + r.count, 0) },
+    };
+  }
+
+  // GET /reports/appointments-creation?from&to — agendamentos criados por dia
+  // no período (Appointment.createdAt).
+  async appointmentsCreation(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const appts = await this.prisma.client.appointment.findMany({
+      where: { companyId, ...(hasRange ? { createdAt: range } : {}) },
+      select: { createdAt: true },
+    });
+
+    const byDay = new Map<string, number>();
+    for (const a of appts) {
+      const k = dayKey(a.createdAt);
+      byDay.set(k, (byDay.get(k) ?? 0) + 1);
+    }
+    const rows = Array.from(byDay.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
+    return {
+      period: { from: from ?? null, to: to ?? null },
+      rows,
+      totals: { count: appts.length },
+    };
+  }
+
+  // GET /reports/care-today — "cuidados para hoje": agendamentos de hoje (lista).
+  async careToday(companyId: string) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const appts = await this.prisma.client.appointment.findMany({
+      where: {
+        companyId,
+        start: { gte: todayStart, lte: todayEnd },
+        status: { not: 'canceled' },
+      },
+      select: {
+        id: true,
+        start: true,
+        end: true,
+        status: true,
+        notes: true,
+        customer: { select: { name: true, phone: true } },
+        professional: { select: { name: true } },
+        items: { select: { service: { select: { name: true } } } },
+      },
+      orderBy: { start: 'asc' },
+    });
+
+    const rows = appts.map((a) => ({
+      id: a.id,
+      start: a.start,
+      end: a.end,
+      status: a.status,
+      customer: a.customer?.name ?? null,
+      phone: a.customer?.phone ?? null,
+      professional: a.professional?.name ?? null,
+      services: a.items.map((it) => it.service?.name).filter(Boolean),
+      notes: a.notes,
+    }));
+
+    return {
+      date: dayKey(todayStart),
+      rows,
+      totals: { count: rows.length },
+    };
+  }
+
+  // ==================================================================
+  // ESTOQUE — InventoryMovement / OrderItemConsumedProduct / Purchase
+  // ==================================================================
+
+  // GET /reports/inventory-movements?from&to — movimentos de estoque no período
+  // (InventoryMovement.createdAt) por produto: entradas/saídas/ajustes.
+  async inventoryMovements(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const movements = await this.prisma.client.inventoryMovement.findMany({
+      where: {
+        product: { companyId },
+        ...(hasRange ? { createdAt: range } : {}),
+      },
+      select: {
+        productId: true,
+        type: true,
+        quantity: true,
+        product: { select: { name: true } },
+      },
+    });
+
+    const agg = new Map<
+      string,
+      { name: string; in: number; out: number; adjust: number }
+    >();
+    for (const m of movements) {
+      const cur =
+        agg.get(m.productId) ??
+        { name: m.product?.name ?? 'Produto removido', in: 0, out: 0, adjust: 0 };
+      const q = Number(m.quantity);
+      if (m.type === 'in') cur.in += q;
+      else if (m.type === 'out') cur.out += q;
+      else cur.adjust += q;
+      agg.set(m.productId, cur);
+    }
+
+    const rows = Array.from(agg.entries())
+      .map(([productId, v]) => ({
+        productId,
+        name: v.name,
+        in: v.in,
+        out: v.out,
+        adjust: v.adjust,
+        net: v.in - v.out + v.adjust,
+      }))
+      .sort((a, b) => b.out - a.out);
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.in += r.in;
+        acc.out += r.out;
+        acc.adjust += r.adjust;
+        return acc;
+      },
+      { in: 0, out: 0, adjust: 0, count: movements.length },
+    );
+
+    return { period: { from: from ?? null, to: to ?? null }, rows, totals };
+  }
+
+  // GET /reports/purchases?from&to — compras no período (Purchase.date) por
+  // fornecedor: total e contagem de notas.
+  async purchases(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const purchases = await this.prisma.client.purchase.findMany({
+      where: { companyId, ...(hasRange ? { date: range } : {}) },
+      select: {
+        supplierId: true,
+        total: true,
+        supplier: { select: { name: true } },
+      },
+    });
+
+    const agg = new Map<
+      string,
+      { name: string; total: number; count: number }
+    >();
+    for (const p of purchases) {
+      const key = p.supplierId ?? '__none__';
+      const cur =
+        agg.get(key) ??
+        { name: p.supplier?.name ?? 'Sem fornecedor', total: 0, count: 0 };
+      cur.total += Number(p.total);
+      cur.count += 1;
+      agg.set(key, cur);
+    }
+
+    const rows = Array.from(agg.entries())
+      .map(([supplierId, v]) => ({
+        supplierId: supplierId === '__none__' ? null : supplierId,
+        supplier: v.name,
+        total: v.total,
+        count: v.count,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const totals = {
+      total: rows.reduce((a, r) => a + r.total, 0),
+      count: purchases.length,
+    };
+
+    return { period: { from: from ?? null, to: to ?? null }, rows, totals };
+  }
+
+  // GET /reports/consumed-products?from&to — produtos consumidos em serviços no
+  // período (OrderItemConsumedProduct.createdAt) por produto: qtd e custo.
+  async consumedProducts(companyId: string, from?: string, to?: string) {
+    const { range, hasRange } = dateRange(from, to);
+    const consumed = await this.prisma.client.orderItemConsumedProduct.findMany({
+      where: {
+        product: { companyId },
+        ...(hasRange ? { createdAt: range } : {}),
+      },
+      select: {
+        productId: true,
+        quantity: true,
+        extraQuantity: true,
+        unitValue: true,
+        product: { select: { name: true } },
+      },
+    });
+
+    const agg = new Map<
+      string,
+      { name: string; qtd: number; custo: number }
+    >();
+    for (const c of consumed) {
+      const cur =
+        agg.get(c.productId) ??
+        { name: c.product?.name ?? 'Produto removido', qtd: 0, custo: 0 };
+      const qtd = Number(c.quantity) + Number(c.extraQuantity);
+      cur.qtd += qtd;
+      cur.custo += qtd * Number(c.unitValue);
+      agg.set(c.productId, cur);
+    }
+
+    const rows = Array.from(agg.entries())
+      .map(([productId, v]) => ({
+        productId,
+        name: v.name,
+        qtd: v.qtd,
+        custo: v.custo,
+      }))
+      .sort((a, b) => b.custo - a.custo);
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.qtd += r.qtd;
+        acc.custo += r.custo;
+        return acc;
+      },
+      { qtd: 0, custo: 0, count: consumed.length },
+    );
+
+    return { period: { from: from ?? null, to: to ?? null }, rows, totals };
   }
 }

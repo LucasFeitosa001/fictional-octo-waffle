@@ -353,7 +353,7 @@ export function CategoriasPage() {
   );
 }
 
-function CategoryModal({
+export function CategoryModal({
   mode,
   category,
   isOpen,

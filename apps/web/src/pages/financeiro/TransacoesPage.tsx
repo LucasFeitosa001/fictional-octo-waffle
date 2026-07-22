@@ -27,6 +27,7 @@ import {
   IconPlus,
   IconRepeat,
   IconSearch,
+  IconTrash,
   IconWallet,
 } from '../../components/icons';
 import { DateFieldBR } from '../../components/DateRangeFilter';
@@ -34,11 +35,15 @@ import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { FullDrawer } from '../../components/FullDrawer';
 import { HelpTooltip } from '../../components/HelpTooltip';
+import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../../components/BulkActionsSheet';
+import { useSelectMode, buildSelectActions, type BulkAction } from '../../hooks/useSelectMode';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { useCustomers, useProfessionals } from '../../lib/queries';
 import {
   useCreateTransaction,
   useCreateTransfer,
+  useDeleteTransaction,
   useFinancialAccounts,
   useFinancialCategories,
   usePaymentMethods,
@@ -145,21 +150,12 @@ export function TransacoesPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [showTotals, setShowTotals] = useState(false);
 
-  // Mobile selectMode (Belasis): habilitado via BottomNav "Selecionar". Enquanto
-  // ativo, tocar num card alterna a seleção em vez de abrir edição. Sair do
-  // modo limpa a seleção acumulada — padrão canônico das outras páginas.
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (!selectMode) setSelected(new Set());
-  }, [selectMode]);
-  function toggleSelected(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
+  // Modo de seleção (Belasis): habilitado via BottomNav "Selecionar". Enquanto
+  // ativo, tocar num card alterna a seleção em vez de abrir edição. Sai do modo
+  // limpando a seleção acumulada. Agora usa a infra padrão (useSelectMode) —
+  // ids/allSelected vêm de `visibleRows`, montado logo abaixo.
+  const deleteTransaction = useDeleteTransaction();
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
@@ -194,6 +190,44 @@ export function TransacoesPage() {
     : rows;
   const total = transactions.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Modo de seleção sobre os ids VISÍVEIS (página atual + busca cliente).
+  const ids = useMemo(() => visibleRows.map((r) => r.id), [visibleRows]);
+  const sel = useSelectMode(ids);
+
+  // Exclui de verdade os selecionados (Promise.all no hook de delete existente),
+  // após confirmação. Depois fecha a sheet e sai do modo de seleção.
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: deleteTransaction.isPending,
+      onClick: async () => {
+        const ok = await confirm({
+          title: 'Excluir transações?',
+          message: `Excluir ${sel.count} lançamento(s) selecionado(s)? Essa ação não pode ser desfeita.`,
+          confirmLabel: 'Excluir',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await Promise.all(
+            [...sel.selected].map((id) => deleteTransaction.mutateAsync(id)),
+          );
+          setActionsOpen(false);
+          sel.cancel();
+        } catch (err) {
+          window.alert(
+            err instanceof ApiClientError
+              ? err.message
+              : 'Não foi possível excluir as transações.',
+          );
+        }
+      },
+    },
+  ];
   // Totais do conjunto INTEIRO filtrado (não só a página), vindos do servidor.
   const totals = transactions.data?.totals ?? {
     income: 0,
@@ -237,19 +271,27 @@ export function TransacoesPage() {
   // Mobile: BottomNav do Belasis = Filtros · Calcular totais · Criar (Menu/Selecionar
   // vêm do shell). A busca fica sempre visível no topo, então não há ação "Buscar".
   useSetPageActions(
-    [
-      { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen(true) },
-      { key: 'totais', label: 'Calcular totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
-      {
-        key: 'selecionar',
-        label: 'Selecionar',
-        icon: <IconCheck size={22} />,
-        onClick: () => setSelectMode((v) => !v),
-        active: selectMode,
-      },
-      { key: 'novo', label: 'Criar', icon: <IconPlus size={22} />, onClick: () => openForm('recebimento') },
-    ],
-    [selectMode],
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen(true) },
+          { key: 'totais', label: 'Calcular totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
+          {
+            key: 'selecionar',
+            label: 'Selecionar',
+            icon: <IconCheck size={22} />,
+            onClick: sel.enter,
+          },
+          { key: 'novo', label: 'Criar', icon: <IconPlus size={22} />, onClick: () => openForm('recebimento') },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count],
   );
 
   async function handleReverse(t: TransactionRow) {
@@ -655,7 +697,7 @@ export function TransacoesPage() {
                 const method = t.paymentMethod?.name ?? '—';
                 const desc = describe(t);
                 const holder = titular(t);
-                const isChecked = selected.has(t.id);
+                const isChecked = sel.isSelected(t.id);
                 const tint = reversed
                   ? 'bg-white border-[var(--color-soft-border)]'
                   : isIncome
@@ -663,7 +705,7 @@ export function TransacoesPage() {
                     : 'bg-[color-mix(in_oklab,#ef4444_8%,white)] border-[color-mix(in_oklab,#ef4444_18%,var(--color-soft-border))]';
                 const handleActivate = () => {
                   if (reversed) return;
-                  if (selectMode) toggleSelected(t.id);
+                  if (sel.selectMode) sel.toggle(t.id);
                   else openEdit(t);
                 };
                 // Card compacto de 2 linhas (densidade Belasis): (1) data à esquerda
@@ -676,7 +718,7 @@ export function TransacoesPage() {
                       role="button"
                       tabIndex={reversed ? -1 : 0}
                       aria-disabled={reversed}
-                      aria-pressed={selectMode ? isChecked : undefined}
+                      aria-pressed={sel.selectMode ? isChecked : undefined}
                       onClick={handleActivate}
                       onKeyDown={(e) => {
                         if (reversed) return;
@@ -689,21 +731,11 @@ export function TransacoesPage() {
                         'flex w-full items-stretch gap-2 rounded-xl border px-2.5 py-2 text-left shadow-[var(--shadow-soft)] transition-colors',
                         tint,
                         reversed ? 'opacity-60' : 'cursor-pointer',
-                        selectMode && isChecked ? 'ring-2 ring-primary/60' : '',
+                        sel.selectMode && isChecked ? 'ring-2 ring-primary/60' : '',
                       ].join(' ')}
                     >
-                      {selectMode && !reversed && (
-                        <span
-                          aria-hidden
-                          className={[
-                            'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition-colors',
-                            isChecked
-                              ? 'border-primary bg-primary text-white'
-                              : 'border-[var(--color-soft-border)] bg-white',
-                          ].join(' ')}
-                        >
-                          {isChecked && <IconCheck size={14} />}
-                        </span>
+                      {sel.selectMode && !reversed && (
+                        <AnimatedCheckbox checked={isChecked} className="mt-0.5" />
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         {/* linha 1: data + pill status */}
@@ -780,6 +812,14 @@ export function TransacoesPage() {
         setShowReversed={setShowReversed}
         hasFilters={hasFilters}
         onClear={clearFilters}
+      />
+
+      {/* Bottom-sheet das ações em lote do modo de seleção (mobile + desktop). */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
 
       {formMode === 'transferencia' ? (
@@ -1068,7 +1108,7 @@ function FieldSelect({
  * - despesa: despesa, com "Pago para" (profissional) opcional.
  * - vale: despesa p/ profissional (obrigatório).
  */
-function LancamentoModal({
+export function LancamentoModal({
   mode,
   editing,
   onClose,
@@ -1386,7 +1426,7 @@ function LancamentoModal({
 }
 
 /** Transferência entre contas (gera um par de lançamentos). */
-function TransferenciaModal({
+export function TransferenciaModal({
   isOpen,
   onClose,
 }: {

@@ -7,6 +7,7 @@ import {
   CreatePromotionDto,
   UpdateBookingLinkDto,
   UpdateBusinessHoursDto,
+  UpdateCashbackConfigDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
   UpdateReviewSettingsDto,
@@ -424,6 +425,45 @@ export class MarketingService {
       update: { valueJson: merged },
     });
     return merged;
+  }
+
+  // ---- cashback config (programa global da empresa) ----
+  async getCashbackConfig(companyId: string) {
+    const c = await this.prisma.client.company.findUnique({
+      where: { id: companyId },
+      select: {
+        cashbackActive: true,
+        cashbackValueType: true,
+        cashbackValue: true,
+        cashbackCanRedeem: true,
+        cashbackMinimum: true,
+      },
+    });
+    return {
+      cashbackActive: c?.cashbackActive ?? false,
+      cashbackValueType: c?.cashbackValueType ?? 'percent',
+      cashbackValue: c?.cashbackValue != null ? Number(c.cashbackValue) : 0,
+      cashbackCanRedeem: c?.cashbackCanRedeem ?? true,
+      cashbackMinimum: c?.cashbackMinimum != null ? Number(c.cashbackMinimum) : 0,
+    };
+  }
+
+  async updateCashbackConfig(companyId: string, dto: UpdateCashbackConfigDto) {
+    await this.prisma.client.company.update({
+      where: { id: companyId },
+      data: {
+        ...(dto.cashbackActive !== undefined ? { cashbackActive: dto.cashbackActive } : {}),
+        ...(dto.cashbackValueType !== undefined
+          ? { cashbackValueType: dto.cashbackValueType }
+          : {}),
+        ...(dto.cashbackValue !== undefined ? { cashbackValue: dto.cashbackValue } : {}),
+        ...(dto.cashbackCanRedeem !== undefined
+          ? { cashbackCanRedeem: dto.cashbackCanRedeem }
+          : {}),
+        ...(dto.cashbackMinimum !== undefined ? { cashbackMinimum: dto.cashbackMinimum } : {}),
+      },
+    });
+    return this.getCashbackConfig(companyId);
   }
 
   // ---- cashback rules ----

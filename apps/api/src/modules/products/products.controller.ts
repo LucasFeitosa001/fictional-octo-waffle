@@ -12,10 +12,12 @@ import {
 import { ProductsService } from './products.service';
 import {
   CreateBrandDto,
+  CreateProductBatchDto,
   CreateProductCategoryDto,
   CreateProductDto,
   StockMovementDto,
   UpdateBrandDto,
+  UpdateProductBatchDto,
   UpdateProductCategoryDto,
   UpdateProductDto,
 } from './dto';
@@ -59,9 +61,15 @@ export class ProductsController {
   }
 
   // ---- brands ----
+  // ?status=active|inactive filtra por Brand.active (Status real).
   @Get('brands')
-  listBrands(@CurrentUser('companyId') companyId: string) {
-    return this.service.listBrands(companyId);
+  listBrands(
+    @CurrentUser('companyId') companyId: string,
+    @Query('status') status?: string,
+  ) {
+    const normalized =
+      status === 'active' || status === 'inactive' ? status : undefined;
+    return this.service.listBrands(companyId, normalized);
   }
 
   @Post('brands')
@@ -144,5 +152,39 @@ export class ProductsController {
     @Body() dto: StockMovementDto,
   ) {
     return this.service.createMovement(companyId, id, dto);
+  }
+
+  // ---- product-batches (lotes) ----
+  @Get('product-batches')
+  listBatches(
+    @CurrentUser('companyId') companyId: string,
+    @Query('productId') productId?: string,
+  ) {
+    return this.service.listBatches(companyId, productId);
+  }
+
+  @Post('product-batches')
+  createBatch(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: CreateProductBatchDto,
+  ) {
+    return this.service.createBatch(companyId, dto);
+  }
+
+  @Patch('product-batches/:id')
+  updateBatch(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateProductBatchDto,
+  ) {
+    return this.service.updateBatch(companyId, id, dto);
+  }
+
+  @Delete('product-batches/:id')
+  removeBatch(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.removeBatch(companyId, id);
   }
 }

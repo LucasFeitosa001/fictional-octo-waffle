@@ -2,6 +2,7 @@ import { useEffect, type ComponentType, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { IconCalendar, IconPlus, IconUsers, IconX } from '../components/icons';
 import { CREATE_GROUPS, useCreateSheet, usePageActions, type CreateItem } from './PageActions';
+import { useCreateDrawer } from './CreateDrawer';
 
 function IconMenu({ size = 24 }: { size?: number }) {
   return (
@@ -25,6 +26,7 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { open: createOpen, openSheet: openCreateSheet, closeSheet: closeCreateSheet } = useCreateSheet();
+  const { openCreate } = useCreateDrawer();
   const pageActions = usePageActions();
   const contextual = pageActions.length > 0;
 
@@ -39,9 +41,11 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
     return () => { document.body.style.overflow = prev; };
   }, [createOpen]);
 
-  function pickCreate(to: string) {
+  // Create-in-place: abre o drawer da entidade DIRETO (sem navegar), fechando a
+  // bottom-sheet de "Criar".
+  function pickCreate(item: CreateItem) {
     closeCreateSheet();
-    navigate(to);
+    if (item.kind) openCreate(item.kind);
   }
 
   return (
@@ -174,14 +178,14 @@ function CreateTile({
   onPick,
 }: {
   item: CreateItem;
-  onPick: (to: string) => void;
+  onPick: (item: CreateItem) => void;
 }) {
-  const { to, label, icon: Icon, disabled = false, disabledReason } = item;
+  const { label, icon: Icon, disabled = false, disabledReason } = item;
   const tooltip = disabled ? disabledReason ?? 'Em breve' : undefined;
   return (
     <button
       type="button"
-      onClick={() => (disabled ? undefined : onPick(to))}
+      onClick={() => (disabled ? undefined : onPick(item))}
       disabled={disabled}
       title={tooltip}
       aria-label={disabled ? `${label} — ${tooltip}` : label}

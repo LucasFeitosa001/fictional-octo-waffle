@@ -9,7 +9,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { PageHeader } from '../../components/PageHeader';
 import { LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
 import {
@@ -17,18 +16,16 @@ import {
   IconArrowUp,
   IconCalendar,
   IconChevron,
-  IconDollar,
   IconDownload,
-  IconHome,
   IconInfo,
-  IconStar,
   IconWallet,
 } from '../../components/icons';
 import { formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsDre, type DreLinha } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
-import { BackToReports, COLOR_GREEN, COLOR_RED } from './reportShared';
+import { COLOR_GREEN, COLOR_RED } from './reportShared';
+import { FinancialReportShell } from './reportNav';
 
 /* -------------------------------------------------------------------------- */
 /*  Clone 100% fiel da página "Resultados Financeiros" (DRE) do Belasis        */
@@ -45,21 +42,6 @@ function defaultRange() {
   const from = new Date(to.getFullYear(), to.getMonth(), 1); // início do mês
   return { from: isoDate(from), to: isoDate(to) };
 }
-
-// ---- Submenu "Financeiro" do hub de Relatórios (ordem idêntica ao Belasis) -
-const REPORT_TYPES = [
-  { key: 'home', label: 'Início', icon: IconHome, to: '/reports/financial' },
-  { key: 'dre', label: 'Resultados Financeiros', icon: IconDollar, to: '/reports/financial/dre' },
-  { key: 'service', label: 'Resultado Líquido de Serviços', icon: IconDollar, to: '/reports/financial/service-revenue' },
-  { key: 'product', label: 'Resultado Líquido de Produtos', icon: IconDollar, to: '/reports/financial/product-revenue' },
-  { key: 'projection', label: 'Projeção de Faturamento', icon: IconDollar, to: '/reports/financial/billing-projection' },
-  { key: 'cash', label: 'Fluxo de Caixa', icon: IconDollar, to: '/reports/financial/cash-movements' },
-  { key: 'recs', label: 'Recebimentos', icon: IconDollar, to: '/reports/financial/bill-recs' },
-  { key: 'pays', label: 'Despesas', icon: IconDollar, to: '/reports/financial/bill-pays' },
-  { key: 'extract', label: 'Extrato de Contas', icon: IconDollar, to: '/reports/financial/extract' },
-  { key: 'movements', label: 'Extrato de Movimentações', icon: IconDollar, to: '/reports/financial/extract-movements' },
-  { key: 'history', label: 'Histórico de caixa', icon: IconDollar, to: '/finance/cash-accounting/history' },
-] as const;
 
 // ---- "Planos de conta" (checkbox group, ordem idêntica ao Belasis) ---------
 const PLAN_OPTIONS = [
@@ -249,9 +231,9 @@ export function DrePage() {
   }
 
   return (
-    <div>
-      <BackToReports />
-      <PageHeader
+    <>
+      <FinancialReportShell
+        activeKey="dre"
         title="Resultados Financeiros"
         subtitle="Configure e gere o demonstrativo de resultado (DRE) do período"
         actions={
@@ -264,36 +246,7 @@ export function DrePage() {
             <IconDownload size={16} /> Exportar CSV
           </button>
         }
-      />
-
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* ---- Submenu de relatórios financeiros ------------------------- */}
-        <nav className="shrink-0 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-card)] lg:w-[320px]">
-          <ul className="flex flex-col gap-0.5">
-            {REPORT_TYPES.map((r) => {
-              const active = r.key === 'dre';
-              const Icon = r.icon;
-              return (
-                <li key={r.key}>
-                  <button
-                    type="button"
-                    className={[
-                      'flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm transition-colors',
-                      active
-                        ? 'font-semibold text-primary-strong [background:color-mix(in_oklab,var(--sp-primary)_12%,transparent)]'
-                        : 'text-ink hover:bg-canvas',
-                    ].join(' ')}
-                  >
-                    <Icon size={18} className={active ? 'text-primary-strong' : 'text-muted-ink'} />
-                    <span className="min-w-0 flex-1 truncate">{r.label}</span>
-                    {active && <IconStar size={16} className="shrink-0 text-gold" />}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
+      >
         {/* ---- Conteúdo: formulário + resultados ------------------------- */}
         <div className="min-w-0 flex-1">
           {/* Formulário de configuração */}
@@ -570,7 +523,7 @@ export function DrePage() {
             </div>
           )}
         </div>
-      </div>
+      </FinancialReportShell>
 
       {/* ---- Drawer lateral: detalhe da categoria (desliza da direita) ---- */}
       <Drawer
@@ -622,6 +575,6 @@ export function DrePage() {
           </div>
         )}
       </Drawer>
-    </div>
+    </>
   );
 }

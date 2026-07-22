@@ -20,9 +20,11 @@ import {
   IconUser,
 } from '../../components/icons';
 import {
+  useCashbackConfig,
   useCashbackRules,
   useCreateCashbackRule,
   useDeleteCashbackRule,
+  useUpdateCashbackConfig,
   useUpdateCashbackRule,
   type CashbackRule,
   type ScopeType,
@@ -235,12 +237,14 @@ export function CashbackPage() {
         })}
       </div>
 
-      {tab !== 'items' ? (
+      {tab === 'settings' ? (
+        <CashbackSettings />
+      ) : tab === 'clients' ? (
         <div className="rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-4 shadow-[var(--shadow-card)]">
           <EmptyState
-            icon={tab === 'clients' ? <IconUser size={32} /> : <IconSettings size={32} />}
-            title={tab === 'clients' ? 'Cashback por cliente' : 'Configurações de cashback'}
-            description="Esta seção ainda não está disponível neste ambiente."
+            icon={<IconUser size={32} />}
+            title="Cashback por cliente"
+            description="Abra o perfil de um cliente e acesse a aba Cashback para gerar, resgatar ou ajustar o saldo."
           />
         </div>
       ) : (
@@ -460,6 +464,178 @@ export function CashbackPage() {
       )}
 
       <CashbackDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} editing={editing} />
+    </div>
+  );
+}
+
+// =====================================================================
+// Aba Configurações — programa global de cashback da empresa
+// =====================================================================
+
+function CashbackSettings() {
+  const config = useCashbackConfig();
+  const save = useUpdateCashbackConfig();
+
+  const [active, setActive] = useState(false);
+  const [valueType, setValueType] = useState<'percent' | 'value'>('percent');
+  const [value, setValue] = useState('');
+  const [canRedeem, setCanRedeem] = useState(true);
+  const [minimum, setMinimum] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Hidrata o form quando os dados chegam (uma vez por resposta).
+  useEffect(() => {
+    const c = config.data;
+    if (!c) return;
+    setActive(c.cashbackActive);
+    setValueType(c.cashbackValueType);
+    setValue(c.cashbackValue ? String(c.cashbackValue) : '');
+    setCanRedeem(c.cashbackCanRedeem);
+    setMinimum(c.cashbackMinimum ? String(c.cashbackMinimum) : '');
+  }, [config.data]);
+
+  async function handleSave() {
+    setFormError(null);
+    setSaved(false);
+    try {
+      await save.mutateAsync({
+        cashbackActive: active,
+        cashbackValueType: valueType,
+        cashbackValue: Number(value.replace(',', '.')) || 0,
+        cashbackCanRedeem: canRedeem,
+        cashbackMinimum: Number(minimum.replace(',', '.')) || 0,
+      });
+      setSaved(true);
+    } catch (err) {
+      setFormError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível salvar as configurações.',
+      );
+    }
+  }
+
+  if (config.isLoading) {
+    return (
+      <div className="rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-4 shadow-[var(--shadow-card)]">
+        <LoadingState />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xl rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-4 shadow-[var(--shadow-card)]">
+      <div className="flex flex-col gap-5">
+        {/* Ativar programa */}
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => setActive(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--sp-primary)]"
+          />
+          <span>
+            <span className="flex items-center text-sm font-medium text-ink">
+              Ativar programa de cashback
+              <HelpTooltip>
+                Quando ativo, o cashback padrão é aplicado nas vendas conforme as regras.
+              </HelpTooltip>
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-ink">
+              Devolve parte do valor pago como crédito para próximas compras.
+            </span>
+          </span>
+        </label>
+
+        {/* Valor padrão + tipo */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <LabelWithHelp
+              className="text-xs font-medium text-muted-ink"
+              label="Tipo do valor padrão"
+              help="Percentual (%) sobre a compra ou valor fixo em reais (R$)."
+            />
+            <Select
+              aria-label="Tipo do valor padrão"
+              selectedKey={valueType}
+              onSelectionChange={(k) => setValueType(String(k) as 'percent' | 'value')}
+            >
+              <Select.Trigger>
+                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="percent" textValue="Percentual (%)">
+                    Percentual (%)
+                  </ListBox.Item>
+                  <ListBox.Item id="value" textValue="Valor fixo (R$)">
+                    Valor fixo (R$)
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <LabelWithHelp
+              className="text-xs font-medium text-muted-ink"
+              label={valueType === 'percent' ? 'Valor padrão (%)' : 'Valor padrão (R$)'}
+              help="Cashback aplicado por padrão quando não há regra específica."
+            />
+            <TextField value={value} onChange={setValue} aria-label="Valor padrão">
+              <Input placeholder="0,00" inputMode="decimal" />
+            </TextField>
+          </div>
+        </div>
+
+        {/* Valor mínimo */}
+        <div className="flex flex-col gap-1">
+          <LabelWithHelp
+            className="text-xs font-medium text-muted-ink"
+            label="Valor mínimo para gerar cashback (R$)"
+            help="Compras abaixo deste valor não geram cashback. Use 0 para não exigir mínimo."
+          />
+          <TextField value={minimum} onChange={setMinimum} aria-label="Valor mínimo">
+            <Input placeholder="0,00" inputMode="decimal" />
+          </TextField>
+        </div>
+
+        {/* Permitir resgate */}
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={canRedeem}
+            onChange={(e) => setCanRedeem(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--sp-primary)]"
+          />
+          <span>
+            <span className="flex items-center text-sm font-medium text-ink">
+              Permitir resgate de cashback
+              <HelpTooltip>
+                Se desligado, o saldo continua acumulando mas não pode ser usado para abater compras.
+              </HelpTooltip>
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-ink">
+              Clientes podem usar o saldo acumulado como desconto.
+            </span>
+          </span>
+        </label>
+
+        {formError && (
+          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            {formError}
+          </div>
+        )}
+        {saved && !formError && (
+          <div className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+            Configurações salvas com sucesso.
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button variant="primary" onClick={handleSave} isDisabled={save.isPending}>
+            {save.isPending ? 'Salvando…' : 'Salvar configurações'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

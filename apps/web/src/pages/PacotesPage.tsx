@@ -2,21 +2,34 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../components/ConfirmDialog';
+import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { buildSelectActions, useSelectMode, type BulkAction } from '../hooks/useSelectMode';
 import { FullDrawer } from '../components/FullDrawer';
+import {
+  CustomerAvatar,
+  CustomerPickerDrawer,
+  type PickedCustomer,
+} from '../components/CustomerPickerDrawer';
+import { ItemPickerDrawer, type PickedItem } from '../components/ItemPickerDrawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
+  IconBox,
   IconCheck,
+  IconChevron,
   IconEye,
   IconFilter,
+  IconHelpCircle,
   IconLayers,
   IconPlus,
   IconReceipt,
+  IconScissors,
   IconSearch,
   IconTrash,
 } from '../components/icons';
 import { useSetPageActions } from '../layout/PageActions';
-import { formatDate, formatMoney, formatNumber } from '../lib/format';
-import { useCustomers, useServices } from '../lib/queries';
+import { formatDate, formatMoney, formatNumber, formatPhone } from '../lib/format';
+import { useProfessionals, useServices } from '../lib/queries';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { PacotePerfilModal } from './PacotePerfilModal';
 import {
@@ -70,16 +83,10 @@ export function PacotesPage() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [selectMode, setSelectMode] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   // Belasis ordena por Data (desc) por padrão; Ticket/Data/Validade são sortáveis.
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' });
   useAutoCreate(() => setCreateOpen(true));
-
-  // Ao sair do modo Selecionar, limpa a seleção (padrão Belasis).
-  useEffect(() => {
-    if (!selectMode) setSelected(new Set());
-  }, [selectMode]);
 
   const confirm = useConfirm();
   const sold = useCustomerPackages();
@@ -126,26 +133,38 @@ export function PacotesPage() {
   const safePage = Math.min(page, pageCount);
   const paged = sortedRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const pageIds = paged.map((p) => p.id);
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids
+  // VISÍVEIS na página atual — tanto a tabela desktop quanto os cards mobile
+  // renderizam exatamente `paged`, então "Selecionar todos" marca esses itens.
+  const ids = useMemo(() => paged.map((p) => p.id), [paged]);
+  const sel = useSelectMode(ids);
 
-  function toggleAllOnPage() {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
-      else pageIds.forEach((id) => next.add(id));
-      return next;
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  async function bulkDeleteSelected() {
+    if (sel.count === 0) return;
+    const ok = await confirm({
+      title: 'Excluir pacotes?',
+      message: `Remover ${sel.count} pacote(s) selecionado(s)? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
     });
+    if (!ok) return;
+    await Promise.all([...sel.selected].map((id) => delSold.mutateAsync(id)));
+    setActionsOpen(false);
+    sel.cancel();
   }
 
-  function toggleRow(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: delSold.isPending,
+      onClick: bulkDeleteSelected,
+    },
+  ];
 
   function cycleSort(key: SortState['key']) {
     setSort((prev) =>
@@ -178,29 +197,38 @@ export function PacotesPage() {
   // Mobile: BottomNav = [Filtros, Selecionar, Novo]. Busca fica sempre no topo (input),
   // como no belasis.app — sem toggle. Selecionar habilita checkbox nos cards.
   useSetPageActions(
-    [
-      {
-        key: 'filtros',
-        label: 'Filtros',
-        icon: <IconFilter size={22} />,
-        onClick: () => setFilterOpen((v) => !v),
-        active: filterOpen,
-      },
-      {
-        key: 'selecionar',
-        label: 'Selecionar',
-        icon: <IconCheck size={22} />,
-        onClick: () => setSelectMode((v) => !v),
-        active: selectMode,
-      },
-      {
-        key: 'novo',
-        label: 'Novo',
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-    ],
-    [filterOpen, selectMode],
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          {
+            key: 'filtros',
+            label: 'Filtros',
+            icon: <IconFilter size={22} />,
+            onClick: () => setFilterOpen((v) => !v),
+            active: filterOpen,
+          },
+          {
+            key: 'selecionar',
+            label: 'Selecionar',
+            icon: <IconCheck size={22} />,
+            onClick: sel.enter,
+            disabled: rows.length === 0,
+          },
+          {
+            key: 'novo',
+            label: 'Novo',
+            icon: <IconPlus size={22} />,
+            onClick: () => setCreateOpen(true),
+          },
+        ],
+    [filterOpen, sel.selectMode, sel.allSelected, sel.count, rows.length],
   );
 
   async function handleDelete(p: CustomerPackage) {
@@ -374,6 +402,21 @@ export function PacotesPage() {
             </div>
           ) : (
             <>
+              {/* Barra de seleção (desktop e mobile): aparece com itens marcados. */}
+              {sel.count > 0 && (
+                <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)] px-3 py-2 text-sm text-ink">
+                  <span>{sel.count} selecionado(s)</span>
+                  <button
+                    type="button"
+                    onClick={bulkDeleteSelected}
+                    disabled={delSold.isPending}
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline disabled:opacity-50"
+                  >
+                    <IconTrash size={14} /> Excluir
+                  </button>
+                </div>
+              )}
+
               {/* ===== Desktop: tabela (colunas idênticas ao Belasis) ===== */}
               <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
                 <table className="w-full border-collapse text-sm">
@@ -381,8 +424,8 @@ export function PacotesPage() {
                     <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
                       <th className="w-10 px-4 py-3">
                         <SelectBox
-                          checked={allPageSelected}
-                          onClick={toggleAllOnPage}
+                          checked={sel.allSelected}
+                          onClick={sel.selectAll}
                           aria-label="Selecionar tudo"
                         />
                       </th>
@@ -424,8 +467,8 @@ export function PacotesPage() {
                         >
                           <td className="px-4 py-2.5">
                             <SelectBox
-                              checked={selected.has(p.id)}
-                              onClick={() => toggleRow(p.id)}
+                              checked={sel.isSelected(p.id)}
+                              onClick={() => sel.toggle(p.id)}
                               aria-label={`Selecionar #${p.number}`}
                             />
                           </td>
@@ -501,9 +544,9 @@ export function PacotesPage() {
                 {paged.map((p) => {
                   const cs = consumption(p);
                   const av = availability(p);
-                  const isSelected = selected.has(p.id);
+                  const isSelected = sel.isSelected(p.id);
                   const onCardClick = () => {
-                    if (selectMode) toggleRow(p.id);
+                    if (sel.selectMode) sel.toggle(p.id);
                     else setDetailId(p.id);
                   };
                   return (
@@ -513,24 +556,12 @@ export function PacotesPage() {
                         onClick={onCardClick}
                         className={[
                           'flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
-                          isSelected
-                            ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
+                          sel.selectMode && isSelected
+                            ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)] ring-1 ring-[var(--sp-primary)]'
                             : 'border-[var(--color-soft-border)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]',
                         ].join(' ')}
                       >
-                        {selectMode && (
-                          <span
-                            aria-hidden
-                            className={[
-                              'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors',
-                              isSelected
-                                ? 'border-[var(--sp-primary)] bg-[var(--sp-primary)] text-white'
-                                : 'border-[var(--color-soft-border)] bg-white',
-                            ].join(' ')}
-                          >
-                            {isSelected && <IconCheck size={13} />}
-                          </span>
-                        )}
+                        {sel.selectMode && <AnimatedCheckbox checked={isSelected} />}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-2">
                             <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
@@ -615,6 +646,14 @@ export function PacotesPage() {
         packageId={detailId ?? undefined}
         isOpen={detailId !== null}
         onClose={() => setDetailId(null)}
+      />
+
+      {/* Ações em lote do modo de seleção (bottom-sheet, mobile e desktop). */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
     </div>
   );
@@ -963,73 +1002,158 @@ function CheckRow({
 // Drawer lateral: Novo pacote (clone do drawer do Belasis)
 // ---------------------------------------------------------------------
 
+// Linha editável de "Itens do pacote" (Belasis): serviço/produto avulso com
+// qtde, valor unitário e desconto em R$; o total é calculado ao vivo.
+interface PkgItem {
+  uid: string;
+  kind: 'service' | 'product';
+  refId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number; // desconto em R$ por linha
+}
+
+let pkgUidSeq = 0;
+const nextPkgUid = () => `pkg-${++pkgUidSeq}`;
+const pkgItemTotal = (it: PkgItem) => Math.max(0, it.quantity * it.unitPrice - it.discount);
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
 function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const sell = useSellPackage();
-  const customers = useCustomers('');
   const templates = usePackageTemplates();
   const services = useServices();
+  const professionals = useProfessionals();
 
-  const [customerId, setCustomerId] = useState('');
-  const [date, setDate] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<PickedCustomer | null>(null);
+  const [date, setDate] = useState(todayIso());
   const [validUntil, setValidUntil] = useState('');
   const [templateId, setTemplateId] = useState('');
-  const [price, setPrice] = useState('');
+  const [sellerId, setSellerId] = useState('');
+  const [items, setItems] = useState<PkgItem[]>([]);
+  // Vira `true` assim que o usuário edita as linhas manualmente — nesse caso o
+  // pacote deixa de ser "predefinido" e enviamos só o total (price) ao backend.
+  const [itemsDirty, setItemsDirty] = useState(false);
   const [discount, setDiscount] = useState('');
-  const [creditNote, setCreditNote] = useState('');
-  const [cashback, setCashback] = useState('');
   const [observation, setObservation] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<'cliente' | 'itens' | 'pagamentos' | 'observacoes'>(
     'cliente',
   );
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
 
-  const customerList = useMemo(() => customers.data?.data ?? [], [customers.data]);
   const templateList = useMemo(() => templates.data ?? [], [templates.data]);
-  const serviceMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of services.data?.data ?? []) m.set(s.id, s.name);
+  const professionalList = useMemo(
+    () => professionals.data?.data ?? [],
+    [professionals.data],
+  );
+  // id do serviço → nome + preço, usado ao expandir um Pacote Predefinido em linhas.
+  const servicePriceMap = useMemo(() => {
+    const m = new Map<string, { name: string; price: number }>();
+    for (const s of services.data?.data ?? []) {
+      m.set(s.id, { name: s.name, price: Number(s.price) || 0 });
+    }
     return m;
   }, [services.data]);
 
-  const selectedTemplate = templateList.find((t) => t.id === templateId) ?? null;
-
   useEffect(() => {
     if (isOpen) {
-      setCustomerId('');
-      setDate('');
+      setSelectedCustomer(null);
+      setDate(todayIso());
       setValidUntil('');
       setTemplateId('');
-      setPrice('');
+      setSellerId('');
+      setItems([]);
+      setItemsDirty(false);
       setDiscount('');
-      setCreditNote('');
-      setCashback('');
       setObservation('');
       setError(null);
       setSection('cliente');
+      setCustomerPickerOpen(false);
+      setItemPickerOpen(false);
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (selectedTemplate) setPrice(selectedTemplate.price);
-  }, [selectedTemplate]);
+  // Pacote Predefinido = ATALHO: preenche as linhas de itens a partir do modelo.
+  // Não é obrigatório — o usuário pode montar itens do zero (Belasis permite).
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    const tpl = templateList.find((t) => t.id === id);
+    if (!tpl) return;
+    setItems(
+      tpl.items.map((it) => {
+        const svc = servicePriceMap.get(it.serviceId);
+        return {
+          uid: nextPkgUid(),
+          kind: 'service' as const,
+          refId: it.serviceId,
+          name: it.service?.name ?? svc?.name ?? 'Serviço',
+          quantity: it.sessions,
+          unitPrice: svc?.price ?? 0,
+          discount: 0,
+        };
+      }),
+    );
+    setItemsDirty(false);
+  }
 
-  const canSave = customerId !== '' && templateId !== '' && !sell.isPending;
+  function addItem(picked: PickedItem) {
+    setItems((prev) => [
+      ...prev,
+      {
+        uid: nextPkgUid(),
+        kind: picked.kind,
+        refId: picked.refId,
+        name: picked.name,
+        quantity: 1,
+        unitPrice: picked.unitPrice,
+        discount: 0,
+      },
+    ]);
+    setItemsDirty(true);
+  }
+
+  function patchItem(uid: string, patch: Partial<PkgItem>) {
+    setItems((prev) => prev.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
+    setItemsDirty(true);
+  }
+
+  function removeItem(uid: string) {
+    setItems((prev) => prev.filter((i) => i.uid !== uid));
+    setItemsDirty(true);
+  }
+
+  const itemsSubtotal = items.reduce((s, it) => s + pkgItemTotal(it), 0);
+  const pkgDiscount = discount !== '' ? Number(discount) || 0 : 0;
+  const grandTotal = Math.max(0, itemsSubtotal - pkgDiscount);
+
+  const canSave = selectedCustomer !== null && items.length > 0 && !sell.isPending;
 
   async function handleSave() {
+    if (!selectedCustomer) return;
     setError(null);
     try {
-      // Data / Validade / Vendedor / Crédito / Cashback / Observação são exibidos
-      // fielmente ao Belasis, mas a API atual só aceita cliente + modelo + valor. // TODO
+      // Backend aceita apenas customerId, templateId (opcional) e price (total).
+      // Enviamos templateId SÓ quando as linhas não foram editadas — assim o
+      // backend recria os itens do modelo. Ao customizar, o pacote vira avulso
+      // (price = total ao vivo) e as linhas custom não têm persistência
+      // individual no modelo atual. Vendedor / Data / Validade / Crédito /
+      // Cashback / Observação são exibidos fielmente ao Belasis mas ainda não
+      // têm coluna na API. // TODO backend
+      const sendTemplateId = !itemsDirty && templateId !== '' ? templateId : undefined;
       await sell.mutateAsync({
-        customerId,
-        templateId,
-        price: price !== '' ? Number(price) : undefined,
+        customerId: selectedCustomer.id,
+        templateId: sendTemplateId,
+        price: grandTotal,
       });
       onClose();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar o pacote.');
     }
   }
+
+  const itemGrid = 'grid-cols-[minmax(0,1.6fr)_72px_1fr_1fr_1fr_40px]';
 
   return (
     <FullDrawer
@@ -1057,43 +1181,68 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
         </>
       }
     >
+      {/* Sub-drawers (portam para z-[90], sobem por cima deste FullDrawer z-[80]). */}
+      <CustomerPickerDrawer
+        isOpen={customerPickerOpen}
+        onClose={() => setCustomerPickerOpen(false)}
+        onSelect={setSelectedCustomer}
+      />
+      <ItemPickerDrawer
+        isOpen={itemPickerOpen}
+        onClose={() => setItemPickerOpen(false)}
+        onSelect={addItem}
+      />
+
       <div className="flex flex-col gap-4">
         {section === 'cliente' && (
           <>
             <Field label="Cliente" required>
-              <Select
-                aria-label="Cliente"
-                selectedKey={customerId || null}
-                onSelectionChange={(k) => setCustomerId(k ? String(k) : NONE)}
-              >
-                <Select.Trigger>
-                  <Select.Value>
-                    {({ isPlaceholder, selectedText }) =>
-                      isPlaceholder ? 'Busque por um cliente' : selectedText
-                    }
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {customerList.map((c) => (
-                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                        {c.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
+              {selectedCustomer ? (
+                <div className="flex items-center gap-3 rounded-lg border border-line bg-white px-3 py-2.5">
+                  <CustomerAvatar
+                    name={selectedCustomer.name}
+                    avatarUrl={selectedCustomer.avatarUrl}
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {selectedCustomer.name}
+                    </span>
+                    {selectedCustomer.phone ? (
+                      <span className="truncate text-xs text-muted">
+                        {formatPhone(selectedCustomer.phone)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerPickerOpen(true)}
+                    className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                  >
+                    Trocar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCustomerPickerOpen(true)}
+                  className="flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 text-left text-sm text-muted-ink"
+                >
+                  <span>Busque por um cliente</span>
+                  <IconChevron size={16} className="shrink-0 text-muted-ink" />
+                </button>
+              )}
             </Field>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Data">
-                {/* TODO Belasis: data de emissão não é enviada pela API atual */}
                 <TextField value={date} onChange={setDate} aria-label="Data">
                   <Input type="date" />
                 </TextField>
               </Field>
-              <Field label="Validade">
-                {/* TODO Belasis: validade manual não é enviada pela API atual */}
+              <Field
+                label="Validade"
+                hint="Data limite para uso do pacote. Deixe em branco para não expirar."
+              >
                 <TextField value={validUntil} onChange={setValidUntil} aria-label="Validade">
                   <Input type="date" />
                 </TextField>
@@ -1104,7 +1253,7 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
               <Select
                 aria-label="Pacote Predefinido"
                 selectedKey={templateId || null}
-                onSelectionChange={(k) => setTemplateId(k ? String(k) : NONE)}
+                onSelectionChange={(k) => (k ? applyTemplate(String(k)) : setTemplateId(NONE))}
               >
                 <Select.Trigger>
                   <Select.Value>
@@ -1123,92 +1272,117 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
                   </ListBox>
                 </Select.Popover>
               </Select>
+              <p className="mt-1 text-[11px] text-muted-ink">
+                Opcional — preenche os itens automaticamente. Você pode editá-los depois.
+              </p>
             </Field>
 
             <Field label="Vendedor">
-              {/* TODO Belasis: seleção de vendedor não suportada pela API de venda atual */}
-              <div className="rounded-md border border-line bg-canvas px-3 py-2 text-sm text-muted-ink">
-                Selecione um vendedor
-              </div>
+              <Select
+                aria-label="Vendedor"
+                selectedKey={sellerId || null}
+                onSelectionChange={(k) => setSellerId(k ? String(k) : NONE)}
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ isPlaceholder, selectedText }) =>
+                      isPlaceholder ? 'Selecione um vendedor' : selectedText
+                    }
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {professionalList.map((p) => (
+                      <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                        {p.name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             </Field>
           </>
         )}
 
         {section === 'itens' && (
-          /* Itens do pacote — prévia do modelo selecionado (Belasis: tabela de itens) */
-          <div className="rounded-lg border border-line">
-            <div className="border-b border-line px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+          /* Itens do pacote — linhas editáveis (Belasis): serviço/produto avulso
+             com qtde, valor unitário e desconto; total calculado ao vivo. */
+          <div className="overflow-hidden rounded-lg border border-line">
+            <div className="border-b border-line bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
               Itens do pacote
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-muted-ink">
-                    <th className="px-3 py-2 font-semibold">Descrição</th>
-                    <th className="px-3 py-2 text-center font-semibold">Qtde.</th>
-                    <th className="px-3 py-2 text-right font-semibold">Valor unitário</th>
-                    <th className="px-3 py-2 text-right font-semibold">Desconto</th>
-                    <th className="px-3 py-2 text-right font-semibold">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedTemplate && selectedTemplate.items.length > 0 ? (
-                    selectedTemplate.items.map((it) => (
-                      <tr key={it.id} className="border-b border-line/60 last:border-0">
-                        <td className="px-3 py-2 text-ink">
-                          {it.service?.name ?? serviceMap.get(it.serviceId) ?? 'Serviço'}
-                        </td>
-                        <td className="px-3 py-2 text-center text-muted-ink">{it.sessions}</td>
-                        <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
-                        <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
-                        <td className="px-3 py-2 text-right text-muted-ink">R$ —</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-sm text-muted-ink">
-                        {templateId
-                          ? 'Selecionar serviço'
-                          : 'Selecione um Pacote Predefinido na aba "Cliente / Dados".'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+
+            {/* Cabeçalho (desktop) */}
+            <div
+              className={`hidden md:grid ${itemGrid} items-center gap-2 border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-ink`}
+            >
+              <span>Descrição</span>
+              <span className="text-center">Qtde.</span>
+              <span className="text-right">Valor unitário</span>
+              <span className="text-right">Desconto</span>
+              <span className="text-right">Total</span>
+              <span />
             </div>
+
+            {items.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-ink">
+                Nenhum item. Use “Selecionar serviço ou produto” abaixo ou escolha um Pacote
+                Predefinido na aba “Cliente / Dados”.
+              </div>
+            ) : (
+              items.map((it) => (
+                <PkgItemRow
+                  key={it.uid}
+                  item={it}
+                  gridCls={itemGrid}
+                  onChange={(patch) => patchItem(it.uid, patch)}
+                  onRemove={() => removeItem(it.uid)}
+                />
+              ))
+            )}
+
+            <button
+              type="button"
+              onClick={() => setItemPickerOpen(true)}
+              className="flex w-full items-center gap-2 border-t border-line px-3 py-3 text-left text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+            >
+              <IconPlus size={15} /> Selecionar serviço ou produto
+            </button>
           </div>
         )}
 
         {section === 'pagamentos' && (
           /* Resumo à direita (Belasis: Desconto / Crédito / Cashback / Total).
-             Apenas Total (valor do pacote) é enviado pela API atual. */
+             Total = subtotal dos itens − desconto e é o `price` enviado. Crédito
+             e Cashback são disabled (sem coluna na API atual). */
           <div className="flex justify-end">
             <div className="w-full sm:max-w-sm">
+              <SummaryRow label="Subtotal">
+                <div className="px-1 text-right text-sm tabular-nums text-ink">
+                  {formatMoney(itemsSubtotal)}
+                </div>
+              </SummaryRow>
               <SummaryRow label="Desconto">
                 <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
                   <Input type="number" placeholder="R$ 0,00" className="text-right" />
                 </TextField>
               </SummaryRow>
               <SummaryRow label="Crédito">
-                {/* TODO Belasis: crédito não enviado pela API atual */}
-                <TextField value={creditNote} onChange={setCreditNote} aria-label="Crédito">
-                  <Input type="number" placeholder="R$ 0,00" className="text-right" />
-                </TextField>
+                {/* Belasis: crédito do cliente (disabled) — sem coluna na API atual */}
+                <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
+                  R$ 0,00
+                </div>
               </SummaryRow>
               <SummaryRow label="Cashback">
-                {/* TODO Belasis: cashback não enviado pela API atual */}
-                <TextField value={cashback} onChange={setCashback} aria-label="Cashback">
-                  <Input type="number" placeholder="R$ 0,00" className="text-right" />
-                </TextField>
+                {/* Belasis: cashback (disabled) — sem coluna na API atual */}
+                <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
+                  R$ 0,00
+                </div>
               </SummaryRow>
               <SummaryRow label="Total" strong>
-                <TextField value={price} onChange={setPrice} aria-label="Total">
-                  <Input
-                    type="number"
-                    placeholder="R$ 0,00"
-                    className="text-right font-semibold"
-                  />
-                </TextField>
+                <div className="px-1 text-right text-sm font-semibold tabular-nums text-ink">
+                  {formatMoney(grandTotal)}
+                </div>
               </SummaryRow>
             </div>
           </div>
@@ -1236,19 +1410,157 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
 function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted-ink">
+      <label className="flex items-center gap-1 text-xs font-medium text-muted-ink">
         {required && <span className="mr-0.5 text-danger">*</span>}
         {label}
+        {hint && (
+          <span title={hint} className="cursor-help text-muted-ink/70" aria-label={hint}>
+            <IconHelpCircle size={13} />
+          </span>
+        )}
       </label>
       {children}
+    </div>
+  );
+}
+
+// Linha editável de item do pacote (desktop: grid alinhado ao cabeçalho;
+// mobile: card com inputs empilhados). Total calculado ao vivo.
+function PkgItemRow({
+  item,
+  gridCls,
+  onChange,
+  onRemove,
+}: {
+  item: PkgItem;
+  gridCls: string;
+  onChange: (patch: Partial<PkgItem>) => void;
+  onRemove: () => void;
+}) {
+  const Icon = item.kind === 'service' ? IconScissors : IconBox;
+  const total = pkgItemTotal(item);
+  const num = (v: string) => (v === '' ? 0 : Number(v));
+  const inputCls =
+    'h-8 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-primary';
+
+  return (
+    <div className="border-b border-line/60 last:border-0">
+      {/* Desktop */}
+      <div className={`hidden md:grid ${gridCls} items-center gap-2 px-3 py-2 text-sm`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
+            <Icon size={15} />
+          </span>
+          <span className="truncate font-medium text-ink">{item.name}</span>
+        </div>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={item.quantity}
+          aria-label="Quantidade"
+          onChange={(e) => onChange({ quantity: num(e.target.value) })}
+          className={`${inputCls} text-center`}
+        />
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          value={item.unitPrice}
+          aria-label="Valor unitário"
+          onChange={(e) => onChange({ unitPrice: num(e.target.value) })}
+          className={`${inputCls} text-right`}
+        />
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          value={item.discount}
+          aria-label="Desconto"
+          onChange={(e) => onChange({ discount: num(e.target.value) })}
+          className={`${inputCls} text-right`}
+        />
+        <span className="text-right font-semibold tabular-nums text-ink">
+          {formatMoney(total)}
+        </span>
+        <button
+          type="button"
+          aria-label="Remover item"
+          onClick={onRemove}
+          className="grid h-7 w-7 place-items-center rounded-md text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger"
+        >
+          <IconTrash size={15} />
+        </button>
+      </div>
+
+      {/* Mobile */}
+      <div className="flex flex-col gap-2 px-3 py-2.5 md:hidden">
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
+            <Icon size={16} />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+            {item.name}
+          </span>
+          <button
+            type="button"
+            aria-label="Remover item"
+            onClick={onRemove}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-ink hover:bg-danger/10 hover:text-danger"
+          >
+            <IconTrash size={15} />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="flex flex-col gap-0.5 text-[11px] text-muted-ink">
+            Qtde.
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={item.quantity}
+              onChange={(e) => onChange({ quantity: num(e.target.value) })}
+              className={`${inputCls} h-9`}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5 text-[11px] text-muted-ink">
+            Valor un.
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={item.unitPrice}
+              onChange={(e) => onChange({ unitPrice: num(e.target.value) })}
+              className={`${inputCls} h-9`}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5 text-[11px] text-muted-ink">
+            Desconto
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={item.discount}
+              onChange={(e) => onChange({ discount: num(e.target.value) })}
+              className={`${inputCls} h-9`}
+            />
+          </label>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-ink">Total</span>
+          <span className="font-semibold tabular-nums text-ink">{formatMoney(total)}</span>
+        </div>
+      </div>
     </div>
   );
 }

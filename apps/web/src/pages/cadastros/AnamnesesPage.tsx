@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
+import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../../components/Drawer';
 import { useConfirm } from '../../components/ConfirmDialog';
-import { EmptyState } from '../../components/States';
+import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../../components/BulkActionsSheet';
+import {
+  buildSelectActions,
+  useSelectMode,
+  type BulkAction,
+} from '../../hooks/useSelectMode';
+import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
   IconCheck,
   IconChevron,
@@ -18,6 +26,15 @@ import { formatDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useAutoCreate } from '../../lib/useAutoCreate';
 import { useSetPageActions } from '../../layout/PageActions';
+import {
+  useAnamnesisTemplates,
+  useCreateAnamnesisTemplate,
+  useDeleteAnamnesisTemplate,
+  useUpdateAnamnesisTemplate,
+  type AnamnesisQuestion,
+  type AnamnesisQuestionType,
+  type AnamnesisTemplate,
+} from '../../lib/queries/anamnese';
 
 const PAGE_SIZE = 20;
 
@@ -25,102 +42,41 @@ const PAGE_SIZE = 20;
 const primaryTint = (pct: number) =>
   `color-mix(in oklab, var(--sp-primary) ${pct}%, transparent)`;
 
-/* ───────────────────────── Modelo de dados (local) ─────────────────────────
- * O Belasis /anamnesis lista MODELOS de ficha de anamnese (não os preenchidos).
- * Ainda não existe endpoint dedicado de modelos no SalonPass — o back-end só
- * guarda a anamnese por cliente (customerAnamnesis). Mantemos o estado local e
- * marcamos os pontos de integração. TODO: trocar por hooks de query quando a
- * API de modelos de anamnese existir. Toda a APRESENTAÇÃO já bate com o Belasis.
- */
-type QuestionType = 'text' | 'boolean' | 'choice';
-
-interface AnamnesisQuestion {
-  id: string;
-  label: string;
-  type: QuestionType;
-}
-
-interface AnamnesisTemplate {
-  id: string;
-  name: string;
-  description: string;
-  active: boolean;
-  questions: AnamnesisQuestion[];
-  createdAt: string;
-}
-
-const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
+const QUESTION_TYPE_LABEL: Record<AnamnesisQuestionType, string> = {
   text: 'Texto',
   boolean: 'Sim / Não',
   choice: 'Múltipla escolha',
 };
 
-// Seed de exemplo enquanto não há API de modelos. TODO: remover ao integrar.
-const SEED_TEMPLATES: AnamnesisTemplate[] = [
-  {
-    id: 't1',
-    name: 'Anamnese Capilar',
-    description: 'Histórico e saúde do couro cabeludo antes de químicas.',
-    active: true,
-    createdAt: '2026-05-12',
-    questions: [
-      { id: 'q1', label: 'Já fez alisamento nos últimos 6 meses?', type: 'boolean' },
-      { id: 'q2', label: 'Possui alergia a algum produto?', type: 'text' },
-      { id: 'q3', label: 'Tipo de fio', type: 'choice' },
-    ],
-  },
-  {
-    id: 't2',
-    name: 'Anamnese Estética Facial',
-    description: 'Contraindicações para procedimentos faciais.',
-    active: true,
-    createdAt: '2026-06-03',
-    questions: [
-      { id: 'q1', label: 'Está gestante ou amamentando?', type: 'boolean' },
-      { id: 'q2', label: 'Faz uso de ácidos?', type: 'boolean' },
-      { id: 'q3', label: 'Observações', type: 'text' },
-    ],
-  },
-  {
-    id: 't3',
-    name: 'Termo de Consentimento',
-    description: 'Consentimento assinado para procedimentos invasivos.',
-    active: false,
-    createdAt: '2026-02-20',
-    questions: [{ id: 'q1', label: 'Li e concordo com os termos', type: 'boolean' }],
-  },
-];
+// Perguntas ganham ids client-side; persistem dentro de questionsJson.
+let nextQid = 1;
+const genQid = () => `q-${Date.now().toString(36)}-${nextQid++}`;
+
+const questionsOf = (t: AnamnesisTemplate): AnamnesisQuestion[] => t.questionsJson ?? [];
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
-let nextId = 100;
-const genId = () => `local-${nextId++}`;
-
 export function AnamnesesPage() {
   const confirm = useConfirm();
-  const [templates, setTemplates] = useState<AnamnesisTemplate[]>(SEED_TEMPLATES);
+  const templatesQ = useAnamnesisTemplates();
+  const deleteTemplate = useDeleteAnamnesisTemplate();
+  const templates = templatesQ.data ?? [];
 
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [selectMode, setSelectMode] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<AnamnesisTemplate | null>(null);
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids VISÍVEIS.
+  const [actionsOpen, setActionsOpen] = useState(false);
   useAutoCreate(() => setCreateOpen(true));
-
-  // Ao sair do modo Selecionar, limpa a seleção (padrão Belasis).
-  useEffect(() => {
-    if (!selectMode) setSelected(new Set());
-  }, [selectMode]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return templates.filter((t) => {
-      if (q && !t.name.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q))
-        return false;
+      if (q && !t.name.toLowerCase().includes(q)) return false;
       if (statusFilter === 'active' && !t.active) return false;
       if (statusFilter === 'inactive' && t.active) return false;
       return true;
@@ -133,23 +89,17 @@ export function AnamnesesPage() {
   }, [page, pageCount]);
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Modo de seleção (Belasis): ids VISÍVEIS na página atual (desktop e mobile
+  // paginam a mesma fatia). `selectAll` marca/limpa esses itens visíveis.
+  const ids = useMemo(() => pageRows.map((t) => t.id), [pageRows]);
+  const sel = useSelectMode(ids);
+
   const hasFilters = Boolean(search || statusFilter !== 'all');
 
   function resetFilters() {
     setSearch('');
     setStatusFilter('all');
     setPage(1);
-  }
-
-  // TODO: substituir por mutations (create/update/delete) quando existir a API.
-  function upsertTemplate(t: AnamnesisTemplate) {
-    setTemplates((prev) => {
-      const idx = prev.findIndex((x) => x.id === t.id);
-      if (idx === -1) return [t, ...prev];
-      const next = [...prev];
-      next[idx] = t;
-      return next;
-    });
   }
 
   async function handleDelete(t: AnamnesisTemplate) {
@@ -160,55 +110,44 @@ export function AnamnesesPage() {
       danger: true,
     });
     if (!ok) return;
-    setTemplates((prev) => prev.filter((x) => x.id !== t.id));
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(t.id);
-      return next;
-    });
+    await deleteTemplate.mutateAsync(t.id).catch(() => {});
   }
 
-  async function handleBulkDelete() {
-    const ids = pageRows.filter((t) => selected.has(t.id)).map((t) => t.id);
-    if (!ids.length) return;
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  async function bulkDeleteSelected() {
+    if (sel.count === 0) return;
     const ok = await confirm({
-      title: `Excluir ${ids.length} modelo(s) selecionado(s)?`,
+      title: `Excluir ${sel.count} modelo(s) selecionado(s)?`,
       message: 'Essa ação não pode ser desfeita.',
       confirmLabel: 'Excluir',
       danger: true,
     });
     if (!ok) return;
-    setTemplates((prev) => prev.filter((x) => !ids.includes(x.id)));
-    setSelected(new Set());
+    await Promise.all(
+      [...sel.selected].map((id) => deleteTemplate.mutateAsync(id).catch(() => {})),
+    );
+    setActionsOpen(false);
+    sel.cancel();
   }
 
-  function toggleSelected(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  const pageIds = pageRows.map((t) => t.id);
-  const allChecked = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  function toggleSelectAll() {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allChecked) pageIds.forEach((id) => next.delete(id));
-      else pageIds.forEach((id) => next.add(id));
-      return next;
-    });
-  }
-  const selectedCount = pageIds.filter((id) => selected.has(id)).length;
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: deleteTemplate.isPending,
+      onClick: bulkDeleteSelected,
+    },
+  ];
 
   function exportCsv() {
     downloadCsv<AnamnesisTemplate>(
       'modelos-anamnese',
       [
         { header: 'Nome', value: (t) => t.name },
-        { header: 'Descrição', value: (t) => t.description },
-        { header: 'Perguntas', value: (t) => t.questions.length },
+        { header: 'Perguntas', value: (t) => questionsOf(t).length },
         { header: 'Status', value: (t) => (t.active ? 'Ativo' : 'Inativo') },
         { header: 'Criado em', value: (t) => formatDate(t.createdAt) },
       ],
@@ -218,31 +157,41 @@ export function AnamnesesPage() {
 
   // Mobile: BottomNav = [Filtros, Selecionar, Novo] (padrão Belasis).
   // A busca fica sempre visível no topo (input) — sem ação "Buscar" aqui.
-  // "Selecionar" habilita checkbox nos cards; "Filtros" abre bottom-sheet.
+  // Em selectMode a barra vira [Cancelar · Selecionar todos · Ações] via
+  // buildSelectActions; "Ações" abre a BulkActionsSheet (Excluir selecionados).
   useSetPageActions(
-    [
-      {
-        key: 'filtros',
-        label: 'Filtros',
-        icon: <IconFilter size={22} />,
-        onClick: () => setShowFilters(true),
-        active: showFilters,
-      },
-      {
-        key: 'selecionar',
-        label: 'Selecionar',
-        icon: <IconCheck size={22} />,
-        onClick: () => setSelectMode((v) => !v),
-        active: selectMode,
-      },
-      {
-        key: 'novo',
-        label: 'Novo',
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-    ],
-    [showFilters, selectMode],
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          {
+            key: 'filtros',
+            label: 'Filtros',
+            icon: <IconFilter size={22} />,
+            onClick: () => setShowFilters(true),
+            active: showFilters,
+          },
+          {
+            key: 'selecionar',
+            label: 'Selecionar',
+            icon: <IconCheck size={22} />,
+            onClick: sel.enter,
+            disabled: rows.length === 0,
+          },
+          {
+            key: 'novo',
+            label: 'Novo',
+            icon: <IconPlus size={22} />,
+            onClick: () => setCreateOpen(true),
+          },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count, showFilters, rows.length],
   );
 
   return (
@@ -292,16 +241,17 @@ export function AnamnesesPage() {
         </TextField>
       </div>
 
-      {/* Barra de seleção — some sem itens marcados. */}
-      {selectedCount > 0 && (
+      {/* Barra de seleção (desktop) — some sem itens marcados. No mobile as
+          ações em lote vivem na BottomNav ("Ações" → BulkActionsSheet). */}
+      {sel.count > 0 && (
         <div
-          className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm text-foreground"
+          className="mb-3 hidden items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm text-foreground md:flex"
           style={{ background: primaryTint(8) }}
         >
-          <span>{selectedCount} selecionado(s)</span>
+          <span>{sel.count} selecionado(s)</span>
           <button
             type="button"
-            onClick={handleBulkDelete}
+            onClick={bulkDeleteSelected}
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline"
           >
             <IconTrash size={14} /> Excluir
@@ -309,187 +259,190 @@ export function AnamnesesPage() {
         </div>
       )}
 
-      {/* ── DESKTOP: tabela antd-like + paginação ── */}
-      <div className="hidden md:block">
-        {rows.length === 0 ? (
-          <EmptyState
-            icon={<IconMessage size={32} />}
-            title={hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum modelo de anamnese'}
-            description={
-              hasFilters
-                ? 'Verifique seus filtros e tente novamente.'
-                : 'Crie modelos de ficha com perguntas para usar no atendimento.'
-            }
-            action={
-              hasFilters ? undefined : (
-                <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                  <IconPlus size={16} /> Clique para criar
-                </Button>
-              )
-            }
-          />
-        ) : (
-          <>
-            <div className="overflow-hidden rounded-2xl border border-line bg-card">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                    <th className="w-10 px-3 py-3">
-                      <Check checked={allChecked} onChange={toggleSelectAll} />
-                    </th>
-                    <th className="px-3 py-3 font-semibold">Nome</th>
-                    <th className="px-3 py-3 font-semibold">Descrição</th>
-                    <th className="px-3 py-3 font-semibold">Perguntas</th>
-                    <th className="px-3 py-3 font-semibold">Status</th>
-                    <th className="px-3 py-3 font-semibold">Criado em</th>
-                    <th className="w-24 px-3 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((t) => (
-                    <tr
-                      key={t.id}
-                      className="border-b border-line last:border-0 transition-colors hover:bg-canvas"
-                    >
-                      <td className="px-3 py-2.5">
-                        <Check
-                          checked={selected.has(t.id)}
-                          onChange={() => toggleSelected(t.id)}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
+      {templatesQ.isLoading ? (
+        <LoadingState />
+      ) : templatesQ.isError ? (
+        <ErrorState onRetry={() => templatesQ.refetch()} />
+      ) : (
+        <>
+          {/* ── DESKTOP: tabela antd-like + paginação ── */}
+          <div className="hidden md:block">
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={<IconMessage size={32} />}
+                title={hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum modelo de anamnese'}
+                description={
+                  hasFilters
+                    ? 'Verifique seus filtros e tente novamente.'
+                    : 'Crie modelos de ficha com perguntas para usar no atendimento.'
+                }
+                action={
+                  hasFilters ? undefined : (
+                    <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                      <IconPlus size={16} /> Clique para criar
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <>
+                <div className="overflow-hidden rounded-2xl border border-line bg-card">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                        <th className="w-10 px-3 py-3">
+                          <Check checked={sel.allSelected} onChange={sel.selectAll} />
+                        </th>
+                        <th className="px-3 py-3 font-semibold">Nome</th>
+                        <th className="px-3 py-3 font-semibold">Perguntas</th>
+                        <th className="px-3 py-3 font-semibold">Status</th>
+                        <th className="px-3 py-3 font-semibold">Criado em</th>
+                        <th className="w-24 px-3 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageRows.map((t) => {
+                        const count = questionsOf(t).length;
+                        return (
+                          <tr
+                            key={t.id}
+                            className={[
+                              'border-b border-line last:border-0 transition-colors hover:bg-canvas',
+                              sel.isSelected(t.id) ? 'bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)]' : '',
+                            ].join(' ')}
+                          >
+                            <td className="px-3 py-2.5">
+                              <Check
+                                checked={sel.isSelected(t.id)}
+                                onChange={() => sel.toggle(t.id)}
+                              />
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditing(t)}
+                                className="truncate text-left font-medium text-foreground hover:text-gold"
+                              >
+                                {t.name}
+                              </button>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span
+                                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-gold-strong"
+                                style={{ background: primaryTint(12) }}
+                              >
+                                {count} {count === 1 ? 'pergunta' : 'perguntas'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <StatusBadge active={t.active} />
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-muted-ink">
+                              {formatDate(t.createdAt)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <RowActions
+                                onEdit={() => setEditing(t)}
+                                onDelete={() => handleDelete(t)}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  total={rows.length}
+                  page={page}
+                  pageCount={pageCount}
+                  onPage={setPage}
+                />
+              </>
+            )}
+          </div>
+
+          {/* ── MOBILE: cards compactos (~70-80px, 2 linhas) sem wrapper Card ──
+              Sem checkbox fixo — só aparece em selectMode (BottomNav → Selecionar).
+              Toque abre edição fora do selectMode; dentro dele, marca/desmarca. */}
+          <div className="md:hidden">
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={<IconMessage size={32} />}
+                title={hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum modelo de anamnese'}
+                description={
+                  hasFilters
+                    ? 'Verifique seus filtros e tente novamente.'
+                    : 'Crie modelos de ficha com perguntas para usar no atendimento.'
+                }
+                action={
+                  hasFilters ? undefined : (
+                    <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                      <IconPlus size={16} /> Clique para criar
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <>
+                <ul className="flex flex-col gap-2">
+                  {pageRows.map((t) => {
+                    const isSelected = sel.isSelected(t.id);
+                    const count = questionsOf(t).length;
+                    const onCardClick = () => {
+                      if (sel.selectMode) sel.toggle(t.id);
+                      else setEditing(t);
+                    };
+                    return (
+                      <li key={t.id}>
                         <button
                           type="button"
-                          onClick={() => setEditing(t)}
-                          className="truncate text-left font-medium text-foreground hover:text-gold"
-                        >
-                          {t.name}
-                        </button>
-                      </td>
-                      <td className="max-w-xs px-3 py-2.5 text-muted-ink">
-                        <span className="line-clamp-1">{t.description || '—'}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span
-                          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-gold-strong"
-                          style={{ background: primaryTint(12) }}
-                        >
-                          {t.questions.length}{' '}
-                          {t.questions.length === 1 ? 'pergunta' : 'perguntas'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <StatusBadge active={t.active} />
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-muted-ink">
-                        {formatDate(t.createdAt)}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <RowActions
-                          onEdit={() => setEditing(t)}
-                          onDelete={() => handleDelete(t)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Pagination total={rows.length} page={page} pageCount={pageCount} onPage={setPage} />
-          </>
-        )}
-      </div>
-
-      {/* ── MOBILE: cards compactos (~70-80px, 2 linhas) sem wrapper Card ──
-          Sem checkbox fixo — só aparece em selectMode (BottomNav → Selecionar).
-          Toque abre edição fora do selectMode; dentro dele, marca/desmarca. */}
-      <div className="md:hidden">
-        {rows.length === 0 ? (
-          <EmptyState
-            icon={<IconMessage size={32} />}
-            title={hasFilters ? 'Nenhum modelo encontrado' : 'Nenhum modelo de anamnese'}
-            description={
-              hasFilters
-                ? 'Verifique seus filtros e tente novamente.'
-                : 'Crie modelos de ficha com perguntas para usar no atendimento.'
-            }
-            action={
-              hasFilters ? undefined : (
-                <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                  <IconPlus size={16} /> Clique para criar
-                </Button>
-              )
-            }
-          />
-        ) : (
-          <>
-            <ul className="flex flex-col gap-2">
-              {pageRows.map((t) => {
-                const isSelected = selected.has(t.id);
-                const onCardClick = () => {
-                  if (selectMode) toggleSelected(t.id);
-                  else setEditing(t);
-                };
-                return (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      onClick={onCardClick}
-                      className={[
-                        'flex w-full items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
-                        isSelected
-                          ? 'border-[var(--sp-primary)]'
-                          : 'border-line active:bg-canvas',
-                      ].join(' ')}
-                      style={
-                        isSelected ? { background: primaryTint(5) } : undefined
-                      }
-                    >
-                      {selectMode && (
-                        <span
-                          aria-hidden
+                          onClick={onCardClick}
                           className={[
-                            'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors',
-                            isSelected
-                              ? 'border-[var(--sp-primary)] bg-[var(--sp-primary)] text-white'
-                              : 'border-line bg-card',
+                            'flex w-full items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                            sel.selectMode && isSelected
+                              ? 'border-[var(--sp-primary)] ring-2 ring-[color-mix(in_oklab,var(--sp-primary)_40%,transparent)]'
+                              : 'border-line active:bg-canvas',
                           ].join(' ')}
+                          style={sel.selectMode && isSelected ? { background: primaryTint(5) } : undefined}
                         >
-                          {isSelected && <IconCheck size={13} />}
-                        </span>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[13px] font-semibold leading-5 text-foreground">
-                            {t.name}
-                          </span>
-                          <StatusBadge active={t.active} />
-                        </div>
-                        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] text-muted-ink">
-                          <span className="truncate">{t.description || '—'}</span>
-                          <span className="shrink-0">{t.questions.length} perg.</span>
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            {/* Mobile: "Ver mais" — avança para a próxima página (padrão Belasis). */}
-            {page < pageCount && (
-              <div className="mt-3">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                >
-                  Ver mais
-                </Button>
-              </div>
+                          {sel.selectMode && <AnimatedCheckbox checked={isSelected} />}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-[13px] font-semibold leading-5 text-foreground">
+                                {t.name}
+                              </span>
+                              <StatusBadge active={t.active} />
+                            </div>
+                            <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] text-muted-ink">
+                              <span className="truncate">
+                                {count} {count === 1 ? 'pergunta' : 'perguntas'}
+                              </span>
+                              <span className="shrink-0">{formatDate(t.createdAt)}</span>
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {/* Mobile: "Ver mais" — avança para a próxima página (padrão Belasis). */}
+                {page < pageCount && (
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                    >
+                      Ver mais
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Filtrar: Drawer (bottom-sheet no mobile, direita no desktop). */}
       <Drawer
@@ -548,20 +501,20 @@ export function AnamnesesPage() {
         mode="create"
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSave={(t) => {
-          upsertTemplate(t);
-          setCreateOpen(false);
-        }}
       />
       <AnamneseDrawer
         mode="edit"
         template={editing}
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
-        onSave={(t) => {
-          upsertTemplate(t);
-          setEditing(null);
-        }}
+      />
+
+      {/* Ações em lote (Belasis): bottom-sheet aberta pelo "Ações" do selectMode. */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
     </div>
   );
@@ -736,16 +689,15 @@ function AnamneseDrawer({
   template,
   isOpen,
   onClose,
-  onSave,
 }: {
   mode: 'create' | 'edit';
   template?: AnamnesisTemplate | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (t: AnamnesisTemplate) => void;
 }) {
+  const createTemplate = useCreateAnamnesisTemplate();
+  const updateTemplate = useUpdateAnamnesisTemplate();
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
   const [questions, setQuestions] = useState<AnamnesisQuestion[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -753,18 +705,20 @@ function AnamneseDrawer({
   useEffect(() => {
     if (!isOpen) return;
     setName(template?.name ?? '');
-    setDescription(template?.description ?? '');
     setActive(template?.active ?? true);
     setQuestions(
-      template?.questions.map((q) => ({ ...q })) ?? [{ id: genId(), label: '', type: 'text' }],
+      template?.questionsJson?.map((q) => ({ ...q })) ?? [
+        { id: genQid(), label: '', type: 'text' },
+      ],
     );
     setError(null);
   }, [isOpen, template]);
 
-  const canSave = name.trim().length >= 2;
+  const pending = createTemplate.isPending || updateTemplate.isPending;
+  const canSave = name.trim().length >= 2 && !pending;
 
   function addQuestion() {
-    setQuestions((prev) => [...prev, { id: genId(), label: '', type: 'text' }]);
+    setQuestions((prev) => [...prev, { id: genQid(), label: '', type: 'text' }]);
   }
   function removeQuestion(id: string) {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
@@ -773,22 +727,31 @@ function AnamneseDrawer({
     setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch } : q)));
   }
 
-  function handleSave() {
+  async function handleSave() {
     setError(null);
-    if (!canSave) {
+    if (name.trim().length < 2) {
       setError('Informe um nome com pelo menos 2 caracteres.');
       return;
     }
-    const cleanQuestions = questions.filter((q) => q.label.trim().length > 0);
-    // TODO: enviar para a API de modelos de anamnese quando existir.
-    onSave({
-      id: template?.id ?? genId(),
-      name: name.trim(),
-      description: description.trim(),
-      active,
-      questions: cleanQuestions,
-      createdAt: template?.createdAt ?? new Date().toISOString().slice(0, 10),
-    });
+    // Só perguntas com rótulo entram no questionsJson persistido.
+    const questionsJson: AnamnesisQuestion[] = questions
+      .filter((q) => q.label.trim().length > 0)
+      .map((q) => ({ id: q.id, label: q.label.trim(), type: q.type }));
+    try {
+      if (mode === 'edit' && template) {
+        await updateTemplate.mutateAsync({
+          id: template.id,
+          body: { name: name.trim(), questionsJson, active },
+        });
+      } else {
+        await createTemplate.mutateAsync({ name: name.trim(), questionsJson, active });
+      }
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível salvar o modelo.',
+      );
+    }
   }
 
   return (
@@ -807,7 +770,7 @@ function AnamneseDrawer({
             isDisabled={!canSave}
             onClick={handleSave}
           >
-            Salvar
+            {pending ? 'Salvando…' : 'Salvar'}
           </Button>
         </>
       }
@@ -819,15 +782,9 @@ function AnamneseDrawer({
           </TextField>
         </Field>
 
-        <Field label="Descrição">
-          <TextField value={description} onChange={setDescription} aria-label="Descrição">
-            <Input placeholder="Breve descrição do modelo" />
-          </TextField>
-        </Field>
-
         <Toggle label="Modelo ativo" checked={active} onChange={setActive} />
 
-        {/* Construtor de perguntas */}
+        {/* Construtor de perguntas — persiste em questionsJson. */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-muted-ink">Perguntas</label>
@@ -865,7 +822,7 @@ function AnamneseDrawer({
                       aria-label={`Tipo da pergunta ${i + 1}`}
                       selectedKey={q.type}
                       onSelectionChange={(k) =>
-                        updateQuestion(q.id, { type: String(k) as QuestionType })
+                        updateQuestion(q.id, { type: String(k) as AnamnesisQuestionType })
                       }
                       className="w-full sm:w-44"
                     >

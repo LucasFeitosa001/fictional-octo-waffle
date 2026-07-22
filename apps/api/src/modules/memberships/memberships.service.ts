@@ -31,7 +31,10 @@ export class MembershipsService {
         services: {
           create: dto.services.map((s) => ({
             serviceId: s.serviceId,
-            quantityPerCycle: s.quantityPerCycle,
+            quantityPerCycle: s.quantityPerCycle ?? 1,
+            unitPrice: s.unitPrice,
+            discount: s.discount,
+            quantity: s.quantity,
           })),
         },
       },
@@ -60,7 +63,10 @@ export class MembershipsService {
           data: dto.services.map((s) => ({
             membershipPlanId: id,
             serviceId: s.serviceId,
-            quantityPerCycle: s.quantityPerCycle,
+            quantityPerCycle: s.quantityPerCycle ?? 1,
+            unitPrice: s.unitPrice,
+            discount: s.discount,
+            quantity: s.quantity,
           })),
         });
       }

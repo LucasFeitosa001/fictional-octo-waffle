@@ -3,11 +3,16 @@ import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { CreateSheetProvider, PageActionsProvider } from './PageActions';
+import { CreateDrawerHost, CreateDrawerProvider } from './CreateDrawer';
 import { ConfirmProvider } from '../components/ConfirmDialog';
 import { ChatSupportDrawer } from '../components/ChatSupportDrawer';
 import { IconMessage } from '../components/icons';
+import { useThemeSync } from '../theme/useThemeSync';
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
+  // Pull the account's theme once the session is available (localStorage stays
+  // the fast pre-paint cache; the account is the cross-device source of truth).
+  useThemeSync();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const { pathname } = useLocation();
@@ -18,6 +23,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <PageActionsProvider>
     <CreateSheetProvider>
+    <CreateDrawerProvider>
     <ConfirmProvider>
     <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop static sidebar */}
@@ -89,8 +95,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
       {/* Drawer do chat de suporte — POST /help/chat (Claude Haiku). */}
       <ChatSupportDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
+
+      {/* Create-in-place host — abre o drawer da entidade direto (Sidebar/BottomNav
+          "Novo") sem navegar. Uma única instância global, dentro do provider. */}
+      <CreateDrawerHost />
     </div>
     </ConfirmProvider>
+    </CreateDrawerProvider>
     </CreateSheetProvider>
     </PageActionsProvider>
   );

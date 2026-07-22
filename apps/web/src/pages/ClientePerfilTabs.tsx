@@ -14,15 +14,22 @@ import {
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../components/Drawer';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { useConfirm } from '../components/ConfirmDialog';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconCalendar,
   IconCash,
+  IconCheck,
+  IconChevron,
+  IconDownload,
+  IconExternalLink,
   IconFolder,
   IconGift,
   IconInfo,
   IconLayers,
+  IconLink,
   IconMessage,
+  IconPencil,
   IconPlus,
   IconReceipt,
   IconTrash,
@@ -33,24 +40,38 @@ import { formatDate, formatDateTime, formatMoney, initials, toDateInput } from '
 import { useUploadImage } from '../hooks/useUploadImage';
 import { useCustomers } from '../lib/queries';
 import {
+  useAdjustCashback,
   useCreateAnamnesis,
   useCreateCustomer,
+  useCreateCustomerFile,
   useCreateDebt,
   useCreateNote,
+  useCustomerFiles,
+  useDeleteCustomerFile,
   useCustomerAnamneses,
   useCustomerAppointments,
   useCustomerCashback,
+  useRedeemCashback,
   useCustomerCredits,
   useCustomerDebts,
   useCustomerNotes,
   useCustomerOrders,
   useCustomerPackages,
   useCustomerPanel,
+  useDeleteAnamnesis,
   usePayDebt,
+  useUpdateAnamnesis,
   useUpdateCustomer,
+  type CustomerAnamnesisView,
   type CustomerBody,
   type CustomerDependentInput,
+  type CustomerSocialProfileInput,
 } from '../lib/queries/clientes';
+import {
+  useAnamnesisTemplates,
+  type AnamnesisQuestion,
+  type AnamnesisTemplate,
+} from '../lib/queries/anamnese';
 import type { CustomerDebt, CustomerFull } from '../lib/types';
 
 // =====================================================================
@@ -120,6 +141,18 @@ function ToggleRow({
   );
 }
 
+// Redes sociais suportadas na UI. `key` é o valor gravado em
+// CustomerSocialProfileInput.platform; `label`/`placeholder` são só apresentação.
+const SOCIAL_PLATFORMS: { key: string; label: string; placeholder: string }[] = [
+  { key: 'instagram', label: 'Instagram', placeholder: '@usuario ou link do perfil' },
+  { key: 'facebook', label: 'Facebook', placeholder: 'Link do perfil' },
+  { key: 'tiktok', label: 'TikTok', placeholder: '@usuario ou link' },
+  { key: 'youtube', label: 'YouTube', placeholder: 'Link do canal' },
+  { key: 'linkedin', label: 'LinkedIn', placeholder: 'Link do perfil' },
+  { key: 'twitter', label: 'X / Twitter', placeholder: '@usuario ou link' },
+  { key: 'website', label: 'Site', placeholder: 'https://…' },
+];
+
 // =====================================================================
 // Form de cadastro (usado no "Novo cliente" e na aba Cadastro do perfil)
 // =====================================================================
@@ -162,6 +195,20 @@ function CustomerForm({
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [dependents, setDependents] = useState<CustomerDependentInput[]>([]);
+  // Redes sociais — mapa plataforma→url (só-UI; grava via socialProfiles no body).
+  const [socials, setSocials] = useState<Record<string, string>>({});
+  const [socialsOpen, setSocialsOpen] = useState(false);
+  // Endereço embutido + observações livres.
+  const [cep, setCep] = useState('');
+  const [street, setStreet] = useState('');
+  const [number, setNumber] = useState('');
+  const [district, setDistrict] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [complement, setComplement] = useState('');
+  const [observations, setObservations] = useState('');
+  const [addressOpen, setAddressOpen] = useState(false);
+  const [cepLoading, setCepLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -239,6 +286,34 @@ function CustomerForm({
         relationship: d.relationship ?? '',
       })) ?? [],
     );
+    const socialMap: Record<string, string> = {};
+    for (const sp of customer?.socialProfiles ?? []) {
+      if (sp.platform) socialMap[sp.platform] = sp.url ?? '';
+    }
+    setSocials(socialMap);
+    // Abre a seção já com dados para não esconder informação existente.
+    setSocialsOpen(Object.keys(socialMap).length > 0);
+    setCep(customer?.cep ?? '');
+    setStreet(customer?.street ?? '');
+    setNumber(customer?.number ?? '');
+    setDistrict(customer?.district ?? '');
+    setCity(customer?.city ?? '');
+    setState(customer?.state ?? '');
+    setComplement(customer?.complement ?? '');
+    setObservations(customer?.observations ?? '');
+    // Abre a seção de endereço se já houver algum dado gravado.
+    setAddressOpen(
+      Boolean(
+        customer?.cep ||
+          customer?.street ||
+          customer?.number ||
+          customer?.district ||
+          customer?.city ||
+          customer?.state ||
+          customer?.complement,
+      ),
+    );
+    setCepLoading(false);
     setError(null);
   }, [customer]);
 
@@ -258,6 +333,35 @@ function CustomerForm({
 
   function updateDependent(i: number, patch: Partial<CustomerDependentInput>) {
     setDependents((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  }
+
+  // Auto-preenchimento de endereço via ViaCEP quando o CEP tem 8 dígitos.
+  async function handleCepBlur() {
+    const digits = cep.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setCepLoading(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = (await res.json()) as {
+        erro?: boolean;
+        logradouro?: string;
+        bairro?: string;
+        localidade?: string;
+        uf?: string;
+        complemento?: string;
+      };
+      if (!data.erro) {
+        if (data.logradouro) setStreet(data.logradouro);
+        if (data.bairro) setDistrict(data.bairro);
+        if (data.localidade) setCity(data.localidade);
+        if (data.uf) setState(data.uf);
+        if (data.complemento && !complement.trim()) setComplement(data.complemento);
+      }
+    } catch {
+      // Silencioso: falha de rede não deve bloquear o cadastro manual.
+    } finally {
+      setCepLoading(false);
+    }
   }
 
   async function handleSave() {
@@ -289,6 +393,19 @@ function CustomerForm({
           name: d.name.trim(),
           relationship: d.relationship?.trim() || undefined,
         })),
+      socialProfiles: SOCIAL_PLATFORMS.reduce<CustomerSocialProfileInput[]>((acc, p) => {
+        const url = (socials[p.key] ?? '').trim();
+        if (url) acc.push({ platform: p.key, url });
+        return acc;
+      }, []),
+      cep: cep.trim() || undefined,
+      street: street.trim() || undefined,
+      number: number.trim() || undefined,
+      district: district.trim() || undefined,
+      city: city.trim() || undefined,
+      state: state.trim() || undefined,
+      complement: complement.trim() || undefined,
+      observations: observations.trim() || undefined,
     };
     try {
       if (mode === 'edit' && customer) {
@@ -556,6 +673,135 @@ function CustomerForm({
               <IconPlus size={14} /> Adicionar dependente
             </Button>
           </div>
+        </Field>
+      </div>
+
+      {/* --- Redes sociais (colapsável) --- */}
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => setSocialsOpen((v) => !v)}
+          aria-expanded={socialsOpen}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <IconLink size={14} className="text-[#a97e18]" />
+            <SectionTitle>Redes sociais</SectionTitle>
+          </span>
+          <IconChevron
+            size={18}
+            className={`shrink-0 text-muted transition-transform duration-200 ${
+              socialsOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        <div
+          className={`grid transition-all duration-200 ease-out ${
+            socialsOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {SOCIAL_PLATFORMS.map((p) => (
+                <Field key={p.key} label={p.label}>
+                  <TextField
+                    value={socials[p.key] ?? ''}
+                    onChange={(v) => setSocials((prev) => ({ ...prev, [p.key]: v }))}
+                    aria-label={p.label}
+                  >
+                    <Input placeholder={p.placeholder} />
+                  </TextField>
+                </Field>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* --- Endereço (colapsável, com auto-preenchimento ViaCEP) --- */}
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => setAddressOpen((v) => !v)}
+          aria-expanded={addressOpen}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <SectionTitle>Endereço</SectionTitle>
+          </span>
+          <IconChevron
+            size={18}
+            className={`shrink-0 text-muted transition-transform duration-200 ${
+              addressOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        <div
+          className={`grid transition-all duration-200 ease-out ${
+            addressOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="CEP" help="Digite o CEP para preencher o endereço automaticamente">
+                <div className="relative">
+                  <TextField value={cep} onChange={setCep} aria-label="CEP">
+                    <Input placeholder="00000-000" inputMode="numeric" onBlur={handleCepBlur} />
+                  </TextField>
+                  {cepLoading && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <Spinner size="sm" />
+                    </span>
+                  )}
+                </div>
+              </Field>
+              <Field label="Logradouro">
+                <TextField value={street} onChange={setStreet} aria-label="Logradouro">
+                  <Input placeholder="Rua, avenida…" />
+                </TextField>
+              </Field>
+              <Field label="Número">
+                <TextField value={number} onChange={setNumber} aria-label="Número">
+                  <Input placeholder="Nº" />
+                </TextField>
+              </Field>
+              <Field label="Bairro">
+                <TextField value={district} onChange={setDistrict} aria-label="Bairro">
+                  <Input placeholder="Bairro" />
+                </TextField>
+              </Field>
+              <Field label="Cidade">
+                <TextField value={city} onChange={setCity} aria-label="Cidade">
+                  <Input placeholder="Cidade" />
+                </TextField>
+              </Field>
+              <Field label="Estado">
+                <TextField value={state} onChange={setState} aria-label="Estado">
+                  <Input placeholder="UF" />
+                </TextField>
+              </Field>
+              <Field label="Complemento" className="sm:col-span-2">
+                <TextField value={complement} onChange={setComplement} aria-label="Complemento">
+                  <Input placeholder="Apto, bloco, referência…" />
+                </TextField>
+              </Field>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* --- Observações --- */}
+      <div className="flex flex-col gap-3">
+        <SectionTitle>Observações</SectionTitle>
+        <Field label="Anotações gerais sobre o cliente">
+          <textarea
+            value={observations}
+            onChange={(e) => setObservations(e.target.value)}
+            aria-label="Observações"
+            rows={4}
+            placeholder="Preferências, restrições, informações relevantes…"
+            className="w-full resize-y rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
+          />
         </Field>
       </div>
 
@@ -1078,8 +1324,61 @@ function CreditosTab({ customerId }: { customerId: string }) {
 // Aba Cashback — extrato dedicado
 // =====================================================================
 
+type CashbackAction = 'grant' | 'redeem' | 'adjust';
+
+const CASHBACK_ACTION_LABEL: Record<CashbackAction, string> = {
+  grant: 'Gerar cashback',
+  redeem: 'Resgatar cashback',
+  adjust: 'Ajustar saldo',
+};
+
 function CashbackTab({ customerId }: { customerId: string }) {
   const q = useCustomerCashback(customerId);
+  const redeem = useRedeemCashback(customerId);
+  const adjust = useAdjustCashback(customerId);
+
+  const [action, setAction] = useState<CashbackAction | null>(null);
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const isPending = redeem.isPending || adjust.isPending;
+
+  function openAction(next: CashbackAction) {
+    setAction((prev) => (prev === next ? null : next));
+    setAmount('');
+    setNote('');
+    setError(null);
+  }
+
+  async function submit() {
+    if (!action) return;
+    setError(null);
+    const value = Number(amount.replace(',', '.'));
+    // "Ajustar" aceita valor negativo (débito manual); as demais exigem > 0.
+    const valid =
+      Number.isFinite(value) && (action === 'adjust' ? value !== 0 : value > 0);
+    if (!valid) {
+      setError('Informe um valor válido.');
+      return;
+    }
+    try {
+      if (action === 'redeem') {
+        await redeem.mutateAsync({ amount: value, note: note.trim() || undefined });
+      } else if (action === 'grant') {
+        // Gerar = crédito manual (adjust com valor positivo).
+        await adjust.mutateAsync({ amount: Math.abs(value), note: note.trim() || undefined });
+      } else {
+        await adjust.mutateAsync({ amount: value, note: note.trim() || undefined });
+      }
+      setAction(null);
+      setAmount('');
+      setNote('');
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível concluir a operação.',
+      );
+    }
+  }
 
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
@@ -1097,6 +1396,67 @@ function CashbackTab({ customerId }: { customerId: string }) {
           tone={data.saldo > 0 ? 'success' : undefined}
         />
       </div>
+
+      {/* Ações: Gerar / Resgatar / Ajustar */}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" size="sm" onClick={() => openAction('grant')}>
+          <IconPlus size={14} /> Gerar
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => openAction('redeem')}
+          isDisabled={data.saldo <= 0}
+        >
+          <IconGift size={14} /> Resgatar
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => openAction('adjust')}>
+          <IconPencil size={14} /> Ajustar
+        </Button>
+      </div>
+
+      {action && (
+        <Card className="border border-[var(--color-soft-border)] bg-white">
+          <Card.Content className="flex flex-col gap-3 p-3">
+            <div className="text-sm font-medium text-foreground">
+              {CASHBACK_ACTION_LABEL[action]}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label={action === 'adjust' ? 'Valor (+ credita / − debita)' : 'Valor (R$)'}
+                className="min-w-0"
+              >
+                <TextField
+                  value={amount}
+                  onChange={setAmount}
+                  className="min-w-0"
+                  aria-label="Valor"
+                >
+                  <Input placeholder={action === 'adjust' ? '0,00 ou -0,00' : '0,00'} inputMode="decimal" />
+                </TextField>
+              </Field>
+              <Field label="Observação (opcional)" className="min-w-0">
+                <TextField value={note} onChange={setNote} className="min-w-0" aria-label="Observação">
+                  <Input placeholder="Motivo do lançamento" />
+                </TextField>
+              </Field>
+            </div>
+            {error && (
+              <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setAction(null)}>
+                Cancelar
+              </Button>
+              <Button variant="primary" size="sm" onClick={submit} isDisabled={isPending}>
+                {isPending ? 'Salvando…' : 'Confirmar'}
+              </Button>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-2">
         <SectionTitle>Extrato de cashback</SectionTitle>
@@ -1120,7 +1480,12 @@ function CashbackTab({ customerId }: { customerId: string }) {
                       {c.expiresAt ? ` · expira ${formatDate(c.expiresAt)}` : ''}
                     </div>
                   </div>
-                  <span className="text-sm font-semibold text-success">
+                  <span
+                    className={[
+                      'text-sm font-semibold',
+                      Number(c.amount) < 0 ? 'text-danger' : 'text-success',
+                    ].join(' ')}
+                  >
                     {formatMoney(c.amount)}
                   </span>
                 </Card.Content>
@@ -1461,13 +1826,26 @@ function AnotacoesTab({ customerId }: { customerId: string }) {
 
 function AnamnesesTab({ customerId }: { customerId: string }) {
   const q = useCustomerAnamneses(customerId);
+  const templatesQ = useAnamnesisTemplates();
   const createAnamnesis = useCreateAnamnesis(customerId);
+  const templates = templatesQ.data ?? [];
+
+  const [creating, setCreating] = useState(false);
+  const [newTemplateId, setNewTemplateId] = useState('');
+  // Qual ficha está expandida para edição (uma por vez).
+  const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function addBlank() {
+  async function submitCreate() {
     setError(null);
     try {
-      await createAnamnesis.mutateAsync({});
+      const created = await createAnamnesis.mutateAsync({
+        templateId: newTemplateId || undefined,
+      });
+      setCreating(false);
+      setNewTemplateId('');
+      // Abre a ficha recém-criada já no editor de respostas.
+      setOpenId(created.id);
     } catch (err) {
       setError(
         err instanceof ApiClientError ? err.message : 'Não foi possível criar a ficha.',
@@ -1482,17 +1860,61 @@ function AnamnesesTab({ customerId }: { customerId: string }) {
         <Button
           variant="primary"
           size="sm"
-          isDisabled={createAnamnesis.isPending}
-          onClick={addBlank}
+          onClick={() => {
+            setCreating((v) => !v);
+            setNewTemplateId('');
+            setError(null);
+          }}
         >
-          <IconPlus size={14} /> {createAnamnesis.isPending ? 'Criando…' : 'Nova ficha'}
+          <IconPlus size={14} /> Nova ficha
         </Button>
       </div>
 
-      {error && (
-        <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {error}
-        </div>
+      {/* Criar: escolhe o MODELO (templateId) — o POST já aceita templateId. */}
+      {creating && (
+        <Card className="border border-[var(--color-soft-border)] bg-white">
+          <Card.Content className="flex flex-col gap-3 p-3">
+            <Field label="Modelo de anamnese">
+              <Select
+                aria-label="Modelo de anamnese"
+                selectedKey={newTemplateId || 'none'}
+                onSelectionChange={(k) => setNewTemplateId(k === 'none' ? '' : String(k))}
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item id="none" textValue="Sem modelo (em branco)">
+                      Sem modelo (em branco)
+                    </ListBox.Item>
+                    {templates
+                      .filter((t) => t.active)
+                      .map((t) => (
+                        <ListBox.Item key={t.id} id={t.id} textValue={t.name}>
+                          {t.name}
+                        </ListBox.Item>
+                      ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
+            {error && <div className="text-xs text-danger">{error}</div>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" size="sm" onClick={() => setCreating(false)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                isDisabled={createAnamnesis.isPending}
+                onClick={submitCreate}
+              >
+                {createAnamnesis.isPending ? 'Criando…' : 'Criar ficha'}
+              </Button>
+            </div>
+          </Card.Content>
+        </Card>
       )}
 
       {q.isLoading ? (
@@ -1507,34 +1929,271 @@ function AnamnesesTab({ customerId }: { customerId: string }) {
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {(q.data ?? []).map((a) => {
-            const fields = a.answersJson ? Object.keys(a.answersJson).length : 0;
-            return (
-              <Card key={a.id} className="border border-[var(--color-soft-border)] bg-white">
-                <Card.Content className="flex items-center justify-between gap-2 p-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">
-                      Ficha de {formatDate(a.createdAt)}
-                    </div>
-                    <div className="text-xs text-muted">
-                      {fields > 0 ? `${fields} campo(s) preenchido(s)` : 'Sem respostas'}
-                      {a.signedAt ? ` · assinada ${formatDate(a.signedAt)}` : ''}
-                    </div>
-                  </div>
-                  <Chip
-                    variant="soft"
-                    color={a.signedAt ? 'success' : 'default'}
-                    size="sm"
-                  >
-                    {a.signedAt ? 'Assinada' : 'Aberta'}
-                  </Chip>
-                </Card.Content>
-              </Card>
-            );
-          })}
+          {(q.data ?? []).map((a) => (
+            <AnamnesisCard
+              key={a.id}
+              customerId={customerId}
+              anamnesis={a}
+              template={templates.find((t) => t.id === a.templateId) ?? null}
+              isOpen={openId === a.id}
+              onOpen={() => setOpenId(a.id)}
+              onClose={() => setOpenId(null)}
+            />
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+// Card de uma ficha de anamnese com editor de respostas inline (evita
+// Drawer aninhado dentro do Drawer do perfil). Renderiza as perguntas do
+// modelo, grava answersJson via PATCH, assina/des-assina e exclui.
+function AnamnesisCard({
+  customerId,
+  anamnesis,
+  template,
+  isOpen,
+  onOpen,
+  onClose,
+}: {
+  customerId: string;
+  anamnesis: CustomerAnamnesisView;
+  template: AnamnesisTemplate | null;
+  isOpen: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const confirm = useConfirm();
+  const update = useUpdateAnamnesis(customerId);
+  const remove = useDeleteAnamnesis(customerId);
+  const questions = template?.questionsJson ?? [];
+  const signed = Boolean(anamnesis.signedAt);
+  const [answers, setAnswers] = useState<Record<string, unknown>>(anamnesis.answersJson ?? {});
+  const [error, setError] = useState<string | null>(null);
+
+  // Re-sincroniza as respostas locais ao (re)abrir ou quando o servidor
+  // devolve uma versão nova da ficha (após salvar/assinar).
+  useEffect(() => {
+    setAnswers(anamnesis.answersJson ?? {});
+    setError(null);
+  }, [anamnesis.answersJson, isOpen]);
+
+  const filledCount = anamnesis.answersJson
+    ? Object.values(anamnesis.answersJson).filter(
+        (v) => v !== '' && v !== null && v !== undefined,
+      ).length
+    : 0;
+
+  async function saveAnswers() {
+    setError(null);
+    try {
+      await update.mutateAsync({ anamId: anamnesis.id, body: { answersJson: answers } });
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível salvar as respostas.',
+      );
+    }
+  }
+
+  async function sign() {
+    setError(null);
+    try {
+      // Assina gravando as respostas atuais + o carimbo signedAt.
+      await update.mutateAsync({
+        anamId: anamnesis.id,
+        body: { answersJson: answers, signedAt: new Date().toISOString() },
+      });
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível assinar a ficha.',
+      );
+    }
+  }
+
+  async function unsign() {
+    setError(null);
+    try {
+      await update.mutateAsync({ anamId: anamnesis.id, body: { signedAt: null } });
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível remover a assinatura.',
+      );
+    }
+  }
+
+  async function del() {
+    const ok = await confirm({
+      title: 'Excluir esta ficha de anamnese?',
+      message: 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    await remove.mutateAsync(anamnesis.id).catch(() => {});
+  }
+
+  return (
+    <Card className="border border-[var(--color-soft-border)] bg-white">
+      <Card.Content className="flex flex-col gap-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={isOpen ? onClose : onOpen}
+            className="min-w-0 flex-1 text-left"
+          >
+            <div className="truncate text-sm font-medium text-foreground">
+              {template?.name ?? 'Ficha sem modelo'}
+            </div>
+            <div className="text-xs text-muted">
+              {formatDate(anamnesis.createdAt)}
+              {' · '}
+              {filledCount > 0 ? `${filledCount} resposta(s)` : 'Sem respostas'}
+              {signed ? ` · assinada ${formatDate(anamnesis.signedAt as string)}` : ''}
+            </div>
+          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Chip variant="soft" color={signed ? 'success' : 'default'} size="sm">
+              {signed ? 'Assinada' : 'Aberta'}
+            </Chip>
+            <button
+              type="button"
+              aria-label={isOpen ? 'Fechar' : 'Editar'}
+              onClick={isOpen ? onClose : onOpen}
+              className="rounded p-1 text-muted transition-colors hover:text-[#a97e18]"
+            >
+              <IconPencil size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label="Excluir"
+              onClick={del}
+              disabled={remove.isPending}
+              className="rounded p-1 text-danger transition-colors hover:opacity-80 disabled:opacity-50"
+            >
+              <IconTrash size={16} />
+            </button>
+          </div>
+        </div>
+
+        {isOpen && (
+          <div className="flex flex-col gap-3 border-t border-[var(--color-soft-border)] pt-3">
+            {questions.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--color-soft-border)] px-3 py-3 text-center text-xs text-muted">
+                {template
+                  ? 'Este modelo não possui perguntas.'
+                  : 'Ficha sem modelo — nada para preencher.'}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {questions.map((qn) => (
+                  <AnswerField
+                    key={qn.id}
+                    question={qn}
+                    value={answers[qn.id]}
+                    readOnly={signed}
+                    onChange={(v) => setAnswers((prev) => ({ ...prev, [qn.id]: v }))}
+                  />
+                ))}
+              </div>
+            )}
+
+            {error && <div className="text-xs text-danger">{error}</div>}
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              {signed ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  isDisabled={update.isPending}
+                  onClick={unsign}
+                >
+                  {update.isPending ? 'Aguarde…' : 'Remover assinatura'}
+                </Button>
+              ) : (
+                <>
+                  {questions.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isDisabled={update.isPending}
+                      onClick={saveAnswers}
+                    >
+                      {update.isPending ? 'Salvando…' : 'Salvar respostas'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    isDisabled={update.isPending}
+                    onClick={sign}
+                  >
+                    <IconCheck size={14} /> Assinar
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </Card.Content>
+    </Card>
+  );
+}
+
+// Campo de resposta de uma pergunta do modelo. Quando a ficha está assinada
+// (readOnly) mostra o valor como texto estático; senão, input editável.
+function AnswerField({
+  question,
+  value,
+  readOnly,
+  onChange,
+}: {
+  question: AnamnesisQuestion;
+  value: unknown;
+  readOnly?: boolean;
+  onChange: (v: unknown) => void;
+}) {
+  if (readOnly) {
+    const display =
+      question.type === 'boolean'
+        ? value === true
+          ? 'Sim'
+          : value === false
+            ? 'Não'
+            : '—'
+        : value == null || value === ''
+          ? '—'
+          : String(value);
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs font-medium text-muted">{question.label}</span>
+        <span className="text-sm text-foreground">{display}</span>
+      </div>
+    );
+  }
+
+  if (question.type === 'boolean') {
+    return (
+      <Switch
+        isSelected={value === true}
+        onChange={onChange}
+        className="flex w-full items-center justify-between gap-3 py-1"
+      >
+        <span className="min-w-0 text-sm text-foreground">{question.label}</span>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+    );
+  }
+
+  const text = typeof value === 'string' ? value : value == null ? '' : String(value);
+  return (
+    <Field label={question.label}>
+      <TextField value={text} onChange={onChange} aria-label={question.label}>
+        <Input placeholder="Resposta" />
+      </TextField>
+    </Field>
   );
 }
 
@@ -1558,6 +2217,251 @@ export function CustomerCreateModal({
     >
       {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
     </Drawer>
+  );
+}
+
+// =====================================================================
+// Aba Imagens e Arquivos — galeria + upload
+// =====================================================================
+
+function formatFileSize(bytes: number | null): string {
+  if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+// Um arquivo é "imagem" quando o mimeType começa com image/ ou a URL termina
+// numa extensão de imagem conhecida (fallback quando o mimeType vem vazio).
+function isImageFile(file: { mimeType: string | null; url: string }): boolean {
+  if (file.mimeType?.startsWith('image/')) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic)$/i.test(file.url.split('?')[0] ?? '');
+}
+
+function ImagensTab({ customerId }: { customerId: string }) {
+  const filesQ = useCustomerFiles(customerId);
+  const createFile = useCreateCustomerFile(customerId);
+  const deleteFile = useDeleteCustomerFile(customerId);
+  const uploadImage = useUploadImage();
+  const confirm = useConfirm();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const busy = uploadImage.isPending || createFile.isPending;
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (picked.length === 0) return;
+    setError(null);
+    try {
+      for (const file of picked) {
+        const { url } = await uploadImage.mutateAsync({ file, kind: 'customer' });
+        await createFile.mutateAsync({
+          url,
+          name: file.name || 'arquivo',
+          mimeType: file.type || undefined,
+          size: Number.isFinite(file.size) ? file.size : undefined,
+        });
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Não foi possível enviar o arquivo.',
+      );
+    }
+  }
+
+  async function handleDelete(id: string, name: string) {
+    const ok = await confirm({
+      title: 'Excluir arquivo?',
+      message: `“${name}” será removido permanentemente.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    setError(null);
+    try {
+      await deleteFile.mutateAsync(id);
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível excluir o arquivo.',
+      );
+    }
+  }
+
+  const files = filesQ.data ?? [];
+  const images = files.filter(isImageFile);
+  const docs = files.filter((f) => !isImageFile(f));
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <SectionTitle>Imagens e Arquivos</SectionTitle>
+        <Button
+          variant="primary"
+          size="sm"
+          isDisabled={busy}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {busy ? (
+            <>
+              <Spinner size="sm" /> Enviando…
+            </>
+          ) : (
+            <>
+              <IconPlus size={14} /> Enviar arquivo
+            </>
+          )}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={handlePick}
+        />
+      </div>
+
+      {error && (
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </div>
+      )}
+
+      {filesQ.isLoading ? (
+        <LoadingState />
+      ) : filesQ.isError ? (
+        <ErrorState onRetry={() => filesQ.refetch()} />
+      ) : files.length === 0 ? (
+        <EmptyState
+          icon={<IconFolder size={28} />}
+          title="Nenhum arquivo"
+          description="Envie imagens ou documentos para anexar ao cliente."
+        />
+      ) : (
+        <div className="flex flex-col gap-5">
+          {/* Galeria de imagens */}
+          {images.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-medium text-muted">Imagens</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {images.map((f) => (
+                  <div
+                    key={f.id}
+                    className="group relative overflow-hidden rounded-lg border border-[var(--color-soft-border)] bg-white"
+                  >
+                    <a
+                      href={f.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block aspect-square"
+                    >
+                      <img
+                        src={f.url}
+                        alt={f.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    </a>
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 bg-gradient-to-t from-black/60 to-transparent p-1.5">
+                      <span className="pointer-events-auto min-w-0 truncate text-[11px] text-white/90">
+                        {f.name}
+                      </span>
+                      <div className="pointer-events-auto flex shrink-0 gap-1">
+                        <a
+                          href={f.url}
+                          download={f.name}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Baixar ${f.name}`}
+                          className="rounded-md bg-white/90 p-1 text-foreground hover:bg-white"
+                        >
+                          <IconDownload size={13} />
+                        </a>
+                        <button
+                          type="button"
+                          aria-label={`Excluir ${f.name}`}
+                          className="rounded-md bg-white/90 p-1 text-danger hover:bg-white"
+                          onClick={() => handleDelete(f.id, f.name)}
+                        >
+                          <IconTrash size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Lista de arquivos (não-imagem) */}
+          {docs.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-medium text-muted">Arquivos</div>
+              <div className="flex flex-col gap-2">
+                {docs.map((f) => (
+                  <Card key={f.id} className="border border-[var(--color-soft-border)] bg-white">
+                    <Card.Content className="flex items-center gap-3 p-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#fdf7e8] text-[#a97e18]">
+                        <IconFolder size={18} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">
+                          {f.name}
+                        </div>
+                        <div className="text-xs text-muted">
+                          {formatDate(f.createdAt)}
+                          {formatFileSize(f.size) ? ` · ${formatFileSize(f.size)}` : ''}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <a
+                          href={f.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Abrir ${f.name}`}
+                          className="rounded-md p-1.5 text-muted hover:bg-canvas hover:text-foreground"
+                        >
+                          <IconExternalLink size={16} />
+                        </a>
+                        <a
+                          href={f.url}
+                          download={f.name}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Baixar ${f.name}`}
+                          className="rounded-md p-1.5 text-muted hover:bg-canvas hover:text-foreground"
+                        >
+                          <IconDownload size={16} />
+                        </a>
+                        <button
+                          type="button"
+                          aria-label={`Excluir ${f.name}`}
+                          className="rounded-md p-1.5 text-danger hover:bg-danger/10"
+                          onClick={() => handleDelete(f.id, f.name)}
+                        >
+                          <IconTrash size={16} />
+                        </button>
+                      </div>
+                    </Card.Content>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1674,16 +2578,7 @@ export function ClientePerfilModal({
                 </div>
               )}
               {tab === 'anotacoes' && <AnotacoesTab customerId={customer.id} />}
-              {tab === 'imagens' && (
-                <div className="flex flex-col gap-3">
-                  <SectionTitle>Imagens e Arquivos</SectionTitle>
-                  <EmptyState
-                    icon={<IconFolder size={28} />}
-                    title="Nenhum arquivo"
-                    description="As imagens e arquivos deste cliente aparecerão aqui."
-                  />
-                </div>
-              )}
+              {tab === 'imagens' && <ImagensTab customerId={customer.id} />}
               {tab === 'anamneses' && <AnamnesesTab customerId={customer.id} />}
               {tab === 'assinaturas' && (
                 <div className="flex flex-col gap-3">

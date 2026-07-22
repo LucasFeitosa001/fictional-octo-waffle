@@ -42,6 +42,11 @@ export class CreatePurchaseDto {
 
   /** Observações (Onda 7: Purchase.notes) — persistidas. */
   @IsOptional() @IsString() notes?: string;
+
+  /** Wave 2/3: número da nota fiscal + outras despesas/receitas. */
+  @IsOptional() @IsString() invoiceNumber?: string;
+  @IsOptional() @IsNumber() @Min(0) otherExpenses?: number;
+  @IsOptional() @IsNumber() @Min(0) otherIncome?: number;
 }
 
 export class UpdatePurchaseDto {
@@ -60,4 +65,9 @@ export class UpdatePurchaseDto {
   @IsOptional() @IsString() accountId?: string;
   @IsOptional() @IsString() paymentMethodId?: string;
   @IsOptional() @IsString() notes?: string;
+
+  /** Wave 2/3: número da nota fiscal + outras despesas/receitas. */
+  @IsOptional() @IsString() invoiceNumber?: string;
+  @IsOptional() @IsNumber() @Min(0) otherExpenses?: number;
+  @IsOptional() @IsNumber() @Min(0) otherIncome?: number;
 }

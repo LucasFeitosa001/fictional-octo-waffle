@@ -213,6 +213,33 @@ export function useUpdateReviewSettings() {
   });
 }
 
+// ===================== Cashback config (programa global) =====================
+export interface CashbackConfig {
+  cashbackActive: boolean;
+  cashbackValueType: 'percent' | 'value';
+  cashbackValue: number;
+  cashbackCanRedeem: boolean;
+  cashbackMinimum: number;
+}
+
+export type UpdateCashbackConfigBody = Partial<CashbackConfig>;
+
+export function useCashbackConfig() {
+  return useQuery({
+    queryKey: ['cashback-config'],
+    queryFn: () => api.get<CashbackConfig>('/cashback/config'),
+  });
+}
+
+export function useUpdateCashbackConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateCashbackConfigBody) =>
+      api.post<CashbackConfig>('/cashback/config', body),
+    onSuccess: (data) => queryClient.setQueryData(['cashback-config'], data),
+  });
+}
+
 // ===================== Cashback rules =====================
 export function useCashbackRules() {
   return useQuery({

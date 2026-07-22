@@ -8,6 +8,7 @@ import {
   TextField,
 } from '@heroui/react';
 import { Drawer } from './Drawer';
+import { CustomerAvatar } from './CustomerPickerDrawer';
 import { useNavigate } from 'react-router-dom';
 import { IconCalendar, IconChevron, IconInfo, IconSearch } from './icons';
 import {
@@ -38,6 +39,16 @@ interface NewAppointmentModalProps {
 }
 
 const NONE = '';
+
+// Um item do agendamento. O Belasis permite N serviços por agendamento (cada
+// item = serviço + profissional + duração). O backend aceita items[]; o start
+// (horário) é único e vem do primeiro item.
+interface ApptItem {
+  serviceId: string;
+  professionalId: string;
+  durationMin: number;
+}
+const emptyItem = (): ApptItem => ({ serviceId: '', professionalId: '', durationMin: 0 });
 
 // Cores de status do Belasis (mesma paleta calendar_* da Agenda). Usadas no
 // campo "Cor" do drawer, cujo padrão segue a cor do status selecionado.
@@ -157,12 +168,10 @@ export function NewAppointmentModal({
   initialDate,
 }: NewAppointmentModalProps) {
   const nav = useNavigate();
-  const [serviceId, setServiceId] = useState('');
-  const [professionalId, setProfessionalId] = useState('');
+  const [items, setItems] = useState<ApptItem[]>(() => [emptyItem()]);
   const [status, setStatus] = useState<AppointmentStatus>('confirmed');
   const [date, setDate] = useState(() => isoDate(new Date()));
   const [slotStart, setSlotStart] = useState('');
-  const [durationMin, setDurationMin] = useState(0);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string; phone?: string | null } | null>(null);
@@ -180,12 +189,16 @@ export function NewAppointmentModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  // O primeiro item define horário/disponibilidade — o agendamento tem um único
+  // start; itens extras são serviços adicionais na mesma comanda.
+  const primary = items[0] ?? emptyItem();
+
   const services = useServices();
   const professionals = useProfessionals();
   const customers = useCustomers(customerSearch);
   const availability = useAvailability(
-    serviceId || undefined,
-    professionalId || undefined,
+    primary.serviceId || undefined,
+    primary.professionalId || undefined,
     date || undefined,
   );
   const createAppointment = useCreateAppointment();
@@ -198,15 +211,30 @@ export function NewAppointmentModal({
   const customerItems = customers.data?.data ?? [];
   const slots = availability.data?.slots ?? [];
 
+  function updateItem(idx: number, patch: Partial<ApptItem>) {
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }
+  // Ao escolher o serviço, herda a duração dele (o usuário ainda pode trocar).
+  function pickService(idx: number, sid: string) {
+    const svc = serviceItems.find((s) => s.id === sid);
+    updateItem(idx, { serviceId: sid, durationMin: svc ? svc.durationMin : 0 });
+  }
+  function addItem() {
+    setItems((prev) => [...prev, emptyItem()]);
+  }
+  function removeItem(idx: number) {
+    // Última linha: em vez de remover (deixando 0 itens), limpa os campos.
+    setItems((prev) => (prev.length <= 1 ? [emptyItem()] : prev.filter((_, i) => i !== idx)));
+    if (items.length <= 1 || idx === 0) setSlotStart('');
+  }
+
   // Reset everything whenever the modal is (re)opened.
   useEffect(() => {
     if (isOpen) {
-      setServiceId('');
-      setProfessionalId('');
+      setItems([emptyItem()]);
       setStatus('confirmed');
       setDate(initialDate || isoDate(new Date()));
       setSlotStart('');
-      setDurationMin(0);
       setCustomerSearch('');
       setCustomerId('');
       setSelectedCustomer(null);
@@ -227,33 +255,27 @@ export function NewAppointmentModal({
   // Clear the picked slot when the inputs that produced it change.
   useEffect(() => {
     setSlotStart('');
-  }, [serviceId, professionalId, date]);
+  }, [primary.serviceId, primary.professionalId, date]);
 
-  const selectedService = useMemo(
-    () => serviceItems.find((s) => s.id === serviceId),
-    [serviceItems, serviceId],
+  const primaryService = useMemo(
+    () => serviceItems.find((s) => s.id === primary.serviceId),
+    [serviceItems, primary.serviceId],
   );
-
-  // Default the duration to the service's when a service is picked (the user can
-  // still override it).
-  useEffect(() => {
-    if (selectedService) setDurationMin(selectedService.durationMin);
-  }, [selectedService]);
 
   const durationOptions = useMemo(() => {
     const set = new Set([15, 30, 45, 60, 90, 120, 150, 180, 210, 240]);
-    if (selectedService) set.add(selectedService.durationMin);
-    if (durationMin) set.add(durationMin);
+    serviceItems.forEach((s) => set.add(s.durationMin));
+    items.forEach((it) => it.durationMin && set.add(it.durationMin));
     return [...set].sort((a, b) => a - b);
-  }, [selectedService, durationMin]);
+  }, [serviceItems, items]);
 
-  const canPickSlot = Boolean(serviceId && professionalId && date);
+  const canPickSlot = Boolean(primary.serviceId && primary.professionalId && date);
   const isBusy =
     createAppointment.isPending ||
     createCustomer.isPending ||
     setAppointmentStatus.isPending ||
     createOrder.isPending;
-  const canConfirm = Boolean(serviceId && professionalId && slotStart) && !isBusy;
+  const canConfirm = Boolean(primary.serviceId && primary.professionalId && slotStart) && !isBusy;
 
   const selectedCustomerName =
     selectedCustomer?.name ?? customerItems.find((c) => c.id === customerId)?.name;
@@ -266,6 +288,11 @@ export function NewAppointmentModal({
     const slot = slots.find((s: AvailabilitySlot) => s.start === slotStart);
     if (!slot) {
       setFormError('Selecione um horário disponível.');
+      return null;
+    }
+    const validItems = items.filter((it) => it.serviceId);
+    if (validItems.length === 0) {
+      setFormError('Selecione ao menos um serviço.');
       return null;
     }
     if (creatingNew && !newName.trim()) {
@@ -284,18 +311,28 @@ export function NewAppointmentModal({
 
       const reminderNote = sendReminder ? undefined : 'Sem lembrete automático.';
       const combinedNotes = [notes.trim() || null, reminderNote].filter(Boolean).join(' ') || undefined;
-      const dur = durationMin || selectedService?.durationMin || 60;
+      // Duração total = soma das durações dos itens (o start é único).
+      const dur =
+        validItems.reduce((sum, it) => sum + (it.durationMin || 0), 0) ||
+        primaryService?.durationMin ||
+        60;
       const endFor = (startIso: string) =>
         new Date(new Date(startIso).getTime() + dur * 60000).toISOString();
+
+      const apptProfessionalId = primary.professionalId || undefined;
+      const itemsPayload = validItems.map((it) => ({
+        serviceId: it.serviceId,
+        professionalId: it.professionalId || undefined,
+      }));
 
       const createdIds: string[] = [];
       const main = await createAppointment.mutateAsync({
         customerId: resolvedCustomerId,
-        professionalId,
+        professionalId: apptProfessionalId,
         start: slot.start,
         end: endFor(slot.start),
         notes: combinedNotes,
-        items: [{ serviceId, professionalId }],
+        items: itemsPayload,
       });
       createdIds.push(main.id);
 
@@ -307,11 +344,11 @@ export function NewAppointmentModal({
           try {
             const extra = await createAppointment.mutateAsync({
               customerId: resolvedCustomerId,
-              professionalId,
+              professionalId: apptProfessionalId,
               start,
               end: endFor(start),
               notes: combinedNotes,
-              items: [{ serviceId, professionalId }],
+              items: itemsPayload,
             });
             createdIds.push(extra.id);
           } catch {
@@ -365,7 +402,7 @@ export function NewAppointmentModal({
     try {
       await createOrder.mutateAsync({
         customerId: result.customerId,
-        professionalId,
+        professionalId: primary.professionalId || undefined,
         notes: notes.trim() || undefined,
       });
       setSuccess(true);
@@ -384,13 +421,19 @@ export function NewAppointmentModal({
           Mobile: Ajuda oculto pra dar espaço; Cancelar/Salvar full-width empilhados;
           Criar comanda esconde no mobile (user pode criar comanda a partir do
           drawer do agendamento depois — evita layout quebrado com 4 botões). */}
-      <Button variant="outline" className="mr-auto hidden gap-1.5 text-muted md:inline-flex" onClick={() => onOpenChange(false)}>
+      {/* Ajuda abre a Central de Ajuda numa nova aba — não fecha o drawer, pra
+          não perder o agendamento em andamento. */}
+      <Button
+        variant="outline"
+        className="mr-auto hidden gap-1.5 text-muted md:inline-flex"
+        onClick={() => window.open('/ajuda', '_blank', 'noopener,noreferrer')}
+      >
         Ajuda <IconInfo size={15} />
       </Button>
       {/* Dica de validação mobile — só quando Salvar tá disabled */}
       {!canConfirm && !isBusy && (
         <span className="mr-auto w-full text-[11px] text-muted-ink md:hidden">
-          {!serviceId ? 'Escolha um serviço' : !professionalId ? 'Escolha um profissional' : !slotStart ? 'Escolha um horário' : ''}
+          {!primary.serviceId ? 'Escolha um serviço' : !primary.professionalId ? 'Escolha um profissional' : !slotStart ? 'Escolha um horário' : ''}
         </span>
       )}
       <Button variant="outline" className="flex-1 md:flex-none" onClick={() => onOpenChange(false)}>
@@ -450,9 +493,25 @@ export function NewAppointmentModal({
             <div className="grid h-[120px] w-[120px] place-items-center rounded-full bg-cream text-primary/70">
               <UserGlyph />
             </div>
-            <div className="w-full max-w-[220px] truncate rounded-lg border border-default-200 bg-white px-3 py-2.5 text-center text-sm text-muted">
-              {selectedCustomerName ?? 'Busque pelo cliente'}
-            </div>
+            {/* Busca de cliente pelo rail: abre o mesmo bottom-sheet do campo
+                "Cliente" (useCustomers(customerSearch) já alimenta a lista). */}
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className={
+                'flex w-full max-w-[220px] items-center justify-center gap-1.5 truncate rounded-lg border border-default-200 bg-white px-3 py-2.5 text-center text-sm transition-colors hover:border-primary hover:text-foreground ' +
+                (selectedCustomerName ? 'text-foreground' : 'text-muted')
+              }
+            >
+              {selectedCustomerName ? (
+                <span className="truncate">{selectedCustomerName}</span>
+              ) : (
+                <>
+                  <IconSearch size={14} className="shrink-0" />
+                  <span className="truncate">Busque pelo cliente</span>
+                </>
+              )}
+            </button>
           </aside>
 
           {/* ── Formulário principal ─────────────────────────────────────── */}
@@ -568,128 +627,146 @@ export function NewAppointmentModal({
               </Field>
             </div>
 
-            {/* ── Itens do agendamento ─────────────────────────────────── */}
+            {/* ── Itens do agendamento (N serviços por agendamento) ────── */}
             <div className="flex flex-col gap-3">
               <h3 className="text-base font-semibold text-foreground">Itens do agendamento</h3>
-              <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12 lg:items-end">
-                <Field label="Descrição" className="lg:col-span-5">
-                  <Select
-                    aria-label="Serviço"
-                    selectedKey={serviceId || null}
-                    onSelectionChange={(k) => setServiceId(k ? String(k) : NONE)}
-                  >
-                    <Select.Trigger className={triggerCls}>
-                      <Select.Value>
-                        {({ isPlaceholder, selectedText }) =>
-                          isPlaceholder ? 'Selecionar serviço' : selectedText
-                        }
-                      </Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {serviceItems.map((s) => (
-                          <ListBox.Item key={s.id} id={s.id} textValue={s.name}>
-                            {s.name} · {formatDuration(s.durationMin)} · {formatMoney(s.price)}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </Field>
 
-                <Field label="Profissional" className="lg:col-span-3">
-                  <Select
-                    aria-label="Profissional"
-                    selectedKey={professionalId || null}
-                    onSelectionChange={(k) => setProfessionalId(k ? String(k) : NONE)}
-                  >
-                    <Select.Trigger className={triggerCls}>
-                      <Select.Value>
-                        {({ isPlaceholder, selectedText }) =>
-                          isPlaceholder ? 'Selecionar profissional' : selectedText
-                        }
-                      </Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {professionalItems.map((p) => (
-                          <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
-                            {p.name}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </Field>
-
-                <Field label="Horário" className="lg:col-span-2">
-                  <Select
-                    aria-label="Horário"
-                    selectedKey={slotStart || null}
-                    isDisabled={!canPickSlot || slots.length === 0}
-                    onSelectionChange={(k) => { setSlotStart(k ? String(k) : NONE); setFormError(null); }}
-                  >
-                    <Select.Trigger className={triggerCls}>
-                      <Select.Value>
-                        {({ isPlaceholder, selectedText }) =>
-                          isPlaceholder ? 'Horário' : selectedText
-                        }
-                      </Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {slots.map((slot: AvailabilitySlot) => (
-                          <ListBox.Item key={slot.start} id={slot.start} textValue={formatSlotTime(slot.start)}>
-                            {formatSlotTime(slot.start)}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </Field>
-
-                <div className="flex items-end gap-2 lg:col-span-2">
-                  <Field label="Duração" className="flex-1">
+              {items.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12 lg:items-end">
+                  <Field label={idx === 0 ? 'Descrição' : `Item ${idx + 1}`} className="lg:col-span-5">
                     <Select
-                      aria-label="Duração"
-                      selectedKey={durationMin ? String(durationMin) : null}
-                      onSelectionChange={(k) => setDurationMin(Number(k) || 0)}
+                      aria-label="Serviço"
+                      selectedKey={item.serviceId || null}
+                      onSelectionChange={(k) => pickService(idx, k ? String(k) : NONE)}
                     >
                       <Select.Trigger className={triggerCls}>
                         <Select.Value>
                           {({ isPlaceholder, selectedText }) =>
-                            isPlaceholder ? 'Duração' : selectedText
+                            isPlaceholder ? 'Selecionar serviço' : selectedText
                           }
                         </Select.Value>
                       </Select.Trigger>
                       <Select.Popover>
                         <ListBox>
-                          {durationOptions.map((m) => (
-                            <ListBox.Item key={m} id={String(m)} textValue={formatDuration(m)}>
-                              {formatDuration(m)}
+                          {serviceItems.map((s) => (
+                            <ListBox.Item key={s.id} id={s.id} textValue={s.name}>
+                              {s.name} · {formatDuration(s.durationMin)} · {formatMoney(s.price)}
                             </ListBox.Item>
                           ))}
                         </ListBox>
                       </Select.Popover>
                     </Select>
                   </Field>
-                  <button
-                    type="button"
-                    aria-label="Remover item"
-                    title="Remover item"
-                    onClick={() => { setServiceId(''); setSlotStart(''); setDurationMin(0); }}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-default-200 text-muted transition-colors hover:border-danger/40 hover:text-danger"
-                  >
-                    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
 
-              {selectedService?.description && (
+                  <Field label="Profissional" className="lg:col-span-3">
+                    <Select
+                      aria-label="Profissional"
+                      selectedKey={item.professionalId || null}
+                      onSelectionChange={(k) => updateItem(idx, { professionalId: k ? String(k) : NONE })}
+                    >
+                      <Select.Trigger className={triggerCls}>
+                        <Select.Value>
+                          {({ isPlaceholder, selectedText }) =>
+                            isPlaceholder ? 'Selecionar profissional' : selectedText
+                          }
+                        </Select.Value>
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {professionalItems.map((p) => (
+                            <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                              {p.name}
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </Field>
+
+                  {/* Horário = start do agendamento; só o 1º item o define. Os
+                      demais mantêm alinhamento com um espaçador no desktop. */}
+                  {idx === 0 ? (
+                    <Field label="Horário" className="lg:col-span-2">
+                      <Select
+                        aria-label="Horário"
+                        selectedKey={slotStart || null}
+                        isDisabled={!canPickSlot || slots.length === 0}
+                        onSelectionChange={(k) => { setSlotStart(k ? String(k) : NONE); setFormError(null); }}
+                      >
+                        <Select.Trigger className={triggerCls}>
+                          <Select.Value>
+                            {({ isPlaceholder, selectedText }) =>
+                              isPlaceholder ? 'Horário' : selectedText
+                            }
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {slots.map((slot: AvailabilitySlot) => (
+                              <ListBox.Item key={slot.start} id={slot.start} textValue={formatSlotTime(slot.start)}>
+                                {formatSlotTime(slot.start)}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </Field>
+                  ) : (
+                    <div className="hidden lg:col-span-2 lg:block" aria-hidden />
+                  )}
+
+                  <div className="flex items-end gap-2 lg:col-span-2">
+                    <Field label="Duração" className="flex-1">
+                      <Select
+                        aria-label="Duração"
+                        selectedKey={item.durationMin ? String(item.durationMin) : null}
+                        onSelectionChange={(k) => updateItem(idx, { durationMin: Number(k) || 0 })}
+                      >
+                        <Select.Trigger className={triggerCls}>
+                          <Select.Value>
+                            {({ isPlaceholder, selectedText }) =>
+                              isPlaceholder ? 'Duração' : selectedText
+                            }
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {durationOptions.map((m) => (
+                              <ListBox.Item key={m} id={String(m)} textValue={formatDuration(m)}>
+                                {formatDuration(m)}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </Field>
+                    <button
+                      type="button"
+                      aria-label={items.length > 1 ? 'Remover item' : 'Limpar item'}
+                      title={items.length > 1 ? 'Remover item' : 'Limpar item'}
+                      onClick={() => removeItem(idx)}
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-default-200 text-muted transition-colors hover:border-danger/40 hover:text-danger"
+                    >
+                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Belasis: "adicionar item" — nova linha de serviço na comanda. */}
+              <button
+                type="button"
+                onClick={addItem}
+                className="mt-0.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-default-300 px-3 py-2.5 text-sm font-medium text-gold-strong transition-colors hover:border-gold-strong hover:bg-cream md:w-auto md:self-start"
+              >
+                <span className="text-base leading-none">＋</span> Adicionar item
+              </button>
+
+              {primaryService?.description && (
                 <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted">
-                  {selectedService.description}
+                  {primaryService.description}
                 </p>
               )}
               {canPickSlot && availability.isFetching && (
@@ -860,20 +937,24 @@ function CustomerPickerDrawer({
           <ul className="flex flex-col divide-y divide-default-200 rounded-lg border border-default-200 bg-white">
             {items.map((c) => {
               const isSelected = c.id === selectedId;
+              const avatarUrl = (c as Customer & { avatarUrl?: string | null }).avatarUrl;
               return (
                 <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => onPick(c)}
                     className={
-                      'flex w-full flex-col items-start gap-0.5 px-3 py-3 text-left transition-colors hover:bg-cream ' +
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-cream ' +
                       (isSelected ? 'bg-cream' : '')
                     }
                   >
-                    <span className="truncate text-sm font-medium text-foreground">{c.name}</span>
-                    {c.phone ? (
-                      <span className="truncate text-xs text-muted">{c.phone}</span>
-                    ) : null}
+                    <CustomerAvatar name={c.name} avatarUrl={avatarUrl} />
+                    <span className="flex min-w-0 flex-col leading-tight">
+                      <span className="truncate text-sm font-medium text-foreground">{c.name}</span>
+                      {c.phone ? (
+                        <span className="truncate text-xs text-muted">{c.phone}</span>
+                      ) : null}
+                    </span>
                   </button>
                 </li>
               );

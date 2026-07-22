@@ -16,6 +16,7 @@ import {
   CreatePromotionDto,
   UpdateBookingLinkDto,
   UpdateBusinessHoursDto,
+  UpdateCashbackConfigDto,
   UpdateCashbackRuleDto,
   UpdatePromotionDto,
   UpdateReviewSettingsDto,
@@ -154,6 +155,20 @@ export class MarketingController {
     @Body() dto: UpdateReviewSettingsDto,
   ) {
     return this.service.updateReviewSettings(companyId, dto);
+  }
+
+  // ---- cashback config (programa global) ----
+  @Get('cashback/config')
+  getCashbackConfig(@CurrentUser('companyId') companyId: string) {
+    return this.service.getCashbackConfig(companyId);
+  }
+
+  @Post('cashback/config')
+  updateCashbackConfig(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: UpdateCashbackConfigDto,
+  ) {
+    return this.service.updateCashbackConfig(companyId, dto);
   }
 
   // ---- cashback rules ----

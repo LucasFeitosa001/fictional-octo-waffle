@@ -44,7 +44,8 @@ import {
 import { useSession, signOut } from '../lib/auth';
 import { NotificationBell } from '../components/NotificationBell';
 import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
-import { CREATE_GROUPS, useCreateSheet } from './PageActions';
+import { CREATE_GROUPS, type CreateItem } from './PageActions';
+import { useCreateDrawer } from './CreateDrawer';
 
 type IconType = ComponentType<{ size?: number }>;
 
@@ -293,7 +294,7 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const { data: session } = useSession();
-  const { openSheet: openCreateSheet } = useCreateSheet();
+  const { openCreate } = useCreateDrawer();
 
   const [collapsed, setCollapsed] = useState(() => {
     if (mobile) return false;
@@ -303,20 +304,25 @@ export function Sidebar({
 
   const activeGroupKey = findActiveGroupKey(location.pathname);
   const [collapsedGroups, setCollapsedGroups] = useState(() => {
-    // Mobile: sempre começa com TODOS os grupos colapsados (ignora localStorage
-    // e não expande o grupo ativo). O user quer sempre abrir o drawer "reclusos".
-    if (mobile) return new Set(DEFAULT_COLLAPSED_GROUPS);
-    const initial = loadCollapsedGroups();
+    // Todos os grupos começam colapsados, EXCETO o que contém a rota atual —
+    // assim a sidebar mostra só o que está realmente ativo (não expande tudo).
+    // Mobile não persiste em localStorage; desktop respeita a preferência salva.
+    const initial = mobile
+      ? new Set(DEFAULT_COLLAPSED_GROUPS)
+      : loadCollapsedGroups();
     if (activeGroupKey) initial.delete(activeGroupKey);
     return initial;
   });
   // Mobile: cada vez que o drawer ABRE (mobileOpen false→true), reseta pra
-  // todos colapsados. Sem remontar — assim a animação de saída do parent roda.
+  // todos colapsados menos o grupo ativo. Sem remontar — assim a animação de
+  // saída do parent roda.
   useEffect(() => {
     if (mobile && mobileOpen) {
-      setCollapsedGroups(new Set(DEFAULT_COLLAPSED_GROUPS));
+      const next = new Set(DEFAULT_COLLAPSED_GROUPS);
+      if (activeGroupKey) next.delete(activeGroupKey);
+      setCollapsedGroups(next);
     }
-  }, [mobile, mobileOpen]);
+  }, [mobile, mobileOpen, activeGroupKey]);
   const [createOpen, setCreateOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -394,21 +400,18 @@ export function Sidebar({
     };
   }, [createOpen]);
 
-  function quickCreate(to: string) {
+  // Create-in-place: abre o drawer da entidade DIRETO (sem navegar), mantendo o
+  // usuário na página atual. Fecha o dropdown e, no mobile, o drawer do menu.
+  function quickCreate(item: CreateItem) {
     setCreateOpen(false);
     onNavigate?.();
-    navigate(to);
+    if (item.kind) openCreate(item.kind);
   }
 
-  // Mobile mirrors Belasis's hamburger: "Novo +" hands off to the BottomNav's
-  // bottom-sheet (shared via CreateSheetProvider), so both entry points open
-  // the same "Criar novo" sheet. Desktop keeps the inline dropdown flyout.
+  // "Novo +" abre o MESMO dropdown inline em mobile e desktop (3 seções:
+  // Principal / Cadastros / Financeiro). Antes o mobile abria um bottom-sheet
+  // (CreateSheetProvider) — o user pediu dropdown nos dois.
   function handleCreateClick() {
-    if (mobile) {
-      onNavigate?.();
-      openCreateSheet();
-      return;
-    }
     setCreateOpen((previous) => !previous);
   }
 
@@ -714,24 +717,26 @@ export function Sidebar({
               mobile ? 'justify-center gap-2' : 'justify-between',
             ].join(' ')}
             onClick={handleCreateClick}
-            aria-expanded={mobile ? undefined : createOpen}
-            aria-haspopup={mobile ? undefined : 'menu'}
+            aria-expanded={createOpen}
+            aria-haspopup="menu"
           >
             Novo
             <IconPlus size={16} />
           </Button>
         )}
 
-        {/* Desktop-only inline dropdown. On mobile, the button hands off to the
-            BottomNav bottom-sheet via context.
+        {/* Dropdown inline "Novo" — MESMO em mobile e desktop (não é drawer).
             Seções:
               - Principal (1 linha)
               - Cadastros (2 linhas, grid 4 cols)
-              - Financeiro (1 linha, grid 4 cols) */}
-        {!mobile && createOpen && (
+              - Financeiro (1 linha, grid 4 cols)
+            Largura responsiva: no mobile o rail é estreito (~220px) então o
+            dropdown extravasa pra direita sobre o backdrop — clampado ao
+            viewport pra nunca cortar. */}
+        {createOpen && (
           <div
             role="menu"
-            className="absolute left-0 top-full z-50 mt-2 max-h-[min(560px,72vh)] w-[336px] overflow-y-auto rounded-2xl border border-black/[0.06] bg-warm-white p-3 shadow-[var(--shadow-pop)]"
+            className="absolute left-0 top-full z-50 mt-2 max-h-[min(560px,72vh)] w-[min(336px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-black/[0.06] bg-warm-white p-3 shadow-[var(--shadow-pop)]"
           >
             {CREATE_GROUPS.map((group) => (
               <div key={group.label} className="mb-3 last:mb-0">
@@ -739,12 +744,14 @@ export function Sidebar({
                   {group.label}
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
-                  {group.items.map(({ to, label, icon: Icon, disabled = false, disabledReason }) => (
+                  {group.items.map((item) => {
+                    const { label, icon: Icon, disabled = false, disabledReason } = item;
+                    return (
                     <button
                       key={`${group.label}-${label}`}
                       type="button"
                       role="menuitem"
-                      onClick={() => (disabled ? undefined : quickCreate(to))}
+                      onClick={() => (disabled ? undefined : quickCreate(item))}
                       disabled={disabled}
                       title={disabled ? disabledReason ?? 'Em breve' : label}
                       className="flex flex-col items-center gap-1 rounded-xl px-1 py-2 transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
@@ -754,7 +761,8 @@ export function Sidebar({
                       </span>
                       <span className="w-full truncate text-center text-[11px] font-normal leading-tight text-ink">{label}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

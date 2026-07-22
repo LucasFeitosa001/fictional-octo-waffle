@@ -3,16 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
-    <!-- theme-color é atualizado dinamicamente em applyTheme() (theme.ts) para bater
-         com a cor primary do tema atual. Valor inicial = salonpass primary (gold). -->
+
+    <!-- color-scheme: o app é só light. Sem isso, o Chrome Android IGNORA o
+         theme-color quando o celular está em dark mode (bug Chromium #980790),
+         então a barra do navegador não adota a cor da marca. Forçando light,
+         o theme-color é sempre respeitado. -->
+    <meta name="color-scheme" content="light" />
+
+    <!-- theme-color: cor da barra de navegação/status dos browsers mobile.
+         Valor inicial = salonpass primary (gold); applyTheme() (theme.ts)
+         SUBSTITUI este elemento em runtime pra bater com o tema atual (gold ↔
+         índigo). Só UM theme-color no documento — múltiplos confundem o browser. -->
     <meta name="theme-color" content="#f2b33d" />
+
+    <!-- Ícones -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- PWA / standalone (iOS + padrão). O manifest é injetado pelo
+         vite-plugin-pwa (manifest.webmanifest) — NÃO linkamos manifest.json
+         estático aqui (gerava dois <link rel=manifest> conflitantes). -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Salonpass" />
+    <meta name="application-name" content="Salonpass" />
+
     <title>Salonpass Gestão</title>
   </head>
   <body>

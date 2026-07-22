@@ -23,6 +23,7 @@ import { MembershipsModule } from './modules/memberships/memberships.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { GoalsModule } from './modules/goals/goals.module';
+import { AnamnesisTemplatesModule } from './modules/anamnesis-templates/anamnesis-templates.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { HelpModule } from './modules/help/help.module';
@@ -53,6 +54,7 @@ import { HelpModule } from './modules/help/help.module';
     ReportsModule,
     MarketingModule,
     GoalsModule,
+    AnamnesisTemplatesModule,
     UploadsModule,
     WhatsappModule,
     HelpModule,

@@ -39,6 +39,15 @@ export interface CustomerBody {
   tags?: string[];
   dependents?: CustomerDependentInput[];
   socialProfiles?: CustomerSocialProfileInput[];
+  // Endereço embutido + observações livres (Wave 2/3)
+  cep?: string;
+  street?: string;
+  number?: string;
+  district?: string;
+  city?: string;
+  state?: string;
+  complement?: string;
+  observations?: string;
 }
 
 export interface CreateDebtBody {
@@ -134,6 +143,22 @@ export interface CustomerAnamnesisView {
   createdAt: string;
 }
 
+export interface CustomerFileView {
+  id: string;
+  url: string;
+  name: string;
+  mimeType: string | null;
+  size: number | null;
+  createdAt: string;
+}
+
+export interface CreateFileBody {
+  url: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+}
+
 export interface CreateNoteBody {
   text: string;
 }
@@ -142,6 +167,12 @@ export interface CreateAnamnesisBody {
   templateId?: string;
   answersJson?: Record<string, unknown>;
   signedAt?: string;
+}
+
+export interface UpdateAnamnesisBody {
+  answersJson?: Record<string, unknown>;
+  // string ISO assina; null "des-assina"; undefined mantém.
+  signedAt?: string | null;
 }
 
 export function useCreateCustomer() {
@@ -234,6 +265,50 @@ export function useCustomerCashback(id: string | null | undefined) {
   });
 }
 
+export interface RedeemCashbackBody {
+  amount: number;
+  note?: string;
+}
+
+export interface AdjustCashbackBody {
+  amount: number;
+  note?: string;
+  expiresAt?: string;
+}
+
+export interface CashbackMutationResponse {
+  entry: CustomerCashbackEntry;
+  saldo: number;
+}
+
+/** POST /customers/:id/cashback/redeem — resgata cashback (linha negativa). */
+export function useRedeemCashback(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RedeemCashbackBody) =>
+      api.post<CashbackMutationResponse>(`/customers/${id}/cashback/redeem`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-cashback', id] });
+      qc.invalidateQueries({ queryKey: ['customer-credits', id] });
+      qc.invalidateQueries({ queryKey: ['customer-panel', id] });
+    },
+  });
+}
+
+/** POST /customers/:id/cashback/adjust — ajuste manual (crédito/débito). */
+export function useAdjustCashback(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AdjustCashbackBody) =>
+      api.post<CashbackMutationResponse>(`/customers/${id}/cashback/adjust`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-cashback', id] });
+      qc.invalidateQueries({ queryKey: ['customer-credits', id] });
+      qc.invalidateQueries({ queryKey: ['customer-panel', id] });
+    },
+  });
+}
+
 /** GET /customers/:id/appointments — appointment history for the customer. */
 export function useCustomerAppointments(id: string | null | undefined) {
   return useQuery({
@@ -280,6 +355,35 @@ export function useCreateNote(id: string | null | undefined) {
   });
 }
 
+/** GET /customers/:id/files — imagens e arquivos anexados ao cliente. */
+export function useCustomerFiles(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer-files', id],
+    queryFn: () => api.get<CustomerFileView[]>(`/customers/${id}/files`),
+    enabled: Boolean(id),
+  });
+}
+
+/** POST /customers/:id/files — registra um arquivo já enviado ao storage. */
+export function useCreateCustomerFile(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateFileBody) =>
+      api.post<CustomerFileView>(`/customers/${id}/files`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-files', id] }),
+  });
+}
+
+/** DELETE /customers/:id/files/:fileId — remove um arquivo da galeria. */
+export function useDeleteCustomerFile(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: string) =>
+      api.delete<{ id: string; deleted: boolean }>(`/customers/${id}/files/${fileId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-files', id] }),
+  });
+}
+
 /** GET /customers/:id/anamneses — anamnesis records of the customer. */
 export function useCustomerAnamneses(id: string | null | undefined) {
   return useQuery({
@@ -295,6 +399,26 @@ export function useCreateAnamnesis(id: string | null | undefined) {
   return useMutation({
     mutationFn: (body: CreateAnamnesisBody) =>
       api.post<CustomerAnamnesisView>(`/customers/${id}/anamneses`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-anamneses', id] }),
+  });
+}
+
+/** PATCH /customers/:id/anamneses/:anamId — grava respostas e/ou assinatura. */
+export function useUpdateAnamnesis(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ anamId, body }: { anamId: string; body: UpdateAnamnesisBody }) =>
+      api.patch<CustomerAnamnesisView>(`/customers/${id}/anamneses/${anamId}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-anamneses', id] }),
+  });
+}
+
+/** DELETE /customers/:id/anamneses/:anamId — remove uma ficha. */
+export function useDeleteAnamnesis(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (anamId: string) =>
+      api.delete<{ id: string; deleted: boolean }>(`/customers/${id}/anamneses/${anamId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-anamneses', id] }),
   });
 }

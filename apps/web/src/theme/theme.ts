@@ -52,13 +52,30 @@ export function getStoredTheme(): ThemeId {
 
 const listeners = new Set<() => void>();
 
+/**
+ * Substitui (não só edita) TODAS as metas com `name` pelo `content` novo.
+ * Trocar o elemento — em vez de `setAttribute('content', ...)` — força o
+ * Safari iOS a re-ler o valor: o iOS lê theme-color no load e ignora mutações
+ * de atributo em runtime, então a barra do navegador não mudava de cor ao
+ * trocar de tema. Remover + reinserir dispara a re-avaliação. Garante também
+ * um ÚNICO elemento por name (múltiplos theme-color confundem o browser).
+ */
+function replaceMeta(name: string, content: string): void {
+  const head = document.head;
+  document.querySelectorAll(`meta[name="${name}"]`).forEach((m) => m.remove());
+  const meta = document.createElement('meta');
+  meta.setAttribute('name', name);
+  meta.setAttribute('content', content);
+  head.appendChild(meta);
+}
+
 /** Apply a theme to <html>, persist it, and notify subscribers. */
 export function applyTheme(id: ThemeId): void {
   document.documentElement.dataset.theme = id;
   // Mobile browser chrome (Chrome/Safari address bar area + PWA status bar) usa
   // a cor PRIMARY do tema — salonpass = gold, belasis = roxo.
   const primary = THEMES.find((t) => t.id === id)?.swatches[2] ?? '#f2b33d';
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', primary));
+  replaceMeta('theme-color', primary);
   // Status-bar iOS: escurece se cor primary é escura, senão default. Detecta luma.
   const luma = ((): number => {
     const hex = primary.replace('#', '');
@@ -68,7 +85,7 @@ export function applyTheme(id: ThemeId): void {
     return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   })();
   const statusStyle = luma < 0.6 ? 'black-translucent' : 'default';
-  document.querySelectorAll('meta[name="apple-mobile-web-app-status-bar-style"]').forEach((m) => m.setAttribute('content', statusStyle));
+  replaceMeta('apple-mobile-web-app-status-bar-style', statusStyle);
   try {
     localStorage.setItem(STORAGE_KEY, id);
   } catch {

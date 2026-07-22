@@ -50,6 +50,15 @@ export interface CustomerFull extends Customer {
   tags?: CustomerTag[];
   dependents?: CustomerDependent[];
   socialProfiles?: CustomerSocialProfile[];
+  // Endereço embutido + observações livres (Wave 2/3)
+  cep?: string | null;
+  street?: string | null;
+  number?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+  complement?: string | null;
+  observations?: string | null;
 }
 
 /** One item in the customer's recent-services feed (GET /customers/:id/panel). */
@@ -188,6 +197,37 @@ export interface OrderRow {
   customer?: Customer | null;
 }
 
+/**
+ * Auxiliar (rateio de comissão) de um item de serviço — aba "Auxiliares".
+ * discountFrom = "Desconto do" (Estabelecimento/Profissional); valueType = "Valor" (% ou R$).
+ */
+export interface OrderItemAuxiliaryDetail {
+  id: string;
+  orderItemId: string;
+  professionalId: string;
+  discountFrom: 'establishment' | 'professional';
+  valueType: 'percent' | 'value';
+  value: string;
+  professionalName: string | null;
+}
+
+/**
+ * Produto consumido na execução de um serviço — aba "Produtos consumidos".
+ * Baixa estoque mas não soma no total da comanda.
+ */
+export interface OrderItemConsumedProductDetail {
+  id: string;
+  orderItemId: string;
+  productId: string;
+  batchId: string | null;
+  quantity: string;
+  extraQuantity: string;
+  unitValue: string;
+  unit: string | null;
+  productName: string | null;
+  batchCode: string | null;
+}
+
 /** One item of an order detail (GET /orders/:id) with resolved names. */
 export interface OrderItemDetail {
   id: string;
@@ -201,6 +241,26 @@ export interface OrderItemDetail {
   discount: string;
   itemName: string | null;
   professionalName: string | null;
+  /** Lote (aba "Lote" dos itens de produto). */
+  batchId?: string | null;
+  batchCode?: string | null;
+  /** Enriquecimentos do GET /orders/:id (itens de serviço). */
+  auxiliaries?: OrderItemAuxiliaryDetail[];
+  consumedProducts?: OrderItemConsumedProductDetail[];
+}
+
+/** Lote de produto (GET /product-batches?productId=). */
+export interface ProductBatch {
+  id: string;
+  companyId: string;
+  productId: string;
+  code: string;
+  manufacturedAt: string | null;
+  expiresAt: string | null;
+  quantity: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** A manual discount applied to an order. */
@@ -262,6 +322,14 @@ export interface OrderDetail {
   discounts: OrderDiscountDetail[];
   payments: OrderPaymentDetail[];
   statusHistory: OrderStatusHistoryEntry[];
+  /**
+   * Saldo do cliente disponível para abater na comanda (GET /orders/:id inclui).
+   * cashbackBalance já filtra linhas vencidas no backend. Avulso → zeros.
+   */
+  customerBalance?: {
+    creditBalance: string;
+    cashbackBalance: string;
+  };
 }
 
 export interface CashRegisterRow {

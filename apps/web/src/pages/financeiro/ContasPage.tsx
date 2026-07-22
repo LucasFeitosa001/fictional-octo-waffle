@@ -42,6 +42,9 @@ import {
   type PaymentMethod,
 } from '../../lib/queries/financeiro';
 import { useSetPageActions } from '../../layout/PageActions';
+import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../../components/BulkActionsSheet';
+import { useSelectMode, buildSelectActions, type BulkAction } from '../../hooks/useSelectMode';
 
 const PAGE_SIZE = 20;
 
@@ -57,6 +60,19 @@ const CATEGORY_KIND_LABEL: Record<FinancialCategoryKind, string> = {
   credit: 'Crédito',
   debit: 'Débito',
 };
+
+// Tipo da forma de pagamento (Belasis: dinheiro|cartao|pix|...). Só apresentação;
+// o backend guarda a string livre em PaymentMethod.kind.
+const METHOD_KIND_OPTIONS: { id: string; label: string }[] = [
+  { id: 'dinheiro', label: 'Dinheiro' },
+  { id: 'pix', label: 'Pix' },
+  { id: 'credito', label: 'Cartão de crédito' },
+  { id: 'debito', label: 'Cartão de débito' },
+  { id: 'boleto', label: 'Boleto' },
+  { id: 'transferencia', label: 'Transferência' },
+  { id: 'cheque', label: 'Cheque' },
+  { id: 'outros', label: 'Outros' },
+];
 
 type TabKey = 'contas' | 'formas' | 'categorias';
 
@@ -80,6 +96,10 @@ const DEFAULT_METHODS: PaymentMethod[] = [
     settlementDays: 0,
     defaultAccountId: null,
     goesToCash: true,
+    feeFixed: '0',
+    active: true,
+    kind: 'dinheiro',
+    favorite: false,
   },
   {
     id: 'seed-pix',
@@ -89,6 +109,10 @@ const DEFAULT_METHODS: PaymentMethod[] = [
     settlementDays: 0,
     defaultAccountId: null,
     goesToCash: true,
+    feeFixed: '0',
+    active: true,
+    kind: 'pix',
+    favorite: false,
   },
   {
     id: 'seed-credito',
@@ -98,6 +122,10 @@ const DEFAULT_METHODS: PaymentMethod[] = [
     settlementDays: 30,
     defaultAccountId: null,
     goesToCash: false,
+    feeFixed: '0',
+    active: true,
+    kind: 'credito',
+    favorite: false,
   },
   {
     id: 'seed-debito',
@@ -107,6 +135,10 @@ const DEFAULT_METHODS: PaymentMethod[] = [
     settlementDays: 1,
     defaultAccountId: null,
     goesToCash: false,
+    feeFixed: '0',
+    active: true,
+    kind: 'debito',
+    favorite: false,
   },
 ];
 
@@ -195,17 +227,7 @@ function MobileRowCard({
   const content = (
     <>
       {selectMode ? (
-        <span
-          aria-hidden
-          className={
-            'grid h-5 w-5 shrink-0 place-items-center rounded border transition-colors ' +
-            (selected
-              ? 'border-[color:var(--sp-primary,#505afb)] bg-[color:var(--sp-primary,#505afb)] text-white'
-              : 'border-[var(--color-soft-border)] bg-white')
-          }
-        >
-          {selected && <IconCheck size={13} />}
-        </span>
+        <AnimatedCheckbox checked={!!selected} />
       ) : (
         <span
           aria-hidden
@@ -234,7 +256,7 @@ function MobileRowCard({
   const baseClass =
     'flex w-full items-center gap-3 border-b border-[var(--color-soft-border)] px-3 py-3 text-left last:border-b-0 transition-colors ' +
     (selected
-      ? 'bg-[color-mix(in_oklab,var(--sp-primary,#505afb)_5%,white)]'
+      ? 'bg-[color-mix(in_oklab,var(--sp-primary,#505afb)_5%,white)] ring-1 ring-inset ring-[color:var(--sp-primary,#505afb)]'
       : 'active:bg-[color-mix(in_oklab,var(--sp-primary,#505afb)_4%,white)]');
 
   return (
@@ -308,11 +330,11 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   const [showActive, setShowActive] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
 
-  // Modo Selecionar (mobile) para contas/categorias — padrão Belasis:
-  // ativado pela BottomNav; oculta ações inline e transforma o card em
-  // alvo de seleção com checkbox. Formas mantém ações inline (Belasis).
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Modo Selecionar (mobile) para contas/categorias — padrão Belasis via infra
+  // compartilhada (useSelectMode): ativado pela BottomNav; oculta ações inline e
+  // transforma o card em alvo de seleção com checkbox. `sel` é montado abaixo,
+  // depois que os ids visíveis da aba atual existem. Formas mantém ações inline.
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const [accountDrawer, setAccountDrawer] = useState(false);
   const [methodDrawer, setMethodDrawer] = useState(false);
@@ -368,24 +390,6 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   useEffect(() => {
     setPage(1);
   }, [tab, q, showActive, showInactive]);
-
-  // Ao sair do selectMode ou trocar de aba, limpa a seleção (padrão Belasis).
-  useEffect(() => {
-    if (!selectMode) setSelected(new Set());
-  }, [selectMode]);
-  useEffect(() => {
-    setSelectMode(false);
-    setSelected(new Set());
-  }, [tab]);
-
-  function toggleSelected(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
 
   const delAccount = useDeleteFinancialAccount();
   const delMethod = useDeletePaymentMethod();
@@ -641,6 +645,61 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   const pageMethods = filteredMethods.slice(pageStart, pageStart + PAGE_SIZE);
   const pageCategories = filteredCategories.slice(pageStart, pageStart + PAGE_SIZE);
 
+  // Modo de seleção (infra compartilhada): opera sobre os ids VISÍVEIS da aba
+  // atual (página corrente). "Selecionar todos" marca todos os itens visíveis.
+  const selectableIds = useMemo(() => {
+    if (tab === 'contas') return pageAccounts.map((a) => a.id);
+    if (tab === 'formas') return pageMethods.map((m) => m.id);
+    return pageCategories.map((c) => c.id);
+  }, [tab, pageAccounts, pageMethods, pageCategories]);
+  const sel = useSelectMode(selectableIds);
+
+  // Ao trocar de aba, sai do modo e limpa a seleção (padrão Belasis).
+  useEffect(() => {
+    sel.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // Hook de exclusão da aba atual (contas/categorias suportam seleção em lote;
+  // formas mantém ações inline). Excluir em lote chama o mutateAsync existente
+  // para cada id selecionado em Promise.all, após confirmação.
+  const activeDelete =
+    tab === 'contas' ? delAccount : tab === 'formas' ? delMethod : delCategory;
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: activeDelete.isPending,
+      onClick: async () => {
+        const ok = await confirm({
+          title: 'Excluir selecionados?',
+          message: `Excluir ${sel.count} ${sel.count === 1 ? 'item selecionado' : 'itens selecionados'}? Essa ação não pode ser desfeita.`,
+          confirmLabel: 'Excluir',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await Promise.all([...sel.selected].map((id) => activeDelete.mutateAsync(id)));
+          setActionsOpen(false);
+          sel.cancel();
+        } catch (err) {
+          await confirm({
+            title: 'Não foi possível',
+            message:
+              err instanceof ApiClientError
+                ? err.message
+                : 'Não foi possível excluir os itens selecionados.',
+            confirmLabel: 'OK',
+            cancelLabel: undefined,
+            danger: false,
+          });
+        }
+      },
+    },
+  ];
+
   // Belasis rotula o botão de criação sempre como "Novo" (independente da aba).
   const newLabel = 'Novo';
 
@@ -661,38 +720,46 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   // sempre visível no topo (Belasis), então não há ação "Buscar". Selecionar
   // só é oferecido na aba Contas — Formas mantém ações inline e Categorias
   // hoje não usa selectMode nos cards (RowActions inline via tap no card).
-  const supportsSelectMode = tab === 'contas';
+  const supportsSelectMode = tab === 'contas' || tab === 'categorias';
   useSetPageActions(
-    [
-      ...(supportsStatus
-        ? [
-            {
-              key: 'filtrar',
-              label: 'Filtrar',
-              icon: <IconFilter size={22} />,
-              onClick: () => setFilterOpen(true),
-            },
-          ]
-        : []),
-      ...(supportsSelectMode
-        ? [
-            {
-              key: 'selecionar',
-              label: 'Selecionar',
-              icon: <IconCheck size={22} />,
-              onClick: () => setSelectMode((v) => !v),
-              active: selectMode,
-            },
-          ]
-        : []),
-      {
-        key: 'novo',
-        label: newLabel,
-        icon: <IconPlus size={22} />,
-        onClick: openCreate,
-      },
-    ],
-    [tab, supportsStatus, supportsSelectMode, selectMode],
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          ...(supportsStatus
+            ? [
+                {
+                  key: 'filtrar',
+                  label: 'Filtrar',
+                  icon: <IconFilter size={22} />,
+                  onClick: () => setFilterOpen(true),
+                },
+              ]
+            : []),
+          ...(supportsSelectMode
+            ? [
+                {
+                  key: 'selecionar',
+                  label: 'Selecionar',
+                  icon: <IconCheck size={22} />,
+                  onClick: sel.enter,
+                },
+              ]
+            : []),
+          {
+            key: 'novo',
+            label: newLabel,
+            icon: <IconPlus size={22} />,
+            onClick: openCreate,
+          },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count, tab, supportsStatus, supportsSelectMode],
   );
 
   return (
@@ -916,9 +983,9 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                     onRemove={() => removeAccount(a)}
                     removing={delAccount.isPending}
                     showInlineActions={false}
-                    selectMode={selectMode}
-                    selected={selected.has(a.id)}
-                    onToggleSelect={() => toggleSelected(a.id)}
+                    selectMode={sel.selectMode}
+                    selected={sel.isSelected(a.id)}
+                    onToggleSelect={() => sel.toggle(a.id)}
                   />
                 ))}
               </ul>
@@ -1013,6 +1080,10 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                     }}
                     onRemove={() => removeCategory(c)}
                     removing={delCategory.isPending}
+                    showInlineActions={false}
+                    selectMode={sel.selectMode}
+                    selected={sel.isSelected(c.id)}
+                    onToggleSelect={() => sel.toggle(c.id)}
                   />
                 ))}
               </ul>
@@ -1056,6 +1127,14 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
         isOpen={categoryDrawer}
         onClose={() => setCategoryDrawer(false)}
         editing={editingCategory}
+      />
+
+      {/* Bottom-sheet das ações em lote do modo de seleção (mobile + desktop). */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
     </div>
   );
@@ -1222,6 +1301,8 @@ function ContaDrawer({
   const [type, setType] = useState<FinancialAccountType>('cash');
   const [initialBalance, setInitialBalance] = useState('');
   const [active, setActive] = useState(true);
+  // Acesso (Belasis id="admin_only"): false = qualquer usuário, true = só admins.
+  const [adminOnly, setAdminOnly] = useState(false);
   // Belasis Pay: toggle exibido no drawer do Belasis (sem backing no SalonPass).
   const [belasisPay, setBelasisPay] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -1237,12 +1318,14 @@ function ContaDrawer({
         setType(editing.type);
         setInitialBalance(String(editing.initialBalance));
         setActive(editing.active);
+        setAdminOnly(editing.adminOnly);
         setBelasisPay(false);
       } else {
         setName('');
         setType('cash');
         setInitialBalance('');
         setActive(true);
+        setAdminOnly(false);
         setBelasisPay(false);
       }
       setFormError(null);
@@ -1258,6 +1341,7 @@ function ContaDrawer({
       name: name.trim(),
       type,
       initialBalance: initialBalance ? Number(initialBalance.replace(',', '.')) : undefined,
+      adminOnly,
     };
     try {
       if (editing) {
@@ -1326,9 +1410,14 @@ function ContaDrawer({
             </div>
           </div>
 
-          {/* Acesso — select do Belasis (id="admin_only"). Opção única exibida. */}
+          {/* Acesso — select do Belasis (id="admin_only"): qualquer usuário vs.
+              somente administradores. Wired a FinancialAccount.adminOnly. */}
           <Field label="Acesso">
-            <Select aria-label="Acesso" selectedKey="all" onSelectionChange={() => {}}>
+            <Select
+              aria-label="Acesso"
+              selectedKey={adminOnly ? 'admins' : 'all'}
+              onSelectionChange={(k) => setAdminOnly(String(k) === 'admins')}
+            >
               <Select.Trigger>
                 <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
               </Select.Trigger>
@@ -1336,6 +1425,9 @@ function ContaDrawer({
                 <ListBox>
                   <ListBox.Item id="all" textValue="Qualquer usuário pode acessar">
                     Qualquer usuário pode acessar
+                  </ListBox.Item>
+                  <ListBox.Item id="admins" textValue="Somente administradores">
+                    Somente administradores
                   </ListBox.Item>
                 </ListBox>
               </Select.Popover>
@@ -1403,9 +1495,13 @@ function FormaDrawer({
 }) {
   const [name, setName] = useState('');
   const [feePercent, setFeePercent] = useState('');
+  const [feeFixed, setFeeFixed] = useState('');
   const [settlementDays, setSettlementDays] = useState('');
   const [defaultAccountId, setDefaultAccountId] = useState('');
   const [goesToCash, setGoesToCash] = useState(false);
+  const [kind, setKind] = useState('');
+  const [favorite, setFavorite] = useState(false);
+  const [active, setActive] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const accounts = useFinancialAccounts();
@@ -1418,15 +1514,23 @@ function FormaDrawer({
       if (editing) {
         setName(editing.name);
         setFeePercent(String(editing.feePercent));
+        setFeeFixed(String(editing.feeFixed ?? '0'));
         setSettlementDays(String(editing.settlementDays));
         setDefaultAccountId(editing.defaultAccountId ?? '');
         setGoesToCash(editing.goesToCash);
+        setKind(editing.kind ?? '');
+        setFavorite(editing.favorite ?? false);
+        setActive(editing.active ?? true);
       } else {
         setName('');
         setFeePercent('');
+        setFeeFixed('');
         setSettlementDays('');
         setDefaultAccountId('');
         setGoesToCash(false);
+        setKind('');
+        setFavorite(false);
+        setActive(true);
       }
       setFormError(null);
       setSuccess(false);
@@ -1440,9 +1544,13 @@ function FormaDrawer({
     const body = {
       name: name.trim(),
       feePercent: feePercent ? Number(feePercent.replace(',', '.')) : undefined,
+      feeFixed: feeFixed ? Number(feeFixed.replace(',', '.')) : undefined,
       settlementDays: settlementDays ? Number(settlementDays) : undefined,
       defaultAccountId: defaultAccountId || undefined,
       goesToCash,
+      kind: kind || undefined,
+      favorite,
+      active,
     };
     try {
       if (editing) {
@@ -1501,6 +1609,14 @@ function FormaDrawer({
                 <Input placeholder="0,00" inputMode="decimal" />
               </TextField>
             </Field>
+            <Field label="Taxa fixa (R$)">
+              <TextField value={feeFixed} onChange={setFeeFixed} aria-label="Taxa fixa">
+                <Input placeholder="R$ 0,00" inputMode="decimal" />
+              </TextField>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Prazo de recebimento (dias)">
               <TextField
                 value={settlementDays}
@@ -1509,6 +1625,30 @@ function FormaDrawer({
               >
                 <Input placeholder="0" inputMode="numeric" />
               </TextField>
+            </Field>
+            <Field label="Tipo">
+              <Select
+                aria-label="Tipo"
+                selectedKey={kind || null}
+                onSelectionChange={(k) => setKind(k ? String(k) : '')}
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ isPlaceholder, selectedText }) =>
+                      isPlaceholder ? 'Selecione' : selectedText
+                    }
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {METHOD_KIND_OPTIONS.map((o) => (
+                      <ListBox.Item key={o.id} id={o.id} textValue={o.label}>
+                        {o.label}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             </Field>
           </div>
 
@@ -1542,6 +1682,18 @@ function FormaDrawer({
             help="Se marcada, a forma dá baixa no caixa sem intervenção manual"
             isSelected={goesToCash}
             onChange={setGoesToCash}
+          />
+          <RowSwitch
+            label="Favorito"
+            help="Formas favoritas aparecem primeiro na hora de receber"
+            isSelected={favorite}
+            onChange={setFavorite}
+          />
+          <RowSwitch
+            label="Ativa"
+            help="Formas inativas não aparecem em novos recebimentos"
+            isSelected={active}
+            onChange={setActive}
           />
 
           {formError && <FormError message={formError} />}

@@ -2,11 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  AdjustCashbackDto,
   CreateCustomerAnamnesisDto,
   CreateCustomerDebtDto,
   CreateCustomerDebtPaymentDto,
   CreateCustomerDto,
+  CreateCustomerFileDto,
   CreateCustomerNoteDto,
+  RedeemCashbackDto,
+  UpdateCustomerAnamnesisDto,
   UpdateCustomerDto,
 } from './dto';
 
@@ -353,6 +357,33 @@ export class CustomersService {
     return { credits, cashback, creditosSaldo, cashbackSaldo };
   }
 
+  /**
+   * GET /customers/:id/balance — helper p/ a comanda exibir "Crédito"/"Cashback".
+   * creditBalance = soma de todo o ledger de crédito.
+   * cashbackBalance = soma somente das linhas de cashback não vencidas (expiresAt >= now).
+   */
+  async balance(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    const now = new Date();
+    const [creditAgg, cashbackRows] = await Promise.all([
+      this.prisma.client.customerCredit.aggregate({
+        _sum: { amount: true },
+        where: { customerId: id, customer: { companyId } },
+      }),
+      this.prisma.client.customerCashback.findMany({
+        where: {
+          customerId: id,
+          customer: { companyId },
+          OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+        },
+        select: { amount: true },
+      }),
+    ]);
+    const creditBalance = num(creditAgg._sum.amount);
+    const cashbackBalance = cashbackRows.reduce((acc, r) => acc + num(r.amount), 0);
+    return { creditBalance, cashbackBalance };
+  }
+
   // ===== Cashback (extrato dedicado) =====
 
   async listCashback(companyId: string, id: string) {
@@ -363,6 +394,65 @@ export class CustomersService {
     });
     const saldo = cashback.reduce((acc, c) => acc + num(c.amount), 0);
     return { cashback, saldo };
+  }
+
+  /** Saldo de cashback válido (linhas não vencidas) do cliente. */
+  private async cashbackBalance(companyId: string, id: string): Promise<number> {
+    const rows = await this.prisma.client.customerCashback.findMany({
+      where: {
+        customerId: id,
+        customer: { companyId },
+        OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+      },
+      select: { amount: true },
+    });
+    return rows.reduce((acc, r) => acc + num(r.amount), 0);
+  }
+
+  /**
+   * POST /customers/:id/cashback/redeem — resgata cashback do cliente.
+   * Insere uma linha NEGATIVA no ledger. Respeita o programa global da empresa
+   * (cashbackCanRedeem) e valida saldo suficiente.
+   */
+  async redeemCashback(companyId: string, id: string, dto: RedeemCashbackDto) {
+    await this.findOne(companyId, id);
+    const company = await this.prisma.client.company.findUnique({
+      where: { id: companyId },
+      select: { cashbackCanRedeem: true },
+    });
+    if (company && company.cashbackCanRedeem === false) {
+      throw new BadRequestException('Resgate de cashback desativado no programa.');
+    }
+    const saldo = await this.cashbackBalance(companyId, id);
+    if (dto.amount > saldo) {
+      throw new BadRequestException('Saldo de cashback insuficiente.');
+    }
+    const entry = await this.prisma.client.customerCashback.create({
+      data: {
+        customerId: id,
+        amount: new Prisma.Decimal(-Math.abs(dto.amount)),
+        sourceType: 'redeem',
+      },
+    });
+    return { entry, saldo: saldo - Math.abs(dto.amount) };
+  }
+
+  /**
+   * POST /customers/:id/cashback/adjust — ajuste manual (crédito ou débito).
+   * amount positivo credita, negativo debita. expiresAt opcional (crédito).
+   */
+  async adjustCashback(companyId: string, id: string, dto: AdjustCashbackDto) {
+    await this.findOne(companyId, id);
+    const entry = await this.prisma.client.customerCashback.create({
+      data: {
+        customerId: id,
+        amount: new Prisma.Decimal(dto.amount),
+        sourceType: 'adjust',
+        ...(dto.expiresAt ? { expiresAt: new Date(dto.expiresAt) } : {}),
+      },
+    });
+    const saldo = await this.cashbackBalance(companyId, id);
+    return { entry, saldo };
   }
 
   // ===== Agendamentos =====
@@ -433,6 +523,40 @@ export class CustomersService {
     });
   }
 
+  // ===== Imagens e Arquivos =====
+
+  async listFiles(companyId: string, id: string) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.customerFile.findMany({
+      where: { customerId: id, companyId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async addFile(companyId: string, id: string, dto: CreateCustomerFileDto) {
+    await this.findOne(companyId, id);
+    return this.prisma.client.customerFile.create({
+      data: {
+        companyId,
+        customerId: id,
+        url: dto.url,
+        name: dto.name,
+        mimeType: dto.mimeType ?? null,
+        size: dto.size ?? null,
+      },
+    });
+  }
+
+  async removeFile(companyId: string, id: string, fileId: string) {
+    await this.findOne(companyId, id);
+    const found = await this.prisma.client.customerFile.findFirst({
+      where: { id: fileId, customerId: id, companyId },
+    });
+    if (!found) throw new NotFoundException('Arquivo não encontrado');
+    await this.prisma.client.customerFile.delete({ where: { id: fileId } });
+    return { id: fileId, deleted: true };
+  }
+
   // ===== Anamneses =====
 
   async listAnamneses(companyId: string, id: string) {
@@ -459,5 +583,47 @@ export class CustomersService {
         ...(dto.signedAt ? { signedAt: new Date(dto.signedAt) } : {}),
       },
     });
+  }
+
+  /** Garante que a ficha pertence a um cliente da empresa; senão 404. */
+  private async ensureAnamnesis(companyId: string, id: string, anamId: string) {
+    const found = await this.prisma.client.customerAnamnesis.findFirst({
+      where: { id: anamId, customerId: id, customer: { companyId } },
+    });
+    if (!found) throw new NotFoundException('Ficha de anamnese não encontrada');
+    return found;
+  }
+
+  /**
+   * PATCH /customers/:id/anamneses/:anamId — atualiza respostas e/ou assinatura.
+   * signedAt === null "des-assina"; string ISO assina; undefined mantém.
+   */
+  async updateAnamnesis(
+    companyId: string,
+    id: string,
+    anamId: string,
+    dto: UpdateCustomerAnamnesisDto,
+  ) {
+    await this.findOne(companyId, id);
+    await this.ensureAnamnesis(companyId, id, anamId);
+    return this.prisma.client.customerAnamnesis.update({
+      where: { id: anamId },
+      data: {
+        ...(dto.answersJson !== undefined
+          ? { answersJson: dto.answersJson as Prisma.InputJsonValue }
+          : {}),
+        ...(dto.signedAt !== undefined
+          ? { signedAt: dto.signedAt ? new Date(dto.signedAt) : null }
+          : {}),
+      },
+    });
+  }
+
+  /** DELETE /customers/:id/anamneses/:anamId */
+  async removeAnamnesis(companyId: string, id: string, anamId: string) {
+    await this.findOne(companyId, id);
+    await this.ensureAnamnesis(companyId, id, anamId);
+    await this.prisma.client.customerAnamnesis.delete({ where: { id: anamId } });
+    return { id: anamId, deleted: true };
   }
 }

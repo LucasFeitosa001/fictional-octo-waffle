@@ -1,49 +1,16 @@
 import { useState } from 'react';
 import { Drawer } from '../../components/Drawer';
-import {
-  IconBox,
-  IconDownload,
-  IconHome,
-  IconInfo,
-  IconLayers,
-  IconStar,
-} from '../../components/icons';
+import { IconBox, IconDownload, IconInfo } from '../../components/icons';
 import { formatNumber } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import {
   useReportsInventorySuggestion,
   type InventorySuggestionItem,
 } from '../../lib/queries/relatorios';
-import { BackToReports } from './reportShared';
+import { InventoryReportShell } from './reportNav';
 
 // ── card no estilo Belasis (branco + sombra suave), 100% themeable ────────────
 const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
-
-// Categorias de relatório (barra do topo do módulo Relatórios no Belasis).
-// "Estoque" é a categoria ativa desta página.
-const CATEGORIES = [
-  'Favoritos',
-  'Financeiro',
-  'Agendamentos',
-  'Clientes',
-  'Vendas',
-  'Estoque',
-  'Notas Fiscais',
-  'Ranking',
-  'Mensagens',
-];
-
-// Submenu vertical de relatórios de Estoque (coluna esquerda do Belasis).
-// "Estoque atual" (rota /reports/inventory/stock) é o item selecionado.
-const INV_REPORTS: { label: string; home?: boolean; current?: boolean }[] = [
-  { label: 'Início', home: true },
-  { label: 'Estoque atual', current: true },
-  { label: 'Movimentação de Estoque' },
-  { label: 'Compras' },
-  { label: 'Lista de Produtos e Serviços' },
-  { label: 'Sugestão de compra' },
-  { label: 'Produtos consumidos' },
-];
 
 export function EstoquePage() {
   // `generated` reproduz o fluxo do Belasis: o relatório só aparece após clicar
@@ -61,6 +28,7 @@ export function EstoquePage() {
 
   function gerarRelatorio() {
     setGenerated(true);
+    void query.refetch();
   }
 
   function exportCsv() {
@@ -78,72 +46,8 @@ export function EstoquePage() {
   }
 
   return (
-    <div>
-      <BackToReports />
-
-      {/* Cabeçalho do módulo Relatórios */}
-      <h1 className="text-xl font-semibold text-ink">Relatórios</h1>
-
-      {/* Barra de categorias (Estoque ativa) */}
-      <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {CATEGORIES.map((c) => {
-          const active = c === 'Estoque';
-          return (
-            <button
-              key={c}
-              type="button"
-              className={[
-                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
-                active
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-line bg-card text-muted-ink hover:text-ink',
-              ].join(' ')}
-            >
-              {c}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Conteúdo em 2 colunas: submenu de relatórios + card do relatório */}
-      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* Coluna esquerda: submenu de relatórios de estoque */}
-        <aside className={`${CARD} shrink-0 overflow-hidden p-1.5 lg:w-72`}>
-          <ul className="flex flex-col">
-            {INV_REPORTS.map((r) => (
-              <li key={r.label}>
-                <div
-                  className={[
-                    'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors',
-                    r.current
-                      ? 'bg-primary/10 font-semibold text-primary'
-                      : 'text-ink hover:bg-primary/5',
-                  ].join(' ')}
-                >
-                  <span
-                    className={r.current ? 'text-primary' : 'text-muted-ink'}
-                    aria-hidden
-                  >
-                    {r.home ? <IconHome size={17} /> : <IconLayers size={17} />}
-                  </span>
-                  <span className="flex-1 truncate">{r.label}</span>
-                  {!r.home && (
-                    <span className="flex items-center gap-1.5 text-muted-ink">
-                      <IconInfo size={15} className="opacity-70" />
-                      <IconStar
-                        size={15}
-                        className={r.current ? 'text-primary' : 'opacity-70'}
-                      />
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </aside>
-
-        {/* Coluna direita: alerta descritivo + gerar relatório + resultado */}
-        <div className="min-w-0 flex-1">
+    <>
+      <InventoryReportShell activeKey="stock">
           <div className={`${CARD} p-4 sm:p-5`}>
             {/* Alerta informativo (ant-alert-info, themeable) */}
             <div className="flex gap-3 rounded-lg border border-primary/25 bg-primary/[0.06] p-4">
@@ -280,8 +184,7 @@ export function EstoquePage() {
               )}
             </>
           )}
-        </div>
-      </div>
+      </InventoryReportShell>
 
       {/* Drawer lateral: opções de exportação (split "..." do Belasis) */}
       <Drawer
@@ -325,6 +228,6 @@ export function EstoquePage() {
           </button>
         </div>
       </Drawer>
-    </div>
+    </>
   );
 }

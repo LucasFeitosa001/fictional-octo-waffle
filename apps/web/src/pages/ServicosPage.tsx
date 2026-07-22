@@ -30,6 +30,13 @@ import { formatMoney } from "../lib/format";
 import { useAutoCreate } from "../lib/useAutoCreate";
 import { useSetPageActions } from "../layout/PageActions";
 import { useConfirm } from "../components/ConfirmDialog";
+import { AnimatedCheckbox } from "../components/AnimatedCheckbox";
+import { BulkActionsSheet } from "../components/BulkActionsSheet";
+import {
+  useSelectMode,
+  buildSelectActions,
+  type BulkAction,
+} from "../hooks/useSelectMode";
 
 const NONE = "";
 const PAGE_SIZE = 20;
@@ -48,6 +55,8 @@ type ServiceBelasisFields = ServiceRow & {
   additionalCost?: string | number | null;
   commission?: string | number | null;
   commissionPercent?: string | number | null;
+  priceType?: string | null;
+  additionalCostType?: string | null;
 };
 
 // Belasis mostra a duração na tabela como HH:MM (ex.: 00:05, 02:30).
@@ -86,8 +95,8 @@ export function ServicosPage() {
   const [favFilter, setFavFilter] = useState<FavFilter>("all");
   const [categorySet, setCategorySet] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceRow | null>(null);
   // Belasis: banner de assinatura condicional no topo. Mock por ora — no
   // futuro virá do endpoint de billing/plano (só aplicável ao tenant).
@@ -177,6 +186,11 @@ export function ServicosPage() {
   }, [page, pageCount]);
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids
+  // VISÍVEIS (todas as linhas filtradas — o mobile lista tudo, o desktop pagina).
+  const ids = useMemo(() => rows.map((r) => r.id), [rows]);
+  const sel = useSelectMode(ids);
+
   const hasFilters = Boolean(
     search ||
     categorySet.size ||
@@ -210,58 +224,45 @@ export function ServicosPage() {
     });
     if (!ok) return;
     await deleteService.mutateAsync(s.id);
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(s.id);
-      return next;
-    });
+    if (sel.isSelected(s.id)) sel.toggle(s.id);
   }
 
-  async function handleBulkDelete() {
-    const ids = rows.filter((s) => selected.has(s.id)).map((s) => s.id);
-    if (!ids.length) return;
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  async function bulkDeleteSelected() {
+    if (sel.count === 0) return;
     const ok = await confirm({
       title: "Excluir serviços?",
-      message: `Remover ${ids.length} serviço(s) selecionado(s)? Essa ação não pode ser desfeita.`,
+      message: `Remover ${sel.count} serviço(s) selecionado(s)? Essa ação não pode ser desfeita.`,
       confirmLabel: "Excluir",
       danger: true,
     });
     if (!ok) return;
-    for (const id of ids) await deleteService.mutateAsync(id);
-    setSelected(new Set());
+    await Promise.all([...sel.selected].map((id) => deleteService.mutateAsync(id)));
+    setActionsOpen(false);
+    sel.cancel();
   }
 
-  function toggleSelected(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
+  const bulkActions: BulkAction[] = [
+    {
+      key: "delete",
+      label: "Excluir selecionados",
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: deleteService.isPending,
+      onClick: bulkDeleteSelected,
+    },
+  ];
 
+  // Header select-all do desktop opera sobre a PÁGINA visível (pageRows).
   const pageIds = pageRows.map((s) => s.id);
   const allChecked =
-    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  function toggleSelectAll() {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allChecked) pageIds.forEach((id) => next.delete(id));
-      else pageIds.forEach((id) => next.add(id));
-      return next;
-    });
-  }
-  const selectedCount = rows.filter((row) => selected.has(row.id)).length;
-
-  function toggleSelectAllRows() {
-    const rowIds = rows.map((row) => row.id);
-    const allRowsChecked =
-      rowIds.length > 0 && rowIds.every((id) => selected.has(id));
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allRowsChecked) rowIds.forEach((id) => next.delete(id));
-      else rowIds.forEach((id) => next.add(id));
-      return next;
-    });
+    pageIds.length > 0 && pageIds.every((id) => sel.isSelected(id));
+  function toggleSelectPage() {
+    // Se a página inteira já está marcada, desmarca; senão marca as faltantes.
+    for (const id of pageIds) {
+      if (allChecked ? sel.isSelected(id) : !sel.isSelected(id)) sel.toggle(id);
+    }
   }
 
   const categoryOptions = useMemo(
@@ -273,29 +274,40 @@ export function ServicosPage() {
     [categories.data],
   );
 
+  // Enquanto selectMode estiver ativo, a barra vira [Cancelar · Selecionar
+  // todos · Ações] (buildSelectActions); senão, Filtros · Selecionar · Criar.
   useSetPageActions(
-    [
-      {
-        key: "filters",
-        label: "Filtros",
-        icon: <IconFilter size={22} />,
-        onClick: () => setMobileFiltersOpen(true),
-      },
-      {
-        key: "select",
-        label: "Selecionar",
-        icon: <IconCircleCheck size={22} />,
-        onClick: toggleSelectAllRows,
-        disabled: rows.length === 0,
-      },
-      {
-        key: "create",
-        label: "Criar",
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-    ],
-    [rows, selected],
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          {
+            key: "filters",
+            label: "Filtros",
+            icon: <IconFilter size={22} />,
+            onClick: () => setMobileFiltersOpen(true),
+          },
+          {
+            key: "select",
+            label: "Selecionar",
+            icon: <IconCircleCheck size={22} />,
+            onClick: sel.enter,
+            disabled: rows.length === 0,
+          },
+          {
+            key: "create",
+            label: "Criar",
+            icon: <IconPlus size={22} />,
+            onClick: () => setCreateOpen(true),
+          },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count, rows.length],
   );
 
   const filterControls = (
@@ -540,15 +552,15 @@ export function ServicosPage() {
             </button>
           </div>
 
-          {selectedCount > 0 && (
+          {sel.count > 0 && (
             <div
               className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm text-foreground"
               style={{ background: primaryTint(8) }}
             >
-              <span>{selectedCount} selecionado(s)</span>
+              <span>{sel.count} selecionado(s)</span>
               <button
                 type="button"
-                onClick={handleBulkDelete}
+                onClick={bulkDeleteSelected}
                 disabled={deleteService.isPending}
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline disabled:opacity-50"
               >
@@ -587,7 +599,7 @@ export function ServicosPage() {
                       <th className="w-10 px-3 py-3.5">
                         <Check
                           checked={allChecked}
-                          onChange={toggleSelectAll}
+                          onChange={toggleSelectPage}
                         />
                       </th>
                       <SortableTh
@@ -651,8 +663,8 @@ export function ServicosPage() {
                       >
                         <td className="px-3 py-2.5">
                           <Check
-                            checked={selected.has(s.id)}
-                            onChange={() => toggleSelected(s.id)}
+                            checked={sel.isSelected(s.id)}
+                            onChange={() => sel.toggle(s.id)}
                           />
                         </td>
                         <td className="px-3 py-2.5">
@@ -710,41 +722,47 @@ export function ServicosPage() {
                 />
               </div>
 
-              {/* Mobile: cards */}
+              {/* Mobile: cards. Em selectMode o card inteiro alterna a seleção
+                  (mostra AnimatedCheckbox + realce); fora dele, abre a edição. */}
               <ul className="flex flex-col gap-2 lg:hidden">
-                {rows.map((s) => (
-                  <li
-                    key={s.id}
-                    className="flex items-center gap-3 rounded-xl border border-line bg-card p-3 shadow-[var(--shadow-card)]"
-                  >
-                    <Check
-                      checked={selected.has(s.id)}
-                      onChange={() => toggleSelected(s.id)}
-                    />
-                    <Avatar url={s.imageUrl} size={44} />
-                    <button
-                      type="button"
-                      onClick={() => setEditing(s)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate font-medium text-foreground">
-                          {s.name}
+                {rows.map((s) => {
+                  const checked = sel.isSelected(s.id);
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sel.selectMode ? sel.toggle(s.id) : setEditing(s)
+                        }
+                        className={`flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left shadow-[var(--shadow-card)] transition-colors ${
+                          sel.selectMode && checked
+                            ? "border-primary ring-2 ring-primary/40"
+                            : "border-line"
+                        }`}
+                      >
+                        {sel.selectMode && <AnimatedCheckbox checked={checked} />}
+                        <Avatar url={s.imageUrl} size={44} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate font-medium text-foreground">
+                              {s.name}
+                            </span>
+                            <IconStar
+                              size={18}
+                              className={
+                                s.favorite ? "text-gold" : "text-muted-ink"
+                              }
+                            />
+                          </span>
+                          <span className="mt-0.5 flex items-center justify-between gap-2 text-sm text-muted-ink">
+                            <span>{formatMoney(s.price)}</span>
+                            <span>{formatMobileDuration(s.durationMin)}</span>
+                          </span>
                         </span>
-                        <IconStar
-                          size={18}
-                          className={
-                            s.favorite ? "text-gold" : "text-muted-ink"
-                          }
-                        />
-                      </div>
-                      <div className="mt-0.5 flex items-center justify-between gap-2 text-sm text-muted-ink">
-                        <span>{formatMoney(s.price)}</span>
-                        <span>{formatMobileDuration(s.durationMin)}</span>
-                      </div>
-                    </button>
-                  </li>
-                ))}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}
@@ -793,6 +811,13 @@ export function ServicosPage() {
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
         categories={categoryOptions}
+      />
+
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
     </div>
   );
@@ -1129,7 +1154,7 @@ function durationOptionLabel(minutes: number): string {
   return `${formatHm(minutes)} h`;
 }
 
-function ServiceDrawer({
+export function ServiceDrawer({
   mode,
   service,
   isOpen,
@@ -1148,6 +1173,9 @@ function ServiceDrawer({
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [price, setPrice] = useState("");
+  // Belasis: tipo de preço (fixo|a_partir_de) e tipo de custo adicional (value|percent).
+  const [priceType, setPriceType] = useState("fixo");
+  const [additionalCostType, setAdditionalCostType] = useState("value");
   const [additionalCost, setAdditionalCost] = useState("");
   const [commission, setCommission] = useState("");
   const [durationMin, setDurationMin] = useState("15");
@@ -1220,8 +1248,12 @@ function ServiceDrawer({
     setName(service?.name ?? "");
     setCategoryId(service?.categoryId ?? categories[0]?.id ?? "");
     setPrice(service ? String(service.price) : "");
-    const addCost = (service as ServiceBelasisFields | null | undefined)
-      ?.additionalCost;
+    const belasis = service as ServiceBelasisFields | null | undefined;
+    setPriceType(belasis?.priceType === "a_partir_de" ? "a_partir_de" : "fixo");
+    setAdditionalCostType(
+      belasis?.additionalCostType === "percent" ? "percent" : "value",
+    );
+    const addCost = belasis?.additionalCost;
     setAdditionalCost(
       addCost != null && Number(addCost) > 0 ? String(addCost) : "",
     );
@@ -1263,10 +1295,16 @@ function ServiceDrawer({
 
   async function handleSave() {
     setError(null);
-    const body: ServiceBody & { additionalCost?: number } = {
+    const body: ServiceBody & {
+      additionalCost?: number;
+      priceType?: string;
+      additionalCostType?: string;
+    } = {
       name: name.trim(),
       categoryId: categoryId || undefined,
       price: Number(price),
+      priceType,
+      additionalCostType,
       additionalCost: additionalCost ? Number(additionalCost) : 0,
       durationMin: Number(durationMin),
       description: description.trim() || undefined,
@@ -1429,10 +1467,21 @@ function ServiceDrawer({
             </Field>
             <Field label="Preço de venda">
               <div className="flex min-w-0 items-stretch">
-                <span className="inline-flex shrink-0 items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
-                  Preço fixo
-                  <IconChevron size={12} />
-                </span>
+                <div className="relative shrink-0">
+                  <select
+                    aria-label="Tipo de preço"
+                    value={priceType}
+                    onChange={(e) => setPriceType(e.target.value)}
+                    className="h-full appearance-none rounded-l-lg border border-r-0 border-line bg-canvas py-2 pl-3 pr-7 text-sm text-muted-ink outline-none focus:border-primary"
+                  >
+                    <option value="fixo">Preço fixo</option>
+                    <option value="a_partir_de">A partir de</option>
+                  </select>
+                  <IconChevron
+                    size={12}
+                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-ink"
+                  />
+                </div>
                 <TextField
                   value={price}
                   onChange={setPrice}
@@ -1453,10 +1502,21 @@ function ServiceDrawer({
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Custo adicional" info>
               <div className="flex min-w-0 items-stretch">
-                <span className="inline-flex items-center gap-2 rounded-l-lg border border-r-0 border-line bg-canvas px-3 text-sm text-muted-ink">
-                  R$
-                  <IconChevron size={12} />
-                </span>
+                <div className="relative shrink-0">
+                  <select
+                    aria-label="Tipo de custo adicional"
+                    value={additionalCostType}
+                    onChange={(e) => setAdditionalCostType(e.target.value)}
+                    className="h-full appearance-none rounded-l-lg border border-r-0 border-line bg-canvas py-2 pl-3 pr-7 text-sm text-muted-ink outline-none focus:border-primary"
+                  >
+                    <option value="value">R$</option>
+                    <option value="percent">%</option>
+                  </select>
+                  <IconChevron
+                    size={12}
+                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-ink"
+                  />
+                </div>
                 <TextField
                   value={additionalCost}
                   onChange={setAdditionalCost}

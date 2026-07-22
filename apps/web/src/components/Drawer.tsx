@@ -14,6 +14,12 @@ interface DrawerProps {
   widthClass?: string;
   /** Direction/layout of the panel. Content drawers use right; navbar actions use bottom. */
   placement?: 'right' | 'bottom';
+  /**
+   * Root stacking z-index class. Defaults to `z-[70]`. Sub-drawers that must
+   * open ABOVE another drawer (e.g. the comanda's customer/item pickers) pass a
+   * higher one like `z-[90]`.
+   */
+  zClass?: string;
 }
 
 // Keep the panel mounted long enough for the horizontal exit slide to finish.
@@ -36,6 +42,7 @@ export function Drawer({
   footer,
   widthClass = 'sm:w-[440px]',
   placement = 'right',
+  zClass = 'z-[70]',
 }: DrawerProps) {
   const isMobile = useIsMobile();
   const effectivePlacement: 'right' | 'bottom' =
@@ -101,7 +108,7 @@ export function Drawer({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[70]" role="presentation">
+    <div className={`fixed inset-0 ${zClass}`} role="presentation">
       {/* Backdrop */}
       <div
         aria-hidden
