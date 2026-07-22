@@ -16,6 +16,10 @@ import {
   AddDiscountDto,
   AddPaymentDto,
   UpdateOrderDto,
+  UpdateOrderItemDto,
+  AddAuxiliaryDto,
+  AddConsumedProductDto,
+  UseBalanceDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
@@ -49,6 +53,16 @@ export class OrdersController {
     return this.service.addItem(companyId, id, dto);
   }
 
+  @Patch(':id/items/:itemId')
+  updateItem(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateOrderItemDto,
+  ) {
+    return this.service.updateItem(companyId, id, itemId, dto);
+  }
+
   @Delete(':id/items/:itemId')
   removeItem(
     @CurrentUser('companyId') companyId: string,
@@ -58,6 +72,78 @@ export class OrdersController {
     return this.service.removeItem(companyId, id, itemId);
   }
 
+  // ---- auxiliaries (rateio de comissão do item de serviço) ----
+  @Post(':id/items/:itemId/auxiliaries')
+  addAuxiliary(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: AddAuxiliaryDto,
+  ) {
+    return this.service.addAuxiliary(companyId, id, itemId, dto);
+  }
+
+  @Delete(':id/items/:itemId/auxiliaries/:auxId')
+  removeAuxiliary(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Param('auxId') auxId: string,
+  ) {
+    return this.service.removeAuxiliary(companyId, id, itemId, auxId);
+  }
+
+  // ---- produtos consumidos (baixa de estoque, fora do total) ----
+  @Post(':id/items/:itemId/consumed-products')
+  addConsumedProduct(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: AddConsumedProductDto,
+  ) {
+    return this.service.addConsumedProduct(companyId, id, itemId, dto);
+  }
+
+  @Delete(':id/items/:itemId/consumed-products/:consumedId')
+  removeConsumedProduct(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Param('consumedId') consumedId: string,
+  ) {
+    return this.service.removeConsumedProduct(companyId, id, itemId, consumedId);
+  }
+
+  // ---- crédito / cashback ----
+  @Post(':id/credit')
+  applyCredit(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: UseBalanceDto,
+  ) {
+    return this.service.applyCredit(companyId, id, dto);
+  }
+
+  @Delete(':id/credit')
+  removeCredit(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
+    return this.service.removeCredit(companyId, id);
+  }
+
+  @Post(':id/cashback')
+  applyCashback(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: UseBalanceDto,
+  ) {
+    return this.service.applyCashback(companyId, id, dto);
+  }
+
+  @Delete(':id/cashback')
+  removeCashback(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
+    return this.service.removeCashback(companyId, id);
+  }
+
+  // ---- discounts / payments ----
   @Post(':id/discounts')
   addDiscount(
     @CurrentUser('companyId') companyId: string,

@@ -11,6 +11,8 @@ export interface Goal {
   kind: GoalKind;
   scopeType: ScopeType;
   scopeId?: string | null;
+  /** Meta por profissional: null = agregada da empresa (Todos). */
+  employeeId?: string | null;
   target: number;
   actual: number;
   progress: number;
@@ -23,10 +25,15 @@ export interface CreateGoalBody {
   kind: GoalKind;
   scopeType: ScopeType;
   scopeId?: string;
+  /** Escopo por profissional; omitido = meta agregada (Todos). */
+  employeeId?: string;
   target: number;
 }
 
-export type UpdateGoalBody = Partial<CreateGoalBody>;
+export type UpdateGoalBody = Partial<Omit<CreateGoalBody, 'employeeId'>> & {
+  /** null limpa o vínculo (volta a agregada). */
+  employeeId?: string | null;
+};
 
 export function useGoals(period?: string) {
   return useQuery({

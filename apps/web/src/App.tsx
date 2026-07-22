@@ -50,6 +50,25 @@ import { AniversariantesPage } from './pages/relatorios/AniversariantesPage';
 import { AgendamentosPage as RelAgendamentosPage } from './pages/relatorios/AgendamentosPage';
 import { ClientesPage as RelClientesPage } from './pages/relatorios/ClientesPage';
 import { RankingPage } from './pages/relatorios/RankingPage';
+import { FluxoCaixaPage } from './pages/relatorios/FluxoCaixaPage';
+import { ExtratoContasPage } from './pages/relatorios/ExtratoContasPage';
+import { ExtratoMovimentacoesPage } from './pages/relatorios/ExtratoMovimentacoesPage';
+import { ProdutosServicosPage } from './pages/relatorios/ProdutosServicosPage';
+import {
+  ResultadoServicosPage,
+  ResultadoProdutosPage,
+  ProjecaoFaturamentoPage,
+  RecebimentosPage,
+  DespesasPage,
+  AgendamentosExcluidosPage,
+  OrigemAgendamentosPage,
+  CriacaoAgendamentoPage,
+  CuidadosHojePage,
+  SugestaoCompraPage,
+} from './pages/relatorios/EmBreveReports';
+import { MovimentacaoEstoquePage } from './pages/relatorios/MovimentacaoEstoquePage';
+import { ComprasRelatorioPage } from './pages/relatorios/ComprasRelatorioPage';
+import { ProdutosConsumidosPage } from './pages/relatorios/ProdutosConsumidosPage';
 import { MetasPage } from './pages/metas/MetasPage';
 import { LinkAgendamentoPage } from './pages/marketing/LinkAgendamentoPage';
 import { PromocoesPage } from './pages/marketing/PromocoesPage';
@@ -160,6 +179,33 @@ function ProtectedRoutes() {
         <Route path="/relatorios/estoque" element={<EstoquePage />} />
         <Route path="/relatorios/ranking" element={<RankingPage />} />
         <Route path="/relatorios/mensagens" element={<MensagensPage />} />
+        {/* Relatórios — rotas /reports/... antes mortas no submenu (navegação
+            quebrada → 404). Agora registradas: reais sobre dados existentes ou
+            placeholder "Em breve" quando dependem de backend novo. */}
+        <Route path="/reports/financial" element={<Navigate to="/reports/financial/dre" replace />} />
+        <Route path="/reports/financial/dre" element={<DrePage />} />
+        <Route path="/reports/financial/cash-movements" element={<FluxoCaixaPage />} />
+        <Route path="/reports/financial/extract" element={<ExtratoContasPage />} />
+        <Route path="/reports/financial/extract-movements" element={<ExtratoMovimentacoesPage />} />
+        <Route path="/reports/financial/service-revenue" element={<ResultadoServicosPage />} />
+        <Route path="/reports/financial/product-revenue" element={<ResultadoProdutosPage />} />
+        <Route path="/reports/financial/billing-projection" element={<ProjecaoFaturamentoPage />} />
+        <Route path="/reports/financial/bill-recs" element={<RecebimentosPage />} />
+        <Route path="/reports/financial/bill-pays" element={<DespesasPage />} />
+        <Route path="/reports/calendars" element={<Navigate to="/reports/calendars/all" replace />} />
+        <Route path="/reports/calendars/all" element={<RelAgendamentosPage />} />
+        <Route path="/reports/calendars/deleted" element={<AgendamentosExcluidosPage />} />
+        <Route path="/reports/calendars/origin" element={<OrigemAgendamentosPage />} />
+        <Route path="/reports/calendars/creation" element={<CriacaoAgendamentoPage />} />
+        <Route path="/reports/calendars/care-messages-today" element={<CuidadosHojePage />} />
+        <Route path="/reports/inventory" element={<Navigate to="/reports/inventory/stock" replace />} />
+        <Route path="/reports/inventory/stock" element={<EstoquePage />} />
+        <Route path="/reports/inventory/products-services" element={<ProdutosServicosPage />} />
+        <Route path="/reports/inventory/movements" element={<MovimentacaoEstoquePage />} />
+        <Route path="/reports/inventory/purchases" element={<ComprasRelatorioPage />} />
+        <Route path="/reports/inventory/suggestion" element={<SugestaoCompraPage />} />
+        <Route path="/reports/inventory/consumed" element={<ProdutosConsumidosPage />} />
+        <Route path="/reports/invoices" element={<NotasFiscaisPage />} />
         <Route path="/metas" element={<MetasPage />} />
         <Route path="/marketing/agendamento-online" element={<AgendamentoOnlinePage />} />
         <Route path="/marketing/link" element={<LinkAgendamentoPage />} />

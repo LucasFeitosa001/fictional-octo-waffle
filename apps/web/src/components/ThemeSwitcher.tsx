@@ -1,4 +1,5 @@
 import { THEMES, useTheme } from '../theme/theme';
+import { saveThemeToCloud } from '../theme/useThemeSync';
 
 /**
  * Color-theme picker. Selecting a card swaps [data-theme] on <html> instantly
@@ -16,7 +17,10 @@ export function ThemeSwitcher() {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTheme(t.id)}
+            onClick={() => {
+              setTheme(t.id); // instant local apply + localStorage cache
+              saveThemeToCloud(t.id); // mirror to the account (cross-device)
+            }}
             aria-pressed={active}
             className={[
               'flex items-center gap-3 rounded-2xl border p-3 text-left transition',

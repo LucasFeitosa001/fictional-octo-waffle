@@ -1,0 +1,129 @@
+{
+  "baseUrl": "https://conferences-collar-proof-mine.trycloudflare.com",
+  "routes": [
+    {
+      "route": "/pacotes",
+      "ok": true,
+      "note": "h1=\"Pacotes\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/assinaturas?tab=subscribers",
+      "ok": true,
+      "note": "h1=\"Assinaturas\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/assinaturas?tab=plans",
+      "ok": true,
+      "note": "h1=\"Assinaturas\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/vendas-por-assinatura",
+      "ok": false,
+      "note": "h1=\"Painel\" fallback=true check=false http=200"
+    },
+    {
+      "route": "/financeiro/transacoes",
+      "ok": true,
+      "note": "h1=\"Transações\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/financeiro/contas",
+      "ok": true,
+      "note": "h1=\"Contas e métodos\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/financeiro/contas?tab=formas",
+      "ok": true,
+      "note": "h1=\"Contas e métodos\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/financeiro/cadastros/categorias",
+      "ok": false,
+      "note": "h1=\"Painel financeiro\" fallback=false check=false http=200"
+    },
+    {
+      "route": "/financeiro/cadastros/formas-pagamento",
+      "ok": false,
+      "note": "h1=\"Painel financeiro\" fallback=false check=false http=200"
+    },
+    {
+      "route": "/financeiro/cadastros/contas",
+      "ok": false,
+      "note": "h1=\"Painel financeiro\" fallback=false check=false http=200"
+    },
+    {
+      "route": "/financeiro/belasis-pay",
+      "ok": false,
+      "note": "h1=\"Painel financeiro\" fallback=false check=false http=200"
+    },
+    {
+      "route": "/financeiro/notas-fiscais",
+      "ok": true,
+      "note": "h1=\"Painel financeiro\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/financeiro/caixas-abertos",
+      "ok": false,
+      "note": "h1=\"Painel\" fallback=true check=false http=200"
+    },
+    {
+      "route": "/financeiro/historico-caixa",
+      "ok": false,
+      "note": "h1=\"Painel financeiro\" fallback=false check=false http=200"
+    },
+    {
+      "route": "/agenda",
+      "ok": true,
+      "note": "h1=\"Agenda\" fallback=false check=true http=200"
+    },
+    {
+      "route": "/comissoes/resumo",
+      "ok": false,
+      "note": "h1=\"Painel\" fallback=true check=false http=200"
+    }
+  ],
+  "drawers": [
+    {
+      "scenario": "/comandas → 1º card mobile",
+      "subiu": true,
+      "note": "panels=1 winner=y0-only w=390 h=498 all=[{\"y0\":true,\"x0\":false,\"w\":390,\"h\":498}]"
+    },
+    {
+      "scenario": "/agenda → 1º evento",
+      "subiu": false,
+      "note": "action-err: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.fc-event, [class*=\"event\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <div aria-hidden=\"true\" class=\"fixed inset-0 z- | panels=0 winner=none all=[]"
+    },
+    {
+      "scenario": "/clientes → 1º card mobile",
+      "subiu": true,
+      "note": "panels=1 winner=y0-only w=390 h=611 all=[{\"y0\":true,\"x0\":false,\"w\":390,\"h\":611}]"
+    },
+    {
+      "scenario": "/pacotes → 1º card mobile",
+      "subiu": false,
+      "note": "panels=0 winner=none all=[]"
+    },
+    {
+      "scenario": "/financeiro/transacoes → Filtros (BottomNav)",
+      "subiu": true,
+      "note": "panels=1 winner=y0-only w=390 h=611 all=[{\"y0\":true,\"x0\":false,\"w\":390,\"h\":611}]"
+    },
+    {
+      "scenario": "/financeiro/contas → Novo",
+      "subiu": true,
+      "note": "panels=1 winner=y0-only w=390 h=509 all=[{\"y0\":true,\"x0\":false,\"w\":390,\"h\":509}]"
+    },
+    {
+      "scenario": "/financeiro/cadastros/categorias → Nova",
+      "subiu": true,
+      "note": "panels=1 winner=y0-only w=390 h=339 all=[{\"y0\":true,\"x0\":false,\"w\":390,\"h\":339}]"
+    },
+    {
+      "scenario": "/financeiro/caixas-abertos → 1º caixa",
+      "subiu": true,
+      "note": "panels=1 winner=y0-only w=390 h=335 all=[{\"y0\":true,\"x0\":false,\"w\":390,\"h\":335}]"
+    }
+  ],
+  "passed": 14,
+  "failed": 10
+}

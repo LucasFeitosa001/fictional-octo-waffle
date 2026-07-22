@@ -1,0 +1,41 @@
+{
+  "results": [
+    {
+      "button": "Entrar",
+      "ok": true,
+      "note": "url:same drawer:no htmlΔ:594"
+    },
+    {
+      "button": "Continuar com Google",
+      "ok": true,
+      "note": "url:same drawer:no htmlΔ:1560"
+    },
+    {
+      "button": "Acessar Salonpass para clientes",
+      "ok": false,
+      "note": "ERROR: locator.click: Timeout 2000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Aces"
+    },
+    {
+      "button": "Política de Privacidade",
+      "ok": false,
+      "note": "ERROR: locator.click: Timeout 2000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Polí"
+    },
+    {
+      "button": "Termos de Serviço",
+      "ok": false,
+      "note": "ERROR: locator.click: Timeout 2000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Term"
+    },
+    {
+      "button": "Ajuda",
+      "ok": false,
+      "note": "ERROR: locator.click: Timeout 2000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Ajud"
+    },
+    {
+      "button": "Política de privacidade",
+      "ok": false,
+      "note": "ERROR: locator.click: Timeout 2000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Polí"
+    }
+  ],
+  "passed": 2,
+  "failed": 5
+}

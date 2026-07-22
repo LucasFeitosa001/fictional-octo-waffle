@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Avatar } from '@heroui/react';
+import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconChevron,
@@ -15,6 +16,9 @@ import {
   IconUsers,
 } from '../components/icons';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { useSelectMode, buildSelectActions, type BulkAction } from '../hooks/useSelectMode';
 import { useCustomers } from '../lib/queries';
 import { useDeleteCustomer } from '../lib/queries/clientes';
 import { formatDate, formatPhone, initials } from '../lib/format';
@@ -53,12 +57,10 @@ export function ClientesPage() {
   const [birthdayStart, setBirthdayStart] = useState(''); // YYYY-MM-DD
   const [birthdayEnd, setBirthdayEnd] = useState('');
 
-  // Seleção (checkbox por linha — visual, igual ao Belasis)
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  // Modo de seleção do mobile: os checkboxes das linhas só aparecem quando
-  // ativado pelo botão "Selecionar" da BottomNav (igual ao Belasis, onde a lista
-  // fica limpa até você entrar em modo de seleção).
-  const [selectionMode, setSelectionMode] = useState(false);
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) — os ids/allSelected
+  // vêm das linhas visíveis (`rows`), montado logo abaixo. Estado da bottom-sheet
+  // de ações em lote.
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   // "Vá até página" (input de salto do rodapé, igual ao Belasis)
   const [gotoInput, setGotoInput] = useState('');
@@ -71,37 +73,6 @@ export function ClientesPage() {
   const [perfil, setPerfil] = useState<CustomerFull | null>(null);
   useAutoCreate(() => setCreateOpen(true));
   const confirm = useConfirm();
-
-  // Ações contextuais do mobile: renderizadas na BottomNav (não no header).
-  // Ordem espelha o Belasis mobile: Filtros · Selecionar · Criar.
-  useSetPageActions(
-    [
-      {
-        key: 'filtros',
-        label: 'Filtros',
-        icon: <IconFilter size={22} />,
-        onClick: () => setFiltersOpen((v) => !v),
-      },
-      {
-        key: 'selecionar',
-        label: 'Selecionar',
-        icon: <IconCircleCheck size={22} />,
-        onClick: () =>
-          setSelectionMode((v) => {
-            // Ao sair do modo de seleção, limpa a seleção acumulada.
-            if (v) setSelected(new Set());
-            return !v;
-          }),
-      },
-      {
-        key: 'criar',
-        label: 'Criar',
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-    ],
-    [],
-  );
 
   const customers = useCustomers(search, page, pageSize);
   const remove = useDeleteCustomer();
@@ -172,28 +143,77 @@ export function ClientesPage() {
     remove.mutate(c.id);
   }
 
-  function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  // Modo de seleção sobre os ids VISÍVEIS (página + filtros client-side).
+  const ids = useMemo(() => rows.map((r) => r.id), [rows]);
+  const sel = useSelectMode(ids);
 
-  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
-  function toggleSelectAll() {
-    setSelected((prev) => {
-      if (allSelected) {
-        const next = new Set(prev);
-        rows.forEach((r) => next.delete(r.id));
-        return next;
-      }
-      const next = new Set(prev);
-      rows.forEach((r) => next.add(r.id));
-      return next;
-    });
-  }
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: remove.isPending,
+      onClick: async () => {
+        const ok = await confirm({
+          title: 'Excluir clientes?',
+          message: `Excluir ${sel.count} cliente(s) selecionado(s)? Essa ação não pode ser desfeita.`,
+          confirmLabel: 'Excluir',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await Promise.all([...sel.selected].map((id) => remove.mutateAsync(id)));
+          setActionsOpen(false);
+          sel.cancel();
+        } catch (err) {
+          window.alert(
+            err instanceof ApiClientError
+              ? err.message
+              : 'Não foi possível excluir os clientes.',
+          );
+        }
+      },
+    },
+  ];
+
+  // Ações contextuais do mobile: renderizadas na BottomNav (não no header).
+  // Enquanto selectMode estiver ativo, a barra vira [Cancelar · Selecionar
+  // todos · Ações] (buildSelectActions); senão, Filtros · Selecionar · Criar.
+  useSetPageActions(
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          {
+            key: 'filtros',
+            label: 'Filtros',
+            icon: <IconFilter size={22} />,
+            onClick: () => setFiltersOpen((v) => !v),
+          },
+          {
+            key: 'selecionar',
+            label: 'Selecionar',
+            icon: <IconCircleCheck size={22} />,
+            onClick: sel.enter,
+          },
+          {
+            key: 'criar',
+            label: 'Criar',
+            icon: <IconPlus size={22} />,
+            onClick: () => setCreateOpen(true),
+          },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count],
+  );
 
   // Botões numéricos de paginação (janela ao redor da página atual).
   const pageNumbers = useMemo(() => {
@@ -421,8 +441,8 @@ export function ClientesPage() {
                           <input
                             type="checkbox"
                             aria-label="Selecionar todos"
-                            checked={allSelected}
-                            onChange={toggleSelectAll}
+                            checked={sel.allSelected}
+                            onChange={() => sel.selectAll()}
                             className="h-4 w-4 accent-gold"
                           />
                         </th>
@@ -464,8 +484,8 @@ export function ClientesPage() {
                             <input
                               type="checkbox"
                               aria-label={`Selecionar ${c.name}`}
-                              checked={selected.has(c.id)}
-                              onChange={() => toggleSelect(c.id)}
+                              checked={sel.isSelected(c.id)}
+                              onChange={() => sel.toggle(c.id)}
                               className="h-4 w-4 accent-gold"
                             />
                           </td>
@@ -533,20 +553,22 @@ export function ClientesPage() {
                   {rows.map((c) => (
                     <li
                       key={c.id}
-                      className="flex items-center gap-3 rounded-2xl border border-line bg-card px-4 py-4 shadow-[var(--shadow-card)]"
+                      className={`flex items-center gap-3 rounded-2xl border bg-card px-4 py-4 shadow-[var(--shadow-card)] ${
+                        sel.selectMode && sel.isSelected(c.id)
+                          ? 'border-gold ring-1 ring-gold/40'
+                          : 'border-line'
+                      }`}
                     >
-                      {selectionMode && (
-                        <input
-                          type="checkbox"
-                          aria-label={`Selecionar ${c.name}`}
-                          checked={selected.has(c.id)}
-                          onChange={() => toggleSelect(c.id)}
-                          className="h-4 w-4 shrink-0 accent-gold"
-                        />
+                      {sel.selectMode && (
+                        <AnimatedCheckbox checked={sel.isSelected(c.id)} />
                       )}
                       <button
                         type="button"
-                        onClick={() => setPerfil(c)}
+                        onClick={() => {
+                          if (sel.selectMode) sel.toggle(c.id);
+                          else setPerfil(c);
+                        }}
+                        aria-pressed={sel.selectMode ? sel.isSelected(c.id) : undefined}
                         className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
                       >
                         <Avatar size="lg">
@@ -652,6 +674,14 @@ export function ClientesPage() {
           </div>
         </div>
       </div>
+
+      {/* Bottom-sheet das ações em lote do modo de seleção (mobile + desktop). */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
+      />
 
       <CustomerCreateModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
       <ClientePerfilModal

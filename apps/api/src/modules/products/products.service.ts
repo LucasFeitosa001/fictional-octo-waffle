@@ -8,11 +8,13 @@ import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateBrandDto,
+  CreateProductBatchDto,
   CreateProductCategoryDto,
   CreateProductDto,
   StockMovementDto,
   StockMovementType,
   UpdateBrandDto,
+  UpdateProductBatchDto,
   UpdateProductCategoryDto,
   UpdateProductDto,
 } from './dto';
@@ -181,9 +183,18 @@ export class ProductsService {
   }
 
   // ---- brands ----
-  async listBrands(companyId: string) {
+  // Filtro de Status real via Brand.active: 'active' | 'inactive' | undefined (todos).
+  async listBrands(companyId: string, status?: 'active' | 'inactive') {
+    const where: Prisma.BrandWhereInput = {
+      companyId,
+      ...(status === 'active'
+        ? { active: true }
+        : status === 'inactive'
+          ? { active: false }
+          : {}),
+    };
     const brands = await this.prisma.client.brand.findMany({
-      where: { companyId },
+      where,
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     });
@@ -191,6 +202,7 @@ export class ProductsService {
       id: b.id,
       companyId: b.companyId,
       name: b.name,
+      active: b.active,
       createdAt: b.createdAt,
       updatedAt: b.updatedAt,
       productCount: b._count.products,
@@ -224,5 +236,77 @@ export class ProductsService {
       );
     }
     return this.prisma.client.brand.delete({ where: { id } });
+  }
+
+  // ---- product batches (lotes) ----
+  async listBatches(companyId: string, productId?: string) {
+    const where: Prisma.ProductBatchWhereInput = {
+      companyId,
+      ...(productId ? { productId } : {}),
+    };
+    return this.prisma.client.productBatch.findMany({
+      where,
+      orderBy: [{ active: 'desc' }, { expiresAt: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async createBatch(companyId: string, dto: CreateProductBatchDto) {
+    // Garante que o produto pertence à empresa (multi-tenant).
+    const product = await this.prisma.client.product.findFirst({
+      where: { id: dto.productId, companyId, deletedAt: null },
+    });
+    if (!product) throw new NotFoundException('Produto não encontrado');
+    return this.prisma.client.productBatch.create({
+      data: {
+        companyId,
+        productId: dto.productId,
+        code: dto.code,
+        manufacturedAt: dto.manufacturedAt ? new Date(dto.manufacturedAt) : null,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        quantity: dto.quantity ?? 0,
+        active: dto.active ?? true,
+      },
+    });
+  }
+
+  async updateBatch(companyId: string, id: string, dto: UpdateProductBatchDto) {
+    const found = await this.prisma.client.productBatch.findFirst({
+      where: { id, companyId },
+    });
+    if (!found) throw new NotFoundException('Lote não encontrado');
+    return this.prisma.client.productBatch.update({
+      where: { id },
+      data: {
+        ...(dto.code !== undefined ? { code: dto.code } : {}),
+        ...(dto.manufacturedAt !== undefined
+          ? { manufacturedAt: dto.manufacturedAt ? new Date(dto.manufacturedAt) : null }
+          : {}),
+        ...(dto.expiresAt !== undefined
+          ? { expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null }
+          : {}),
+        ...(dto.quantity !== undefined ? { quantity: dto.quantity } : {}),
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+      },
+    });
+  }
+
+  async removeBatch(companyId: string, id: string) {
+    const found = await this.prisma.client.productBatch.findFirst({
+      where: { id, companyId },
+    });
+    if (!found) throw new NotFoundException('Lote não encontrado');
+
+    // Bloqueia exclusão se referenciado por itens de comanda ou produtos consumidos
+    // (evita FK órfã); nesse caso usar soft-hide (active=false).
+    const [itemCount, consumedCount] = await Promise.all([
+      this.prisma.client.orderItem.count({ where: { batchId: id } }),
+      this.prisma.client.orderItemConsumedProduct.count({ where: { batchId: id } }),
+    ]);
+    if (itemCount > 0 || consumedCount > 0) {
+      throw new ConflictException(
+        'Lote em uso em comandas — desative-o (active=false) em vez de excluir.',
+      );
+    }
+    return this.prisma.client.productBatch.delete({ where: { id } });
   }
 }

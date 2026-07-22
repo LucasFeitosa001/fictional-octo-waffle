@@ -1,0 +1,3321 @@
+{
+  "meta": {
+    "base": "https://conferences-collar-proof-mine.trycloudflare.com",
+    "email": "contato@fatimacabelos.com.br",
+    "holdMs": 60000,
+    "startedAt": 1784583424324,
+    "t0LoginMs": 1784583425792,
+    "iso": "2026-07-20T21:37:04.324Z"
+  },
+  "events": [
+    {
+      "t": 0,
+      "kind": "page:mutationObserver.armed",
+      "data": {
+        "at": 47.099999997764826
+      }
+    },
+    {
+      "t": 0,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 48.19999999925494,
+        "id": 1,
+        "delay": 250,
+        "srcHead": "() => {\n    try {\n      const r = document.getElementById('root') || document.body;\n      const n = r.childElementCount;\n      if (n !== lastRootChildren) {\n        send('root.childCount.change', { at: stamp(), from: las",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at <anonymous>:155:3\n    at <anonymous>:167:3\n    at <anonymous>:169:7"
+      }
+    },
+    {
+      "t": 0,
+      "kind": "page:init.done",
+      "data": {
+        "at": 48.599999997764826,
+        "url": "about:blank"
+      }
+    },
+    {
+      "t": 0,
+      "kind": "login.done",
+      "status": 200,
+      "hasToken": true
+    },
+    {
+      "t": 5,
+      "kind": "page:beforeunload",
+      "data": {
+        "at": 1308.8999999985099,
+        "stack": "Error\n    at <anonymous>:11:48"
+      }
+    },
+    {
+      "t": 10,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/",
+      "method": "GET",
+      "type": "other",
+      "rt": "document",
+      "isNav": true
+    },
+    {
+      "t": 457,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/",
+      "status": 200,
+      "type": "other"
+    },
+    {
+      "t": 459,
+      "kind": "page:pagehide",
+      "data": {
+        "at": 1762.5,
+        "persisted": false
+      }
+    },
+    {
+      "t": 461,
+      "kind": "page:visibilitychange",
+      "data": {
+        "at": 1763,
+        "state": "hidden"
+      }
+    },
+    {
+      "t": 461,
+      "kind": "page:unload",
+      "data": {
+        "at": 1763.199999999255
+      }
+    },
+    {
+      "t": 465,
+      "kind": "framenavigated",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+    },
+    {
+      "t": 467,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 458.5999999977648,
+        "id": 1,
+        "delay": 250,
+        "srcHead": "() => {\n    try {\n      const r = document.getElementById('root') || document.body;\n      const n = r.childElementCount;\n      if (n !== lastRootChildren) {\n        send('root.childCount.change', { at: stamp(), from: las",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at <anonymous>:155:3\n    at <anonymous>:167:3\n    at <anonymous>:169:7"
+      }
+    },
+    {
+      "t": 468,
+      "kind": "page:init.done",
+      "data": {
+        "at": 459.19999999925494,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+      }
+    },
+    {
+      "t": 471,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@vite/client",
+      "method": "GET",
+      "type": "other",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 471,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/brand/salonpass-wordmark-white.svg",
+      "method": "GET",
+      "type": "asset",
+      "rt": "image",
+      "isNav": false
+    },
+    {
+      "t": 471,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/main.tsx?t=1784582408535",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 473,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@react-refresh",
+      "method": "GET",
+      "type": "other",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 829,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@vite/client",
+      "status": 200,
+      "type": "other"
+    },
+    {
+      "t": 830,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/node_modules/.pnpm/vite@6.4.3_@types+node@20.19.41_jiti@2.7.0_lightningcss@1.32.0_terser@5.48.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/client/env.mjs",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 869,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/main.tsx?t=1784582408535",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 872,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=7b3cbbcc",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 872,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react.js?v=7b3cbbcc",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 872,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 872,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 872,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 872,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/App.tsx?t=1784582408535",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 872,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/index.css?t=1784582408535",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 873,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/theme/theme.ts?t=1784580744234",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 914,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@react-refresh",
+      "status": 200,
+      "type": "other"
+    },
+    {
+      "t": 1183,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/node_modules/.pnpm/vite@6.4.3_@types+node@20.19.41_jiti@2.7.0_lightningcss@1.32.0_terser@5.48.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/client/env.mjs",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1185,
+      "kind": "console",
+      "level": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "t": 1201,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=7b3cbbcc",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1201,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-PPQJS66Z.js?v=0ca54e0a",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1201,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-WOOG5QLI.js?v=0ca54e0a",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1211,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react.js?v=7b3cbbcc",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1287,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/theme/theme.ts?t=1784580744234",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1295,
+      "kind": "ws.open",
+      "url": "wss://conferences-collar-proof-mine.trycloudflare.com/?token=BTuFptTsUmy5"
+    },
+    {
+      "t": 1323,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1323,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-WDNMY5L3.js?v=0ca54e0a",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1376,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1376,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-N5FLM3NU.js?v=0ca54e0a",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1434,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/App.tsx?t=1784582408535",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1445,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/auth.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1445,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/LoginPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1445,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/DashboardLayout.tsx?t=1784580622469",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PainelPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AgendaPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AgendamentosPage.tsx?t=1784579255823",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ComandasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ComandaDetalhePage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ClientesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ProfissionaisPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ServicosPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/CaixaPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ConfiguracoesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PacotesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AssinaturasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/FinanceiroPainelPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/TransacoesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/ContasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/FinanceiroCategoriasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/BelasisPayCadastroPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/CaixasAbertosPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/CaixaHistoricoPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/NotasFiscaisPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/FinanceiroConfiguracoesPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1450,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/cadastros/AnamnesesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/cadastros/ConvidarProfissionaisPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/controle/PacotesPredefinidosPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/controle/ComprasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/controle/GeradorDocumentoPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/AgendamentoOnlinePage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/CampanhasPage.tsx?t=1784579255823",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AjudaPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/IndiquePage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/comissoes/ComissoesResumoPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/comissoes/ComissoesConfigPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/FornecedoresPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ProdutosPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/CategoriasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/MarcasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/RelatoriosPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/VendasPage.tsx?t=1784579255823",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/DrePage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/EstoquePage.tsx?t=1784579255823",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/MensagensPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1451,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/AniversariantesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/AgendamentosPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/ClientesPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/RankingPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/metas/MetasPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/LinkAgendamentoPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/PromocoesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/AvaliacoesPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/CashbackPage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ia/IAAtendimentoPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PerfilPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/NotificacoesCategoriasPage.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/NotificacoesDetalhePage.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PerfilAdicionaisPage.tsx?t=1784574363947",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PerfilAssinaturaPage.tsx?t=1784576726593",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1454,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1455,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/index.css?t=1784582408535",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1561,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-PPQJS66Z.js?v=0ca54e0a",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1562,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-WOOG5QLI.js?v=0ca54e0a",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1670,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-WDNMY5L3.js?v=0ca54e0a",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1718,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-N5FLM3NU.js?v=0ca54e0a",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1733,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 1727.7999999970198,
+        "id": 2,
+        "delay": 30000,
+        "srcHead": "() => {\n        if (socket.readyState === socket.OPEN) {\n          socket.send(JSON.stringify({ type: \"ping\" }));\n        }\n      }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.connect (https://conferences-collar-proof-mine.trycloudflare.com/@vite/client:472:24)\n    at async Object.connect (https://conferences-collar-proof-mine.trycloudflare.com/@vite/client:811:11)\n    at async Object.connect (https://conferences-collar-proof-mine.trycloudflare.com/@vite/client:392:11)"
+      }
+    },
+    {
+      "t": 1822,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/FinanceiroPainelPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1824,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@heroui_react.js?v=67a3079c",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1824,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/recharts.js?v=d0a7b15c",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1824,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/PageHeader.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/States.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/DateRangeFilter.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/Drawer.tsx?t=1784579255823",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/icons.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/PageActions.tsx?t=1784574355161",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/financeiro.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/theme/useThemeColors.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1825,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/format.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1828,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/auth.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1829,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/better-auth_react.js?v=d2447611",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1829,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/config.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1834,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/DashboardLayout.tsx?t=1784580622469",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1835,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/Sidebar.tsx?t=1784580622469",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1835,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/BottomNav.tsx?t=1784574400668",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1835,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/ConfirmDialog.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1840,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ComandaDetalhePage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1843,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/index.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1843,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/StatusChip.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1843,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1843,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/catalogo.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1860,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AssinaturasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1863,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PainelPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1864,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/FullDrawer.tsx?t=1784579278397",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1864,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/csv.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1864,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/assinaturas.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1866,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AgendaPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1866,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/LoginPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1867,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ComandasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1869,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/hooks/useIsMobile.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1869,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/dashboard.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1869,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/HelpTooltip.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1871,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/NewAppointmentModal.tsx?t=1784579255823",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1871,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/DropdownButton.tsx?t=1784575477674",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1871,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/AgendaGrid.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1871,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/agenda.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1871,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/useAutoCreate.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1871,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/api.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1878,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/PromocoesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1879,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/marketing.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1887,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/FinanceiroCategoriasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1908,
+      "kind": "ws.recv",
+      "url": "wss://conferences-collar-proof-mine.trycloudflare.com/?token=BTuFptTsUmy5",
+      "payload": "{\"type\":\"connected\"}"
+    },
+    {
+      "t": 1908,
+      "kind": "console",
+      "level": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "t": 1909,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/CashbackPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1913,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ConfiguracoesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1915,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/ImageUpload.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1915,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/ThemeSwitcher.tsx?t=1784580744234",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1915,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/WhatsappConnectionCard.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1915,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/empresa.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1915,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/profissionais.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1925,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/BelasisPayCadastroPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1926,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AgendamentosPage.tsx?t=1784579255823",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1935,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/TransacoesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1936,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/DataTable.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1942,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/CaixaPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1949,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ServicosPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1951,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ClientesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1952,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/cadastros/ConvidarProfissionaisPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1952,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/clientes.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1952,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ClientePerfilTabs.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1952,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/shared/ModulePlaceholder.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1979,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/CaixasAbertosPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1980,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/CaixaHistoricoPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1980,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/IndiquePage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1980,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/AniversariantesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1980,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/caixa.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1980,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/relatorios.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1980,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/reportShared.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 1983,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/FinanceiroConfiguracoesPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1992,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/AjudaPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1995,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/RelatoriosPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 1996,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/EstoquePage.tsx?t=1784579255823",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2003,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PerfilAdicionaisPage.tsx?t=1784574363947",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2003,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/SegBtn.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2004,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/CampanhasPage.tsx?t=1784579255823",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2006,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/CategoriasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2010,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/comissoes/ComissoesConfigPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2011,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/comissoes.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2018,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/LinkAgendamentoPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2019,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/AgendamentosPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2024,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PerfilPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2026,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/NotificacoesCategoriasPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2030,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/NotasFiscaisPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2030,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/UpsellModal.tsx",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2031,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/ClientesPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2032,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/RankingPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2034,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ProfissionaisPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2038,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/NotificacoesDetalhePage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2038,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PerfilAssinaturaPage.tsx?t=1784576726593",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2047,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/cadastros/AnamnesesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2049,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/MensagensPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2052,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/FornecedoresPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2060,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/comissoes/ComissoesResumoPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2064,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/metas/MetasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2065,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/metas.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2069,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/VendasPage.tsx?t=1784579255823",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2078,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/controle/GeradorDocumentoPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2117,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/AvaliacoesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2119,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/DrePage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2129,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/MarcasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2132,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/financeiro/ContasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2136,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ia/IAAtendimentoPage.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2145,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/controle/PacotesPredefinidosPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2147,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/pacotes.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2151,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/marketing/AgendamentoOnlinePage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2151,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/agendamento-online.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2173,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PacotesPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2173,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PacotePerfilModal.tsx?t=1784581671850",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2199,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/States.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2211,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/controle/ComprasPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2211,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/compras.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2226,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ProdutosPage.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2231,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/dashboard.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2231,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/catalogo.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2231,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/StatusChip.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2232,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/types.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2241,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/hooks/useIsMobile.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2244,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/HelpTooltip.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2252,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/index.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2253,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/ConfirmDialog.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2253,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/enums.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2253,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/types.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2253,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/schemas.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2253,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/api-client.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2253,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/auth.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2254,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/public-booking.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2254,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/api.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2254,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/csv.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2256,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/financeiro.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2267,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/marketing.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2271,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/better-auth_react.js?v=d2447611",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2271,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/Sidebar.tsx?t=1784580622469",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2271,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/NotificationBell.tsx?t=1784579872144",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2271,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/MinhaContaDrawer.tsx?t=1784579255823",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2272,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/assinaturas.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2273,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/format.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2274,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/FullDrawer.tsx?t=1784579278397",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2275,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom.js?v=7b3cbbcc",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2275,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/useAutoCreate.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2277,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/icons.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2279,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/AgendaGrid.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2284,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/DateRangeFilter.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2284,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/agenda.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2284,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/Drawer.tsx?t=1784579255823",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2287,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/theme/useThemeColors.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2289,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/ImageUpload.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2292,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/WhatsappConnectionCard.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2293,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/whatsapp.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2293,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/PageHeader.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2293,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/profissionais.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2294,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/PageActions.tsx?t=1784574355161",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2300,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/ThemeSwitcher.tsx?t=1784580744234",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2302,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/DataTable.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2305,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/config.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2310,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/layout/BottomNav.tsx?t=1784574400668",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2314,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/DropdownButton.tsx?t=1784575477674",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2314,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/empresa.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2316,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/shared/ModulePlaceholder.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2317,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/NewAppointmentModal.tsx?t=1784579255823",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2374,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/clientes.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2378,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/caixa.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2378,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/comissoes.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2380,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/relatorios.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2383,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/relatorios/reportShared.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2391,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/SegBtn.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2396,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2398,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/UpsellModal.tsx",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2403,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/metas.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2410,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/ClientePerfilTabs.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2472,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/pacotes.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2476,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/agendamento-online.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2518,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/recharts.js?v=d0a7b15c",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2519,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-AJM4L4FX.js?v=0ca54e0a",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2581,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/compras.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2598,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/types.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2598,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/pages/PacotePerfilModal.tsx?t=1784581671850",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2618,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/MinhaContaDrawer.tsx?t=1784579255823",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2620,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/types.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2621,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/api-client.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2625,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/public-booking.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2628,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/components/NotificationBell.tsx?t=1784579872144",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2629,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/notificacoes.ts",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2631,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/schemas.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2631,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/zod.js?v=4d70a051",
+      "method": "GET",
+      "type": "code",
+      "rt": "script",
+      "isNav": false
+    },
+    {
+      "t": 2637,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/enums.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2637,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/packages/shared/src/auth.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2666,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/whatsapp.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2666,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom.js?v=7b3cbbcc",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2765,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@heroui_react.js?v=67a3079c",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2849,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-AJM4L4FX.js?v=0ca54e0a",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2954,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/notificacoes.ts",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 2989,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/zod.js?v=4d70a051",
+      "status": 200,
+      "type": "code"
+    },
+    {
+      "t": 3160,
+      "kind": "page:splash.found.initial",
+      "data": {
+        "at": 3149.599999997765,
+        "display": "flex",
+        "visible": false
+      }
+    },
+    {
+      "t": 3160,
+      "kind": "page:mutationObserver.armed",
+      "data": {
+        "at": 3155.699999999255
+      }
+    },
+    {
+      "t": 3163,
+      "kind": "domcontentloaded",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+    },
+    {
+      "t": 3163,
+      "kind": "goto.done",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/",
+      "tookMs": 3163
+    },
+    {
+      "t": 3167,
+      "kind": "load",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+    },
+    {
+      "t": 3173,
+      "kind": "page:history.replaceState",
+      "data": {
+        "at": 3167.89999999851,
+        "url": "",
+        "stack": "Error\n    at history.replaceState (<anonymous>:57:78)\n    at getUrlBasedHistory (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61:725:19)\n    at createBrowserHistory (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61:592:10)\n    at BrowserRouter (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61:10794:26)\n    at react-stack-bottom-frame (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:17424:20)\n    at renderWithHooks (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:4206:24)\n    at updateFunctionComponent (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:6619:21)\n    at beginWork (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:7654:20)\n    at runWithFiberInDEV (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:1485:72)\n    at performUnitOfWork (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:10868:98)"
+      }
+    },
+    {
+      "t": 3175,
+      "kind": "framenavigated",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+    },
+    {
+      "t": 3190,
+      "kind": "page:fetch.start",
+      "data": {
+        "at": 3185.699999999255,
+        "url": "",
+        "method": "GET"
+      }
+    },
+    {
+      "t": 3192,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/auth/get-session",
+      "method": "GET",
+      "type": "api",
+      "rt": "fetch",
+      "isNav": false
+    },
+    {
+      "t": 3520,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/auth/get-session",
+      "status": 200,
+      "type": "api"
+    },
+    {
+      "t": 3520,
+      "kind": "page:fetch.end",
+      "data": {
+        "at": 3515.5,
+        "url": "",
+        "status": 200
+      }
+    },
+    {
+      "t": 3554,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 3549.5,
+        "delay": 1800000,
+        "srcHead": "() => {\n        this.optionalRemove();\n      }"
+      }
+    },
+    {
+      "t": 3683,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 3678.2999999970198,
+        "delay": 1800000,
+        "srcHead": "() => {\n        this.optionalRemove();\n      }"
+      }
+    },
+    {
+      "t": 3709,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 3704.199999999255,
+        "id": 14,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 3712,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 3705.7999999970198,
+        "id": 14
+      }
+    },
+    {
+      "t": 3713,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 3706.5,
+        "id": 15,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 3767,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/node_modules/.pnpm/@fontsource+inter@5.2.8/node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2",
+      "method": "GET",
+      "type": "asset",
+      "rt": "font",
+      "isNav": false
+    },
+    {
+      "t": 3767,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/node_modules/.pnpm/@fontsource+inter@5.2.8/node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2",
+      "method": "GET",
+      "type": "asset",
+      "rt": "font",
+      "isNav": false
+    },
+    {
+      "t": 3767,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/node_modules/.pnpm/@fontsource+inter@5.2.8/node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2",
+      "method": "GET",
+      "type": "asset",
+      "rt": "font",
+      "isNav": false
+    },
+    {
+      "t": 3767,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/@fs/home/lucssfeitosa/beautypass/beautypass/node_modules/.pnpm/@fontsource+inter@5.2.8/node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2",
+      "method": "GET",
+      "type": "asset",
+      "rt": "font",
+      "isNav": false
+    },
+    {
+      "t": 3767,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 3760.2999999970198,
+        "id": 18,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 3773,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 3767.5,
+        "id": 15
+      }
+    },
+    {
+      "t": 3776,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 3770.2999999970198,
+        "id": 18
+      }
+    },
+    {
+      "t": 3779,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 3771.099999997765,
+        "delay": 1800000,
+        "srcHead": "() => {\n        this.optionalRemove();\n      }"
+      }
+    },
+    {
+      "t": 3780,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 3772.199999999255,
+        "delay": 1800000,
+        "srcHead": "() => {\n        this.optionalRemove();\n      }"
+      }
+    },
+    {
+      "t": 3785,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 3775,
+        "id": 24,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 3787,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 3777.199999999255,
+        "id": 27,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 3791,
+      "kind": "request",
+      "url": "https://beautypass-uploads-834424012647.s3.us-east-1.amazonaws.com/uploads/cmrqa8nzm00000hfbkyljwqrc/avatar/fatima-lacerda.jpg",
+      "method": "GET",
+      "type": "asset",
+      "rt": "image",
+      "isNav": false
+    },
+    {
+      "t": 3791,
+      "kind": "page:fetch.start",
+      "data": {
+        "at": 3780.199999999255,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+        "method": "GET"
+      }
+    },
+    {
+      "t": 3793,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+      "method": "GET",
+      "type": "api",
+      "rt": "fetch",
+      "isNav": false
+    },
+    {
+      "t": 3793,
+      "kind": "page:fetch.start",
+      "data": {
+        "at": 3781,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/dashboard?from=2026-07-06&to=2026-07-20",
+        "method": "GET"
+      }
+    },
+    {
+      "t": 3794,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/dashboard?from=2026-07-06&to=2026-07-20",
+      "method": "GET",
+      "type": "api",
+      "rt": "fetch",
+      "isNav": false
+    },
+    {
+      "t": 3901,
+      "kind": "page:root.childCount.change",
+      "data": {
+        "at": 3885.599999997765,
+        "from": 0,
+        "to": 1
+      }
+    },
+    {
+      "t": 4009,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+      "status": 200,
+      "type": "api"
+    },
+    {
+      "t": 4009,
+      "kind": "page:fetch.end",
+      "data": {
+        "at": 4002.7999999970198,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+        "status": 200
+      }
+    },
+    {
+      "t": 4021,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 4004.5,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (!__privateGet(this, _currentResult).isStale) {\n      this.updateResult();\n    }\n  }"
+      }
+    },
+    {
+      "t": 4021,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 4004.89999999851,
+        "id": 24
+      }
+    },
+    {
+      "t": 4021,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 4005.099999997765,
+        "id": 32,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 4024,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 4005.5,
+        "delay": 29999,
+        "srcHead": "() => {\n    if (!__privateGet(this, _currentResult).isStale) {\n      this.updateResult();\n    }\n  }"
+      }
+    },
+    {
+      "t": 4025,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 4005.699999999255,
+        "id": 27
+      }
+    },
+    {
+      "t": 4027,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 4005.699999999255,
+        "id": 34,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 4028,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 4005.89999999851,
+        "delay": 1800000,
+        "srcHead": "() => {\n        this.optionalRemove();\n      }"
+      }
+    },
+    {
+      "t": 4365,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/dashboard?from=2026-07-06&to=2026-07-20",
+      "status": 200,
+      "type": "api"
+    },
+    {
+      "t": 4365,
+      "kind": "page:fetch.end",
+      "data": {
+        "at": 4359.599999997765,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/dashboard?from=2026-07-06&to=2026-07-20",
+        "status": 200
+      }
+    },
+    {
+      "t": 4368,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 4360.89999999851,
+        "delay": 30001,
+        "srcHead": "() => {\n    if (!__privateGet(this, _currentResult).isStale) {\n      this.updateResult();\n    }\n  }"
+      }
+    },
+    {
+      "t": 4370,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 4361.29999999702,
+        "delay": 1800000,
+        "srcHead": "() => {\n        this.optionalRemove();\n      }"
+      }
+    },
+    {
+      "t": 4426,
+      "kind": "console",
+      "level": "error",
+      "text": "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <div> p \n\n  ...\n    <div>\n      <PageHeader>\n      <button>\n      <div className=\"\">\n        <div className=\"min-w-0 fl...\">\n          <div className=\"flex flex-...\">\n            <div>\n            <TabsTendenciaStatus>\n            <div className=\"grid grid-...\">\n              <TicketMedioCard ticket={{valor:151.99, ...}} comparacao={{...}}>\n                <CardRoot className=\"min-w-0 bo...\">\n                  <boun"
+    },
+    {
+      "t": 4426,
+      "kind": "console",
+      "level": "error",
+      "text": "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. p <div>"
+    },
+    {
+      "t": 18575,
+      "kind": "screenshot.taken",
+      "path": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/reload-hunt/shot-t18s.png"
+    },
+    {
+      "t": 31733,
+      "kind": "ws.send",
+      "url": "wss://conferences-collar-proof-mine.trycloudflare.com/?token=BTuFptTsUmy5",
+      "payload": "{\"type\":\"ping\"}"
+    },
+    {
+      "t": 33537,
+      "kind": "screenshot.taken",
+      "path": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/reload-hunt/shot-t33s.png"
+    },
+    {
+      "t": 34011,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 34005.29999999702,
+        "id": 32
+      }
+    },
+    {
+      "t": 34015,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 34005.699999999255,
+        "id": 40,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 34015,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 34006.099999997765,
+        "id": 34
+      }
+    },
+    {
+      "t": 34016,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 34006.29999999702,
+        "id": 41,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 34017,
+      "kind": "page:fetch.start",
+      "data": {
+        "at": 34006.89999999851,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+        "method": "GET"
+      }
+    },
+    {
+      "t": 34021,
+      "kind": "request",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+      "method": "GET",
+      "type": "api",
+      "rt": "fetch",
+      "isNav": false
+    },
+    {
+      "t": 34177,
+      "kind": "response",
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+      "status": 200,
+      "type": "api"
+    },
+    {
+      "t": 34177,
+      "kind": "page:fetch.end",
+      "data": {
+        "at": 34172,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/api/v1/notifications?limit=30",
+        "status": 200
+      }
+    },
+    {
+      "t": 34179,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 34173.199999999255,
+        "delay": 30001,
+        "srcHead": "() => {\n    if (!__privateGet(this, _currentResult).isStale) {\n      this.updateResult();\n    }\n  }"
+      }
+    },
+    {
+      "t": 34182,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 34173.5,
+        "id": 40
+      }
+    },
+    {
+      "t": 34183,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 34173.699999999255,
+        "id": 43,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 34183,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 34174,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (!__privateGet(this, _currentResult).isStale) {\n      this.updateResult();\n    }\n  }"
+      }
+    },
+    {
+      "t": 34183,
+      "kind": "page:clearInterval",
+      "data": {
+        "at": 34174.199999999255,
+        "id": 41
+      }
+    },
+    {
+      "t": 34184,
+      "kind": "page:setInterval",
+      "data": {
+        "at": 34174.29999999702,
+        "id": 45,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).call(this);\n    }\n  }",
+        "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at Object.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:119:37)\n    at _a2.setInterval (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:162:42)\n    at _a6.updateRefetchInterval_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1887:57)\n    at _a6.updateTimers_fn (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@tanstack_react-query.js?v=cecd0fd1:1894:77)"
+      }
+    },
+    {
+      "t": 34186,
+      "kind": "page:setTimeout>=1500",
+      "data": {
+        "at": 34174.5,
+        "delay": 1800000,
+        "srcHead": "() => {\n        this.optionalRemove();\n      }"
+      }
+    },
+    {
+      "t": 48523,
+      "kind": "screenshot.taken",
+      "path": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/reload-hunt/shot-t48s.png"
+    },
+    {
+      "t": 61732,
+      "kind": "ws.send",
+      "url": "wss://conferences-collar-proof-mine.trycloudflare.com/?token=BTuFptTsUmy5",
+      "payload": "{\"type\":\"ping\"}"
+    },
+    {
+      "t": 63516,
+      "kind": "hold.done",
+      "heldMs": 60189
+    },
+    {
+      "t": 63519,
+      "kind": "perf.snapshot",
+      "nav": [
+        {
+          "name": "https://conferences-collar-proof-mine.trycloudflare.com/",
+          "type": "navigate",
+          "dur": 3160.39999999851,
+          "startTime": 0
+        }
+      ],
+      "historyLen": 2,
+      "url": "https://conferences-collar-proof-mine.trycloudflare.com/",
+      "docReadyState": "complete"
+    },
+    {
+      "t": 63524,
+      "kind": "close"
+    }
+  ],
+  "summary": {
+    "totalEvents": 374,
+    "byKind": {
+      "page:mutationObserver.armed": 2,
+      "page:setInterval": 14,
+      "page:init.done": 2,
+      "login.done": 1,
+      "page:beforeunload": 1,
+      "request": 153,
+      "response": 147,
+      "page:pagehide": 1,
+      "page:visibilitychange": 1,
+      "page:unload": 1,
+      "framenavigated": 2,
+      "console": 4,
+      "ws.open": 1,
+      "ws.recv": 1,
+      "page:splash.found.initial": 1,
+      "domcontentloaded": 1,
+      "goto.done": 1,
+      "load": 1,
+      "page:history.replaceState": 1,
+      "page:fetch.start": 4,
+      "page:fetch.end": 4,
+      "page:setTimeout>=1500": 12,
+      "page:clearInterval": 9,
+      "page:root.childCount.change": 1,
+      "screenshot.taken": 3,
+      "ws.send": 2,
+      "hold.done": 1,
+      "perf.snapshot": 1,
+      "close": 1
+    },
+    "getSessionCalls": 1,
+    "frameNavigations": [
+      {
+        "t": 465,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+      },
+      {
+        "t": 3175,
+        "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+      }
+    ],
+    "loadEvents": 1,
+    "pageReloadCalls": 0,
+    "locationReplace": 0,
+    "pushStates": 0,
+    "replaceStates": 1,
+    "popstate": 0,
+    "beforeunload": 1,
+    "pageErrors": 0,
+    "splashMutations": 0,
+    "splashReAdded": 0,
+    "rootChildChanges": 1,
+    "wsUrls": [
+      "wss://conferences-collar-proof-mine.trycloudflare.com/?token=BTuFptTsUmy5"
+    ],
+    "viteMessages": [],
+    "viteFullReloadCount": 0,
+    "viteUpdateCount": 0,
+    "intervalsRegistered": [
+      {
+        "t": 0,
+        "delay": 250,
+        "srcHead": "() => {\n    try {\n      const r = document.getElementById('root') || document.body;\n      const n = r.childElementCount;\n      if (n !== lastRootChildren) {\n   "
+      },
+      {
+        "t": 467,
+        "delay": 250,
+        "srcHead": "() => {\n    try {\n      const r = document.getElementById('root') || document.body;\n      const n = r.childElementCount;\n      if (n !== lastRootChildren) {\n   "
+      },
+      {
+        "t": 1733,
+        "delay": 30000,
+        "srcHead": "() => {\n        if (socket.readyState === socket.OPEN) {\n          socket.send(JSON.stringify({ type: \"ping\" }));\n        }\n      }"
+      },
+      {
+        "t": 3709,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 3713,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 3767,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 3785,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 3787,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 4021,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 4027,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 34015,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 34016,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 34183,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      },
+      {
+        "t": 34184,
+        "delay": 30000,
+        "srcHead": "() => {\n    if (this.options.refetchIntervalInBackground || focusManager.isFocused()) {\n      __privateMethod(this, _QueryObserver_instances, executeFetch_fn).c"
+      }
+    ],
+    "intervalCount": 14,
+    "reloadCauseHints": [
+      {
+        "navT": 465,
+        "navUrl": "https://conferences-collar-proof-mine.trycloudflare.com/",
+        "priorEvents": [
+          {
+            "t": 0,
+            "kind": "page:mutationObserver.armed",
+            "data": {
+              "at": 47.099999997764826
+            }
+          },
+          {
+            "t": 0,
+            "kind": "page:setInterval",
+            "data": {
+              "at": 48.19999999925494,
+              "id": 1,
+              "delay": 250,
+              "srcHead": "() => {\n    try {\n      const r = document.getElementById('root') || document.body;\n      const n = r.childElementCount;\n      if (n !== lastRootChildren) {\n        send('root.childCount.change', { at: stamp(), from: las",
+              "stack": "Error\n    at window.setInterval (<anonymous>:71:72)\n    at <anonymous>:155:3\n    at <anonymous>:167:3\n    at <anonymous>:169:7"
+            }
+          },
+          {
+            "t": 0,
+            "kind": "page:init.done",
+            "data": {
+              "at": 48.599999997764826,
+              "url": "about:blank"
+            }
+          },
+          {
+            "t": 0,
+            "kind": "login.done"
+          },
+          {
+            "t": 5,
+            "kind": "page:beforeunload",
+            "data": {
+              "at": 1308.8999999985099,
+              "stack": "Error\n    at <anonymous>:11:48"
+            }
+          },
+          {
+            "t": 10,
+            "kind": "request",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+          },
+          {
+            "t": 457,
+            "kind": "response",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+          },
+          {
+            "t": 459,
+            "kind": "page:pagehide",
+            "data": {
+              "at": 1762.5,
+              "persisted": false
+            }
+          },
+          {
+            "t": 461,
+            "kind": "page:visibilitychange",
+            "data": {
+              "at": 1763,
+              "state": "hidden"
+            }
+          },
+          {
+            "t": 461,
+            "kind": "page:unload",
+            "data": {
+              "at": 1763.199999999255
+            }
+          }
+        ]
+      },
+      {
+        "navT": 3175,
+        "navUrl": "https://conferences-collar-proof-mine.trycloudflare.com/",
+        "priorEvents": [
+          {
+            "t": 2666,
+            "kind": "response",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/whatsapp.ts"
+          },
+          {
+            "t": 2666,
+            "kind": "response",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom.js?v=7b3cbbcc"
+          },
+          {
+            "t": 2765,
+            "kind": "response",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/@heroui_react.js?v=67a3079c"
+          },
+          {
+            "t": 2849,
+            "kind": "response",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/chunk-AJM4L4FX.js?v=0ca54e0a"
+          },
+          {
+            "t": 2954,
+            "kind": "response",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/src/lib/queries/notificacoes.ts"
+          },
+          {
+            "t": 2989,
+            "kind": "response",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/zod.js?v=4d70a051"
+          },
+          {
+            "t": 3160,
+            "kind": "page:splash.found.initial",
+            "data": {
+              "at": 3149.599999997765,
+              "display": "flex",
+              "visible": false
+            }
+          },
+          {
+            "t": 3160,
+            "kind": "page:mutationObserver.armed",
+            "data": {
+              "at": 3155.699999999255
+            }
+          },
+          {
+            "t": 3163,
+            "kind": "domcontentloaded",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+          },
+          {
+            "t": 3163,
+            "kind": "goto.done",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+          },
+          {
+            "t": 3167,
+            "kind": "load",
+            "url": "https://conferences-collar-proof-mine.trycloudflare.com/"
+          },
+          {
+            "t": 3173,
+            "kind": "page:history.replaceState",
+            "data": {
+              "at": 3167.89999999851,
+              "url": "",
+              "stack": "Error\n    at history.replaceState (<anonymous>:57:78)\n    at getUrlBasedHistory (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61:725:19)\n    at createBrowserHistory (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61:592:10)\n    at BrowserRouter (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-router-dom.js?v=af7b3e61:10794:26)\n    at react-stack-bottom-frame (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:17424:20)\n    at renderWithHooks (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:4206:24)\n    at updateFunctionComponent (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:6619:21)\n    at beginWork (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:7654:20)\n    at runWithFiberInDEV (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:1485:72)\n    at performUnitOfWork (https://conferences-collar-proof-mine.trycloudflare.com/node_modules/.vite/deps/react-dom_client.js?v=dd7d35ee:10868:98)"
+            }
+          }
+        ]
+      }
+    ],
+    "strictModeDoubleInvokeCandidates": []
+  }
+}

@@ -13,6 +13,9 @@ export class CreateServiceDto {
   @IsString() @MinLength(2) name: string;
   @IsOptional() @IsString() categoryId?: string;
   @IsNumber() @Min(0) price: number;
+  // Wave 2/3: tipo de preço (fixo|a_partir_de) e tipo de custo adicional (percent|value).
+  @IsOptional() @IsString() priceType?: string;
+  @IsOptional() @IsString() additionalCostType?: string;
   @IsOptional() @IsNumber() @Min(0) additionalCost?: number;
   @IsInt() @Min(1) durationMin: number;
   @IsOptional() @IsString() description?: string;
@@ -30,6 +33,9 @@ export class UpdateServiceDto {
   @IsOptional() @IsString() @MinLength(2) name?: string;
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsNumber() @Min(0) price?: number;
+  // Wave 2/3: tipo de preço (fixo|a_partir_de) e tipo de custo adicional (percent|value).
+  @IsOptional() @IsString() priceType?: string;
+  @IsOptional() @IsString() additionalCostType?: string;
   @IsOptional() @IsNumber() @Min(0) additionalCost?: number;
   @IsOptional() @IsInt() @Min(1) durationMin?: number;
   @IsOptional() @IsString() description?: string;

@@ -1,0 +1,46 @@
+{
+  "drawers": [
+    {
+      "scenario": "/comandas → 1º card mobile → drawer ver comanda",
+      "ok": true,
+      "note": "panels=1 winner=h=516 w=390 top=148 grip=true y0=true heightOk=true gripOk=true transY0=true",
+      "height": 516
+    },
+    {
+      "scenario": "/comandas → BottomNav \"Novo\" → drawer nova comanda",
+      "ok": true,
+      "note": "panels=1 winner=h=598 w=390 top=66 grip=true y0=true heightOk=true gripOk=true transY0=true",
+      "height": 598
+    },
+    {
+      "scenario": "/clientes → 1º card mobile → drawer cliente",
+      "ok": true,
+      "note": "panels=1 winner=h=598 w=390 top=66 grip=true y0=true heightOk=true gripOk=true transY0=true",
+      "height": 598
+    },
+    {
+      "scenario": "/pacotes → 1º card mobile → drawer PacotePerfilModal",
+      "ok": true,
+      "note": "panels=1 winner=h=598 w=390 top=66 grip=true y0=true heightOk=true gripOk=true transY0=true",
+      "height": 598
+    },
+    {
+      "scenario": "/financeiro/transacoes → BottomNav Filtros → drawer filtros",
+      "ok": true,
+      "note": "panels=1 winner=h=598 w=390 top=66 grip=true y0=true heightOk=true gripOk=true transY0=true",
+      "height": 598
+    },
+    {
+      "scenario": "/financeiro/cadastros/categorias → BottomNav Nova → drawer categoria",
+      "ok": true,
+      "note": "panels=1 winner=h=357 w=390 top=307 grip=true y0=true heightOk=true gripOk=true transY0=true",
+      "height": 357
+    }
+  ],
+  "clienteSelect": {
+    "ok": true,
+    "note": "clicked=true searchInput=1 listCount=20 anyDrawerY0=true"
+  },
+  "passed": 7,
+  "failed": 0
+}

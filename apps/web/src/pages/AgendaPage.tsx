@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Label, ListBox, Select, TextField } from '@heroui/react';
-import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
+import { APPOINTMENT_STATUS_LABELS, ApiClientError, type AppointmentStatus } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { DropdownButton } from '../components/DropdownButton';
 import { Drawer } from '../components/Drawer';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { useConfirm } from '../components/ConfirmDialog';
+import { useSelectMode, buildSelectActions, type BulkAction } from '../hooks/useSelectMode';
 import { useSetPageActions } from '../layout/PageActions';
 import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGrid';
-import { IconCalendar, IconChevron, IconEye, IconPlus, IconScissors, IconUser } from '../components/icons';
+import { IconCalendar, IconChevron, IconEye, IconPlus, IconScissors, IconTrash, IconUser, IconX } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
 import { useAgendaAppointments } from '../lib/queries/agenda';
 import { useAutoCreate } from '../lib/useAutoCreate';
@@ -172,14 +176,15 @@ export function AgendaPage() {
   const [serviceFilter, setServiceFilter] = useState<string>('');
   const [customerQuery, setCustomerQuery] = useState('');
 
-  // ── Batch selection (Belasis "Ações" menu).
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  // ── Batch selection (Belasis "Ações" menu) — infra padrão (useSelectMode).
+  // O hook `sel` é montado mais abaixo, quando as linhas visíveis (`ids`) já
+  // existem. `actionsOpen` controla a bottom-sheet de ações em lote.
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const confirm = useConfirm();
 
   // ── Mobile: the contextual BottomNav opens filters / actions as bottom-sheet
   // drawers (same controls as the header dropdowns).
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [mobileViewOpen, setMobileViewOpen] = useState(false);
   const [dateDrawerOpen, setDateDrawerOpen] = useState(false);
   const [datePickerMonth, setDatePickerMonth] = useState(() => startOfMonth(new Date()));
@@ -204,18 +209,6 @@ export function AgendaPage() {
   function toggleStatus(s: AppointmentStatus) {
     setStatuses((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
   }
-  function toggleSelected(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-  function exitSelectMode() {
-    setSelectMode(false);
-    setSelectedIds(new Set());
-  }
 
   function openNew(date?: string) {
     setNewApptDate(date);
@@ -228,20 +221,6 @@ export function AgendaPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   useAutoCreate(() => openNew());
-
-  // Contextual bottom-nav actions for this page. Calendar/view selection lives
-  // here too so every primary Agenda action stays in one predictable place.
-  // fire the same things as the header controls (they only call stable setters,
-  // so the registration is created once on mount and cleared on unmount).
-  useSetPageActions(
-    [
-      { key: 'calendario', label: 'Calendário', icon: <IconCalendar size={22} />, onClick: () => setMobileViewOpen(true) },
-      { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setMobileFilterOpen(true) },
-      { key: 'criar', label: 'Criar', icon: <IconPlus size={22} />, onClick: () => { setNewApptDate(undefined); setIsNewOpen(true); } },
-      { key: 'acoes', label: 'Ações', icon: <IconBolt size={22} />, onClick: () => setMobileActionsOpen(true) },
-    ],
-    [],
-  );
 
   // Keep the same daily/weekly/monthly interval at every breakpoint. The
   // default month interval is a date grid; professionals stay in the filter.
@@ -314,6 +293,79 @@ export function AgendaPage() {
     if (!q) return all;
     return all.filter((a) => (a.customer?.name ?? '').toLowerCase().includes(q));
   }, [appts.data, customerQuery]);
+
+  // ── Modo de seleção (infra padrão) sobre as linhas VISÍVEIS ────────────────
+  const ids = useMemo(() => rows.map((r) => r.id), [rows]);
+  const sel = useSelectMode(ids);
+
+  // Ações em lote da bottom-sheet: confirmar / cancelar em massa (mantém o
+  // recurso antigo) + excluir de verdade (DELETE /appointments/:id em Promise.all
+  // após confirmação).
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'confirm',
+      label: 'Confirmar selecionados',
+      icon: <IconCheck size={18} />,
+      disabled: sel.count === 0 || statusMutation.isPending,
+      onClick: async () => { await batchStatus('confirmed'); setActionsOpen(false); },
+    },
+    {
+      key: 'cancel-appts',
+      label: 'Cancelar selecionados',
+      icon: <IconX size={18} />,
+      disabled: sel.count === 0 || statusMutation.isPending,
+      onClick: async () => { await batchStatus('canceled'); setActionsOpen(false); },
+    },
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: sel.count === 0,
+      onClick: async () => {
+        const targets = [...sel.selected];
+        if (!targets.length) return;
+        const ok = await confirm({
+          title: 'Excluir agendamentos?',
+          message: `Excluir ${targets.length} agendamento(s) selecionado(s)? Essa ação não pode ser desfeita.`,
+          confirmLabel: 'Excluir',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await Promise.all(targets.map((id) => api.delete(`/appointments/${id}`)));
+          setActionsOpen(false);
+          sel.cancel();
+          appts.refetch();
+          flash(`${targets.length} agendamento(s) excluído(s).`);
+        } catch (err) {
+          flash(err instanceof ApiClientError ? err.message : 'Não foi possível excluir os agendamentos.');
+        }
+      },
+    },
+  ];
+
+  // Contextual bottom-nav actions. Em selectMode a barra vira
+  // [Cancelar · Selecionar todos · Ações] (buildSelectActions); senão, as ações
+  // normais da Agenda + "Selecionar".
+  useSetPageActions(
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          { key: 'calendario', label: 'Calendário', icon: <IconCalendar size={22} />, onClick: () => setMobileViewOpen(true) },
+          { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setMobileFilterOpen(true) },
+          { key: 'criar', label: 'Criar', icon: <IconPlus size={22} />, onClick: () => { setNewApptDate(undefined); setIsNewOpen(true); } },
+          { key: 'selecionar', label: 'Selecionar', icon: <IconCheck size={22} />, onClick: sel.enter },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count, statusMutation.isPending],
+  );
 
   // appointments grouped per ISO day (for the month preview chips), each list
   // sorted by start time.
@@ -431,10 +483,10 @@ export function AgendaPage() {
 
   // ── Batch actions on the current selection ────────────────────────────────
   async function batchStatus(status: AppointmentStatus) {
-    const ids = [...selectedIds];
-    if (!ids.length) return;
+    const targets = [...sel.selected];
+    if (!targets.length) return;
     let ok = 0;
-    for (const id of ids) {
+    for (const id of targets) {
       try {
         await statusMutation.mutateAsync({ id, status });
         ok += 1;
@@ -442,7 +494,7 @@ export function AgendaPage() {
         /* skip conflicts (e.g. re-confirming an overlapping slot) */
       }
     }
-    exitSelectMode();
+    sel.cancel();
     flash(
       status === 'confirmed'
         ? `${ok} agendamento(s) confirmado(s).`
@@ -552,7 +604,7 @@ export function AgendaPage() {
 
   // In selection mode a block toggles selection; otherwise it opens the detail.
   function onBlockClick(a: AppointmentRow) {
-    if (selectMode) toggleSelected(a.id);
+    if (sel.selectMode) sel.toggle(a.id);
     else openDetail(a);
   }
 
@@ -721,7 +773,7 @@ export function AgendaPage() {
 
   const renderActionsPanel = (close: () => void) => (
     <div className="py-1">
-      <button type="button" onClick={() => { setSelectMode(true); close(); }}
+      <button type="button" onClick={() => { sel.enter(); close(); }}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Selecionar agendamentos
       </button>
@@ -741,7 +793,7 @@ export function AgendaPage() {
       label="Ações"
       icon={<IconBolt size={14} />}
       align="end"
-      buttonVariant={selectMode ? 'primary' : 'outline'}
+      buttonVariant={sel.selectMode ? 'primary' : 'outline'}
     >
       {(close) => (
         <div className="w-56">
@@ -908,7 +960,9 @@ export function AgendaPage() {
           apptsByDay={apptsByDay}
           serviceById={serviceById}
           onNewForDay={(d) => openNew(isoDate(d))}
-          onPickAppt={openDetail}
+          selectMode={sel.selectMode}
+          isSelected={sel.isSelected}
+          onActivate={onBlockClick}
         />
       ) : (
         <div ref={agendaScrollerRef} className="flex min-h-0 flex-1 overflow-auto overscroll-contain bg-white pb-24 lg:pb-0">
@@ -975,7 +1029,7 @@ export function AgendaPage() {
                         .map((item) => serviceById.get(item.serviceId))
                         .filter((name): name is string => Boolean(name))
                         .join(', ');
-                      const isSelected = selectMode && selectedIds.has(a.id);
+                      const isSelected = sel.selectMode && sel.isSelected(a.id);
                       return (
                         <button
                           key={a.id}
@@ -1006,11 +1060,10 @@ export function AgendaPage() {
                               {serviceNames}
                             </span>
                           )}
-                          {selectMode && (
-                            <span className={[
-                              'absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full border text-[9px] font-bold',
-                              isSelected ? 'border-white bg-white text-gold-strong' : 'border-white/80 bg-black/10 text-white',
-                            ].join(' ')}>{isSelected ? '✓' : ''}</span>
+                          {sel.selectMode && (
+                            <span className="absolute right-1 top-1">
+                              <AnimatedCheckbox checked={isSelected} />
+                            </span>
                           )}
                         </button>
                       );
@@ -1023,27 +1076,34 @@ export function AgendaPage() {
         </div>
       )}
 
-      {/* Selection action bar (batch Ações) */}
-      {selectMode && (
-        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-black/[0.08] bg-warm-white px-3 py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:bottom-0">
+      {/* Selection action bar (desktop). No mobile a BottomNav já mostra
+          [Cancelar · Selecionar todos · Ações] via buildSelectActions. */}
+      {sel.selectMode && (
+        <div className="fixed inset-x-0 bottom-0 z-40 hidden items-center gap-2 border-t border-black/[0.08] bg-warm-white px-3 py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:flex">
           <span className="inline-flex items-center text-sm font-semibold text-foreground">
-            {selectedIds.size} selecionado(s)
-            <HelpTooltip>Agendamentos marcados para confirmar ou cancelar em lote</HelpTooltip>
+            {sel.count} selecionado(s)
+            <HelpTooltip>Agendamentos marcados para ações em lote</HelpTooltip>
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="primary" size="sm" isDisabled={selectedIds.size === 0 || statusMutation.isPending}
-              onClick={() => batchStatus('confirmed')}>
-              Confirmar
+            <Button variant="outline" size="sm" onClick={sel.selectAll}>
+              {sel.allSelected ? 'Limpar seleção' : 'Selecionar todos'}
             </Button>
-            <Button variant="outline" size="sm" className="border-danger/30 text-danger"
-              isDisabled={selectedIds.size === 0 || statusMutation.isPending}
-              onClick={() => batchStatus('canceled')}>
-              Cancelar
+            <Button variant="primary" size="sm" isDisabled={sel.count === 0}
+              onClick={() => setActionsOpen(true)}>
+              Ações{sel.count > 0 ? ` (${sel.count})` : ''}
             </Button>
-            <Button variant="ghost" size="sm" onClick={exitSelectMode}>Sair</Button>
+            <Button variant="ghost" size="sm" onClick={sel.cancel}>Cancelar</Button>
           </div>
         </div>
       )}
+
+      {/* Bottom-sheet das ações em lote (mobile e desktop). */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
+      />
 
       {/* Toast */}
       {toast && (
@@ -1146,9 +1206,6 @@ export function AgendaPage() {
       </Drawer>
       <Drawer isOpen={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} title="Filtrar" placement="bottom">
         {renderFilterPanel(() => setMobileFilterOpen(false))}
-      </Drawer>
-      <Drawer isOpen={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} title="Ações" placement="bottom">
-        {renderActionsPanel(() => setMobileActionsOpen(false))}
       </Drawer>
 
       <DayPeek
@@ -1407,14 +1464,20 @@ function MonthView({
   apptsByDay,
   serviceById,
   onNewForDay,
-  onPickAppt,
+  selectMode,
+  isSelected,
+  onActivate,
 }: {
   cells: Date[];
   anchorMonth: number;
   apptsByDay: Map<string, AppointmentRow[]>;
   serviceById: Map<string, string>;
   onNewForDay: (d: Date) => void;
-  onPickAppt: (a: AppointmentRow) => void;
+  /** Modo de seleção ativo (infra useSelectMode). */
+  selectMode: boolean;
+  isSelected: (id: string) => boolean;
+  /** Toca no evento: alterna a seleção (selectMode) ou abre o detalhe. */
+  onActivate: (a: AppointmentRow) => void;
 }) {
   const todayIso = isoDate(new Date());
   // Popover ancorado no cell do "+N more" — mostra a lista completa do dia
@@ -1503,16 +1566,18 @@ function MonthView({
                   const service = appointment.items?.[0]
                     ? serviceById.get(appointment.items[0].serviceId)
                     : undefined;
+                  const picked = selectMode && isSelected(appointment.id);
                   return (
                     <button
                       key={appointment.id}
                       type="button"
-                      onClick={(event) => { event.stopPropagation(); onPickAppt(appointment); }}
+                      onClick={(event) => { event.stopPropagation(); onActivate(appointment); }}
                       style={{ backgroundColor: color }}
                       title={`${formatTime(appointment.start)} · ${customer} · ${service ?? 'Sem serviço'}`}
                       className={[
-                        'flex h-[46px] min-w-0 flex-col items-start justify-center overflow-hidden rounded-md px-1 py-1 text-left leading-none text-white transition-shadow hover:shadow-md lg:h-[50px] lg:rounded-lg lg:px-1.5',
+                        'relative flex h-[46px] min-w-0 flex-col items-start justify-center overflow-hidden rounded-md px-1 py-1 text-left leading-none text-white transition-shadow hover:shadow-md lg:h-[50px] lg:rounded-lg lg:px-1.5',
                         canceled ? 'opacity-60' : '',
+                        picked ? 'ring-2 ring-gold ring-offset-1' : '',
                       ].join(' ')}
                     >
                       <span className="block w-full truncate text-[8px] font-bold lg:text-[10px]">
@@ -1524,6 +1589,11 @@ function MonthView({
                       <span className="mt-0.5 block w-full truncate text-[7px] text-white/85 lg:text-[9px]">
                         {service ?? 'Sem serviço'}
                       </span>
+                      {selectMode && (
+                        <span className="absolute right-0.5 top-0.5">
+                          <AnimatedCheckbox checked={picked} />
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1538,7 +1608,9 @@ function MonthView({
                     const rect = (cell ?? (e.currentTarget as HTMLElement)).getBoundingClientRect();
                     setPopover({ iso, date: d, rect });
                   }}
-                  className="w-full truncate px-1 text-left text-[9px] font-semibold text-gold-strong hover:underline lg:text-[10px]"
+                  // Mobile: alvo de toque maior (fonte 11px + py-1 + fundo levinho)
+                  // pra ser fácil de acertar; desktop mantém compacto.
+                  className="mt-0.5 w-full truncate rounded-md bg-gold/10 px-1.5 py-1 text-left text-[11px] font-bold text-gold-strong active:bg-gold/20 lg:mt-0 lg:bg-transparent lg:py-0 lg:text-[10px] lg:font-semibold lg:hover:underline"
                 >
                   +{extra} mais
                 </button>
@@ -1593,15 +1665,17 @@ function MonthView({
                 const service = appointment.items?.[0]
                   ? serviceById.get(appointment.items[0].serviceId)
                   : undefined;
+                const picked = selectMode && isSelected(appointment.id);
                 return (
                   <button
                     key={appointment.id}
                     type="button"
-                    onClick={() => { setPopover(null); onPickAppt(appointment); }}
+                    onClick={() => { if (!selectMode) setPopover(null); onActivate(appointment); }}
                     style={{ backgroundColor: color }}
                     className={[
-                      'flex min-w-0 flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left leading-tight text-white transition-shadow hover:shadow-md',
+                      'relative flex min-w-0 flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left leading-tight text-white transition-shadow hover:shadow-md',
                       canceled ? 'opacity-60' : '',
+                      picked ? 'ring-2 ring-gold ring-offset-1' : '',
                     ].join(' ')}
                   >
                     <span className="w-full truncate text-[11px] font-bold">
@@ -1613,6 +1687,11 @@ function MonthView({
                     {service && (
                       <span className="w-full truncate text-[10px] text-white/85">
                         {service}
+                      </span>
+                    )}
+                    {selectMode && (
+                      <span className="absolute right-1 top-1">
+                        <AnimatedCheckbox checked={picked} />
                       </span>
                     )}
                   </button>

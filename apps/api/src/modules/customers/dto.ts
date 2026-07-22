@@ -50,6 +50,16 @@ export class CreateCustomerDto {
   @IsOptional() @IsString() legacyId?: string;
   @IsOptional() @IsString() legacySource?: string;
 
+  // Wave 2/3 — endereço embutido + observações livres.
+  @IsOptional() @IsString() cep?: string;
+  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() number?: string;
+  @IsOptional() @IsString() district?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() complement?: string;
+  @IsOptional() @IsString() observations?: string;
+
   // Coleções aninhadas opcionais
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
 
@@ -89,6 +99,16 @@ export class UpdateCustomerDto {
   @IsOptional() @IsString() legacyId?: string;
   @IsOptional() @IsString() legacySource?: string;
 
+  // Wave 2/3 — endereço embutido + observações livres.
+  @IsOptional() @IsString() cep?: string;
+  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() number?: string;
+  @IsOptional() @IsString() district?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() complement?: string;
+  @IsOptional() @IsString() observations?: string;
+
   // Coleções aninhadas opcionais
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
 
@@ -120,8 +140,36 @@ export class CreateCustomerNoteDto {
   @IsString() @MinLength(1) text: string;
 }
 
+// Registra um arquivo/imagem já enviado ao storage (via POST /uploads) na
+// galeria do cliente. Recebe a URL pública + metadados de exibição.
+export class CreateCustomerFileDto {
+  @IsString() @MinLength(1) url: string;
+  @IsString() @MinLength(1) name: string;
+  @IsOptional() @IsString() mimeType?: string;
+  @IsOptional() @IsNumber() size?: number;
+}
+
 export class CreateCustomerAnamnesisDto {
   @IsOptional() @IsString() templateId?: string;
   @IsOptional() @IsObject() answersJson?: Record<string, unknown>;
   @IsOptional() @IsISO8601() signedAt?: string;
+}
+
+export class UpdateCustomerAnamnesisDto {
+  @IsOptional() @IsObject() answersJson?: Record<string, unknown>;
+  // Aceita ISO-8601 p/ assinar, ou null p/ "des-assinar".
+  @IsOptional() @IsISO8601() signedAt?: string | null;
+}
+
+// Resgate de cashback: insere linha NEGATIVA no ledger CustomerCashback.
+export class RedeemCashbackDto {
+  @IsNumber() @Min(0.01) amount: number;
+  @IsOptional() @IsString() note?: string;
+}
+
+// Ajuste manual de cashback: crédito (positivo) ou débito (negativo) no ledger.
+export class AdjustCashbackDto {
+  @IsNumber() amount: number;
+  @IsOptional() @IsString() note?: string;
+  @IsOptional() @IsISO8601() expiresAt?: string;
 }

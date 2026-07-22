@@ -117,3 +117,12 @@ export class UpdateCashbackRuleDto {
   @IsOptional() @IsInt() @Min(0) validityDays?: number;
   @IsOptional() @IsBoolean() active?: boolean;
 }
+
+// Programa global de cashback da empresa (Company.cashback*).
+export class UpdateCashbackConfigDto {
+  @IsOptional() @IsBoolean() cashbackActive?: boolean;
+  @IsOptional() @IsEnum(['percent', 'value']) cashbackValueType?: 'percent' | 'value';
+  @IsOptional() @IsNumber() @Min(0) cashbackValue?: number;
+  @IsOptional() @IsBoolean() cashbackCanRedeem?: boolean;
+  @IsOptional() @IsNumber() @Min(0) cashbackMinimum?: number;
+}

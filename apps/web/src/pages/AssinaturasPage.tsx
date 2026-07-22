@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { DateField } from '../components/DateRangeFilter';
 import { Drawer } from '../components/Drawer';
 import { FullDrawer } from '../components/FullDrawer';
+import { ItemPickerDrawer, type PickedItem } from '../components/ItemPickerDrawer';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconCheck,
@@ -20,7 +21,7 @@ import {
 import { formatDate, formatMoney } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
 import { useSetPageActions } from '../layout/PageActions';
-import { useCustomers, useServices } from '../lib/queries';
+import { useCustomers } from '../lib/queries';
 import {
   useCreateCustomerMembership,
   useCreateMembershipPlan,
@@ -1292,6 +1293,22 @@ function EditarAssinaturaDrawer({
 // Drawer: Novo / Editar modelo de assinatura
 // ---------------------------------------------------------------------------
 
+// Linha editável do grid de itens do modelo (Belasis): serviço com qtde, valor
+// unitário e desconto em R$ por linha; o total é calculado ao vivo.
+interface PlanItem {
+  uid: string;
+  serviceId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number; // desconto em R$ por linha
+}
+
+let planItemSeq = 0;
+const nextPlanItemUid = () => `plan-item-${++planItemSeq}`;
+const planItemTotal = (it: PlanItem) => Math.max(0, it.quantity * it.unitPrice - it.discount);
+const PLAN_ITEM_GRID = 'grid-cols-[minmax(0,1.6fr)_72px_1fr_1fr_1fr_40px]';
+
 function PlanDrawer({
   isOpen,
   editing,
@@ -1303,18 +1320,12 @@ function PlanDrawer({
 }) {
   const create = useCreateMembershipPlan();
   const update = useUpdateMembershipPlan();
-  const services = useServices();
   const [name, setName] = useState('');
   const [recurringPrice, setRecurringPrice] = useState('');
   const [intervalMonths, setIntervalMonths] = useState('1');
-  const [serviceId, setServiceId] = useState('');
-  const [qty, setQty] = useState('1');
-  const [items, setItems] = useState<
-    { serviceId: string; quantityPerCycle: number; name: string }[]
-  >([]);
+  const [items, setItems] = useState<PlanItem[]>([]);
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const serviceList = useMemo(() => services.data?.data ?? [], [services.data]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1324,9 +1335,12 @@ function PlanDrawer({
         setIntervalMonths(String(editing.intervalMonths ?? 1));
         setItems(
           editing.services.map((s) => ({
+            uid: nextPlanItemUid(),
             serviceId: s.serviceId,
-            quantityPerCycle: s.quantityPerCycle,
             name: s.service?.name ?? '—',
+            quantity: s.quantity != null ? Number(s.quantity) : s.quantityPerCycle,
+            unitPrice: s.unitPrice != null ? Number(s.unitPrice) : 0,
+            discount: s.discount != null ? Number(s.discount) : 0,
           })),
         );
       } else {
@@ -1335,23 +1349,38 @@ function PlanDrawer({
         setIntervalMonths('1');
         setItems([]);
       }
-      setServiceId('');
-      setQty('1');
+      setItemPickerOpen(false);
       setError(null);
     }
   }, [isOpen, editing]);
 
-  function addItem() {
-    if (!serviceId) return;
-    const svc = serviceList.find((s) => s.id === serviceId);
-    if (!svc) return;
-    setItems((prev) => [
-      ...prev.filter((i) => i.serviceId !== serviceId),
-      { serviceId, quantityPerCycle: Math.max(1, Number(qty) || 1), name: svc.name },
-    ]);
-    setServiceId('');
-    setQty('1');
+  function addItem(picked: PickedItem) {
+    if (picked.kind !== 'service') return; // modelos aceitam apenas serviços
+    setItems((prev) => {
+      if (prev.some((i) => i.serviceId === picked.refId)) return prev; // sem duplicar serviço
+      return [
+        ...prev,
+        {
+          uid: nextPlanItemUid(),
+          serviceId: picked.refId,
+          name: picked.name,
+          quantity: 1,
+          unitPrice: picked.unitPrice,
+          discount: 0,
+        },
+      ];
+    });
   }
+
+  function patchItem(uid: string, patch: Partial<PlanItem>) {
+    setItems((prev) => prev.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
+  }
+
+  function removeItem(uid: string) {
+    setItems((prev) => prev.filter((i) => i.uid !== uid));
+  }
+
+  const grandTotal = items.reduce((sum, it) => sum + planItemTotal(it), 0);
 
   const canSave =
     name.trim().length >= 2 &&
@@ -1369,7 +1398,12 @@ function PlanDrawer({
       intervalMonths: intervalMonths ? Number(intervalMonths) : undefined,
       services: items.map((i) => ({
         serviceId: i.serviceId,
-        quantityPerCycle: i.quantityPerCycle,
+        // `quantityPerCycle` (Int) mantém o consumidor legado; `quantity`
+        // (Decimal) guarda a quantidade exibida no grid.
+        quantityPerCycle: Math.max(1, Math.round(i.quantity) || 1),
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        discount: i.discount,
       })),
     };
     try {
@@ -1385,89 +1419,231 @@ function PlanDrawer({
   }
 
   return (
-    <Drawer
-      isOpen={isOpen}
-      onClose={onClose}
-      title={editing ? 'Editar modelo de assinatura' : 'Novo modelo de assinatura'}
-      widthClass="sm:w-[560px]"
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button variant="primary" isDisabled={!canSave || isPending} onClick={handleSave}>
-            {isPending ? 'Salvando…' : 'Salvar'}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <Field label="Nome" required>
-          <TextField value={name} onChange={setName} aria-label="Nome">
-            <Input placeholder="Ex.: Plano Mensal Premium" />
-          </TextField>
-        </Field>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Mensalidade" required>
-            <TextField value={recurringPrice} onChange={setRecurringPrice} aria-label="Mensalidade">
-              <Input type="number" placeholder="0,00" />
-            </TextField>
-          </Field>
-          <Field label="Intervalo (meses)">
-            <TextField value={intervalMonths} onChange={setIntervalMonths} aria-label="Intervalo">
-              <Input type="number" placeholder="1" />
-            </TextField>
-          </Field>
-        </div>
-
-        <div className="rounded-xl border border-[var(--color-soft-border)] p-3">
-          <div className="mb-2 text-xs font-semibold text-muted-ink">Serviços incluídos</div>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[150px] flex-1">
-              <AutocompleteField
-                ariaLabel="Serviço"
-                placeholder="Selecionar serviço"
-                value={serviceId}
-                onChange={setServiceId}
-                options={serviceList.map((s) => ({ id: s.id, name: s.name }))}
-              />
-            </div>
-            <div className="w-24">
-              <TextField value={qty} onChange={setQty} aria-label="Quantidade por ciclo">
-                <Input type="number" placeholder="Qtd" />
-              </TextField>
-            </div>
-            <Button variant="outline" onClick={addItem} isDisabled={!serviceId}>
-              Adicionar
+    <>
+      <Drawer
+        isOpen={isOpen}
+        onClose={onClose}
+        title={editing ? 'Editar modelo de assinatura' : 'Novo modelo de assinatura'}
+        widthClass="sm:w-[620px]"
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
             </Button>
+            <Button variant="primary" isDisabled={!canSave || isPending} onClick={handleSave}>
+              {isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <Field label="Nome" required>
+            <TextField value={name} onChange={setName} aria-label="Nome">
+              <Input placeholder="Ex.: Plano Mensal Premium" />
+            </TextField>
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Mensalidade" required>
+              <TextField value={recurringPrice} onChange={setRecurringPrice} aria-label="Mensalidade">
+                <Input type="number" placeholder="0,00" />
+              </TextField>
+            </Field>
+            <Field label="Intervalo (meses)">
+              <TextField value={intervalMonths} onChange={setIntervalMonths} aria-label="Intervalo">
+                <Input type="number" placeholder="1" />
+              </TextField>
+            </Field>
           </div>
-          {items.length > 0 && (
-            <ul className="mt-3 space-y-1">
-              {items.map((i) => (
-                <li key={i.serviceId} className="flex items-center justify-between text-sm">
-                  <span className="text-foreground">{i.name}</span>
-                  <div className="flex items-center gap-2">
-                    <Tag color="gray">{i.quantityPerCycle}x / ciclo</Tag>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-danger"
-                      onClick={() =>
-                        setItems((prev) => prev.filter((x) => x.serviceId !== i.serviceId))
-                      }
-                    >
-                      <IconTrash size={14} />
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
 
-        {error && <FormError message={error} />}
+          {/* Itens do modelo — grid editável (serviço · qtde · valor un. · desconto). */}
+          <div className="overflow-hidden rounded-xl border border-[var(--color-soft-border)]">
+            <div className="border-b border-[var(--color-soft-border)] bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Itens do modelo
+            </div>
+
+            {/* Cabeçalho (desktop) */}
+            <div
+              className={`hidden md:grid ${PLAN_ITEM_GRID} items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-ink`}
+            >
+              <span>Descrição</span>
+              <span className="text-center">Qtde.</span>
+              <span className="text-right">Valor unitário</span>
+              <span className="text-right">Desconto</span>
+              <span className="text-right">Total</span>
+              <span />
+            </div>
+
+            {items.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-ink">
+                Nenhum serviço incluído. Use “Selecionar serviço” abaixo.
+              </div>
+            ) : (
+              items.map((it) => (
+                <PlanItemRow
+                  key={it.uid}
+                  item={it}
+                  gridCls={PLAN_ITEM_GRID}
+                  onChange={(patch) => patchItem(it.uid, patch)}
+                  onRemove={() => removeItem(it.uid)}
+                />
+              ))
+            )}
+
+            <button
+              type="button"
+              onClick={() => setItemPickerOpen(true)}
+              className="flex w-full items-center gap-2 border-t border-[var(--color-soft-border)] px-3 py-3 text-left text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+            >
+              <IconPlus size={15} /> Selecionar serviço
+            </button>
+          </div>
+
+          {/* Total geral (soma das linhas). */}
+          <div className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
+            <TotalLine label="Total geral" value={formatMoney(grandTotal)} strong />
+          </div>
+
+          {error && <FormError message={error} />}
+        </div>
+      </Drawer>
+
+      <ItemPickerDrawer
+        isOpen={itemPickerOpen}
+        onClose={() => setItemPickerOpen(false)}
+        onSelect={addItem}
+        servicesOnly
+      />
+    </>
+  );
+}
+
+// Linha editável de item do modelo (desktop: grid alinhado ao cabeçalho;
+// mobile: card com inputs empilhados). Total calculado ao vivo.
+function PlanItemRow({
+  item,
+  gridCls,
+  onChange,
+  onRemove,
+}: {
+  item: PlanItem;
+  gridCls: string;
+  onChange: (patch: Partial<PlanItem>) => void;
+  onRemove: () => void;
+}) {
+  const total = planItemTotal(item);
+  const num = (v: string) => (v === '' ? 0 : Number(v));
+  const inputCls =
+    'h-8 w-full rounded-md border border-[var(--color-soft-border)] bg-white px-2 text-sm text-foreground outline-none focus:border-primary';
+
+  return (
+    <div className="border-b border-[var(--color-soft-border)]/60 last:border-0">
+      {/* Desktop */}
+      <div className={`hidden md:grid ${gridCls} items-center gap-2 px-3 py-2 text-sm`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
+            <IconScissors size={15} />
+          </span>
+          <span className="truncate font-medium text-foreground">{item.name}</span>
+        </div>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={item.quantity}
+          aria-label="Quantidade"
+          onChange={(e) => onChange({ quantity: num(e.target.value) })}
+          className={`${inputCls} text-center`}
+        />
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          value={item.unitPrice}
+          aria-label="Valor unitário"
+          onChange={(e) => onChange({ unitPrice: num(e.target.value) })}
+          className={`${inputCls} text-right`}
+        />
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          value={item.discount}
+          aria-label="Desconto"
+          onChange={(e) => onChange({ discount: num(e.target.value) })}
+          className={`${inputCls} text-right`}
+        />
+        <span className="text-right font-semibold tabular-nums text-foreground">
+          {formatMoney(total)}
+        </span>
+        <button
+          type="button"
+          aria-label="Remover item"
+          onClick={onRemove}
+          className="grid h-7 w-7 place-items-center rounded-md text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger"
+        >
+          <IconTrash size={15} />
+        </button>
       </div>
-    </Drawer>
+
+      {/* Mobile */}
+      <div className="flex flex-col gap-2 px-3 py-2.5 md:hidden">
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
+            <IconScissors size={16} />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            {item.name}
+          </span>
+          <button
+            type="button"
+            aria-label="Remover item"
+            onClick={onRemove}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-ink hover:bg-danger/10 hover:text-danger"
+          >
+            <IconTrash size={15} />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="flex flex-col gap-0.5 text-[11px] text-muted-ink">
+            Qtde.
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={item.quantity}
+              onChange={(e) => onChange({ quantity: num(e.target.value) })}
+              className={`${inputCls} h-9`}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5 text-[11px] text-muted-ink">
+            Valor un.
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={item.unitPrice}
+              onChange={(e) => onChange({ unitPrice: num(e.target.value) })}
+              className={`${inputCls} h-9`}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5 text-[11px] text-muted-ink">
+            Desconto
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={item.discount}
+              onChange={(e) => onChange({ discount: num(e.target.value) })}
+              className={`${inputCls} h-9`}
+            />
+          </label>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-ink">Total</span>
+          <span className="font-semibold tabular-nums text-foreground">{formatMoney(total)}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 

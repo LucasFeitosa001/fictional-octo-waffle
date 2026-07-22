@@ -1,0 +1,11 @@
+{
+  "title": "Cadastros | Belasis",
+  "buttons": [
+    "Ver minha assinatura",
+    "Contas",
+    "Formas de pagamento",
+    "Categorias"
+  ],
+  "tabs": [],
+  "hasFAB": false
+}

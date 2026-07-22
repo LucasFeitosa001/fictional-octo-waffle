@@ -12,7 +12,11 @@ import { Type } from 'class-transformer';
 
 export class MembershipServiceDto {
   @IsString() serviceId: string;
-  @IsInt() @Min(1) quantityPerCycle: number;
+  @IsOptional() @IsInt() @Min(1) quantityPerCycle?: number;
+  // Wave 4: grid de itens editável — preço/desconto/quantidade por item.
+  @IsOptional() @IsNumber() @Min(0) unitPrice?: number;
+  @IsOptional() @IsNumber() @Min(0) discount?: number;
+  @IsOptional() @IsNumber() @Min(0) quantity?: number;
 }
 
 export class CreateMembershipPlanDto {

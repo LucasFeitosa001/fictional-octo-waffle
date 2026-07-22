@@ -11,6 +11,7 @@ export class CreateOrderDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsDateString() date?: string;
 }
 
 export class UpdateOrderDto {
@@ -27,6 +28,40 @@ export class AddItemDto {
   @IsOptional() @IsNumber() @Min(0) discount?: number;
 }
 
+/**
+ * PATCH /orders/:id/items/:itemId — aba "Dados" (Salvar) do drawer + set de batchId
+ * na aba "Lote" de itens de produto. Todos os campos são opcionais (partial update).
+ */
+export class UpdateOrderItemDto {
+  @IsOptional() @IsString() professionalId?: string;
+  @IsOptional() @IsNumber() @Min(0) unitPrice?: number;
+  @IsOptional() @IsNumber() @Min(0.001) quantity?: number;
+  @IsOptional() @IsNumber() @Min(0) discount?: number;
+  // Lote (aba "Lote"). Enviar null limpa o lote.
+  @IsOptional() @IsString() batchId?: string | null;
+}
+
+/** Aba "Auxiliares" do item de serviço (rateio de comissão). Não altera o total. */
+export class AddAuxiliaryDto {
+  @IsString() professionalId: string;
+  @IsIn(['establishment', 'professional']) discountFrom: 'establishment' | 'professional';
+  @IsIn(['percent', 'value']) valueType: 'percent' | 'value';
+  @IsNumber() @Min(0) value: number;
+}
+
+/**
+ * Aba "Produtos consumidos" do item de serviço. Baixa estoque (InventoryMovement out)
+ * mas NÃO soma no total da comanda.
+ */
+export class AddConsumedProductDto {
+  @IsString() productId: string;
+  @IsNumber() @Min(0.001) quantity: number;
+  @IsOptional() @IsNumber() @Min(0) unitValue?: number;
+  @IsOptional() @IsString() batchId?: string;
+  @IsOptional() @IsString() unit?: string;
+  @IsOptional() @IsNumber() @Min(0) extraQuantity?: number;
+}
+
 export class AddDiscountDto {
   @IsIn(['percent', 'value']) type: 'percent' | 'value';
   @IsNumber() @Min(0) value: number;
@@ -39,4 +74,9 @@ export class AddPaymentDto {
   @IsNumber() @Min(0.01) amount: number;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @IsString() description?: string;
+}
+
+/** POST /orders/:id/credit e /orders/:id/cashback — usa saldo do cliente na comanda. */
+export class UseBalanceDto {
+  @IsNumber() @Min(0.01) amount: number;
 }

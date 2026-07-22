@@ -124,9 +124,12 @@ export class UploadsService {
     await fs.mkdir(this.localRoot, { recursive: true });
     await fs.writeFile(full, params.buffer);
 
-    const base = params.baseUrl.replace(/\/$/, '');
+    // RELATIVE url on purpose: the persisted value must be origin-agnostic so
+    // the <img src> resolves against whatever host/tunnel/device currently
+    // serves the SPA (tunnel-agnostic, cross-device safe). Do NOT prefix with
+    // baseUrl. S3 mode above keeps its absolute (already durable) url.
     return {
-      url: `${base}/api/v1/uploads/file/${name}`,
+      url: `/api/v1/uploads/file/${name}`,
       key: name,
     };
   }

@@ -1,14 +1,8 @@
 import { useState } from 'react';
-import { PageHeader } from '../../components/PageHeader';
-import {
-  IconCalendar,
-  IconChevron,
-  IconHome,
-  IconStar,
-} from '../../components/icons';
+import { IconCalendar, IconChevron } from '../../components/icons';
 import { isoDate } from '../../lib/format';
 import { useReportsOverview } from '../../lib/queries/relatorios';
-import { BackToReports } from './reportShared';
+import { CalendarReportShell } from './reportNav';
 
 /* -------------------------------------------------------------------------- */
 /*  Clone 100% fiel da página "Todos os Agendamentos" do Belasis              */
@@ -22,16 +16,6 @@ function defaultRange() {
   const from = new Date(to.getFullYear(), to.getMonth(), 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
-
-// ---- Menu de tipos de relatório (submenu "Agendamentos" do hub Belasis) ----
-const REPORT_TYPES = [
-  { key: 'home', label: 'Início', icon: IconHome, to: '/reports/calendars' },
-  { key: 'all', label: 'Todos os Agendamentos', icon: IconCalendar, to: '/reports/calendars/all' },
-  { key: 'deleted', label: 'Agendamentos excluídos', icon: IconCalendar, to: '/reports/calendars/deleted' },
-  { key: 'origin', label: 'Origem dos Agendamentos', icon: IconCalendar, to: '/reports/calendars/origin' },
-  { key: 'creation', label: 'Criação de Agendamento', icon: IconCalendar, to: '/reports/calendars/creation' },
-  { key: 'care', label: 'Cuidados para Hoje', icon: IconCalendar, to: '/reports/calendars/care-messages-today' },
-] as const;
 
 // ---- Colunas selecionáveis do relatório (ordem idêntica ao Belasis) --------
 const COLUMN_OPTIONS = [
@@ -123,44 +107,14 @@ export function AgendamentosPage() {
   }
 
   return (
-    <div>
-      <BackToReports />
-      <PageHeader
-        title="Todos os Agendamentos"
-        subtitle="Configure e gere o relatório de agendamentos do período"
-      />
-
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* ---- Menu de tipos de relatório ------------------------------- */}
-        <nav className="shrink-0 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-card)] lg:w-[320px]">
-          <ul className="flex flex-col gap-0.5">
-            {REPORT_TYPES.map((r) => {
-              const active = r.key === 'all';
-              const Icon = r.icon;
-              return (
-                <li key={r.key}>
-                  <button
-                    type="button"
-                    className={[
-                      'flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm transition-colors',
-                      active
-                        ? 'font-semibold text-primary-strong [background:color-mix(in_oklab,var(--sp-primary)_12%,transparent)]'
-                        : 'text-ink hover:bg-canvas',
-                    ].join(' ')}
-                  >
-                    <Icon size={18} className={active ? 'text-primary-strong' : 'text-muted-ink'} />
-                    <span className="min-w-0 flex-1 truncate">{r.label}</span>
-                    {active && <IconStar size={16} className="shrink-0 text-gold" />}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
+    <CalendarReportShell
+      activeKey="all"
+      title="Todos os Agendamentos"
+      subtitle="Configure e gere o relatório de agendamentos do período"
+    >
         {/* ---- Formulário de configuração do relatório ------------------- */}
         <form
-          className="min-w-0 flex-1 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-6"
+          className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-6"
           onSubmit={(e) => {
             e.preventDefault();
             gerarRelatorio();
@@ -286,7 +240,6 @@ export function AgendamentosPage() {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </CalendarReportShell>
   );
 }

@@ -99,6 +99,8 @@ export class CreateFinancialAccountDto {
   @IsString() @MinLength(2) name: string;
   @IsOptional() @IsEnum(FinancialAccountTypeDto) type?: FinancialAccountTypeDto;
   @IsOptional() @IsNumber() initialBalance?: number;
+  // Wave 2/3
+  @IsOptional() @IsBoolean() adminOnly?: boolean;
 }
 
 export class UpdateFinancialAccountDto {
@@ -106,6 +108,8 @@ export class UpdateFinancialAccountDto {
   @IsOptional() @IsEnum(FinancialAccountTypeDto) type?: FinancialAccountTypeDto;
   @IsOptional() @IsNumber() initialBalance?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+  // Wave 2/3
+  @IsOptional() @IsBoolean() adminOnly?: boolean;
 }
 
 // ---- Payment methods ----
@@ -115,6 +119,11 @@ export class CreatePaymentMethodDto {
   @IsOptional() @IsInt() @Min(0) settlementDays?: number;
   @IsOptional() @IsString() defaultAccountId?: string;
   @IsOptional() @IsBoolean() goesToCash?: boolean;
+  // Wave 2/3
+  @IsOptional() @IsNumber() @Min(0) feeFixed?: number;
+  @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsString() kind?: string;
+  @IsOptional() @IsBoolean() favorite?: boolean;
 }
 
 export class UpdatePaymentMethodDto {
@@ -123,6 +132,11 @@ export class UpdatePaymentMethodDto {
   @IsOptional() @IsInt() @Min(0) settlementDays?: number;
   @IsOptional() @IsString() defaultAccountId?: string;
   @IsOptional() @IsBoolean() goesToCash?: boolean;
+  // Wave 2/3
+  @IsOptional() @IsNumber() @Min(0) feeFixed?: number;
+  @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsString() kind?: string;
+  @IsOptional() @IsBoolean() favorite?: boolean;
 }
 
 // ---- Financial categories ----

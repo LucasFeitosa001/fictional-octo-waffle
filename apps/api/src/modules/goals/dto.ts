@@ -5,6 +5,7 @@ import {
   IsString,
   Matches,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export type GoalKindDto = 'sales' | 'appointments' | 'customers' | 'commission';
@@ -16,6 +17,8 @@ export class CreateGoalDto {
   @IsEnum(['sales', 'appointments', 'customers', 'commission']) kind: GoalKindDto;
   @IsEnum(['service', 'product', 'category', 'all']) scopeType: ScopeType;
   @IsOptional() @IsString() scopeId?: string;
+  // Escopo por profissional: quando setado, o progresso é calculado só p/ ele.
+  @IsOptional() @IsString() employeeId?: string;
   @IsNumber() @Min(0) target: number;
 }
 
@@ -25,5 +28,6 @@ export class UpdateGoalDto {
   @IsOptional() @IsEnum(['sales', 'appointments', 'customers', 'commission']) kind?: GoalKindDto;
   @IsOptional() @IsEnum(['service', 'product', 'category', 'all']) scopeType?: ScopeType;
   @IsOptional() @IsString() scopeId?: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() employeeId?: string | null;
   @IsOptional() @IsNumber() @Min(0) target?: number;
 }

@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -28,6 +29,12 @@ export class CreateProductDto {
   @IsOptional() @IsNumber() @Min(0) cashbackPercent?: number;
   @IsOptional() @IsNumber() @Min(0) defaultCommissionPercent?: number;
   @IsOptional() @IsBoolean() favorite?: boolean;
+  // Wave 2/3
+  @IsOptional() @IsBoolean() trackStock?: boolean;
+  @IsOptional() @IsBoolean() cashbackActive?: boolean;
+  @IsOptional() @IsString() cashbackType?: string;
+  @IsOptional() @IsNumber() @Min(0) cashbackValue?: number;
+  @IsOptional() @IsString() exitReason?: string;
 }
 
 export class UpdateProductDto {
@@ -50,6 +57,12 @@ export class UpdateProductDto {
   @IsOptional() @IsNumber() @Min(0) defaultCommissionPercent?: number;
   @IsOptional() @IsBoolean() favorite?: boolean;
   @IsOptional() @IsBoolean() active?: boolean;
+  // Wave 2/3
+  @IsOptional() @IsBoolean() trackStock?: boolean;
+  @IsOptional() @IsBoolean() cashbackActive?: boolean;
+  @IsOptional() @IsString() cashbackType?: string;
+  @IsOptional() @IsNumber() @Min(0) cashbackValue?: number;
+  @IsOptional() @IsString() exitReason?: string;
 }
 
 export enum StockMovementType {
@@ -76,8 +89,28 @@ export class UpdateProductCategoryDto {
 
 export class CreateBrandDto {
   @IsString() @MinLength(2) name: string;
+  @IsOptional() @IsBoolean() active?: boolean;
 }
 
 export class UpdateBrandDto {
   @IsOptional() @IsString() @MinLength(2) name?: string;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
+// ---- product batches (lotes) ----
+export class CreateProductBatchDto {
+  @IsString() productId: string;
+  @IsString() @MinLength(1) code: string;
+  @IsOptional() @IsDateString() manufacturedAt?: string;
+  @IsOptional() @IsDateString() expiresAt?: string;
+  @IsOptional() @IsNumber() @Min(0) quantity?: number;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
+export class UpdateProductBatchDto {
+  @IsOptional() @IsString() @MinLength(1) code?: string;
+  @IsOptional() @IsDateString() manufacturedAt?: string;
+  @IsOptional() @IsDateString() expiresAt?: string;
+  @IsOptional() @IsNumber() @Min(0) quantity?: number;
+  @IsOptional() @IsBoolean() active?: boolean;
 }

@@ -64,8 +64,11 @@ export class PurchasesService {
       accountId: p.accountId,
       paymentMethodId: p.paymentMethodId,
       number: p.number,
+      invoiceNumber: p.invoiceNumber,
       freight: p.freight,
       discount: p.discount,
+      otherExpenses: p.otherExpenses,
+      otherIncome: p.otherIncome,
       notes: p.notes,
       total: p.total,
       date: p.date,
@@ -123,6 +126,9 @@ export class PurchasesService {
           freight: new Prisma.Decimal(dto.freight ?? 0),
           discount: new Prisma.Decimal(dto.discount ?? 0),
           notes: dto.notes ?? null,
+          invoiceNumber: dto.invoiceNumber ?? null,
+          otherExpenses: new Prisma.Decimal(dto.otherExpenses ?? 0),
+          otherIncome: new Prisma.Decimal(dto.otherIncome ?? 0),
           total,
           date: dto.date ? new Date(dto.date) : undefined,
           items: {
@@ -220,6 +226,15 @@ export class PurchasesService {
             ? { discount: new Prisma.Decimal(dto.discount) }
             : {}),
           ...(dto.notes !== undefined ? { notes: dto.notes || null } : {}),
+          ...(dto.invoiceNumber !== undefined
+            ? { invoiceNumber: dto.invoiceNumber || null }
+            : {}),
+          ...(dto.otherExpenses !== undefined
+            ? { otherExpenses: new Prisma.Decimal(dto.otherExpenses) }
+            : {}),
+          ...(dto.otherIncome !== undefined
+            ? { otherIncome: new Prisma.Decimal(dto.otherIncome) }
+            : {}),
           total,
         },
       });

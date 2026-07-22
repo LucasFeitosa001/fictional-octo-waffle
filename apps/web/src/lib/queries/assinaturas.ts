@@ -11,6 +11,11 @@ export interface MembershipServiceItem {
   membershipPlanId: string;
   serviceId: string;
   quantityPerCycle: number;
+  // Wave 4: grid de itens editável — preço/desconto/quantidade por linha.
+  // Decimais chegam serializados como string (ou null quando não preenchidos).
+  unitPrice?: string | null;
+  discount?: string | null;
+  quantity?: string | null;
   service?: { id: string; name: string };
 }
 
@@ -43,7 +48,13 @@ export interface CreateMembershipPlanBody {
   name: string;
   recurringPrice: number;
   intervalMonths?: number;
-  services: { serviceId: string; quantityPerCycle: number }[];
+  services: {
+    serviceId: string;
+    quantityPerCycle: number;
+    unitPrice?: number;
+    discount?: number;
+    quantity?: number;
+  }[];
 }
 
 export type UpdateMembershipPlanBody = Partial<CreateMembershipPlanBody>;

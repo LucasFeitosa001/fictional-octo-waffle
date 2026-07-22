@@ -66,16 +66,28 @@ export function FullDrawer({
 
   useEffect(() => {
     if (isOpen) {
-      setMounted(true);
-      requestAnimationFrame(() => setShow(true));
-      document.body.style.overflow = 'hidden';
-    } else {
+      // Monta fechado (translate-y-full) e só no 2º frame vira aberto —
+      // DOUBLE requestAnimationFrame garante que o estado fechado PINTA antes
+      // de flipar pra aberto, senão os dois estados caem no mesmo frame e a
+      // transição de entrada não roda (o drawer "aparece" sem subir). Mesmo
+      // padrão do Drawer.tsx.
       setShow(false);
-      document.body.style.overflow = '';
-      const t = window.setTimeout(() => setMounted(false), EXIT_MS);
-      return () => window.clearTimeout(t);
+      setMounted(true);
+      document.body.style.overflow = 'hidden';
+      let raf2 = 0;
+      const raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setShow(true));
+      });
+      return () => {
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
+        document.body.style.overflow = '';
+      };
     }
-    return () => { document.body.style.overflow = ''; };
+    setShow(false);
+    document.body.style.overflow = '';
+    const t = window.setTimeout(() => setMounted(false), EXIT_MS);
+    return () => window.clearTimeout(t);
   }, [isOpen]);
 
   useEffect(() => {

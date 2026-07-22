@@ -35,19 +35,39 @@ export default defineConfig({
         ],
         cleanupOutdatedCaches: true,
       },
+      // ÚNICA fonte do manifest — o plugin gera /manifest.webmanifest e injeta
+      // o <link rel="manifest">. Não existe mais public/manifest.json estático
+      // (dois manifests conflitavam e a barra do browser ficava indefinida).
       manifest: {
+        id: '/',
         name: 'Salonpass Gestão',
         short_name: 'Salonpass',
-        description: 'Gestão completa do seu salão',
+        description: 'Gestão completa do seu salão de beleza — agenda, comandas, financeiro e clientes.',
+        lang: 'pt-BR',
+        dir: 'ltr',
         start_url: '/',
+        scope: '/',
         display: 'standalone',
-        background_color: '#fdfaf7',
+        display_override: ['standalone', 'minimal-ui'],
+        background_color: '#111111',
         theme_color: '#f2b33d',
-        orientation: 'any',
+        orientation: 'portrait',
+        categories: ['business', 'productivity', 'lifestyle'],
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+          // Maskable como entrada SEPARADA (não "any maskable" no mesmo item —
+          // o Android recorta o ícone com safe-zone só quando é 'maskable' puro).
+          { src: '/maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+        shortcuts: [
+          { name: 'Agenda', short_name: 'Agenda', url: '/agenda', icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }] },
+          { name: 'Comandas', short_name: 'Comandas', url: '/comandas', icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }] },
+          { name: 'Clientes', short_name: 'Clientes', url: '/clientes', icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }] },
+        ],
+        screenshots: [
+          { src: '/screenshot-wide.png', sizes: '1280x720', type: 'image/png', form_factor: 'wide', label: 'Painel no desktop' },
+          { src: '/screenshot-narrow.png', sizes: '390x844', type: 'image/png', form_factor: 'narrow', label: 'App no celular' },
         ],
       },
     }),

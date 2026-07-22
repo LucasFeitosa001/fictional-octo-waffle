@@ -1,0 +1,218 @@
+[
+  {
+    "route": "/wow",
+    "slug": "wow",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8706
+  },
+  {
+    "route": "/calendar",
+    "slug": "calendar",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8543
+  },
+  {
+    "route": "/sales",
+    "slug": "sales",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8741
+  },
+  {
+    "route": "/clients",
+    "slug": "clients",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8323
+  },
+  {
+    "route": "/employees",
+    "slug": "employees",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8580
+  },
+  {
+    "route": "/products",
+    "slug": "products",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8782
+  },
+  {
+    "route": "/services",
+    "slug": "services",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7343
+  },
+  {
+    "route": "/packages",
+    "slug": "packages",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 9177
+  },
+  {
+    "route": "/subscriptions",
+    "slug": "subscriptions",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8744
+  },
+  {
+    "route": "/vendors",
+    "slug": "vendors",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7766
+  },
+  {
+    "route": "/brands",
+    "slug": "brands",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8078
+  },
+  {
+    "route": "/finance/transactions",
+    "slug": "finance_transactions",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8613
+  },
+  {
+    "route": "/finance/accounts",
+    "slug": "finance_accounts",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7544
+  },
+  {
+    "route": "/finance/cash",
+    "slug": "finance_cash",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7724
+  },
+  {
+    "route": "/finance/dashboard",
+    "slug": "finance_dashboard",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 39570
+  },
+  {
+    "route": "/commissions",
+    "slug": "commissions",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7406
+  },
+  {
+    "route": "/commissions/settings",
+    "slug": "commissions_settings",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7309
+  },
+  {
+    "route": "/reports",
+    "slug": "reports",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 38721
+  },
+  {
+    "route": "/reports/financial",
+    "slug": "reports_financial",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 11678
+  },
+  {
+    "route": "/reports/clients/all",
+    "slug": "reports_clients_all",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 37224
+  },
+  {
+    "route": "/reports/calendars/all",
+    "slug": "reports_calendars_all",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 37566
+  },
+  {
+    "route": "/marketing/agendamento-online",
+    "slug": "marketing_agendamento-online",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7771
+  },
+  {
+    "route": "/marketing/campanhas",
+    "slug": "marketing_campanhas",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 7854
+  },
+  {
+    "route": "/marketing/cashback",
+    "slug": "marketing_cashback",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 9010
+  },
+  {
+    "route": "/marketing/promocoes",
+    "slug": "marketing_promocoes",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8844
+  },
+  {
+    "route": "/marketing/avaliacoes",
+    "slug": "marketing_avaliacoes",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 8952
+  },
+  {
+    "route": "/settings",
+    "slug": "settings",
+    "result": {
+      "note": "sem-botao-novo"
+    },
+    "durationMs": 36773
+  }
+]

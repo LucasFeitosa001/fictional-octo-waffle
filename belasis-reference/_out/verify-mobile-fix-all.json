@@ -1,0 +1,170 @@
+{
+  "baseUrl": "https://conferences-collar-proof-mine.trycloudflare.com",
+  "passed": 14,
+  "failed": 0,
+  "results": [
+    {
+      "route": "/pacotes",
+      "ok": true,
+      "note": "http=200 h1=\"Pacotes\" ul-mobile-items=12 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-pacotes.png",
+      "h1": "Pacotes",
+      "ulMobileItems": 12,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "cards compactos, FAB azul, BottomNav Selecionar"
+    },
+    {
+      "route": "/assinaturas?tab=subscribers",
+      "ok": true,
+      "note": "http=200 h1=\"Assinaturas\" ul-mobile-items=0 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-assinaturas-tab-subscribers.png",
+      "h1": "Assinaturas",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "tab Assinantes, search top"
+    },
+    {
+      "route": "/assinaturas?tab=plans",
+      "ok": true,
+      "note": "http=200 h1=\"Assinaturas\" ul-mobile-items=0 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-assinaturas-tab-plans.png",
+      "h1": "Assinaturas",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "empty state com CTA Clique aqui"
+    },
+    {
+      "route": "/vendas-por-assinatura",
+      "ok": true,
+      "note": "http=200 h1=\"Painel\" ul-mobile-items=0 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-vendas-por-assinatura.png",
+      "h1": "Painel",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "mesma AssinaturasPage — alias"
+    },
+    {
+      "route": "/financeiro/transacoes",
+      "ok": true,
+      "note": "http=200 h1=\"Transações\" ul-mobile-items=60 errors=2 :: In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <button> button \n\n  ...\n    <div className=\"mb-5 flex ...\">\n      <div>\n      <div className=\"hidden gap...\">\n        <ButtonRoot>\n        <ButtonRoot>\n        <ButtonRoot>\n        <DropdownRoot>\n          <$49319ee1285 | <%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. button <button>",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-transacoes.png",
+      "h1": "Transações",
+      "ulMobileItems": 60,
+      "httpStatus": 200,
+      "errors": [
+        "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <button> button \n\n  ...\n    <div className=\"mb-5 flex ...\">\n      <div>\n      <div className=\"hidden gap...\">\n        <ButtonRoot>\n        <ButtonRoot>\n        <ButtonRoot>\n        <DropdownRoot>\n          <$49319ee1285",
+        "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. button <button>"
+      ],
+      "expect": "chips row, cards mobile"
+    },
+    {
+      "route": "/financeiro/contas",
+      "ok": true,
+      "note": "http=200 h1=\"Contas e métodos\" ul-mobile-items=4 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-contas.png",
+      "h1": "Contas e métodos",
+      "ulMobileItems": 4,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "cards mobile, dot indicator"
+    },
+    {
+      "route": "/financeiro/contas?tab=formas",
+      "ok": true,
+      "note": "http=200 h1=\"Contas e métodos\" ul-mobile-items=8 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-contas-tab-formas.png",
+      "h1": "Contas e métodos",
+      "ulMobileItems": 8,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "skeleton or seed data"
+    },
+    {
+      "route": "/financeiro/cadastros/categorias",
+      "ok": true,
+      "note": "http=200 h1=\"Painel financeiro\" ul-mobile-items=6 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-cadastros-categorias.png",
+      "h1": "Painel financeiro",
+      "ulMobileItems": 6,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "nova página, chips de tipo"
+    },
+    {
+      "route": "/financeiro/belasis-pay",
+      "ok": true,
+      "note": "http=200 h1=\"Painel financeiro\" ul-mobile-items=0 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-belasis-pay.png",
+      "h1": "Painel financeiro",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "form PJ/PF, rodapé sticky"
+    },
+    {
+      "route": "/financeiro/notas-fiscais",
+      "ok": true,
+      "note": "http=200 h1=\"Painel financeiro\" ul-mobile-items=0 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-notas-fiscais.png",
+      "h1": "Painel financeiro",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "upsell modal com Fechar/Contratar"
+    },
+    {
+      "route": "/financeiro/caixas-abertos",
+      "ok": true,
+      "note": "http=200 h1=\"Painel\" ul-mobile-items=0 errors=2 :: In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <div> p \n\n  ...\n    <PainelPage>\n      <div>\n        <PageHeader>\n        <button>\n        <div className=\"flex flex-...\">\n          <div>\n          <TabsTendenciaStatus>\n          <div className=\"grid grid-...\">\n       | <%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. p <div>",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-caixas-abertos.png",
+      "h1": "Painel",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [
+        "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <div> p \n\n  ...\n    <PainelPage>\n      <div>\n        <PageHeader>\n        <button>\n        <div className=\"flex flex-...\">\n          <div>\n          <TabsTendenciaStatus>\n          <div className=\"grid grid-...\">\n      ",
+        "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. p <div>"
+      ],
+      "expect": "aba Resumo NÃO Resumido"
+    },
+    {
+      "route": "/financeiro/historico-caixa",
+      "ok": true,
+      "note": "http=200 h1=\"Painel financeiro\" ul-mobile-items=0 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-financeiro-historico-caixa.png",
+      "h1": "Painel financeiro",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "alias funciona"
+    },
+    {
+      "route": "/agenda",
+      "ok": true,
+      "note": "http=200 h1=\"Agenda\" ul-mobile-items=0 errors=0",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-agenda.png",
+      "h1": "Agenda",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [],
+      "expect": "FAB azul mobile"
+    },
+    {
+      "route": "/comissoes/resumo",
+      "ok": true,
+      "note": "http=200 h1=\"Painel\" ul-mobile-items=0 errors=2 :: In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <div> p \n\n  ...\n    <PainelPage>\n      <div>\n        <PageHeader>\n        <button>\n        <div className=\"flex flex-...\">\n          <div>\n          <TabsTendenciaStatus>\n          <div className=\"grid grid-...\">\n       | <%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. p <div>",
+      "screenshot": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/verify-comissoes-resumo.png",
+      "h1": "Painel",
+      "ulMobileItems": 0,
+      "httpStatus": 200,
+      "errors": [
+        "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <div> p \n\n  ...\n    <PainelPage>\n      <div>\n        <PageHeader>\n        <button>\n        <div className=\"flex flex-...\">\n          <div>\n          <TabsTendenciaStatus>\n          <div className=\"grid grid-...\">\n      ",
+        "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. p <div>"
+      ],
+      "expect": "labels curtos Em aberto/Pagas"
+    }
+  ]
+}

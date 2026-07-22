@@ -4,6 +4,13 @@ import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../components/Drawer';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { useConfirm } from '../components/ConfirmDialog';
+import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import {
+  buildSelectActions,
+  useSelectMode,
+  type BulkAction,
+} from '../hooks/useSelectMode';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
   IconArrowDown,
@@ -52,49 +59,20 @@ export function MarcasPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   // Belasis: filtro de Status (Ativos / Inativos) com checkboxes independentes.
-  // A API de /brands ainda não expõe `active`; tratamos todas as marcas como
-  // ativas (o Drawer já assume isso). "Inativos" isolado => lista vazia.
+  // Usa Brand.active real (o backend expõe o campo em GET /brands).
   const [statusAtivos, setStatusAtivos] = useState(true);
   const [statusInativos, setStatusInativos] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  // Mobile: "Selecionar" na BottomNav revela os checkboxes nos cards (Belasis).
-  const [selectMode, setSelectMode] = useState(false);
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids VISÍVEIS.
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const allRows = brands.data ?? [];
-
-  // No mobile a busca fica sempre visível, então a BottomNav do Belasis expõe
-  // Filtros / Selecionar / Criar — mesmos handlers do desktop.
-  useSetPageActions(
-    [
-      {
-        key: 'filtros',
-        label: 'Filtros',
-        icon: <IconFilter size={22} />,
-        onClick: () => setFilterOpen((v) => !v),
-      },
-      {
-        key: 'selecionar',
-        label: 'Selecionar',
-        icon: <IconCheckCircle size={22} />,
-        onClick: () => setSelectMode((v) => !v),
-      },
-      {
-        key: 'criar',
-        label: 'Criar',
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-    ],
-    [],
-  );
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
     const filtered = allRows.filter((b) => {
-      // API não expõe status; todas as marcas são tratadas como ativas.
-      const isActive = true;
+      const isActive = b.active;
       if (statusAtivos || statusInativos) {
         if (statusAtivos && !statusInativos && !isActive) return false;
         if (statusInativos && !statusAtivos && isActive) return false;
@@ -112,26 +90,85 @@ export function MarcasPage() {
   const safePage = Math.min(page, pageCount);
   const paged = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const allPageSelected =
-    paged.length > 0 && paged.every((b) => selected.has(b.id));
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids VISÍVEIS
+  // (todas as linhas filtradas — o mobile lista tudo, o desktop pagina).
+  const ids = useMemo(() => rows.map((r) => r.id), [rows]);
+  const sel = useSelectMode(ids);
 
-  function toggleRow(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // Header select-all do desktop opera sobre a PÁGINA visível (paged).
+  const pagedIds = paged.map((b) => b.id);
+  const pageAllSelected =
+    pagedIds.length > 0 && pagedIds.every((id) => sel.isSelected(id));
+  function togglePage() {
+    for (const id of pagedIds) {
+      if (pageAllSelected ? sel.isSelected(id) : !sel.isSelected(id))
+        sel.toggle(id);
+    }
   }
 
-  function toggleAllPage() {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allPageSelected) paged.forEach((b) => next.delete(b.id));
-      else paged.forEach((b) => next.add(b.id));
-      return next;
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  async function bulkDeleteSelected() {
+    if (sel.count === 0) return;
+    const ok = await confirm({
+      title: 'Excluir marcas?',
+      message: `Remover ${sel.count} marca(s) selecionada(s)? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
     });
+    if (!ok) return;
+    await Promise.all([...sel.selected].map((id) => deleteBrand.mutateAsync(id)));
+    setActionsOpen(false);
+    sel.cancel();
   }
+
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: deleteBrand.isPending,
+      onClick: bulkDeleteSelected,
+    },
+  ];
+
+  // No mobile a busca fica sempre visível, então a BottomNav do Belasis expõe
+  // Filtros / Selecionar / Criar — mesmos handlers do desktop. Em selectMode a
+  // barra vira [Cancelar · Selecionar todos · Ações] via buildSelectActions.
+  useSetPageActions(
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          {
+            key: 'filtros',
+            label: 'Filtros',
+            icon: <IconFilter size={22} />,
+            onClick: () => setFilterOpen((v) => !v),
+          },
+          {
+            key: 'selecionar',
+            label: 'Selecionar',
+            icon: <IconCheckCircle size={22} />,
+            onClick: sel.enter,
+            disabled: rows.length === 0,
+          },
+          {
+            key: 'criar',
+            label: 'Criar',
+            icon: <IconPlus size={22} />,
+            onClick: () => setCreateOpen(true),
+          },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count, rows.length],
+  );
 
   useEffect(() => {
     setPage(1);
@@ -357,8 +394,8 @@ export function MarcasPage() {
                     <tr className="border-b border-line text-left text-sm font-semibold text-ink/75">
                       <th className="w-10 py-3 pl-4 pr-2">
                         <CheckBox
-                          checked={allPageSelected}
-                          onClick={toggleAllPage}
+                          checked={pageAllSelected}
+                          onClick={togglePage}
                           label="Selecionar todas"
                         />
                       </th>
@@ -397,16 +434,23 @@ export function MarcasPage() {
                       return (
                         <tr
                           key={b.id}
-                          onClick={() => setEditing(b)}
-                          className="cursor-pointer border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                          onClick={() =>
+                            sel.selectMode ? sel.toggle(b.id) : setEditing(b)
+                          }
+                          className={[
+                            'cursor-pointer border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]',
+                            sel.selectMode && sel.isSelected(b.id)
+                              ? 'bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)]'
+                              : '',
+                          ].join(' ')}
                         >
                           <td
                             className="py-2.5 pl-4 pr-2"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <CheckBox
-                              checked={selected.has(b.id)}
-                              onClick={() => toggleRow(b.id)}
+                              checked={sel.isSelected(b.id)}
+                              onClick={() => sel.toggle(b.id)}
                               label={`Selecionar ${b.name}`}
                             />
                           </td>
@@ -452,20 +496,21 @@ export function MarcasPage() {
                   return (
                     <li
                       key={b.id}
-                      className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
+                      className={[
+                        'rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] transition-colors',
+                        sel.selectMode && sel.isSelected(b.id)
+                          ? 'border-primary ring-2 ring-primary/40'
+                          : 'border-line',
+                      ].join(' ')}
                     >
                       <div className="flex items-center gap-3">
-                        {selectMode && (
-                          <CheckBox
-                            checked={selected.has(b.id)}
-                            onClick={() => toggleRow(b.id)}
-                            label={`Selecionar ${b.name}`}
-                          />
+                        {sel.selectMode && (
+                          <AnimatedCheckbox checked={sel.isSelected(b.id)} />
                         )}
                         <button
                           type="button"
                           onClick={() =>
-                            selectMode ? toggleRow(b.id) : setEditing(b)
+                            sel.selectMode ? sel.toggle(b.id) : setEditing(b)
                           }
                           className="block min-w-0 flex-1 text-left"
                         >
@@ -516,6 +561,14 @@ export function MarcasPage() {
         brand={editing}
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
+      />
+
+      {/* Ações em lote (Belasis): bottom-sheet aberto pelo "Ações" do selectMode. */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
     </div>
   );
@@ -754,7 +807,7 @@ function CheckBox({
 // Drawer lateral de cadastro/edição de marca
 // ---------------------------------------------------------------------
 
-function BrandDrawer({
+export function BrandDrawer({
   mode,
   brand,
   isOpen,
@@ -768,16 +821,14 @@ function BrandDrawer({
   const create = useCreateBrand();
   const update = useUpdateBrand();
   const [name, setName] = useState('');
-  // "Ativo" existe no drawer do Belasis; a API de marcas ainda não persiste o
-  // campo, então mantemos como estado local de apresentação.
-  // TODO: enviar `active` quando o backend de /brands suportar.
+  // "Ativo" persiste via Brand.active (enviado em create/update).
   const [active, setActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setName(brand?.name ?? '');
-      setActive(true);
+      setActive(brand?.active ?? true);
       setError(null);
     }
   }, [isOpen, brand]);
@@ -789,9 +840,12 @@ function BrandDrawer({
     setError(null);
     try {
       if (mode === 'edit' && brand) {
-        await update.mutateAsync({ id: brand.id, body: { name: name.trim() } });
+        await update.mutateAsync({
+          id: brand.id,
+          body: { name: name.trim(), active },
+        });
       } else {
-        await create.mutateAsync({ name: name.trim() });
+        await create.mutateAsync({ name: name.trim(), active });
       }
       onClose();
     } catch (err) {

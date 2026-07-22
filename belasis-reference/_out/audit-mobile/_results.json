@@ -1,0 +1,95 @@
+[
+  {
+    "route": "/clientes",
+    "grade": "match",
+    "issues": [],
+    "cardHeight": 82,
+    "screenshotPath": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/audit-mobile/clientes.png",
+    "_debug": {
+      "searchVisible": true,
+      "hasMobileUl": true,
+      "cardCount": 20,
+      "avgH": 82,
+      "firstHeights": [
+        82,
+        82,
+        82
+      ],
+      "hasDelete": false,
+      "hasCheckbox": false,
+      "creamAncestor": false,
+      "hasFab": false,
+      "title": "Salonpass Gestão",
+      "url": "http://localhost:5173/clientes"
+    }
+  },
+  {
+    "route": "/profissionais",
+    "grade": "not-list",
+    "issues": [
+      "search input \"Digite para buscar\" ausente/invisível",
+      "ul.md:hidden não encontrada"
+    ],
+    "cardHeight": 0,
+    "screenshotPath": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/audit-mobile/profissionais.png",
+    "_debug": {
+      "searchVisible": false,
+      "hasMobileUl": false,
+      "cardCount": 0,
+      "avgH": 0,
+      "firstHeights": [],
+      "hasDelete": false,
+      "hasCheckbox": false,
+      "creamAncestor": false,
+      "hasFab": false,
+      "title": "Salonpass Gestão",
+      "url": "http://localhost:5173/profissionais"
+    }
+  },
+  {
+    "route": "/fornecedores",
+    "grade": "not-list",
+    "issues": [
+      "search input \"Digite para buscar\" ausente/invisível",
+      "ul.md:hidden não encontrada"
+    ],
+    "cardHeight": 0,
+    "screenshotPath": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/audit-mobile/fornecedores.png",
+    "_debug": {
+      "searchVisible": false,
+      "hasMobileUl": false,
+      "cardCount": 0,
+      "avgH": 0,
+      "firstHeights": [],
+      "hasDelete": false,
+      "hasCheckbox": false,
+      "creamAncestor": false,
+      "hasFab": false,
+      "title": "Salonpass Gestão",
+      "url": "http://localhost:5173/fornecedores"
+    }
+  },
+  {
+    "route": "/cadastros/anamneses",
+    "grade": "not-list",
+    "issues": [
+      "search input \"Digite para buscar\" ausente/invisível",
+      "ul.md:hidden não encontrada"
+    ],
+    "cardHeight": 0,
+    "screenshotPath": "/home/lucssfeitosa/beautypass/beautypass/belasis-reference/_out/audit-mobile/cadastros_anamneses.png",
+    "_debug": {
+      "searchVisible": false,
+      "hasMobileUl": false,
+      "cardCount": 0,
+      "avgH": 0,
+      "firstHeights": [],
+      "hasDelete": false,
+      "hasCheckbox": false,
+      "creamAncestor": false,
+      "hasFab": false,
+      "title": "Salonpass Gestão",
+      "url": "http://localhost:5173/cadastros/anamneses"
+    }
+  }
+]

@@ -30,6 +30,7 @@ export class GoalsService {
       period: string;
       scopeType: string;
       scopeId: string | null;
+      employeeId: string | null;
       target: unknown;
       kind: string;
       createdAt: Date;
@@ -37,17 +38,21 @@ export class GoalsService {
     },
   ) {
     const { start, end } = periodRange(goal.period);
+    // Meta por profissional: filtra as fontes que têm vínculo com profissional
+    // (vendas, agendamentos, comissões). 'customers' não tem professionalId,
+    // portanto permanece agregado pela empresa.
+    const proFilter = goal.employeeId ? { professionalId: goal.employeeId } : {};
     let actual = 0;
 
     if (goal.kind === 'sales') {
       const orders = await this.prisma.client.order.findMany({
-        where: { companyId, status: 'finished', date: { gte: start, lt: end } },
+        where: { companyId, status: 'finished', date: { gte: start, lt: end }, ...proFilter },
         select: { netTotal: true },
       });
       actual = orders.reduce((acc, o) => acc + Number(o.netTotal), 0);
     } else if (goal.kind === 'appointments') {
       actual = await this.prisma.client.appointment.count({
-        where: { companyId, start: { gte: start, lt: end } },
+        where: { companyId, start: { gte: start, lt: end }, ...proFilter },
       });
     } else if (goal.kind === 'customers') {
       actual = await this.prisma.client.customer.count({
@@ -55,7 +60,7 @@ export class GoalsService {
       });
     } else if (goal.kind === 'commission') {
       const entries = await this.prisma.client.commissionEntry.findMany({
-        where: { companyId, createdAt: { gte: start, lt: end } },
+        where: { companyId, createdAt: { gte: start, lt: end }, ...proFilter },
         select: { commissionAmount: true },
       });
       actual = entries.reduce((acc, e) => acc + Number(e.commissionAmount), 0);
@@ -74,6 +79,7 @@ export class GoalsService {
         kind: dto.kind,
         scopeType: dto.scopeType,
         scopeId: dto.scopeId,
+        employeeId: dto.employeeId ?? null,
         target: dto.target,
       },
     });
@@ -89,6 +95,7 @@ export class GoalsService {
         ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
         ...(dto.scopeType !== undefined ? { scopeType: dto.scopeType } : {}),
         ...(dto.scopeId !== undefined ? { scopeId: dto.scopeId } : {}),
+        ...(dto.employeeId !== undefined ? { employeeId: dto.employeeId } : {}),
         ...(dto.target !== undefined ? { target: dto.target } : {}),
       },
     });

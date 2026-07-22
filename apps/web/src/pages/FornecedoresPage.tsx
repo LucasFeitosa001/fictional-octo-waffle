@@ -59,6 +59,52 @@ function readAddress(addressJson: unknown): SupplierAddress {
   return {};
 }
 
+// ---------------------------------------------------------------------
+// Máscaras BR (só-UI, sem lib). Aplicadas ao digitar; guardamos a string
+// já formatada — o backend aceita texto livre nesses campos.
+// ---------------------------------------------------------------------
+
+/** Máscara progressiva de telefone/celular BR: (00) 0000-0000 / (00) 00000-0000. */
+function maskPhoneBr(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 11);
+  if (d.length === 0) return '';
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** Máscara de CEP BR: 00000-000. */
+function maskCep(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 5) return d;
+  return `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
+interface ViaCepResponse {
+  erro?: boolean;
+  logradouro?: string;
+  bairro?: string;
+  localidade?: string;
+  uf?: string;
+}
+
+/**
+ * Consulta o ViaCEP para um CEP de 8 dígitos. Retorna null em qualquer falha
+ * (rede, CEP inexistente) — o chamador trata como erro silencioso.
+ */
+async function fetchViaCep(cepDigits: string, signal?: AbortSignal): Promise<ViaCepResponse | null> {
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`, { signal });
+    if (!res.ok) return null;
+    const data = (await res.json()) as ViaCepResponse;
+    if (data.erro) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export function FornecedoresPage() {
   const confirm = useConfirm();
   const [searchInput, setSearchInput] = useState('');
@@ -678,7 +724,7 @@ function CheckRow({
 // Drawer lateral de cadastro/edição de fornecedor (clone do Belasis)
 // ---------------------------------------------------------------------
 
-function SupplierDrawer({
+export function SupplierDrawer({
   mode,
   supplier,
   isOpen,
@@ -708,19 +754,38 @@ function SupplierDrawer({
   const [bairro, setBairro] = useState('');
   const [estado, setEstado] = useState('');
   const [cidade, setCidade] = useState('');
+  const [cepLoading, setCepLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Ao digitar o CEP: aplica máscara e, ao completar 8 dígitos, consulta o
+  // ViaCEP para preencher logradouro/bairro/cidade/estado automaticamente.
+  function handleCepChange(value: string) {
+    const masked = maskCep(value);
+    setCep(masked);
+    const digits = value.replace(/\D/g, '').slice(0, 8);
+    if (digits.length !== 8) return;
+    setCepLoading(true);
+    void fetchViaCep(digits).then((data) => {
+      setCepLoading(false);
+      if (!data) return; // CEP inválido/inexistente → erro silencioso
+      if (data.logradouro) setLogradouro(data.logradouro);
+      if (data.bairro) setBairro(data.bairro);
+      if (data.localidade) setCidade(data.localidade);
+      if (data.uf) setEstado(data.uf);
+    });
+  }
 
   useEffect(() => {
     if (!isOpen) return;
     const addr = readAddress(supplier?.addressJson);
     setName(supplier?.name ?? '');
     setEmail(supplier?.email ?? '');
-    setPhone(supplier?.phone ?? '');
-    setPhone2(addr.phone2 ?? '');
+    setPhone(supplier?.phone ? maskPhoneBr(supplier.phone) : '');
+    setPhone2(addr.phone2 ? maskPhoneBr(addr.phone2) : '');
     setStateRegistration(supplier?.stateRegistration ?? '');
     setCnpj(supplier?.cnpj ?? '');
     setActive(supplier?.active ?? true);
-    setCep(addr.cep ?? '');
+    setCep(addr.cep ? maskCep(addr.cep) : '');
     setLogradouro(addr.logradouro ?? addr.line ?? '');
     setNumero(addr.numero ?? '');
     setComplemento(addr.complemento ?? '');
@@ -849,16 +914,26 @@ function SupplierDrawer({
               </TextField>
             </Field>
             <Field label="Celular">
-              <TextField value={phone} onChange={setPhone} aria-label="Celular">
+              <TextField
+                value={phone}
+                onChange={(v) => setPhone(maskPhoneBr(v))}
+                aria-label="Celular"
+              >
                 <Input
+                  inputMode="tel"
                   placeholder="(00) 00000-0000"
                   className="focus:border-primary focus:ring-2 focus:ring-primary/25"
                 />
               </TextField>
             </Field>
             <Field label="Telefone">
-              <TextField value={phone2} onChange={setPhone2} aria-label="Telefone">
+              <TextField
+                value={phone2}
+                onChange={(v) => setPhone2(maskPhoneBr(v))}
+                aria-label="Telefone"
+              >
                 <Input
+                  inputMode="tel"
                   placeholder="(00) 0000-0000"
                   className="focus:border-primary focus:ring-2 focus:ring-primary/25"
                 />
@@ -871,12 +946,16 @@ function SupplierDrawer({
         {section === 'endereco' && (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="CEP">
-              <TextField value={cep} onChange={setCep} aria-label="CEP">
+              <TextField value={cep} onChange={handleCepChange} aria-label="CEP">
                 <Input
+                  inputMode="numeric"
                   placeholder="00000-000"
                   className="focus:border-primary focus:ring-2 focus:ring-primary/25"
                 />
               </TextField>
+              {cepLoading && (
+                <span className="mt-1 text-xs text-muted-ink">Buscando endereço…</span>
+              )}
             </Field>
             <Field label="Logradouro">
               <TextField value={logradouro} onChange={setLogradouro} aria-label="Logradouro">

@@ -20,6 +20,7 @@ export interface Brand {
   id: string;
   companyId: string;
   name: string;
+  active: boolean;
   createdAt: string;
   updatedAt: string;
   /** present on GET /brands */
@@ -83,6 +84,30 @@ export interface StockMovementBody {
   quantity: number;
   reason?: string;
 }
+
+export interface ProductBatch {
+  id: string;
+  companyId: string;
+  productId: string;
+  code: string;
+  manufacturedAt?: string | null;
+  expiresAt?: string | null;
+  quantity: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProductBatchBody {
+  productId: string;
+  code: string;
+  manufacturedAt?: string;
+  expiresAt?: string;
+  quantity?: number;
+  active?: boolean;
+}
+
+export type UpdateProductBatchBody = Partial<Omit<CreateProductBatchBody, 'productId'>>;
 
 export interface SupplierBody {
   name: string;
@@ -162,6 +187,47 @@ export function useStockMovement() {
 }
 
 // =====================================================================
+// Product batches (lotes e validades)
+// =====================================================================
+
+export function useProductBatches(productId?: string) {
+  return useQuery({
+    queryKey: ['product-batches', productId ?? null],
+    queryFn: () =>
+      api.get<ProductBatch[]>(
+        '/product-batches',
+        productId ? { productId } : undefined,
+      ),
+  });
+}
+
+export function useCreateProductBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateProductBatchBody) =>
+      api.post<ProductBatch>('/product-batches', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-batches'] }),
+  });
+}
+
+export function useUpdateProductBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateProductBatchBody }) =>
+      api.patch<ProductBatch>(`/product-batches/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-batches'] }),
+  });
+}
+
+export function useDeleteProductBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<ProductBatch>(`/product-batches/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-batches'] }),
+  });
+}
+
+// =====================================================================
 // Product categories
 // =====================================================================
 
@@ -213,7 +279,8 @@ export function useBrands() {
 export function useCreateBrand() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string }) => api.post<Brand>('/brands', body),
+    mutationFn: (body: { name: string; active?: boolean }) =>
+      api.post<Brand>('/brands', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
   });
 }
@@ -221,8 +288,13 @@ export function useCreateBrand() {
 export function useUpdateBrand() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { name?: string } }) =>
-      api.patch<Brand>(`/brands/${id}`, body),
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: { name?: string; active?: boolean };
+    }) => api.patch<Brand>(`/brands/${id}`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
   });
 }

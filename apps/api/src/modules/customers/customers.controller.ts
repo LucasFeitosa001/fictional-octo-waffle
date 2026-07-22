@@ -11,11 +11,15 @@ import {
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import {
+  AdjustCashbackDto,
   CreateCustomerAnamnesisDto,
   CreateCustomerDebtDto,
   CreateCustomerDebtPaymentDto,
   CreateCustomerDto,
+  CreateCustomerFileDto,
   CreateCustomerNoteDto,
+  RedeemCashbackDto,
+  UpdateCustomerAnamnesisDto,
   UpdateCustomerDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
@@ -70,6 +74,11 @@ export class CustomersController {
     return this.service.addDebtPayment(companyId, id, debtId, dto);
   }
 
+  @Get(':id/balance')
+  balance(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
+    return this.service.balance(companyId, id);
+  }
+
   @Get(':id/credits')
   listCredits(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listCredits(companyId, id);
@@ -78,6 +87,24 @@ export class CustomersController {
   @Get(':id/cashback')
   listCashback(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listCashback(companyId, id);
+  }
+
+  @Post(':id/cashback/redeem')
+  redeemCashback(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: RedeemCashbackDto,
+  ) {
+    return this.service.redeemCashback(companyId, id, dto);
+  }
+
+  @Post(':id/cashback/adjust')
+  adjustCashback(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: AdjustCashbackDto,
+  ) {
+    return this.service.adjustCashback(companyId, id, dto);
   }
 
   @Get(':id/appointments')
@@ -113,6 +140,29 @@ export class CustomersController {
     return this.service.createNote(companyId, id, userId, dto);
   }
 
+  @Get(':id/files')
+  listFiles(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
+    return this.service.listFiles(companyId, id);
+  }
+
+  @Post(':id/files')
+  addFile(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: CreateCustomerFileDto,
+  ) {
+    return this.service.addFile(companyId, id, dto);
+  }
+
+  @Delete(':id/files/:fileId')
+  removeFile(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+  ) {
+    return this.service.removeFile(companyId, id, fileId);
+  }
+
   @Get(':id/anamneses')
   listAnamneses(
     @CurrentUser('companyId') companyId: string,
@@ -128,6 +178,25 @@ export class CustomersController {
     @Body() dto: CreateCustomerAnamnesisDto,
   ) {
     return this.service.createAnamnesis(companyId, id, dto);
+  }
+
+  @Patch(':id/anamneses/:anamId')
+  updateAnamnesis(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('anamId') anamId: string,
+    @Body() dto: UpdateCustomerAnamnesisDto,
+  ) {
+    return this.service.updateAnamnesis(companyId, id, anamId, dto);
+  }
+
+  @Delete(':id/anamneses/:anamId')
+  removeAnamnesis(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('anamId') anamId: string,
+  ) {
+    return this.service.removeAnamnesis(companyId, id, anamId);
   }
 
   @Post()

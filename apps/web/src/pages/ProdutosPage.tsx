@@ -14,8 +14,12 @@ import { Drawer } from '../components/Drawer';
 import { FullDrawer } from '../components/FullDrawer';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { ImageUpload } from '../components/ImageUpload';
+import { HelpTooltip } from '../components/HelpTooltip';
+import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { BulkActionsSheet } from '../components/BulkActionsSheet';
 import {
   IconBox,
+  IconCircleCheck,
   IconDownload,
   IconFilter,
   IconLayers,
@@ -25,20 +29,30 @@ import {
   IconStar,
   IconTrash,
 } from '../components/icons';
-import { formatMoney, formatNumber } from '../lib/format';
+import { formatDate, formatMoney, formatNumber, toDateInput } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
 import {
   useBrands,
   useCreateProduct,
+  useCreateProductBatch,
   useDeleteProduct,
+  useDeleteProductBatch,
+  useProductBatches,
   useProductCategories,
   useProducts,
   useStockMovement,
   useUpdateProduct,
+  useUpdateProductBatch,
   type Product,
+  type ProductBatch,
   type StockMovementType,
 } from '../lib/queries/catalogo';
 import { useAutoCreate } from '../lib/useAutoCreate';
+import {
+  buildSelectActions,
+  useSelectMode,
+  type BulkAction,
+} from '../hooks/useSelectMode';
 import { useSetPageActions } from '../layout/PageActions';
 
 const NONE = '';
@@ -61,7 +75,43 @@ type ProductExtra = Product & {
   barcode?: string | null;
   observation?: string | null;
   defaultCommissionPercent?: string | null;
+  trackStock?: boolean | null;
+  cashbackActive?: boolean | null;
+  cashbackType?: string | null;
+  cashbackValue?: string | null;
+  exitReason?: string | null;
 };
+
+// Unidades de "Registro de saída" (Belasis: labels.unit/milliliter/gram… do bundle).
+// Determina em qual unidade o estoque é baixado ao vender o produto.
+const EXIT_REASONS: { id: string; label: string }[] = [
+  { id: 'unit', label: 'em unidade' },
+  { id: 'milliliter', label: 'em mililitros (ml)' },
+  { id: 'gram', label: 'em gramas (g)' },
+  { id: 'liter', label: 'em litros (l)' },
+  { id: 'hours', label: 'em horas (h)' },
+  { id: 'box', label: 'em caixa' },
+  { id: 'kilogram', label: 'em quilogramas (kg)' },
+  { id: 'package', label: 'em pacote' },
+  { id: 'jar', label: 'em pote' },
+  { id: 'bottle', label: 'em frasco' },
+  { id: 'piece', label: 'em peça' },
+  { id: 'roll', label: 'em rolo' },
+  { id: 'application', label: 'em aplicação' },
+  { id: 'dose', label: 'em dosagem' },
+  { id: 'sheets', label: 'em folhas' },
+  { id: 'bag', label: 'em saco' },
+  { id: 'ampoule', label: 'em ampola' },
+  { id: 'gallon', label: 'em galão' },
+  { id: 'tube', label: 'em bisnaga' },
+  { id: 'capsule', label: 'em cápsula' },
+  { id: 'blister_pack', label: 'em cartela' },
+  { id: 'tablet', label: 'em comprimido' },
+  { id: 'milligram', label: 'em miligramas (mg)' },
+  { id: 'sachet', label: 'em sachê' },
+  { id: 'centimeter', label: 'em centímetros (cm)' },
+  { id: 'meter', label: 'em metros (m)' },
+];
 
 function initials(name: string) {
   return name
@@ -106,8 +156,13 @@ export function ProdutosPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [moveProduct, setMoveProduct] = useState<Product | null>(null);
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortBy>('name');
+  const [actionsOpen, setActionsOpen] = useState(false);
+  // Sub-abas: catálogo de produtos vs. lotes e validades.
+  const [subTab, setSubTab] = useState<'produtos' | 'lotes'>('produtos');
+  const [batchDrawer, setBatchDrawer] = useState<{ open: boolean; batch: ProductBatch | null }>(
+    { open: false, batch: null },
+  );
   // Belasis: banner de assinatura condicional no topo. Mock por ora — no futuro
   // virá do endpoint de billing/plano.
   const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(true);
@@ -145,25 +200,48 @@ export function ProdutosPage() {
   const safePage = Math.min(page, pageCount);
   const paged = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids
+  // VISÍVEIS (todas as linhas filtradas — o mobile lista tudo, o desktop pagina).
+  const ids = useMemo(() => rows.map((r) => r.id), [rows]);
+  const sel = useSelectMode(ids);
+
+  // Header select-all do desktop opera sobre a PÁGINA visível (paged).
   const pagedIds = paged.map((p) => p.id);
-  const allSelected =
-    pagedIds.length > 0 && pagedIds.every((id) => selected.has(id));
-  function toggleAll() {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allSelected) pagedIds.forEach((id) => next.delete(id));
-      else pagedIds.forEach((id) => next.add(id));
-      return next;
-    });
+  const pageAllSelected =
+    pagedIds.length > 0 && pagedIds.every((id) => sel.isSelected(id));
+  function togglePage() {
+    for (const id of pagedIds) {
+      if (pageAllSelected ? sel.isSelected(id) : !sel.isSelected(id))
+        sel.toggle(id);
+    }
   }
-  function toggleOne(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  async function bulkDeleteSelected() {
+    if (sel.count === 0) return;
+    const ok = await confirm({
+      title: 'Excluir produtos?',
+      message: `Remover ${sel.count} produto(s) selecionado(s)? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
     });
+    if (!ok) return;
+    await Promise.all([...sel.selected].map((id) => deleteProduct.mutateAsync(id)));
+    setActionsOpen(false);
+    sel.cancel();
   }
+
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: deleteProduct.isPending,
+      onClick: bulkDeleteSelected,
+    },
+  ];
 
   useEffect(() => {
     setPage(1);
@@ -180,34 +258,59 @@ export function ProdutosPage() {
   // Mobile: as ações do header vivem na BottomNav (padrão Belasis). Reutilizam
   // exatamente os mesmos handlers dos botões desktop.
   useSetPageActions(
-    [
-      {
-        key: 'buscar',
-        label: 'Buscar',
-        icon: <IconSearch size={22} />,
-        onClick: () => setSearchOpen((v) => !v),
-      },
-      {
-        key: 'filtrar',
-        label: 'Filtrar',
-        icon: <IconFilter size={22} />,
-        onClick: () => setFilterOpen((v) => !v),
-      },
-      {
-        key: 'exportar',
-        label: 'Exportar',
-        icon: <IconDownload size={22} />,
-        onClick: exportCsv,
-        disabled: rows.length === 0,
-      },
-      {
-        key: 'novo',
-        label: 'Novo',
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-    ],
-    [rows],
+    subTab === 'lotes'
+      ? [
+          {
+            key: 'novo-lote',
+            label: 'Novo lote',
+            icon: <IconPlus size={22} />,
+            onClick: () => setBatchDrawer({ open: true, batch: null }),
+          },
+        ]
+      : sel.selectMode
+        ? buildSelectActions({
+            onCancel: sel.cancel,
+            onSelectAll: sel.selectAll,
+            allSelected: sel.allSelected,
+            bulkActions,
+            onOpenActions: () => setActionsOpen(true),
+            count: sel.count,
+          })
+        : [
+            {
+              key: 'buscar',
+              label: 'Buscar',
+              icon: <IconSearch size={22} />,
+              onClick: () => setSearchOpen((v) => !v),
+            },
+            {
+              key: 'filtrar',
+              label: 'Filtrar',
+              icon: <IconFilter size={22} />,
+              onClick: () => setFilterOpen((v) => !v),
+            },
+            {
+              key: 'exportar',
+              label: 'Exportar',
+              icon: <IconDownload size={22} />,
+              onClick: exportCsv,
+              disabled: rows.length === 0,
+            },
+            {
+              key: 'selecionar',
+              label: 'Selecionar',
+              icon: <IconCircleCheck size={22} />,
+              onClick: sel.enter,
+              disabled: rows.length === 0,
+            },
+            {
+              key: 'novo',
+              label: 'Novo',
+              icon: <IconPlus size={22} />,
+              onClick: () => setCreateOpen(true),
+            },
+          ],
+    [subTab, sel.selectMode, sel.allSelected, sel.count, rows.length],
   );
 
   function clearAll() {
@@ -326,13 +429,38 @@ export function ProdutosPage() {
 
       {/* Sub-abas: Produtos / Lotes e validades */}
       <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-line">
-        <SubTab active>Produtos</SubTab>
-        {/* TODO: rota de lotes e validades ainda não implementada */}
-        <SubTab active={false} disabled>
+        <SubTab
+          active={subTab === 'produtos'}
+          onClick={() => {
+            sel.cancel();
+            setSubTab('produtos');
+          }}
+        >
+          Produtos
+        </SubTab>
+        <SubTab
+          active={subTab === 'lotes'}
+          onClick={() => {
+            sel.cancel();
+            setSubTab('lotes');
+          }}
+        >
           <IconLayers size={14} /> Lotes e validades
         </SubTab>
       </div>
 
+      {subTab === 'lotes' && (
+        <BatchesSection
+          products={allRows}
+          drawer={batchDrawer}
+          onOpenDrawer={(batch) => setBatchDrawer({ open: true, batch })}
+          onCloseDrawer={() => setBatchDrawer({ open: false, batch: null })}
+          onNewDesktop={() => setBatchDrawer({ open: true, batch: null })}
+        />
+      )}
+
+      {subTab === 'produtos' && (
+      <>
       {/* Busca: sempre visível no mobile (Belasis "Digite para buscar");
           revelada via botão "Buscar" no desktop. Auto-apply ao digitar. */}
       <div className={searchOpen ? 'mb-4 max-w-xl' : 'mb-4 md:hidden'}>
@@ -463,6 +591,19 @@ export function ProdutosPage() {
               </div>
             ) : (
               <>
+                {sel.count > 0 && (
+                  <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)] px-3 py-2 text-sm text-ink">
+                    <span>{sel.count} selecionado(s)</span>
+                    <button
+                      type="button"
+                      onClick={bulkDeleteSelected}
+                      disabled={deleteProduct.isPending}
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline disabled:opacity-50"
+                    >
+                      <IconTrash size={14} /> Excluir
+                    </button>
+                  </div>
+                )}
                 <div className="mb-2 flex items-center justify-end">
                   <SortSelect value={sortBy} onChange={setSortBy} />
                 </div>
@@ -472,8 +613,8 @@ export function ProdutosPage() {
                       <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
                         <th className="w-10 px-4 py-3">
                           <Checkbox
-                            checked={allSelected}
-                            onChange={toggleAll}
+                            checked={pageAllSelected}
+                            onChange={togglePage}
                             ariaLabel="Selecionar tudo"
                           />
                         </th>
@@ -501,8 +642,8 @@ export function ProdutosPage() {
                           >
                             <td className="px-4 py-2.5">
                               <Checkbox
-                                checked={selected.has(p.id)}
-                                onChange={() => toggleOne(p.id)}
+                                checked={sel.isSelected(p.id)}
+                                onChange={() => sel.toggle(p.id)}
                                 ariaLabel={`Selecionar ${p.name}`}
                               />
                             </td>
@@ -635,9 +776,20 @@ export function ProdutosPage() {
                       <li key={p.id} className="relative">
                         <button
                           type="button"
-                          onClick={() => setEditing(p)}
-                          className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-card px-3 py-2 pr-9 text-left shadow-[var(--shadow-card)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
+                          onClick={() =>
+                            sel.selectMode ? sel.toggle(p.id) : setEditing(p)
+                          }
+                          className={[
+                            'flex w-full items-center gap-2.5 rounded-xl border bg-card px-3 py-2 text-left shadow-[var(--shadow-card)] transition-colors active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]',
+                            sel.selectMode ? 'pr-3' : 'pr-9',
+                            sel.selectMode && sel.isSelected(p.id)
+                              ? 'border-primary ring-2 ring-primary/40'
+                              : 'border-line',
+                          ].join(' ')}
                         >
+                          {sel.selectMode && (
+                            <AnimatedCheckbox checked={sel.isSelected(p.id)} />
+                          )}
                           <Avatar product={p} size={40} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
@@ -664,21 +816,23 @@ export function ProdutosPage() {
                             </div>
                           </div>
                         </button>
-                        <button
-                          type="button"
-                          aria-label={
-                            p.favorite ? 'Remover dos favoritos' : 'Marcar como favorito'
-                          }
-                          aria-pressed={p.favorite}
-                          disabled={updateProduct.isPending}
-                          onClick={() => toggleFavorite(p)}
-                          className="absolute right-2 top-2 rounded-full p-1.5 text-muted-ink/50 hover:bg-canvas hover:text-gold disabled:opacity-50"
-                        >
-                          <IconStar
-                            size={16}
-                            className={p.favorite ? 'fill-gold text-gold' : ''}
-                          />
-                        </button>
+                        {!sel.selectMode && (
+                          <button
+                            type="button"
+                            aria-label={
+                              p.favorite ? 'Remover dos favoritos' : 'Marcar como favorito'
+                            }
+                            aria-pressed={p.favorite}
+                            disabled={updateProduct.isPending}
+                            onClick={() => toggleFavorite(p)}
+                            className="absolute right-2 top-2 rounded-full p-1.5 text-muted-ink/50 hover:bg-canvas hover:text-gold disabled:opacity-50"
+                          >
+                            <IconStar
+                              size={16}
+                              className={p.favorite ? 'fill-gold text-gold' : ''}
+                            />
+                          </button>
+                        )}
                       </li>
                     );
                   })}
@@ -701,6 +855,8 @@ export function ProdutosPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Drawers laterais (Novo / Editar / Estoque) */}
       <ProductDrawer
@@ -724,6 +880,14 @@ export function ProdutosPage() {
       <StockMovementDrawer
         product={moveProduct}
         onClose={() => setMoveProduct(null)}
+      />
+
+      {/* Ações em lote do modo de seleção (bottom-sheet, mobile + desktop). */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
       />
     </div>
   );
@@ -910,15 +1074,18 @@ function SubTab({
   children,
   active,
   disabled,
+  onClick,
 }: {
   children: React.ReactNode;
   active: boolean;
   disabled?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      onClick={onClick}
       className={[
         '-mb-px inline-flex items-center gap-1.5 border-b-2 px-1 pb-2.5 pt-1 text-sm font-medium transition-colors',
         active
@@ -1001,7 +1168,7 @@ function CheckRow({
 // Drawer de cadastro/edição de produto
 // ---------------------------------------------------------------------
 
-function ProductDrawer({
+export function ProductDrawer({
   mode,
   product,
   isOpen,
@@ -1039,11 +1206,14 @@ function ProductDrawer({
   const [itemCode, setItemCode] = useState('');
   const [barcode, setBarcode] = useState('');
   const [observation, setObservation] = useState('');
-  const [cashbackPercent, setCashbackPercent] = useState('');
   const [defaultCommissionPercent, setDefaultCommissionPercent] = useState('');
   const [active, setActive] = useState(true);
   const [favorite, setFavorite] = useState(false);
   const [trackStock, setTrackStock] = useState(true);
+  const [exitReason, setExitReason] = useState('unit');
+  const [cashbackActive, setCashbackActive] = useState(false);
+  const [cashbackType, setCashbackType] = useState<'percent' | 'value'>('percent');
+  const [cashbackValue, setCashbackValue] = useState('');
   const [tab, setTab] = useState('cadastro');
   const [error, setError] = useState<string | null>(null);
 
@@ -1069,7 +1239,6 @@ function ProductDrawer({
     setItemCode(extra?.itemCode ?? '');
     setBarcode(extra?.barcode ?? '');
     setObservation(extra?.observation ?? '');
-    setCashbackPercent(product ? String(product.cashbackPercent) : '');
     setDefaultCommissionPercent(
       extra?.defaultCommissionPercent != null
         ? String(extra.defaultCommissionPercent)
@@ -1077,17 +1246,42 @@ function ProductDrawer({
     );
     setActive(product?.active ?? true);
     setFavorite(product?.favorite ?? false);
-    setTrackStock(true);
+    // trackStock persiste: carrega do produto (novo produto controla estoque por padrão).
+    setTrackStock(product ? Boolean(extra?.trackStock) : true);
+    setExitReason(extra?.exitReason ?? 'unit');
+    // Cashback: usa os campos novos (active/type/value) com fallback para o
+    // legado cashbackPercent para não perder configurações existentes.
+    const legacyPercent = product ? Number(product.cashbackPercent) : 0;
+    setCashbackActive(
+      extra?.cashbackActive != null ? Boolean(extra.cashbackActive) : legacyPercent > 0,
+    );
+    setCashbackType((extra?.cashbackType as 'percent' | 'value') ?? 'percent');
+    setCashbackValue(
+      extra?.cashbackValue != null
+        ? String(extra.cashbackValue)
+        : legacyPercent > 0
+          ? String(legacyPercent)
+          : '',
+    );
     setTab('cadastro');
     setError(null);
   }, [isOpen, product]);
 
   const pending = create.isPending || update.isPending;
   const canSave =
-    name.trim().length >= 2 && salePrice !== '' && Number(salePrice) >= 0 && !pending;
+    name.trim().length >= 2 &&
+    !!categoryId &&
+    salePrice !== '' &&
+    Number(salePrice) >= 0 &&
+    !pending;
 
   async function handleSave() {
     setError(null);
+    if (!categoryId) {
+      setTab('cadastro');
+      setError('Selecione uma categoria para o produto.');
+      return;
+    }
     const body = {
       name: name.trim(),
       categoryId: categoryId || undefined,
@@ -1103,12 +1297,24 @@ function ProductDrawer({
       itemCode: itemCode.trim() || undefined,
       barcode: barcode.trim() || undefined,
       observation: observation.trim() || undefined,
-      cashbackPercent: cashbackPercent !== '' ? Number(cashbackPercent) : undefined,
       defaultCommissionPercent:
         defaultCommissionPercent !== ''
           ? Number(defaultCommissionPercent)
           : undefined,
       favorite,
+      // Persiste o toggle "Controlar estoque" e o registro de saída.
+      trackStock,
+      exitReason: exitReason || undefined,
+      // Cashback configurável por produto (switch + tipo R$/% + valor).
+      cashbackActive,
+      cashbackType,
+      cashbackValue:
+        cashbackActive && cashbackValue !== '' ? Number(cashbackValue) : undefined,
+      // Mantém o legado cashbackPercent (coluna da listagem) em sincronia.
+      cashbackPercent:
+        cashbackActive && cashbackType === 'percent' && cashbackValue !== ''
+          ? Number(cashbackValue)
+          : 0,
     };
     try {
       if (mode === 'edit' && product) {
@@ -1203,7 +1409,13 @@ function ProductDrawer({
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Categoria">
+            <Field
+              label={
+                <>
+                  Categoria <span className="text-danger">*</span>
+                </>
+              }
+            >
               <AutocompleteField
                 ariaLabel="Categoria"
                 value={categoryId}
@@ -1242,48 +1454,94 @@ function ProductDrawer({
             </Field>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={mode === 'edit' ? 'Estoque' : 'Estoque inicial'}>
-              <TextField value={stock} onChange={setStock} aria-label="Estoque">
-                <Input type="number" placeholder="0" />
-              </TextField>
-              {mode === 'edit' && onMoveStock && (
-                <button
-                  type="button"
-                  onClick={onMoveStock}
-                  className="mt-1 inline-flex w-fit items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+          <section className="flex flex-col gap-3 rounded-md border border-line bg-canvas p-3">
+            <h3 className="border-b border-line pb-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Estoque
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={mode === 'edit' ? 'Estoque' : 'Estoque inicial'}>
+                <TextField value={stock} onChange={setStock} aria-label="Estoque">
+                  <Input type="number" placeholder="0" />
+                </TextField>
+                {mode === 'edit' && onMoveStock && (
+                  <button
+                    type="button"
+                    onClick={onMoveStock}
+                    className="mt-1 inline-flex w-fit items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                  >
+                    <IconLayers size={13} /> Movimentar estoque
+                  </button>
+                )}
+              </Field>
+              <Field
+                label={
+                  <>
+                    Registro de saída <span className="text-danger">*</span>
+                  </>
+                }
+              >
+                <Select
+                  aria-label="Registro de saída"
+                  selectedKey={exitReason}
+                  onSelectionChange={(k) => setExitReason(k ? String(k) : 'unit')}
                 >
-                  <IconLayers size={13} /> Movimentar estoque
-                </button>
-              )}
-            </Field>
-            <Field label="Uma unidade equivale a">
-              <TextField
-                value={unitEquivalence}
-                onChange={setUnitEquivalence}
-                aria-label="Uma unidade equivale a"
-              >
-                <Input type="number" placeholder="0" />
-              </TextField>
-            </Field>
-          </div>
+                  <Select.Trigger>
+                    <Select.Value>
+                      {({ selectedText }) => selectedText}
+                    </Select.Value>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {EXIT_REASONS.map((r) => (
+                        <ListBox.Item key={r.id} id={r.id} textValue={r.label}>
+                          {r.label}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </Field>
+            </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Estoque mínimo">
-              <TextField
-                value={minStock}
-                onChange={setMinStock}
-                aria-label="Estoque mínimo"
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Uma unidade equivale a">
+                <TextField
+                  value={unitEquivalence}
+                  onChange={setUnitEquivalence}
+                  aria-label="Uma unidade equivale a"
+                >
+                  <Input type="number" placeholder="0" />
+                </TextField>
+              </Field>
+              <Field label="Unidade">
+                <TextField value={unit} onChange={setUnit} aria-label="Unidade">
+                  <Input placeholder="un, ml, g…" />
+                </TextField>
+              </Field>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label={
+                  <span className="inline-flex items-center">
+                    Estoque mínimo
+                    <HelpTooltip>
+                      Quando o estoque atingir esta quantidade, o produto é
+                      sinalizado como estoque baixo na listagem.
+                    </HelpTooltip>
+                  </span>
+                }
               >
-                <Input type="number" placeholder="0" />
-              </TextField>
-            </Field>
-            <Field label="Unidade">
-              <TextField value={unit} onChange={setUnit} aria-label="Unidade">
-                <Input placeholder="un, ml, g…" />
-              </TextField>
-            </Field>
-          </div>
+                <TextField
+                  value={minStock}
+                  onChange={setMinStock}
+                  aria-label="Estoque mínimo"
+                >
+                  <Input type="number" placeholder="0" />
+                </TextField>
+              </Field>
+            </div>
+          </section>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Preço para profissional">
@@ -1338,13 +1596,14 @@ function ProductDrawer({
           </div>
 
           <Field label="Observações">
-            <TextField
+            <textarea
               value={observation}
-              onChange={setObservation}
+              onChange={(event) => setObservation(event.target.value)}
+              rows={4}
+              placeholder="Anotações internas sobre o produto"
               aria-label="Observações"
-            >
-              <Input placeholder="Anotações internas sobre o produto" />
-            </TextField>
+              className="w-full resize-y rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none placeholder:text-muted-ink focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
           </Field>
         </div>
       )}
@@ -1378,19 +1637,54 @@ function ProductDrawer({
 
       {tab === 'cashback' && (
         <div className="flex flex-col gap-4">
-          <Field label="Cashback (%)">
-            <TextField
-              value={cashbackPercent}
-              onChange={setCashbackPercent}
-              aria-label="Cashback"
-            >
-              <Input type="number" min={0} max={100} step="0.01" placeholder="0" />
-            </TextField>
-            <span className="text-xs text-muted-ink">
-              Essa configuração tem prioridade sobre a configuração geral do módulo de
-              cashback. O cliente receberá o valor configurado ao comprar este produto.
-            </span>
-          </Field>
+          <div className="rounded-md border border-line bg-canvas px-3 py-2 text-xs text-muted-ink">
+            Essa configuração tem prioridade sobre a configuração geral do módulo de
+            cashback. O cliente receberá o valor configurado ao comprar este produto.
+          </div>
+          <Toggle
+            label="Ativar cashback neste produto"
+            checked={cashbackActive}
+            onChange={setCashbackActive}
+          />
+          {cashbackActive && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Tipo">
+                <div className="inline-flex rounded-lg border border-line bg-card p-0.5">
+                  {(['percent', 'value'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setCashbackType(t)}
+                      className={`min-w-[3rem] rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                        cashbackType === t
+                          ? 'bg-primary text-white'
+                          : 'text-muted-ink hover:text-ink'
+                      }`}
+                    >
+                      {t === 'percent' ? '%' : 'R$'}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field
+                label={cashbackType === 'percent' ? 'Cashback (%)' : 'Cashback (R$)'}
+              >
+                <TextField
+                  value={cashbackValue}
+                  onChange={setCashbackValue}
+                  aria-label="Cashback"
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={cashbackType === 'percent' ? 100 : undefined}
+                    step="0.01"
+                    placeholder={cashbackType === 'percent' ? '0' : 'R$ 0,00'}
+                  />
+                </TextField>
+              </Field>
+            </div>
+          )}
         </div>
       )}
 
@@ -1582,7 +1876,13 @@ function AutocompleteField({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-muted-ink">{label}</label>
@@ -1609,5 +1909,349 @@ function Toggle({
       />
       {label}
     </label>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Sub-aba "Lotes e validades"
+// ---------------------------------------------------------------------
+
+function BatchesSection({
+  products,
+  drawer,
+  onOpenDrawer,
+  onCloseDrawer,
+  onNewDesktop,
+}: {
+  products: Product[];
+  drawer: { open: boolean; batch: ProductBatch | null };
+  onOpenDrawer: (batch: ProductBatch) => void;
+  onCloseDrawer: () => void;
+  onNewDesktop: () => void;
+}) {
+  const confirm = useConfirm();
+  const batches = useProductBatches();
+  const deleteBatch = useDeleteProductBatch();
+
+  const productMap = useMemo(() => {
+    const map = new Map<string, string>();
+    products.forEach((p) => map.set(p.id, p.name));
+    return map;
+  }, [products]);
+
+  const productOptions = useMemo(
+    () => products.map((p) => ({ id: p.id, name: p.name })),
+    [products],
+  );
+
+  const rows = batches.data ?? [];
+
+  async function handleDelete(batch: ProductBatch) {
+    const ok = await confirm({
+      title: 'Excluir lote?',
+      message: `Remover o lote "${batch.code}"? Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    await deleteBatch.mutateAsync(batch.id);
+  }
+
+  return (
+    <div>
+      {/* Cabeçalho desktop: botão "Novo lote". */}
+      <div className="mb-4 hidden items-center justify-end md:flex">
+        <Button variant="primary" onClick={onNewDesktop}>
+          <IconPlus size={16} /> Novo lote
+        </Button>
+      </div>
+
+      {batches.isLoading ? (
+        <LoadingState />
+      ) : batches.isError ? (
+        <ErrorState onRetry={() => batches.refetch()} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={<IconLayers size={32} />}
+          title="Nenhum lote cadastrado"
+          description="Cadastre lotes com código, fabricação, validade e quantidade."
+        />
+      ) : (
+        <>
+          {/* ===== Desktop: tabela ===== */}
+          <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  <th className="px-4 py-3 font-semibold">Produto</th>
+                  <th className="px-4 py-3 font-semibold">Código do lote</th>
+                  <th className="px-4 py-3 font-semibold">Fabricação</th>
+                  <th className="px-4 py-3 font-semibold">Validade</th>
+                  <th className="px-4 py-3 text-right font-semibold">Quantidade</th>
+                  <th className="px-4 py-3 text-center font-semibold">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((b) => (
+                  <tr
+                    key={b.id}
+                    className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                  >
+                    <td className="px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenDrawer(b)}
+                        className="font-medium text-ink hover:text-primary hover:underline"
+                      >
+                        {productMap.get(b.productId) ?? '—'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-ink">{b.code}</td>
+                    <td className="px-4 py-2.5 text-muted-ink">
+                      {b.manufacturedAt ? formatDate(b.manufacturedAt) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-ink">
+                      {b.expiresAt ? formatDate(b.expiresAt) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-ink">
+                      {formatNumber(Number(b.quantity))}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span
+                        className={[
+                          'inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium',
+                          b.active
+                            ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary'
+                            : 'bg-canvas text-muted-ink',
+                        ].join(' ')}
+                      >
+                        {b.active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-center gap-1 text-muted-ink">
+                        <button
+                          type="button"
+                          aria-label="Editar"
+                          title="Editar"
+                          onClick={() => onOpenDrawer(b)}
+                          className="rounded p-1 hover:bg-canvas hover:text-primary"
+                        >
+                          <IconPencil size={16} />
+                        </button>
+                        <span className="h-4 w-px bg-line" />
+                        <button
+                          type="button"
+                          aria-label="Remover"
+                          title="Remover"
+                          onClick={() => handleDelete(b)}
+                          disabled={deleteBatch.isPending}
+                          className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
+                        >
+                          <IconTrash size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ===== Mobile: cards ===== */}
+          <ul className="flex flex-col gap-2 md:hidden">
+            {rows.map((b) => (
+              <li key={b.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenDrawer(b)}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-card px-3 py-2 text-left shadow-[var(--shadow-card)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[13px] font-semibold text-ink">
+                        {productMap.get(b.productId) ?? 'Produto'}
+                      </span>
+                      <span className="shrink-0 text-[12px] font-medium text-primary">
+                        {b.code}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-baseline justify-between gap-2 text-[11.5px] text-muted-ink">
+                      <span className="truncate">
+                        {b.expiresAt ? `Val.: ${formatDate(b.expiresAt)}` : 'Sem validade'}
+                      </span>
+                      <span className="shrink-0 tabular-nums">
+                        {formatNumber(Number(b.quantity))}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <ProductBatchDrawer
+        isOpen={drawer.open}
+        batch={drawer.batch}
+        products={productOptions}
+        onClose={onCloseDrawer}
+      />
+    </div>
+  );
+}
+
+function ProductBatchDrawer({
+  isOpen,
+  batch,
+  products,
+  onClose,
+}: {
+  isOpen: boolean;
+  batch: ProductBatch | null;
+  products: Option[];
+  onClose: () => void;
+}) {
+  const create = useCreateProductBatch();
+  const update = useUpdateProductBatch();
+  const [productId, setProductId] = useState('');
+  const [code, setCode] = useState('');
+  const [manufacturedAt, setManufacturedAt] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [active, setActive] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const mode = batch ? 'edit' : 'create';
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setProductId(batch?.productId ?? '');
+    setCode(batch?.code ?? '');
+    setManufacturedAt(toDateInput(batch?.manufacturedAt));
+    setExpiresAt(toDateInput(batch?.expiresAt));
+    setQuantity(batch ? String(batch.quantity) : '');
+    setActive(batch?.active ?? true);
+    setError(null);
+  }, [isOpen, batch]);
+
+  const pending = create.isPending || update.isPending;
+  const canSave = Boolean(productId) && code.trim().length >= 1 && !pending;
+
+  async function handleSave() {
+    setError(null);
+    const body = {
+      code: code.trim(),
+      manufacturedAt: manufacturedAt || undefined,
+      expiresAt: expiresAt || undefined,
+      quantity: quantity !== '' ? Number(quantity) : undefined,
+      active,
+    };
+    try {
+      if (mode === 'edit' && batch) {
+        await update.mutateAsync({ id: batch.id, body });
+      } else {
+        await create.mutateAsync({ productId, ...body });
+      }
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível salvar o lote.',
+      );
+    }
+  }
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={mode === 'edit' ? 'Editar lote' : 'Novo lote'}
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button variant="primary" isDisabled={!canSave} onClick={handleSave}>
+            {pending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Field
+          label={
+            <>
+              Produto <span className="text-danger">*</span>
+            </>
+          }
+        >
+          {mode === 'edit' ? (
+            <div className="rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-muted-ink">
+              {products.find((p) => p.id === productId)?.name ?? '—'}
+            </div>
+          ) : (
+            <AutocompleteField
+              ariaLabel="Produto"
+              value={productId}
+              onChange={setProductId}
+              options={products}
+            />
+          )}
+        </Field>
+
+        <Field
+          label={
+            <>
+              Código do lote <span className="text-danger">*</span>
+            </>
+          }
+        >
+          <TextField value={code} onChange={setCode} aria-label="Código do lote">
+            <Input placeholder="Ex.: L-2026-001" />
+          </TextField>
+        </Field>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Fabricação">
+            <input
+              type="date"
+              value={manufacturedAt}
+              onChange={(e) => setManufacturedAt(e.target.value)}
+              aria-label="Fabricação"
+              className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </Field>
+          <Field label="Validade">
+            <input
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              aria-label="Validade"
+              className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </Field>
+        </div>
+
+        <Field label="Quantidade">
+          <TextField value={quantity} onChange={setQuantity} aria-label="Quantidade">
+            <Input type="number" placeholder="0" />
+          </TextField>
+        </Field>
+
+        <div className="rounded-md border border-line bg-canvas p-3">
+          <Toggle label="Ativo" checked={active} onChange={setActive} />
+        </div>
+
+        {error && (
+          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            {error}
+          </div>
+        )}
+      </div>
+    </Drawer>
   );
 }
