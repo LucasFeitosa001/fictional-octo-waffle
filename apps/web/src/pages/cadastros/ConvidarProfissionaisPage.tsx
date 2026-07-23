@@ -53,7 +53,8 @@ export function ConvidarProfissionaisPage() {
   async function handleInvite(p: ProfessionalRow) {
     setPendingId(p.id);
     try {
-      const res = await invite.mutateAsync(p.id);
+      // Opt-in: apenas gera o link; não envia WhatsApp automaticamente.
+      const res = await invite.mutateAsync({ id: p.id, sendWhatsapp: false });
       setLinks((prev) => ({ ...prev, [p.id]: res }));
       toast.success('Convite gerado');
     } finally {

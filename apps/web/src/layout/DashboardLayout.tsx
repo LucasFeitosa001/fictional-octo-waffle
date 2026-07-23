@@ -71,12 +71,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {fullBleed ? (
-          <main className="db-canvas flex min-h-0 flex-1 flex-col overflow-hidden">
+          // Full-bleed (agenda): gerencia a própria altura/scroll. Só reservamos
+          // a safe-area do topo no mobile (o header interno da agenda não pode
+          // ficar sob o notch); no desktop (lg:) não há notch e o topbar cobre.
+          <main className="db-canvas flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)] lg:pt-0">
             {children}
           </main>
         ) : (
           <main className="db-canvas min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
-            <div className="mobile-page-content mx-auto min-w-0 max-w-[1560px] px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 sm:pt-5 lg:px-5 lg:py-6 lg:pb-6">
+            {/* pt: no mobile reserva o notch/dynamic island via env(safe-area-inset-top)
+                — telas SEM MobileBackHeader não podem começar sob o notch. Telas
+                COM MobileBackHeader cancelam esse padding com a classe .has-back-header
+                (o próprio header assume a safe-area). No desktop (lg:) volta ao py-6. */}
+            <div className="mobile-page-content mx-auto min-w-0 max-w-[1560px] px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-4 lg:px-5 lg:py-6 lg:pb-6 lg:pt-6">
               {children}
             </div>
           </main>

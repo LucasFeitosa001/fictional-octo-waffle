@@ -3,15 +3,17 @@ import { api } from '../api';
 import { toastSuccess } from '../toast';
 
 /**
- * Per-company toggles for the AUTOMATIC client-facing WhatsApp/email messages.
- * Default (server-side, when never set): only `followUp` is on — confirmation,
- * cancellation and reminder start OFF so the client isn't spammed on booking.
+ * Per-company toggles for the AUTOMATIC WhatsApp/email messages.
+ * Default (server-side, when never set): EVERYTHING OFF — nothing goes out
+ * automatically (client OR professional/manager) until the owner opts in.
  */
 export interface NotificationAutomationSettings {
   confirmation: boolean;
   cancellation: boolean;
   reminder: boolean;
   followUp: boolean;
+  /** Avisar o profissional/gerente de novos agendamentos (WhatsApp). Opt-in. */
+  notifyProfessional: boolean;
 }
 
 const NOTIFICATION_SETTINGS_KEY = ['notification-settings'] as const;

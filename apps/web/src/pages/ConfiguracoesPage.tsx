@@ -247,10 +247,10 @@ function getNotificationPreferences(): NotificationPreference {
   }
 }
 
-/* --- Notificações automáticas (WhatsApp) enviadas AO CLIENTE ---
- * Switch por tipo de mensagem automática. Padrão do backend: só follow-up
- * ligado (confirmação, cancelamento e lembrete começam DESLIGADOS) para não
- * lotar o cliente de mensagem a cada agendamento. */
+/* --- Notificações automáticas (WhatsApp) ---
+ * Switch por tipo de mensagem automática. Padrão do backend: TUDO DESLIGADO —
+ * nenhuma mensagem automática (ao cliente OU ao profissional/gerente) sai até o
+ * dono ativar aqui. Cada toggle é opt-in, começa desligado. */
 const AUTOMATION_OPTIONS: {
   id: keyof NotificationAutomationSettings;
   label: string;
@@ -277,6 +277,12 @@ const AUTOMATION_OPTIONS: {
     description:
       'Lembrete de retorno após o atendimento. Personalize a mensagem, o tempo e a recorrência na seção abaixo.',
   },
+  {
+    id: 'notifyProfessional',
+    label: 'Avisar profissionais de novos agendamentos',
+    description:
+      'Mensagem ao profissional/gerente por WhatsApp quando um novo agendamento é criado (inclui o pedido de confirmação de agendamentos online).',
+  },
 ];
 
 function AutomaticNotificationsCard() {
@@ -296,9 +302,10 @@ function AutomaticNotificationsCard() {
           Notificações automáticas (WhatsApp)
         </h2>
         <p className="text-sm text-muted-ink">
-          Escolha quais mensagens automáticas são enviadas ao cliente. Por
-          padrão, apenas o <strong>follow-up pós-atendimento</strong> fica ativo
-          — confirmação, cancelamento e lembrete começam desligados.
+          Escolha quais mensagens automáticas o Salonpass envia. <strong>Tudo é
+          opt-in</strong>: por padrão nada é enviado (nem ao cliente nem ao
+          profissional) — cada opção começa <strong>desligada</strong> e só passa
+          a valer depois que você a ativa aqui.
         </p>
       </div>
 

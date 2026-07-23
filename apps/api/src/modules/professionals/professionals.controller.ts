@@ -102,10 +102,17 @@ export class ProfessionalsController {
   }
 
   // Gera um convite de acesso para o profissional (onboarding de staff). Retorna
-  // o token/link. Protegido por gestão de equipe/usuários.
+  // o token/link. Protegido por gestão de equipe/usuários. Por padrão APENAS gera
+  // o link (nada é enviado). O envio por WhatsApp só ocorre com body
+  // `{ sendWhatsapp: true }` — opt-in explícito.
   @Post(':id/invite')
   @RequirePermission('equipe:manage', 'usuarios:manage')
-  invite(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
-    return this.invites.createForProfessional(companyId, id);
+  invite(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body?: { sendWhatsapp?: boolean },
+  ) {
+    const sendWhatsapp = body?.sendWhatsapp === true;
+    return this.invites.createForProfessional(companyId, id, sendWhatsapp);
   }
 }

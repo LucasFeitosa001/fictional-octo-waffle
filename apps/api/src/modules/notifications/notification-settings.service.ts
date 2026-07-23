@@ -24,17 +24,27 @@ export interface NotificationAutomationSettings {
   reminder: boolean;
   /** Send the client the post-service follow-up ("como foi seu atendimento?"). */
   followUp: boolean;
+  /**
+   * Notify the PROFESSIONAL/manager over WhatsApp about a new appointment (the
+   * "📋 Novo agendamento para você!" heads-up, and the manager heads-up on the
+   * online booking flow). OFF by default — the salon opts in.
+   */
+  notifyProfessional: boolean;
 }
 
 /**
- * DEFAULT when the company never touched the setting: only follow-up is on.
- * Confirmation, cancellation and reminder start OFF — the owner opts in.
+ * DEFAULT when the company never touched the setting: EVERYTHING OFF.
+ * No automatic WhatsApp/email leaves the salon (client OR professional/manager)
+ * until the owner explicitly opts in. This is the hard "nothing goes out by
+ * default" guarantee — confirmation, cancellation, reminder, follow-up and the
+ * professional heads-up all start OFF.
  */
 export const NOTIFICATION_AUTOMATION_DEFAULTS: NotificationAutomationSettings = {
   confirmation: false,
   cancellation: false,
   reminder: false,
-  followUp: true,
+  followUp: false,
+  notifyProfessional: false,
 };
 
 /**
@@ -77,7 +87,7 @@ export const MIN_DELAY_SECONDS = 5;
 export const MAX_DELAY_SECONDS = 365 * 24 * 60 * 60;
 
 export interface FollowUpSettings {
-  /** Master on/off — mirrors automation.followUp (default true). */
+  /** Master on/off — mirrors automation.followUp (default FALSE, opt-in). */
   enabled: boolean;
   /**
    * Message template. Supports the variables {cliente} (first name),
@@ -121,12 +131,13 @@ export interface FollowUpSettings {
 }
 
 /**
- * DEFAULTS: on, no custom text (falls back to the built-in copy), 24h delay, not
- * recurring, and — if the owner later turns recurrence on — every 30 days capped
- * at 3 sends, with the booking link attached.
+ * DEFAULTS: OFF (opt-in), no custom text (falls back to the built-in copy), 24h
+ * delay, not recurring, and — if the owner later turns recurrence on — every 30
+ * days capped at 3 sends, with the booking link attached. The follow-up only
+ * fires after the owner explicitly enables it.
  */
 export const NOTIFICATION_FOLLOWUP_DEFAULTS: FollowUpSettings = {
-  enabled: true,
+  enabled: false,
   message: '',
   delayValue: 24,
   delayUnit: 'hours',
@@ -176,6 +187,7 @@ export class NotificationSettingsService {
       cancellation: merged.cancellation,
       reminder: merged.reminder,
       followUp: merged.followUp,
+      notifyProfessional: merged.notifyProfessional,
     };
     await this.prisma.client.setting.upsert({
       where: { companyId_key: { companyId, key: NOTIFICATION_AUTOMATION_KEY } },
@@ -233,6 +245,7 @@ export class NotificationSettingsService {
           cancellation: auto.cancellation,
           reminder: auto.reminder,
           followUp: merged.enabled,
+          notifyProfessional: auto.notifyProfessional,
         };
         await this.prisma.client.setting.upsert({
           where: { companyId_key: { companyId, key: NOTIFICATION_AUTOMATION_KEY } },
@@ -395,6 +408,10 @@ export class NotificationSettingsService {
         typeof src.followUp === 'boolean'
           ? src.followUp
           : NOTIFICATION_AUTOMATION_DEFAULTS.followUp,
+      notifyProfessional:
+        typeof src.notifyProfessional === 'boolean'
+          ? src.notifyProfessional
+          : NOTIFICATION_AUTOMATION_DEFAULTS.notifyProfessional,
     };
   }
 }

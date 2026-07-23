@@ -15,9 +15,10 @@ import { WhatsappService } from '../whatsapp/whatsapp.service';
 /**
  * Convites de profissional (onboarding de staff). Fluxo:
  *   1. Gestor chama POST /professionals/:id/invite → cria ProfessionalInvite com
- *      token e (opcional) validade; retorna o link para compartilhar. Se o
- *      profissional tem telefone e o WhatsApp do salão está conectado, o convite
- *      também é disparado automaticamente por WhatsApp.
+ *      token e (opcional) validade; retorna o link para compartilhar. Por padrão
+ *      NADA é enviado por WhatsApp — só quando o gestor pede explicitamente
+ *      (body `sendWhatsapp: true`, botão "Enviar por WhatsApp"), e desde que o
+ *      profissional tenha telefone e o WhatsApp do salão esteja conectado.
  *   2. A tela pública lê GET /invites/:token para mostrar salão + profissional.
  *   3. O profissional chama POST /invites/:token/accept { name?, password } →
  *      cria um User staff (Better Auth), liga como UserCompany (papel
@@ -39,13 +40,17 @@ export class InvitesService {
   /**
    * Cria um convite para um profissional específico e retorna token + link.
    *
-   * Após criar o convite, tenta disparar a mensagem pelo WhatsApp CONECTADO do
-   * salão (mesmo canal/outbox dos follow-ups): se o profissional tem telefone e
-   * o WhatsApp está conectado (status 'open'), o convite é enfileirado no outbox.
-   * Caso contrário faz fallback para o comportamento antigo (só o link + log). O
-   * link vai SEMPRE na resposta para copiar/compartilhar manualmente também.
+   * OPT-IN: por padrão APENAS gera o link (whatsappSent=false) — nenhuma mensagem
+   * de WhatsApp é disparada. O envio automático pelo WhatsApp conectado do salão
+   * só acontece quando o chamador passa `sendWhatsapp: true` (botão explícito
+   * "Enviar por WhatsApp"). Isso evita que "Gerar link" dispare mensagem indevida.
+   * O link vai SEMPRE na resposta para copiar/compartilhar manualmente.
    */
-  async createForProfessional(companyId: string, professionalId: string) {
+  async createForProfessional(
+    companyId: string,
+    professionalId: string,
+    sendWhatsapp = false,
+  ) {
     const professional = await this.prisma.client.professional.findFirst({
       where: { id: professionalId, companyId, deletedAt: null },
       select: {
@@ -79,14 +84,17 @@ export class InvitesService {
 
     const link = `${this.webAppBaseUrl()}/convite/${token}`;
 
-    // Dispara o convite pelo WhatsApp conectado do salão (fire-and-forget, nunca
-    // quebra a criação do convite). Devolve se o envio foi enfileirado, para a UI.
-    const whatsappSent = await this.sendInviteWhatsapp(
-      professional.phone,
-      professional.company?.name ?? 'seu salão',
-      link,
-      companyId,
-    );
+    // OPT-IN: só dispara o convite pelo WhatsApp conectado do salão quando o
+    // chamador pediu explicitamente (`sendWhatsapp: true`). Por padrão apenas
+    // gera/retorna o link (whatsappSent=false) — nada é enviado.
+    const whatsappSent = sendWhatsapp
+      ? await this.sendInviteWhatsapp(
+          professional.phone,
+          professional.company?.name ?? 'seu salão',
+          link,
+          companyId,
+        )
+      : false;
 
     return {
       id: invite.id,

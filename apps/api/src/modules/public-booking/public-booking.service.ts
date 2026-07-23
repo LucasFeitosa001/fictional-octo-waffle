@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { EmailService } from '../email/email.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { NotificationSettingsService } from '../notifications/notification-settings.service';
 import { CreateBookingDto, CreateReviewDto, UpdateMyProfileDto } from './dto';
 
 // Statuses that still occupy a professional's agenda (everything except
@@ -53,6 +54,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     private readonly appointments: AppointmentsService,
     private readonly email: EmailService,
     private readonly whatsapp: WhatsappService,
+    private readonly settings: NotificationSettingsService,
   ) {}
 
   // Wire the WhatsApp inbound listener so the salon's "1/2/3" replies drive the
@@ -107,6 +109,8 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
 
     // One manager-phone lookup per company, reused across that salon's bookings.
     const managerPhones = new Map<string, string | null>();
+    // Same for the per-company "notify professional/manager" opt-in toggle.
+    const notifyManager = new Map<string, boolean>();
     for (const appt of due) {
       try {
         await this.appointments.setStatus(
@@ -119,8 +123,13 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         if (!managerPhones.has(appt.companyId)) {
           managerPhones.set(appt.companyId, await this.whatsapp.getManagerPhone(appt.companyId));
         }
+        if (!notifyManager.has(appt.companyId)) {
+          const auto = await this.settings.get(appt.companyId);
+          notifyManager.set(appt.companyId, auto.notifyProfessional);
+        }
         const managerPhone = managerPhones.get(appt.companyId);
-        if (managerPhone) {
+        // OPT-IN: só avisa o gerente se o salão ativou `notifyProfessional`.
+        if (managerPhone && notifyManager.get(appt.companyId)) {
           const v = await this.loadApptView(appt.companyId, appt.id);
           if (v) {
             await this.whatsapp.enqueueText(
@@ -601,6 +610,11 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     managerPhone: string,
   ): Promise<void> {
     try {
+      // OPT-IN: só manda o pedido de confirmação ao gerente se o salão ativou
+      // `notifyProfessional`. Sem o toggle, o agendamento fica pendente e o
+      // auto-confirm cuida dele — nenhuma mensagem sai ao gerente.
+      const auto = await this.settings.get(companyId);
+      if (!auto.notifyProfessional) return;
       const v = await this.loadApptView(companyId, appointmentId);
       if (!v) return;
       const code = this.apptCode(appointmentId);
@@ -859,6 +873,11 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     appointmentId: string,
   ): Promise<void> {
     try {
+      // OPT-IN: só envia a confirmação ao cliente quando o salão ativou
+      // `confirmation` (default OFF). Sem o toggle, nada é enviado ao cliente.
+      const auto = await this.settings.get(companyId);
+      if (!auto.confirmation) return;
+
       const appt = await this.prisma.client.appointment.findFirst({
         where: { id: appointmentId, companyId },
         select: {
@@ -1203,6 +1222,10 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     appointmentId: string,
   ): Promise<void> {
     try {
+      // OPT-IN: só avisa o salão (gerente) do cancelamento do cliente quando o
+      // salão ativou `notifyProfessional`. Sem o toggle, nada é enviado.
+      const auto = await this.settings.get(companyId);
+      if (!auto.notifyProfessional) return;
       const managerPhone = await this.whatsapp.getManagerPhone(companyId);
       if (!managerPhone) return; // salon hasn't configured a WhatsApp number
       const v = await this.loadApptView(companyId, appointmentId);

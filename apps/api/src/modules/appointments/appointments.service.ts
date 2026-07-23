@@ -9,6 +9,7 @@ import { Prisma, AppointmentStatus, AppointmentSource } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAppointmentDto, UpdateAppointmentDto, StatusDto } from './dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationSettingsService } from '../notifications/notification-settings.service';
 import { AppointmentEvent } from '../notifications/notifications.templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
@@ -50,6 +51,7 @@ export class AppointmentsService {
     private readonly whatsapp: WhatsappService,
     private readonly email: EmailService,
     private readonly queues: QueuesService,
+    private readonly settings: NotificationSettingsService,
   ) {}
 
   async list(
@@ -404,13 +406,12 @@ export class AppointmentsService {
     };
     const event = STATUS_EVENT[dto.status];
     if (event && dto.status !== current.status) {
+      // O envio ao cliente (WhatsApp + e-mail) é feito SOMENTE por
+      // notifyAppointment, que respeita o opt-in do salão
+      // (auto.confirmation / auto.cancellation). Removemos o segundo envio via
+      // sendCustomerConfirmation/Cancellation: era NÃO-gated — vazava mensagem
+      // com o toggle OFF e DUPLICAVA a mensagem quando ON.
       void this.notifications.notifyAppointment(event, companyId, id);
-      // Send WhatsApp + email to the customer (same as the WhatsApp handler).
-      if (dto.status === AppointmentStatus.confirmed) {
-        void this.sendCustomerConfirmation(companyId, id);
-      } else if (dto.status === AppointmentStatus.canceled) {
-        void this.sendCustomerCancellation(companyId, id, dto.reason);
-      }
     }
 
     // Event-driven queue side effects on status transitions:
@@ -581,6 +582,11 @@ export class AppointmentsService {
 
   private async sendProfessionalNewAppointment(companyId: string, appointmentId: string): Promise<void> {
     try {
+      // OPT-IN: só avisa o profissional se o salão ativou `notifyProfessional`
+      // (default OFF). Sem o toggle, nenhuma mensagem sai — nem para o
+      // profissional que tem notifyWhatsapp/telefone.
+      const auto = await this.settings.get(companyId);
+      if (!auto.notifyProfessional) return;
       const v = await this.loadApptView(companyId, appointmentId);
       if (!v?.professionalPhone || !v.professionalNotify) return;
       await this.whatsapp.enqueueText(v.professionalPhone, [
