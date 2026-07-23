@@ -1,16 +1,29 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
+import { ToastProvider } from '@heroui/react';
 import { App } from './App';
 import './index.css';
 import { initTheme } from './theme/theme';
+import { initButtonRadius } from './theme/buttonStyle';
+import { initZoom } from './theme/zoom';
+import { toastMutationError } from './lib/toast';
 
-// Restore the saved color theme before the first React paint (no flash of the
-// default palette when a non-default theme is active).
+// Restore the saved color theme + button style + zoom before the first React
+// paint (no flash of the default palette/radius/size when a non-default choice
+// is active).
 initTheme();
+initButtonRadius();
+initZoom();
 
 const queryClient = new QueryClient({
+  // Handler GLOBAL de erro de mutation: qualquer create/update/delete que falhe
+  // dispara um toast de erro com a mensagem da ApiClientError, sem precisar de
+  // onError em cada hook/página. Centralizado aqui.
+  mutationCache: new MutationCache({
+    onError: (error) => toastMutationError(error),
+  }),
   defaultOptions: {
     queries: {
       retry: 1,
@@ -45,6 +58,10 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
+        {/* Região global de toasts (pilha no canto inferior direito; o HeroUI
+            adapta para o topo/centro no mobile). Montada no root para que a
+            função global `toast()` funcione de qualquer lugar. */}
+        <ToastProvider placement="bottom end" />
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -27,6 +27,11 @@ import { AnamnesisTemplatesModule } from './modules/anamnesis-templates/anamnesi
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { HelpModule } from './modules/help/help.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { QueuesModule } from './modules/queues/queues.module';
+import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
+import { InvitesModule } from './modules/invites/invites.module';
 
 @Module({
   imports: [
@@ -58,6 +63,11 @@ import { HelpModule } from './modules/help/help.module';
     UploadsModule,
     WhatsappModule,
     HelpModule,
+    NotificationsModule,
+    QueuesModule,
+    CampaignsModule,
+    FeatureFlagsModule,
+    InvitesModule,
   ],
 })
 export class AppModule {}

@@ -5,6 +5,8 @@ import { APPOINTMENT_STATUS_LABELS, ApiClientError, type AppointmentStatus } fro
 import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
+import { ComandaDrawer } from '../components/ComandaDrawer';
+import { DatePicker } from '../components/DatePicker';
 import { DropdownButton } from '../components/DropdownButton';
 import { Drawer } from '../components/Drawer';
 import { HelpTooltip } from '../components/HelpTooltip';
@@ -20,7 +22,7 @@ import { useAgendaAppointments } from '../lib/queries/agenda';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
-import type { AppointmentRow } from '../lib/types';
+import type { AppointmentRow, OrderRow } from '../lib/types';
 
 const STATUS_ORDER: AppointmentStatus[] = [
   'scheduled',
@@ -48,10 +50,25 @@ const STATUS_DOT_COLOR: Record<AppointmentStatus, string> = {
   canceled: '#ff6b68',
 };
 
+// Bloqueios de agenda ("Ocupar horários") são Appointments sem cliente/itens,
+// marcados no campo notes com o prefixo "[Bloqueio]". Detectamos por esse
+// prefixo para exibi-los como indisponibilidade (cor "ocupado" cinza + rótulo).
+const BLOCK_PREFIX = '[Bloqueio]';
+function isBlock(a: AppointmentRow): boolean {
+  return !a.customerId && !a.customer && (a.notes ?? '').startsWith(BLOCK_PREFIX);
+}
+// Texto exibido no evento de bloqueio: o motivo (sem o prefixo) ou "Bloqueado".
+function blockLabel(a: AppointmentRow): string {
+  const reason = (a.notes ?? '').slice(BLOCK_PREFIX.length).trim();
+  return reason || 'Bloqueado';
+}
+
 /** Belasis colore cada evento pela cor do status (fundo sólido, texto branco).
  * Fallback é tokenizado (--sp-event-bg) para status desconhecidos — cores dos
- * status conhecidos continuam fixas (paleta Belasis). */
+ * status conhecidos continuam fixas (paleta Belasis). Bloqueios usam o cinza
+ * "ocupado" (#CED4DA) da paleta Belasis. */
 function eventColor(a: AppointmentRow): string {
+  if (isBlock(a)) return '#adb5bd';
   return STATUS_DOT_COLOR[a.status] ?? 'var(--sp-event-bg, #6b7280)';
 }
 
@@ -194,6 +211,18 @@ export function AgendaPage() {
   const [newApptDate, setNewApptDate] = useState<string | undefined>(undefined);
   const agendaScrollerRef = useRef<HTMLDivElement>(null);
 
+  // ── "Ocupar horários" (bloqueio de agenda) ────────────────────────────────
+  // Drawer que cria um bloqueio de indisponibilidade: profissional + data +
+  // intervalo + motivo. Persiste via POST /appointments/block e ocupa a agenda
+  // do profissional (o backend rejeita agendamentos por cima).
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockProfessionalId, setBlockProfessionalId] = useState('');
+  const [blockDate, setBlockDate] = useState(() => isoDate(new Date()));
+  const [blockStartTime, setBlockStartTime] = useState('09:00');
+  const [blockEndTime, setBlockEndTime] = useState('10:00');
+  const [blockReason, setBlockReason] = useState('');
+  const [blockSaving, setBlockSaving] = useState(false);
+
   const activeFilterCount =
     professionalIds.length + statuses.length + (serviceFilter ? 1 : 0) + (customerQuery.trim() ? 1 : 0);
 
@@ -215,6 +244,7 @@ export function AgendaPage() {
     setIsNewOpen(true);
   }
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
+  const [comandaOrder, setComandaOrder] = useState<OrderRow | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestion, setSuggestion] = useState('');
   const [showCancel, setShowCancel] = useState(false);
@@ -448,6 +478,52 @@ export function AgendaPage() {
     setTimeout(() => setToast(null), 3000);
   }
 
+  // Abre o drawer de bloqueio já apontando para a data em foco na agenda.
+  function openBlock() {
+    const focus = days[0] ?? new Date();
+    setBlockDate(isoDate(focus));
+    setBlockStartTime('09:00');
+    setBlockEndTime('10:00');
+    setBlockReason('');
+    setBlockProfessionalId((prev) => prev || profList[0]?.id || '');
+    setBlockOpen(true);
+  }
+
+  // Cria o bloqueio de agenda (POST /appointments/block). Monta os instantes
+  // start/end a partir da data + horários locais e refaz a busca da agenda.
+  async function submitBlock() {
+    if (!blockProfessionalId || !blockDate || !blockStartTime || !blockEndTime) return;
+    const [sh, sm] = blockStartTime.split(':').map(Number);
+    const [eh, em] = blockEndTime.split(':').map(Number);
+    const [y, mo, d] = blockDate.split('-').map(Number);
+    const start = new Date(y, (mo ?? 1) - 1, d ?? 1, sh ?? 0, sm ?? 0);
+    const end = new Date(y, (mo ?? 1) - 1, d ?? 1, eh ?? 0, em ?? 0);
+    if (end <= start) {
+      flash('O término do bloqueio deve ser depois do início.');
+      return;
+    }
+    setBlockSaving(true);
+    try {
+      await api.post('/appointments/block', {
+        professionalId: blockProfessionalId,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        reason: blockReason.trim() || undefined,
+      });
+      setBlockOpen(false);
+      appts.refetch();
+      flash('Horário bloqueado na agenda.');
+    } catch (err) {
+      flash(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível bloquear o horário.',
+      );
+    } finally {
+      setBlockSaving(false);
+    }
+  }
+
   async function changeStatus(a: AppointmentRow, status: AppointmentRow['status']) {
     try {
       await statusMutation.mutateAsync({ id: a.id, status });
@@ -503,14 +579,31 @@ export function AgendaPage() {
   }
 
   // ── Per-appointment: create a comanda (order) from the appointment ────────
+  // Cria a order e transfere os serviços do agendamento como itens (com o price
+  // snapshot do backend) antes de abrir a comanda para faturar.
   async function createComanda(a: AppointmentRow) {
     try {
-      await createOrder.mutateAsync({
+      // Salva a observação editada no drawer antes de gerar a comanda, e usa o
+      // texto já persistido como notes da order (senão a edição se perderia).
+      const savedNotes = await persistNotes();
+      const professionalId = a.professionalId ?? a.professional?.id ?? undefined;
+      const order = await createOrder.mutateAsync({
         customerId: a.customer?.id ?? a.customerId ?? undefined,
-        professionalId: a.professionalId ?? a.professional?.id ?? undefined,
-        notes: a.notes ?? undefined,
+        professionalId,
+        notes: savedNotes ?? a.notes ?? undefined,
       });
-      flash('Comanda criada. Abra em Comandas para faturar.');
+      // Transfere os serviços do agendamento como itens da comanda.
+      for (const it of a.items ?? []) {
+        await api.post(`/orders/${order.id}/items`, {
+          kind: 'service',
+          refId: it.serviceId,
+          professionalId,
+          quantity: 1,
+          unitPrice: Number(it.price),
+        });
+      }
+      setSelected(null);
+      setComandaOrder(order);
     } catch {
       flash('Erro ao criar comanda.');
     }
@@ -521,7 +614,11 @@ export function AgendaPage() {
   const [reDate, setReDate] = useState('');
   const [reTime, setReTime] = useState('');
   // Toggles/textarea do drawer "Visualizando agendamento" (padrão Belasis).
-  // sendReminder/squeezeIn ficam locais até o backend expor os campos.
+  // `notesDraft` PERSISTE de verdade: ao fechar/confirmar chamamos
+  // `persistNotes()`, que faz PATCH /appointments/:id { notes } quando o texto
+  // mudou (campo já existe no modelo Prisma). sendReminder/squeezeIn seguem
+  // locais — o modelo Appointment ainda não expõe esses campos; quando expor,
+  // basta somá-los ao body do PATCH em `persistNotes`.
   const [sendReminder, setSendReminder] = useState(true);
   const [squeezeIn, setSqueezeIn] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
@@ -538,13 +635,57 @@ export function AgendaPage() {
     setReTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
     setShowReschedule(true);
   }
+
+  // Persiste a Observação do drawer no backend quando o texto foi editado.
+  // Compara o rascunho com o que veio do backend (normalizando null/'' para
+  // '') e só dispara o PATCH quando há mudança real, evitando requests à toa.
+  // Retorna o valor salvo (ou null quando não há agendamento) para que quem
+  // chama (ex.: criar comanda) use a nota já atualizada.
+  async function persistNotes(): Promise<string | null> {
+    if (!selected) return null;
+    const next = notesDraft.trim();
+    const prev = (selected.notes ?? '').trim();
+    if (next === prev) return selected.notes ?? null;
+    // Backend interpreta undefined como "não mexer"; string vazia limpa o campo.
+    const notesValue = next.length > 0 ? next : '';
+    try {
+      const saved = await api.patch<AppointmentRow>(`/appointments/${selected.id}`, {
+        notes: notesValue,
+        // Quando o modelo Appointment expuser lembrete/encaixe, incluir aqui:
+        // sendReminder, squeezeIn,
+      });
+      // Reflete localmente e no cache da agenda para o dado não "voltar".
+      setSelected((s) => (s && s.id === saved.id ? { ...s, notes: saved.notes ?? null } : s));
+      appts.refetch();
+      return saved.notes ?? null;
+    } catch {
+      flash('Não foi possível salvar a observação.');
+      return selected.notes ?? null;
+    }
+  }
+
+  // Fecha o drawer de detalhe salvando a observação antes de limpar o estado.
+  // Usado por TODOS os caminhos de fechamento (X, backdrop, Esc, "Ver cliente").
+  async function closeDetail() {
+    await persistNotes();
+    setSelected(null);
+    setShowSuggest(false);
+    setShowCancel(false);
+    setShowReschedule(false);
+    setMoreMenuOpen(false);
+  }
   async function confirmReschedule() {
     if (!selected || !reDate || !reTime) return;
     const [h, m] = reTime.split(':').map(Number);
     const [y, mo, d] = reDate.split('-').map(Number);
     const newStart = new Date(y, (mo ?? 1) - 1, d ?? 1, h ?? 0, m ?? 0);
+    // Se a observação também mudou, envia junto no mesmo PATCH — assim o texto
+    // não se perde ao reagendar (o drawer fecha sem passar por closeDetail).
+    const notesChanged = notesDraft.trim() !== (selected.notes ?? '').trim();
+    const body: { start: string; notes?: string } = { start: newStart.toISOString() };
+    if (notesChanged) body.notes = notesDraft.trim();
     try {
-      await api.patch(`/appointments/${selected.id}`, { start: newStart.toISOString() });
+      await api.patch(`/appointments/${selected.id}`, body);
       setShowReschedule(false);
       setSelected(null);
       appts.refetch();
@@ -602,9 +743,30 @@ export function AgendaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkApptId]);
 
-  // In selection mode a block toggles selection; otherwise it opens the detail.
+  // Clique num bloqueio de agenda: fora do modo seleção, oferece remover a
+  // indisponibilidade (o drawer de "agendamento" não faz sentido sem cliente).
+  async function removeBlock(a: AppointmentRow) {
+    const ok = await confirm({
+      title: 'Remover bloqueio?',
+      message: `Liberar o horário bloqueado (${formatTime(a.start)}–${formatTime(a.end)})?`,
+      confirmLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/appointments/${a.id}`);
+      appts.refetch();
+      flash('Bloqueio removido.');
+    } catch (err) {
+      flash(err instanceof ApiClientError ? err.message : 'Não foi possível remover o bloqueio.');
+    }
+  }
+
+  // In selection mode a block toggles selection; otherwise it opens the detail
+  // (ou remove a indisponibilidade, quando o evento é um bloqueio de agenda).
   function onBlockClick(a: AppointmentRow) {
     if (sel.selectMode) sel.toggle(a.id);
+    else if (isBlock(a)) void removeBlock(a);
     else openDetail(a);
   }
 
@@ -777,11 +939,11 @@ export function AgendaPage() {
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Selecionar agendamentos
       </button>
-      <button type="button" onClick={() => { close(); flash('O bloqueio de horários será aberto nas configurações da agenda.'); }}
+      <button type="button" onClick={() => { close(); openBlock(); }}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Ocupar horários
       </button>
-      <button type="button" onClick={() => { close(); flash('Selecione agendamentos para agrupá-los.'); }}
+      <button type="button" onClick={() => { close(); sel.enter(); flash('Selecione os agendamentos que deseja agrupar.'); }}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Agrupar agendamentos
       </button>
@@ -871,7 +1033,7 @@ export function AgendaPage() {
             {filterBtn}
             {actionsBtn}
             <button type="button" aria-label="Configurações da agenda" title="Configurações da agenda"
-              onClick={() => flash('Configurações da agenda disponíveis em Configurações.')}
+              onClick={() => routerNavigate('/configuracoes')}
               className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--color-soft-border)] text-muted-ink hover:bg-cream">
               <IconSettings size={15} />
             </button>
@@ -1024,8 +1186,9 @@ export function AgendaPage() {
                       const color = eventColor(a);
                       const canceled = a.status === 'canceled';
                       const width = 100 / cols;
-                      const customerName = a.customer?.name ?? 'Sem cliente';
-                      const serviceNames = (a.items ?? [])
+                      const block = isBlock(a);
+                      const customerName = block ? blockLabel(a) : (a.customer?.name ?? 'Sem cliente');
+                      const serviceNames = block ? '' : (a.items ?? [])
                         .map((item) => serviceById.get(item.serviceId))
                         .filter((name): name is string => Boolean(name))
                         .join(', ');
@@ -1119,6 +1282,7 @@ export function AgendaPage() {
         initialDate={newApptDate}
         onCreated={() => appts.refetch()}
       />
+      <ComandaDrawer order={comandaOrder} onClose={() => setComandaOrder(null)} />
 
       <Drawer
         isOpen={dateDrawerOpen}
@@ -1199,6 +1363,103 @@ export function AgendaPage() {
         </div>
       </Drawer>
 
+      {/* "Ocupar horários": drawer de bloqueio de agenda (indisponibilidade). */}
+      <Drawer
+        isOpen={blockOpen}
+        onClose={() => setBlockOpen(false)}
+        title="Ocupar horários"
+        widthClass="sm:w-[440px]"
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setBlockOpen(false)}>Cancelar</Button>
+            <Button
+              variant="primary"
+              isDisabled={!blockProfessionalId || !blockStartTime || !blockEndTime || blockSaving}
+              onClick={submitBlock}
+            >
+              {blockSaving ? 'Bloqueando…' : 'Bloquear horário'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted-ink">
+            Bloqueie um intervalo na agenda de um profissional (folga, almoço,
+            reunião). Nenhum agendamento poderá ser marcado por cima.
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Profissional
+            </span>
+            <Select
+              aria-label="Profissional"
+              selectedKey={blockProfessionalId || null}
+              onSelectionChange={(k) => setBlockProfessionalId(k ? String(k) : '')}
+            >
+            <Select.Trigger className="min-h-[44px] touch-manipulation rounded-lg border border-black/10 bg-white shadow-none">
+                <Select.Value>
+                  {({ isPlaceholder, selectedText }) =>
+                    isPlaceholder ? 'Selecionar profissional' : selectedText
+                  }
+                </Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {profList.map((p) => (
+                    <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                      {p.name}
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+            {profList.length === 0 && (
+              <span className="text-xs text-muted">Cadastre um profissional para bloquear horários.</span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Data</span>
+            <DatePicker
+              value={blockDate}
+              onChange={setBlockDate}
+              ariaLabel="Data do bloqueio"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <label className="flex flex-1 flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Início
+              <input
+                type="time"
+                value={blockStartTime}
+                onChange={(e) => setBlockStartTime(e.target.value)}
+                className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-primary/50"
+              />
+            </label>
+            <label className="flex flex-1 flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Término
+              <input
+                type="time"
+                value={blockEndTime}
+                onChange={(e) => setBlockEndTime(e.target.value)}
+                className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-primary/50"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Motivo (opcional)
+            </span>
+            <TextField value={blockReason} onChange={setBlockReason} aria-label="Motivo do bloqueio">
+              <Input className="rounded-lg border border-black/10 bg-white shadow-none" placeholder="Ex: almoço, reunião, folga" />
+            </TextField>
+          </div>
+        </div>
+      </Drawer>
+
       {/* Mobile: the contextual bottom-nav opens Filtros / Ações as bottom-sheet
           drawers reusing the same controls (and shared state) as the header. */}
       <Drawer isOpen={mobileViewOpen} onClose={() => setMobileViewOpen(false)} title="Visualização" placement="bottom">
@@ -1218,7 +1479,7 @@ export function AgendaPage() {
 
       <Drawer
         isOpen={!!selected}
-        onClose={() => { setSelected(null); setShowSuggest(false); setShowCancel(false); setShowReschedule(false); setMoreMenuOpen(false); }}
+        onClose={() => { void closeDetail(); }}
         title="Visualizando agendamento"
         widthClass="sm:w-[520px]"
         footer={selected ? (
@@ -1293,7 +1554,7 @@ export function AgendaPage() {
                 <button
                   type="button"
                   disabled={!selected.customer?.id}
-                  onClick={() => { const id = selected.customer?.id; if (id) { setSelected(null); routerNavigate(`/clientes/${id}`); } }}
+                  onClick={() => { const id = selected.customer?.id; if (id) { void persistNotes().then(() => { setSelected(null); routerNavigate(`/clientes/${id}`); }); } }}
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <IconUser size={16} />
@@ -1384,7 +1645,7 @@ export function AgendaPage() {
               <Select aria-label="Status" selectedKey={selected.status}
                 onSelectionChange={(k) => changeStatus(selected, String(k) as AppointmentRow['status'])}
                 isDisabled={statusMutation.isPending}>
-                <Select.Trigger><Select.Value /></Select.Trigger>
+                <Select.Trigger className="min-h-[44px] touch-manipulation"><Select.Value /></Select.Trigger>
                 <Select.Popover>
                   <ListBox>
                     {Object.entries(APPOINTMENT_STATUS_LABELS).map(([id, name]) => (
@@ -1400,11 +1661,10 @@ export function AgendaPage() {
               <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
                 <span className="text-xs font-semibold text-gold-strong">Reagendar</span>
                 <div className="flex flex-wrap gap-2">
-                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                  <div className="flex flex-col gap-1 text-xs font-medium text-muted">
                     Data
-                    <input type="date" value={reDate} onChange={(e) => setReDate(e.target.value)}
-                      className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
-                  </label>
+                    <DatePicker value={reDate} onChange={setReDate} ariaLabel="Data do reagendamento" />
+                  </div>
                   <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                     Horário
                     <input type="time" value={reTime} onChange={(e) => setReTime(e.target.value)}
@@ -1562,10 +1822,13 @@ function MonthView({
                 {visible.map((appointment) => {
                   const color = eventColor(appointment);
                   const canceled = appointment.status === 'canceled';
-                  const customer = appointment.customer?.name ?? 'Sem cliente';
-                  const service = appointment.items?.[0]
-                    ? serviceById.get(appointment.items[0].serviceId)
-                    : undefined;
+                  const block = isBlock(appointment);
+                  const customer = block ? blockLabel(appointment) : (appointment.customer?.name ?? 'Sem cliente');
+                  const service = block
+                    ? undefined
+                    : appointment.items?.[0]
+                      ? serviceById.get(appointment.items[0].serviceId)
+                      : undefined;
                   const picked = selectMode && isSelected(appointment.id);
                   return (
                     <button
@@ -1573,7 +1836,7 @@ function MonthView({
                       type="button"
                       onClick={(event) => { event.stopPropagation(); onActivate(appointment); }}
                       style={{ backgroundColor: color }}
-                      title={`${formatTime(appointment.start)} · ${customer} · ${service ?? 'Sem serviço'}`}
+                      title={block ? `${formatTime(appointment.start)} · ${customer}` : `${formatTime(appointment.start)} · ${customer} · ${service ?? 'Sem serviço'}`}
                       className={[
                         'relative flex h-[46px] min-w-0 flex-col items-start justify-center overflow-hidden rounded-md px-1 py-1 text-left leading-none text-white transition-shadow hover:shadow-md lg:h-[50px] lg:rounded-lg lg:px-1.5',
                         canceled ? 'opacity-60' : '',
@@ -1586,9 +1849,11 @@ function MonthView({
                       <span className="mt-0.5 block w-full truncate text-[8px] font-semibold lg:text-[10px]">
                         {customer}
                       </span>
-                      <span className="mt-0.5 block w-full truncate text-[7px] text-white/85 lg:text-[9px]">
-                        {service ?? 'Sem serviço'}
-                      </span>
+                      {!block && (
+                        <span className="mt-0.5 block w-full truncate text-[7px] text-white/85 lg:text-[9px]">
+                          {service ?? 'Sem serviço'}
+                        </span>
+                      )}
                       {selectMode && (
                         <span className="absolute right-0.5 top-0.5">
                           <AnimatedCheckbox checked={picked} />
@@ -1661,10 +1926,13 @@ function MonthView({
               {list.map((appointment) => {
                 const color = eventColor(appointment);
                 const canceled = appointment.status === 'canceled';
-                const customer = appointment.customer?.name ?? 'Sem cliente';
-                const service = appointment.items?.[0]
-                  ? serviceById.get(appointment.items[0].serviceId)
-                  : undefined;
+                const block = isBlock(appointment);
+                const customer = block ? blockLabel(appointment) : (appointment.customer?.name ?? 'Sem cliente');
+                const service = block
+                  ? undefined
+                  : appointment.items?.[0]
+                    ? serviceById.get(appointment.items[0].serviceId)
+                    : undefined;
                 const picked = selectMode && isSelected(appointment.id);
                 return (
                   <button

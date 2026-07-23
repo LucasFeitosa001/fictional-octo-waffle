@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { IconX } from './icons';
+import { Tabs } from '@heroui/react';
+import { IconChevron, IconLayers, IconX } from './icons';
+import { IconTip } from './IconTip';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 // FullDrawer — drawer QUASE FULLSCREEN estilo Belasis (1200px+):
@@ -32,7 +34,70 @@ import { useIsMobile } from '../hooks/useIsMobile';
 
 const EXIT_MS = 380;
 
-export type Section = { key: string; label: string; badge?: ReactNode; disabled?: boolean };
+export type Section = {
+  key: string;
+  label: string;
+  icon?: ReactNode;
+  badge?: ReactNode;
+  disabled?: boolean;
+};
+
+function DrawerSectionTabs({
+  sections,
+  activeSection,
+  onSectionChange,
+  orientation,
+  className,
+  listContainerClassName,
+}: {
+  sections: Section[];
+  activeSection?: string;
+  onSectionChange?: (key: string) => void;
+  orientation: 'horizontal' | 'vertical';
+  className?: string;
+  listContainerClassName?: string;
+}) {
+  return (
+    <Tabs
+      selectedKey={activeSection}
+      onSelectionChange={(key) => onSectionChange?.(String(key))}
+      orientation={orientation}
+      variant="secondary"
+      className={className}
+    >
+      <Tabs.ListContainer
+        className={[
+          'max-w-full overflow-auto bg-canvas p-2',
+          orientation === 'horizontal' ? 'border-b border-line' : 'h-full border-r border-line',
+          listContainerClassName ?? '',
+        ].join(' ')}
+      >
+        <Tabs.List
+          aria-label="Seções do formulário"
+          className={orientation === 'vertical' ? 'flex min-w-full flex-col gap-1' : 'min-w-max gap-1'}
+        >
+          {sections.map((section) => (
+            <Tabs.Tab
+              key={section.key}
+              id={section.key}
+              isDisabled={section.disabled}
+              className={[
+                'group inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-ink transition-[color,background-color,box-shadow,transform] duration-200 hover:bg-card hover:text-ink data-[selected]:bg-card data-[selected]:text-primary data-[selected]:shadow-[var(--shadow-soft)] active:scale-[0.99]',
+                orientation === 'vertical' ? 'w-full justify-start' : 'shrink-0',
+              ].join(' ')}
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-warm-white text-muted-ink transition-colors group-data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] group-data-[selected]:text-primary">
+                {section.icon ?? <IconLayers size={15} />}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-left">{section.label}</span>
+              {section.badge}
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs.ListContainer>
+    </Tabs>
+  );
+}
 
 export function FullDrawer({
   isOpen,
@@ -43,9 +108,10 @@ export function FullDrawer({
   onSectionChange,
   children,
   footer,
-  widthClass = 'md:w-[1200px]',
   sidebarWidth = 'md:w-[220px]',
   orientation = 'horizontal',  // Belasis PADRÃO: tabs horizontais no topo. 'vertical' pra menu à esquerda.
+  widthClass,
+  mobileBackLabel,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -55,9 +121,16 @@ export function FullDrawer({
   onSectionChange?: (key: string) => void;
   children: ReactNode;
   footer?: ReactNode;
-  widthClass?: string;
   sidebarWidth?: string;
   orientation?: 'horizontal' | 'vertical';
+  /**
+   * Desktop: se informado (ex. "sm:w-[600px]"), o drawer vira LATERAL —
+   * desliza da direita com essa largura em vez de ocupar a tela inteira.
+   * Sem `widthClass` mantém o comportamento full-screen padrão. Não afeta mobile.
+   */
+  widthClass?: string;
+  /** Mobile only: replaces the close icon with a contextual back action. */
+  mobileBackLabel?: string;
 }) {
   const [mounted, setMounted] = useState(isOpen);
   const [show, setShow] = useState(false);
@@ -113,78 +186,100 @@ export function FullDrawer({
       <div
         ref={panelRef}
         className={[
-          'absolute flex w-full flex-col border-line bg-warm-white shadow-[var(--shadow-pop)]',
+          // `sp-drawer-panel`: âncora usada pelo index.css para dar bordas/altura
+          // de toque a inputs/selects dentro de qualquer drawer (mobile-first).
+          'sp-drawer-panel absolute flex w-full flex-col border-line bg-warm-white shadow-[var(--shadow-pop)]',
           'transform-gpu transition-transform duration-[380ms] will-change-transform [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
           isMobile
             ? `inset-0 h-dvh border-t ${show ? 'translate-y-0' : 'translate-y-full'}`
-            : `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`,
+            : widthClass
+              ? `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`
+              : `inset-0 h-dvh ${show ? 'translate-x-0' : 'translate-x-full'}`,
         ].join(' ')}
       >
         {/* HEADER */}
-        <header className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            className="rounded-md p-1.5 text-muted-ink hover:bg-canvas hover:text-ink"
-          >
-            <IconX size={20} />
-          </button>
+        <header
+          className={[
+            'shrink-0 border-b border-line bg-warm-white',
+            isMobile && mobileBackLabel
+              ? 'grid min-h-14 grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]'
+              : 'flex items-center justify-between px-6 py-4',
+          ].join(' ')}
+        >
+          {isMobile && mobileBackLabel ? (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={mobileBackLabel}
+                className="inline-flex min-h-11 items-center gap-1 rounded-lg text-sm font-semibold text-primary"
+              >
+                <span className="rotate-90">
+                  <IconChevron size={18} />
+                </span>
+                {mobileBackLabel}
+              </button>
+              <h2 className="min-w-0 truncate px-2 text-center text-sm font-semibold text-ink">
+                {title}
+              </h2>
+              <span aria-hidden />
+            </>
+          ) : (
+            <>
+              <h2 className="min-w-0 truncate text-lg font-semibold text-ink">{title}</h2>
+              <IconTip label="Fechar" placement="bottom">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Fechar"
+                  className="rounded-md p-1.5 text-muted-ink hover:bg-canvas hover:text-ink"
+                >
+                  <IconX size={20} />
+                </button>
+              </IconTip>
+            </>
+          )}
         </header>
         {/* BODY: layout depende de orientation + presença de sections */}
         {sections && sections.length > 0 && orientation === 'vertical' ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">
-            <nav className={['shrink-0 overflow-y-auto border-r border-line bg-canvas py-3', 'hidden md:block', sidebarWidth].join(' ')}>
-              <ul className="flex flex-col">
-                {sections.map((s) => {
-                  const active = s.key === activeSection;
-                  return (
-                    <li key={s.key}>
-                      <button type="button" disabled={s.disabled} onClick={() => onSectionChange?.(s.key)}
-                        className={['group relative flex w-full items-center gap-2 px-5 py-2.5 text-sm text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                          active ? 'bg-white font-semibold text-primary' : 'text-ink hover:bg-white/60'].join(' ')}>
-                        {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-primary" />}
-                        <span className="flex-1">{s.label}</span>{s.badge}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
+            <DrawerSectionTabs
+              sections={sections}
+              activeSection={activeSection}
+              onSectionChange={onSectionChange}
+              orientation="vertical"
+              className={['hidden h-full shrink-0 md:block', sidebarWidth].join(' ')}
+              listContainerClassName="py-3"
+            />
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+              <DrawerSectionTabs
+                sections={sections}
+                activeSection={activeSection}
+                onSectionChange={onSectionChange}
+                orientation="horizontal"
+                className="shrink-0 md:hidden"
+              />
+              <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">{children}</div>
             </div>
           </div>
         ) : sections && sections.length > 0 ? (
-          // HORIZONTAL: tabs no topo (padrão Belasis desktop)
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <nav className="shrink-0 overflow-x-auto border-b border-line bg-canvas">
-              <ul className="flex">
-                {sections.map((s) => {
-                  const active = s.key === activeSection;
-                  return (
-                    <li key={s.key}>
-                      <button type="button" disabled={s.disabled} onClick={() => onSectionChange?.(s.key)}
-                        className={['relative flex-shrink-0 px-5 py-3 text-sm whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                          active ? 'font-semibold text-primary' : 'text-muted-ink hover:text-ink'].join(' ')}>
-                        <span>{s.label}</span>{s.badge}
-                        {active && <span className="absolute inset-x-0 bottom-0 h-[2px] bg-primary" />}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-            <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+            <DrawerSectionTabs
+              sections={sections}
+              activeSection={activeSection}
+              onSectionChange={onSectionChange}
+              orientation="horizontal"
+              className="shrink-0"
+            />
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">{children}</div>
           </div>
         ) : (
           // SEM sections: form único scrollable (Comandas)
-          <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">{children}</div>
         )}
         {/* FOOTER sticky */}
         {footer ? (
-          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-warm-white px-6 py-3">
+          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-warm-white px-4 py-3 sm:px-6">
             {footer}
           </footer>
         ) : null}

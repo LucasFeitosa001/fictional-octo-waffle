@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 import type { Professional } from '../types';
 
 export interface ProfessionalBody {
@@ -118,11 +119,34 @@ export function useSetProfessionalSchedules() {
   });
 }
 
+/** Resposta de POST /professionals/:id/invite: token + link pronto pra compartilhar. */
+export interface InviteResult {
+  id: string;
+  token: string;
+  link: string;
+  expiresAt: string;
+  /** true → convite enfileirado no WhatsApp do salão; false → só o link. */
+  whatsappSent?: boolean;
+}
+
+/**
+ * Gera um convite de acesso para o profissional (onboarding de staff) e devolve
+ * o link para compartilhar. O backend recusa se o profissional já tiver login.
+ */
+export function useInviteProfessional() {
+  return useMutation({
+    mutationFn: (id: string) => api.post<InviteResult>(`/professionals/${id}/invite`, {}),
+  });
+}
+
 export function useCreateProfessional() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ProfessionalBody) => api.post<Professional>('/professionals', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['professionals'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['professionals'] });
+      toastSuccess('Profissional cadastrado');
+    },
   });
 }
 
@@ -136,6 +160,7 @@ export function useUpdateProfessional() {
       // Invalidate the detail query too so the open drawer picks up
       // side-effect PATCHes like an inline avatar upload.
       qc.invalidateQueries({ queryKey: ['professional', id] });
+      toastSuccess('Profissional salvo');
     },
   });
 }
@@ -144,6 +169,9 @@ export function useDeleteProfessional() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<Professional>(`/professionals/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['professionals'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['professionals'] });
+      toastSuccess('Profissional excluído');
+    },
   });
 }

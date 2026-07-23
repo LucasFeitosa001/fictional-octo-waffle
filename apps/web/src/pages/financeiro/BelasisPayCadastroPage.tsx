@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
-import { IconHelpCircle } from '../../components/icons';
+import { AppTabs } from '../../components/AppTabs';
+import { IconHelpCircle, IconUser, IconUsers } from '../../components/icons';
 
 type PersonType = 'PJ' | 'PF';
 
@@ -92,10 +93,10 @@ export function BelasisPayCadastroPage() {
       personType === 'PJ'
         ? { personType, razaoSocial, companyType, cnpj, faturamento, email, telefone }
         : { personType, nome, cpf, email, telefone };
-    // TODO: integrar com backend Belasis Pay.
+    // TODO: integrar com backend SalonPay.
     // eslint-disable-next-line no-console
-    console.log('[BelasisPayCadastro] salvar', payload);
-    setToast('Cadastro enviado. Aguarde retorno da equipe Belasis Pay.');
+    console.log('[SalonPayCadastro] salvar', payload);
+    setToast('Cadastro enviado. Aguarde retorno da equipe SalonPay.');
   }
 
   return (
@@ -103,40 +104,23 @@ export function BelasisPayCadastroPage() {
       {/* Cabeçalho */}
       <div className="mb-5">
         <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
-          Belasis Pay — cadastro
+          SalonPay — cadastro
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Preencha os dados abaixo para solicitar a habilitação da conta digital Belasis Pay.
+          Preencha os dados abaixo para solicitar a habilitação da conta digital SalonPay.
         </p>
       </div>
 
-      {/* Toggle Tipo de pessoa */}
-      <div
-        role="tablist"
-        aria-label="Tipo de pessoa"
-        className="mb-6 inline-flex rounded-full border border-[var(--color-soft-border)] bg-warm-white p-1"
-      >
-        {(['PJ', 'PF'] as PersonType[]).map((t) => {
-          const active = personType === t;
-          return (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setPersonType(t)}
-              className={
-                'min-w-[110px] rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ' +
-                (active
-                  ? 'bg-[color:var(--sp-primary,#505afb)] text-white shadow-sm'
-                  : 'text-muted hover:text-foreground')
-              }
-            >
-              {t === 'PJ' ? 'Pessoa jurídica' : 'Pessoa física'}
-            </button>
-          );
-        })}
-      </div>
+      <AppTabs
+        items={[
+          { id: 'PJ', label: 'Pessoa jurídica', icon: <IconUsers size={16} /> },
+          { id: 'PF', label: 'Pessoa física', icon: <IconUser size={16} /> },
+        ]}
+        selectedKey={personType}
+        onSelectionChange={setPersonType}
+        ariaLabel="Tipo de pessoa"
+        className="mb-6"
+      />
 
       {/* Bloco de dados */}
       <div className="rounded-lg border-0 bg-transparent p-0 shadow-none md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-5 md:shadow-[var(--shadow-card)]">

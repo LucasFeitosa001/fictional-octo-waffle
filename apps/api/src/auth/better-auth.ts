@@ -3,6 +3,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { bearer } from 'better-auth/plugins';
 import { expo } from '@better-auth/expo';
 import { prisma } from '@beautypass/db';
+import { seedCompanyRoles } from '@beautypass/db/rbac';
 
 /**
  * Better Auth server instance for the Beautypass API.
@@ -142,15 +143,15 @@ export const auth = betterAuth({
           const company = await prisma.company.create({
             data: { name: user.name ? `Salão de ${user.name}` : 'Meu Salão' },
           });
-          const role = await prisma.role.create({
-            data: { companyId: company.id, name: 'Administrador' },
-          });
+          // Provisiona os 5 papéis padrão (isSystem) + suas RolePermission na nova
+          // empresa. O criador vira 'owner' (acesso total via resolver wildcard).
+          const { ownerRoleId } = await seedCompanyRoles(prisma, company.id);
           await prisma.user.update({
             where: { id: user.id },
             data: { companyId: company.id },
           });
           await prisma.userCompany.create({
-            data: { userId: user.id, companyId: company.id, roleId: role.id },
+            data: { userId: user.id, companyId: company.id, roleId: ownerRoleId },
           });
         },
       },

@@ -273,14 +273,34 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * Brazilian 9th-digit JID is ambiguous). Persisting to an outbox guarantees the
    * message survives a restart and is retried until the salon actually receives
    * it. Fails soft — bad numbers are dropped with a warning, never thrown.
+   *
+   * `ctx` (opcional, RETROCOMPATÍVEL) enriquece o registro do outbox com o
+   * contexto da INTERAÇÃO (feature "Interações" do Belasis): empresa, cliente e
+   * tipo (kind: reminder | confirmation | cancellation | followup | campaign |
+   * invite | manager | manual). Quando informado, a mensagem passa a aparecer na
+   * aba "Mensagens" do cliente e nas linhas do relatório de mensagens. Quando
+   * omitido, cai no fallback por telefone (comportamento antigo intacto).
    */
-  async enqueueText(phone: string, text: string): Promise<void> {
+  async enqueueText(
+    phone: string,
+    text: string,
+    ctx?: { companyId?: string; customerId?: string; kind?: string },
+  ): Promise<void> {
     const digits = (phone || '').replace(/\D/g, '');
     if (digits.length < 10) {
       this.logger.warn(`Outbox: número inválido ignorado (${phone}).`);
       return;
     }
-    await this.prisma.client.whatsappOutbox.create({ data: { toPhone: digits, text } });
+    await this.prisma.client.whatsappOutbox.create({
+      data: {
+        toPhone: digits,
+        text,
+        // Só grava o que veio — undefined vira NULL na coluna (retrocompatível).
+        companyId: ctx?.companyId ?? null,
+        customerId: ctx?.customerId ?? null,
+        kind: ctx?.kind ?? null,
+      },
+    });
     // Try to deliver immediately; if the socket isn't open yet the timer drains
     // it later. drainOutbox guards itself, so this is safe to call any time.
     void this.drainOutbox();

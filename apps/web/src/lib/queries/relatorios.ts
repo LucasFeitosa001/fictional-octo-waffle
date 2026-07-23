@@ -163,6 +163,60 @@ export function useReportsMessages(from: string, to: string) {
   });
 }
 
+/* ------------------------------- mensagens: linhas por mensagem ---------- */
+
+export interface MessageRowItem {
+  id: string;
+  /** ISO — quando a mensagem foi enviada (ou criada, se ainda pendente). */
+  at: string;
+  toPhone: string;
+  customerName: string | null;
+  kind: string | null;
+  status: string;
+  textPreview: string;
+}
+
+export interface ReportsMessagesRows {
+  period: { from: string | null; to: string | null };
+  rows: MessageRowItem[];
+  limit: number;
+  offset: number;
+  totals: { count: number };
+}
+
+export interface ReportsMessagesRowsFilters {
+  from?: string;
+  to?: string;
+  status?: string;
+  kind?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function useReportsMessagesRows(filters: ReportsMessagesRowsFilters) {
+  const { from, to, status, kind, limit, offset } = filters;
+  return useQuery({
+    queryKey: [
+      'reports-messages-rows',
+      from ?? null,
+      to ?? null,
+      status ?? null,
+      kind ?? null,
+      limit ?? null,
+      offset ?? null,
+    ],
+    queryFn: () =>
+      api.get<ReportsMessagesRows>('/reports/messages/rows', {
+        from: from || undefined,
+        to: to || undefined,
+        status: status || undefined,
+        kind: kind || undefined,
+        limit: limit ?? undefined,
+        offset: offset ?? undefined,
+      }),
+  });
+}
+
 /* ----------------------------------------------------- aniversariantes --- */
 
 export interface ReportsBirthdays {

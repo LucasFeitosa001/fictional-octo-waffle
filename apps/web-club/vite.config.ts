@@ -77,5 +77,25 @@ export default defineConfig({
   server: {
     port: 5174,
     strictPort: true,
+    // Aceita o host aleatório *.trycloudflare.com ao tunelar o dev (testar o
+    // agendamento no mobile).
+    allowedHosts: true,
+    // API same-origin: o front chama window.location.origin/api/v1, que sobre o
+    // túnel vira o host do túnel — proxiamos /api pro backend local (sem CORS,
+    // cookie first-party). Removemos os headers sec-fetch-* senão o Better Auth
+    // devolve 403 "Invalid origin" no login do cliente pelo túnel.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3334',
+        changeOrigin: false,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (pr) => {
+            pr.removeHeader('sec-fetch-site');
+            pr.removeHeader('sec-fetch-mode');
+            pr.removeHeader('sec-fetch-dest');
+          });
+        },
+      },
+    },
   },
 });

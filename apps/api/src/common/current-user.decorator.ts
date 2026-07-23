@@ -4,6 +4,10 @@ export interface RequestUser {
   userId: string;
   companyId: string;
   email: string;
+  /** Código do papel do usuário na empresa ativa (owner|manager|…). null se sem papel. */
+  roleCode?: string | null;
+  /** Id do perfil Professional do usuário nesta empresa, se existir. */
+  professionalId?: string | null;
 }
 
 /**

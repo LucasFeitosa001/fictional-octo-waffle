@@ -2,21 +2,32 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Autocomplete,
   Button,
+  Checkbox as HeroCheckbox,
   Input,
   ListBox,
+  Popover,
   SearchField,
   Select,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../components/ConfirmDialog';
+import { DatePicker } from '../components/DatePicker';
 import { Drawer } from '../components/Drawer';
+import { FilterAside } from '../components/FilterAside';
 import { FullDrawer } from '../components/FullDrawer';
-import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { EmptyState, ErrorState } from '../components/States';
+import { TableSkeleton } from '../components/Skeletons';
 import { ImageUpload } from '../components/ImageUpload';
+import { InlineSearch } from '../components/InlineSearch';
+import { IconTip } from '../components/IconTip';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { AppTabs } from '../components/AppTabs';
 import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { AnimatedSelectionCell } from '../components/AnimatedSelectionCell';
+import { FilterCheckbox } from '../components/FilterCheckbox';
 import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { SwitchRow } from '../components/SwitchRow';
 import {
   IconBox,
   IconCircleCheck,
@@ -26,8 +37,10 @@ import {
   IconPencil,
   IconPlus,
   IconSearch,
+  IconSettings,
   IconStar,
   IconTrash,
+  IconX,
 } from '../components/icons';
 import { formatDate, formatMoney, formatNumber, toDateInput } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
@@ -59,11 +72,70 @@ const NONE = '';
 const PAGE_SIZE = 20;
 
 type SortBy = 'name' | 'price' | 'stock';
+type ProductSubTab = 'produtos' | 'lotes';
+const PRODUCT_TABS: { id: ProductSubTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'produtos', label: 'Produtos', icon: <IconBox size={16} /> },
+  { id: 'lotes', label: 'Lotes e validades', icon: <IconLayers size={16} /> },
+];
 const SORT_LABEL: Record<SortBy, string> = {
   name: 'Nome',
   price: 'Preço',
   stock: 'Estoque',
 };
+
+// ── Colunas ocultáveis (T7) ─────────────────────────────────────────
+// Colunas de dados que o usuário pode mostrar/ocultar pelo gear. A
+// coluna-título ("Nome") e a de ações NÃO entram aqui — são sempre fixas.
+const TOGGLE_COLS = [
+  { key: 'brand', label: 'Marca' },
+  { key: 'category', label: 'Categoria' },
+  { key: 'stock', label: 'Estoque' },
+  { key: 'price', label: 'Preço de venda' },
+  { key: 'commission', label: 'Comissão' },
+] as const;
+type ColKey = (typeof TOGGLE_COLS)[number]['key'];
+
+const COLS_STORAGE_KEY = 'sp-cols-produtos';
+
+function readHiddenCols(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLS_STORAGE_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr)
+      ? new Set(arr.filter((x): x is string => typeof x === 'string'))
+      : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Visibilidade de colunas persistida em localStorage (chave `sp-cols-produtos`).
+ * Guarda o conjunto de colunas OCULTAS; `isVisible` responde por coluna.
+ */
+function useColumnVisibility() {
+  const [hidden, setHidden] = useState<Set<string>>(() => readHiddenCols());
+
+  const toggle = (key: ColKey) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* localStorage indisponível — segue sem persistir. */
+      }
+      return next;
+    });
+  };
+
+  const isVisible = (key: ColKey) => !hidden.has(key);
+  const hiddenCount = TOGGLE_COLS.filter((c) => hidden.has(c.key)).length;
+
+  return { toggle, isVisible, hiddenCount };
+}
 
 // Campos extras vindos da API mas ainda não tipados no client compartilhado.
 type ProductExtra = Product & {
@@ -144,6 +216,8 @@ export function ProdutosPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  // Visibilidade de colunas (gear — T7), persistida em localStorage.
+  const cols = useColumnVisibility();
   const [filterOpen, setFilterOpen] = useState(false);
   const [lowStock, setLowStock] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>(
@@ -159,13 +233,13 @@ export function ProdutosPage() {
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [actionsOpen, setActionsOpen] = useState(false);
   // Sub-abas: catálogo de produtos vs. lotes e validades.
-  const [subTab, setSubTab] = useState<'produtos' | 'lotes'>('produtos');
+  const [subTab, setSubTab] = useState<ProductSubTab>('produtos');
   const [batchDrawer, setBatchDrawer] = useState<{ open: boolean; batch: ProductBatch | null }>(
     { open: false, batch: null },
   );
   // Belasis: banner de assinatura condicional no topo. Mock por ora — no futuro
   // virá do endpoint de billing/plano.
-  const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(true);
+  const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(false);
   useAutoCreate(() => setCreateOpen(true));
 
   const products = useProducts({ search: search || undefined, lowStock });
@@ -375,30 +449,90 @@ export function ProdutosPage() {
 
   return (
     <div className="pb-10">
-      {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Cabeçalho: título + Buscar / Filtrar / Ações / Novo (T6 compacto). */}
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Produtos</h1>
-        <div className="hidden flex-wrap items-center gap-2 md:flex">
-          <ToolbarButton
-            active={searchOpen}
-            onClick={() => setSearchOpen((v) => !v)}
-          >
-            <IconSearch size={16} /> Buscar
-          </ToolbarButton>
-          <ToolbarButton
-            active={filterOpen || activeFilterCount > 0}
+        <div className="hidden flex-wrap items-center gap-1.5 md:flex">
+          {/* Busca inline (componente único de toolbar — ver InlineSearch). */}
+          <InlineSearch
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
+            value={search}
+            onValueChange={(v) => {
+              setSearchInput(v);
+              setSearch(v.trim());
+            }}
+            onClose={() => {
+              setSearchInput('');
+              setSearch('');
+              setPage(1);
+            }}
+            placeholder="Buscar produto"
+          />
+          <button
+            type="button"
             onClick={() => setFilterOpen((v) => !v)}
+            className={`btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors md:inline-flex ${
+              filterOpen || activeFilterCount > 0
+                ? 'border-gold bg-gold text-primary-foreground'
+                : 'border-line bg-card text-ink hover:bg-canvas'
+            }`}
           >
-            <IconFilter size={16} /> Filtrar
+            <IconFilter size={16} />
+            <span className="hidden sm:inline">Filtrar</span>
             {activeFilterCount > 0 && (
               <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <IconPlus size={16} /> Novo
-          </Button>
+          </button>
+          {/* Ações em massa (T3): SEMPRE visível no desktop, à esquerda de "Novo".
+              Fora do modo seleção → ativa o selectMode (checkboxes nas linhas).
+              Em seleção → mostra a contagem e abre a BulkActionsSheet; um X ao
+              lado sai do modo. NÃO existe barra "N selecionados" acima da tabela. */}
+          {sel.selectMode ? (
+            <div className="hidden items-center md:inline-flex">
+              <button
+                type="button"
+                onClick={() =>
+                  sel.count > 0 ? setActionsOpen(true) : sel.selectAll()
+                }
+                className={`inline-flex h-9 items-center gap-1.5 rounded-l-lg border px-3 text-sm font-medium transition-colors ${
+                  sel.count > 0
+                    ? 'btn-primary-hover border-gold bg-gold text-primary-foreground hover:bg-gold-strong'
+                    : 'btn-ghost-hover border-line bg-card text-ink hover:bg-canvas'
+                }`}
+              >
+                <IconLayers size={16} />
+                <span>{sel.count > 0 ? `Ações (${sel.count})` : 'Selecionar todos'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={sel.cancel}
+                aria-label="Sair do modo seleção"
+                className="btn-ghost-hover inline-flex h-9 items-center justify-center rounded-r-lg border border-l-0 border-line bg-card px-2 text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={sel.enter}
+              className="btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink transition-colors hover:bg-canvas md:inline-flex"
+            >
+              <IconLayers size={16} />
+              <span>Ações</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="btn-primary-hover hidden h-9 items-center gap-1.5 rounded-lg bg-gold px-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-gold)] transition-colors hover:bg-gold-strong md:inline-flex"
+          >
+            <IconPlus size={16} />
+            <span>Novo</span>
+          </button>
         </div>
       </header>
 
@@ -427,27 +561,16 @@ export function ProdutosPage() {
         </div>
       )}
 
-      {/* Sub-abas: Produtos / Lotes e validades */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-line">
-        <SubTab
-          active={subTab === 'produtos'}
-          onClick={() => {
-            sel.cancel();
-            setSubTab('produtos');
-          }}
-        >
-          Produtos
-        </SubTab>
-        <SubTab
-          active={subTab === 'lotes'}
-          onClick={() => {
-            sel.cancel();
-            setSubTab('lotes');
-          }}
-        >
-          <IconLayers size={14} /> Lotes e validades
-        </SubTab>
-      </div>
+      <AppTabs
+        items={PRODUCT_TABS}
+        selectedKey={subTab}
+        onSelectionChange={(key) => {
+          sel.cancel();
+          setSubTab(key);
+        }}
+        ariaLabel="Áreas de produtos"
+        className="mb-4"
+      />
 
       {subTab === 'lotes' && (
         <BatchesSection
@@ -461,33 +584,27 @@ export function ProdutosPage() {
 
       {subTab === 'produtos' && (
       <>
-      {/* Busca: sempre visível no mobile (Belasis "Digite para buscar");
-          revelada via botão "Buscar" no desktop. Auto-apply ao digitar. */}
-      <div className={searchOpen ? 'mb-4 max-w-xl' : 'mb-4 md:hidden'}>
-        <TextField
-          value={searchInput}
-          onChange={(v) => {
-            setSearchInput(v);
-            setSearch(v.trim());
-          }}
-          aria-label="Buscar produto"
-        >
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-ink">
-              <IconSearch size={16} />
-            </span>
-            <Input
-              placeholder="Digite para buscar"
-              className="pl-9 focus:border-primary focus:ring-2 focus:ring-primary/25"
-            />
-          </div>
-        </TextField>
+      {/* Busca — MOBILE apenas (sempre visível). No desktop a busca vive
+          inline no header (T2), então este bloco é oculto em md+. */}
+      <div className="mb-4 flex items-center gap-2 md:hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-line bg-card px-4 shadow-[var(--shadow-card)]">
+          <IconSearch size={18} className="shrink-0 text-muted-ink" />
+          <input
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              setSearch(e.target.value.trim());
+            }}
+            placeholder="Digite para buscar"
+            aria-label="Buscar produto"
+            className="h-12 min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-muted-ink"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Painel de filtros lateral (Filtrar) */}
-        {filterOpen && (
-          <aside className="w-full shrink-0 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:w-72">
+        <FilterAside open={filterOpen} width="lg:w-72">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-ink">Filtros</span>
               {activeFilterCount > 0 && (
@@ -566,15 +683,14 @@ export function ProdutosPage() {
                 ))}
               </FilterGroup>
             )}
-          </aside>
-        )}
+        </FilterAside>
 
         {/* Conteúdo principal: tabela (desktop) / cards (mobile) */}
         <div className="min-w-0 flex-1">
           {/* ===== Desktop: Card + tabela + paginação ===== */}
           <div className="hidden md:block">
             {products.isLoading ? (
-              <LoadingState />
+              <TableSkeleton columns={6} variant="desktop" />
             ) : products.isError ? (
               <ErrorState onRetry={() => products.refetch()} />
             ) : rows.length === 0 ? (
@@ -591,42 +707,86 @@ export function ProdutosPage() {
               </div>
             ) : (
               <>
-                {sel.count > 0 && (
-                  <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)] px-3 py-2 text-sm text-ink">
-                    <span>{sel.count} selecionado(s)</span>
-                    <button
-                      type="button"
-                      onClick={bulkDeleteSelected}
-                      disabled={deleteProduct.isPending}
-                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline disabled:opacity-50"
-                    >
-                      <IconTrash size={14} /> Excluir
-                    </button>
-                  </div>
-                )}
                 <div className="mb-2 flex items-center justify-end">
                   <SortSelect value={sortBy} onChange={setSortBy} />
                 </div>
-                <div className="overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)]">
+                <div className="rounded-xl border border-line bg-card shadow-[var(--shadow-card)]">
+                  <div className="overflow-clip rounded-t-xl">
                   <table className="w-full border-collapse text-sm">
-                    <thead>
+                    {/* T8: thead sticky no topo do scroll do <main>. Fundo sólido
+                        (bg-card) + z-20 pra cobrir as linhas ao rolar. */}
+                    <thead className="sticky top-0 z-20 bg-card">
                       <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                        <th className="w-10 px-4 py-3">
-                          <Checkbox
+                        <AnimatedSelectionCell active={sel.selectMode} header className="px-4 py-3">
+                          <Check
                             checked={pageAllSelected}
                             onChange={togglePage}
-                            ariaLabel="Selecionar tudo"
                           />
-                        </th>
+                        </AnimatedSelectionCell>
                         <th className="px-4 py-3 font-semibold">Nome</th>
-                        <th className="px-4 py-3 font-semibold">Marca</th>
-                        <th className="px-4 py-3 font-semibold">Categoria</th>
-                        <th className="px-4 py-3 font-semibold">Estoque</th>
-                        <th className="px-4 py-3 text-right font-semibold">
-                          Preço de venda
+                        {cols.isVisible('brand') && (
+                          <th className="px-4 py-3 font-semibold">Marca</th>
+                        )}
+                        {cols.isVisible('category') && (
+                          <th className="px-4 py-3 font-semibold">Categoria</th>
+                        )}
+                        {cols.isVisible('stock') && (
+                          <th className="px-4 py-3 font-semibold">Estoque</th>
+                        )}
+                        {cols.isVisible('price') && (
+                          <th className="px-4 py-3 text-right font-semibold">
+                            Preço de venda
+                          </th>
+                        )}
+                        {cols.isVisible('commission') && (
+                          <th className="px-4 py-3 text-right font-semibold">
+                            Comissão
+                          </th>
+                        )}
+                        <th className="w-20 px-4 py-3 text-center">
+                          {/* T7: gear abre Popover pra mostrar/ocultar colunas. */}
+                          <Popover>
+                            <Popover.Trigger>
+                              <button
+                                type="button"
+                                aria-label="Configurar colunas"
+                                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+                              >
+                                <IconSettings size={16} />
+                                {cols.hiddenCount > 0 && (
+                                  <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gold" />
+                                )}
+                              </button>
+                            </Popover.Trigger>
+                            <Popover.Content className="w-60">
+                              <Popover.Dialog className="flex flex-col gap-1 p-1">
+                                <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                                  Colunas visíveis
+                                </div>
+                                <ul className="flex flex-col">
+                                  {TOGGLE_COLS.map((col) => (
+                                    <li key={col.key}>
+                                      <HeroCheckbox
+                                        isSelected={cols.isVisible(col.key)}
+                                        onChange={() => cols.toggle(col.key)}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink hover:bg-canvas"
+                                      >
+                                        <HeroCheckbox.Content className="flex min-w-0 items-center gap-2">
+                                          <HeroCheckbox.Control>
+                                            <HeroCheckbox.Indicator />
+                                          </HeroCheckbox.Control>
+                                          <span className="min-w-0 truncate">
+                                            {col.label}
+                                          </span>
+                                        </HeroCheckbox.Content>
+                                      </HeroCheckbox>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </Popover.Dialog>
+                            </Popover.Content>
+                          </Popover>
                         </th>
-                        <th className="px-4 py-3 text-right font-semibold">Comissão</th>
-                        <th className="px-4 py-3 text-center font-semibold">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -640,13 +800,12 @@ export function ProdutosPage() {
                             key={p.id}
                             className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                           >
-                            <td className="px-4 py-2.5">
-                              <Checkbox
+                            <AnimatedSelectionCell active={sel.selectMode} className="px-4 py-2.5">
+                              <Check
                                 checked={sel.isSelected(p.id)}
                                 onChange={() => sel.toggle(p.id)}
-                                ariaLabel={`Selecionar ${p.name}`}
                               />
-                            </td>
+                            </AnimatedSelectionCell>
                             <td className="px-4 py-2.5">
                               <button
                                 type="button"
@@ -654,41 +813,51 @@ export function ProdutosPage() {
                                 className="flex w-full items-center gap-2.5 text-left"
                               >
                                 <Avatar product={p} />
-                                <span className="min-w-0 truncate font-medium text-ink">
+                                <span className="min-w-0 truncate font-medium text-primary hover:underline">
                                   {p.name}
                                 </span>
                               </button>
                             </td>
-                            <td className="px-4 py-2.5 text-muted-ink">
-                              {p.brand?.name ?? '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-muted-ink">
-                              {p.category?.name ?? '—'}
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <button
-                                type="button"
-                                onClick={() => setMoveProduct(p)}
-                                className={[
-                                  'inline-flex items-center gap-1.5 transition-colors hover:text-primary',
-                                  outOfStock
-                                    ? 'font-semibold text-danger'
-                                    : low
-                                      ? 'font-medium text-danger'
-                                      : 'text-ink',
-                                ].join(' ')}
-                                title="Movimentar estoque"
-                              >
-                                {stockLabel(qty, (p as ProductExtra).unit)}
-                                <IconPencil size={13} className="opacity-60" />
-                              </button>
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-medium text-ink">
-                              {formatMoney(p.salePrice)}
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-muted-ink">
-                              {comm != null ? commissionLabel(comm) : '—'}
-                            </td>
+                            {cols.isVisible('brand') && (
+                              <td className="px-4 py-2.5 text-muted-ink">
+                                {p.brand?.name ?? '—'}
+                              </td>
+                            )}
+                            {cols.isVisible('category') && (
+                              <td className="px-4 py-2.5 text-muted-ink">
+                                {p.category?.name ?? '—'}
+                              </td>
+                            )}
+                            {cols.isVisible('stock') && (
+                              <td className="px-4 py-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setMoveProduct(p)}
+                                  className={[
+                                    'inline-flex items-center gap-1.5 transition-colors hover:text-primary',
+                                    outOfStock
+                                      ? 'font-semibold text-danger'
+                                      : low
+                                        ? 'font-medium text-danger'
+                                        : 'text-ink',
+                                  ].join(' ')}
+                                  title="Movimentar estoque"
+                                >
+                                  {stockLabel(qty, (p as ProductExtra).unit)}
+                                  <IconPencil size={13} className="opacity-60" />
+                                </button>
+                              </td>
+                            )}
+                            {cols.isVisible('price') && (
+                              <td className="px-4 py-2.5 text-right font-medium text-ink">
+                                {formatMoney(p.salePrice)}
+                              </td>
+                            )}
+                            {cols.isVisible('commission') && (
+                              <td className="px-4 py-2.5 text-right text-muted-ink">
+                                {comm != null ? commissionLabel(comm) : '—'}
+                              </td>
+                            )}
                             <td className="px-4 py-2.5">
                               <RowActions
                                 product={p}
@@ -702,36 +871,38 @@ export function ProdutosPage() {
                       })}
                     </tbody>
                   </table>
-                </div>
+                  </div>
 
-                {/* Rodapé desktop: contagem + paginação */}
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-ink">
-                  <span>
-                    {formatNumber(rows.length)} de {formatNumber(total)} produto(s)
-                  </span>
-                  {pageCount > 1 && (
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        isDisabled={safePage <= 1}
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      >
-                        Anterior
-                      </Button>
-                      <span className="px-1">
-                        {safePage} / {pageCount}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        isDisabled={safePage >= pageCount}
-                        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                      >
-                        Próxima
-                      </Button>
-                    </div>
-                  )}
+                  {/* Rodapé desktop: contagem + paginação. T8: sticky no rodapé do
+                      scroll do <main> (fundo sólido) enquanto se rola. */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-card px-4 pt-3 pb-6 text-xs text-muted-ink md:sticky md:bottom-0 md:z-20 md:rounded-b-xl">
+                    <span>
+                      {formatNumber(rows.length)} de {formatNumber(total)} produto(s)
+                    </span>
+                    {pageCount > 1 && (
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          isDisabled={safePage <= 1}
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        >
+                          Anterior
+                        </Button>
+                        <span className="px-1">
+                          {safePage} / {pageCount}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          isDisabled={safePage >= pageCount}
+                          onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                        >
+                          Próxima
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -740,7 +911,7 @@ export function ProdutosPage() {
           {/* ===== Mobile: sem Card wrapper, cards compactos + "Ver mais" ===== */}
           <div className="md:hidden">
             {products.isLoading ? (
-              <LoadingState />
+              <TableSkeleton variant="mobile" />
             ) : products.isError ? (
               <ErrorState onRetry={() => products.refetch()} />
             ) : rows.length === 0 ? (
@@ -793,7 +964,7 @@ export function ProdutosPage() {
                           <Avatar product={p} size={40} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="min-w-0 truncate text-[13px] font-semibold text-ink">
+                              <span className="min-w-0 truncate text-[13px] font-semibold text-primary hover:underline">
                                 {p.name}
                               </span>
                             </div>
@@ -934,78 +1105,64 @@ function RowActions({
   onDelete: () => void;
   deleting: boolean;
 }) {
+  const favLabel = product.favorite ? 'Favorito' : 'Marcar favorito';
   return (
     <div className="flex items-center justify-center gap-1 text-muted-ink">
-      <button
-        type="button"
-        aria-label={product.favorite ? 'Favorito' : 'Marcar favorito'}
-        title="Favorito"
-        className="rounded p-1 hover:bg-canvas"
-      >
-        <IconStar
-          size={16}
-          className={product.favorite ? 'fill-gold text-gold' : 'text-muted-ink/40'}
-        />
-      </button>
+      <IconTip label={favLabel}>
+        <button
+          type="button"
+          aria-label={favLabel}
+          className="rounded p-1 hover:bg-canvas"
+        >
+          <IconStar
+            size={16}
+            className={product.favorite ? 'fill-gold text-gold' : 'text-muted-ink/40'}
+          />
+        </button>
+      </IconTip>
       <span className="h-4 w-px bg-line" />
-      <button
-        type="button"
-        aria-label="Editar"
-        title="Editar"
-        onClick={onEdit}
-        className="rounded p-1 hover:bg-canvas hover:text-primary"
-      >
-        <IconPencil size={16} />
-      </button>
+      <IconTip label="Editar produto">
+        <button
+          type="button"
+          aria-label="Editar produto"
+          onClick={onEdit}
+          className="rounded p-1 hover:bg-canvas hover:text-primary"
+        >
+          <IconPencil size={16} />
+        </button>
+      </IconTip>
       <span className="h-4 w-px bg-line" />
-      <button
-        type="button"
-        aria-label="Remover"
-        title="Remover"
-        onClick={onDelete}
-        disabled={deleting}
-        className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
-      >
-        <IconTrash size={16} />
-      </button>
+      <IconTip label="Excluir produto">
+        <button
+          type="button"
+          aria-label="Excluir produto"
+          onClick={onDelete}
+          disabled={deleting}
+          className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
+        >
+          <IconTrash size={16} />
+        </button>
+      </IconTip>
     </div>
   );
 }
 
-function Checkbox({
+// Checkbox composto (HeroUI v3) usado nos headers/linhas em modo seleção.
+function Check({
   checked,
   onChange,
-  ariaLabel,
 }: {
   checked: boolean;
-  onChange: () => void;
-  ariaLabel: string;
+  onChange: (v: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      aria-pressed={checked}
-      onClick={onChange}
-      className={[
-        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-        checked
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-line bg-card hover:border-primary',
-      ].join(' ')}
-    >
-      {checked && (
-        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-          <path
-            d="M2.5 6.5l2.5 2.5 4.5-5"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )}
-    </button>
+    <HeroCheckbox isSelected={checked} onChange={onChange} className="shrink-0">
+      <HeroCheckbox.Content>
+        <HeroCheckbox.Control>
+          <HeroCheckbox.Indicator />
+        </HeroCheckbox.Control>
+      </HeroCheckbox.Content>
+    </HeroCheckbox>
   );
 }
 
@@ -1039,62 +1196,6 @@ function SortSelect({
         </select>
       </span>
     </label>
-  );
-}
-
-function ToolbarButton({
-  children,
-  onClick,
-  active,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        active
-          ? 'border-primary bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] text-primary'
-          : 'border-line bg-card text-ink hover:bg-canvas',
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SubTab({
-  children,
-  active,
-  disabled,
-  onClick,
-}: {
-  children: React.ReactNode;
-  active: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={[
-        '-mb-px inline-flex items-center gap-1.5 border-b-2 px-1 pb-2.5 pt-1 text-sm font-medium transition-colors',
-        active
-          ? 'border-primary text-primary'
-          : 'border-transparent text-muted-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-ink',
-      ].join(' ')}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -1134,33 +1235,9 @@ function CheckRow({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 rounded px-1 py-1 text-left text-sm text-ink hover:bg-canvas"
-    >
-      <span
-        className={[
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-          checked
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-line bg-card',
-        ].join(' ')}
-      >
-        {checked && (
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M2.5 6.5l2.5 2.5 4.5-5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
-      </span>
-      <span className="min-w-0 truncate">{children}</span>
-    </button>
+    <FilterCheckbox checked={checked} onToggle={onClick} className="px-1 py-1">
+      {children}
+    </FilterCheckbox>
   );
 }
 
@@ -1347,6 +1424,9 @@ export function ProductDrawer({
           ? `Editando produto${product ? ` — ${product.name}` : ''}`
           : 'Novo produto'
       }
+      widthClass="sm:w-[600px]"
+      orientation="vertical"
+      sidebarWidth="md:w-[180px]"
       /* Belasis pixel: abas register/settings/cashback ativas + client_return/
          linked_services/electronic_invoice desabilitadas (mesma ordem/labels). */
       sections={[
@@ -1611,11 +1691,11 @@ export function ProductDrawer({
       {tab === 'config' && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 rounded-md border border-line bg-canvas p-3">
-            <Toggle label="Favorito" checked={favorite} onChange={setFavorite} />
+            <SwitchRow label="Favorito" checked={favorite} onChange={setFavorite} />
             <span className="text-xs text-muted-ink">
               Produtos favoritos aparecem no topo da listagem.
             </span>
-            <Toggle
+            <SwitchRow
               label="Controlar estoque"
               checked={trackStock}
               onChange={setTrackStock}
@@ -1625,7 +1705,7 @@ export function ProductDrawer({
             </span>
             {mode === 'edit' && (
               <>
-                <Toggle label="Ativo" checked={active} onChange={setActive} />
+                <SwitchRow label="Ativo" checked={active} onChange={setActive} />
                 <span className="text-xs text-muted-ink">
                   Um item desativado não será listado nas vendas, mas mantém o histórico.
                 </span>
@@ -1641,7 +1721,7 @@ export function ProductDrawer({
             Essa configuração tem prioridade sobre a configuração geral do módulo de
             cashback. O cliente receberá o valor configurado ao comprar este produto.
           </div>
-          <Toggle
+          <SwitchRow
             label="Ativar cashback neste produto"
             checked={cashbackActive}
             onChange={setCashbackActive}
@@ -1891,26 +1971,6 @@ function Field({
   );
 }
 
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-ink">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      {label}
-    </label>
-  );
-}
 
 // ---------------------------------------------------------------------
 // Sub-aba "Lotes e validades"
@@ -1967,7 +2027,7 @@ function BatchesSection({
       </div>
 
       {batches.isLoading ? (
-        <LoadingState />
+        <TableSkeleton columns={6} withCheckbox={false} firstColAvatar={false} />
       ) : batches.isError ? (
         <ErrorState onRetry={() => batches.refetch()} />
       ) : rows.length === 0 ? (
@@ -2031,26 +2091,28 @@ function BatchesSection({
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-center gap-1 text-muted-ink">
-                        <button
-                          type="button"
-                          aria-label="Editar"
-                          title="Editar"
-                          onClick={() => onOpenDrawer(b)}
-                          className="rounded p-1 hover:bg-canvas hover:text-primary"
-                        >
-                          <IconPencil size={16} />
-                        </button>
+                        <IconTip label="Editar lote">
+                          <button
+                            type="button"
+                            aria-label="Editar lote"
+                            onClick={() => onOpenDrawer(b)}
+                            className="rounded p-1 hover:bg-canvas hover:text-primary"
+                          >
+                            <IconPencil size={16} />
+                          </button>
+                        </IconTip>
                         <span className="h-4 w-px bg-line" />
-                        <button
-                          type="button"
-                          aria-label="Remover"
-                          title="Remover"
-                          onClick={() => handleDelete(b)}
-                          disabled={deleteBatch.isPending}
-                          className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
-                        >
-                          <IconTrash size={16} />
-                        </button>
+                        <IconTip label="Excluir lote">
+                          <button
+                            type="button"
+                            aria-label="Excluir lote"
+                            onClick={() => handleDelete(b)}
+                            disabled={deleteBatch.isPending}
+                            className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
+                          >
+                            <IconTrash size={16} />
+                          </button>
+                        </IconTip>
                       </div>
                     </td>
                   </tr>
@@ -2170,6 +2232,7 @@ function ProductBatchDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar lote' : 'Novo lote'}
+      widthClass="sm:w-[600px]"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -2217,22 +2280,10 @@ function ProductBatchDrawer({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Fabricação">
-            <input
-              type="date"
-              value={manufacturedAt}
-              onChange={(e) => setManufacturedAt(e.target.value)}
-              aria-label="Fabricação"
-              className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            />
+            <DatePicker value={manufacturedAt} onChange={setManufacturedAt} ariaLabel="Fabricação" />
           </Field>
           <Field label="Validade">
-            <input
-              type="date"
-              value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
-              aria-label="Validade"
-              className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            />
+            <DatePicker value={expiresAt} onChange={setExpiresAt} ariaLabel="Validade" />
           </Field>
         </div>
 
@@ -2243,7 +2294,7 @@ function ProductBatchDrawer({
         </Field>
 
         <div className="rounded-md border border-line bg-canvas p-3">
-          <Toggle label="Ativo" checked={active} onChange={setActive} />
+          <SwitchRow label="Ativo" checked={active} onChange={setActive} />
         </div>
 
         {error && (

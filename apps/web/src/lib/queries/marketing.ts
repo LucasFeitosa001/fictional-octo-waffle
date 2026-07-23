@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 
 // ===================== Types =====================
 export type ScopeType = 'service' | 'product' | 'category' | 'all';
@@ -153,7 +154,10 @@ export function useCreatePromotion() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: CreatePromotionBody) => api.post<Promotion>('/promotions', body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['promotions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['promotions'] });
+      toastSuccess('Promoção criada');
+    },
   });
 }
 
@@ -162,7 +166,10 @@ export function useUpdatePromotion() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdatePromotionBody }) =>
       api.patch<Promotion>(`/promotions/${id}`, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['promotions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['promotions'] });
+      toastSuccess('Promoção salva');
+    },
   });
 }
 
@@ -170,7 +177,10 @@ export function useDeletePromotion() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<{ id: string; deleted: boolean }>(`/promotions/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['promotions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['promotions'] });
+      toastSuccess('Promoção excluída');
+    },
   });
 }
 
@@ -253,7 +263,10 @@ export function useCreateCashbackRule() {
   return useMutation({
     mutationFn: (body: CreateCashbackRuleBody) =>
       api.post<CashbackRule>('/cashback-rules', body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cashback-rules'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cashback-rules'] });
+      toastSuccess('Regra de cashback criada');
+    },
   });
 }
 
@@ -262,7 +275,10 @@ export function useUpdateCashbackRule() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateCashbackRuleBody }) =>
       api.patch<CashbackRule>(`/cashback-rules/${id}`, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cashback-rules'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cashback-rules'] });
+      toastSuccess('Regra de cashback salva');
+    },
   });
 }
 
@@ -271,6 +287,9 @@ export function useDeleteCashbackRule() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<{ id: string; deleted: boolean }>(`/cashback-rules/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cashback-rules'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cashback-rules'] });
+      toastSuccess('Regra de cashback excluída');
+    },
   });
 }

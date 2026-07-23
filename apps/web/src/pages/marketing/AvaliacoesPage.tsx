@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Switch } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
 import { HelpTooltip } from '../../components/HelpTooltip';
+import { AppTabs } from '../../components/AppTabs';
 import {
   IconArrowDown,
   IconArrowUp,
@@ -46,7 +47,7 @@ function Stars({ rating, size = 15 }: { rating: number; size?: number }) {
         <IconStar
           key={n}
           size={size}
-          className={n <= rounded ? 'text-gold' : 'text-default-200'}
+          className={n <= rounded ? 'text-data-reviews' : 'text-default-200'}
         />
       ))}
     </span>
@@ -86,7 +87,7 @@ function initials(name: string) {
 function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-gold/20 font-semibold text-gold-strong"
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--sp-data-reviews-soft)] font-semibold text-data-reviews"
       style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
       {initials(name)}
@@ -172,7 +173,7 @@ function PainelTab({
             </h2>
             <div className="grid grid-cols-2 gap-3">
               <MetricCard
-                icon={<IconStar size={26} className="text-gold" />}
+                icon={<IconStar size={26} className="text-data-reviews" />}
                 value={(data?.current.average ?? 0).toFixed(1)}
                 label={
                   <span className="inline-flex items-center">
@@ -183,7 +184,7 @@ function PainelTab({
                 footer={<Delta value={(data?.current.average ?? 0) - (data?.previous.average ?? 0)} />}
               />
               <MetricCard
-                icon={<IconMessage size={26} className="text-pink" />}
+                icon={<IconMessage size={26} className="text-data-reviews" />}
                 value={data?.current.count ?? 0}
                 label={
                   <span className="inline-flex items-center">
@@ -194,7 +195,7 @@ function PainelTab({
                 footer={<Delta value={(data?.current.count ?? 0) - (data?.previous.count ?? 0)} />}
               />
               <MetricCard
-                icon={<IconPercent size={26} className="text-primary" />}
+                icon={<IconPercent size={26} className="text-data-reviews" />}
                 // TODO: Belasis usa response_rate; usamos commentRate (campo disponível).
                 value={`${Math.round((data?.current.commentRate ?? 0) * 100)}%`}
                 label={
@@ -214,7 +215,7 @@ function PainelTab({
                 }
               />
               <MetricCard
-                icon={data?.best ? <Avatar name={data.best.name} size={32} /> : <IconStar size={26} className="text-gold" />}
+                icon={data?.best ? <Avatar name={data.best.name} size={32} /> : <IconStar size={26} className="text-data-reviews" />}
                 value={data?.best ? data.best.rating.toFixed(1) : '0.0'}
                 label={
                   <span className="inline-flex items-center">
@@ -241,7 +242,7 @@ function PainelTab({
                       {firstName(p.name)}
                     </span>
                     <div className="flex items-center gap-1">
-                      <IconStar size={14} className="text-gold" />
+                      <IconStar size={14} className="text-data-reviews" />
                       <span className="text-sm text-ink">{p.rating.toFixed(1)}</span>
                     </div>
                   </div>
@@ -336,8 +337,8 @@ function AvaliacoesTab({
                       className={[
                         'min-h-10 rounded-lg px-3 py-1.5 text-sm font-medium transition-all',
                         isActive
-                          ? 'bg-gold text-primary-foreground shadow-[var(--shadow-gold)]'
-                          : 'text-muted-ink hover:bg-gold/15 hover:text-gold-strong',
+                          ? 'bg-data-reviews text-white shadow-[var(--shadow-card)]'
+                          : 'text-muted-ink hover:bg-[var(--sp-data-reviews-soft)] hover:text-data-reviews',
                       ].join(' ')}
                     >
                       {label}
@@ -384,10 +385,10 @@ function AvaliacoesTab({
                   return (
                     <div key={star} className="flex items-center gap-2 text-xs text-muted-ink">
                       <span className="w-3">{star}</span>
-                      <IconStar size={12} className="text-gold" />
+                      <IconStar size={12} className="text-data-reviews" />
                       <div className="h-1.5 w-32 overflow-hidden rounded-full bg-default-100">
                         <div
-                          className="h-full rounded-full bg-gold"
+                          className="h-full rounded-full bg-data-reviews"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -612,10 +613,10 @@ function ConfiguracoesTab() {
 
 type TabId = 'painel' | 'avaliacoes' | 'config';
 
-const TABS: { id: TabId; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
-  { id: 'painel', label: 'Painel', icon: IconHome },
-  { id: 'avaliacoes', label: 'Avaliações', icon: IconStar },
-  { id: 'config', label: 'Configurações', icon: IconSettings },
+const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
+  { id: 'painel', label: 'Painel', icon: <IconHome size={16} /> },
+  { id: 'avaliacoes', label: 'Avaliações', icon: <IconStar size={16} /> },
+  { id: 'config', label: 'Configurações', icon: <IconSettings size={16} /> },
 ];
 
 export function AvaliacoesPage() {
@@ -626,28 +627,13 @@ export function AvaliacoesPage() {
     <div>
       <PageHeader title="Avaliações" subtitle="Notas e comentários dos clientes" />
 
-      {/* Belasis underline tab bar (wb__sc-11qvk6f) */}
-      <div className="mb-4 flex gap-8 overflow-x-auto border-b border-line">
-        {TABS.map(({ id, label, icon: Icon }) => {
-          const isActive = tab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={[
-                'relative flex shrink-0 items-center gap-2 whitespace-nowrap pb-3 pt-1 text-sm transition-colors',
-                isActive
-                  ? 'font-semibold text-ink after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-primary after:content-[""]'
-                  : 'text-muted-ink hover:text-ink',
-              ].join(' ')}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      <AppTabs
+        items={TABS}
+        selectedKey={tab}
+        onSelectionChange={(key) => setTab(key as TabId)}
+        ariaLabel="Áreas de avaliações"
+        className="mb-4"
+      />
 
       {tab === 'painel' && <PainelTab range={range} setRange={setRange} />}
       {tab === 'avaliacoes' && <AvaliacoesTab range={range} setRange={setRange} />}

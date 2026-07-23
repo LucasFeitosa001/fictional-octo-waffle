@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { PageHeader } from '../../components/PageHeader';
+import { AppSwitch } from '../../components/SwitchRow';
 
 /**
  * FinanceiroConfig — clone fiel da tela /finance/settings do Belasis.
@@ -65,40 +66,6 @@ const SETTINGS: SettingSwitch[] = [
   },
 ];
 
-/** Toggle themeable equivalente ao ant-switch (44×22, handle 18). */
-function Switch({
-  checked,
-  onChange,
-  ...aria
-}: {
-  checked: boolean;
-  onChange: () => void;
-  'aria-label'?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onChange}
-      className={[
-        'relative inline-flex h-[22px] w-11 shrink-0 cursor-pointer items-center rounded-full',
-        'outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring',
-        checked ? 'bg-primary' : 'bg-black/25 hover:bg-black/30',
-      ].join(' ')}
-      {...aria}
-    >
-      <span
-        className={[
-          'inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow-sm',
-          'transition-transform duration-200',
-          checked ? 'translate-x-[22px]' : 'translate-x-0.5',
-        ].join(' ')}
-      />
-    </button>
-  );
-}
-
 export function FinanceiroConfiguracoesPage() {
   // TODO: substituir por hook/query real (salon_configuration) quando a API de
   // configurações financeiras estiver disponível; hoje mantém estado local.
@@ -135,7 +102,7 @@ export function FinanceiroConfiguracoesPage() {
               </span>
             </div>
             <div className="flex shrink-0 justify-start">
-              <Switch
+              <AppSwitch
                 checked={state[setting.id]}
                 onChange={() => toggle(setting.id)}
                 aria-label={setting.title}

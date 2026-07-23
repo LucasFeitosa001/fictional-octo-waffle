@@ -236,7 +236,7 @@ export function ProdutosServicosPage() {
                   {rows.map((r) => (
                     <tr
                       key={r.id}
-                      className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                      className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                     >
                       <td className="px-5 py-3 font-medium text-ink">{r.name}</td>
                       <td className="px-5 py-3">
@@ -244,8 +244,8 @@ export function ProdutosServicosPage() {
                           className={[
                             'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
                             r.type === 'product'
-                              ? 'bg-gold/15 text-gold-strong'
-                              : 'bg-primary/10 text-primary',
+                              ? 'bg-[var(--sp-data-products-soft)] text-data-products'
+                              : 'bg-[var(--sp-data-services-soft)] text-data-services',
                           ].join(' ')}
                         >
                           {r.type === 'product' ? 'Produto' : 'Serviço'}

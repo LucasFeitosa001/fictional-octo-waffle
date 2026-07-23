@@ -3,8 +3,12 @@ import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { DateField } from '../../components/DateRangeFilter';
+import { DatePicker } from '../../components/DatePicker';
 import { Drawer } from '../../components/Drawer';
+import { FilterAside } from '../../components/FilterAside';
+import { FilterCheckbox } from '../../components/FilterCheckbox';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
+import { AppTabs } from '../../components/AppTabs';
 import {
   IconClock,
   IconDownload,
@@ -97,9 +101,15 @@ function Tag({ tone, children }: { tone: Tone; children: ReactNode }) {
 
 type SortKey = 'ticket' | 'date';
 type SortDir = 'asc' | 'desc';
+type PurchaseTab = 'compras' | 'xmls';
+
+const PURCHASE_TABS = [
+  { id: 'compras', label: 'Compras', icon: <IconReceipt size={16} /> },
+  { id: 'xmls', label: 'XMLs importados', icon: <IconDownload size={16} /> },
+] satisfies { id: PurchaseTab; label: string; icon: ReactNode }[];
 
 export function ComprasPage() {
-  const [tab, setTab] = useState<'compras' | 'xmls'>('compras');
+  const [tab, setTab] = useState<PurchaseTab>('compras');
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -312,43 +322,47 @@ export function ComprasPage() {
         </div>
       </header>
 
-      {/* Sub-abas: Compras / XMLs Importados */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-line">
-        <SubTab active={tab === 'compras'} onClick={() => setTab('compras')}>
-          Compras
-        </SubTab>
-        <SubTab active={tab === 'xmls'} onClick={() => setTab('xmls')}>
-          XMLs Importados
-        </SubTab>
-      </div>
+      <AppTabs
+        items={PURCHASE_TABS}
+        selectedKey={tab}
+        onSelectionChange={setTab}
+        ariaLabel="Áreas de compras"
+        className="mb-4"
+      />
 
       {tab === 'compras' ? (
         <>
-          {/* Barra de busca (toggle) */}
-          {searchOpen && (
-            <div className="mb-4 flex max-w-xl items-center gap-2">
-              <TextField
-                value={searchInput}
-                onChange={setSearchInput}
-                className="min-w-0 flex-1"
-                aria-label="Buscar compra"
-              >
-                <Input
-                  placeholder="Digite para buscar"
-                  className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-                  onKeyDown={(e) => e.key === 'Enter' && applySearch()}
-                />
-              </TextField>
-              <Button variant="primary" onClick={applySearch}>
-                Buscar
-              </Button>
-            </div>
-          )}
+          {/* Barra de busca (revelada com animação). Fica SEMPRE montada;
+              largura/opacity animam 0 ↔ pleno (padrão FilterAside). */}
+          <div
+            className={[
+              'flex max-w-xl items-center gap-2 origin-left overflow-hidden',
+              'transition-[width,opacity,transform,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+              searchOpen
+                ? 'mb-4 w-full translate-x-0 opacity-100'
+                : 'pointer-events-none mb-0 w-0 -translate-x-3 opacity-0',
+            ].join(' ')}
+          >
+            <TextField
+              value={searchInput}
+              onChange={setSearchInput}
+              className="min-w-0 flex-1"
+              aria-label="Buscar compra"
+            >
+              <Input
+                placeholder="Digite para buscar"
+                className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+                onKeyDown={(e) => e.key === 'Enter' && applySearch()}
+              />
+            </TextField>
+            <Button variant="primary" onClick={applySearch}>
+              Buscar
+            </Button>
+          </div>
 
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
             {/* Painel de filtros lateral (Filtrar) */}
-            {filterOpen && (
-              <aside className="w-full shrink-0 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:w-72">
+            <FilterAside open={filterOpen} width="lg:w-72">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm font-semibold text-ink">Filtros</span>
                   {activeFilterCount > 0 && (
@@ -424,8 +438,7 @@ export function ComprasPage() {
                     Pendente
                   </CheckRow>
                 </FilterGroup>
-              </aside>
-            )}
+            </FilterAside>
 
             {/* Conteúdo principal: tabela / cards */}
             <div className="min-w-0 flex-1">
@@ -916,7 +929,7 @@ function PurchaseDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar Compra' : 'Nova Compra'}
-      widthClass="sm:w-[min(1180px,96vw)]"
+      widthClass="sm:w-[640px]"
       footer={
         <>
           <button
@@ -972,9 +985,7 @@ function PurchaseDrawer({
               />
             </Field>
             <Field label="Data">
-              <TextField value={date} onChange={setDate} aria-label="Data">
-                <Input type="date" />
-              </TextField>
+              <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
             </Field>
           </div>
 
@@ -1271,31 +1282,6 @@ function ToolbarButton({
   );
 }
 
-function SubTab({
-  children,
-  active,
-  onClick,
-}: {
-  children: ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        '-mb-px inline-flex items-center gap-1.5 border-b-2 px-1 pb-2.5 pt-1 text-sm font-medium transition-colors',
-        active
-          ? 'border-primary text-primary'
-          : 'border-transparent text-muted-ink hover:text-ink',
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  );
-}
-
 function FilterGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="mb-4 last:mb-0">
@@ -1317,21 +1303,9 @@ function CheckRow({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 rounded px-1 py-1 text-left text-sm text-ink hover:bg-canvas"
-    >
-      <span
-        className={[
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-          checked ? 'border-primary bg-primary text-primary-foreground' : 'border-line bg-card',
-        ].join(' ')}
-      >
-        {checked && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-      </span>
-      <span className="min-w-0 truncate">{children}</span>
-    </button>
+    <FilterCheckbox checked={checked} onToggle={onClick} className="px-1 py-1">
+      {children}
+    </FilterCheckbox>
   );
 }
 
@@ -1346,33 +1320,9 @@ function CheckboxRow({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={onClick}
-      className="flex items-center gap-2 rounded px-1 py-1 text-left text-sm text-ink hover:bg-canvas"
-    >
-      <span
-        className={[
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-          checked ? 'border-primary bg-primary text-primary-foreground' : 'border-line bg-card',
-        ].join(' ')}
-      >
-        {checked && (
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <path
-              d="M2.5 6.5L5 9l4.5-5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
-      </span>
-      <span className="min-w-0 truncate">{children}</span>
-    </button>
+    <FilterCheckbox checked={checked} onToggle={onClick} className="px-1 py-1">
+      {children}
+    </FilterCheckbox>
   );
 }
 

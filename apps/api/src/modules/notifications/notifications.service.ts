@@ -6,6 +6,7 @@ import {
 } from './notifications.templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
+import { NotificationSettingsService } from './notification-settings.service';
 
 /**
  * Appointment notifications.
@@ -38,6 +39,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsappService,
     private readonly email: EmailService,
+    private readonly settings: NotificationSettingsService,
   ) {}
 
   get isLive(): boolean {
@@ -78,7 +80,21 @@ export class NotificationsService {
       });
 
       // Client channels — dryrun logs only; live would dispatch here.
-      await this.dispatchClient(event, companyId, messages);
+      // SECOND LOCK (per-company toggles): the owner can silence automatic
+      // client messages by type. created/confirmed → `confirmation`,
+      // canceled → `cancellation`. Default has both OFF (only follow-up on),
+      // so out of the box the client is NOT spammed on booking/cancel.
+      // The studio bell + club-app notification below are NOT gated here.
+      const auto = await this.settings.get(companyId);
+      const clientAllowed =
+        event === 'canceled' ? auto.cancellation : auto.confirmation;
+      if (clientAllowed) {
+        await this.dispatchClient(event, companyId, messages, appt.customer?.id ?? undefined);
+      } else {
+        this.logger.debug(
+          `[notify ${this.mode}] company=${companyId} event=${event} — envio ao cliente desativado na config, pulando dispatchClient.`,
+        );
+      }
 
       // Studio channel — always an in-app notification (the panel bell).
       // `entityId = appointmentId` habilita o deep-link do sino → drawer do
@@ -200,12 +216,20 @@ export class NotificationsService {
     event: AppointmentEvent,
     companyId: string,
     messages: ReturnType<typeof composeAppointmentMessages>,
+    customerId?: string,
   ): Promise<void> {
     const tag = `[notify ${this.mode}] company=${companyId} event=${event}`;
+    // Interações: mapeia o evento do agendamento para o tipo de mensagem.
+    // canceled → cancellation; created/confirmed → confirmation.
+    const kind = event === 'canceled' ? 'cancellation' : 'confirmation';
     if (messages.clientWhatsapp) {
       this.logger.log(`${tag} WhatsApp -> ${messages.clientWhatsapp.to}: ${messages.clientWhatsapp.text}`);
       if (this.isLive) {
-        await this.whatsapp.enqueueText(messages.clientWhatsapp.to, messages.clientWhatsapp.text);
+        await this.whatsapp.enqueueText(messages.clientWhatsapp.to, messages.clientWhatsapp.text, {
+          companyId,
+          customerId,
+          kind,
+        });
       }
     }
     if (messages.clientEmail) {

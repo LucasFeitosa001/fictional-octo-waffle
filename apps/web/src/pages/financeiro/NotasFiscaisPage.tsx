@@ -5,25 +5,25 @@ import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
 import { DateFieldBR } from '../../components/DateRangeFilter';
+import { AppTabs } from '../../components/AppTabs';
 import {
+  IconCreditCard,
   IconDownload,
   IconEye,
   IconFilter,
   IconPencil,
   IconReceipt,
   IconSearch,
+  IconScissors,
   IconSettings,
+  IconX,
 } from '../../components/icons';
 import { formatDate, formatMoney } from '../../lib/format';
 import { useSetPageActions } from '../../layout/PageActions';
 import { UpsellModal } from '../../components/UpsellModal';
-
-/**
- * Flag do módulo fiscal. TODO: ler de tenant.features.nfse quando o backend
- * multi-tenant expuser as features contratadas. Enquanto isso, deixamos
- * como constante local para facilitar toggle durante a demo.
- */
-const NFSE_CONTRATADO = false;
+import { FilterAside } from '../../components/FilterAside';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { useFeature } from '../../lib/queries/features';
 
 /**
  * Tipos de documento fiscal do Belasis. A aba "Configurações" não filtra:
@@ -31,10 +31,10 @@ const NFSE_CONTRATADO = false;
  */
 type DocType = 'nfse' | 'nfe' | 'nfce';
 
-const DOC_TABS: { id: DocType; label: string }[] = [
-  { id: 'nfse', label: 'NFS-e' },
-  { id: 'nfe', label: 'NF-e' },
-  { id: 'nfce', label: 'NFC-e' },
+const DOC_TABS: { id: DocType; label: string; icon: React.ReactNode }[] = [
+  { id: 'nfse', label: 'NFS-e', icon: <IconScissors size={16} /> },
+  { id: 'nfe', label: 'NF-e', icon: <IconReceipt size={16} /> },
+  { id: 'nfce', label: 'NFC-e', icon: <IconCreditCard size={16} /> },
 ];
 
 const DOC_LABEL: Record<DocType, string> = {
@@ -87,11 +87,15 @@ interface InvoiceRow {
 
 export function NotasFiscaisPage() {
   const navigate = useNavigate();
+  // FASE 2: o módulo fiscal é gated pela feature `nfe` do plano da empresa.
+  // Fail-open: enquanto carrega / em erro, useFeature retorna true (não bloqueia).
+  const nfeContratado = useFeature('nfe');
   const [docType, setDocType] = useState<DocType>('nfse');
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [editing, setEditing] = useState<InvoiceRow | null>(null);
+  const isMobile = useIsMobile();
 
   // Filtros ativos (contador no botão Filtrar, como no Belasis).
   const [from, setFrom] = useState('');
@@ -136,7 +140,7 @@ export function NotasFiscaisPage() {
         key: 'filtrar',
         label: 'Filtrar',
         icon: <IconFilter size={22} />,
-        onClick: () => setFilterOpen(true),
+        onClick: () => setFilterOpen((v) => !v),
       },
       {
         key: 'baixar-xml',
@@ -251,7 +255,7 @@ export function NotasFiscaisPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setFilterOpen(true)}
+            onClick={() => setFilterOpen((v) => !v)}
             className="relative hidden md:inline-flex"
           >
             <IconFilter size={16} /> Filtrar
@@ -271,51 +275,43 @@ export function NotasFiscaisPage() {
         </div>
       </div>
 
-      {/* Abas segmentadas (pills) do Belasis: NFS-e · NF-e · NFC-e · Configurações. */}
-      <div className="mb-4 -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
-        {DOC_TABS.map((t) => {
-          const active = docType === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setDocType(t.id)}
-              className={`h-9 shrink-0 rounded-full border px-4 text-sm font-medium transition-colors ${
-                active
-                  ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                  : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-              }`}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => navigate('/financeiro/configuracoes')}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[var(--color-soft-border)] bg-white px-4 text-sm font-medium text-foreground transition-colors hover:bg-cream"
-        >
-          <IconSettings size={16} /> Configurações
-        </button>
-      </div>
+      <AppTabs
+        items={[
+          ...DOC_TABS,
+          { id: 'settings', label: 'Configurações', icon: <IconSettings size={16} /> },
+        ]}
+        selectedKey={docType}
+        onSelectionChange={(key) => {
+          if (key === 'settings') navigate('/financeiro/configuracoes');
+          else setDocType(key as DocType);
+        }}
+        ariaLabel="Tipos de nota fiscal"
+        className="mb-4"
+      />
 
-      {/* Busca (revelada ao clicar em Buscar) */}
-      {searchOpen && (
-        <div className="mb-4">
-          <TextField value={query} onChange={setQuery} aria-label="Buscar notas fiscais">
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                <IconSearch size={16} />
-              </span>
-              <Input
-                autoFocus
-                placeholder="Buscar por número, cliente ou comanda…"
-                className="pl-9"
-              />
-            </div>
-          </TextField>
-        </div>
-      )}
+      {/* Busca (revelada com animação ao clicar em Buscar). Fica SEMPRE montada;
+          largura/opacity animam 0 ↔ pleno (padrão FilterAside). */}
+      <div
+        className={[
+          'w-full max-w-xl origin-left overflow-hidden',
+          'transition-[width,opacity,transform,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          searchOpen
+            ? 'mb-4 w-full translate-x-0 opacity-100'
+            : 'pointer-events-none mb-0 w-0 -translate-x-3 opacity-0',
+        ].join(' ')}
+      >
+        <TextField value={query} onChange={setQuery} aria-label="Buscar notas fiscais">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+              <IconSearch size={16} />
+            </span>
+            <Input
+              placeholder="Buscar por número, cliente ou comanda…"
+              className="pl-9"
+            />
+          </div>
+        </TextField>
+      </div>
 
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs text-muted">Ordenado por emissão</span>
@@ -324,8 +320,41 @@ export function NotasFiscaisPage() {
         </span>
       </div>
 
-      {/* Desktop: tabela em Card */}
-      <div className="hidden md:block">
+      {/* DESKTOP: filtro lateral (desliza da esquerda) + tabela em Card */}
+      <div className="md:flex md:items-start md:gap-4">
+        <FilterAside open={filterOpen} desktopOnly breakpoint="md">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">Filtros</span>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(false)}
+              aria-label="Fechar filtros"
+              className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
+            >
+              <IconX size={16} />
+            </button>
+          </div>
+          <NotaFiltroBody
+            from={from}
+            to={to}
+            statusFilter={statusFilter}
+            setFrom={setFrom}
+            setTo={setTo}
+            setStatusFilter={setStatusFilter}
+          />
+          <div className="mt-4 flex flex-col gap-2">
+            {notaFiltroFooter(
+              activeFilterCount > 0,
+              () => {
+                setFrom('');
+                setTo('');
+                setStatusFilter('all');
+              },
+              () => setFilterOpen(false),
+            )}
+          </div>
+        </FilterAside>
+        <div className="hidden min-w-0 flex-1 md:block">
         <Card>
           <Card.Content className="p-4">
             {rows.length === 0 ? (
@@ -362,6 +391,7 @@ export function NotasFiscaisPage() {
             )}
           </Card.Content>
         </Card>
+        </div>
       </div>
 
       {/* Mobile: sem Card wrapper — empty state ou cards compactos */}
@@ -433,21 +463,24 @@ export function NotasFiscaisPage() {
         )}
       </div>
 
-      <FilterDrawer
-        isOpen={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        from={from}
-        to={to}
-        statusFilter={statusFilter}
-        setFrom={setFrom}
-        setTo={setTo}
-        setStatusFilter={setStatusFilter}
-        onClear={() => {
-          setFrom('');
-          setTo('');
-          setStatusFilter('all');
-        }}
-      />
+      {/* Filtrar mobile: bottom-sheet (no desktop é o FilterAside acima). */}
+      {isMobile && (
+        <FilterDrawer
+          isOpen={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          from={from}
+          to={to}
+          statusFilter={statusFilter}
+          setFrom={setFrom}
+          setTo={setTo}
+          setStatusFilter={setStatusFilter}
+          onClear={() => {
+            setFrom('');
+            setTo('');
+            setStatusFilter('all');
+          }}
+        />
+      )}
 
       {editing && (
         <EmitInvoiceDrawer
@@ -458,44 +491,44 @@ export function NotasFiscaisPage() {
       )}
 
       {/* Módulo não contratado: modal de upsell bloqueia a rota inteira. */}
-      {!NFSE_CONTRATADO && (
+      {!nfeContratado && (
         <UpsellModal
           title={`${DOC_TITLE[docType]} — não contratada`}
           tabs={['NFS-e', 'NFC-e', 'Configurações']}
           onClose={() => navigate('/financeiro')}
+          onContract={() => navigate('/perfil/assinatura')}
         >
           A emissão de notas fiscais (NFS-e, NF-e e NFC-e) não está
-          incluída no seu plano atual. Contrate o módulo fiscal para
-          começar a emitir notas direto pelo SalonPass.
+          incluída no seu plano atual. Faça upgrade para um plano superior
+          para começar a emitir notas direto pelo SalonPass.
         </UpsellModal>
       )}
     </div>
   );
 }
 
-/** Drawer lateral de filtros — espelha o padrão do Belasis (desliza da direita). */
-function FilterDrawer({
-  isOpen,
-  onClose,
-  from,
-  to,
-  statusFilter,
-  setFrom,
-  setTo,
-  setStatusFilter,
-  onClear,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
+type NotaFiltroProps = {
   from: string;
   to: string;
   statusFilter: 'all' | InvoiceStatus;
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
   setStatusFilter: (v: 'all' | InvoiceStatus) => void;
-  onClear: () => void;
-}) {
-  const hasFilters = Boolean(from) || Boolean(to) || statusFilter !== 'all';
+};
+
+/**
+ * Corpo do filtro (Período + Status) — espelha o padrão do Belasis.
+ * Compartilhado entre o painel lateral desktop (FilterAside) e o bottom-sheet
+ * mobile (Drawer).
+ */
+function NotaFiltroBody({
+  from,
+  to,
+  statusFilter,
+  setFrom,
+  setTo,
+  setStatusFilter,
+}: NotaFiltroProps) {
   const statusOptions: { id: 'all' | InvoiceStatus; name: string }[] = [
     { id: 'all', name: 'Todas' },
     { id: 'authorized', name: 'Autorizada' },
@@ -504,7 +537,42 @@ function FilterDrawer({
     { id: 'canceled', name: 'Cancelada' },
   ];
 
-  const footer = (
+  return (
+    <div className="flex flex-col gap-6">
+      <FilterSection title="Período">
+        <div className="grid grid-cols-2 gap-3">
+          <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
+          <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
+        </div>
+      </FilterSection>
+
+      <FilterSection title="Status">
+        <div className="grid grid-cols-2 gap-2">
+          {statusOptions.map((o) => {
+            const active = statusFilter === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setStatusFilter(o.id)}
+                className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                  active
+                    ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
+                    : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
+                }`}
+              >
+                {o.name}
+              </button>
+            );
+          })}
+        </div>
+      </FilterSection>
+    </div>
+  );
+}
+
+function notaFiltroFooter(hasFilters: boolean, onClear: () => void, onApply: () => void) {
+  return (
     <>
       <Button
         variant="outline"
@@ -514,50 +582,40 @@ function FilterDrawer({
       >
         Limpar filtros
       </Button>
-      <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={onApply}>
         Aplicar
       </Button>
     </>
   );
+}
+
+/**
+ * Bottom-sheet "Filtrar" (mobile) — Período + Status. No desktop o mesmo
+ * conteúdo vive no FilterAside lateral (desliza da esquerda da tabela).
+ */
+function FilterDrawer({
+  isOpen,
+  onClose,
+  onClear,
+  ...body
+}: NotaFiltroProps & {
+  isOpen: boolean;
+  onClose: () => void;
+  onClear: () => void;
+}) {
+  const hasFilters =
+    Boolean(body.from) || Boolean(body.to) || body.statusFilter !== 'all';
 
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title="Filtrar"
-      footer={footer}
+      footer={notaFiltroFooter(hasFilters, onClear, onClose)}
       widthClass="sm:w-[420px]"
+      placement="bottom"
     >
-      <div className="flex flex-col gap-6">
-        <FilterSection title="Período">
-          <div className="grid grid-cols-2 gap-3">
-            <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
-            <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
-          </div>
-        </FilterSection>
-
-        <FilterSection title="Status">
-          <div className="grid grid-cols-2 gap-2">
-            {statusOptions.map((o) => {
-              const active = statusFilter === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setStatusFilter(o.id)}
-                  className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
-                    active
-                      ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                      : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-                  }`}
-                >
-                  {o.name}
-                </button>
-              );
-            })}
-          </div>
-        </FilterSection>
-      </div>
+      <NotaFiltroBody {...body} />
     </Drawer>
   );
 }
@@ -641,6 +699,7 @@ function EmitInvoiceDrawer({
       title={editing ? `Nota ${editing.number}` : 'Emitir nota fiscal'}
       footer={footer}
       widthClass="sm:w-[460px]"
+      fullscreen
     >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -658,25 +717,12 @@ function EmitInvoiceDrawer({
             <label className="text-sm font-medium text-foreground">
               Tipo de documento
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {DOC_TABS.map((t) => {
-                const active = docType === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setDocType(t.id)}
-                    className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
-                      active
-                        ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                        : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
+            <AppTabs
+              items={DOC_TABS}
+              selectedKey={docType}
+              onSelectionChange={setDocType}
+              ariaLabel="Tipo de documento"
+            />
           </div>
 
           {/* Comanda de origem */}

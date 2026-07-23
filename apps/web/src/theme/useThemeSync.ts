@@ -2,6 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useSession } from '../lib/auth';
 import { api } from '../lib/api';
 import { applyTheme, isThemeId, type ThemeId } from './theme';
+import {
+  applyButtonRadius,
+  isButtonRadiusId,
+  type ButtonRadiusId,
+} from './buttonStyle';
 
 /**
  * Cloud theme persistence.
@@ -46,6 +51,25 @@ export function useThemeSync(): void {
         /* offline / unauthenticated / 404 → keep the local (localStorage) theme */
       });
 
+    // Same pattern for the button-radius preference (independent endpoint so it
+    // degrades gracefully if the backend doesn't expose it yet — the local
+    // localStorage value simply stays authoritative).
+    api
+      .get<{ buttonRadius: string }>('/users/me/button-radius')
+      .then((res) => {
+        if (cancelled) return;
+        const cloud = res?.buttonRadius;
+        if (
+          isButtonRadiusId(cloud) &&
+          cloud !== document.documentElement.dataset.btnRadius
+        ) {
+          applyButtonRadius(cloud); // silent — do NOT saveButtonRadiusToCloud here
+        }
+      })
+      .catch(() => {
+        /* offline / 404 → keep the local button style */
+      });
+
     return () => {
       cancelled = true;
     };
@@ -61,5 +85,17 @@ export function useThemeSync(): void {
 export function saveThemeToCloud(theme: ThemeId): void {
   api.post('/users/me/theme', { theme }).catch(() => {
     /* offline → still applied + cached locally; cloud copy just lags */
+  });
+}
+
+/**
+ * Persist the button-radius choice to the account. Same fire-and-forget
+ * semantics as saveThemeToCloud: the local apply already happened, so a network
+ * failure (or a backend that doesn't implement the endpoint yet) just means the
+ * cloud copy lags — the choice still holds locally via localStorage.
+ */
+export function saveButtonRadiusToCloud(buttonRadius: ButtonRadiusId): void {
+  api.post('/users/me/button-radius', { buttonRadius }).catch(() => {
+    /* offline / 404 → still applied + cached locally; cloud copy just lags */
   });
 }

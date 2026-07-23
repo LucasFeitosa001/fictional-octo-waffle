@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 
 // ===================== Types =====================
 export type TransactionKind = 'income' | 'expense';
@@ -253,6 +254,7 @@ export function useCreateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento criado');
     },
   });
 }
@@ -265,6 +267,7 @@ export function useUpdateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento salvo');
     },
   });
 }
@@ -276,6 +279,7 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento excluído');
     },
   });
 }
@@ -292,6 +296,7 @@ export function useReverseTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento estornado');
     },
   });
 }
@@ -308,6 +313,7 @@ export function useCreateTransfer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Transferência realizada');
     },
   });
 }
@@ -327,6 +333,7 @@ export function useCreateFinancialAccount() {
       api.post<FinancialAccount>('/financial-accounts', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+      toastSuccess('Conta criada');
     },
   });
 }
@@ -338,6 +345,7 @@ export function useUpdateFinancialAccount() {
       api.patch<FinancialAccount>(`/financial-accounts/${id}`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+      toastSuccess('Conta salva');
     },
   });
 }
@@ -348,6 +356,7 @@ export function useDeleteFinancialAccount() {
     mutationFn: (id: string) => api.delete<Deleted>(`/financial-accounts/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+      toastSuccess('Conta excluída');
     },
   });
 }
@@ -367,6 +376,7 @@ export function useCreatePaymentMethod() {
       api.post<PaymentMethod>('/payment-methods', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+      toastSuccess('Forma de pagamento criada');
     },
   });
 }
@@ -378,6 +388,7 @@ export function useUpdatePaymentMethod() {
       api.patch<PaymentMethod>(`/payment-methods/${id}`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+      toastSuccess('Forma de pagamento salva');
     },
   });
 }
@@ -388,6 +399,7 @@ export function useDeletePaymentMethod() {
     mutationFn: (id: string) => api.delete<Deleted>(`/payment-methods/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+      toastSuccess('Forma de pagamento excluída');
     },
   });
 }
@@ -407,6 +419,7 @@ export function useCreateFinancialCategory() {
       api.post<FinancialCategory>('/financial-categories', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+      toastSuccess('Categoria criada');
     },
   });
 }
@@ -418,6 +431,7 @@ export function useUpdateFinancialCategory() {
       api.patch<FinancialCategory>(`/financial-categories/${id}`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+      toastSuccess('Categoria salva');
     },
   });
 }
@@ -428,6 +442,7 @@ export function useDeleteFinancialCategory() {
     mutationFn: (id: string) => api.delete<Deleted>(`/financial-categories/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+      toastSuccess('Categoria excluída');
     },
   });
 }

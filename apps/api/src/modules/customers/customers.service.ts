@@ -626,4 +626,101 @@ export class CustomersService {
     await this.prisma.client.customerAnamnesis.delete({ where: { id: anamId } });
     return { id: anamId, deleted: true };
   }
+
+  // ===== Interações (histórico de mensagens) =====
+
+  // GET /customers/:id/interactions — timeline unificada das mensagens enviadas
+  // ao cliente (feature "Interações" do Belasis). Mescla:
+  //   (a) WhatsappOutbox onde customerId = :id OU o telefone casa com o do cliente
+  //       (comparação pelos últimos 8 dígitos — cobre variações de +55/DDD/9º dígito);
+  //   (b) CampaignMessage do cliente (texto vem de Campaign.segmentJson.message).
+  // Ordena por `at` desc e pagina por limit/offset.
+  async listInteractions(
+    companyId: string,
+    id: string,
+    limit = 50,
+    offset = 0,
+  ) {
+    const customer = await this.findOne(companyId, id);
+
+    // Últimos 8 dígitos do telefone do cliente — chave estável entre variações
+    // de código de país/DDD/9º dígito (mesma convenção do WhatsappService).
+    const phoneDigits = (customer.phone ?? '').replace(/\D/g, '');
+    const phoneTail = phoneDigits.length >= 8 ? phoneDigits.slice(-8) : null;
+
+    // (a) Outbox: por customerId direto OU por telefone que "case" com o cliente.
+    // O match por telefone é feito na aplicação (endsWith) porque o outbox guarda
+    // só dígitos e pode ter registros antigos sem customerId.
+    const outboxRows = await this.prisma.client.whatsappOutbox.findMany({
+      where: {
+        OR: [
+          { customerId: id },
+          ...(phoneTail ? [{ toPhone: { endsWith: phoneTail } }] : []),
+        ],
+      },
+      orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
+      // Busca uma janela ampla p/ mesclar+paginar em memória (o volume por cliente
+      // é pequeno; a paginação real é aplicada depois do merge).
+      take: 500,
+    });
+
+    // (b) Campanhas do cliente (a mensagem fica no segmentJson da campanha).
+    const campaignRows = await this.prisma.client.campaignMessage.findMany({
+      where: { customerId: id, campaign: { companyId } },
+      orderBy: { sentAt: 'desc' },
+      take: 500,
+      include: {
+        campaign: { select: { name: true, channel: true, segmentJson: true } },
+      },
+    });
+
+    type Interaction = {
+      id: string;
+      channel: 'whatsapp' | 'campaign';
+      kind: string | null;
+      text: string;
+      status: string;
+      at: Date;
+      direction: 'outgoing';
+    };
+
+    const items: Interaction[] = [];
+
+    for (const o of outboxRows) {
+      items.push({
+        id: o.id,
+        channel: 'whatsapp',
+        kind: o.kind ?? null,
+        text: o.text,
+        status: o.status,
+        at: o.sentAt ?? o.createdAt,
+        direction: 'outgoing',
+      });
+    }
+
+    for (const c of campaignRows) {
+      const seg = c.campaign?.segmentJson as { message?: unknown } | null;
+      const message =
+        typeof seg?.message === 'string' && seg.message.trim()
+          ? seg.message
+          : (c.campaign?.name ?? 'Campanha');
+      items.push({
+        id: c.id,
+        channel: 'campaign',
+        kind: 'campaign',
+        text: message,
+        status: c.status,
+        // CampaignMessage não tem createdAt; usa sentAt ou "agora" como fallback.
+        at: c.sentAt ?? new Date(0),
+        direction: 'outgoing',
+      });
+    }
+
+    // Ordena por `at` desc e aplica a paginação simples.
+    items.sort((a, b) => b.at.getTime() - a.at.getTime());
+    const total = items.length;
+    const paged = items.slice(offset, offset + limit);
+
+    return { data: paged, total, limit, offset };
+  }
 }

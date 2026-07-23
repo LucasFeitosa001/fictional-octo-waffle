@@ -15,8 +15,8 @@
    identity byte-for-byte; "belasis" ships the indigo shadcn palette lifted from
    belasis.app. Add a new palette = one [data-theme="…"] block. */
 
-/* `inline` makes the utilities emit `var(--sp-*)` live, so bg-gold / text-ink /
-   bg-primary all follow the active theme instead of baking a fixed value. */
+/* Brand utilities follow the selected theme. Data and status utilities resolve
+   to the fixed tokens declared below and never inherit the brand palette. */
 @theme inline {
   --color-primary: var(--sp-primary);
   --color-primary-strong: var(--sp-primary-strong);
@@ -45,6 +45,38 @@
   --color-beige: var(--sp-beige);
   --color-beige-deep: var(--sp-beige-deep);
   --color-soft-border: var(--sp-border);
+
+  --color-data-sales: var(--sp-data-sales);
+  --color-data-appointments: var(--sp-data-appointments);
+  --color-data-orders: var(--sp-data-orders);
+  --color-data-customers: var(--sp-data-customers);
+  --color-data-services: var(--sp-data-services);
+  --color-data-products: var(--sp-data-products);
+  --color-data-stock: var(--sp-data-stock);
+  --color-data-messages: var(--sp-data-messages);
+  --color-data-reviews: var(--sp-data-reviews);
+  --color-data-conversion: var(--sp-data-conversion);
+  --color-data-income: var(--sp-data-income);
+  --color-data-expense: var(--sp-data-expense);
+  --color-data-receivable: var(--sp-data-receivable);
+  --color-data-payable: var(--sp-data-payable);
+  --color-data-balance: var(--sp-data-balance);
+
+  --color-status-success: var(--sp-status-success);
+  --color-status-success-soft: var(--sp-status-success-soft);
+  --color-status-success-fg: var(--sp-status-success-fg);
+  --color-status-warning: var(--sp-status-warning);
+  --color-status-warning-soft: var(--sp-status-warning-soft);
+  --color-status-warning-fg: var(--sp-status-warning-fg);
+  --color-status-danger: var(--sp-status-danger);
+  --color-status-danger-soft: var(--sp-status-danger-soft);
+  --color-status-danger-fg: var(--sp-status-danger-fg);
+  --color-status-info: var(--sp-status-info);
+  --color-status-info-soft: var(--sp-status-info-soft);
+  --color-status-info-fg: var(--sp-status-info-fg);
+  --color-status-neutral: var(--sp-status-neutral);
+  --color-status-neutral-soft: var(--sp-status-neutral-soft);
+  --color-status-neutral-fg: var(--sp-status-neutral-fg);
 }
 
 @theme {
@@ -59,9 +91,72 @@
 }
 
 /* ── Theme palettes ─────────────────────────────────────────────────────────
-   Each palette sets the --sp-* surface/brand vars AND the HeroUI accent/
-   background tokens, so HeroUI controls recolor together with our own surfaces. */
+   Each palette sets surface/brand variables and HeroUI interaction tokens.
+   Business data and functional statuses stay fixed in the root block. */
 @layer base {
+  :root {
+    --sp-data-sales: #505afb;
+    --sp-data-sales-soft: #eef0ff;
+    --sp-data-appointments: #7c3aed;
+    --sp-data-appointments-soft: #f3e8ff;
+    --sp-data-orders: #be123c;
+    --sp-data-orders-soft: #fff1f2;
+    --sp-data-customers: #005d5d;
+    --sp-data-customers-soft: #ccfbf1;
+    --sp-data-services: #0f766e;
+    --sp-data-services-soft: #ccfbf1;
+    --sp-data-products: #c2410c;
+    --sp-data-products-soft: #ffedd5;
+    --sp-data-stock: #475569;
+    --sp-data-stock-soft: #f1f5f9;
+    --sp-data-messages: #0369a1;
+    --sp-data-messages-soft: #e0f2fe;
+    --sp-data-reviews: #a16207;
+    --sp-data-reviews-soft: #fef3c7;
+    --sp-data-conversion: #c2410c;
+    --sp-data-conversion-soft: #ffedd5;
+    --sp-data-income: #15803d;
+    --sp-data-income-soft: #dcfce7;
+    --sp-data-expense: #b91c1c;
+    --sp-data-expense-soft: #fee2e2;
+    --sp-data-receivable: #2563eb;
+    --sp-data-receivable-soft: #dbeafe;
+    --sp-data-payable: #b45309;
+    --sp-data-payable-soft: #fef3c7;
+    --sp-data-balance: #4f46e5;
+    --sp-data-balance-soft: #e0e7ff;
+
+    --sp-status-success: #15803d;
+    --sp-status-success-soft: #dcfce7;
+    --sp-status-success-fg: #166534;
+    --sp-status-warning: #b45309;
+    --sp-status-warning-soft: #fef3c7;
+    --sp-status-warning-fg: #92400e;
+    --sp-status-danger: #b91c1c;
+    --sp-status-danger-soft: #fee2e2;
+    --sp-status-danger-fg: #991b1b;
+    --sp-status-info: #2563eb;
+    --sp-status-info-soft: #dbeafe;
+    --sp-status-info-fg: #1e40af;
+    --sp-status-neutral: #64748b;
+    --sp-status-neutral-soft: #f1f5f9;
+    --sp-status-neutral-fg: #475569;
+    --sp-danger: var(--sp-status-danger);
+
+    --sp-chart-categorical-1: #6929c4;
+    --sp-chart-categorical-2: #1192e8;
+    --sp-chart-categorical-3: #005d5d;
+    --sp-chart-categorical-4: #9f1853;
+    --sp-chart-categorical-5: #fa4d56;
+    --sp-chart-categorical-6: #570408;
+    --sp-chart-categorical-7: #198038;
+    --sp-chart-categorical-8: #002d9c;
+    --sp-chart-categorical-9: #ee538b;
+    --sp-chart-categorical-10: #b28600;
+    --sp-chart-categorical-11: #009d9a;
+    --sp-chart-categorical-12: #8a3800;
+  }
+
   :root,
   .light,
   .default,
@@ -101,43 +196,314 @@
     --background: oklch(0.9568 0.0123 84); /* ~ #F7F3EA cream */
   }
 
-  /* Belasis: indigo/purple #505afb, near-white canvas, light sidebar. Palette
-     lifted from belasis.app's own Tailwind v4 theme (oklch, hue 278). */
+  /* Belasis: azul #545AF5 (rgb 84,90,245 = oklch 55.9% 0.227 274.6), near-white
+     canvas, sidebar no MESMO azul um tom mais escuro. Todo o azul do tema deriva
+     de #545AF5 (hue 274.6). */
   [data-theme="belasis"] {
-    --sp-primary: oklch(55% 0.22 278);
-    --sp-primary-strong: oklch(48% 0.22 278);
+    --sp-primary: #545af5; /* oklch(55.9% 0.227 274.6) */
+    --sp-primary-strong: oklch(48% 0.227 274.6); /* ~#423ED9, um tom mais escuro */
     --sp-primary-fg: oklch(100% 0 0);
 
     --sp-canvas: oklch(99.5% 0 0);
     --sp-warm-white: oklch(100% 0 0);
     --sp-card: oklch(100% 0 0);
 
-    /* Sidebar AZUL/índigo (a sidebar real do Belasis), não clara. */
-    --sp-sidebar: oklch(47% 0.17 278);
+    /* Sidebar AZUL uniforme. */
+    --sp-sidebar: #505AFB;
     --sp-sidebar-fg: oklch(100% 0 0);
     --sp-sidebar-active: color-mix(in oklab, #ffffff 16%, transparent);
-    --sp-sidebar-grad-top: oklch(50% 0.18 278);
-    --sp-sidebar-grad-mid: oklch(47% 0.17 278);
-    --sp-sidebar-grad-bottom: oklch(43% 0.16 278);
+    --sp-sidebar-grad-top: #505AFB;
+    --sp-sidebar-grad-mid: #505AFB;
+    --sp-sidebar-grad-bottom: #505AFB;
     --sp-sidebar-border: color-mix(in oklab, #ffffff 12%, transparent);
 
-    --sp-ink: oklch(18% 0.02 278);
-    --sp-ink-soft: oklch(25% 0.03 278);
-    --sp-muted-ink: oklch(48% 0.02 278);
-    --sp-border: oklch(90% 0.01 278);
-    --sp-ring: oklch(55% 0.22 278 / 0.5);
+    --sp-ink: oklch(18% 0.02 274.6);
+    --sp-ink-soft: oklch(25% 0.03 274.6);
+    --sp-muted-ink: oklch(48% 0.02 274.6);
+    --sp-border: oklch(90% 0.01 274.6);
+    --sp-ring: oklch(55.9% 0.227 274.6 / 0.5); /* #545AF5 com alpha */
 
     --sp-pink: oklch(70% 0.16 350);
-    --sp-beige: oklch(93% 0.01 278);
-    --sp-beige-deep: oklch(80% 0.02 278);
+    --sp-beige: oklch(93% 0.01 274.6);
+    --sp-beige-deep: oklch(80% 0.02 274.6);
 
     /* HeroUI */
-    --accent: oklch(55% 0.22 278);
+    --accent: #545af5; /* = --sp-primary #545AF5 */
     --accent-foreground: oklch(100% 0 0);
     --focus: var(--accent);
     --background: oklch(99.5% 0 0);
-    --foreground: oklch(18% 0.02 278);
+    --foreground: oklch(18% 0.02 274.6);
   }
+
+  /* Esmeralda: verde esmeralda (#0f9d6f ~ hue 160), canvas claro esverdeado,
+     sidebar no mesmo verde um tom mais escuro. Hue base 160. */
+  [data-theme="esmeralda"] {
+    --sp-primary: oklch(63% 0.14 160); /* ~#0f9d6f */
+    --sp-primary-strong: oklch(55% 0.14 160); /* um tom mais escuro */
+    --sp-primary-fg: oklch(100% 0 0);
+
+    --sp-canvas: oklch(98.5% 0.008 160);
+    --sp-warm-white: oklch(100% 0 0);
+    --sp-card: oklch(100% 0 0);
+
+    /* Sidebar VERDE (mesma cor do primary, um tom mais escura). */
+    --sp-sidebar: oklch(43% 0.11 160);
+    --sp-sidebar-fg: oklch(100% 0 0);
+    --sp-sidebar-active: color-mix(in oklab, #ffffff 16%, transparent);
+    --sp-sidebar-grad-top: oklch(46% 0.12 160);
+    --sp-sidebar-grad-mid: oklch(43% 0.11 160);
+    --sp-sidebar-grad-bottom: oklch(39% 0.1 160);
+    --sp-sidebar-border: color-mix(in oklab, #ffffff 12%, transparent);
+
+    --sp-ink: oklch(20% 0.03 160);
+    --sp-ink-soft: oklch(27% 0.04 160);
+    --sp-muted-ink: oklch(48% 0.03 160);
+    --sp-border: oklch(90% 0.02 160);
+    --sp-ring: oklch(63% 0.14 160 / 0.5);
+
+    --sp-pink: oklch(70% 0.16 350);
+    --sp-beige: oklch(93% 0.02 160);
+    --sp-beige-deep: oklch(80% 0.03 160);
+
+    /* HeroUI */
+    --accent: oklch(63% 0.14 160); /* = --sp-primary */
+    --accent-foreground: oklch(100% 0 0);
+    --focus: var(--accent);
+    --background: oklch(98.5% 0.008 160);
+    --foreground: oklch(20% 0.03 160);
+  }
+
+  /* Blush: rosa/magenta (#e5478b ~ hue 355), canvas claro rosado, sidebar
+     magenta escuro. Hue base 355. */
+  [data-theme="blush"] {
+    --sp-primary: oklch(60% 0.19 355); /* ~#e5478b */
+    --sp-primary-strong: oklch(52% 0.19 355); /* um tom mais escuro */
+    --sp-primary-fg: oklch(100% 0 0);
+
+    --sp-canvas: oklch(98.8% 0.008 355);
+    --sp-warm-white: oklch(100% 0 0);
+    --sp-card: oklch(100% 0 0);
+
+    /* Sidebar MAGENTA (mesma cor do primary, um tom mais escura). */
+    --sp-sidebar: oklch(45% 0.16 355);
+    --sp-sidebar-fg: oklch(100% 0 0);
+    --sp-sidebar-active: color-mix(in oklab, #ffffff 16%, transparent);
+    --sp-sidebar-grad-top: oklch(48% 0.17 355);
+    --sp-sidebar-grad-mid: oklch(45% 0.16 355);
+    --sp-sidebar-grad-bottom: oklch(41% 0.15 355);
+    --sp-sidebar-border: color-mix(in oklab, #ffffff 12%, transparent);
+
+    --sp-ink: oklch(20% 0.04 355);
+    --sp-ink-soft: oklch(27% 0.05 355);
+    --sp-muted-ink: oklch(48% 0.03 355);
+    --sp-border: oklch(91% 0.02 355);
+    --sp-ring: oklch(60% 0.19 355 / 0.5);
+
+    --sp-pink: oklch(70% 0.16 350);
+    --sp-beige: oklch(94% 0.02 355);
+    --sp-beige-deep: oklch(81% 0.03 355);
+
+    /* HeroUI */
+    --accent: oklch(60% 0.19 355); /* = --sp-primary */
+    --accent-foreground: oklch(100% 0 0);
+    --focus: var(--accent);
+    --background: oklch(98.8% 0.008 355);
+    --foreground: oklch(20% 0.04 355);
+  }
+
+  /* Violeta: roxo vibrante (#8b3ff0 ~ hue 300), canvas claro lilás, sidebar
+     roxo escuro. Hue base 300. */
+  [data-theme="violeta"] {
+    --sp-primary: oklch(55% 0.24 300); /* ~#8b3ff0 */
+    --sp-primary-strong: oklch(47% 0.23 300); /* um tom mais escuro */
+    --sp-primary-fg: oklch(100% 0 0);
+
+    --sp-canvas: oklch(98.8% 0.008 300);
+    --sp-warm-white: oklch(100% 0 0);
+    --sp-card: oklch(100% 0 0);
+
+    /* Sidebar ROXO (mesma cor do primary, um tom mais escura). */
+    --sp-sidebar: oklch(43% 0.19 300);
+    --sp-sidebar-fg: oklch(100% 0 0);
+    --sp-sidebar-active: color-mix(in oklab, #ffffff 16%, transparent);
+    --sp-sidebar-grad-top: oklch(46% 0.2 300);
+    --sp-sidebar-grad-mid: oklch(43% 0.19 300);
+    --sp-sidebar-grad-bottom: oklch(39% 0.18 300);
+    --sp-sidebar-border: color-mix(in oklab, #ffffff 12%, transparent);
+
+    --sp-ink: oklch(20% 0.04 300);
+    --sp-ink-soft: oklch(27% 0.05 300);
+    --sp-muted-ink: oklch(48% 0.03 300);
+    --sp-border: oklch(91% 0.02 300);
+    --sp-ring: oklch(55% 0.24 300 / 0.5);
+
+    --sp-pink: oklch(70% 0.16 350);
+    --sp-beige: oklch(94% 0.02 300);
+    --sp-beige-deep: oklch(81% 0.03 300);
+
+    /* HeroUI */
+    --accent: oklch(55% 0.24 300); /* = --sp-primary */
+    --accent-foreground: oklch(100% 0 0);
+    --focus: var(--accent);
+    --background: oklch(98.8% 0.008 300);
+    --foreground: oklch(20% 0.04 300);
+  }
+
+  /* Grafite: slate escuro elegante (#475569 ~ hue 260, baixa saturação), canvas
+     claro neutro, sidebar slate quase-preto. Hue base 260, low chroma. */
+  [data-theme="grafite"] {
+    --sp-primary: oklch(45% 0.04 260); /* ~#475569 slate */
+    --sp-primary-strong: oklch(38% 0.04 260); /* um tom mais escuro */
+    --sp-primary-fg: oklch(100% 0 0);
+
+    --sp-canvas: oklch(98% 0.004 260);
+    --sp-warm-white: oklch(100% 0 0);
+    --sp-card: oklch(100% 0 0);
+
+    /* Sidebar SLATE ESCURO (mesma cor do primary, bem mais escura). */
+    --sp-sidebar: oklch(30% 0.03 260);
+    --sp-sidebar-fg: oklch(100% 0 0);
+    --sp-sidebar-active: color-mix(in oklab, #ffffff 16%, transparent);
+    --sp-sidebar-grad-top: oklch(33% 0.03 260);
+    --sp-sidebar-grad-mid: oklch(30% 0.03 260);
+    --sp-sidebar-grad-bottom: oklch(26% 0.03 260);
+    --sp-sidebar-border: color-mix(in oklab, #ffffff 12%, transparent);
+
+    --sp-ink: oklch(20% 0.02 260);
+    --sp-ink-soft: oklch(27% 0.02 260);
+    --sp-muted-ink: oklch(48% 0.02 260);
+    --sp-border: oklch(90% 0.008 260);
+    --sp-ring: oklch(45% 0.04 260 / 0.5);
+
+    --sp-pink: oklch(70% 0.16 350);
+    --sp-beige: oklch(93% 0.008 260);
+    --sp-beige-deep: oklch(80% 0.01 260);
+
+    /* HeroUI */
+    --accent: oklch(45% 0.04 260); /* = --sp-primary */
+    --accent-foreground: oklch(100% 0 0);
+    --focus: var(--accent);
+    --background: oklch(98% 0.004 260);
+    --foreground: oklch(20% 0.02 260);
+  }
+
+  /* Coral: laranja coral quente (#f2711c ~ hue 50), canvas claro quente, sidebar
+     laranja/terracota escuro. Hue base 50. */
+  [data-theme="coral"] {
+    --sp-primary: oklch(68% 0.16 50); /* ~#f2711c */
+    --sp-primary-strong: oklch(60% 0.16 50); /* um tom mais escuro */
+    --sp-primary-fg: oklch(100% 0 0);
+
+    --sp-canvas: oklch(98.8% 0.008 50);
+    --sp-warm-white: oklch(100% 0 0);
+    --sp-card: oklch(100% 0 0);
+
+    /* Sidebar TERRACOTA (mesma família do primary, bem mais escura). */
+    --sp-sidebar: oklch(42% 0.1 50);
+    --sp-sidebar-fg: oklch(100% 0 0);
+    --sp-sidebar-active: color-mix(in oklab, #ffffff 16%, transparent);
+    --sp-sidebar-grad-top: oklch(45% 0.11 50);
+    --sp-sidebar-grad-mid: oklch(42% 0.1 50);
+    --sp-sidebar-grad-bottom: oklch(38% 0.09 50);
+    --sp-sidebar-border: color-mix(in oklab, #ffffff 12%, transparent);
+
+    --sp-ink: oklch(22% 0.03 50);
+    --sp-ink-soft: oklch(29% 0.04 50);
+    --sp-muted-ink: oklch(48% 0.03 50);
+    --sp-border: oklch(91% 0.02 50);
+    --sp-ring: oklch(68% 0.16 50 / 0.5);
+
+    --sp-pink: oklch(70% 0.16 350);
+    --sp-beige: oklch(94% 0.02 50);
+    --sp-beige-deep: oklch(81% 0.03 50);
+
+    /* HeroUI */
+    --accent: oklch(68% 0.16 50); /* = --sp-primary */
+    --accent-foreground: oklch(100% 0 0);
+    --focus: var(--accent);
+    --background: oklch(98.8% 0.008 50);
+    --foreground: oklch(22% 0.03 50);
+  }
+}
+
+/* ── Button radius (personalizável, salvo como o tema) ───────────────────────
+   O usuário escolhe a "cara" dos botões em Configurações → Personalizar. A
+   escolha vira `data-btn-radius` no <html> (igual ao data-theme) e resolve o
+   token global `--sp-btn-radius`. "medium" (10px) é o default e reproduz o
+   arredondamento atual dos botões HeroUI. */
+:root {
+  --sp-btn-radius: 10px; /* medium (default) */
+}
+[data-btn-radius="rounded"] {
+  --sp-btn-radius: 9999px; /* pill */
+}
+[data-btn-radius="medium"] {
+  --sp-btn-radius: 10px;
+}
+[data-btn-radius="square"] {
+  --sp-btn-radius: 4px; /* mais reto */
+}
+
+/* Aplica o token a TODOS os botões de forma global, sem tocar nos call-sites:
+   - `.button`: botões HeroUI (@heroui/react) — cobre os ~400 usos de <Button>.
+   - `.btn`: classe utilitária opcional para botões próprios que queiram optar.
+   Botões de grupo (`.button-group`) mantêm o próprio raio (0 / cantos) do HeroUI.
+   Especificidade: `.button:not(.button-group .button)` = (0,3,0), acima da regra
+   base `.button` (0,1,0) do HeroUI e depois dela na ordem de fonte, então vence. */
+.button:not(.button-group .button),
+.btn {
+  border-radius: var(--sp-btn-radius);
+}
+
+/* ── Feedback de hover consistente em TODOS os botões ────────────────────────
+   Regra global, centralizada — não repetida página por página. Duas famílias:
+
+   (1) SECUNDÁRIOS / outline (borda, sem preenchimento colorido): ao passar o
+       mouse → sublinhado no texto + cor do texto vira a primária do tema
+       (--sp-primary). HeroUI: variants secondary/tertiary/outline/ghost.
+   (2) PRIMÁRIOS / coloridos (preenchidos): ao passar o mouse → muda a opacidade
+       (opacity-.9). HeroUI: variants primary/danger/danger-soft.
+
+   Só aplica em ponteiro real (@media hover) para não "grudar" o estado em toque.
+   Respeita disabled/aria-disabled/data-disabled. As cores vêm de --sp-* então
+   os 7 temas seguem juntos automaticamente.
+
+   HeroUI v3 emite classes `.button--<variant>` (ver docs "Button > CSS
+   Classes"). Miramos essas classes diretamente; para os botões "à mão"
+   (`<button className>`) das toolbars há classes utilitárias opt-in
+   (`.btn-ghost-hover` / `.btn-primary-hover`) com o MESMO comportamento. */
+@media (hover: hover) {
+  /* (1) HeroUI secundário/outline + utilitário à mão → sublinhado + cor primária */
+  .button--secondary:not(:disabled):not([data-disabled="true"]):not([aria-disabled="true"]):hover,
+  .button--tertiary:not(:disabled):not([data-disabled="true"]):not([aria-disabled="true"]):hover,
+  .button--outline:not(:disabled):not([data-disabled="true"]):not([aria-disabled="true"]):hover,
+  .button--ghost:not(:disabled):not([data-disabled="true"]):not([aria-disabled="true"]):hover,
+  .btn-ghost-hover:not(:disabled):not([aria-disabled="true"]):hover {
+    color: var(--sp-primary);
+    text-decoration-line: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* (2) HeroUI primário/colorido + utilitário à mão → só opacidade */
+  .button--primary:not(:disabled):not([data-disabled="true"]):not([aria-disabled="true"]):hover,
+  .button--danger:not(:disabled):not([data-disabled="true"]):not([aria-disabled="true"]):hover,
+  .button--danger-soft:not(:disabled):not([data-disabled="true"]):not([aria-disabled="true"]):hover,
+  .btn-primary-hover:not(:disabled):not([aria-disabled="true"]):hover {
+    opacity: 0.9;
+  }
+}
+
+/* Transição suave só para as classes utilitárias à mão — NÃO tocamos na
+   `transition` própria dos botões HeroUI (eles já animam bg/borda/cor; se
+   redefiníssemos aqui, mataríamos essas transições). A maioria dos botões à mão
+   já traz `transition-colors`; isto garante que opacity/sublinhado também
+   animem mesmo sem essa classe. */
+.btn-ghost-hover,
+.btn-primary-hover {
+  transition:
+    color 140ms ease,
+    opacity 140ms ease,
+    text-decoration-color 140ms ease;
 }
 
 html,
@@ -244,6 +610,81 @@ h1, h2, h3, h4, h5, h6,
   border-color: #e5484d !important;
 }
 
+/* ── Campos de formulário dentro de drawers/modais ──────────────────────────
+   Correção CENTRAL (não caso a caso) para os relatos de mobile: dentro de
+   drawer o usuário não enxergava "onde clicar" nos inputs/selects (borda fraca,
+   fundo igual ao painel) e o toque acidental abria selects fáceis demais.
+
+   Mira DUAS famílias, dentro de `.sp-drawer-panel` (Drawer/FullDrawer) e
+   `.modal__dialog` (modais HeroUI que viram drawer no mobile):
+     (1) HeroUI v3 → `.select__trigger`, `.input`, `.textarea` (docs: Select/
+         Input/TextField expõem essas classes + data-attrs de estado).
+     (2) Controles nativos → `select`, `input` de texto, `textarea`.
+
+   Damos contorno visível (borda 1px sobre a linha do tema), cantos, fundo claro
+   (--color-card/branco) e padding. Assim fica óbvio que é um campo clicável,
+   inclusive no mobile. As cores saem dos tokens (--color-line/--color-card/
+   --color-ring/--color-primary) então acompanham os 7 temas. */
+.sp-drawer-panel :is(select, textarea),
+.sp-drawer-panel input:is([type="text"], [type="search"], [type="email"], [type="tel"], [type="number"], [type="password"], [type="url"], [type="date"], [type="time"], [type="datetime-local"]),
+.sp-drawer-panel input:not([type]),
+.modal__dialog :is(select, textarea),
+.modal__dialog input:is([type="text"], [type="search"], [type="email"], [type="tel"], [type="number"], [type="password"], [type="url"], [type="date"], [type="time"], [type="datetime-local"]),
+.modal__dialog input:not([type]),
+.sp-drawer-panel .select__trigger,
+.sp-drawer-panel .input,
+.sp-drawer-panel .textarea,
+.modal__dialog .select__trigger,
+.modal__dialog .input,
+.modal__dialog .textarea {
+  /* Contorno visível > o `default-200` pálido do HeroUI, que sumia no painel. */
+  border: 1px solid color-mix(in oklab, var(--color-line) 62%, rgba(26, 26, 26, 0.14));
+  border-radius: 10px;
+  background-color: var(--color-card);
+}
+
+/* Foco/aberto: borda primária + glow suave — reforça o alvo ativo. Não mexemos
+   no `outline` para o `*:focus-visible` global (navegação por teclado) seguir
+   valendo; o box-shadow aqui cobre também os estados do HeroUI (data-focused/
+   data-open), que não disparam :focus-visible no gatilho. */
+.sp-drawer-panel :is(select, textarea, input):focus,
+.sp-drawer-panel .select__trigger[data-focused="true"],
+.sp-drawer-panel .select__trigger[data-open="true"],
+.sp-drawer-panel .input[data-focused="true"],
+.modal__dialog :is(select, textarea, input):focus,
+.modal__dialog .select__trigger[data-focused="true"],
+.modal__dialog .select__trigger[data-open="true"],
+.modal__dialog .input[data-focused="true"] {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-ring);
+}
+
+/* Toque deliberado no gatilho do select (não abrir ao rolar/roçar a lista). */
+.sp-drawer-panel .select__trigger,
+.sp-drawer-panel select,
+.modal__dialog .select__trigger,
+.modal__dialog select {
+  touch-action: manipulation;
+}
+
+/* Mobile: alvos de toque confortáveis (~44-46px) e 16px de fonte para não
+   disparar o zoom automático do iOS. Vale para os campos nativos E HeroUI que
+   estão em drawer/modal — os drawers deste projeto NÃO usam `.modal__dialog`,
+   então a regra antiga só cobria modais; aqui cobrimos os drawers também. */
+@media (max-width: 639px) {
+  .sp-drawer-panel :is(select, textarea, input, .select__trigger, .input),
+  .modal__dialog :is(select, textarea, input, .select__trigger, .input) {
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  /* Botões-linha de escolha (opções em lista) confortáveis ao toque. */
+  .sp-drawer-panel :is(ul, ol) > li > button,
+  .sp-drawer-panel [role="listbox"] [role="option"] {
+    min-height: 44px;
+  }
+}
+
 /* Mobile: form/detail modals behave like full-screen right drawers. The motion
    lives on the container because react-aria keeps that element mounted through
    `data-exiting`, allowing the complete horizontal exit animation to play. */
@@ -303,6 +744,16 @@ h1, h2, h3, h4, h5, h6,
   from { background-color: rgba(0, 0, 0, 0.45); }
   to { background-color: rgba(0, 0, 0, 0); }
 }
+@keyframes settings-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 /* ── Sidebar (the hero surface) ──────────────────────────────────────────────
    Deep black with a barely-there top sheen so it reads as a crafted panel, not
@@ -317,6 +768,16 @@ h1, h2, h3, h4, h5, h6,
   );
   color: var(--sp-sidebar-fg);
   border-right: 1px solid var(--sp-sidebar-border);
+}
+
+/* Navbar flutuante (personalizável): margem vem do padding do wrapper no
+   DashboardLayout; aqui removemos a borda encostada e damos cantos + sombra. */
+.db-sidebar-floating {
+  border-right: none;
+  border: 1px solid var(--sp-sidebar-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
 }
 
 /* Active sidebar items use the same subtle surface at every menu level. */
@@ -355,14 +816,16 @@ h1, h2, h3, h4, h5, h6,
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* The mobile navigation drawer remains scrollable, but its scrollbar should
-   never occupy visual space when menu groups expand. */
-.db-sidebar-mobile .db-sidebar-scroll {
+/* A nav do sidebar continua rolável, mas sua barra NUNCA deve ocupar espaço
+   visual (desktop + mobile). Uma barra visível no sidebar parece um "segundo
+   scroll" ao lado da barra do conteúdo — é o que o usuário percebia. Cobre
+   Firefox (scrollbar-width), IE/Edge legado (-ms) e WebKit/Blink (::-webkit). */
+.db-sidebar-scroll {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
 }
 
-.db-sidebar-mobile .db-sidebar-scroll::-webkit-scrollbar {
+.db-sidebar-scroll::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
@@ -385,13 +848,69 @@ h1, h2, h3, h4, h5, h6,
     width: 100%;
   }
 
-  .mobile-page-content .card {
+  .mobile-page-content .card:not(.p-0) {
     border-radius: 18px;
+    padding: 0.75rem;
   }
 
-  .mobile-page-content .card__content {
+  .mobile-page-content .card__header,
+  .mobile-page-content .card__content,
+  .mobile-page-content .card__footer {
     min-width: 0;
-    padding: 1rem;
+  }
+
+  .mobile-page-content
+    :is(.card__header, .card__content, .card__footer):is(.p-4, .p-5, .p-6, .p-8):not(
+      [class*="px-"]
+    ) {
+    padding-inline: 0.75rem;
+  }
+
+  .mobile-page-content
+    :is(.card__header, .card__content, .card__footer):is(.p-4, .p-5, .p-6, .p-8):not(
+      [class*="py-"]
+    ) {
+    padding-block: 0.75rem;
+  }
+
+  .mobile-page-content
+    :is(.card__header, .card__content, .card__footer):is(.px-4, .px-5, .px-6) {
+    padding-inline: 0.75rem;
+  }
+
+  .mobile-page-content
+    :is(.card__header, .card__content, .card__footer):is(.py-4, .py-5, .py-6, .py-8) {
+    padding-block: 0.75rem;
+  }
+
+  /* Custom card surfaces use Tailwind padding utilities instead of HeroUI's
+     card slots. Keep one compact 12px inset on phones without changing their
+     content density, typography or desktop spacing. */
+  .mobile-page-content
+    :where(section, article, div, li, a)[class*="rounded-"][class*="border"]:is(
+      [class*="shadow-[var(--shadow-card)]"],
+      [class~="bg-card"],
+      [class~="bg-warm-white"]
+    ):is(.p-4, .p-5, .p-6, .p-8) {
+    padding: 0.75rem;
+  }
+
+  .mobile-page-content
+    :where(section, article, div, li, a)[class*="rounded-"][class*="border"]:is(
+      [class*="shadow-[var(--shadow-card)]"],
+      [class~="bg-card"],
+      [class~="bg-warm-white"]
+    ):is(.px-4, .px-5, .px-6) {
+    padding-inline: 0.75rem;
+  }
+
+  .mobile-page-content
+    :where(section, article, div, li, a)[class*="rounded-"][class*="border"]:is(
+      [class*="shadow-[var(--shadow-card)]"],
+      [class~="bg-card"],
+      [class~="bg-warm-white"]
+    ):is(.py-4, .py-5, .py-6, .py-8) {
+    padding-block: 0.75rem;
   }
 
   /* HeroUI's desktop breakpoint reduces controls to 36px. Phones keep the
@@ -486,9 +1005,12 @@ h1, h2, h3, h4, h5, h6,
   *::before,
   *::after {
     scroll-behavior: auto !important;
+    /* Corta animações keyframe decorativas (parallax, loops, autoplay), mas
+       PRESERVA as transições curtas de UI (drawers, filtros laterais, toggles)
+       — são feedback de interação, não movimento decorativo, e ficavam mortas
+       para quem tem "reduzir movimento" ligado no SO. */
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
 }
 

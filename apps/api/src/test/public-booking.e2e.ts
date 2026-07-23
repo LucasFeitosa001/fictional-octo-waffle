@@ -335,6 +335,7 @@ async function run() {
       'plan',
       'whatsapp',
       'googleEnabled',
+      'accentColor',
     ]);
     check('portal slug echoes request', portal.body?.slug === slug);
     check('portal name === "Salão de Studio Borboletas"', portal.body?.name === 'Salão de Studio Borboletas');
@@ -344,6 +345,7 @@ async function run() {
     check('portal plan null (no subscription)', portal.body?.plan === null);
     check('portal whatsapp null (no address)', portal.body?.whatsapp === null);
     check('portal googleEnabled is boolean', typeof portal.body?.googleEnabled === 'boolean');
+    check('portal accentColor null (not customized)', portal.body?.accentColor === null);
     check('portal open === true (all-day schedule)', portal.body?.open === true);
     check('portal todayHours.start === 00:00', portal.body?.todayHours?.start === '00:00');
 

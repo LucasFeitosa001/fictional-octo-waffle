@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react';
-import { IconCheck } from './icons';
+import { Checkbox } from '@heroui/react';
 
 /**
- * Checkbox VISUAL do modo de seleção. Entra com animação (scale + fade, 180ms)
- * quando o card passa a renderizá-lo ao entrar em selectMode — como monta junto
- * com a transição para o selectMode, a animação de entrada dispara no mount.
+ * Checkbox VISUAL do modo de seleção das TABELAS/LISTAS. Entra com animação
+ * (scale + fade, 180ms) quando o card passa a renderizá-lo ao entrar em
+ * selectMode — como monta junto com a transição para o selectMode, a animação
+ * de entrada dispara no mount.
  *
  * É só marca visual: NÃO tem onChange. O card inteiro faz o toggle (onClick no
- * card chama `toggle(id)`); este componente apenas reflete `checked`.
+ * card chama `toggle(id)`); este componente apenas reflete `checked`. Por isso
+ * o `Checkbox` do HeroUI v3 é renderizado como `isReadOnly` + `pointer-events-none`,
+ * pra o clique atravessar até o card sem o próprio checkbox interceptar/togglar.
+ *
+ * Construído sobre o `Checkbox` do HeroUI v3 (compound: Root + Content + Control
+ * + Indicator), mesmo padrão do `FilterCheckbox`. O `Checkbox.Indicator` sem
+ * children já renderiza o checkmark SVG do HeroUI.
+ *
+ * API PÚBLICA mantida idêntica à versão anterior (`checked` + `className`) pra
+ * nenhum call site precisar mudar.
  */
 export function AnimatedCheckbox({
   checked,
@@ -27,22 +37,23 @@ export function AnimatedCheckbox({
     <span
       aria-hidden
       className={[
-        'grid h-5 w-5 shrink-0 place-items-center rounded-md border transition-all duration-[180ms] ease-out will-change-transform',
+        'inline-grid shrink-0 place-items-center transition-all duration-[180ms] ease-out will-change-transform',
         entered ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
-        checked
-          ? 'border-primary bg-primary text-white'
-          : 'border-[var(--color-soft-border)] bg-white',
         className ?? '',
       ].join(' ')}
     >
-      <span
-        className={[
-          'transition-transform duration-150 ease-out',
-          checked ? 'scale-100' : 'scale-0',
-        ].join(' ')}
+      <Checkbox
+        isSelected={checked}
+        isReadOnly
+        aria-hidden
+        className="pointer-events-none"
       >
-        <IconCheck size={14} />
-      </span>
+        <Checkbox.Content>
+          <Checkbox.Control>
+            <Checkbox.Indicator />
+          </Checkbox.Control>
+        </Checkbox.Content>
+      </Checkbox>
     </span>
   );
 }

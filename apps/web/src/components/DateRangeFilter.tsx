@@ -1,82 +1,49 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { DatePicker, DateRangePicker } from './DatePicker';
 
 /**
- * Shared, brand-styled date inputs for filter bars.
+ * Shared, brand-styled date fields for filter bars and forms.
  *
- * The HeroUI v3 DatePicker renders broken inside compact filter bars, so we use
- * native `<input type="date">` elements styled with Tailwind to match the pink
- * Beautypass brand. Clean label, rounded border, accent focus ring, and a
- * consistent height so date filters line up with HeroUI Select/Input/Button.
+ * Todos usam o `DatePicker` reutilizável do projeto (popover no desktop,
+ * bottom-sheet no mobile, pt-BR). A API pública destes wrappers foi mantida
+ * (`value`/`onChange` em ISO "YYYY-MM-DD") para não quebrar os consumidores.
+ * As props `min`/`max` são aceitas por compatibilidade, mas hoje só servem de
+ * dica de ordenação; a validação real fica com quem monta o intervalo.
  */
 
-const fieldClass =
-  'h-11 w-full rounded-xl border border-default-200 bg-white px-3 text-base text-foreground sm:h-10 sm:text-sm ' +
-  'shadow-sm outline-none transition-colors ' +
-  'focus:border-gold focus:ring-2 focus:ring-gold/30 ' +
-  '[color-scheme:light] [&::-webkit-calendar-picker-indicator]:cursor-pointer ' +
-  '[&::-webkit-calendar-picker-indicator]:opacity-60 ' +
-  'hover:[&::-webkit-calendar-picker-indicator]:opacity-100';
+const wrapClass = 'w-full sm:w-auto sm:min-w-[10.5rem]';
 
-/** A single labelled native date input. */
+/** Campo de data única (label + DatePicker). Valor de entrada/saída em ISO. */
 export function DateField({
   label,
   value,
   onChange,
-  min,
-  max,
   className,
 }: {
   label?: string;
   value: string;
   onChange: (value: string) => void;
+  /** Aceitos por compat.; não usados como restrição hard. */
   min?: string;
   max?: string;
   className?: string;
 }) {
   return (
-    <label className={`flex w-full flex-col gap-1 sm:w-auto sm:min-w-[9.5rem] ${className ?? ''}`}>
-      {label && (
-        <span className="text-xs font-medium text-muted">{label}</span>
-      )}
-      <input
-        type="date"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-        className={fieldClass}
-      />
-    </label>
+    <DatePicker
+      label={label}
+      value={value}
+      onChange={onChange}
+      ariaLabel={label}
+      className={`${wrapClass} ${className ?? ''}`}
+    />
   );
 }
 
-// ── pt-BR date field (dd/mm/aaaa) ─────────────────────────────────────────────
-// O <input type="date"> nativo mostra o formato do NAVEGADOR (às vezes mm/dd/aaaa).
-// Este campo mascarado garante dd/mm/aaaa sempre, convertendo de/para ISO (YYYY-MM-DD).
-
-function isoToBr(iso?: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
-}
-
-function brToIso(br: string): string | null {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(br);
-  if (!m) return null;
-  const [, dd, mm, yyyy] = m;
-  const d = Number(dd), mo = Number(mm);
-  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function maskBr(digits: string): string {
-  const d = digits.replace(/\D/g, '').slice(0, 8);
-  if (d.length > 4) return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
-  if (d.length > 2) return `${d.slice(0, 2)}/${d.slice(2)}`;
-  return d;
-}
-
-/** Campo de data pt-BR (dd/mm/aaaa) — valor de entrada/saída em ISO (YYYY-MM-DD). */
+/**
+ * Campo de data pt-BR. Antes era um input mascarado (dd/mm/aaaa); agora usa o
+ * `DatePicker` — o formato pt-BR já é garantido pelo calendário. Mantido como
+ * alias de `DateField` para os consumidores existentes.
+ */
 export function DateFieldBR({
   label,
   value,
@@ -88,36 +55,15 @@ export function DateFieldBR({
   onChange: (isoValue: string) => void;
   className?: string;
 }) {
-  const [text, setText] = useState(() => isoToBr(value));
-  // Ressincroniza quando o valor externo muda (ex.: abrir para editar).
-  useEffect(() => {
-    setText(isoToBr(value));
-  }, [value]);
-
-  function handle(raw: string) {
-    const masked = maskBr(raw);
-    setText(masked);
-    if (masked === '') {
-      onChange('');
-      return;
-    }
-    const iso = brToIso(masked);
-    if (iso) onChange(iso);
-  }
-
   return (
-    <label className={`flex w-full flex-col gap-1 sm:w-auto sm:min-w-[9.5rem] ${className ?? ''}`}>
-      {label && <span className="text-xs font-medium text-muted">{label}</span>}
-      <input
-        type="text"
-        inputMode="numeric"
-        placeholder="dd/mm/aaaa"
-        value={text}
-        onChange={(e) => handle(e.target.value)}
-        aria-label={label}
-        className={fieldClass}
-      />
-    </label>
+    <DatePicker
+      label={label}
+      value={value}
+      onChange={onChange}
+      ariaLabel={label}
+      placeholder="dd/mm/aaaa"
+      className={`${wrapClass} ${className ?? ''}`}
+    />
   );
 }
 
@@ -141,46 +87,44 @@ export function MonthField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className={fieldClass}
+        className={
+          'h-11 w-full rounded-xl border border-default-200 bg-white px-3 text-base text-foreground sm:h-10 sm:text-sm ' +
+          'shadow-sm outline-none transition-colors focus:border-gold focus:ring-2 focus:ring-gold/30 [color-scheme:light]'
+        }
       />
     </label>
   );
 }
 
 /**
- * A two-input "from → to" date range, used in dashboards and report headers.
- * Exposes `from`/`to` as YYYY-MM-DD strings.
+ * A "from → to" date range, used in dashboards and report headers. Agora um
+ * único `DateRangePicker` com presets (Hoje, Mês passado…). Expõe
+ * `from`/`to` como strings ISO "YYYY-MM-DD".
  */
 export function DateRangeFilter({
   from,
   to,
   onChange,
-  fromLabel = 'De',
-  toLabel = 'Até',
+  fromLabel,
   className,
 }: {
   from: string;
   to: string;
   onChange: (next: { from: string; to: string }) => void;
+  /** Rótulo do campo. `toLabel` mantido por compat., mas não usado. */
   fromLabel?: string;
   toLabel?: string;
   className?: string;
 }) {
   return (
-    <div className={`flex flex-wrap items-end gap-3 ${className ?? ''}`}>
-      <DateField
-        label={fromLabel}
-        value={from}
-        max={to || undefined}
-        onChange={(v) => onChange({ from: v, to })}
-      />
-      <DateField
-        label={toLabel}
-        value={to}
-        min={from || undefined}
-        onChange={(v) => onChange({ from, to: v })}
-      />
-    </div>
+    <DateRangePicker
+      label={fromLabel}
+      from={from}
+      to={to}
+      onChange={onChange}
+      ariaLabel="Período"
+      className={`${wrapClass} ${className ?? ''}`}
+    />
   );
 }
 

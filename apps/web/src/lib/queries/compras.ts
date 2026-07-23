@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 import type { Paginated } from '../types';
 
 // =====================================================================
@@ -135,6 +136,7 @@ export function useCreatePurchase() {
       qc.invalidateQueries({ queryKey: ['purchases'] });
       // A compra dá entrada no estoque: invalida produtos também.
       qc.invalidateQueries({ queryKey: ['products'] });
+      toastSuccess('Compra registrada');
     },
   });
 }
@@ -148,6 +150,7 @@ export function useUpdatePurchase() {
       qc.invalidateQueries({ queryKey: ['purchases'] });
       qc.invalidateQueries({ queryKey: ['purchase', vars.id] });
       qc.invalidateQueries({ queryKey: ['products'] });
+      toastSuccess('Compra salva');
     },
   });
 }
@@ -160,6 +163,7 @@ export function useDeletePurchase() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchases'] });
       qc.invalidateQueries({ queryKey: ['products'] });
+      toastSuccess('Compra excluída');
     },
   });
 }

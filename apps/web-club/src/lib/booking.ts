@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   useMutation,
   useQuery,
@@ -45,6 +46,32 @@ export function usePortal(slug: string) {
     queryFn: () => api.get<Portal>(paths.portal),
     enabled: !!slug,
   });
+}
+
+// A valid "#RRGGBB" (case-insensitive), or null.
+const HEX_COLOR = /^#([0-9a-fA-F]{6})$/;
+
+/**
+ * Themes the whole booking flow with the salon's accent color. Resolves the
+ * portal from the slug and writes `--booking-accent` onto <html> so every
+ * derived tone (buttons, active chips, highlights) recomputes from it. Falls
+ * back to the house pink when the salon hasn't customized it, and restores the
+ * default on unmount so a slug switch never leaks the previous salon's color.
+ */
+export function useBookingAccent(slug: string) {
+  const portal = usePortal(slug);
+  const accent = portal.data?.accentColor ?? null;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (accent && HEX_COLOR.test(accent)) {
+      root.style.setProperty('--booking-accent', accent);
+    } else {
+      root.style.removeProperty('--booking-accent');
+    }
+    return () => {
+      root.style.removeProperty('--booking-accent');
+    };
+  }, [accent]);
 }
 
 export function useServices(slug: string) {

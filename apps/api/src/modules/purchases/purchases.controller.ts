@@ -12,14 +12,19 @@ import {
 import { PurchasesService } from './purchases.service';
 import { CreatePurchaseDto, UpdatePurchaseDto } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+// RBAC: compras alimentam o estoque. Leitura usa catalogo:view; entradas/edições
+// de compra (que mexem no estoque) exigem estoque:manage.
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('purchases')
 export class PurchasesController {
   constructor(private readonly service: PurchasesService) {}
 
   @Get()
+  @RequirePermission('catalogo:view')
   list(
     @CurrentUser('companyId') companyId: string,
     @Query('search') search?: string,
@@ -32,11 +37,13 @@ export class PurchasesController {
    * Fica antes de :id para não ser capturada pela rota de detalhe.
    */
   @Get('xmls')
+  @RequirePermission('catalogo:view')
   listXmls(@CurrentUser('companyId') companyId: string) {
     return this.service.listXmls(companyId);
   }
 
   @Get(':id')
+  @RequirePermission('catalogo:view')
   findOne(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -45,6 +52,7 @@ export class PurchasesController {
   }
 
   @Post()
+  @RequirePermission('estoque:manage')
   create(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreatePurchaseDto,
@@ -53,6 +61,7 @@ export class PurchasesController {
   }
 
   @Patch(':id')
+  @RequirePermission('estoque:manage')
   update(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -62,6 +71,7 @@ export class PurchasesController {
   }
 
   @Delete(':id')
+  @RequirePermission('estoque:manage')
   remove(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,

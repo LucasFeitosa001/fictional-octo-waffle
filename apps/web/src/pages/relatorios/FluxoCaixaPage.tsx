@@ -13,14 +13,13 @@ import { LoadingState } from '../../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
-  IconCalendar,
-  IconChevron,
   IconDownload,
   IconWallet,
 } from '../../components/icons';
 import { formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useFinancialSummary } from '../../lib/queries/financeiro';
+import { DateRangePicker } from '../../components/DatePicker';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { FinancialReportShell } from './reportNav';
 import { COLOR_GREEN, COLOR_RED, shortDay } from './reportShared';
@@ -103,26 +102,13 @@ export function FluxoCaixaPage() {
       {/* Período */}
       <div className="mb-4 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
         <span className="mb-1.5 block text-sm text-ink">Período</span>
-        <div className="flex h-11 w-full max-w-md items-center gap-2 rounded-xl border border-line bg-card px-3 text-sm text-ink focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/30">
-          <input
-            type="date"
-            value={range.from}
-            max={range.to || undefined}
-            onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-            aria-label="Data inicial"
-            className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-          />
-          <IconChevron size={14} className="shrink-0 -rotate-90 text-muted-ink" />
-          <input
-            type="date"
-            value={range.to}
-            min={range.from || undefined}
-            onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-            aria-label="Data final"
-            className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-          />
-          <IconCalendar size={16} className="shrink-0 text-muted-ink" />
-        </div>
+        <DateRangePicker
+          from={range.from}
+          to={range.to}
+          onChange={setRange}
+          ariaLabel="Período"
+          className="max-w-md"
+        />
       </div>
 
       {query.isLoading ? (
@@ -155,7 +141,7 @@ export function FluxoCaixaPage() {
             </div>
             <div className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
               <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/15 text-gold-strong">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--sp-data-balance-soft)] text-data-balance">
                   <IconWallet size={18} />
                 </span>
                 <span className="text-sm font-medium text-ink">Saldo</span>
@@ -237,7 +223,7 @@ export function FluxoCaixaPage() {
                     {rows.map((r) => (
                       <tr
                         key={r.date}
-                        className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                        className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                       >
                         <td className="px-5 py-3 font-medium text-ink">{shortDay(r.date)}</td>
                         <td className="px-5 py-3 text-right text-success">

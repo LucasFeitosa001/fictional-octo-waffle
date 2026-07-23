@@ -2,14 +2,24 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json';
 
 export default defineConfig({
+  define: {
+    // Versão do app = fonte única em package.json. Bumpar lá atualiza tudo.
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      // Registra o service worker também no DEV server. Sem isto o PWA só é
+      // instalável no build de produção; com isto o app já fica instalável pelo
+      // dev/túnel — dá pra testar "Instalar app" no Android/Samsung via
+      // trycloudflare (HTTPS + SW + manifest = critérios de instalabilidade).
+      devOptions: { enabled: true, type: 'module' },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
@@ -40,8 +50,8 @@ export default defineConfig({
       // (dois manifests conflitavam e a barra do browser ficava indefinida).
       manifest: {
         id: '/',
-        name: 'Salonpass Gestão',
-        short_name: 'Salonpass',
+        name: 'Salonpass Pro',
+        short_name: 'Salonpass Pro',
         description: 'Gestão completa do seu salão de beleza — agenda, comandas, financeiro e clientes.',
         lang: 'pt-BR',
         dir: 'ltr',

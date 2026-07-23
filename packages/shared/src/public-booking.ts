@@ -40,6 +40,13 @@ export interface BookingPortal {
    * credentials configured) → the client shows the Google sign-in button.
    */
   googleEnabled: boolean;
+  /**
+   * Salon brand accent color for the booking flow, as a "#RRGGBB" hex. `null`
+   * when the salon hasn't customized it → the client falls back to the house
+   * default (pink). Applied as a CSS variable so buttons, active steps and
+   * time chips take on the salon's color.
+   */
+  accentColor: string | null;
 }
 
 /** Online-bookable service. `price` is a Prisma Decimal serialized as a string. */

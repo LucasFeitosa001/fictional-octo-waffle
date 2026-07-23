@@ -1,12 +1,17 @@
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum CommissionScopeTypeDto {
   service = 'service',
@@ -63,8 +68,48 @@ export class UpdateCommissionEntryDto {
 
 export class CreateCommissionPaymentDto {
   @IsString() professionalId: string;
-  @IsNumber() @Min(0) amount: number;
-  /** entries to mark as paid in the same operation */
-  @IsOptional() entryIds?: string[];
+  /**
+   * Entries a quitar. Se omitido/vazio, o service pega TODAS as entries `open`
+   * do profissional (respeitando o filtro de período/closing).
+   */
+  @IsOptional() @IsArray() @IsString({ each: true }) entryIds?: string[];
+  /**
+   * Vales a descontar. Se omitido/vazio, o service desconta TODOS os vales
+   * `open` do profissional.
+   */
+  @IsOptional() @IsArray() @IsString({ each: true }) advanceIds?: string[];
   @IsOptional() @IsString() closingId?: string;
+  @IsOptional() @IsString() note?: string;
+}
+
+/** Um item do pagamento em lote (um por profissional). */
+export class BulkPaymentItemDto {
+  @IsString() professionalId: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) entryIds?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) advanceIds?: string[];
+  @IsOptional() @IsString() note?: string;
+}
+
+export class BulkCommissionPaymentDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => BulkPaymentItemDto)
+  items: BulkPaymentItemDto[];
+
+  @IsOptional() @IsString() closingId?: string;
+}
+
+// ---- Vales (adiantamentos) ----
+export class CreateCommissionAdvanceDto {
+  @IsString() professionalId: string;
+  @IsNumber() @Min(0) amount: number;
+  /** ISO date; default = agora */
+  @IsOptional() @IsString() date?: string;
+  @IsOptional() @IsString() note?: string;
+}
+
+// ---- Exclusão (estorno) de pagamento ----
+export class DeleteCommissionPaymentDto {
+  @IsString() @IsNotEmpty() justification: string;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
   Button,
@@ -8,12 +9,14 @@ import {
   ListBox,
   Select,
   Spinner,
-  Switch,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { DatePicker } from '../components/DatePicker';
 import { Drawer } from '../components/Drawer';
+import { SwitchRow } from '../components/SwitchRow';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { AppTabs } from '../components/AppTabs';
 import { useConfirm } from '../components/ConfirmDialog';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
@@ -28,17 +31,20 @@ import {
   IconInfo,
   IconLayers,
   IconLink,
+  IconMegaphone,
   IconMessage,
   IconPencil,
   IconPlus,
   IconReceipt,
   IconTrash,
   IconWallet,
+  IconWhatsApp,
   IconX,
 } from '../components/icons';
 import { formatDate, formatDateTime, formatMoney, initials, toDateInput } from '../lib/format';
 import { useUploadImage } from '../hooks/useUploadImage';
-import { useCustomers } from '../lib/queries';
+import { NewAppointmentModal } from '../components/NewAppointmentModal';
+import { useCustomers, useCreateOrder } from '../lib/queries';
 import {
   useAdjustCashback,
   useCreateAnamnesis,
@@ -72,6 +78,7 @@ import {
   type AnamnesisQuestion,
   type AnamnesisTemplate,
 } from '../lib/queries/anamnese';
+import { useCustomerInteractions } from '../lib/queries/interacoes';
 import type { CustomerDebt, CustomerFull } from '../lib/types';
 
 // =====================================================================
@@ -105,39 +112,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <h3 className="mt-1 text-sm font-semibold uppercase tracking-wide text-[#a97e18]">
       {children}
     </h3>
-  );
-}
-
-function ToggleRow({
-  label,
-  hint,
-  help,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  help?: React.ReactNode;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <Switch
-      isSelected={checked}
-      onChange={onChange}
-      className="flex w-full items-center justify-between gap-3 py-1.5"
-    >
-      <span className="min-w-0 text-sm text-foreground">
-        <span className="inline-flex items-center">
-          {label}
-          {help && <HelpTooltip>{help}</HelpTooltip>}
-        </span>
-        {hint && <span className="block text-xs text-muted">{hint}</span>}
-      </span>
-      <Switch.Control>
-        <Switch.Thumb />
-      </Switch.Control>
-    </Switch>
   );
 }
 
@@ -505,13 +479,7 @@ function CustomerForm({
             </TextField>
           </Field>
           <Field label="Aniversário">
-            <input
-              type="date"
-              value={birthday}
-              onChange={(e) => setBirthday(e.target.value)}
-              aria-label="Aniversário"
-              className="w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
-            />
+            <DatePicker value={birthday} onChange={setBirthday} ariaLabel="Aniversário" />
           </Field>
           <Field label="CPF">
             <TextField value={cpf} onChange={setCpf} aria-label="CPF">
@@ -545,21 +513,42 @@ function CustomerForm({
           </Field>
         </div>
         <div className="divide-y divide-[var(--color-soft-border)] rounded-lg border border-[var(--color-soft-border)] bg-white px-3">
-          <ToggleRow
+          <SwitchRow
             label="Receber notificações"
             checked={notificationsEnabled}
             onChange={setNotificationsEnabled}
+            className="py-1.5"
           />
-          <ToggleRow label="WhatsApp" checked={whatsappOptIn} onChange={setWhatsappOptIn} />
-          <ToggleRow label="SMS" checked={smsOptIn} onChange={setSmsOptIn} />
-          <ToggleRow
-            label="Bloquear acesso online"
-            hint="Impede login/agendamento online"
-            help="Cliente não consegue entrar no app nem agendar pela internet"
+          <SwitchRow
+            label="WhatsApp"
+            checked={whatsappOptIn}
+            onChange={setWhatsappOptIn}
+            className="py-1.5"
+          />
+          <SwitchRow
+            label="SMS"
+            checked={smsOptIn}
+            onChange={setSmsOptIn}
+            className="py-1.5"
+          />
+          <SwitchRow
+            label={
+              <span className="inline-flex items-center">
+                Bloquear acesso online
+                <HelpTooltip>Cliente não consegue entrar no app nem agendar pela internet</HelpTooltip>
+              </span>
+            }
+            description="Impede login/agendamento online"
             checked={onlineAccessBlocked}
             onChange={setOnlineAccessBlocked}
+            className="py-1.5"
           />
-          <ToggleRow label="Ativo" checked={active} onChange={setActive} />
+          <SwitchRow
+            label="Ativo"
+            checked={active}
+            onChange={setActive}
+            className="py-1.5"
+          />
         </div>
       </div>
 
@@ -1068,13 +1057,7 @@ function DebitosTab({ customerId }: { customerId: string }) {
                 </TextField>
               </Field>
               <Field label="Vencimento" className="min-w-0">
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  aria-label="Vencimento"
-                  className="w-full min-w-0 rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
-                />
+                <DatePicker value={dueDate} onChange={setDueDate} ariaLabel="Vencimento" />
               </Field>
             </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1591,6 +1574,7 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 };
 
 function VendasTab({ customerId }: { customerId: string }) {
+  const navigate = useNavigate();
   const q = useCustomerOrders(customerId);
 
   if (q.isLoading) return <LoadingState />;
@@ -1611,8 +1595,22 @@ function VendasTab({ customerId }: { customerId: string }) {
           {list.map((o) => {
             const canceled = o.status === 'canceled';
             const finished = o.status === 'finished';
+            const openOrder = () => navigate(`/comandas/${o.id}`);
             return (
-              <Card key={o.id} className="border border-[var(--color-soft-border)] bg-white">
+              <Card
+                key={o.id}
+                role="button"
+                tabIndex={0}
+                onClick={openOrder}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openOrder();
+                  }
+                }}
+                aria-label={`Abrir comanda #${o.number}`}
+                className="cursor-pointer border border-[var(--color-soft-border)] bg-white transition-colors hover:border-[var(--sp-primary)] hover:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sp-primary)]"
+              >
                 <Card.Content className="flex flex-col gap-2 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -2174,16 +2172,12 @@ function AnswerField({
 
   if (question.type === 'boolean') {
     return (
-      <Switch
-        isSelected={value === true}
+      <SwitchRow
+        label={question.label}
+        checked={value === true}
         onChange={onChange}
-        className="flex w-full items-center justify-between gap-3 py-1"
-      >
-        <span className="min-w-0 text-sm text-foreground">{question.label}</span>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-      </Switch>
+        className="py-1"
+      />
     );
   }
 
@@ -2213,7 +2207,7 @@ export function CustomerCreateModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Novo cliente"
-      widthClass="sm:w-[83vw] sm:max-w-[1200px]"
+      widthClass="sm:w-[760px]"
     >
       {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
     </Drawer>
@@ -2466,24 +2460,145 @@ function ImagensTab({ customerId }: { customerId: string }) {
 }
 
 // =====================================================================
+// Aba Mensagens — timeline de interações (WhatsApp / campanhas)
+// =====================================================================
+
+// Rótulos legíveis do `kind` da mensagem (mesma convenção do backend/Belasis).
+const INTERACTION_KIND_LABEL: Record<string, string> = {
+  reminder: 'Lembrete',
+  confirmation: 'Confirmação',
+  cancellation: 'Cancelamento',
+  followup: 'Follow-up',
+  campaign: 'Campanha',
+  invite: 'Convite',
+  manager: 'Aviso à equipe',
+  manual: 'Manual',
+};
+
+function interactionKindLabel(kind: string | null): string {
+  if (!kind) return 'Mensagem';
+  return INTERACTION_KIND_LABEL[kind] ?? kind;
+}
+
+// Status de envio → rótulo + cor do Chip (outbox: pending/sent/failed; campanha:
+// queued/skipped/pending/sent/failed). Desconhecidos caem em "default".
+const INTERACTION_STATUS: Record<
+  string,
+  { label: string; color: 'success' | 'danger' | 'warning' | 'default' }
+> = {
+  sent: { label: 'Enviado', color: 'success' },
+  delivered: { label: 'Entregue', color: 'success' },
+  failed: { label: 'Falha', color: 'danger' },
+  pending: { label: 'Pendente', color: 'warning' },
+  queued: { label: 'Na fila', color: 'warning' },
+  skipped: { label: 'Ignorado', color: 'default' },
+};
+
+function interactionStatus(status: string): {
+  label: string;
+  color: 'success' | 'danger' | 'warning' | 'default';
+} {
+  return INTERACTION_STATUS[status] ?? { label: status, color: 'default' };
+}
+
+// Janela de paginação (offset). O backend ordena por data desc e pagina.
+const INTERACTIONS_PAGE = 50;
+
+function MensagensTab({ customerId }: { customerId: string }) {
+  const [limit, setLimit] = useState(INTERACTIONS_PAGE);
+  const q = useCustomerInteractions(customerId, { limit });
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
+  const data = q.data;
+  const items = data?.data ?? [];
+  const total = data?.total ?? 0;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SectionTitle>Mensagens</SectionTitle>
+      {items.length === 0 ? (
+        <EmptyState
+          icon={<IconMessage size={28} />}
+          title="Nenhuma mensagem"
+          description="As mensagens enviadas a este cliente aparecerão aqui."
+        />
+      ) : (
+        <>
+          <div className="flex flex-col gap-2">
+            {items.map((m) => {
+              const st = interactionStatus(m.status);
+              const isCampaign = m.channel === 'campaign';
+              return (
+                <Card key={m.id} className="border border-[var(--color-soft-border)] bg-white">
+                  <Card.Content className="flex gap-3 p-3">
+                    <span
+                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fdf7e8] text-[#a97e18]"
+                      aria-hidden
+                    >
+                      {isCampaign ? (
+                        <IconMegaphone size={16} />
+                      ) : (
+                        <IconWhatsApp size={16} />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">
+                          {interactionKindLabel(m.kind)}
+                        </span>
+                        <Chip variant="soft" color={st.color} size="sm">
+                          {st.label}
+                        </Chip>
+                        <span className="ml-auto text-xs text-muted">
+                          {formatDateTime(m.at)}
+                        </span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
+                        {m.text}
+                      </p>
+                    </div>
+                  </Card.Content>
+                </Card>
+              );
+            })}
+          </div>
+          {items.length < total && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-center"
+              isDisabled={q.isFetching}
+              onClick={() => setLimit((l) => l + INTERACTIONS_PAGE)}
+            >
+              {q.isFetching ? 'Carregando…' : 'Carregar mais'}
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
 // Modal de perfil com abas
 // =====================================================================
 
 // Menu interno lateral do perfil — ordem e rótulos 1:1 com o Belasis.
-const PERFIL_MENU: { id: string; label: string }[] = [
-  { id: 'cadastro', label: 'Cadastro' },
-  { id: 'painel', label: 'Painel' },
-  { id: 'debitos', label: 'Débitos' },
-  { id: 'creditos', label: 'Créditos' },
-  { id: 'cashback', label: 'Cashback' },
-  { id: 'agendamentos', label: 'Agendamentos' },
-  { id: 'vendas', label: 'Vendas' },
-  { id: 'pacotes', label: 'Pacotes' },
-  { id: 'mensagens', label: 'Mensagens' },
-  { id: 'anotacoes', label: 'Anotações' },
-  { id: 'imagens', label: 'Imagens e Arquivos' },
-  { id: 'anamneses', label: 'Anamneses' },
-  { id: 'assinaturas', label: 'Vendas por Assinatura' },
+const PERFIL_MENU: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: 'cadastro', label: 'Cadastro', icon: <IconPencil size={16} /> },
+  { id: 'painel', label: 'Painel', icon: <IconInfo size={16} /> },
+  { id: 'debitos', label: 'Débitos', icon: <IconCash size={16} /> },
+  { id: 'creditos', label: 'Créditos', icon: <IconWallet size={16} /> },
+  { id: 'cashback', label: 'Cashback', icon: <IconGift size={16} /> },
+  { id: 'agendamentos', label: 'Agendamentos', icon: <IconCalendar size={16} /> },
+  { id: 'vendas', label: 'Vendas', icon: <IconReceipt size={16} /> },
+  { id: 'pacotes', label: 'Pacotes', icon: <IconLayers size={16} /> },
+  { id: 'mensagens', label: 'Mensagens', icon: <IconMessage size={16} /> },
+  { id: 'anotacoes', label: 'Anotações', icon: <IconPencil size={16} /> },
+  { id: 'imagens', label: 'Imagens e Arquivos', icon: <IconFolder size={16} /> },
+  { id: 'anamneses', label: 'Anamneses', icon: <IconInfo size={16} /> },
+  { id: 'assinaturas', label: 'Vendas por Assinatura', icon: <IconLayers size={16} /> },
 ];
 
 export function ClientePerfilModal({
@@ -2495,33 +2610,78 @@ export function ClientePerfilModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('cadastro');
+  const [apptOpen, setApptOpen] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const createOrder = useCreateOrder();
   const panel = useCustomerPanel(isOpen && customer ? customer.id : null);
 
   useEffect(() => {
-    if (isOpen) setTab('cadastro');
+    if (isOpen) {
+      setTab('cadastro');
+      setApptOpen(false);
+      setOrderError(null);
+    }
   }, [isOpen, customer?.id]);
 
   // Prefere o customer com relações (tags/dependentes) vindo do /panel.
   const full = panel.data?.customer ?? customer;
+
+  // Cliente pré-selecionado passado ao NewAppointmentModal — evita re-busca no
+  // picker: reaproveita os dados que já temos em mãos aqui no perfil.
+  const initialCustomer = customer
+    ? { id: customer.id, name: customer.name, phone: customer.phone ?? null }
+    : null;
+
+  // "Nova comanda" — abre uma comanda já vinculada ao cliente e navega direto
+  // para /comandas/:id (mesmo shell criado pelo CreateDrawer, só que com o
+  // customerId pré-preenchido). Fecha o perfil ao concluir.
+  async function handleNovaComanda() {
+    if (!customer || createOrder.isPending) return;
+    setOrderError(null);
+    try {
+      const order = await createOrder.mutateAsync({ customerId: customer.id });
+      onClose();
+      navigate(`/comandas/${order.id}`);
+    } catch (err) {
+      setOrderError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível abrir a comanda.',
+      );
+    }
+  }
 
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title={customer?.name ?? 'Cliente'}
-      widthClass="sm:w-[83vw] sm:max-w-[1200px]"
+      widthClass="sm:w-[760px]"
     >
+      {/* Fluxo cliente→agendamento: reaproveita o mesmo modal da Agenda, já com
+          o cliente pré-selecionado. Ao criar comanda por lá, navega e fecha. */}
+      <NewAppointmentModal
+        isOpen={apptOpen}
+        onOpenChange={setApptOpen}
+        initialCustomer={initialCustomer}
+        onCreatedOrder={(orderId) => {
+          setApptOpen(false);
+          onClose();
+          navigate(`/comandas/${orderId}`);
+        }}
+      />
       {customer && (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Avatar size="md">
               {customer.avatarUrl && (
                 <Avatar.Image src={customer.avatarUrl} alt={customer.name} />
               )}
               <Avatar.Fallback>{initials(customer.name ?? '?')}</Avatar.Fallback>
             </Avatar>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="truncate text-base font-semibold text-ink">
                 {customer.name}
               </div>
@@ -2530,30 +2690,45 @@ export function ClientePerfilModal({
               )}
             </div>
             {panel.isFetching && <Spinner size="sm" />}
+            {/* Ações rápidas: iniciar agendamento ou comanda já com o cliente. */}
+            <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+              <Button
+                variant="primary"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                onClick={() => {
+                  setOrderError(null);
+                  setApptOpen(true);
+                }}
+              >
+                <IconCalendar size={14} /> Agendar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                isDisabled={createOrder.isPending}
+                onClick={handleNovaComanda}
+              >
+                <IconReceipt size={14} />{' '}
+                {createOrder.isPending ? 'Abrindo…' : 'Nova comanda'}
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
-            {/* Menu interno lateral */}
-            <nav
-              aria-label="Seções do cliente"
-              className="flex shrink-0 gap-1 overflow-x-auto border-b border-line pb-2 sm:w-[173px] sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
-            >
-              {PERFIL_MENU.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setTab(m.id)}
-                  aria-current={tab === m.id ? 'page' : undefined}
-                  className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    tab === m.id
-                      ? 'bg-gold font-medium text-primary-foreground'
-                      : 'text-ink hover:bg-canvas'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </nav>
+          {orderError && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {orderError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-4">
+            <AppTabs
+              items={PERFIL_MENU}
+              selectedKey={tab}
+              onSelectionChange={setTab}
+              ariaLabel="Seções do cliente"
+            />
 
             {/* Conteúdo da seção ativa */}
             <div className="min-w-0 flex-1">
@@ -2567,16 +2742,7 @@ export function ClientePerfilModal({
               {tab === 'agendamentos' && <AgendamentosTab customerId={customer.id} />}
               {tab === 'vendas' && <VendasTab customerId={customer.id} />}
               {tab === 'pacotes' && <PacotesTab customerId={customer.id} />}
-              {tab === 'mensagens' && (
-                <div className="flex flex-col gap-3">
-                  <SectionTitle>Mensagens</SectionTitle>
-                  <EmptyState
-                    icon={<IconMessage size={28} />}
-                    title="Nenhuma mensagem"
-                    description="As mensagens enviadas a este cliente aparecerão aqui."
-                  />
-                </div>
-              )}
+              {tab === 'mensagens' && <MensagensTab customerId={customer.id} />}
               {tab === 'anotacoes' && <AnotacoesTab customerId={customer.id} />}
               {tab === 'imagens' && <ImagensTab customerId={customer.id} />}
               {tab === 'anamneses' && <AnamnesesTab customerId={customer.id} />}

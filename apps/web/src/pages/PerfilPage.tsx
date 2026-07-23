@@ -1,3 +1,14 @@
+/*
+ * ⚠️ PÁGINA LEGADA (edição de perfil antiga).
+ *
+ * A edição de dados de perfil (nome, e-mail, senha, foto, notificações) migrou
+ * para o fluxo moderno `MinhaContaDrawer`, aberto tanto pelo dropdown do
+ * Sidebar (desktop) quanto pela tela de Configurações (mobile + aba Admin).
+ *
+ * A rota `/perfil` (App.tsx) ainda existe, mas NENHUM link do app aponta mais
+ * para cá — os antigos links em ConfiguracoesPage foram trocados pelo drawer.
+ * Candidata a remoção assim que confirmarmos que nada mais depende dela.
+ */
 import { useEffect, useState } from 'react';
 import { Button, Card, Input, Spinner, TextField } from '@heroui/react';
 import { useLocation } from 'react-router-dom';

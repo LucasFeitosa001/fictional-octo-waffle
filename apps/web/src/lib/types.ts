@@ -367,6 +367,22 @@ export interface AvailabilityResponse {
   slots: AvailabilitySlot[];
 }
 
+/**
+ * Aviso PERSONALIZADO ao cliente agendado a partir do drawer ("Avisar o
+ * cliente"). Distinto do lembrete fixo 24h/2h: mensagem/template + tempo + link
+ * configuráveis. O tempo é `delayValue` + `delayUnit` (segundos → dias), ancorado
+ * por `when` (from_now = agora+delay; before = início−delay; after = fim+delay).
+ */
+export interface AppointmentFollowUpInput {
+  enabled: boolean;
+  message?: string;
+  templateId?: string;
+  delayValue: number;
+  delayUnit: 'seconds' | 'minutes' | 'hours' | 'days';
+  when?: 'before' | 'after' | 'from_now';
+  includeLink?: boolean;
+}
+
 /** Body for POST /appointments. The backend computes end + pricing. */
 export interface CreateAppointmentBody {
   customerId?: string;
@@ -375,6 +391,7 @@ export interface CreateAppointmentBody {
   end?: string;
   notes?: string;
   items?: { serviceId: string; professionalId?: string }[];
+  followUp?: AppointmentFollowUpInput;
 }
 
 // =====================================================================

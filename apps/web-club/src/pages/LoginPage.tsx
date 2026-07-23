@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Input, Label, TextField } from '@heroui/react';
 import { ArrowLeft } from '@gravity-ui/icons';
 import { signIn, signUp } from '../lib/auth';
+import { SalonBrand } from '../components/SalonBrand';
 
 // A phone (WhatsApp) is required on sign-up so confirmations/reminders can reach
 // the customer. Brazilian numbers carry at least a DDD + number (10 digits).
@@ -21,7 +22,7 @@ function isValidPhone(value: string): boolean {
  * app and re-reads /get-session with the cookie present. (Google OAuth already
  * reloads via its callbackURL redirect, so this makes both paths consistent.)
  */
-export function LoginPage({ backTo }: { backTo: string }) {
+export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
   const navigate = useNavigate();
   const location = useLocation();
   // Booking step 3 deep-links here in "signup" mode via router state.
@@ -106,11 +107,13 @@ export function LoginPage({ backTo }: { backTo: string }) {
           >
             <ArrowLeft width={22} height={22} />
           </button>
-          <img
-            src="/brand/salonpass-wordmark-white.svg"
-            alt="Salonpass"
-            className="h-6 w-auto sm:h-7"
-          />
+          {slug ? (
+            <SalonBrand slug={slug} />
+          ) : (
+            <span className="font-brand text-base font-semibold text-white sm:text-lg">
+              Agendamento
+            </span>
+          )}
         </div>
       </header>
 

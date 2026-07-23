@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip, ListBox, Select } from '@heroui/react';
-import { ApiClientError } from '@beautypass/shared';
 import { DataTable, type Column } from '../../components/DataTable';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
-import { DateField } from '../../components/DateRangeFilter';
+import { DateField, DateRangeFilter } from '../../components/DateRangeFilter';
 import { HelpTooltip } from '../../components/HelpTooltip';
+import { PagarComissaoDrawer } from '../../components/PagarComissaoDrawer';
+import { ValeModal } from '../../components/ValeModal';
+import { JustificativaDialog } from '../../components/JustificativaDialog';
+import { AppTabs } from '../../components/AppTabs';
 import {
   IconChart,
   IconChevron,
@@ -15,35 +18,37 @@ import {
   IconFilter,
   IconHome,
   IconPercent,
+  IconPlus,
   IconReceipt,
   IconSearch,
   IconSettings,
+  IconTrash,
   IconWallet,
+  IconX,
 } from '../../components/icons';
-import { formatDate, formatMoney, isoDate } from '../../lib/format';
+import { formatDate, formatDateTime, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useProfessionals } from '../../lib/queries';
 import { useSetPageActions } from '../../layout/PageActions';
+import { FilterAside } from '../../components/FilterAside';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import {
   useCommissionDetail,
   useCommissionEntries,
   useCommissionOverview,
+  useCommissionPayments,
   useCommissionSummary,
-  useCreateCommissionPayment,
+  useDeleteCommissionPayment,
   type CommissionDetailItem,
   type CommissionEntry,
+  type CommissionPayment,
   type CommissionSummaryRow,
 } from '../../lib/queries/comissoes';
 
-/**
- * Paleta FIXA dos cards de status do Belasis (data-viz, independente do tema —
- * mesma lógica de `useThemeColors`). Azul = em aberto, verde = pagas, laranja =
- * a liberar. Reproduz 1:1 os cards coloridos da tela "Resumo" do Belasis.
- */
 const CARD_COLORS = {
-  open: '#2196F3',
-  paid: '#5cb85c',
-  release: '#f5a139',
+  open: 'var(--sp-data-receivable)',
+  paid: 'var(--sp-data-income)',
+  release: 'var(--sp-data-payable)',
 } as const;
 
 const TO_RELEASE_TOOLTIP =
@@ -62,10 +67,10 @@ const STATUS_OPTIONS = [
 // Abas do topo (idênticas às do Belasis mobile). As de status filtram o resumo;
 // "Configurações" navega para a rota de config de comissões.
 const TABS = [
-  { id: '', label: 'Resumo', shortLabel: 'Resumo', icon: IconHome },
-  { id: 'open', label: 'Comissões em aberto', shortLabel: 'Em aberto', icon: IconChart },
-  { id: 'paid', label: 'Comissões pagas', shortLabel: 'Pagas', icon: IconCircleCheck },
-  { id: 'settings', label: 'Configurações', shortLabel: 'Configurações', icon: IconSettings, nav: '/commissions/settings' },
+  { id: '', label: 'Resumo', icon: <IconHome size={15} /> },
+  { id: 'open', label: 'Comissões em aberto', icon: <IconChart size={15} /> },
+  { id: 'paid', label: 'Comissões pagas', icon: <IconCircleCheck size={15} /> },
+  { id: 'settings', label: 'Configurações', icon: <IconSettings size={15} /> },
 ] as const;
 
 const ENTRY_STATUS_LABEL: Record<CommissionEntry['status'], string> = {
@@ -100,9 +105,19 @@ export function ComissoesResumoPage() {
   const [to, setTo] = useState(() => isoDate(new Date()));
   const [professionalId, setProfessionalId] = useState('');
   const [status, setStatus] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [detailFor, setDetailFor] = useState<CommissionSummaryRow | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  // Seleção para pagamento em lote (Set de professionalId).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Linhas enviadas ao drawer de pagamento (lote ou 1 profissional).
+  const [payingRows, setPayingRows] = useState<CommissionSummaryRow[] | null>(null);
+  const [valeOpen, setValeOpen] = useState(false);
+  // Pagamento cuja exclusão (com justificativa) está em andamento.
+  const [deletingPayment, setDeletingPayment] = useState<CommissionPayment | null>(null);
+
+  const isPaidTab = status === 'paid';
 
   function openFilters() {
     setFilterOpen(true);
@@ -126,7 +141,13 @@ export function ComissoesResumoPage() {
     status: status || undefined,
     professionalId: professionalId || undefined,
   });
-  const pay = useCreateCommissionPayment();
+  // Histórico de pagamentos (aba "Pagas") — filtra por período + profissional.
+  const payments = useCommissionPayments({
+    from: from || undefined,
+    to: to || undefined,
+    professionalId: professionalId || undefined,
+  });
+  const deletePayment = useDeleteCommissionPayment();
 
   function exportCsv() {
     const rowsToExport = entries.data ?? [];
@@ -158,6 +179,12 @@ export function ComissoesResumoPage() {
         onClick: openFilters,
       },
       {
+        key: 'novo-vale',
+        label: 'Novo vale',
+        icon: <IconPlus size={22} />,
+        onClick: () => setValeOpen(true),
+      },
+      {
         key: 'exportar',
         label: 'Exportar CSV',
         icon: <IconDownload size={22} />,
@@ -182,21 +209,78 @@ export function ComissoesResumoPage() {
   const rangeLabel =
     from && to ? `${shortDate(from)} → ${shortDate(to)}` : 'Selecionar período';
 
-  async function handlePay(row: CommissionSummaryRow) {
-    setError(null);
-    try {
-      await pay.mutateAsync({
-        professionalId: row.professionalId,
-        amount: row.total,
-      });
-    } catch (err) {
-      setError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível registrar o pagamento.',
-      );
-    }
+  // Linhas que podem ser pagas (têm comissão em aberto).
+  const payableRows = useMemo(
+    () => rows.filter((r) => r.status !== 'paid' && r.total > 0),
+    [rows],
+  );
+  const payableIds = useMemo(
+    () => new Set(payableRows.map((r) => r.professionalId)),
+    [payableRows],
+  );
+  // Mantém só seleções ainda pagáveis (evita "fantasmas" após refetch).
+  const selectedPayable = useMemo(
+    () => payableRows.filter((r) => selected.has(r.professionalId)),
+    [payableRows, selected],
+  );
+  const allSelected = payableRows.length > 0 && selectedPayable.length === payableRows.length;
+
+  function toggleRow(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(() => (allSelected ? new Set() : new Set(payableIds)));
+  }
+
+  function payOne(row: CommissionSummaryRow) {
+    setPayingRows([row]);
+  }
+
+  function paySelected() {
+    if (selectedPayable.length > 0) setPayingRows(selectedPayable);
   }
 
   const columns: Column<CommissionSummaryRow>[] = [
+    {
+      key: 'select',
+      label: 'Seleção',
+      header: (
+        // Checkbox NATIVO: HeroUI Checkbox dentro da Table (react-aria) exige
+        // slot="selection" e é controlado pela própria Table — como a seleção
+        // aqui é manual (estado próprio), usamos input nativo pra evitar o
+        // contexto de coleção do react-aria.
+        <input
+          type="checkbox"
+          checked={allSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = selectedPayable.length > 0 && !allSelected;
+          }}
+          onChange={toggleAll}
+          aria-label="Selecionar todos os profissionais"
+          className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
+        />
+      ),
+      className: 'w-10',
+      render: (r) => {
+        const canPay = payableIds.has(r.professionalId);
+        return (
+          <input
+            type="checkbox"
+            checked={selected.has(r.professionalId) && canPay}
+            disabled={!canPay}
+            onChange={() => toggleRow(r.professionalId)}
+            aria-label={`Selecionar ${r.professionalName}`}
+            className="h-4 w-4 shrink-0 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-40"
+          />
+        );
+      },
+    },
     {
       key: 'name',
       header: 'Profissional',
@@ -282,8 +366,8 @@ export function ComissoesResumoPage() {
           <Button
             variant="primary"
             size="sm"
-            isDisabled={r.status === 'paid' || r.total <= 0 || pay.isPending}
-            onClick={() => handlePay(r)}
+            isDisabled={r.status === 'paid' || r.total <= 0}
+            onClick={() => payOne(r)}
           >
             <IconWallet size={15} /> Pagar
           </Button>
@@ -291,6 +375,152 @@ export function ComissoesResumoPage() {
       ),
     },
   ];
+
+  // Colunas do histórico de pagamentos (aba "Pagas").
+  const paymentColumns: Column<CommissionPayment>[] = [
+    {
+      key: 'date',
+      header: 'Data',
+      isRowHeader: true,
+      render: (p) => (
+        <span className="font-medium text-foreground">{formatDateTime(p.paidAt)}</span>
+      ),
+    },
+    {
+      key: 'professional',
+      header: 'Profissional',
+      render: (p) => p.professional.name,
+    },
+    {
+      key: 'user',
+      header: (
+        <span className="inline-flex items-center">
+          Usuário
+          <HelpTooltip>Quem registrou o pagamento no sistema.</HelpTooltip>
+        </span>
+      ),
+      render: (p) => p.paidByUser?.name ?? '—',
+    },
+    {
+      key: 'commission',
+      header: 'Comissões',
+      render: (p) => formatMoney(p.commissionTotal),
+    },
+    {
+      key: 'advances',
+      header: 'Vales',
+      render: (p) =>
+        p.advancesTotal > 0 ? (
+          <span className="text-danger">− {formatMoney(p.advancesTotal)}</span>
+        ) : (
+          formatMoney(0)
+        ),
+    },
+    {
+      key: 'bonus',
+      header: 'Bonificações',
+      render: (p) => formatMoney(p.bonusTotal),
+    },
+    {
+      key: 'amount',
+      header: (
+        <span className="inline-flex items-center">
+          Valor pago
+          <HelpTooltip>Comissões − Vales + Bonificações efetivamente pago.</HelpTooltip>
+        </span>
+      ),
+      render: (p) => (
+        <span className="font-semibold text-foreground">{formatMoney(p.amount)}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (p) => (
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-danger"
+          onClick={() => setDeletingPayment(p)}
+        >
+          <IconTrash size={15} /> Excluir
+        </Button>
+      ),
+    },
+  ];
+
+  const paymentRows = payments.data ?? [];
+
+  // Conteúdo do filtro (datas + profissional + status) — compartilhado entre o
+  // painel lateral desktop (FilterAside) e o bottom-sheet mobile (Drawer).
+  const filterBody = (
+    <>
+      <div className="mb-4 text-sm text-muted">Selecione um período e escolha o profissional</div>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data inicial">
+            <DateField value={from} max={to || undefined} onChange={setFrom} className="min-w-0" />
+          </Field>
+          <Field label="Data final">
+            <DateField value={to} min={from || undefined} onChange={setTo} className="min-w-0" />
+          </Field>
+        </div>
+
+        <Field label="Profissional">
+          <Select
+            aria-label="Profissional"
+            selectedKey={professionalId || ''}
+            onSelectionChange={(k) => setProfessionalId(k ? String(k) : '')}
+          >
+            <Select.Trigger>
+              <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {profOptions.map((o) => (
+                  <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
+                    {o.name}
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </Field>
+
+        <Field label="Status">
+          <Select
+            aria-label="Status"
+            selectedKey={status || ''}
+            onSelectionChange={(k) => setStatus(k ? String(k) : '')}
+          >
+            <Select.Trigger>
+              <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {STATUS_OPTIONS.map((o) => (
+                  <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
+                    {o.name}
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </Field>
+      </div>
+    </>
+  );
+
+  const filterFooter = (
+    <>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={() => setFilterOpen(false)}>
+        Cancelar
+      </Button>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={() => setFilterOpen(false)}>
+        <IconSearch size={16} /> Buscar comissões
+      </Button>
+    </>
+  );
 
   return (
     <div>
@@ -300,39 +530,26 @@ export function ComissoesResumoPage() {
           <h1 className="text-[1.4rem] font-bold leading-tight text-foreground sm:text-2xl">
             Comissões
           </h1>
-          <Button
-            variant="outline"
-            className="hidden md:inline-flex"
-            onClick={exportCsv}
-            isDisabled={!hasEntries}
-          >
-            <IconDownload size={16} /> Exportar CSV
-          </Button>
+          <div className="hidden items-center gap-2 md:flex">
+            <Button variant="outline" onClick={() => setValeOpen(true)}>
+              <IconPlus size={16} /> Novo vale
+            </Button>
+            <Button variant="outline" onClick={exportCsv} isDisabled={!hasEntries}>
+              <IconDownload size={16} /> Exportar CSV
+            </Button>
+          </div>
         </div>
 
-        <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-          {TABS.map((tab) => {
-            const active = 'nav' in tab ? false : status === tab.id;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id || 'resumo'}
-                type="button"
-                onClick={() => ('nav' in tab ? navigate(tab.nav) : setStatus(tab.id))}
-                className={[
-                  'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm font-medium transition-colors',
-                  active
-                    ? 'border-transparent bg-primary text-primary-foreground shadow-sm'
-                    : 'border-line bg-card text-muted-ink hover:bg-canvas',
-                ].join(' ')}
-              >
-                <Icon size={15} />
-                <span className="md:hidden">{tab.shortLabel}</span>
-                <span className="hidden md:inline">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <AppTabs
+          items={[...TABS]}
+          selectedKey={status}
+          onSelectionChange={(key) => {
+            if (key === 'settings') navigate('/commissions/settings');
+            else setStatus(key);
+          }}
+          ariaLabel="Áreas de comissões"
+          className="mt-3"
+        />
       </div>
 
       {/* Barra de período (clicável — abre o drawer de filtros) */}
@@ -370,111 +587,147 @@ export function ComissoesResumoPage() {
         />
       </div>
 
-      {error && (
-        <div className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {error}
+      {/* Barra de ação de pagamento em lote — aparece quando há seleção. */}
+      {!isPaidTab && selectedPayable.length > 0 && (
+        <div className="mb-4 flex flex-col items-start justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center">
+          <span className="text-sm font-medium text-foreground">
+            {selectedPayable.length} profissional(is) selecionado(s)
+            <span className="ml-2 text-muted">
+              · {formatMoney(selectedPayable.reduce((s, r) => s + r.total, 0))} em comissões
+            </span>
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+              Limpar
+            </Button>
+            <Button variant="primary" size="sm" onClick={paySelected}>
+              <IconWallet size={15} /> Pagar selecionados ({selectedPayable.length})
+            </Button>
+          </div>
         </div>
       )}
 
-      {/* Resumo por profissional (data-wiring preservado).
-          Mobile: escondido — Belasis mostra só os 3 KPI cards no mobile. */}
-      <div className="hidden md:block rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">Comissões por profissional</h3>
-          <span className="text-xs text-muted">{rows.length} resultado(s)</span>
-        </div>
-
-        {summary.isLoading ? (
-          <LoadingState />
-        ) : summary.isError ? (
-          <ErrorState onRetry={() => summary.refetch()} />
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon={<IconPercent size={32} />}
-            title="Nenhuma comissão no período"
-            description="Ajuste os filtros ou finalize comandas para gerar comissões."
-          />
-        ) : (
-          <DataTable
-            aria-label="Resumo de comissões"
-            columns={columns}
-            rows={rows}
-            getKey={(r) => r.professionalId}
-          />
-        )}
-      </div>
-
-      {/* Drawer lateral de filtros (abre da direita) */}
-      <Drawer
-        isOpen={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        title="Filtros"
-        footer={
-          <>
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setFilterOpen(false)}>
-              Cancelar
-            </Button>
-            <Button variant="primary" className="w-full sm:w-auto" onClick={() => setFilterOpen(false)}>
-              <IconSearch size={16} /> Buscar comissões
-            </Button>
-          </>
-        }
-      >
-        <div className="mb-4 text-sm text-muted">Selecione um período e escolha o profissional</div>
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Data inicial">
-              <DateField value={from} max={to || undefined} onChange={setFrom} className="min-w-0" />
-            </Field>
-            <Field label="Data final">
-              <DateField value={to} min={from || undefined} onChange={setTo} className="min-w-0" />
-            </Field>
+      {/* ABA PAGAS: histórico de pagamentos (visível em mobile e desktop). */}
+      {isPaidTab ? (
+        <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Pagamentos realizados</h3>
+              <span className="text-xs text-muted">{paymentRows.length} pagamento(s)</span>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <DateRangeFilter
+                from={from}
+                to={to}
+                onChange={({ from: f, to: t }) => {
+                  setFrom(f);
+                  setTo(t);
+                }}
+                fromLabel="Período"
+              />
+              <div className="flex w-full flex-col gap-1 sm:w-auto sm:min-w-[12rem]">
+                <label className="text-xs font-medium text-muted">Profissional</label>
+                <Select
+                  aria-label="Profissional"
+                  selectedKey={professionalId || ''}
+                  onSelectionChange={(k) => setProfessionalId(k ? String(k) : '')}
+                >
+                  <Select.Trigger>
+                    <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {profOptions.map((o) => (
+                        <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
+                          {o.name}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
+            </div>
           </div>
 
-          <Field label="Profissional">
-            <Select
-              aria-label="Profissional"
-              selectedKey={professionalId || ''}
-              onSelectionChange={(k) => setProfessionalId(k ? String(k) : '')}
-            >
-              <Select.Trigger>
-                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {profOptions.map((o) => (
-                    <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
-                      {o.name}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </Field>
-
-          <Field label="Status">
-            <Select
-              aria-label="Status"
-              selectedKey={status || ''}
-              onSelectionChange={(k) => setStatus(k ? String(k) : '')}
-            >
-              <Select.Trigger>
-                <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {STATUS_OPTIONS.map((o) => (
-                    <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
-                      {o.name}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </Field>
-
+          {payments.isLoading ? (
+            <LoadingState />
+          ) : payments.isError ? (
+            <ErrorState onRetry={() => payments.refetch()} />
+          ) : paymentRows.length === 0 ? (
+            <EmptyState
+              icon={<IconCircleCheck size={32} />}
+              title="Nenhum pagamento no período"
+              description="Ajuste o período/profissional ou registre pagamentos na aba Resumo."
+            />
+          ) : (
+            <DataTable
+              aria-label="Histórico de pagamentos de comissão"
+              columns={paymentColumns}
+              rows={paymentRows}
+              getKey={(p) => p.id}
+            />
+          )}
         </div>
-      </Drawer>
+      ) : (
+        /* DESKTOP: filtro lateral (desliza da esquerda) + resumo por profissional.
+           Mobile: tabela escondida — Belasis mostra só os 3 KPI cards no mobile. */
+        <div className="md:flex md:items-start md:gap-4">
+          <FilterAside open={filterOpen} desktopOnly breakpoint="md">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">Filtros</span>
+              <button
+                type="button"
+                onClick={() => setFilterOpen(false)}
+                aria-label="Fechar filtros"
+                className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+            {filterBody}
+            <div className="mt-4 flex flex-col gap-2">{filterFooter}</div>
+          </FilterAside>
+          {/* Resumo por profissional (data-wiring preservado). */}
+          <div className="hidden min-w-0 flex-1 md:block rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Comissões por profissional</h3>
+              <span className="text-xs text-muted">{rows.length} resultado(s)</span>
+            </div>
+
+            {summary.isLoading ? (
+              <LoadingState />
+            ) : summary.isError ? (
+              <ErrorState onRetry={() => summary.refetch()} />
+            ) : rows.length === 0 ? (
+              <EmptyState
+                icon={<IconPercent size={32} />}
+                title="Nenhuma comissão no período"
+                description="Ajuste os filtros ou finalize comandas para gerar comissões."
+              />
+            ) : (
+              <DataTable
+                aria-label="Resumo de comissões"
+                columns={columns}
+                rows={rows}
+                getKey={(r) => r.professionalId}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Filtrar mobile: bottom-sheet (no desktop é o FilterAside acima). */}
+      {isMobile && (
+        <Drawer
+          isOpen={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          title="Filtros"
+          footer={filterFooter}
+          placement="bottom"
+        >
+          {filterBody}
+        </Drawer>
+      )}
 
       {/* Drawer lateral de detalhe do profissional */}
       <DetailDrawer
@@ -483,6 +736,44 @@ export function ComissoesResumoPage() {
         to={to}
         status={status}
         onClose={() => setDetailFor(null)}
+      />
+
+      {/* Drawer de pagamento (lote ou 1 profissional) com a fórmula Belasis */}
+      <PagarComissaoDrawer
+        open={payingRows != null}
+        rows={payingRows ?? []}
+        onClose={() => setPayingRows(null)}
+        onPaid={() => setSelected(new Set())}
+      />
+
+      {/* Modal de novo vale (adiantamento) */}
+      <ValeModal
+        open={valeOpen}
+        onClose={() => setValeOpen(false)}
+        defaultProfessionalId={professionalId || undefined}
+      />
+
+      {/* Excluir/estornar pagamento — exige justificativa */}
+      <JustificativaDialog
+        open={deletingPayment != null}
+        onClose={() => setDeletingPayment(null)}
+        title="Excluir pagamento"
+        description={
+          deletingPayment ? (
+            <p>
+              Estornar o pagamento de{' '}
+              <span className="font-semibold text-foreground">
+                {deletingPayment.professional.name}
+              </span>{' '}
+              ({formatMoney(deletingPayment.amount)})? As comissões e vales voltam a ficar em
+              aberto. Informe o motivo — a ação fica registrada na auditoria.
+            </p>
+          ) : undefined
+        }
+        onConfirm={async (justification) => {
+          if (!deletingPayment) return;
+          await deletePayment.mutateAsync({ id: deletingPayment.id, justification });
+        }}
       />
     </div>
   );
@@ -666,7 +957,7 @@ function Metric({
       <span
         className={
           strong
-            ? 'text-lg font-bold text-gold-strong'
+            ? 'text-lg font-bold text-data-payable'
             : 'text-base font-semibold text-foreground'
         }
       >

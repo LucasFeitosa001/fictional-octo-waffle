@@ -130,6 +130,22 @@ export class CustomersController {
     return this.service.listNotes(companyId, id);
   }
 
+  // Timeline de mensagens (aba "Mensagens" do cliente / feature Interações).
+  @Get(':id/interactions')
+  listInteractions(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.service.listInteractions(
+      companyId,
+      id,
+      Number(limit) || 50,
+      Number(offset) || 0,
+    );
+  }
+
   @Post(':id/notes')
   createNote(
     @CurrentUser('companyId') companyId: string,

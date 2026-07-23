@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Input, ListBox, Select, TextField } from '@heroui/react';
+import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateFieldBR } from '../../components/DateRangeFilter';
 import { Drawer } from '../../components/Drawer';
-import { IconCash, IconChevron, IconFilter } from '../../components/icons';
+import { IconTip } from '../../components/IconTip';
+import { IconCash, IconChevron, IconFilter, IconX } from '../../components/icons';
 import { useCashRegisters, type CashHistoryRow } from '../../lib/queries/caixa';
 import { useProfessionals } from '../../lib/queries';
 import { formatDate, formatMoney } from '../../lib/format';
 import { useSetPageActions } from '../../layout/PageActions';
+import { FilterAside } from '../../components/FilterAside';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const PAGE_SIZE = 20;
 const NONE = '';
@@ -25,6 +28,7 @@ export function CaixaHistoricoPage() {
   // Toolbar do Belasis: só "Filtrar" (drawer lateral). A tela é read-only —
   // caixas são histórico imutável (sem Novo/Editar), então não há drawer de edição.
   const [filterOpen, setFilterOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Filtros do Belasis (drawer): Número, Data abertura, Data fechamento,
   // Responsável pela abertura, Responsável pelo fechamento.
@@ -87,7 +91,7 @@ export function CaixaHistoricoPage() {
         key: 'filtros',
         label: 'Filtros',
         icon: <IconFilter size={22} />,
-        onClick: () => setFilterOpen(true),
+        onClick: () => setFilterOpen((v) => !v),
       },
     ],
     [],
@@ -195,7 +199,7 @@ export function CaixaHistoricoPage() {
         <div className="hidden sm:w-auto sm:justify-end md:flex">
           <Button
             variant="outline"
-            onClick={() => setFilterOpen(true)}
+            onClick={() => setFilterOpen((v) => !v)}
             className="relative w-full sm:w-auto"
           >
             <IconFilter size={16} /> Filtrar
@@ -215,10 +219,49 @@ export function CaixaHistoricoPage() {
         </span>
       </div>
 
-      {/* Desktop: tabela dentro de Card */}
-      <div className="hidden md:block">
-        <Card>
-          <Card.Content className="p-4">
+      {/* DESKTOP: filtro lateral (desliza da esquerda) + Card/DataTable */}
+      <div className="md:flex md:items-start md:gap-4">
+        <FilterAside open={filterOpen} desktopOnly breakpoint="md">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">Filtros</span>
+            <IconTip label="Fechar filtros">
+              <button
+                type="button"
+                onClick={() => setFilterOpen(false)}
+                aria-label="Fechar filtros"
+                className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
+              >
+                <IconX size={16} />
+              </button>
+            </IconTip>
+          </div>
+          <FiltrosBody
+            numero={numero}
+            setNumero={setNumero}
+            openedFrom={openedFrom}
+            setOpenedFrom={setOpenedFrom}
+            openedTo={openedTo}
+            setOpenedTo={setOpenedTo}
+            closedFrom={closedFrom}
+            setClosedFrom={setClosedFrom}
+            closedTo={closedTo}
+            setClosedTo={setClosedTo}
+            openerId={openerId}
+            setOpenerId={setOpenerId}
+            closerId={closerId}
+            setCloserId={setCloserId}
+            professionals={professionalOptions}
+          />
+          <div className="mt-4 flex flex-col gap-2">
+            {filtrosFooter(hasFilters, clearFilters, () => setFilterOpen(false))}
+          </div>
+        </FilterAside>
+        <div className="hidden min-w-0 flex-1 md:block">
+        {/* Card = div sem padding próprio (padrão ClientesPage/ProdutosPage): a
+            paginação vira irmã da DataTable, no fluxo do scroll do <main>, e pode
+            grudar no rodapé (md:sticky) hugando o canto arredondado do card. */}
+        <div className="overflow-clip rounded-2xl border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
+          <div className="p-4">
             {history.isLoading ? (
               <LoadingState />
             ) : history.isError ? (
@@ -243,40 +286,43 @@ export function CaixaHistoricoPage() {
                 getKey={(c) => c.id}
               />
             )}
+          </div>
 
-            {total > 0 && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
-                <span className="text-xs text-muted">{total} registros no total</span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label="Página anterior"
-                    isDisabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    <IconChevron size={14} className="rotate-90" />
-                  </Button>
-                  <span className="px-1 text-xs text-muted">
-                    Página {page} de {pageCount}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label="Próxima página"
-                    isDisabled={page >= pageCount}
-                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  >
-                    <IconChevron size={14} className="-rotate-90" />
-                  </Button>
-                  <span className="ml-1 hidden text-xs text-muted sm:inline">
-                    {PAGE_SIZE} / página
-                  </span>
-                </div>
+          {/* Rodapé/paginação: fundo sólido (bg-warm-white = bg do card) pra cobrir
+              as linhas ao rolar; sticky no rodapé do scroll do <main>. */}
+          {total > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] bg-warm-white px-4 pt-3 pb-6 md:sticky md:bottom-0 md:z-20 md:rounded-b-2xl">
+              <span className="text-xs text-muted">{total} registros no total</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Página anterior"
+                  isDisabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <IconChevron size={14} className="rotate-90" />
+                </Button>
+                <span className="px-1 text-xs text-muted">
+                  Página {page} de {pageCount}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Próxima página"
+                  isDisabled={page >= pageCount}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                >
+                  <IconChevron size={14} className="-rotate-90" />
+                </Button>
+                <span className="ml-1 hidden text-xs text-muted sm:inline">
+                  {PAGE_SIZE} / página
+                </span>
               </div>
-            )}
-          </Card.Content>
-        </Card>
+            </div>
+          )}
+        </div>
+        </div>
       </div>
 
       {/* Mobile: cards fora de Card wrapper */}
@@ -320,60 +366,35 @@ export function CaixaHistoricoPage() {
         )}
       </div>
 
-      {/* Filtrar: drawer lateral (direita) com as seções do Belasis. */}
-      <FiltrosDrawer
-        isOpen={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        numero={numero}
-        setNumero={setNumero}
-        openedFrom={openedFrom}
-        setOpenedFrom={setOpenedFrom}
-        openedTo={openedTo}
-        setOpenedTo={setOpenedTo}
-        closedFrom={closedFrom}
-        setClosedFrom={setClosedFrom}
-        closedTo={closedTo}
-        setClosedTo={setClosedTo}
-        openerId={openerId}
-        setOpenerId={setOpenerId}
-        closerId={closerId}
-        setCloserId={setCloserId}
-        professionals={professionalOptions}
-        hasFilters={hasFilters}
-        onClear={clearFilters}
-      />
+      {/* Filtrar mobile: bottom-sheet com as seções do Belasis (no desktop é o FilterAside acima). */}
+      {isMobile && (
+        <FiltrosDrawer
+          isOpen={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          numero={numero}
+          setNumero={setNumero}
+          openedFrom={openedFrom}
+          setOpenedFrom={setOpenedFrom}
+          openedTo={openedTo}
+          setOpenedTo={setOpenedTo}
+          closedFrom={closedFrom}
+          setClosedFrom={setClosedFrom}
+          closedTo={closedTo}
+          setClosedTo={setClosedTo}
+          openerId={openerId}
+          setOpenerId={setOpenerId}
+          closerId={closerId}
+          setCloserId={setCloserId}
+          professionals={professionalOptions}
+          hasFilters={hasFilters}
+          onClear={clearFilters}
+        />
+      )}
     </div>
   );
 }
 
-/**
- * Drawer de filtros (Belasis "Filtrar"): desliza da direita e agrupa Número,
- * Data abertura, Data fechamento, Responsável pela abertura e Responsável pelo
- * fechamento. Aplica ao vivo (o filtro reage ao estado); "Aplicar" só fecha.
- */
-function FiltrosDrawer({
-  isOpen,
-  onClose,
-  numero,
-  setNumero,
-  openedFrom,
-  setOpenedFrom,
-  openedTo,
-  setOpenedTo,
-  closedFrom,
-  setClosedFrom,
-  closedTo,
-  setClosedTo,
-  openerId,
-  setOpenerId,
-  closerId,
-  setCloserId,
-  professionals,
-  hasFilters,
-  onClear,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
+type FiltrosProps = {
   numero: string;
   setNumero: (v: string) => void;
   openedFrom: string;
@@ -389,10 +410,97 @@ function FiltrosDrawer({
   closerId: string;
   setCloserId: (v: string) => void;
   professionals: { id: string; name: string }[];
-  hasFilters: boolean;
-  onClear: () => void;
-}) {
-  const footer = (
+};
+
+/** Corpo do filtro (Número, Datas, Responsáveis) — compartilhado entre o painel
+ * lateral desktop (FilterAside) e o bottom-sheet mobile (Drawer). */
+function FiltrosBody({
+  numero,
+  setNumero,
+  openedFrom,
+  setOpenedFrom,
+  openedTo,
+  setOpenedTo,
+  closedFrom,
+  setClosedFrom,
+  closedTo,
+  setClosedTo,
+  openerId,
+  setOpenerId,
+  closerId,
+  setCloserId,
+  professionals,
+}: FiltrosProps) {
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Número */}
+      <FilterSection title="Número">
+        <TextField value={numero} onChange={setNumero} aria-label="Número do caixa">
+          <Input placeholder="Ex.: 42" inputMode="numeric" />
+        </TextField>
+      </FilterSection>
+
+      {/* Data abertura */}
+      <FilterSection title="Data abertura">
+        <div className="grid grid-cols-2 gap-3">
+          <DateFieldBR
+            label="De"
+            value={openedFrom}
+            onChange={setOpenedFrom}
+            className="min-w-0"
+          />
+          <DateFieldBR
+            label="Até"
+            value={openedTo}
+            onChange={setOpenedTo}
+            className="min-w-0"
+          />
+        </div>
+      </FilterSection>
+
+      {/* Data fechamento */}
+      <FilterSection title="Data fechamento">
+        <div className="grid grid-cols-2 gap-3">
+          <DateFieldBR
+            label="De"
+            value={closedFrom}
+            onChange={setClosedFrom}
+            className="min-w-0"
+          />
+          <DateFieldBR
+            label="Até"
+            value={closedTo}
+            onChange={setClosedTo}
+            className="min-w-0"
+          />
+        </div>
+      </FilterSection>
+
+      {/* Responsável pela abertura */}
+      <FilterSection title="Responsável pela abertura">
+        <FieldSelect
+          placeholder="Selecionar profissional"
+          value={openerId}
+          onChange={setOpenerId}
+          options={professionals}
+        />
+      </FilterSection>
+
+      {/* Responsável pelo fechamento */}
+      <FilterSection title="Responsável pelo fechamento">
+        <FieldSelect
+          placeholder="Selecionar profissional"
+          value={closerId}
+          onChange={setCloserId}
+          options={professionals}
+        />
+      </FilterSection>
+    </div>
+  );
+}
+
+function filtrosFooter(hasFilters: boolean, onClear: () => void, onApply: () => void) {
+  return (
     <>
       <Button
         variant="outline"
@@ -402,84 +510,39 @@ function FiltrosDrawer({
       >
         Limpar filtros
       </Button>
-      <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={onApply}>
         Aplicar
       </Button>
     </>
   );
+}
 
+/**
+ * Drawer de filtros (Belasis "Filtrar"): bottom-sheet no mobile e agrupa Número,
+ * Data abertura, Data fechamento, Responsável pela abertura e Responsável pelo
+ * fechamento. Aplica ao vivo (o filtro reage ao estado); "Aplicar" só fecha.
+ */
+function FiltrosDrawer({
+  isOpen,
+  onClose,
+  hasFilters,
+  onClear,
+  ...body
+}: FiltrosProps & {
+  isOpen: boolean;
+  onClose: () => void;
+  hasFilters: boolean;
+  onClear: () => void;
+}) {
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title="Filtrar"
-      footer={footer}
-      widthClass="sm:w-[420px]"
+      footer={filtrosFooter(hasFilters, onClear, onClose)}
+      placement="bottom"
     >
-      <div className="flex flex-col gap-6">
-        {/* Número */}
-        <FilterSection title="Número">
-          <TextField value={numero} onChange={setNumero} aria-label="Número do caixa">
-            <Input placeholder="Ex.: 42" inputMode="numeric" />
-          </TextField>
-        </FilterSection>
-
-        {/* Data abertura */}
-        <FilterSection title="Data abertura">
-          <div className="grid grid-cols-2 gap-3">
-            <DateFieldBR
-              label="De"
-              value={openedFrom}
-              onChange={setOpenedFrom}
-              className="min-w-0"
-            />
-            <DateFieldBR
-              label="Até"
-              value={openedTo}
-              onChange={setOpenedTo}
-              className="min-w-0"
-            />
-          </div>
-        </FilterSection>
-
-        {/* Data fechamento */}
-        <FilterSection title="Data fechamento">
-          <div className="grid grid-cols-2 gap-3">
-            <DateFieldBR
-              label="De"
-              value={closedFrom}
-              onChange={setClosedFrom}
-              className="min-w-0"
-            />
-            <DateFieldBR
-              label="Até"
-              value={closedTo}
-              onChange={setClosedTo}
-              className="min-w-0"
-            />
-          </div>
-        </FilterSection>
-
-        {/* Responsável pela abertura */}
-        <FilterSection title="Responsável pela abertura">
-          <FieldSelect
-            placeholder="Selecionar profissional"
-            value={openerId}
-            onChange={setOpenerId}
-            options={professionals}
-          />
-        </FilterSection>
-
-        {/* Responsável pelo fechamento */}
-        <FilterSection title="Responsável pelo fechamento">
-          <FieldSelect
-            placeholder="Selecionar profissional"
-            value={closerId}
-            onChange={setCloserId}
-            options={professionals}
-          />
-        </FilterSection>
-      </div>
+      <FiltrosBody {...body} />
     </Drawer>
   );
 }

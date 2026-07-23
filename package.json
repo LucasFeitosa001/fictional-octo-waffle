@@ -13,7 +13,8 @@
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm --filter @beautypass/db generate",
     "db:migrate": "pnpm --filter @beautypass/db migrate",
-    "db:seed": "pnpm --filter @beautypass/db seed"
+    "db:seed": "pnpm --filter @beautypass/db seed",
+    "db:seed:staging": "pnpm --filter @beautypass/db seed:staging"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",

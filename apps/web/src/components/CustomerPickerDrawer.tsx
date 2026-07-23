@@ -107,7 +107,7 @@ export function CustomerPickerDrawer({
             placeholder="Buscar cliente"
             aria-label="Buscar cliente"
             autoFocus
-            className="h-11 w-full rounded-lg border border-default-200 bg-white pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
+            className="h-11 min-h-11 w-full rounded-lg border border-black/15 bg-white pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
           />
         </div>
 

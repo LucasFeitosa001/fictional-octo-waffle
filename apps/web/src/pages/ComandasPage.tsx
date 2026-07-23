@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Input, ListBox, Select, Spinner, TextField } from '@heroui/react';
+import { Button, Checkbox, Input, ListBox, Select, Spinner, TextField } from '@heroui/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiClientError, type Customer } from '@beautypass/shared';
 import { PageHeader } from '../components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { EmptyState, ErrorState } from '../components/States';
+import { TableSkeleton } from '../components/Skeletons';
 import { DateField } from '../components/DateRangeFilter';
+import { DatePicker } from '../components/DatePicker';
 import { Drawer } from '../components/Drawer';
+import { ComandaDrawer } from '../components/ComandaDrawer';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { IconTip } from '../components/IconTip';
+import { InlineSearch } from '../components/InlineSearch';
+import { ClientePerfilModal } from './ClientePerfilTabs';
+import { useCustomer } from '../lib/queries/clientes';
+import { FilterCheckbox } from '../components/FilterCheckbox';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   CustomerAvatar,
@@ -18,6 +26,7 @@ import { ItemPickerDrawer, type PickedItem } from '../components/ItemPickerDrawe
 import { ItemEditDrawer } from '../components/ItemEditDrawer';
 import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
 import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { FilterAside } from '../components/FilterAside';
 import { useSelectMode, buildSelectActions, type BulkAction } from '../hooks/useSelectMode';
 import {
   IconBox,
@@ -30,7 +39,6 @@ import {
   IconPlus,
   IconReceipt,
   IconScissors,
-  IconSearch,
   IconTrash,
   IconUser,
   IconWhatsApp,
@@ -197,14 +205,16 @@ function RowMenu({
 
   return (
     <div ref={ref} className="relative inline-block text-left">
-      <button
-        type="button"
-        aria-label="Ações"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-ink transition-colors hover:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)] hover:text-foreground"
-      >
-        <MenuIcon />
-      </button>
+      <IconTip label="Ações">
+        <button
+          type="button"
+          aria-label="Ações"
+          onClick={() => setOpen((v) => !v)}
+          className="btn-ghost-hover inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-ink transition-colors hover:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)] hover:text-foreground"
+        >
+          <MenuIcon />
+        </button>
+      </IconTip>
       <div
         role="menu"
         aria-hidden={!open}
@@ -365,6 +375,9 @@ export function ComandasPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [viewing, setViewing] = useState<OrderRow | null>(null);
+  // Clique no NOME do cliente abre o drawer do cliente (não a comanda).
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const cliente = useCustomer(clienteId);
   // Bottom-sheet das ações em lote (modo de seleção padronizado, Belasis).
   const [actionsOpen, setActionsOpen] = useState(false);
   useAutoCreate(() => setCreateOpen(true));
@@ -498,15 +511,13 @@ export function ComandasPage() {
           Status
           <HelpTooltip>Marcado exibe apenas comandas excluídas; desmarcado exibe as demais</HelpTooltip>
         </span>
-        <label className="inline-flex w-fit items-center gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-[var(--sp-primary)]"
-            checked={showExcluidas}
-            onChange={(e) => setShowExcluidas(e.target.checked)}
-          />
+        <FilterCheckbox
+          checked={showExcluidas}
+          onChange={setShowExcluidas}
+          className="w-fit"
+        >
           {showExcluidas ? 'Excluídas' : 'Não excluídas'}
-        </label>
+        </FilterCheckbox>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -515,44 +526,36 @@ export function ComandasPage() {
           <HelpTooltip>Filtra pelas formas de pagamento registradas nas comandas</HelpTooltip>
         </span>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <label className="inline-flex items-center gap-2 text-sm text-foreground">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-[var(--sp-primary)]"
-              checked={payMethods.size === PAYMENT_METHODS.length}
-              ref={(el) => {
-                if (el) {
-                  el.indeterminate =
-                    payMethods.size > 0 && payMethods.size < PAYMENT_METHODS.length;
-                }
-              }}
-              onChange={(e) =>
-                setPayMethods(
-                  e.target.checked
-                    ? new Set(PAYMENT_METHODS.map((m) => m.id))
-                    : new Set(),
-                )
-              }
-            />
+          <FilterCheckbox
+            className="w-fit"
+            checked={payMethods.size === PAYMENT_METHODS.length}
+            isIndeterminate={
+              payMethods.size > 0 && payMethods.size < PAYMENT_METHODS.length
+            }
+            onChange={(next) =>
+              setPayMethods(
+                next ? new Set(PAYMENT_METHODS.map((m) => m.id)) : new Set(),
+              )
+            }
+          >
             Selecionar tudo
-          </label>
+          </FilterCheckbox>
           {PAYMENT_METHODS.map((m) => (
-            <label key={m.id} className="inline-flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--sp-primary)]"
-                checked={payMethods.has(m.id)}
-                onChange={(e) =>
-                  setPayMethods((prev) => {
-                    const next = new Set(prev);
-                    if (e.target.checked) next.add(m.id);
-                    else next.delete(m.id);
-                    return next;
-                  })
-                }
-              />
+            <FilterCheckbox
+              key={m.id}
+              className="w-fit"
+              checked={payMethods.has(m.id)}
+              onChange={(next) =>
+                setPayMethods((prev) => {
+                  const nextSet = new Set(prev);
+                  if (next) nextSet.add(m.id);
+                  else nextSet.delete(m.id);
+                  return nextSet;
+                })
+              }
+            >
               {m.label}
-            </label>
+            </FilterCheckbox>
           ))}
         </div>
       </div>
@@ -632,7 +635,9 @@ export function ComandasPage() {
   );
 
   return (
-    <div>
+    // Toolbar compacta: reduz o mb-5 padrão do PageHeader para mb-3 só aqui,
+    // encostando os botões da toolbar no conteúdo (sem folga excessiva no topo).
+    <div className="[&>*:first-child]:mb-3">
       <PageHeader
         title="Comandas"
         titleAdornment={
@@ -642,14 +647,14 @@ export function ComandasPage() {
         }
         actions={
           <>
-            <Button
-              variant="outline"
-              className="hidden md:inline-flex"
-              onClick={() => setShowSearch((v) => !v)}
-              aria-expanded={showSearch}
-            >
-              <IconSearch size={16} /> Buscar
-            </Button>
+            {/* Busca inline (componente único de toolbar — ver InlineSearch). */}
+            <InlineSearch
+              open={showSearch}
+              onOpenChange={setShowSearch}
+              value={search}
+              onValueChange={setSearch}
+              placeholder="Buscar comanda"
+            />
             <Button
               variant="outline"
               className="hidden md:inline-flex"
@@ -657,6 +662,22 @@ export function ComandasPage() {
               aria-expanded={showFilters}
             >
               <IconFilter size={16} /> Filtrar
+            </Button>
+            {/* Ações em massa (desktop): fixo à esquerda de "Novo". Sem seleção →
+                entra no selectMode (revela os checkboxes da lista). Com itens
+                marcados → mostra a contagem e abre a bottom-sheet de ações. */}
+            <Button
+              variant={sel.count > 0 ? 'primary' : 'outline'}
+              className="hidden md:inline-flex"
+              aria-expanded={actionsOpen}
+              onClick={() => {
+                if (sel.count > 0) setActionsOpen(true);
+                else if (sel.selectMode) sel.cancel();
+                else sel.enter();
+              }}
+            >
+              <IconCheck size={16} />{' '}
+              {sel.count > 0 ? `Ações (${sel.count})` : 'Ações'}
             </Button>
             <Button
               variant="primary"
@@ -669,58 +690,31 @@ export function ComandasPage() {
         }
       />
 
-      <div>
-        {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
-          <div className="mb-3 md:hidden">
-            <TextField value={search} onChange={setSearch} aria-label="Buscar comanda">
-              <Input placeholder="Digite para buscar" />
-            </TextField>
-          </div>
-          {/* Desktop: continua sendo toggle via botão Buscar. */}
-          {showSearch && (
-            <div className="mb-4 hidden max-w-md md:block">
-              <TextField
-                value={search}
-                onChange={setSearch}
-                aria-label="Buscar comanda"
-                autoFocus
-              >
-                <Input placeholder="Buscar por nº do ticket ou cliente…" />
-              </TextField>
-            </div>
-          )}
-
-          {/* Desktop: painel de filtros inline. No mobile abre como bottom-sheet. */}
-          {showFilters && (
-            <div className="mb-4 hidden flex-col gap-4 rounded-xl border border-[var(--color-soft-border)] bg-white p-4 md:flex">
-              {filterFields}
-            </div>
-          )}
-
-          {/* Barra de exclusão em lote (desktop): a seleção via checkbox da tabela
-              alimenta o mesmo `sel` do modo de seleção mobile. */}
-          {sel.count > 0 && (
-            <div className="mb-3 hidden items-center gap-2 md:flex">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-danger"
-                isDisabled={del.isPending}
-                onClick={handleRemoveSelected}
-              >
-                <IconTrash size={14} /> Excluir ({sel.count})
-              </Button>
-            </div>
-          )}
-
+      {/* Mobile: input de busca SEMPRE visível no topo (padrão Belasis). */}
+      <div className="mb-3 md:hidden">
+        <TextField value={search} onChange={setSearch} aria-label="Buscar comanda">
+          <Input placeholder="Digite para buscar" />
+        </TextField>
       </div>
 
-      {/* Desktop: tabela + paginação dentro do Card. */}
-      <div className="hidden md:block">
-        <Card>
-          <Card.Content className="p-4">
+      {/* A busca do desktop agora é inline no header (ver actions do PageHeader). */}
+
+      {/* Layout de listagem: painel de filtros desliza da ESQUERDA (FilterAside)
+          e a lista fica num flex-1 que encolhe — o filtro NÃO cobre nem empurra a
+          tabela por cima. No mobile o filtro é um bottom-sheet (Drawer, abaixo). */}
+      <div className="flex flex-col gap-4 md:flex-row">
+        <FilterAside open={showFilters} breakpoint="md" desktopOnly width="md:w-[300px]">
+          <div className="flex flex-col gap-4">{filterFields}</div>
+        </FilterAside>
+
+        {/* Desktop: lista fluida. Sem container de altura fixa — usa o scroll do
+            <main>; o cabeçalho de colunas gruda no topo (sticky top-0) e a
+            paginação gruda embaixo (sticky bottom-0). Card sem overflow-hidden
+            (que quebraria o sticky), então usamos um container próprio. */}
+        <div className="hidden min-w-0 flex-1 md:block">
+        <div className="rounded-2xl border border-[var(--color-soft-border)] bg-white p-4 shadow-[var(--shadow-soft)]">
             {orders.isLoading ? (
-              <LoadingState />
+              <TableSkeleton columns={7} card={false} variant="desktop" firstColAvatar={false} />
             ) : orders.isError ? (
               <ErrorState onRetry={() => orders.refetch()} />
             ) : rows.length === 0 ? (
@@ -741,18 +735,22 @@ export function ComandasPage() {
             ) : (
               <>
                 {/* Desktop / tablet: ant-table style */}
-                <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b border-[var(--color-soft-border)] bg-[color-mix(in_oklab,var(--sp-ink)_3%,transparent)]">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-[var(--color-soft-border)] bg-[color-mix(in_oklab,var(--sp-ink)_3%,white)]">
                       <th className={`${th} w-10`}>
-                        <input
-                          type="checkbox"
-                          aria-label="Selecionar tudo"
-                          className="h-4 w-4 accent-[var(--sp-primary)]"
-                          checked={sel.allSelected}
+                        <Checkbox
+                          isSelected={sel.allSelected}
                           onChange={sel.selectAll}
-                        />
+                          aria-label="Selecionar tudo"
+                          className="shrink-0"
+                        >
+                          <Checkbox.Content>
+                            <Checkbox.Control>
+                              <Checkbox.Indicator />
+                            </Checkbox.Control>
+                          </Checkbox.Content>
+                        </Checkbox>
                       </th>
                       <th className={th}>
                         Ticket
@@ -793,26 +791,36 @@ export function ComandasPage() {
                         className="cursor-pointer border-b border-[var(--color-soft-border)] transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_4%,transparent)]"
                       >
                         <td className={td} onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            aria-label={`Selecionar comanda ${o.number}`}
-                            className="h-4 w-4 accent-[var(--sp-primary)]"
-                            checked={sel.isSelected(o.id)}
+                          <Checkbox
+                            isSelected={sel.isSelected(o.id)}
                             onChange={() => sel.toggle(o.id)}
-                          />
+                            aria-label={`Selecionar comanda ${o.number}`}
+                            className="shrink-0"
+                          >
+                            <Checkbox.Content>
+                              <Checkbox.Control>
+                                <Checkbox.Indicator />
+                              </Checkbox.Control>
+                            </Checkbox.Content>
+                          </Checkbox>
                         </td>
                         <td className={td}>
-                          <span className="font-semibold text-primary">#{o.number}</span>
+                          <span className="font-semibold text-primary hover:underline">#{o.number}</span>
                         </td>
                         <td className={`${td} text-muted-ink`}>{formatDate(o.date)}</td>
                         <td className={td}>
                           {o.customer ? (
-                            <span
+                            <button
+                              type="button"
                               title={o.customer.name}
-                              className="block max-w-[220px] truncate text-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setClienteId(o.customer!.id);
+                              }}
+                              className="block max-w-[220px] truncate text-left text-primary hover:underline"
                             >
                               {o.customer.name}
-                            </span>
+                            </button>
                           ) : (
                             <span className="text-muted">Avulso</span>
                           )}
@@ -841,19 +849,23 @@ export function ComandasPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
 
-                <Pagination page={page} total={rows.length} onPage={setPage} />
+                {/* Paginação grudada no rodapé do scroll (fundo sólido + z). O
+                    -mx-4/-mb-4/px-4 compensa o padding do container para o fundo
+                    cobrir a largura toda ao rolar. */}
+                <div className="sticky bottom-0 z-10 -mx-4 -mb-4 border-t border-[var(--color-soft-border)] bg-white px-4 pt-3 pb-6">
+                  <Pagination page={page} total={rows.length} onPage={setPage} />
+                </div>
               </>
             )}
-          </Card.Content>
-        </Card>
+        </div>
+        </div>
       </div>
 
       {/* Mobile: sem wrapper Card, cards compactos padrão Belasis. */}
       <div className="md:hidden">
         {orders.isLoading ? (
-          <LoadingState />
+          <TableSkeleton variant="mobile" />
         ) : orders.isError ? (
           <ErrorState onRetry={() => orders.refetch()} />
         ) : rows.length === 0 ? (
@@ -900,9 +912,18 @@ export function ComandasPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
                           <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
-                            <span className="font-semibold text-primary">#{o.number}</span>{' '}
+                            <span className="font-semibold text-primary hover:underline">#{o.number}</span>{' '}
                             {o.customer?.name ? (
-                              <span className="font-semibold text-foreground">{o.customer.name}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClienteId(o.customer!.id);
+                                }}
+                                className="font-semibold text-primary hover:underline"
+                              >
+                                {o.customer.name}
+                              </button>
                             ) : (
                               <span className="italic text-muted">Avulso</span>
                             )}
@@ -928,7 +949,14 @@ export function ComandasPage() {
       </div>
 
       <NovoComandaDrawer isOpen={createOpen} onClose={() => setCreateOpen(false)} />
-      <VerComandaDrawer order={viewing} onClose={() => setViewing(null)} />
+      <ComandaDrawer order={viewing} onClose={() => setViewing(null)} />
+
+      {/* Perfil do cliente — aberto ao clicar no NOME do cliente numa linha. */}
+      <ClientePerfilModal
+        customer={cliente.data ?? null}
+        isOpen={clienteId !== null && cliente.data != null}
+        onClose={() => setClienteId(null)}
+      />
 
       {/* Filtros no mobile: bottom-sheet (sobe de baixo), em vez do painel inline
           do desktop. Reusa os mesmos controles (filterFields). */}
@@ -1011,12 +1039,6 @@ function nextStagedUid(): string {
 
 function itemTotal(it: { quantity: number; unitPrice: number; discount: number }): number {
   return Math.max(0, it.quantity * it.unitPrice - it.discount);
-}
-
-/** dd/mm/yyyy from an ISO yyyy-mm-dd. */
-function shortDate(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso;
 }
 
 const WEEKDAY_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' });
@@ -1153,6 +1175,7 @@ export function NovoComandaDrawer({
       title="Nova comanda"
       // Belasis: content-wrapper renderiza 1650px (near-fullscreen), cap em 95vw.
       widthClass="sm:w-[1180px] lg:w-[1650px] sm:max-w-[95vw]"
+      fullscreen
       footer={
         <>
           <Button variant="ghost" className="mr-auto text-muted-ink" onClick={onClose}>
@@ -1233,19 +1256,7 @@ export function NovoComandaDrawer({
             </Field>
 
             <Field label="Data">
-              <div className="relative">
-                <div className="flex h-11 items-center justify-between gap-2 rounded-lg border border-default-200 bg-white px-3 text-sm text-foreground">
-                  <span>{shortDate(date)}</span>
-                  <IconCalendar size={16} className="text-muted" />
-                </div>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  aria-label="Data"
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-              </div>
+              <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
               {weekdayLong(date) && (
                 <span className="mt-1 text-xs capitalize text-muted">{weekdayLong(date)}</span>
               )}
@@ -1433,6 +1444,7 @@ function EditItemDrawer({
       onClose={onCancel}
       title={item?.name ?? 'Editar item'}
       widthClass="sm:w-[480px]"
+      fullscreen
       zClass="z-[90]"
       footer={
         <>
@@ -1557,7 +1569,7 @@ function lineTotal(it: OrderItemDetail): number {
  * sub-drawer de Pagamentos + Faturar. Absorve o antigo "Editar" (o Belasis não
  * separa ver/editar).
  */
-function VerComandaDrawer({
+export function VerComandaDrawer({
   order,
   onClose,
 }: {
@@ -2223,6 +2235,7 @@ function PagamentosDrawer({
       onClose={onClose}
       title="Pagamentos"
       widthClass="sm:w-[480px]"
+      fullscreen
       zClass="z-[90]"
       footer={
         <>

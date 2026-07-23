@@ -50,8 +50,8 @@ export function EstoquePage() {
       <InventoryReportShell activeKey="stock">
           <div className={`${CARD} p-4 sm:p-5`}>
             {/* Alerta informativo (ant-alert-info, themeable) */}
-            <div className="flex gap-3 rounded-lg border border-primary/25 bg-primary/[0.06] p-4">
-              <span className="mt-0.5 shrink-0 text-primary" aria-hidden>
+            <div className="flex gap-3 rounded-lg border border-status-info/25 bg-status-info-soft p-4">
+              <span className="mt-0.5 shrink-0 text-status-info" aria-hidden>
                 <IconInfo size={18} />
               </span>
               <div className="min-w-0">
@@ -133,13 +133,13 @@ export function EstoquePage() {
                           return (
                             <tr
                               key={r.productId}
-                              className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                              className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                             >
                               <td className="px-5 py-3 font-medium text-ink">{r.name}</td>
                               <td
                                 className={[
                                   'px-5 py-3 text-right',
-                                  semEstoque ? 'font-semibold text-pink' : 'text-ink',
+                                  semEstoque ? 'font-semibold text-status-danger-fg' : 'text-ink',
                                 ].join(' ')}
                               >
                                 {formatNumber(r.stock)}
@@ -156,8 +156,8 @@ export function EstoquePage() {
                                   className={[
                                     'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
                                     semEstoque
-                                      ? 'bg-pink/15 text-pink'
-                                      : 'bg-gold/20 text-gold-strong',
+                                      ? 'bg-status-danger-soft text-status-danger-fg'
+                                      : 'bg-status-warning-soft text-status-warning-fg',
                                   ].join(' ')}
                                 >
                                   +{formatNumber(r.deficit)}
@@ -168,7 +168,7 @@ export function EstoquePage() {
                         })}
                       </tbody>
                       <tfoot>
-                        <tr className="bg-primary/5 font-semibold text-ink">
+                        <tr className="bg-ink/5 font-semibold text-ink">
                           <td className="px-5 py-3">Total</td>
                           <td className="px-5 py-3 text-right">{formatNumber(items.length)}</td>
                           <td className="px-5 py-3" colSpan={2} />

@@ -13,7 +13,8 @@ import {
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { DataTable, type Column } from '../../components/DataTable';
-import { EmptyState, ErrorState, LoadingState } from '../../components/States';
+import { EmptyState, ErrorState } from '../../components/States';
+import { TableSkeleton } from '../../components/Skeletons';
 import {
   IconArrowDown,
   IconArrowUp,
@@ -29,8 +30,10 @@ import {
   IconSearch,
   IconTrash,
   IconWallet,
+  IconX,
 } from '../../components/icons';
 import { DateFieldBR } from '../../components/DateRangeFilter';
+import { IconTip } from '../../components/IconTip';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { FullDrawer } from '../../components/FullDrawer';
@@ -38,6 +41,8 @@ import { HelpTooltip } from '../../components/HelpTooltip';
 import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
 import { BulkActionsSheet } from '../../components/BulkActionsSheet';
 import { useSelectMode, buildSelectActions, type BulkAction } from '../../hooks/useSelectMode';
+import { FilterAside } from '../../components/FilterAside';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { useCustomers, useProfessionals } from '../../lib/queries';
 import {
@@ -149,6 +154,7 @@ export function TransacoesPage() {
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [showTotals, setShowTotals] = useState(false);
+  const isMobile = useIsMobile();
 
   // Modo de seleção (Belasis): habilitado via BottomNav "Selecionar". Enquanto
   // ativo, tocar num card alterna a seleção em vez de abrir edição. Sai do modo
@@ -281,7 +287,7 @@ export function TransacoesPage() {
           count: sel.count,
         })
       : [
-          { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen(true) },
+          { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen((v) => !v) },
           { key: 'totais', label: 'Calcular totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
           {
             key: 'selecionar',
@@ -332,8 +338,10 @@ export function TransacoesPage() {
         return (
           <div className="min-w-0 max-w-[280px]">
             <div
-              className={`truncate font-medium text-foreground ${
-                t.status === 'reversed' ? 'line-through opacity-60' : ''
+              className={`truncate font-medium ${
+                t.status === 'reversed'
+                  ? 'text-foreground line-through opacity-60'
+                  : 'text-primary hover:underline'
               }`}
             >
               {name}
@@ -353,7 +361,7 @@ export function TransacoesPage() {
       render: (t) => {
         const o = origem(t);
         return o.startsWith('C#') ? (
-          <span className="font-medium text-primary hover:underline">{o}</span>
+          <span className="font-medium text-foreground">{o}</span>
         ) : (
           <span className="text-muted">{o}</span>
         );
@@ -445,29 +453,29 @@ export function TransacoesPage() {
       render: (t) =>
         t.status === 'reversed' ? null : (
           <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              isIconOnly
-              aria-label="Editar"
-              onClick={() => openEdit(t)}
-            >
-              <span title="Editar">
+            <IconTip label="Editar">
+              <Button
+                variant="ghost"
+                size="sm"
+                isIconOnly
+                aria-label="Editar"
+                onClick={() => openEdit(t)}
+              >
                 <IconPencil size={16} />
-              </span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              isIconOnly
-              aria-label="Estornar"
-              isDisabled={reverse.isPending}
-              onClick={() => handleReverse(t)}
-            >
-              <span title="Estornar">
+              </Button>
+            </IconTip>
+            <IconTip label="Estornar">
+              <Button
+                variant="ghost"
+                size="sm"
+                isIconOnly
+                aria-label="Estornar"
+                isDisabled={reverse.isPending}
+                onClick={() => handleReverse(t)}
+              >
                 <IconRepeat size={16} />
-              </span>
-            </Button>
+              </Button>
+            </IconTip>
           </div>
         ),
     },
@@ -504,7 +512,7 @@ export function TransacoesPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setFilterOpen(true)}
+            onClick={() => setFilterOpen((v) => !v)}
             className="relative"
           >
             <IconFilter size={16} /> Filtrar
@@ -564,8 +572,18 @@ export function TransacoesPage() {
       </div>
 
       {/* Busca: sempre visível no mobile (Belasis "Digite para buscar");
-          revelada via "Buscar" no desktop. */}
-      <div className={searchOpen ? 'mb-4' : 'mb-4 md:hidden'}>
+          revelada com animação via "Buscar" no desktop. Fica SEMPRE montada;
+          largura/opacity animam 0 ↔ pleno. */}
+      <div
+        className={[
+          'mb-4 w-full max-w-xl',
+          'md:origin-left md:overflow-hidden',
+          'md:transition-[width,opacity,transform] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)]',
+          searchOpen
+            ? 'md:w-full md:translate-x-0 md:opacity-100'
+            : 'md:pointer-events-none md:w-0 md:-translate-x-3 md:opacity-0',
+        ].join(' ')}
+      >
         <TextField value={query} onChange={setQuery} aria-label="Buscar transações">
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
@@ -617,10 +635,48 @@ export function TransacoesPage() {
         </span>
       </div>
 
-      {/* DESKTOP: Card + DataTable + paginação — mantém wrapper cor creme */}
-      <div className="hidden md:block">
-        <Card className={CARD_CLASS}>
-          <Card.Content className="p-4">
+      {/* DESKTOP: filtro lateral (desliza da esquerda) + Card/DataTable + paginação */}
+      <div className="lg:flex lg:items-start lg:gap-4">
+        <FilterAside open={filterOpen} desktopOnly breakpoint="lg">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">Filtros</span>
+            <IconTip label="Fechar filtros">
+              <button
+                type="button"
+                onClick={() => setFilterOpen(false)}
+                aria-label="Fechar filtros"
+                className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
+              >
+                <IconX size={16} />
+              </button>
+            </IconTip>
+          </div>
+          <FiltrosBody
+            from={from}
+            to={to}
+            setFrom={setFrom}
+            setTo={setTo}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            methodFilter={methodFilter}
+            setMethodFilter={setMethodFilter}
+            paymentMethods={(paymentMethods.data ?? []).map((m) => ({
+              id: m.id,
+              name: m.name,
+            }))}
+            showReversed={showReversed}
+            setShowReversed={setShowReversed}
+          />
+          <div className="mt-4 flex flex-col gap-2">
+            {filtrosFooter(hasFilters, clearFilters, () => setFilterOpen(false))}
+          </div>
+        </FilterAside>
+        <div className="hidden min-w-0 flex-1 md:block">
+        {/* Card = div sem padding próprio (padrão ClientesPage/ProdutosPage): a
+            paginação vira irmã da DataTable, no fluxo do scroll do <main>, e pode
+            grudar no rodapé (md:sticky) hugando o canto arredondado do card. */}
+        <div className={`overflow-clip rounded-2xl ${CARD_CLASS}`}>
+          <div className="p-4">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-xs text-muted">Ordenado por data</span>
               <span className="text-xs text-muted">
@@ -628,7 +684,13 @@ export function TransacoesPage() {
               </span>
             </div>
             {transactions.isLoading ? (
-              <LoadingState />
+              <TableSkeleton
+                columns={9}
+                withCheckbox={false}
+                firstColAvatar={false}
+                card={false}
+                variant="desktop"
+              />
             ) : transactions.isError ? (
               <ErrorState onRetry={() => transactions.refetch()} />
             ) : visibleRows.length === 0 ? (
@@ -638,45 +700,46 @@ export function TransacoesPage() {
                 description={q ? 'Ajuste a busca para ver mais lançamentos.' : hasFilters ? 'Ajuste os filtros para ver mais lançamentos.' : 'Lance recebimentos e despesas para acompanhar o caixa.'}
               />
             ) : (
-              <>
-                <DataTable
-                  columns={columns}
-                  rows={visibleRows}
-                  getKey={(t) => t.id}
-                  aria-label="Transações"
-                  rowClassName={(t) =>
-                    t.status === 'reversed'
-                      ? 'opacity-60'
-                      : t.kind === 'income'
-                        ? 'bg-success/5'
-                        : 'bg-danger/5'
-                  }
-                />
-                {total > 0 && (
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
-                    <span className="text-xs text-muted">{total} no total</span>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" aria-label="Página anterior" isDisabled={page <= 1 || transactions.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                        <IconChevron size={14} className="rotate-90" />
-                      </Button>
-                      <span className="px-1 text-xs text-muted">Página {page} de {pageCount}</span>
-                      <Button variant="outline" size="sm" aria-label="Próxima página" isDisabled={page >= pageCount || transactions.isFetching} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
-                        <IconChevron size={14} className="-rotate-90" />
-                      </Button>
-                      <span className="ml-1 hidden text-xs text-muted sm:inline">{PAGE_SIZE} / página</span>
-                    </div>
-                  </div>
-                )}
-              </>
+              <DataTable
+                columns={columns}
+                rows={visibleRows}
+                getKey={(t) => t.id}
+                aria-label="Transações"
+                rowClassName={(t) =>
+                  t.status === 'reversed'
+                    ? 'opacity-60'
+                    : t.kind === 'income'
+                      ? 'bg-success/5'
+                      : 'bg-danger/5'
+                }
+              />
             )}
-          </Card.Content>
-        </Card>
+          </div>
+          {/* Rodapé/paginação: fundo sólido (bg-warm-white = bg do card) pra cobrir
+              as linhas ao rolar; sticky no rodapé do scroll do <main>. */}
+          {total > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] bg-warm-white px-4 pt-3 pb-6 md:sticky md:bottom-0 md:z-20 md:rounded-b-2xl">
+              <span className="text-xs text-muted">{total} no total</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" aria-label="Página anterior" isDisabled={page <= 1 || transactions.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  <IconChevron size={14} className="rotate-90" />
+                </Button>
+                <span className="px-1 text-xs text-muted">Página {page} de {pageCount}</span>
+                <Button variant="outline" size="sm" aria-label="Próxima página" isDisabled={page >= pageCount || transactions.isFetching} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+                  <IconChevron size={14} className="-rotate-90" />
+                </Button>
+                <span className="ml-1 hidden text-xs text-muted sm:inline">{PAGE_SIZE} / página</span>
+              </div>
+            </div>
+          )}
+        </div>
+        </div>
       </div>
 
       {/* MOBILE: lista direto no fluxo, SEM Card wrapper (regra do projeto) */}
       <div className="md:hidden">
         {transactions.isLoading ? (
-          <LoadingState />
+          <TableSkeleton variant="mobile" />
         ) : transactions.isError ? (
           <ErrorState onRetry={() => transactions.refetch()} />
         ) : visibleRows.length === 0 ? (
@@ -792,27 +855,29 @@ export function TransacoesPage() {
         )}
       </div>
 
-      {/* Filtrar: drawer lateral (direita) com as seções do Belasis. */}
-      <FiltrosDrawer
-        isOpen={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        from={from}
-        to={to}
-        setFrom={setFrom}
-        setTo={setTo}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        methodFilter={methodFilter}
-        setMethodFilter={setMethodFilter}
-        paymentMethods={(paymentMethods.data ?? []).map((m) => ({
-          id: m.id,
-          name: m.name,
-        }))}
-        showReversed={showReversed}
-        setShowReversed={setShowReversed}
-        hasFilters={hasFilters}
-        onClear={clearFilters}
-      />
+      {/* Filtrar mobile: bottom-sheet com as seções do Belasis (no desktop é o FilterAside acima). */}
+      {isMobile && (
+        <FiltrosDrawer
+          isOpen={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          from={from}
+          to={to}
+          setFrom={setFrom}
+          setTo={setTo}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          methodFilter={methodFilter}
+          setMethodFilter={setMethodFilter}
+          paymentMethods={(paymentMethods.data ?? []).map((m) => ({
+            id: m.id,
+            name: m.name,
+          }))}
+          showReversed={showReversed}
+          setShowReversed={setShowReversed}
+          hasFilters={hasFilters}
+          onClear={clearFilters}
+        />
+      )}
 
       {/* Bottom-sheet das ações em lote do modo de seleção (mobile + desktop). */}
       <BulkActionsSheet
@@ -850,32 +915,7 @@ export function TransacoesPage() {
   );
 }
 
-/**
- * Drawer de filtros (Belasis "Filtrar"): desliza da direita e agrupa as seções
- * Período, Status de pagamento, Formas de pagamento e Estornadas. Aplica ao vivo
- * (as queries reagem ao estado); "Aplicar" apenas fecha. As seções Contas/
- * Categorias do Belasis dependem de filtro no servidor.
- * TODO: expor filtro por conta/categoria na query de transações.
- */
-function FiltrosDrawer({
-  isOpen,
-  onClose,
-  from,
-  to,
-  setFrom,
-  setTo,
-  statusFilter,
-  setStatusFilter,
-  methodFilter,
-  setMethodFilter,
-  paymentMethods,
-  showReversed,
-  setShowReversed,
-  hasFilters,
-  onClear,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
+type FiltrosProps = {
   from: string;
   to: string;
   setFrom: (v: string) => void;
@@ -887,9 +927,26 @@ function FiltrosDrawer({
   paymentMethods: { id: string; name: string }[];
   showReversed: boolean;
   setShowReversed: (v: boolean) => void;
-  hasFilters: boolean;
-  onClear: () => void;
-}) {
+};
+
+/**
+ * Corpo do filtro (Belasis "Filtrar") com as seções Período, Status de
+ * pagamento, Formas de pagamento e Estornadas. Compartilhado entre o painel
+ * lateral desktop (FilterAside) e o bottom-sheet mobile (Drawer).
+ */
+function FiltrosBody({
+  from,
+  to,
+  setFrom,
+  setTo,
+  statusFilter,
+  setStatusFilter,
+  methodFilter,
+  setMethodFilter,
+  paymentMethods,
+  showReversed,
+  setShowReversed,
+}: FiltrosProps) {
   const statusOptions: { id: 'all' | 'paid' | 'pending'; name: string }[] = [
     { id: 'all', name: 'Todos' },
     { id: 'paid', name: 'Pago' },
@@ -897,7 +954,83 @@ function FiltrosDrawer({
   ];
   const methodOptions = [{ id: ALL, name: 'Todas as formas' }, ...paymentMethods];
 
-  const footer = (
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Período */}
+      <FilterSection title="Período">
+        <div className="grid grid-cols-2 gap-3">
+          <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
+          <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
+        </div>
+      </FilterSection>
+
+      {/* Status de pagamento (segmentado) */}
+      <FilterSection title="Status de pagamento">
+        <div className="grid grid-cols-3 gap-2">
+          {statusOptions.map((o) => {
+            const active = statusFilter === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setStatusFilter(o.id)}
+                className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                  active
+                    ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
+                    : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
+                }`}
+              >
+                {o.name}
+              </button>
+            );
+          })}
+        </div>
+      </FilterSection>
+
+      {/* Formas de pagamento (lista selecionável) */}
+      <FilterSection title="Formas de pagamento">
+        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
+          {methodOptions.map((o, i) => {
+            const active = methodFilter === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setMethodFilter(o.id)}
+                className={`flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
+                  i > 0 ? 'border-t border-[var(--color-soft-border)]' : ''
+                } ${active ? 'bg-gold/12 font-medium text-foreground' : 'bg-white text-foreground hover:bg-cream'}`}
+              >
+                <span className="truncate">{o.name}</span>
+                {active && <IconCheck size={16} className="shrink-0 text-gold-strong" />}
+              </button>
+            );
+          })}
+        </div>
+      </FilterSection>
+
+      {/* Estornadas */}
+      <FilterSection title="Estornadas">
+        <Switch
+          isSelected={showReversed}
+          onChange={setShowReversed}
+          className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
+        >
+          <span className="inline-flex items-center text-sm text-foreground">
+            Mostrar estornadas
+            <HelpTooltip>Incluir transações canceladas/estornadas na listagem</HelpTooltip>
+          </span>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch>
+      </FilterSection>
+    </div>
+  );
+}
+
+function filtrosFooter(hasFilters: boolean, onClear: () => void, onApply: () => void) {
+  return (
     <>
       <Button
         variant="outline"
@@ -907,91 +1040,39 @@ function FiltrosDrawer({
       >
         Limpar filtros
       </Button>
-      <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={onApply}>
         Aplicar
       </Button>
     </>
   );
+}
 
+/**
+ * Bottom-sheet "Filtrar" (mobile) com as seções do Belasis. No desktop o mesmo
+ * conteúdo vive no FilterAside lateral (desliza da esquerda da tabela).
+ */
+function FiltrosDrawer({
+  isOpen,
+  onClose,
+  hasFilters,
+  onClear,
+  ...body
+}: FiltrosProps & {
+  isOpen: boolean;
+  onClose: () => void;
+  hasFilters: boolean;
+  onClear: () => void;
+}) {
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title="Filtrar"
-      footer={footer}
+      footer={filtrosFooter(hasFilters, onClear, onClose)}
       widthClass="sm:w-[420px]"
+      placement="bottom"
     >
-      <div className="flex flex-col gap-6">
-        {/* Período */}
-        <FilterSection title="Período">
-          <div className="grid grid-cols-2 gap-3">
-            <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
-            <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
-          </div>
-        </FilterSection>
-
-        {/* Status de pagamento (segmentado) */}
-        <FilterSection title="Status de pagamento">
-          <div className="grid grid-cols-3 gap-2">
-            {statusOptions.map((o) => {
-              const active = statusFilter === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setStatusFilter(o.id)}
-                  className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
-                    active
-                      ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                      : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-                  }`}
-                >
-                  {o.name}
-                </button>
-              );
-            })}
-          </div>
-        </FilterSection>
-
-        {/* Formas de pagamento (lista selecionável) */}
-        <FilterSection title="Formas de pagamento">
-          <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
-            {methodOptions.map((o, i) => {
-              const active = methodFilter === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setMethodFilter(o.id)}
-                  className={`flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
-                    i > 0 ? 'border-t border-[var(--color-soft-border)]' : ''
-                  } ${active ? 'bg-gold/12 font-medium text-foreground' : 'bg-white text-foreground hover:bg-cream'}`}
-                >
-                  <span className="truncate">{o.name}</span>
-                  {active && <IconCheck size={16} className="shrink-0 text-gold-strong" />}
-                </button>
-              );
-            })}
-          </div>
-        </FilterSection>
-
-        {/* Estornadas */}
-        <FilterSection title="Estornadas">
-          <Switch
-            isSelected={showReversed}
-            onChange={setShowReversed}
-            className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
-          >
-            <span className="inline-flex items-center text-sm text-foreground">
-              Mostrar estornadas
-              <HelpTooltip>Incluir transações canceladas/estornadas na listagem</HelpTooltip>
-            </span>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-          </Switch>
-        </FilterSection>
-      </div>
+      <FiltrosBody {...body} />
     </Drawer>
   );
 }
@@ -1283,6 +1364,7 @@ export function LancamentoModal({
       isOpen
       onClose={onClose}
       title={title}
+      widthClass="sm:w-[520px]"
       sections={[
         { key: 'dados', label: 'Dados do lançamento' },
         { key: 'classificacao', label: 'Categoria & Conta' },
@@ -1512,7 +1594,7 @@ export function TransferenciaModal({
       onClose={onClose}
       title="Nova transferência"
       footer={footer}
-      widthClass="sm:w-[460px]"
+      widthClass="sm:w-[520px]"
     >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">

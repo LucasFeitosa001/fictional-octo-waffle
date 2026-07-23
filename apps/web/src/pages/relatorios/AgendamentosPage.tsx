@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { IconCalendar, IconChevron } from '../../components/icons';
+import { Checkbox } from '@heroui/react';
+import { IconChevron } from '../../components/icons';
 import { isoDate } from '../../lib/format';
 import { useReportsOverview } from '../../lib/queries/relatorios';
 import { CalendarReportShell } from './reportNav';
+import { DateRangePicker } from '../../components/DatePicker';
 
 /* -------------------------------------------------------------------------- */
 /*  Clone 100% fiel da página "Todos os Agendamentos" do Belasis              */
@@ -137,26 +139,12 @@ export function AgendamentosPage() {
             {/* Período */}
             <div>
               <FieldLabel>Período</FieldLabel>
-              <div className="flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-card px-3 text-sm text-ink focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/30">
-                <input
-                  type="date"
-                  value={range.from}
-                  max={range.to || undefined}
-                  onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-                  aria-label="Data inicial"
-                  className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-                />
-                <IconChevron size={14} className="shrink-0 -rotate-90 text-muted-ink" />
-                <input
-                  type="date"
-                  value={range.to}
-                  min={range.from || undefined}
-                  onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-                  aria-label="Data final"
-                  className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-                />
-                <IconCalendar size={16} className="shrink-0 text-muted-ink" />
-              </div>
+              <DateRangePicker
+                from={range.from}
+                to={range.to}
+                onChange={setRange}
+                ariaLabel="Período"
+              />
             </div>
 
             {/* Profissionais */}
@@ -212,18 +200,19 @@ export function AgendamentosPage() {
           <div className="mt-5">
             <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 md:grid-cols-3">
               {COLUMN_OPTIONS.map((c) => (
-                <label
+                <Checkbox
                   key={c.value}
-                  className="flex cursor-pointer items-center gap-2 text-sm text-ink"
+                  isSelected={checked.has(c.value)}
+                  onChange={() => toggleColumn(c.value)}
+                  className="w-full cursor-pointer items-center gap-2 text-sm text-ink"
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked.has(c.value)}
-                    onChange={() => toggleColumn(c.value)}
-                    className="h-4 w-4 shrink-0 rounded border-line accent-[var(--sp-primary)]"
-                  />
-                  <span className="min-w-0 truncate">{c.label}</span>
-                </label>
+                  <Checkbox.Content className="min-w-0 items-center gap-2">
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
+                    <span className="min-w-0 truncate">{c.label}</span>
+                  </Checkbox.Content>
+                </Checkbox>
               ))}
             </div>
           </div>

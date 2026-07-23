@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AppointmentEvent } from '../notifications/notifications.templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
+import { QueuesService } from '../queues/queues.service';
 
 // Slot generation granularity (minutes) for the availability grid.
 const SLOT_STEP_MIN = 15;
@@ -30,6 +31,15 @@ const ACTIVE_STATUSES: AppointmentStatus[] = [
   AppointmentStatus.finished,
 ];
 
+// Statuses that COMMIT the slot (exclude `unconfirmed`, which is só um pedido
+// provisório de agendamento online). Usado ao CONFIRMAR: um `unconfirmed` irmão
+// no mesmo horário não pode barrar a confirmação — quem confirma primeiro fica
+// com o slot (aí ele vira `confirmed` e passa a bloquear os demais). Evita que
+// dois pedidos online no mesmo horário travem o auto-confirm mutuamente.
+const COMMITTED_STATUSES: AppointmentStatus[] = ACTIVE_STATUSES.filter(
+  (s) => s !== AppointmentStatus.unconfirmed,
+);
+
 @Injectable()
 export class AppointmentsService {
   private readonly logger = new Logger(AppointmentsService.name);
@@ -39,6 +49,7 @@ export class AppointmentsService {
     private readonly notifications: NotificationsService,
     private readonly whatsapp: WhatsappService,
     private readonly email: EmailService,
+    private readonly queues: QueuesService,
   ) {}
 
   async list(
@@ -197,7 +208,74 @@ export class AppointmentsService {
 
     void this.notifications.notifyAppointment('created', companyId, created.id);
     void this.sendProfessionalNewAppointment(companyId, created.id);
+    // Event-driven: schedule the 24h/2h delayed reminders for this appointment.
+    void this.queues.enqueueAppointmentReminders(companyId, created.id, created.start);
+    // Aviso PERSONALIZADO do drawer ("Avisar o cliente"): job atrasado dedicado,
+    // ancorado no start/end recém-criados (before/after/from_now).
+    if (dto.followUp?.enabled) {
+      void this.queues.enqueueAppointmentCustomFollowUp(
+        companyId,
+        created.id,
+        dto.followUp,
+        { start, end },
+      );
+    }
     return created;
+  }
+
+  // POST /appointments/block — "Ocupar horários": cria um bloqueio de agenda.
+  // Um bloqueio é um Appointment sem cliente e sem itens que ocupa o horário do
+  // profissional (status `scheduled` entra na checagem de colisão, então nenhum
+  // agendamento pode ser marcado por cima). Não dispara notificações/lembretes
+  // porque não há cliente envolvido.
+  async block(
+    companyId: string,
+    dto: { professionalId: string; start: string; end: string; reason?: string },
+  ) {
+    const start = new Date(dto.start);
+    const end = new Date(dto.end);
+    if (Number.isNaN(start.getTime())) {
+      throw new BadRequestException('Data de início inválida');
+    }
+    if (Number.isNaN(end.getTime())) {
+      throw new BadRequestException('Data de término inválida');
+    }
+    if (end <= start) {
+      throw new BadRequestException('O término deve ser depois do início');
+    }
+
+    await this.assertProfessionalExists(companyId, dto.professionalId);
+
+    const reason = dto.reason?.trim();
+    // Prefixo padronizado para o front reconhecer o registro como bloqueio
+    // (o modelo Appointment não tem um tipo dedicado — reaproveitamos o notes).
+    const notes = reason ? `[Bloqueio] ${reason}` : '[Bloqueio]';
+
+    // Mesma proteção contra double-booking do create: advisory lock por
+    // (companyId, professionalId) + checagem de sobreposição na transação.
+    return this.prisma.client.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${dto.professionalId}))`;
+      await this.assertNoOverlap(
+        companyId,
+        dto.professionalId,
+        start,
+        end,
+        undefined,
+        tx,
+      );
+      return tx.appointment.create({
+        data: {
+          companyId,
+          professionalId: dto.professionalId,
+          start,
+          end,
+          notes,
+          status: AppointmentStatus.scheduled,
+          source: AppointmentSource.admin,
+        },
+        include: { items: true },
+      });
+    });
   }
 
   async update(companyId: string, id: string, dto: UpdateAppointmentDto) {
@@ -231,7 +309,7 @@ export class AppointmentsService {
       await this.assertNoOverlap(companyId, professionalId, start, end, id);
     }
 
-    return this.prisma.client.appointment.update({
+    const saved = await this.prisma.client.appointment.update({
       where: { id },
       data: {
         customerId: dto.customerId,
@@ -243,6 +321,44 @@ export class AppointmentsService {
         notes: dto.notes,
       },
     });
+
+    // Rescheduled → the pending reminders point at the old time. Cancel and
+    // re-enqueue against the new start so 24h/2h fire at the right moment.
+    if (dto.start) {
+      void this.queues
+        .cancelAppointmentReminders(id)
+        .then(() =>
+          this.queues.enqueueAppointmentReminders(companyId, id, saved.start),
+        );
+    }
+
+    // Aviso personalizado do drawer: reconfigura de forma coerente.
+    //   - followUp presente + enabled → cancela o pendente e re-enfileira com a
+    //     nova config, ancorado no start/end atualizados;
+    //   - followUp presente + !enabled → cancela o pendente (atendente desligou);
+    //   - followUp ausente mas o horário mudou → re-ancora o job pendente (se
+    //     houver) cancelando-o — sem config nova não há o que reprogramar, então
+    //     apenas cancelamos para não disparar no horário antigo.
+    if (dto.followUp) {
+      if (dto.followUp.enabled) {
+        void this.queues
+          .cancelAppointmentCustomFollowUp(id)
+          .then(() =>
+            this.queues.enqueueAppointmentCustomFollowUp(companyId, id, dto.followUp!, {
+              start,
+              end,
+            }),
+          );
+      } else {
+        void this.queues.cancelAppointmentCustomFollowUp(id);
+      }
+    } else if (dto.start || dto.end) {
+      // Reagendou sem reenviar a config do aviso: o job pendente ficaria no
+      // horário antigo. Cancela para evitar disparo desalinhado (o atendente
+      // pode reconfigurar o aviso ao reabrir o drawer).
+      void this.queues.cancelAppointmentCustomFollowUp(id);
+    }
+    return saved;
   }
 
   async setStatus(companyId: string, id: string, dto: StatusDto, byUserId?: string) {
@@ -257,12 +373,16 @@ export class AppointmentsService {
       current.professionalId &&
       ACTIVE_STATUSES.includes(dto.status)
     ) {
+      // Ao (re)ativar/confirmar, bloqueia só contra slots COMPROMETIDOS — um
+      // `unconfirmed` irmão (pedido online provisório) não trava a transição.
       await this.assertNoOverlap(
         companyId,
         current.professionalId,
         current.start,
         current.end,
         id,
+        undefined,
+        COMMITTED_STATUSES,
       );
     }
 
@@ -292,6 +412,26 @@ export class AppointmentsService {
         void this.sendCustomerCancellation(companyId, id, dto.reason);
       }
     }
+
+    // Event-driven queue side effects on status transitions:
+    if (statusChanged) {
+      if (dto.status === AppointmentStatus.confirmed) {
+        // Re-enqueue reminders (idempotent by jobId) — a confirm may happen before
+        // any were scheduled, or reaffirms the existing ones.
+        void this.queues.enqueueAppointmentReminders(companyId, id, current.start);
+      } else if (dto.status === AppointmentStatus.canceled) {
+        // Cancelling the appointment cancels its pending reminders + custom warn.
+        void this.queues.cancelAppointmentReminders(id);
+        void this.queues.cancelAppointmentCustomFollowUp(id);
+      } else if (
+        dto.status === AppointmentStatus.done ||
+        dto.status === AppointmentStatus.finished
+      ) {
+        // Concluded → reminders are moot; schedule the post-service follow-up.
+        void this.queues.cancelAppointmentReminders(id);
+        void this.queues.enqueueFollowUp(companyId, { appointmentId: id });
+      }
+    }
     return updated;
   }
 
@@ -311,6 +451,8 @@ export class AppointmentsService {
       where: { id: appointmentId, companyId },
       select: {
         start: true,
+        // customerId exposto p/ vincular as mensagens ao histórico "Interações".
+        customerId: true,
         company: { select: { name: true, timezone: true } },
         customer: { select: { name: true, email: true, phone: true } },
         professional: { select: { name: true, phone: true, notifyWhatsapp: true } },
@@ -326,6 +468,7 @@ export class AppointmentsService {
       timeZone: tz, hour: '2-digit', minute: '2-digit',
     }).format(appt.start);
     return {
+      customerId: appt.customerId ?? null,
       salonName: appt.company.name,
       professionalName: appt.professional?.name ?? null,
       professionalPhone: appt.professional?.phone?.trim() || null,
@@ -356,7 +499,9 @@ export class AppointmentsService {
           `⏰ *Horário:* ${v.timeLabel}`,
           ``,
           `O pagamento é feito no salão. Até logo! 💖`,
-        ].filter((l): l is string => l !== null).join('\n'));
+        ].filter((l): l is string => l !== null).join('\n'),
+        // Interações: confirmação enviada ao cliente.
+        { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation' });
       }
       if (v.customerEmail) {
         await this.email.send({
@@ -382,7 +527,9 @@ export class AppointmentsService {
           `Infelizmente seu agendamento no *${v.salonName}* (${v.serviceNames} — ${v.dateLabel} às ${v.timeLabel}) foi *cancelado* pelo salão.${reasonLine}`,
           ``,
           `Se quiser, é só agendar um novo horário. 💖`,
-        ].join('\n'));
+        ].join('\n'),
+        // Interações: cancelamento avisado ao cliente.
+        { companyId, customerId: v.customerId ?? undefined, kind: 'cancellation' });
       }
       if (v.customerEmail) {
         await this.email.send({
@@ -410,7 +557,9 @@ export class AppointmentsService {
           `*${suggestion}*`,
           ``,
           `Pode responder por aqui para combinar o melhor horário. 💖`,
-        ].join('\n'));
+        ].join('\n'),
+        // Interações: sugestão de novo horário ao cliente (parte do fluxo de confirmação).
+        { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation' });
       }
       if (v.customerEmail) {
         await this.email.send({
@@ -441,7 +590,9 @@ export class AppointmentsService {
         `💅 *Serviço:* ${v.serviceNames}`,
         `📅 *Data:* ${v.dateLabel}`,
         `⏰ *Horário:* ${v.timeLabel}`,
-      ].join('\n'));
+      ].join('\n'),
+      // Interações: aviso ao profissional (não ao cliente) — sem customerId.
+      { companyId, kind: 'manager' });
     } catch (err) {
       this.logger.error(`Falha ao notificar profissional: ${(err as Error).message}`);
     }
@@ -449,6 +600,9 @@ export class AppointmentsService {
 
   async remove(companyId: string, id: string) {
     await this.findOne(companyId, id);
+    // Cancel any pending reminders + custom warning before the appt is gone.
+    void this.queues.cancelAppointmentReminders(id);
+    void this.queues.cancelAppointmentCustomFollowUp(id);
     return this.prisma.client.appointment.delete({ where: { id } });
   }
 
@@ -609,13 +763,14 @@ export class AppointmentsService {
     end: Date,
     ignoreId?: string,
     db: Prisma.TransactionClient = this.prisma.client,
+    statuses: AppointmentStatus[] = ACTIVE_STATUSES,
   ) {
     const conflict = await db.appointment.findFirst({
       where: {
         companyId,
         professionalId,
         id: ignoreId ? { not: ignoreId } : undefined,
-        status: { in: ACTIVE_STATUSES },
+        status: { in: statuses },
         start: { lt: end },
         end: { gt: start },
       },

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, Input } from '@heroui/react';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { AppTabs } from '../components/AppTabs';
 import {
   IconCalendar,
   IconChart,
@@ -45,16 +46,17 @@ const TAB_ROUTES = ['/ajuda', '/ajuda/base-conhecimento', '/ajuda/suporte', '/aj
 type TabRoute = (typeof TAB_ROUTES)[number];
 
 interface TabDef {
-  to: TabRoute;
+  id: TabRoute;
   label: string;
+  icon: React.ReactNode;
 }
 
 const TABS: TabDef[] = [
-  { to: '/ajuda', label: 'Central' },
-  { to: '/ajuda/base-conhecimento', label: 'Base de conhecimento' },
-  { to: '/ajuda/suporte', label: 'Suporte' },
-  { to: '/ajuda/feedback', label: 'Feedback' },
-  { to: '/ajuda/novidades', label: 'Novidades' },
+  { id: '/ajuda', label: 'Central', icon: <IconSparkles size={16} /> },
+  { id: '/ajuda/base-conhecimento', label: 'Base de conhecimento', icon: <IconInfo size={16} /> },
+  { id: '/ajuda/suporte', label: 'Suporte', icon: <IconUsers size={16} /> },
+  { id: '/ajuda/feedback', label: 'Feedback', icon: <IconMegaphone size={16} /> },
+  { id: '/ajuda/novidades', label: 'Novidades', icon: <IconSparkles size={16} /> },
 ];
 
 interface CategoryDef {
@@ -161,29 +163,13 @@ export function AjudaPage() {
         subtitle="Guias, tutoriais e respostas rápidas sobre o SalonPass"
       />
 
-      {/* Strip de abas */}
-      <div className="mb-5 -mx-3 overflow-x-auto sm:mx-0">
-        <div className="flex min-w-max gap-1 px-3 sm:px-0">
-          {TABS.map((t) => {
-            const active = t.to === activeTab;
-            return (
-              <button
-                key={t.to}
-                type="button"
-                onClick={() => navigate(t.to)}
-                aria-current={active ? 'page' : undefined}
-                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-ink text-warm-white'
-                    : 'bg-warm-white text-muted hover:text-foreground border border-[var(--color-soft-border)]'
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <AppTabs
+        items={TABS}
+        selectedKey={activeTab}
+        onSelectionChange={(key) => navigate(key)}
+        ariaLabel="Áreas da central de ajuda"
+        className="mb-5"
+      />
 
       {/* Busca */}
       <div ref={containerRef} className="relative mb-6">
@@ -266,7 +252,7 @@ export function AjudaPage() {
               <IconInfo size={22} />
             </div>
             <p className="text-base font-semibold text-foreground">
-              {TABS.find((t) => t.to === activeTab)?.label} em breve
+              {TABS.find((t) => t.id === activeTab)?.label} em breve
             </p>
             <p className="mx-auto mt-1 max-w-md text-sm text-muted">
               Enquanto isso, use a busca acima ou explore a base de conhecimento

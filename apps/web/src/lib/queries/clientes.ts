@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 import type {
   CustomerCreditsResponse,
   CustomerDebt,
@@ -179,7 +180,10 @@ export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CustomerBody) => api.post<CustomerFull>('/customers', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      toastSuccess('Cliente cadastrado');
+    },
   });
 }
 
@@ -191,6 +195,7 @@ export function useUpdateCustomer() {
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: ['customers'] });
       qc.invalidateQueries({ queryKey: ['customer-panel', id] });
+      toastSuccess('Cliente salvo');
     },
   });
 }
@@ -199,7 +204,19 @@ export function useDeleteCustomer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<CustomerFull>(`/customers/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      toastSuccess('Cliente excluído');
+    },
+  });
+}
+
+/** GET /customers/:id — cliente completo (abre o perfil a partir de outras telas). */
+export function useCustomer(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['customer', id],
+    queryFn: () => api.get<CustomerFull>(`/customers/${id}`),
+    enabled: Boolean(id),
   });
 }
 

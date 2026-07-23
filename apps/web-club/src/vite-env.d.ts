@@ -3,6 +3,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_ORIGIN?: string;
+  readonly VITE_ADMIN_ORIGIN?: string;
   readonly VITE_BOOKING_SLUG?: string;
 }
 

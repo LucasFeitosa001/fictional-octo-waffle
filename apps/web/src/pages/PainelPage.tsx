@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card } from '@heroui/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Area,
@@ -21,6 +22,8 @@ import {
 } from 'recharts';
 import { PageHeader } from '../components/PageHeader';
 import { DateRangeFilter } from '../components/DateRangeFilter';
+import { FilterAside } from '../components/FilterAside';
+import { AppTabs } from '../components/AppTabs';
 import { Drawer } from '../components/Drawer';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useSetPageActions } from '../layout/PageActions';
@@ -37,9 +40,15 @@ import {
 } from '../components/icons';
 import { useDashboard } from '../lib/queries/dashboard';
 import type { Dashboard } from '../lib/queries/dashboard';
-import { formatMoney, formatNumber, isoDate } from '../lib/format';
+import { formatMoney, formatNumber, isoDate, timeAgo } from '../lib/format';
 import { useSession } from '../lib/auth';
 import { useThemeColors } from '../theme/useThemeColors';
+import {
+  BUSINESS_COLORS,
+  CHART_COLORS,
+  getAppointmentStatusColor,
+  getCategoricalColor,
+} from '../theme/dataColors';
 import { HelpTooltip, LabelWithHelp } from '../components/HelpTooltip';
 
 /** "2026-07-05" → "05 jul, 2026" (mesmo formato de período do topo do painel). */
@@ -88,13 +97,12 @@ function nivelOcupacao(pct: number): string {
   return 'Baixa ocupação';
 }
 
-/** Medalha do ranking: 1º = accent do tema (primary), 2º prata, 3º bronze, demais = primary atenuado.
- *  Prata/bronze são cores SEMÂNTICAS de pódio (não de marca). */
+/** Medalhas usam cores fixas de pódio, independentes do tema da interface. */
 function medalColor(i: number): string {
-  if (i === 0) return 'var(--sp-primary)';
+  if (i === 0) return '#b28600';
   if (i === 1) return '#c0c0c0';
   if (i === 2) return '#cd7f32';
-  return 'color-mix(in oklab, var(--sp-primary) 40%, var(--sp-muted-ink))';
+  return '#64748b';
 }
 
 /** Belasis default: the last 15 days (e.g. 05 → 19 when today is the 19th). */
@@ -178,7 +186,7 @@ function StatusPill({
 }) {
   if (variant === 'conversao') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-pink/10 px-3 py-1.5 text-xs uppercase text-pink">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--sp-data-conversion-soft)] px-3 py-1.5 text-xs uppercase text-data-conversion">
         <span className="font-semibold">{Math.abs(Math.round(pct))}%</span>
         <span className="font-semibold">{label}</span>
       </span>
@@ -188,7 +196,9 @@ function StatusPill({
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs uppercase ${
-        up ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+        up
+          ? 'bg-status-success-soft text-status-success-fg'
+          : 'bg-status-danger-soft text-status-danger-fg'
       }`}
     >
       <span aria-hidden>{up ? '↑' : '↓'}</span>
@@ -234,12 +244,12 @@ function Sparkline({
   );
 }
 
-/** Belasis ChartCard — .header{gap:12} .icon-wrapper{40x40,r12,24px} .total{28px,1.2}
- *  .card-footer{border-top,pt8}. Cores themeable (badge = primary@9%). */
+/** Belasis ChartCard — cada métrica recebe um papel fixo de negócio. */
 function MetricCard({
   icon,
   title,
   total,
+  tone,
   children,
   footer,
   help,
@@ -247,57 +257,76 @@ function MetricCard({
   icon: React.ReactNode;
   title: string;
   total: string;
+  tone: 'sales' | 'appointments' | 'orders';
   children?: React.ReactNode;
   footer?: React.ReactNode;
   help?: React.ReactNode;
 }) {
   return (
     <Card className={`min-w-0 ${CARD}`}>
-      <Card.Content className="p-4 sm:p-5">
+      <Card.Content className="h-full">
         <div className="flex flex-col gap-3">
-          <div className="flex items-center">
+          <div className="flex min-h-10 items-center">
             <div className="flex flex-1 items-center gap-3">
               <span
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[24px]"
-                style={{ background: 'color-mix(in oklab, var(--sp-primary) 9%, transparent)', color: 'var(--sp-primary)' }}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] text-[24px]"
+                style={{
+                  background: `var(--sp-data-${tone}-soft)`,
+                  color: `var(--sp-data-${tone})`,
+                }}
               >
                 {icon}
               </span>
-              <span className="text-base text-ink">{title}</span>
+              <span className="min-w-0 flex-1 text-base text-ink">{title}</span>
             </div>
             {help ? <HelpTooltip>{help}</HelpTooltip> : <InfoIcon />}
           </div>
-          <div className="text-[28px] font-bold leading-[1.2] text-ink">{total}</div>
+          <div className="flex min-h-[34px] items-center text-[28px] font-bold leading-[1.2] text-ink">{total}</div>
         </div>
-        {children && <div className="mx-[-8px] my-2">{children}</div>}
-        {footer && <div className="mt-3 border-t border-line pt-2">{footer}</div>}
+        {children && <div className="-mx-2 mt-2 flex min-h-[70px] items-center [&>*]:w-full">{children}</div>}
+        {footer && <div className="mt-auto border-t border-line pt-2">{footer}</div>}
       </Card.Content>
     </Card>
   );
 }
 
-/** Section card (identidade SalonPass): header com título + badge de ícone gold. */
+/** Card de seção com ícone no papel fixo de negócio correspondente. */
 function SectionCard({
   title,
   icon,
+  tone,
   children,
   help,
 }: {
   title: string;
   icon?: React.ReactNode;
+  tone?: keyof typeof BUSINESS_COLORS;
   children: React.ReactNode;
   help?: React.ReactNode;
 }) {
   return (
     <Card className={`min-w-0 ${CARD}`}>
-      <Card.Content className="p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
+      <Card.Content>
+        <div className="mb-3 flex min-h-9 items-center gap-2">
           {icon && (
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gold/15 text-gold-strong">
+            <span
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px]"
+              style={
+                tone
+                  ? {
+                      background: `var(--sp-data-${tone}-soft)`,
+                      color: BUSINESS_COLORS[tone],
+                    }
+                  : {
+                      background: 'var(--sp-status-neutral-soft)',
+                      color: 'var(--sp-status-neutral-fg)',
+                    }
+              }
+            >
               {icon}
             </span>
           )}
-          <p className="font-brand text-sm font-semibold text-ink">{title}</p>
+          <p className="min-w-0 flex-1 font-brand text-sm font-semibold text-ink">{title}</p>
           {help && <HelpTooltip>{help}</HelpTooltip>}
         </div>
         {children}
@@ -310,9 +339,9 @@ function SectionCard({
 // (5) Abas Agendamentos/Comandas — Tendência de Visitas (barras) + Agendamentos por status (donut)
 
 type Aba = 'schedules' | 'sales';
-const TABS: Array<{ key: Aba; label: string }> = [
-  { key: 'schedules', label: 'Agendamentos' },
-  { key: 'sales', label: 'Comandas' },
+const TABS: Array<{ id: Aba; label: string; icon: React.ReactNode }> = [
+  { id: 'schedules', label: 'Agendamentos', icon: <IconCalendar size={16} /> },
+  { id: 'sales', label: 'Comandas', icon: <IconReceipt size={16} /> },
 ];
 
 /** Bloco esquerdo: BarChart "Tendência de Visitas" (barras verticais, radius topo). */
@@ -328,6 +357,7 @@ function TendenciaVisitasBars({
   fullWidth?: boolean;
 }) {
   const c = useThemeColors();
+  const seriesColor = dataKey === 'agendamentos' ? c.appointments : c.orders;
   const chartData = useMemo(() => data.map((d) => ({ ...d, label: ddmm(d.date) })), [data]);
   const empty = data.every((d) => d.agendamentos === 0 && d.comandas === 0);
   return (
@@ -358,10 +388,10 @@ function TendenciaVisitasBars({
                   width={30}
                 />
                 <Tooltip
-                  cursor={{ fill: `color-mix(in oklab, ${c.primary} 8%, transparent)` }}
+                  cursor={{ fill: `color-mix(in oklab, ${seriesColor} 8%, transparent)` }}
                   formatter={(v: number) => [formatNumber(v), dataKey === 'agendamentos' ? 'Agendamentos' : 'Comandas']}
                 />
-                <Bar dataKey={dataKey} fill={c.primary} radius={[8, 8, 0, 0]} maxBarSize={60} />
+                <Bar dataKey={dataKey} fill={seriesColor} radius={[8, 8, 0, 0]} maxBarSize={60} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -375,7 +405,13 @@ function TendenciaVisitasBars({
 function StatusDonut({ slices }: { slices: Dashboard['agendamentosPorStatus'] }) {
   const c = useThemeColors();
   const data = useMemo(
-    () => slices.map((s) => ({ name: statusLabel(s.status), value: s.count, pct: s.pct })),
+    () =>
+      slices.map((s) => ({
+        name: statusLabel(s.status),
+        value: s.count,
+        pct: s.pct,
+        color: getAppointmentStatusColor(s.status),
+      })),
     [slices],
   );
   const total = data.reduce((a, b) => a + b.value, 0);
@@ -393,8 +429,8 @@ function StatusDonut({ slices }: { slices: Dashboard['agendamentosPorStatus'] })
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" paddingAngle={0} stroke="none">
-                  {data.map((_, i) => (
-                    <Cell key={i} fill={c.palette[i % c.palette.length]} />
+                  {data.map((slice) => (
+                    <Cell key={slice.name} fill={slice.color} stroke="#ffffff" strokeWidth={2} />
                   ))}
                   <Label position="center" content={renderCenterLabel(`Total: ${total}`, c.ink, 14)} />
                 </Pie>
@@ -403,10 +439,10 @@ function StatusDonut({ slices }: { slices: Dashboard['agendamentosPorStatus'] })
             </ResponsiveContainer>
           </div>
           <ul className="flex w-full flex-col gap-2">
-            {data.map((s, i) => (
+            {data.map((s) => (
               <li key={s.name} className="flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: c.palette[i % c.palette.length] }} />
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: s.color }} />
                   <span title={s.name} className="max-w-[130px] truncate text-ink">{s.name}</span>
                 </span>
                 <span className="shrink-0 whitespace-nowrap font-semibold text-ink">
@@ -426,32 +462,21 @@ function TabsTendenciaStatus({ d }: { d: Dashboard }) {
   const [aba, setAba] = useState<Aba>('schedules');
   return (
     <Card className={`min-w-0 ${CARD}`}>
-      <Card.Content className="p-4 sm:p-5">
-        <div className="flex gap-6 border-b border-line">
-          {TABS.map((t) => {
-            const active = aba === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setAba(t.key)}
-                className={`relative -mb-px pb-3 text-sm font-medium transition-colors ${
-                  active ? 'text-primary' : 'text-muted-ink hover:text-ink'
-                }`}
-              >
-                {t.label}
-                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary" />}
-              </button>
-            );
-          })}
-        </div>
+      <Card.Content>
+        <AppTabs
+          items={TABS}
+          selectedKey={aba}
+          onSelectionChange={setAba}
+          ariaLabel="Dados do painel"
+          className="mb-4"
+        />
         {aba === 'schedules' ? (
-          <div className="mt-4 flex flex-wrap gap-6">
+          <div className="flex flex-wrap gap-6">
             <TendenciaVisitasBars data={d.tendenciaVisitas} dataKey="agendamentos" />
             <StatusDonut slices={d.agendamentosPorStatus} />
           </div>
         ) : (
-          <div className="mt-4">
+          <div>
             <TendenciaVisitasBars data={d.tendenciaVisitas} dataKey="comandas" title="Vendas por dia" fullWidth />
           </div>
         )}
@@ -473,19 +498,19 @@ function TicketMedioCard({
   const c = useThemeColors();
   const up = ticket.deltaPct >= 0;
   const chartData = [
-    { name: 'Período anterior', value: comparacao.anterior, fill: `color-mix(in oklab, ${c.primary} 40%, ${c.canvas})` },
-    { name: 'Período atual', value: comparacao.atual, fill: c.primary },
+    { name: 'Período anterior', value: comparacao.anterior, fill: c.previousPeriod },
+    { name: 'Período atual', value: comparacao.atual, fill: c.sales },
   ];
   const empty = comparacao.anterior === 0 && comparacao.atual === 0;
   return (
     <Card className={`min-w-0 ${CARD}`}>
-      <div className="flex items-center gap-1.5 border-b border-line px-4 pb-3 pt-4 sm:px-5">
-        <p className="font-brand text-sm font-semibold text-ink">Ticket médio</p>
+      <div className="flex min-h-9 items-center gap-1.5 border-b border-line pb-3">
+        <p className="min-w-0 flex-1 font-brand text-sm font-semibold text-ink">Ticket médio</p>
         <HelpTooltip>Valor médio recebido por cliente no período</HelpTooltip>
       </div>
-      <Card.Content className="flex flex-col gap-4 p-4 sm:p-5">
+      <Card.Content className="flex flex-col gap-3">
         {/* (1) caixa métrica */}
-        <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-line p-6 text-center">
+        <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-line p-4 text-center">
           <LabelWithHelp
             label="Ticket médio - Período atual"
             help="Ticket médio calculado no período selecionado"
@@ -495,13 +520,13 @@ function TicketMedioCard({
           <span className="text-2xl font-bold text-ink">{formatMoney(ticket.valor)}</span>
           <div className="flex items-center gap-1">
             <span className="text-sm leading-none text-muted-ink">Versus período anterior:</span>
-            <span className={`text-sm font-bold ${up ? 'text-emerald-600' : 'text-red-500'}`}>
+            <span className={`text-sm font-bold ${up ? 'text-status-success-fg' : 'text-status-danger-fg'}`}>
               {up ? '▲' : '▼'} {Math.abs(Math.round(ticket.deltaPct))}%
             </span>
           </div>
         </div>
         {/* (2) caixa do gráfico */}
-        <div className="rounded-xl border border-line p-4 sm:p-5">
+        <div className="rounded-xl border border-line p-3 sm:p-4">
           <p className="mb-4 block text-center text-base text-ink">
             Comparação entre períodos
             <HelpTooltip>Compara o período atual com o anterior</HelpTooltip>
@@ -523,7 +548,7 @@ function TicketMedioCard({
                   />
                   <Tooltip
                     formatter={(v: number) => [formatMoney(v), 'Ticket médio']}
-                    cursor={{ fill: `color-mix(in oklab, ${c.primary} 8%, transparent)` }}
+                    cursor={{ fill: `color-mix(in oklab, ${c.sales} 8%, transparent)` }}
                   />
                   <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={80}>
                     {chartData.map((entry, i) => (
@@ -556,6 +581,7 @@ function AtendimentosPorProfissional({
     <SectionCard
       title="Atendimentos por profissional"
       icon={<IconUsers size={18} />}
+      tone="services"
       help="Ranking de profissionais por número de serviços no período"
     >
       {data.length === 0 ? (
@@ -573,11 +599,11 @@ function AtendimentosPorProfissional({
                 <AreaChart data={serie} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="atend-spark" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={c.primary} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={c.primary} stopOpacity={0} />
+                      <stop offset="0%" stopColor={c.services} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={c.services} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <Area type="monotone" dataKey="agendamentos" stroke={c.primary} strokeWidth={2} fill="url(#atend-spark)" dot={false} />
+                  <Area type="monotone" dataKey="agendamentos" stroke={c.services} strokeWidth={2} fill="url(#atend-spark)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -632,6 +658,7 @@ function VendasPorCategoria({ data }: { data: Dashboard['vendasPorCategoria'] })
     <SectionCard
       title="Vendas por categoria"
       icon={<IconDollar size={18} />}
+      tone="sales"
       help="Distribuição das vendas por categoria de item"
     >
       {data.length === 0 || total === 0 ? (
@@ -654,8 +681,8 @@ function VendasPorCategoria({ data }: { data: Dashboard['vendasPorCategoria'] })
                   paddingAngle={0}
                   stroke="none"
                 >
-                  {data.map((_, i) => (
-                    <Cell key={i} fill={c.palette[i % c.palette.length]} />
+                  {data.map((category) => (
+                    <Cell key={category.categoria} fill={getCategoricalColor(category.categoria)} stroke="#ffffff" strokeWidth={2} />
                   ))}
                   <Label position="center" content={renderCenterLabel(`Total: ${formatMoney(total)}`, c.ink, 12)} />
                 </Pie>
@@ -664,9 +691,9 @@ function VendasPorCategoria({ data }: { data: Dashboard['vendasPorCategoria'] })
             </ResponsiveContainer>
           </div>
           <ul className="flex w-full flex-col gap-2 sm:w-1/2">
-            {data.map((cat, i) => (
+            {data.map((cat) => (
               <li key={cat.categoria} className="flex flex-nowrap items-center gap-2 text-sm">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.palette[i % c.palette.length] }} />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: getCategoricalColor(cat.categoria) }} />
                 <span title={cat.categoria} className="min-w-0 flex-1 truncate text-ink">{cat.categoria}</span>
                 <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink">
                   {formatMoney(cat.valor)}
@@ -689,17 +716,17 @@ function FunilWidget({ data }: { data: Dashboard['funil'] }) {
   const empty = data.todos === 0 && data.confirmados === 0 && data.faturados === 0;
   const pct = (v: number) => (data.todos > 0 ? Math.round((v / data.todos) * 100) : 0);
   const steps = [
-    { name: 'Todos', value: data.todos, fill: c.primary, label: `Todos: ${data.todos} (${pct(data.todos)}%)` },
+    { name: 'Todos', value: data.todos, fill: CHART_COLORS.appointmentFunnel[0], label: `Todos: ${data.todos} (${pct(data.todos)}%)` },
     {
       name: 'Confirmados',
       value: data.confirmados,
-      fill: `color-mix(in oklab, ${c.primary} 70%, transparent)`,
+      fill: CHART_COLORS.appointmentFunnel[1],
       label: `Confirmados: ${data.confirmados} (${pct(data.confirmados)}%)`,
     },
     {
       name: 'Faturados',
       value: data.faturados,
-      fill: `color-mix(in oklab, ${c.primary} 40%, transparent)`,
+      fill: CHART_COLORS.appointmentFunnel[2],
       label: `Faturados: ${data.faturados} (${pct(data.faturados)}%)`,
     },
   ];
@@ -707,6 +734,7 @@ function FunilWidget({ data }: { data: Dashboard['funil'] }) {
     <SectionCard
       title="Funil de agendamentos"
       icon={<IconReceipt size={18} />}
+      tone="conversion"
       help="Jornada do agendamento: agendado, confirmado, atendido"
     >
       {empty ? (
@@ -751,6 +779,7 @@ function OcupacaoAgenda({ data }: { data: Dashboard['ocupacaoAgenda'] }) {
     <SectionCard
       title="Ocupação da agenda"
       icon={<IconClock size={18} />}
+      tone="appointments"
       help="Percentual da agenda ocupada por profissional no período"
     >
       {ranked.length === 0 ? (
@@ -773,7 +802,7 @@ function OcupacaoAgenda({ data }: { data: Dashboard['ocupacaoAgenda'] }) {
                     <span className={`absolute right-2 top-2 font-bold ${rank <= 3 ? 'text-lg' : 'text-xs text-muted-ink'}`}>
                       {medal}
                     </span>
-                    <span className="mb-1 grid h-12 w-12 place-items-center rounded-full text-white" style={{ background: 'var(--sp-primary)' }}>
+                    <span className="mb-1 grid h-12 w-12 place-items-center rounded-full bg-data-appointments text-white">
                       <UserGlyph size={24} />
                     </span>
                     <span className="mt-2 w-full truncate text-center text-sm text-ink">{firstName}</span>
@@ -783,12 +812,12 @@ function OcupacaoAgenda({ data }: { data: Dashboard['ocupacaoAgenda'] }) {
                         className="absolute bottom-0 z-10 w-full rounded-xl transition-[height] duration-500"
                         style={{
                           height: `${l}%`,
-                          background: 'linear-gradient(to top, var(--sp-primary), color-mix(in oklab, var(--sp-primary) 55%, white))',
-                          boxShadow: '0 2px 8px color-mix(in oklab, var(--sp-primary) 25%, transparent)',
+                          background: 'linear-gradient(to top, #5b21b6, #a78bfa)',
+                          boxShadow: '0 2px 8px rgb(124 58 237 / 25%)',
                         }}
                       />
                     </div>
-                    <span className="text-lg font-bold" style={{ color: 'var(--sp-primary)' }}>{pctText}</span>
+                    <span className="text-lg font-bold text-data-appointments">{pctText}</span>
                     <span className="mt-1 text-center text-[11px] uppercase text-muted-ink">{nivelOcupacao(l)}</span>
                   </div>
                 </div>
@@ -811,13 +840,17 @@ function MapaCalor({ data }: { data: Dashboard['mapaCalor'] }) {
   const gridStyle = { gridTemplateColumns: `2.5rem repeat(${cols}, minmax(1.75rem, 1fr))` };
   function cellColor(v: number): string {
     if (v <= 0 || max <= 0) return 'transparent';
-    const a = Math.round((v / max) * 100);
-    return `color-mix(in oklab, #505afb ${a}%, transparent)`;
+    const level = Math.min(
+      CHART_COLORS.heatmap.length - 1,
+      Math.max(0, Math.ceil((v / max) * CHART_COLORS.heatmap.length) - 1),
+    );
+    return CHART_COLORS.heatmap[level];
   }
   return (
     <SectionCard
       title="Mapa de calor de agendamentos"
       icon={<IconCalendar size={18} />}
+      tone="appointments"
       help="Densidade de agendamentos por dia da semana e horário"
     >
       {!hasData ? (
@@ -843,8 +876,11 @@ function MapaCalor({ data }: { data: Dashboard['mapaCalor'] }) {
                   return (
                     <div
                       key={ci}
-                      className="flex h-[35px] items-center justify-center rounded-[8px] text-[9px] font-semibold text-gold-strong"
-                      style={{ background: cellColor(v) }}
+                      className="flex h-[35px] items-center justify-center rounded-[8px] text-[9px] font-semibold"
+                      style={{
+                        background: cellColor(v),
+                        color: v / max >= 0.55 ? '#ffffff' : '#312e81',
+                      }}
                       title={`${WEEKDAY_FULL[w] ?? ''} ${h}h: ${v}`}
                     >
                       {v > 0 ? v : ''}
@@ -855,10 +891,9 @@ function MapaCalor({ data }: { data: Dashboard['mapaCalor'] }) {
             ))}
             <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-muted">
               <span>Menos</span>
-              <span className="h-3 w-3 rounded-[3px]" style={{ background: 'var(--sp-canvas)' }} />
-              <span className="h-3 w-3 rounded-[3px]" style={{ background: 'color-mix(in oklab, #505afb 40%, transparent)' }} />
-              <span className="h-3 w-3 rounded-[3px]" style={{ background: 'color-mix(in oklab, #505afb 70%, transparent)' }} />
-              <span className="h-3 w-3 rounded-[3px]" style={{ background: 'var(--sp-primary)' }} />
+              {CHART_COLORS.heatmap.map((color) => (
+                <span key={color} className="h-3 w-3 rounded-[3px]" style={{ background: color }} />
+              ))}
               <span>Mais</span>
             </div>
           </div>
@@ -882,6 +917,30 @@ export function PainelPage() {
   const dashboard = useDashboard(range.from, range.to);
   const d = dashboard.data;
   const themeColors = useThemeColors();
+  const queryClient = useQueryClient();
+
+  // "Atualizar" DE VERDADE: invalida a query do período atual (marca stale) e
+  // força um refetch do servidor. `refetch()` já ignora staleTime, mas o
+  // invalidate garante que qualquer outro observer/refetch em voo também pegue
+  // dados frescos. `void` porque não precisamos aguardar aqui.
+  const from = range.from;
+  const to = range.to;
+  const handleRefresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['dashboard', from, to] });
+  }, [queryClient, from, to]);
+
+  // "Atualizado há X": deriva de dataUpdatedAt (ms) da query. Um tick a cada
+  // 30s re-renderiza o texto ("agora mesmo" → "há 1 min" → ...) sem refetch.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forceTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const atualizadoLabel = dashboard.isFetching
+    ? 'Atualizando…'
+    : dashboard.dataUpdatedAt
+      ? `Atualizado ${timeAgo(dashboard.dataUpdatedAt)}`
+      : '';
 
   const { data: session } = useSession();
   const firstName = (session?.user?.name ?? '').trim().split(/\s+/)[0] || 'Administrador';
@@ -896,11 +955,9 @@ export function PainelPage() {
       },
       {
         key: 'atualizar',
-        label: 'Atualizar',
+        label: dashboard.isFetching ? 'Atualizando…' : 'Atualizar',
         icon: <IconRefresh size={22} className={dashboard.isFetching ? 'animate-spin' : ''} />,
-        onClick: () => {
-          void dashboard.refetch();
-        },
+        onClick: handleRefresh,
         disabled: dashboard.isFetching,
       },
       {
@@ -913,13 +970,43 @@ export function PainelPage() {
         },
       },
     ],
-    [navigateTo, dashboard.refetch, dashboard.isFetching, range],
+    [navigateTo, handleRefresh, dashboard.isFetching, range],
   );
 
   return (
     <div>
-      {/* (1) Cabeçalho + saudação */}
-      <PageHeader title={`Olá, ${firstName}`} subtitle="Resumo do seu salão" />
+      {/* (1) Cabeçalho + saudação + ações desktop (Atualizar / Filtros) */}
+      <PageHeader
+        title={`Olá, ${firstName}`}
+        subtitle="Resumo do seu salão"
+        onFilter={
+          isMobile
+            ? undefined
+            : () => {
+                setDesktopRange(range);
+                setDesktopFiltersOpen((v) => !v);
+              }
+        }
+        actions={
+          isMobile ? undefined : (
+          <div className="col-span-2 flex w-full items-center justify-end gap-2 sm:w-auto">
+            {atualizadoLabel && (
+              <span className="hidden whitespace-nowrap text-xs text-muted-ink sm:inline" aria-live="polite">
+                {atualizadoLabel}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              isDisabled={dashboard.isFetching}
+              className="w-full sm:w-auto"
+            >
+              <IconRefresh size={16} className={dashboard.isFetching ? 'animate-spin' : ''} /> Atualizar
+            </Button>
+          </div>
+          )
+        }
+      />
 
       {/* (1) Chip de período — mobile abre Drawer, desktop toggle painel lateral inline. */}
       <button
@@ -948,21 +1035,20 @@ export function PainelPage() {
         <InfoIcon size={14} />
       </button>
 
+      {/* Status "Atualizado há X" — no mobile o header não mostra ações inline,
+          então exibimos aqui embaixo do chip de período. Desktop já tem no header. */}
+      {atualizadoLabel && (
+        <p className="-mt-2 mb-4 text-center text-xs text-muted-ink sm:hidden" aria-live="polite">
+          {atualizadoLabel}
+        </p>
+      )}
+
       {/* Layout: desktop com painel de filtros inline à esquerda quando aberto.
           Mobile continua usando o Drawer (regra: drawer é só mobile). */}
-      <div className={desktopFiltersOpen ? 'lg:flex lg:items-start lg:gap-6' : ''}>
-        {/* Desktop-only inline filter panel — animação padrão dropdown. */}
-        {!isMobile && (
-          <aside
-            aria-hidden={!desktopFiltersOpen}
-            className={[
-              'hidden shrink-0 self-start rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]',
-              'origin-left transition-all duration-200 ease-out',
-              desktopFiltersOpen
-                ? 'pointer-events-auto lg:block lg:w-[280px] translate-x-0 scale-100 opacity-100'
-                : 'pointer-events-none w-0 -translate-x-2 scale-[0.98] opacity-0',
-            ].join(' ')}
-          >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* Painel de filtros do dashboard — desliza da esquerda (FilterAside),
+            mesma animação das outras listagens. Mobile usa o Drawer abaixo. */}
+        <FilterAside open={desktopFiltersOpen} desktopOnly breakpoint="lg" width="lg:w-[280px]">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-ink">Filtros do painel</span>
               <button
@@ -995,8 +1081,7 @@ export function PainelPage() {
                 Aplicar
               </Button>
             </div>
-          </aside>
-        )}
+        </FilterAside>
 
         <div className="min-w-0 flex-1">
       {dashboard.isLoading ? (
@@ -1014,10 +1099,11 @@ export function PainelPage() {
               icon={<IconDollar size={24} />}
               title="Vendas totais"
               total={formatMoney(d.vendasTotais.valor)}
+              tone="sales"
               help="Soma de todas as vendas do período filtrado"
               footer={<StatusPill pct={d.vendasTotais.deltaPct} label="Versus período anterior" />}
             >
-              <div className="flex w-full flex-col p-2">
+              <div className="flex w-full flex-col">
                 <LabelWithHelp
                   label="Vendas do dia"
                   help="Soma das vendas realizadas hoje"
@@ -1030,19 +1116,21 @@ export function PainelPage() {
               icon={<IconCalendar size={24} />}
               title="Agendamentos"
               total={formatNumber(d.agendamentosCount.valor)}
+              tone="appointments"
               help="Total de agendamentos no período"
               footer={<StatusPill pct={d.agendamentosCount.deltaPct} label="Taxa de crescimento" />}
             >
-              <Sparkline data={d.tendenciaVisitas} dataKey="agendamentos" color={themeColors.primary} />
+              <Sparkline data={d.tendenciaVisitas} dataKey="agendamentos" color={themeColors.appointments} />
             </MetricCard>
             <MetricCard
               icon={<IconReceipt size={24} />}
               title="Comandas"
               total={formatNumber(d.comandasCount.valor)}
+              tone="orders"
               help="Quantidade de comandas abertas no período"
               footer={<StatusPill pct={d.comandasCount.taxaConversao} label="Taxa de conversão" variant="conversao" />}
             >
-              <Sparkline data={d.tendenciaVisitas} dataKey="comandas" color={themeColors.pink} />
+              <Sparkline data={d.tendenciaVisitas} dataKey="comandas" color={themeColors.orders} />
             </MetricCard>
           </div>
 
@@ -1064,7 +1152,9 @@ export function PainelPage() {
           {/* (10) ocupação + (11) mapa de calor */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <OcupacaoAgenda data={d.ocupacaoAgenda} />
-            <MapaCalor data={d.mapaCalor} />
+            <div className="lg:col-span-2">
+              <MapaCalor data={d.mapaCalor} />
+            </div>
           </div>
         </div>
       )}

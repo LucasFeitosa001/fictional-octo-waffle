@@ -289,14 +289,40 @@ export function RankingPage() {
                     className="border-b border-line last:border-0 transition-colors hover:bg-canvas"
                   >
                     <td className="px-4 py-3">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_15%,transparent)] text-xs font-semibold text-primary-strong">
+                      <span
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
+                        style={{
+                          background:
+                            i === 0
+                              ? '#fef3c7'
+                              : i === 1
+                                ? '#f1f5f9'
+                                : i === 2
+                                  ? '#ffedd5'
+                                  : '#f8fafc',
+                          color:
+                            i === 0
+                              ? '#92400e'
+                              : i === 1
+                                ? '#475569'
+                                : i === 2
+                                  ? '#9a3412'
+                                  : '#64748b',
+                        }}
+                      >
                         {i + 1}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-medium text-ink">{r.name}</td>
                     {showTipo && (
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] px-2.5 py-0.5 text-xs font-medium text-primary-strong">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            r.tipo === 'Produto'
+                              ? 'bg-[var(--sp-data-products-soft)] text-data-products'
+                              : 'bg-[var(--sp-data-services-soft)] text-data-services'
+                          }`}
+                        >
                           {r.tipo}
                         </span>
                       </td>

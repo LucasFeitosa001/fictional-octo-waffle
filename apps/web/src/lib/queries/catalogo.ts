@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 import type { Paginated } from '../types';
 
 // =====================================================================
@@ -151,7 +152,10 @@ export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateProductBody) => api.post<Product>('/products', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      toastSuccess('Produto cadastrado');
+    },
   });
 }
 
@@ -165,6 +169,7 @@ export function useUpdateProduct() {
       // Invalidate the detail query too so the open drawer picks up
       // side-effect PATCHes like an inline image upload.
       qc.invalidateQueries({ queryKey: ['product', id] });
+      toastSuccess('Produto salvo');
     },
   });
 }
@@ -173,7 +178,10 @@ export function useDeleteProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<Product>(`/products/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      toastSuccess('Produto excluído');
+    },
   });
 }
 
@@ -206,7 +214,10 @@ export function useCreateProductBatch() {
   return useMutation({
     mutationFn: (body: CreateProductBatchBody) =>
       api.post<ProductBatch>('/product-batches', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-batches'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-batches'] });
+      toastSuccess('Lote cadastrado');
+    },
   });
 }
 
@@ -215,7 +226,10 @@ export function useUpdateProductBatch() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateProductBatchBody }) =>
       api.patch<ProductBatch>(`/product-batches/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-batches'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-batches'] });
+      toastSuccess('Lote salvo');
+    },
   });
 }
 
@@ -223,7 +237,10 @@ export function useDeleteProductBatch() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ProductBatch>(`/product-batches/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-batches'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-batches'] });
+      toastSuccess('Lote excluído');
+    },
   });
 }
 
@@ -243,7 +260,10 @@ export function useCreateProductCategory() {
   return useMutation({
     mutationFn: (body: { name: string; active?: boolean }) =>
       api.post<ProductCategory>('/product-categories', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-categories'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-categories'] });
+      toastSuccess('Categoria cadastrada');
+    },
   });
 }
 
@@ -252,7 +272,10 @@ export function useUpdateProductCategory() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: { name?: string; active?: boolean } }) =>
       api.patch<ProductCategory>(`/product-categories/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-categories'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-categories'] });
+      toastSuccess('Categoria salva');
+    },
   });
 }
 
@@ -261,7 +284,10 @@ export function useDeleteProductCategory() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<ProductCategory>(`/product-categories/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['product-categories'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['product-categories'] });
+      toastSuccess('Categoria excluída');
+    },
   });
 }
 
@@ -281,7 +307,10 @@ export function useCreateBrand() {
   return useMutation({
     mutationFn: (body: { name: string; active?: boolean }) =>
       api.post<Brand>('/brands', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brands'] });
+      toastSuccess('Marca cadastrada');
+    },
   });
 }
 
@@ -295,7 +324,10 @@ export function useUpdateBrand() {
       id: string;
       body: { name?: string; active?: boolean };
     }) => api.patch<Brand>(`/brands/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brands'] });
+      toastSuccess('Marca salva');
+    },
   });
 }
 
@@ -303,7 +335,10 @@ export function useDeleteBrand() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<Brand>(`/brands/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['brands'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brands'] });
+      toastSuccess('Marca excluída');
+    },
   });
 }
 
@@ -331,7 +366,10 @@ export function useCreateSupplier() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: SupplierBody) => api.post<Supplier>('/suppliers', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      toastSuccess('Fornecedor cadastrado');
+    },
   });
 }
 
@@ -340,7 +378,10 @@ export function useUpdateSupplier() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<SupplierBody> }) =>
       api.patch<Supplier>(`/suppliers/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      toastSuccess('Fornecedor salvo');
+    },
   });
 }
 
@@ -348,6 +389,9 @@ export function useDeleteSupplier() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<Supplier>(`/suppliers/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      toastSuccess('Fornecedor excluído');
+    },
   });
 }

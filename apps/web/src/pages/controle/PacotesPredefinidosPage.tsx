@@ -3,6 +3,8 @@ import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
+import { FilterAside } from '../../components/FilterAside';
+import { FilterCheckbox } from '../../components/FilterCheckbox';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import {
   IconArrowDown,
@@ -221,31 +223,38 @@ export function PacotesPredefinidosPage() {
         </TextField>
       </div>
 
-      {/* Desktop: barra de busca (toggle) */}
-      {searchOpen && (
-        <div className="mb-4 hidden max-w-xl items-center gap-2 md:flex">
-          <TextField
-            value={searchInput}
-            onChange={setSearchInput}
-            className="min-w-0 flex-1"
-            aria-label="Buscar modelo"
-          >
-            <Input
-              placeholder="Buscar por nome"
-              className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              onKeyDown={(e) => e.key === 'Enter' && applySearch()}
-            />
-          </TextField>
-          <Button variant="primary" onClick={applySearch}>
-            Buscar
-          </Button>
-        </div>
-      )}
+      {/* Desktop: barra de busca (revelada com animação). Fica SEMPRE montada;
+          largura/opacity animam 0 ↔ pleno (padrão FilterAside). */}
+      <div
+        className={[
+          'mb-4 hidden max-w-xl items-center gap-2 md:flex',
+          'origin-left overflow-hidden',
+          'transition-[width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          searchOpen
+            ? 'w-full translate-x-0 opacity-100'
+            : 'pointer-events-none w-0 -translate-x-3 opacity-0',
+        ].join(' ')}
+      >
+        <TextField
+          value={searchInput}
+          onChange={setSearchInput}
+          className="min-w-0 flex-1"
+          aria-label="Buscar modelo"
+        >
+          <Input
+            placeholder="Buscar por nome"
+            className="focus:border-primary focus:ring-2 focus:ring-primary/25"
+            onKeyDown={(e) => e.key === 'Enter' && applySearch()}
+          />
+        </TextField>
+        <Button variant="primary" onClick={applySearch}>
+          Buscar
+        </Button>
+      </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Painel de filtros lateral (Filtrar) — Status, igual Belasis */}
-        {filterOpen && (
-          <aside className="w-full shrink-0 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:w-72">
+        <FilterAside open={filterOpen} width="lg:w-72">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-ink">Filtros</span>
               {activeFilterCount > 0 && (
@@ -276,8 +285,7 @@ export function PacotesPredefinidosPage() {
                 Desativados
               </CheckRow>
             </FilterGroup>
-          </aside>
-        )}
+        </FilterAside>
 
         {/* Conteúdo principal: tabela / cards */}
         <div className="min-w-0 flex-1">
@@ -624,21 +632,9 @@ function CheckRow({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 rounded px-1 py-1 text-left text-sm text-ink hover:bg-canvas"
-    >
-      <span
-        className={[
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-          checked ? 'border-primary bg-primary text-primary-foreground' : 'border-line bg-card',
-        ].join(' ')}
-      >
-        {checked && <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
-      </span>
-      <span className="min-w-0 truncate">{children}</span>
-    </button>
+    <FilterCheckbox checked={checked} onToggle={onClick} className="px-1 py-1">
+      {children}
+    </FilterCheckbox>
   );
 }
 
@@ -743,6 +739,7 @@ function TemplateDrawer({
       onClose={onClose}
       title={mode === 'edit' ? 'Editar pacote predefinido' : 'Novo pacote predefinido'}
       widthClass="sm:w-[520px]"
+      fullscreen
       footer={
         <>
           {mode === 'edit' && onDelete && (

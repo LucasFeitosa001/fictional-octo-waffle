@@ -5,14 +5,29 @@ import {
   Get,
   HttpCode,
   Injectable,
+  NotFoundException,
   Param,
+  Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
-import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuthModule } from '../auth/auth.module';
+import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 
 class CreateUserDto {
@@ -21,6 +36,19 @@ class CreateUserDto {
   @IsString() @MinLength(6) password: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() roleId?: string;
+}
+
+// Atribui/troca o papel do usuário na empresa ativa.
+class AssignRoleDto {
+  @IsString() roleId: string;
+}
+
+// Permissões GRANULARES do funcionário na empresa ativa (chaves do catálogo).
+// A validação de existência das chaves é feita no AuthService (contra o catálogo).
+class SetPermissionsDto {
+  @IsArray()
+  @IsString({ each: true })
+  permissions: string[];
 }
 
 // Perfil → Notificações: canais que a conta aceita receber. Persistido no User
@@ -78,6 +106,28 @@ export class UsersService {
     });
   }
 
+  // Atribui/troca o papel do usuário NESTA empresa. Valida que o papel pertence à
+  // empresa e que o usuário é membro dela (via UserCompany).
+  async assignRole(companyId: string, userId: string, roleId: string) {
+    const role = await this.prisma.client.role.findFirst({
+      where: { id: roleId, companyId },
+      select: { id: true },
+    });
+    if (!role) throw new NotFoundException('Papel não encontrado nesta empresa');
+
+    const membership = await this.prisma.client.userCompany.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { id: true },
+    });
+    if (!membership) throw new NotFoundException('Usuário não pertence a esta empresa');
+
+    await this.prisma.client.userCompany.update({
+      where: { id: membership.id },
+      data: { roleId },
+    });
+    return { userId, roleId };
+  }
+
   async getNotificationPrefs(userId: string) {
     const row = await this.prisma.client.user.findUnique({
       where: { id: userId },
@@ -116,10 +166,13 @@ export class UsersService {
   }
 }
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly service: UsersService) {}
+  constructor(
+    private readonly service: UsersService,
+    private readonly auth: AuthService,
+  ) {}
 
   @Get()
   list(@CurrentUser('companyId') companyId: string) {
@@ -160,12 +213,49 @@ export class UsersController {
   }
 
   @Post()
+  @RequirePermission('usuarios:manage')
   create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateUserDto) {
     return this.service.create(companyId, dto);
+  }
+
+  // Atribui/troca o papel do usuário na empresa ativa.
+  @Patch(':id/role')
+  @RequirePermission('usuarios:manage')
+  assignRole(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: AssignRoleDto,
+  ) {
+    return this.service.assignRole(companyId, id, dto.roleId);
+  }
+
+  // Permissões GRANULARES efetivas do funcionário (para pré-carregar o editor).
+  // Se não tem set customizado, deriva um default a partir do papel.
+  @Get(':id/permissions')
+  @RequirePermission('usuarios:manage', 'equipe:manage')
+  getPermissions(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+  ) {
+    return this.auth.userPermissions(companyId, id);
+  }
+
+  // Salva as permissões GRANULARES do funcionário na empresa ativa. Valida contra
+  // o catálogo. Set vazio → funcionário volta a herdar do papel.
+  @Put(':id/permissions')
+  @HttpCode(200)
+  @RequirePermission('usuarios:manage', 'equipe:manage')
+  setPermissions(
+    @CurrentUser('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() dto: SetPermissionsDto,
+  ) {
+    return this.auth.setUserPermissions(companyId, id, dto.permissions);
   }
 }
 
 @Module({
+  imports: [AuthModule],
   controllers: [UsersController],
   providers: [UsersService],
 })

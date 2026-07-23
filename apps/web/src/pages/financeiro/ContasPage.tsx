@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Card, Chip, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
+import { Button, Chip, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
-import { DataTable, type Column } from '../../components/DataTable';
+import type { Column } from '../../components/DataTable';
+import { AppTabs } from '../../components/AppTabs';
 import { EmptyState } from '../../components/States';
+import { TableSkeleton } from '../../components/Skeletons';
 import { Drawer } from '../../components/Drawer';
+import { IconTip } from '../../components/IconTip';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { HelpTooltip } from '../../components/HelpTooltip';
 import {
@@ -13,6 +16,7 @@ import {
   IconCreditCard,
   IconDollar,
   IconFilter,
+  IconX,
   IconFolder,
   IconLayers,
   IconPencil,
@@ -45,6 +49,9 @@ import { useSetPageActions } from '../../layout/PageActions';
 import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
 import { BulkActionsSheet } from '../../components/BulkActionsSheet';
 import { useSelectMode, buildSelectActions, type BulkAction } from '../../hooks/useSelectMode';
+import { FilterAside } from '../../components/FilterAside';
+import { FilterCheckbox } from '../../components/FilterCheckbox';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const PAGE_SIZE = 20;
 
@@ -80,9 +87,9 @@ type TabKey = 'contas' | 'formas' | 'categorias';
 // Belasis empilha ícone acima do rótulo (bank/dollar/profile → wallet/dollar/
 // layers); no desktop mantém underline de texto puro.
 const TABS: { id: TabKey; label: string; icon: React.ReactNode }[] = [
-  { id: 'contas', label: 'Contas', icon: <IconWallet size={20} /> },
-  { id: 'formas', label: 'Formas de pagamento', icon: <IconDollar size={20} /> },
-  { id: 'categorias', label: 'Categorias', icon: <IconLayers size={20} /> },
+  { id: 'contas', label: 'Contas', icon: <IconWallet size={16} /> },
+  { id: 'formas', label: 'Formas de pagamento', icon: <IconDollar size={16} /> },
+  { id: 'categorias', label: 'Categorias', icon: <IconLayers size={16} /> },
 ];
 
 // Belasis mostra por padrão essas formas mesmo em contas novas sem dados.
@@ -161,26 +168,84 @@ function RowActions({
 }) {
   return (
     <div className="flex items-center justify-end gap-1">
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label="Editar"
-        title="Editar"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-cream hover:text-foreground"
-      >
-        <IconPencil size={16} />
-      </button>
+      <IconTip label="Editar">
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label="Editar"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-cream hover:text-foreground"
+        >
+          <IconPencil size={16} />
+        </button>
+      </IconTip>
       <span className="h-4 w-px bg-[var(--color-soft-border)]" aria-hidden />
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={removing}
-        aria-label="Remover"
-        title="Remover"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
-      >
-        <IconTrash size={16} />
-      </button>
+      <IconTip label="Remover">
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={removing}
+          aria-label="Remover"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+        >
+          <IconTrash size={16} />
+        </button>
+      </IconTip>
+    </div>
+  );
+}
+
+function FinancialDesktopTable<T>({
+  ariaLabel,
+  columns,
+  rows,
+  getKey,
+}: {
+  ariaLabel: string;
+  columns: Column<T>[];
+  rows: T[];
+  getKey: (row: T) => string;
+}) {
+  return (
+    <div className="w-full overflow-x-auto">
+      <table aria-label={ariaLabel} className="w-full min-w-[640px] border-collapse text-sm">
+        <thead className="bg-canvas">
+          <tr className="border-b border-line">
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                scope="col"
+                className={[
+                  'h-11 px-4 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-ink',
+                  column.key === 'actions' ? 'w-24 text-right' : '',
+                ].join(' ')}
+              >
+                {column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {rows.map((row) => (
+            <tr
+              key={getKey(row)}
+              className="bg-card transition-colors hover:bg-[color-mix(in_oklab,var(--sp-primary)_4%,var(--color-card))]"
+            >
+              {columns.map((column) => (
+                <td
+                  key={column.key}
+                  className={[
+                    'h-14 px-4 align-middle text-foreground',
+                    column.key === 'actions' ? 'text-right' : '',
+                    column.className ?? '',
+                  ].join(' ')}
+                >
+                  {column.render(row)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -272,26 +337,6 @@ function MobileRowCard({
   );
 }
 
-function MobileSkeletonList() {
-  return (
-    <ul className="md:hidden">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <li
-          key={i}
-          className="flex items-center gap-3 border-b border-[var(--color-soft-border)] px-3 py-3 last:border-b-0"
-        >
-          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-gray-200" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-3 w-40 animate-pulse rounded bg-gray-200" />
-            <div className="h-2.5 w-24 animate-pulse rounded bg-gray-200" />
-          </div>
-          <div className="h-6 w-16 animate-pulse rounded bg-gray-200" />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   // Sincroniza aba com querystring (?tab=contas|formas|categorias) para
   // deep-link e "voltar" preservar contexto. Se veio via rota dedicada
@@ -320,6 +365,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Ordenação por nome — pílula "Ordenando por Nome" do mobile (Belasis).
   // Alterna asc/desc mantendo a ordenação por nome (só apresentação).
@@ -477,7 +523,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
       header: 'Nome',
       isRowHeader: true,
       render: (a) => (
-        <span className={a.active ? 'font-medium text-foreground' : 'font-medium text-muted'}>
+        <span className={a.active ? 'font-medium text-primary hover:underline' : 'font-medium text-muted'}>
           {a.name}
         </span>
       ),
@@ -509,7 +555,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
       key: 'name',
       header: 'Nome',
       isRowHeader: true,
-      render: (m) => <span className="font-medium text-foreground">{m.name}</span>,
+      render: (m) => <span className="font-medium text-primary hover:underline">{m.name}</span>,
     },
     {
       key: 'fee',
@@ -580,7 +626,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
       header: 'Nome',
       isRowHeader: true,
       render: (c) => (
-        <span className={c.active ? 'font-medium text-foreground' : 'font-medium text-muted'}>
+        <span className={c.active ? 'font-medium text-primary hover:underline' : 'font-medium text-muted'}>
           {c.name}
         </span>
       ),
@@ -738,7 +784,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                   key: 'filtrar',
                   label: 'Filtrar',
                   icon: <IconFilter size={22} />,
-                  onClick: () => setFilterOpen(true),
+                  onClick: () => setFilterOpen((v) => !v),
                 },
               ]
             : []),
@@ -790,7 +836,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
           {supportsStatus && (
             <Button
               variant="outline"
-              onClick={() => setFilterOpen(true)}
+              onClick={() => setFilterOpen((v) => !v)}
               className="relative hidden md:inline-flex"
             >
               <IconFilter size={16} /> Filtrar
@@ -811,36 +857,26 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
         </div>
       </div>
 
-      {/* Abas (underline) do Belasis: Contas · Formas de pagamento · Categorias.
-          Aba ativa em azul primário com barra inferior; inativas em texto suave. */}
-      <div className="mb-4 flex justify-between gap-2 overflow-x-auto border-b border-[var(--color-soft-border)] md:justify-start md:gap-6">
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => changeTab(t.id)}
-              className={
-                'relative -mb-px flex flex-1 shrink-0 flex-col items-center gap-1 border-b-2 px-1 pb-2.5 pt-1 text-center text-[11px] font-medium leading-tight transition-colors md:flex-none md:flex-row md:whitespace-nowrap md:text-sm ' +
-                (active
-                  ? 'border-[color:var(--sp-primary,#505afb)] text-[color:var(--sp-primary,#505afb)]'
-                  : 'border-transparent text-muted hover:text-foreground')
-              }
-            >
-              {/* Ícone acima do rótulo só no mobile (Belasis) */}
-              <span className="md:hidden" aria-hidden>
-                {t.icon}
-              </span>
-              <span className="md:hidden">{t.label}</span>
-              <span className="hidden md:inline">{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      <AppTabs
+        items={TABS}
+        selectedKey={tab}
+        onSelectionChange={changeTab}
+        ariaLabel="Cadastros financeiros"
+        className="mb-4"
+      />
 
-      {/* Busca: sempre visível no mobile (Belasis); revelada via "Buscar" no desktop. */}
-      <div className={searchOpen ? 'mb-4' : 'mb-4 md:hidden'}>
+      {/* Busca: sempre visível no mobile (Belasis); revelada com animação via
+          "Buscar" no desktop. Fica SEMPRE montada; largura/opacity animam 0 ↔ pleno. */}
+      <div
+        className={[
+          'mb-4 w-full max-w-xl',
+          'md:origin-left md:overflow-hidden',
+          'md:transition-[width,opacity,transform] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)]',
+          searchOpen
+            ? 'md:w-full md:translate-x-0 md:opacity-100'
+            : 'md:pointer-events-none md:w-0 md:-translate-x-3 md:opacity-0',
+        ].join(' ')}
+      >
         <TextField value={search} onChange={setSearch} aria-label="Buscar">
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
@@ -861,13 +897,42 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
         <IconChevron size={16} className={sortAsc ? 'rotate-180' : ''} />
       </button>
 
-      {/* DESKTOP: Card + DataTable + paginação — mantém wrapper cor creme */}
-      <div className="hidden md:block">
-        <Card className={CARD_CLASS}>
-          <Card.Content className="p-4">
+      {/* DESKTOP: filtro lateral (desliza da esquerda) + Card/DataTable */}
+      <div className="md:flex md:items-start md:gap-4">
+        {supportsStatus && (
+          <FilterAside open={filterOpen} desktopOnly breakpoint="md">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">Filtros</span>
+              <IconTip label="Fechar filtros">
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen(false)}
+                  aria-label="Fechar filtros"
+                  className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
+                >
+                  <IconX size={16} />
+                </button>
+              </IconTip>
+            </div>
+            <StatusFilterBody
+              showActive={showActive}
+              showInactive={showInactive}
+              setShowActive={setShowActive}
+              setShowInactive={setShowInactive}
+            />
+            <div className="mt-4 flex flex-col gap-2">
+              {statusFilterFooter(setShowActive, setShowInactive, () => setFilterOpen(false))}
+            </div>
+          </FilterAside>
+        )}
+        <div className="hidden min-w-0 flex-1 md:block">
+        {/* Card = div sem padding próprio (padrão ClientesPage/ProdutosPage): a
+            paginação vira irmã da DataTable, no fluxo do scroll do <main>, e pode
+            grudar no rodapé (md:sticky) hugando o canto arredondado do card. */}
+        <div className={`overflow-hidden rounded-2xl ${CARD_CLASS}`}>
             {tab === 'contas' &&
               (isLoading ? (
-                <MobileSkeletonList />
+                <TableSkeleton columns={4} withCheckbox={false} firstColAvatar={false} card={false} variant="desktop" />
               ) : filteredAccounts.length === 0 ? (
                 <EmptyState
                   icon={<IconFolder size={32} />}
@@ -875,8 +940,8 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                   description="Cadastre caixa ou contas bancárias para registrar movimentações."
                 />
               ) : (
-                <DataTable
-                  aria-label="Contas financeiras"
+                <FinancialDesktopTable
+                  ariaLabel="Contas financeiras"
                   columns={accountColumns}
                   rows={pageAccounts}
                   getKey={(a) => a.id}
@@ -885,7 +950,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
 
             {tab === 'formas' &&
               (isLoading ? (
-                <MobileSkeletonList />
+                <TableSkeleton columns={4} withCheckbox={false} firstColAvatar={false} card={false} variant="desktop" />
               ) : filteredMethods.length === 0 ? (
                 <EmptyState
                   icon={<IconCreditCard size={32} />}
@@ -893,8 +958,8 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                   description="Cadastre dinheiro, pix, crédito ou débito com taxa e prazo de recebimento."
                 />
               ) : (
-                <DataTable
-                  aria-label="Formas de pagamento"
+                <FinancialDesktopTable
+                  ariaLabel="Formas de pagamento"
                   columns={methodColumns}
                   rows={pageMethods}
                   getKey={(m) => m.id}
@@ -903,7 +968,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
 
             {tab === 'categorias' &&
               (isLoading ? (
-                <MobileSkeletonList />
+                <TableSkeleton columns={3} withCheckbox={false} firstColAvatar={false} card={false} variant="desktop" />
               ) : filteredCategories.length === 0 ? (
                 <EmptyState
                   icon={<IconFolder size={32} />}
@@ -911,55 +976,56 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
                   description="Organize o plano de contas por categoria de crédito e débito."
                 />
               ) : (
-                <DataTable
-                  aria-label="Categorias financeiras"
+                <FinancialDesktopTable
+                  ariaLabel="Categorias financeiras"
                   columns={categoryColumns}
                   rows={pageCategories}
                   getKey={(c) => c.id}
                 />
               ))}
 
-            {/* Paginação do Belasis: "X no total" + prev/next + 20 / página. */}
-            {rowCount > 0 && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
-                <span className="text-xs text-muted">{rowCount} registros no total</span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label="Página anterior"
-                    isDisabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    <IconChevron size={14} className="rotate-90" />
-                  </Button>
-                  <span className="px-1 text-xs text-muted">
-                    Página {page} de {pageCount}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label="Próxima página"
-                    isDisabled={page >= pageCount}
-                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  >
-                    <IconChevron size={14} className="-rotate-90" />
-                  </Button>
-                  <span className="ml-1 hidden text-xs text-muted sm:inline">
-                    {PAGE_SIZE} / página
-                  </span>
-                </div>
+          {rowCount > 0 && (
+            <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-line bg-card px-4 py-3">
+              <span className="whitespace-nowrap text-xs text-muted">
+                {rowCount} registros no total
+              </span>
+              <div className="flex min-w-0 items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Página anterior"
+                  isDisabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <IconChevron size={14} className="rotate-90" />
+                </Button>
+                <span className="whitespace-nowrap px-1 text-xs text-muted">
+                  Página {page} de {pageCount}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Próxima página"
+                  isDisabled={page >= pageCount}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                >
+                  <IconChevron size={14} className="-rotate-90" />
+                </Button>
+                <span className="ml-1 hidden text-xs text-muted sm:inline">
+                  {PAGE_SIZE} / página
+                </span>
               </div>
-            )}
-          </Card.Content>
-        </Card>
+            </div>
+          )}
+        </div>
+        </div>
       </div>
 
       {/* MOBILE: lista direto no fluxo, SEM Card wrapper (regra do projeto) */}
       <div className="md:hidden">
         {tab === 'contas' &&
           (isLoading ? (
-            <MobileSkeletonList />
+            <TableSkeleton variant="mobile" />
           ) : filteredAccounts.length === 0 ? (
             <EmptyState
               icon={<IconFolder size={32} />}
@@ -1005,7 +1071,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
 
         {tab === 'formas' &&
           (isLoading ? (
-            <MobileSkeletonList />
+            <TableSkeleton variant="mobile" />
           ) : filteredMethods.length === 0 ? (
             <EmptyState
               icon={<IconCreditCard size={32} />}
@@ -1057,7 +1123,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
 
         {tab === 'categorias' &&
           (isLoading ? (
-            <MobileSkeletonList />
+            <TableSkeleton variant="mobile" />
           ) : filteredCategories.length === 0 ? (
             <EmptyState
               icon={<IconFolder size={32} />}
@@ -1102,15 +1168,17 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
           ))}
       </div>
 
-      {/* Filtrar: drawer lateral (direita) com a seção Status do Belasis. */}
-      <StatusFilterDrawer
-        isOpen={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        showActive={showActive}
-        showInactive={showInactive}
-        setShowActive={setShowActive}
-        setShowInactive={setShowInactive}
-      />
+      {/* Filtrar mobile: bottom-sheet com a seção Status (no desktop é o FilterAside acima). */}
+      {isMobile && (
+        <StatusFilterDrawer
+          isOpen={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          showActive={showActive}
+          showInactive={showInactive}
+          setShowActive={setShowActive}
+          setShowInactive={setShowInactive}
+        />
+      )}
 
       {/* Novo/Editar = drawers laterais (direita). */}
       <ContaDrawer
@@ -1140,28 +1208,48 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   );
 }
 
-/** Drawer "Filtrar" com a seção Status (Ativada / Desativada), como no Belasis. */
-function StatusFilterDrawer({
-  isOpen,
-  onClose,
-  showActive,
-  showInactive,
-  setShowActive,
-  setShowInactive,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
+type StatusFilterProps = {
   showActive: boolean;
   showInactive: boolean;
   setShowActive: (v: boolean) => void;
   setShowInactive: (v: boolean) => void;
-}) {
+};
+
+/** Corpo do filtro "Status" (Ativada / Desativada) — compartilhado entre o
+ * painel lateral desktop (FilterAside) e o bottom-sheet mobile (Drawer). */
+function StatusFilterBody({ showActive, showInactive, setShowActive, setShowInactive }: StatusFilterProps) {
   const options: { label: string; value: boolean; set: (v: boolean) => void }[] = [
     { label: 'Ativada', value: showActive, set: setShowActive },
     { label: 'Desativada', value: showInactive, set: setShowInactive },
   ];
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted">Status</span>
+      <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
+        {options.map((o, i) => (
+          <FilterCheckbox
+            key={o.label}
+            checked={o.value}
+            onChange={o.set}
+            className={
+              'gap-3 px-3 py-3 transition-colors hover:bg-cream ' +
+              (i > 0 ? 'border-t border-[var(--color-soft-border)]' : '')
+            }
+          >
+            {o.label}
+          </FilterCheckbox>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-  const footer = (
+function statusFilterFooter(
+  setShowActive: (v: boolean) => void,
+  setShowInactive: (v: boolean) => void,
+  onApply: () => void,
+) {
+  return (
     <>
       <Button
         variant="outline"
@@ -1173,36 +1261,36 @@ function StatusFilterDrawer({
       >
         Limpar filtros
       </Button>
-      <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={onApply}>
         Aplicar
       </Button>
     </>
   );
+}
 
+/** Bottom-sheet "Filtrar" (mobile) com a seção Status, como no Belasis. */
+function StatusFilterDrawer({
+  isOpen,
+  onClose,
+  showActive,
+  showInactive,
+  setShowActive,
+  setShowInactive,
+}: StatusFilterProps & { isOpen: boolean; onClose: () => void }) {
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title="Filtrar" footer={footer} widthClass="sm:w-[420px]">
-      <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">Status</span>
-        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
-          {options.map((o, i) => (
-            <label
-              key={o.label}
-              className={
-                'flex cursor-pointer items-center gap-3 px-3 py-3 text-sm transition-colors hover:bg-cream ' +
-                (i > 0 ? 'border-t border-[var(--color-soft-border)]' : '')
-              }
-            >
-              <input
-                type="checkbox"
-                checked={o.value}
-                onChange={(e) => o.set(e.target.checked)}
-                className="h-4 w-4 accent-[color:var(--sp-primary,#505afb)]"
-              />
-              <span className="text-foreground">{o.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Filtrar"
+      footer={statusFilterFooter(setShowActive, setShowInactive, onClose)}
+      placement="bottom"
+    >
+      <StatusFilterBody
+        showActive={showActive}
+        showInactive={showInactive}
+        setShowActive={setShowActive}
+        setShowInactive={setShowInactive}
+      />
     </Drawer>
   );
 }
@@ -1303,7 +1391,7 @@ function ContaDrawer({
   const [active, setActive] = useState(true);
   // Acesso (Belasis id="admin_only"): false = qualquer usuário, true = só admins.
   const [adminOnly, setAdminOnly] = useState(false);
-  // Belasis Pay: toggle exibido no drawer do Belasis (sem backing no SalonPass).
+  // SalonPay: toggle exibido no drawer (sem backing no SalonPass).
   const [belasisPay, setBelasisPay] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -1434,7 +1522,7 @@ function ContaDrawer({
             </Select>
           </Field>
 
-          {/* Tipo — não existe no drawer do Belasis (usa Belasis Pay), mas o
+          {/* Tipo — não existe no drawer de referência (usa SalonPay), mas o
               backend do SalonPass separa Caixa/Banco: mantido p/ data-wiring. */}
           <Field label="Tipo">
             <Select
@@ -1458,14 +1546,14 @@ function ContaDrawer({
             </Select>
           </Field>
 
-          {/* Switches inline do Belasis: Belasis Pay (display) · Ativa. */}
+          {/* Switches inline: SalonPay (display) · Ativa. */}
           <div className="flex flex-col gap-3">
             <InlineSwitch
-              label="Belasis Pay"
+              label="SalonPay"
               isSelected={belasisPay}
               onChange={(v) => {
                 setBelasisPay(v);
-                // Ao ativar o toggle, encaminha para o onboarding Belasis Pay
+                // Ao ativar o toggle, encaminha para o onboarding SalonPay
                 // (mesmo fluxo do Belasis: /belasis-pay/panel → cadastro).
                 if (v) {
                   onClose();

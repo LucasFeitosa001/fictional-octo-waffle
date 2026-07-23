@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 
 // =====================================================================
 // Modelos de anamnese (AnamnesisTemplate) — CRUD real /anamnesis-templates.
@@ -47,7 +48,10 @@ export function useCreateAnamnesisTemplate() {
   return useMutation({
     mutationFn: (body: AnamnesisTemplateBody) =>
       api.post<AnamnesisTemplate>('/anamnesis-templates', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: TEMPLATES_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: TEMPLATES_KEY });
+      toastSuccess('Ficha de anamnese criada');
+    },
   });
 }
 
@@ -57,7 +61,10 @@ export function useUpdateAnamnesisTemplate() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<AnamnesisTemplateBody> }) =>
       api.patch<AnamnesisTemplate>(`/anamnesis-templates/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: TEMPLATES_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: TEMPLATES_KEY });
+      toastSuccess('Ficha de anamnese salva');
+    },
   });
 }
 
@@ -67,6 +74,9 @@ export function useDeleteAnamnesisTemplate() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<{ id: string; deleted: boolean }>(`/anamnesis-templates/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: TEMPLATES_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: TEMPLATES_KEY });
+      toastSuccess('Ficha de anamnese excluída');
+    },
   });
 }
