@@ -93,6 +93,8 @@ export class NotificationSettingsController {
     if (typeof body?.cancellation === 'boolean') patch.cancellation = body.cancellation;
     if (typeof body?.reminder === 'boolean') patch.reminder = body.reminder;
     if (typeof body?.followUp === 'boolean') patch.followUp = body.followUp;
+    if (typeof body?.notifyProfessional === 'boolean')
+      patch.notifyProfessional = body.notifyProfessional;
     return this.settings.update(companyId, patch);
   }
 

@@ -226,6 +226,16 @@ async function run() {
       update: { data: { managerPhone: MANAGER_PHONE } },
     });
 
+    // Automatic WhatsApp is OPT-IN (everything OFF by default). This suite asserts
+    // that the client confirmation and the manager heads-ups ARE enqueued, so we
+    // explicitly opt this throwaway salon in. Without this the sends are correctly
+    // suppressed and those assertions would (rightly) fail.
+    const optIn = await api('PATCH', '/notification-settings', {
+      token: salon.token,
+      body: { confirmation: true, cancellation: true, notifyProfessional: true },
+    });
+    check('opt-in notification toggles (confirmation + notifyProfessional)', optIn.status === 200);
+
     // ====================================================================
     // 1. Catalog: services with mixed visibility + a category
     // ====================================================================

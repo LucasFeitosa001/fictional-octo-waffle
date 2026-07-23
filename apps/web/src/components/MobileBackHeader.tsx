@@ -16,7 +16,14 @@ export function MobileBackHeader({
   return (
     <div
       className={[
-        'sticky top-0 z-40 -mx-3 -mt-4 mb-4 border-b border-line bg-canvas/95 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur',
+        // sticky top-0 gruda no topo do .db-canvas (o container que realmente
+        // rola). -mx-3 sangra pras bordas; o -mt cancela EXATAMENTE o pt do
+        // wrapper .mobile-page-content (max(1rem,safe-area-top)), puxando a barra
+        // pro topo absoluto do scroller; o pt próprio re-reserva a safe-area
+        // DENTRO da barra, deixando o botão "Voltar" logo ABAIXO do notch e 100%
+        // tocável. lg:mt-0 acompanha o lg:pt-6 do wrapper. z-40 fica acima do
+        // conteúdo pra o toque no Voltar nunca ser interceptado.
+        'sticky top-0 z-40 -mx-3 -mt-[max(1rem,env(safe-area-inset-top))] mb-4 border-b border-line bg-canvas/95 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur lg:mt-0',
         desktopHiddenClass,
       ].join(' ')}
     >

@@ -54,6 +54,7 @@ import {
   type ProfessionalCommissionRuleRow,
 } from '../lib/queries/profissionais';
 import { useRoles, useUpdateUsuarioRole } from '../lib/queries/usuarios';
+import { useWhatsappStatus } from '../lib/queries/whatsapp';
 import { initials, toDateInput } from '../lib/format';
 import type { Professional } from '../lib/types';
 import { toast } from '../lib/toast';
@@ -1132,6 +1133,7 @@ export function ProfessionalDrawer({
             <AccessTab
               professionalId={professional.id}
               professionalName={name || professional.name}
+              professionalPhone={phone || professional.phone || null}
               userId={linkedUserId}
               onGoToPermissions={() => setTab('permissoes')}
             />
@@ -1352,11 +1354,13 @@ function commTypeClass(active: boolean): string {
 function AccessTab({
   professionalId,
   professionalName,
+  professionalPhone,
   userId,
   onGoToPermissions,
 }: {
   professionalId: string;
   professionalName: string;
+  professionalPhone: string | null;
   userId: string | null;
   onGoToPermissions: () => void;
 }) {
@@ -1365,17 +1369,46 @@ function AccessTab({
   const updateRole = useUpdateUsuarioRole();
   const [link, setLink] = useState<InviteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  // Só habilita "Enviar por WhatsApp" quando o profissional tem telefone E o
+  // WhatsApp do salão está conectado (status 'open'). Sem isso, o envio não sai.
+  const whatsapp = useWhatsappStatus(!userId);
+  const hasPhone = Boolean(professionalPhone && professionalPhone.trim());
+  const whatsappConnected = whatsapp.data?.status === 'open';
+  const canSendWhatsapp = hasPhone && whatsappConnected;
 
+  // "Gerar link de acesso" APENAS gera o link — nunca envia WhatsApp (opt-in).
   async function handleGenerate() {
     setError(null);
     try {
-      const res = await invite.mutateAsync(professionalId);
+      const res = await invite.mutateAsync({ id: professionalId, sendWhatsapp: false });
       setLink(res);
       toast.success('Link de acesso gerado');
     } catch (err) {
       setError(
         err instanceof ApiClientError ? err.message : 'Não foi possível gerar o link de acesso.',
       );
+    }
+  }
+
+  // Botão explícito: gera o convite E pede o envio pelo WhatsApp conectado do salão.
+  async function handleSendWhatsapp() {
+    setError(null);
+    setSending(true);
+    try {
+      const res = await invite.mutateAsync({ id: professionalId, sendWhatsapp: true });
+      setLink(res);
+      if (res.whatsappSent) {
+        toast.success('Convite enviado por WhatsApp');
+      } else {
+        toast.danger('Não foi possível enviar pelo WhatsApp — use o link gerado.');
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível enviar o convite.',
+      );
+    } finally {
+      setSending(false);
     }
   }
 
@@ -1450,31 +1483,61 @@ function AccessTab({
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-ink">Dar acesso ao Salonpass</h3>
           <p className="mt-0.5 text-xs text-muted-ink">
-            Gere um link para {professionalName || 'o profissional'} criar o próprio login. Depois
-            disso você poderá configurar as permissões.
+            Gere um link para {professionalName || 'o profissional'} criar o próprio login. O link
+            só é enviado por WhatsApp se você clicar em "Enviar por WhatsApp". Depois disso você
+            poderá configurar as permissões.
           </p>
         </div>
       </div>
 
       {!link ? (
-        <Button
-          variant="primary"
-          className="self-start"
-          isDisabled={invite.isPending}
-          onClick={handleGenerate}
-        >
-          {invite.isPending ? <Spinner size="sm" /> : <IconUserPlus size={16} />}
-          Gerar link de acesso
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            variant="primary"
+            className="self-start"
+            isDisabled={invite.isPending || sending}
+            onClick={handleGenerate}
+          >
+            {invite.isPending && !sending ? <Spinner size="sm" /> : <IconUserPlus size={16} />}
+            Gerar link de acesso
+          </Button>
+          <Button
+            variant="outline"
+            className="self-start gap-1.5"
+            isDisabled={invite.isPending || sending || !canSendWhatsapp}
+            onClick={handleSendWhatsapp}
+          >
+            {sending ? <Spinner size="sm" /> : <IconWhatsApp size={16} />}
+            Enviar por WhatsApp
+          </Button>
+        </div>
       ) : (
         <>
           <InviteLinkBox link={link.link} name={professionalName} />
-          {link.whatsappSent && (
+          {link.whatsappSent ? (
             <div className="flex items-center gap-1.5 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-xs text-success">
-              <IconWhatsApp size={14} /> Convite enviado automaticamente pelo WhatsApp do salão.
+              <IconWhatsApp size={14} /> Convite enviado pelo WhatsApp do salão.
             </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="self-start gap-1.5"
+              isDisabled={invite.isPending || sending || !canSendWhatsapp}
+              onClick={handleSendWhatsapp}
+            >
+              {sending ? <Spinner size="sm" /> : <IconWhatsApp size={16} />}
+              Enviar por WhatsApp
+            </Button>
           )}
         </>
+      )}
+
+      {!link && !canSendWhatsapp && (
+        <p className="text-xs text-muted-ink">
+          {!hasPhone
+            ? 'Cadastre o celular do profissional para poder enviar o convite por WhatsApp.'
+            : 'Conecte o WhatsApp do salão (em Configurações) para enviar o convite por WhatsApp.'}
+        </p>
       )}
 
       {error && (

@@ -132,10 +132,15 @@ export interface InviteResult {
 /**
  * Gera um convite de acesso para o profissional (onboarding de staff) e devolve
  * o link para compartilhar. O backend recusa se o profissional já tiver login.
+ *
+ * Por padrão APENAS gera o link (nada é enviado). Passe `sendWhatsapp: true` para
+ * pedir o envio automático pelo WhatsApp conectado do salão (botão explícito
+ * "Enviar por WhatsApp"). Sem isso, `whatsappSent` volta false.
  */
 export function useInviteProfessional() {
   return useMutation({
-    mutationFn: (id: string) => api.post<InviteResult>(`/professionals/${id}/invite`, {}),
+    mutationFn: ({ id, sendWhatsapp = false }: { id: string; sendWhatsapp?: boolean }) =>
+      api.post<InviteResult>(`/professionals/${id}/invite`, { sendWhatsapp }),
   });
 }
 
