@@ -6,6 +6,14 @@ export interface CompanyAddress {
   phone?: string | null;
   email?: string | null;
   address?: string | null;
+  whatsapp?: string | null;
+  cep?: string | null;
+  district?: string | null;
+  number?: string | null;
+  state?: string | null;
+  city?: string | null;
+  /** Tipo de pessoa: 'PJ' | 'PF'. */
+  personType?: string | null;
 }
 
 /** The salon company as returned by GET /companies/current. */

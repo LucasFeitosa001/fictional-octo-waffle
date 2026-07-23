@@ -176,7 +176,8 @@ export function NotificationBell({
 
   function handleMarkAll() {
     if (unread === 0 || markAll.isPending) return;
-    markAll.mutate();
+    // Sem tipos → marca TODAS da empresa (o sino não filtra por categoria).
+    markAll.mutate(undefined);
   }
 
   const badge = useMemo(() => {

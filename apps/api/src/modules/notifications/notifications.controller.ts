@@ -18,10 +18,15 @@ export class NotificationsController {
     @CurrentUser('companyId') companyId: string,
     @Query('unread') unread?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    // `type` aceita um ou mais tipos (CSV): ?type=appointment.created,appointment.confirmed
+    @Query('type') type?: string,
   ) {
     return this.service.listForCompany(companyId, {
       unreadOnly: unread === '1' || unread === 'true',
       limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      types: parseTypes(type),
     });
   }
 
@@ -30,15 +35,35 @@ export class NotificationsController {
     return this.service.unreadCount(companyId);
   }
 
+  /** Contagem por tipo (total + não-lidas) para a página de categorias. */
+  @Get('summary')
+  summary(@CurrentUser('companyId') companyId: string) {
+    return this.service.summaryByType(companyId);
+  }
+
   @Post(':id/read')
   markRead(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.markRead(companyId, id);
   }
 
   @Post('read-all')
-  markAllRead(@CurrentUser('companyId') companyId: string) {
-    return this.service.markAllRead(companyId);
+  markAllRead(
+    @CurrentUser('companyId') companyId: string,
+    // Opcional: marca só as de certos tipos (usado pela página de detalhe).
+    @Query('type') type?: string,
+  ) {
+    return this.service.markAllRead(companyId, parseTypes(type));
   }
+}
+
+/** Divide o CSV de tipos vindo do query param; ignora vazios. */
+function parseTypes(type?: string): string[] | undefined {
+  if (!type) return undefined;
+  const list = type
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return list.length > 0 ? list : undefined;
 }
 
 /**

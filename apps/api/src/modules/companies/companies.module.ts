@@ -17,11 +17,20 @@ import { CurrentUser } from '../../common/current-user.decorator';
 import { AuthModule } from '../auth/auth.module';
 
 // Contact + address details are stored in Company.addressJson (the schema has no
-// dedicated phone/email/address columns).
+// dedicated phone/email/address/whatsapp/cep/... columns). razão social/CNPJ live
+// in the dedicated Company.legalName / Company.cnpj columns.
 class CompanyAddressDto {
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() email?: string;
   @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() whatsapp?: string;
+  @IsOptional() @IsString() cep?: string;
+  @IsOptional() @IsString() district?: string;
+  @IsOptional() @IsString() number?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() city?: string;
+  // Tipo de pessoa (PJ/PF) — campo do form Belasis; guardado junto do endereço.
+  @IsOptional() @IsString() personType?: string;
 }
 
 class UpdateCompanyDto {

@@ -25,6 +25,19 @@ export class FeatureFlagsController {
   }
 
   /**
+   * Consolidated billing summary for the active company — powers the real
+   * subscription page (plan, status, pricing, add-ons, installments/cycle,
+   * payment status/dates). Reads the Subscription + the `billing.details`
+   * Setting; falls back to plan-catalog defaults when the Setting is absent.
+   *
+   * `GET /api/v1/subscription/current`.
+   */
+  @Get('subscription/current')
+  getSubscription(@CurrentUser('companyId') companyId: string) {
+    return this.service.getSubscriptionSummary(companyId);
+  }
+
+  /**
    * Plan catalog — the single source of truth the front consumes to render the
    * plan-comparison / upsell UI. Authenticated (inherits the class JwtAuthGuard):
    * the catalog with prices is only relevant to a signed-in company choosing a

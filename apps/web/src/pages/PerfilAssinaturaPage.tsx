@@ -1,10 +1,9 @@
-// TODO(backend): billing_subscription — buscar plano atual do tenant (nome,
-// preço, ciclo, próximo vencimento), forma de pagamento vigente e histórico
-// de faturas em GET /billing/subscription e GET /billing/invoices. Integrar
-// troca de plano/forma de pagamento (bump/downgrade + prorata) e cancelamento
-// via POST /billing/subscription/cancel.
+// Billing real por empresa: GET /subscription/current lê a Subscription +
+// o Setting `billing.details` (plano, add-ons, ciclo/parcelas, status/datas de
+// pagamento). As faturas (parcelas) são derivadas de installments + totalMonthly
+// + startDate. Boleto/NF-e/troca de plano seguem como ações futuras.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip } from '@heroui/react';
 import { PageHeader } from '../components/PageHeader';
@@ -21,6 +20,11 @@ import {
 } from '../components/icons';
 import { useFeatures } from '../lib/queries/features';
 import { usePlans, type Plan, type PlanName } from '../lib/queries/plans';
+import {
+  useSubscriptionSummary,
+  type SubscriptionSummary,
+} from '../lib/queries/assinaturas';
+import { formatMoney, formatDate } from '../lib/format';
 
 // ---------------------------------------------------------------------------
 // Style tokens
@@ -33,18 +37,8 @@ const CARD =
 const RECOMMENDED_PLAN: PlanName = 'pro';
 
 // ---------------------------------------------------------------------------
-// Mock data — remover ao plugar billing real. Faturas/pagamento seguem mock
-// enquanto GET /billing/* não existe; o foco desta tela é plano + comparação.
+// Invoices (parcelas) — DERIVADAS do billing real (installments/total/startDate)
 // ---------------------------------------------------------------------------
-
-const BILLING = {
-  price: 199.0,
-  addons: 0,
-  discount: 0,
-  total: 199.0,
-  nextDue: '19 ago, 2026',
-  paymentMethod: 'Boleto' as const,
-};
 
 type InvoiceStatus = 'Pago' | 'Pendente';
 interface Invoice {
@@ -60,36 +54,67 @@ interface Invoice {
   boletoUrl?: string;
 }
 
-const INVOICES: Invoice[] = [
-  {
-    createdAt: '05/07/2026',
-    dueAt: '12/07/2026',
-    plan: 'Pro',
-    period: 'Mensal',
-    amount: 199.0,
-    method: 'Boleto',
-    status: 'Pendente',
-    boletoUrl: '#',
-  },
-  {
-    createdAt: '05/06/2026',
-    dueAt: '12/06/2026',
-    paidAt: '06/06/2026',
-    plan: 'Pro',
-    period: 'Mensal',
-    amount: 199.0,
-    method: 'Cartão',
-    status: 'Pago',
-    invoiceUrl: '#',
-  },
-];
+/** ISO date (YYYY-MM-DD) somando `months` meses, sem drift de fuso. */
+function addMonthsIso(iso: string, months: number): string {
+  const base = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(base.getTime())) return iso;
+  const d = new Date(base);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Gera a lista de parcelas a partir do billing consolidado: `installments`
+ * cobranças mensais de `totalMonthly`, a primeira em `startDate`. Todas
+ * pendentes (pagamento ainda não processado). Vazia se faltarem dados.
+ */
+function buildInvoices(summary: SubscriptionSummary | undefined): Invoice[] {
+  if (!summary) return [];
+  const start = summary.payment.startDate;
+  const count = Math.max(1, summary.installments || 1);
+  if (!start) return [];
+  const invoices: Invoice[] = [];
+  for (let i = 0; i < count; i++) {
+    const due = addMonthsIso(start, i);
+    invoices.push({
+      createdAt: due,
+      dueAt: due,
+      plan: summary.planLabel,
+      period: summary.cycle === 'annual' ? `Parcela ${i + 1}/${count}` : 'Mensal',
+      amount: summary.totalMonthly,
+      method: 'Boleto',
+      status: 'Pendente',
+      boletoUrl: '#',
+    });
+  }
+  return invoices;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatMoney(v: number): string {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const CYCLE_LABEL: Record<string, string> = {
+  annual: 'Anual',
+  monthly: 'Mensal',
+};
+
+/** Mapeia o status de pagamento do billing.details em label + cor de chip. */
+function paymentChip(status: string | null): {
+  label: string;
+  color: 'success' | 'warning' | 'danger' | 'default';
+} {
+  switch (status) {
+    case 'paid':
+      return { label: 'Pagamento confirmado', color: 'success' };
+    case 'pending':
+      return { label: 'Pagamento pendente', color: 'warning' };
+    case 'overdue':
+    case 'past_due':
+      return { label: 'Pagamento atrasado', color: 'danger' };
+    default:
+      return { label: 'Aguardando pagamento', color: 'default' };
+  }
 }
 
 function StatusPill({ status }: { status: InvoiceStatus }) {
@@ -311,6 +336,7 @@ export function PerfilAssinaturaPage() {
   const navigate = useNavigate();
   const { data: features } = useFeatures();
   const { data: plans } = usePlans();
+  const { data: billing } = useSubscriptionSummary();
   const [notice, setNotice] = useState<string | null>(null);
 
   function handleTab(t: MainTab) {
@@ -319,9 +345,25 @@ export function PerfilAssinaturaPage() {
     if (target) navigate(target);
   }
 
-  const currentPlanName = (features?.plan ?? null) as PlanName | null;
+  // Plano vigente: prioriza o billing consolidado; cai no feature-flags.
+  const currentPlanName = ((billing?.plan ?? features?.plan) ?? null) as
+    | PlanName
+    | null;
   const currentPlan = plans?.find((p) => p.name === currentPlanName) ?? null;
-  const currentPlanLabel = currentPlan?.label ?? 'Sem plano';
+  const currentPlanLabel =
+    billing?.planLabel ?? currentPlan?.label ?? 'Sem plano';
+
+  // Cobrança real (fallback pro derivado do plano quando não há billing.details).
+  const baseMonthly = billing?.baseMonthly ?? currentPlan?.priceMonthly ?? 0;
+  const addons = billing?.addons ?? [];
+  const addonsTotal = addons.reduce((sum, a) => sum + a.monthly, 0);
+  const totalMonthly = billing?.totalMonthly ?? baseMonthly + addonsTotal;
+  const cycleLabel = billing ? CYCLE_LABEL[billing.cycle] ?? 'Mensal' : 'Mensal';
+  const isAnnual = billing?.cycle === 'annual';
+  const payment = paymentChip(billing?.payment.status ?? null);
+  const nextDue = billing?.payment.dueDate ?? billing?.currentPeriodEnd ?? null;
+
+  const invoices = useMemo(() => buildInvoices(billing), [billing]);
 
   function handleChoose(plan: Plan) {
     // TODO(backend): iniciar troca de plano (POST /billing/subscription).
@@ -412,27 +454,55 @@ export function PerfilAssinaturaPage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Resumo do plano (billing — mock enquanto GET /billing não existe)  */}
+      {/* Resumo do plano (billing real — GET /subscription/current)         */}
       {/* ------------------------------------------------------------------ */}
       <section className="mb-4">
         <div className={CARD}>
-          <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-ink">
-            Resumo da cobrança
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold uppercase tracking-wide text-muted-ink">
+              Resumo da cobrança
+            </span>
+            <Chip variant="soft" color={payment.color} size="sm" className="shrink-0">
+              {payment.label}
+            </Chip>
           </div>
           <div className="flex flex-col gap-2.5">
-            <SummaryRow label="Plano" value={formatMoney(BILLING.price)} />
-            <SummaryRow label="Adicionais" value={formatMoney(BILLING.addons)} />
             <SummaryRow
-              label="Descontos"
-              value={`- ${formatMoney(BILLING.discount)}`}
-              variant="discount"
+              label={`Plano ${currentPlanLabel}`}
+              value={`${formatMoney(baseMonthly)}/mês`}
             />
+            {addons.map((a, i) => (
+              <SummaryRow
+                key={`${a.label}-${i}`}
+                label={a.label}
+                value={`${formatMoney(a.monthly)}/mês`}
+              />
+            ))}
             <div className="my-1 h-px bg-[var(--color-soft-border)]" />
             <SummaryRow
-              label="Total"
-              value={formatMoney(BILLING.total)}
+              label="Total mensal"
+              value={`${formatMoney(totalMonthly)}/mês`}
               variant="total"
             />
+            <div className="mt-1 rounded-xl border border-[var(--color-soft-border)] bg-cream/40 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-foreground">
+                  Ciclo {cycleLabel}
+                </span>
+                {billing ? (
+                  <span className="text-sm font-semibold text-ink tabular-nums">
+                    {isAnnual
+                      ? `${billing.installments}× ${formatMoney(totalMonthly)} = ${formatMoney(billing.annualTotal)}`
+                      : `${formatMoney(totalMonthly)}/mês`}
+                  </span>
+                ) : null}
+              </div>
+              {payment.color === 'warning' && nextDue ? (
+                <p className="mt-1 text-xs text-muted-ink">
+                  Vencimento: {formatDate(nextDue)}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
@@ -445,14 +515,14 @@ export function PerfilAssinaturaPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold uppercase tracking-wide text-muted-ink">
-                Próxima renovação
+                {payment.color === 'warning' ? 'Próximo vencimento' : 'Próxima renovação'}
               </div>
               <div className="mt-1 text-base font-bold text-foreground">
-                {BILLING.nextDue}
+                {nextDue ? formatDate(nextDue) : '—'}
               </div>
             </div>
-            <Chip variant="soft" color="success" size="sm" className="shrink-0">
-              Assinatura Ativa
+            <Chip variant="soft" color={payment.color} size="sm" className="shrink-0">
+              {payment.label}
             </Chip>
           </div>
         </div>
@@ -469,7 +539,7 @@ export function PerfilAssinaturaPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-base font-bold text-foreground">
-                {BILLING.paymentMethod}
+                Boleto
               </div>
             </div>
             <Button
@@ -490,13 +560,19 @@ export function PerfilAssinaturaPage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Últimos pagamentos                                                 */}
+      {/* Faturas / parcelas (derivadas do billing real)                     */}
       {/* ------------------------------------------------------------------ */}
       <section className="mb-6">
         <div className="mb-2 text-sm font-semibold text-foreground">
-          Últimos pagamentos
+          Faturas
         </div>
 
+        {invoices.length === 0 ? (
+          <div className={CARD + ' text-sm text-muted-ink'}>
+            Nenhuma fatura disponível ainda.
+          </div>
+        ) : (
+          <>
         {/* Desktop: tabela */}
         <div
           className={
@@ -519,15 +595,15 @@ export function PerfilAssinaturaPage() {
                 </tr>
               </thead>
               <tbody>
-                {INVOICES.map((inv, i) => (
+                {invoices.map((inv, i) => (
                   <tr
                     key={i}
                     className="border-t border-[var(--color-soft-border)] text-foreground"
                   >
-                    <td className="px-4 py-3 tabular-nums">{inv.createdAt}</td>
-                    <td className="px-4 py-3 tabular-nums">{inv.dueAt}</td>
+                    <td className="px-4 py-3 tabular-nums">{formatDate(inv.createdAt)}</td>
+                    <td className="px-4 py-3 tabular-nums">{formatDate(inv.dueAt)}</td>
                     <td className="px-4 py-3 tabular-nums text-muted-ink">
-                      {inv.paidAt ?? '—'}
+                      {inv.paidAt ? formatDate(inv.paidAt) : '—'}
                     </td>
                     <td className="px-4 py-3">{inv.plan}</td>
                     <td className="px-4 py-3">{inv.period}</td>
@@ -565,7 +641,7 @@ export function PerfilAssinaturaPage() {
 
         {/* Mobile: lista sem card creme wrapper */}
         <ul className="flex flex-col divide-y divide-[var(--color-soft-border)] border-y border-[var(--color-soft-border)] sm:hidden">
-          {INVOICES.map((inv, i) => (
+          {invoices.map((inv, i) => (
             <li
               key={i}
               className="flex flex-col gap-2 bg-warm-white py-3"
@@ -573,7 +649,7 @@ export function PerfilAssinaturaPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-foreground tabular-nums">
-                    {inv.createdAt}
+                    {formatDate(inv.createdAt)}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-ink">
                     {inv.plan} · {inv.period}
@@ -590,7 +666,7 @@ export function PerfilAssinaturaPage() {
                 <div className="text-xs text-muted-ink">
                   Venc.{' '}
                   <span className="tabular-nums text-foreground">
-                    {inv.dueAt}
+                    {formatDate(inv.dueAt)}
                   </span>
                 </div>
                 {inv.method === 'Boleto' && inv.status === 'Pendente' ? (
@@ -620,6 +696,8 @@ export function PerfilAssinaturaPage() {
             </li>
           ))}
         </ul>
+          </>
+        )}
       </section>
 
       {/* ------------------------------------------------------------------ */}

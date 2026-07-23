@@ -3,6 +3,56 @@ import { api } from '../api';
 import { toastSuccess } from '../toast';
 
 // =====================================================================
+// Types — BILLING DA CONTA (a assinatura do SALÃO no SalonPass).
+// Distinto dos "memberships" abaixo (planos que o salão vende ao cliente).
+// Shape espelha GET /subscription/current.
+// =====================================================================
+
+export interface BillingAddon {
+  label: string;
+  monthly: number;
+}
+
+export interface BillingPayment {
+  /** ex.: 'pending' | 'paid' | null */
+  status: string | null;
+  /** ISO date (YYYY-MM-DD) ou null */
+  startDate: string | null;
+  dueDate: string | null;
+}
+
+export interface SubscriptionSummary {
+  plan: string | null;
+  planLabel: string;
+  /** Status da Subscription (active/trialing/past_due/canceled) ou null. */
+  status: string | null;
+  payment: BillingPayment;
+  baseMonthly: number;
+  addons: BillingAddon[];
+  totalMonthly: number;
+  /** 'monthly' | 'annual' */
+  cycle: string;
+  installments: number;
+  annualTotal: number;
+  currency: string;
+  currentPeriodEnd: string | null;
+}
+
+/**
+ * Carrega o billing consolidado da empresa ativa (plano + preços + add-ons +
+ * ciclo/parcelas + status/datas de pagamento). Fonte: GET /subscription/current.
+ */
+export function useSubscriptionSummary() {
+  return useQuery({
+    queryKey: ['subscription-current'],
+    queryFn: () => api.get<SubscriptionSummary>('/subscription/current'),
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });
+}
+
+// =====================================================================
 // Types — ASSINATURAS (memberships). Money fields are Decimal strings.
 // =====================================================================
 

@@ -1,6 +1,11 @@
 export { FeatureFlagsModule } from './feature-flags.module';
 export { FeatureFlagsService } from './feature-flags.service';
-export type { FeaturesResponse } from './feature-flags.service';
+export type {
+  FeaturesResponse,
+  SubscriptionSummary,
+  BillingAddon,
+  BillingPayment,
+} from './feature-flags.service';
 export { FeatureGuard } from './feature.guard';
 export { RequireFeature, REQUIRE_FEATURE_KEY } from './require-feature.decorator';
 export {
