@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Card, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
+import { SwitchRow } from '../../components/SwitchRow';
 import { EmptyState, LoadingState } from '../../components/States';
 import { ImageUpload } from '../../components/ImageUpload';
 import {
@@ -131,35 +132,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-// A toggle row styled to match the Belasis switch cards.
-function ToggleRow({
-  selected,
-  onChange,
-  title,
-  hint,
-}: {
-  selected: boolean;
-  onChange: (v: boolean) => void;
-  title: string;
-  hint?: string;
-}) {
-  return (
-    <Switch
-      isSelected={selected}
-      onChange={onChange}
-      className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3"
-    >
-      <span className="min-w-0 text-sm text-ink">
-        {title}
-        {hint && <span className="block text-xs text-muted-ink">{hint}</span>}
-      </span>
-      <Switch.Control>
-        <Switch.Thumb />
-      </Switch.Control>
-    </Switch>
-  );
-}
-
 // A section whose backend persistence does not exist yet.
 function ComingSoon({ description }: { description: string }) {
   return <EmptyState icon={<IconInfo size={28} />} title="Em configuração" description={description} />;
@@ -203,6 +175,103 @@ function PhonePreview({ url, active }: { url: string; active: boolean }) {
         {active ? 'Prévia da página pública' : 'Ative o link para publicar a página.'}
       </p>
     </div>
+  );
+}
+
+// Sugestões de cor de marca para o agendamento online. A primeira ("") é o
+// padrão da casa (rosa) — limpar a cor.
+const ACCENT_PRESETS: { value: string; label: string }[] = [
+  { value: '', label: 'Padrão (rosa)' },
+  { value: '#F08CA5', label: 'Rosa' },
+  { value: '#E0668A', label: 'Framboesa' },
+  { value: '#C084FC', label: 'Lilás' },
+  { value: '#7C6CF0', label: 'Violeta' },
+  { value: '#4F9DDE', label: 'Azul' },
+  { value: '#2FAA6A', label: 'Verde' },
+  { value: '#F2B33D', label: 'Dourado' },
+  { value: '#F97316', label: 'Laranja' },
+  { value: '#111111', label: 'Preto' },
+];
+
+const HEX_RE = /^#([0-9a-fA-F]{6})$/;
+
+// Cor de destaque (marca) do agendamento online: paleta de sugestões + entrada
+// livre em hex (com prévia). "" = padrão da casa.
+function AccentColorField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (hex: string) => void;
+}) {
+  const normalized = value.trim().toUpperCase();
+  const isValid = normalized === '' || HEX_RE.test(normalized);
+  const preview = isValid && normalized ? normalized : '#F08CA5';
+  return (
+    <Field
+      label="Cor da marca"
+      hint="A cor aplicada nos botões, passos e horários da sua página de agendamento."
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
+          {ACCENT_PRESETS.map((p) => {
+            const selected = normalized === p.value.toUpperCase();
+            return (
+              <button
+                key={p.value || 'default'}
+                type="button"
+                onClick={() => onChange(p.value)}
+                aria-label={p.label}
+                aria-pressed={selected}
+                title={p.label}
+                className={`grid h-8 w-8 place-items-center rounded-full border-2 transition-transform hover:scale-105 ${
+                  selected ? 'border-ink' : 'border-line'
+                }`}
+                style={
+                  p.value
+                    ? { background: p.value }
+                    : {
+                        backgroundImage:
+                          'linear-gradient(135deg, #F08CA5 0 50%, #FCE4EA 50% 100%)',
+                      }
+                }
+              >
+                {selected && (
+                  <IconCheck size={14} className={p.value === '' ? 'text-ink' : 'text-white'} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className="h-9 w-9 shrink-0 rounded-lg border border-line"
+            style={{ background: preview }}
+            aria-hidden
+          />
+          <input
+            type="color"
+            aria-label="Selecionar cor personalizada"
+            value={preview}
+            onChange={(e) => onChange(e.target.value.toUpperCase())}
+            className="h-9 w-10 shrink-0 cursor-pointer rounded-lg border border-line bg-card p-0.5"
+          />
+          <input
+            value={normalized}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              onChange(v === '' ? '' : v.startsWith('#') ? v : `#${v}`);
+            }}
+            placeholder="#F08CA5"
+            aria-label="Cor em hexadecimal"
+            className={FIELD}
+          />
+        </div>
+        {!isValid && (
+          <span className="text-xs text-danger">Use um hex no formato #RRGGBB.</span>
+        )}
+      </div>
+    </Field>
   );
 }
 
@@ -343,6 +412,7 @@ export function AgendamentoOnlinePage() {
   const CONFIG_FIELDS = [
     'themePreference',
     'schedulingFlow',
+    'accentColor',
     'requiredLogin',
     'wifi',
     'snackBar',
@@ -546,11 +616,17 @@ export function AgendamentoOnlinePage() {
               </Select>
             </Field>
 
-            <ToggleRow
-              selected={profileDraft.requiredLogin}
+            <AccentColorField
+              value={profileDraft.accentColor ?? ''}
+              onChange={(hex) => setProfileField('accentColor', hex)}
+            />
+
+            <SwitchRow
+              checked={profileDraft.requiredLogin}
               onChange={(v: boolean) => setProfileField('requiredLogin', v)}
-              title="Exigir login para agendar"
-              hint="Quando ativo, o cliente precisa entrar antes de confirmar o agendamento."
+              label="Exigir login para agendar"
+              description="Quando ativo, o cliente precisa entrar antes de confirmar o agendamento."
+              className="rounded-xl border border-line bg-card px-4 py-3"
             />
 
             <div className="flex flex-col gap-3">
@@ -564,12 +640,13 @@ export function AgendamentoOnlinePage() {
                   { key: 'accessibility', label: 'Acessibilidade', hint: 'Acesso adaptado para todos.' },
                 ] as { key: keyof WebProfile; label: string; hint: string }[]
               ).map((b) => (
-                <ToggleRow
+                <SwitchRow
                   key={b.key}
-                  selected={Boolean(profileDraft[b.key])}
+                  checked={Boolean(profileDraft[b.key])}
                   onChange={(v: boolean) => setProfileField(b.key, v as WebProfile[typeof b.key])}
-                  title={b.label}
-                  hint={b.hint}
+                  label={b.label}
+                  description={b.hint}
+                  className="rounded-xl border border-line bg-card px-4 py-3"
                 />
               ))}
             </div>
@@ -627,11 +704,12 @@ export function AgendamentoOnlinePage() {
             </div>
 
             {/* Active toggle */}
-            <ToggleRow
-              selected={linkActive}
+            <SwitchRow
+              checked={linkActive}
               onChange={setLinkActive}
-              title="Link ativo"
-              hint="Quando inativo, clientes não conseguem agendar online."
+              label="Link ativo"
+              description="Quando inativo, clientes não conseguem agendar online."
+              className="rounded-xl border border-line bg-card px-4 py-3"
             />
 
             <Feedback error={linkMsg.error} ok={linkMsg.ok} />

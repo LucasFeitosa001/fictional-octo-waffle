@@ -80,6 +80,9 @@ export interface WebProfile {
   themePreference: ThemePreference;
   schedulingFlow: SchedulingFlow;
   requiredLogin: boolean;
+  // Cor de destaque (marca) aplicada no agendamento público (web-club). Hex
+  // "#RRGGBB" ou "" quando não definida (o cliente usa o rosa padrão da casa).
+  accentColor: string;
 }
 
 const WEB_PROFILE_KEY = ['web-profile'] as const;

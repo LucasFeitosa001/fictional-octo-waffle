@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Avatar, Button, Card, Input, TextField } from '@heroui/react';
 import { PageHeader } from '../../components/PageHeader';
+import { AppSwitch } from '../../components/SwitchRow';
 import {
   IconBot,
   IconCalendarPlus,
@@ -188,35 +189,6 @@ function MetricCard({
   );
 }
 
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={onChange}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-        checked ? 'bg-gold' : 'bg-default-300'
-      }`}
-    >
-      <span
-        className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
-          checked ? 'left-6' : 'left-1'
-        }`}
-      />
-    </button>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -330,10 +302,10 @@ export function IAAtendimentoPage() {
             <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-soft-border)] bg-warm-white px-3 py-2 shadow-[var(--shadow-soft)]">
               <IconBot size={16} className="text-gold-strong" />
               <span className="text-sm font-medium text-ink">Auto-resposta</span>
-              <ToggleSwitch
+              <AppSwitch
                 checked={autoReply}
-                onChange={() => setAutoReply((v) => !v)}
-                label="Auto-resposta"
+                onChange={(v) => setAutoReply(v)}
+                aria-label="Auto-resposta"
               />
             </div>
           </div>
@@ -343,28 +315,28 @@ export function IAAtendimentoPage() {
       {/* Metrics strip */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard
-          icon={<IconMessage size={20} className="text-gold-strong" />}
+          icon={<IconMessage size={20} className="text-data-messages" />}
           label="Conversas hoje"
           value={String(metrics.today)}
-          accent="rgba(242,179,61,0.15)"
+          accent="var(--sp-data-messages-soft)"
         />
         <MetricCard
-          icon={<IconCalendarPlus size={20} className="text-gold-strong" />}
+          icon={<IconCalendarPlus size={20} className="text-data-appointments" />}
           label="Agendamentos pela IA"
           value={String(metrics.byAi)}
-          accent="rgba(242,179,61,0.15)"
+          accent="var(--sp-data-appointments-soft)"
         />
         <MetricCard
-          icon={<IconClock size={20} className="text-pink" />}
+          icon={<IconClock size={20} className="text-data-messages" />}
           label="Tempo médio de resposta"
           value="8s"
-          accent="rgba(240,140,165,0.15)"
+          accent="var(--sp-data-messages-soft)"
         />
         <MetricCard
-          icon={<IconCircleCheck size={20} className="text-gold-strong" />}
+          icon={<IconCircleCheck size={20} className="text-status-success-fg" />}
           label="Taxa de resolução"
           value={`${metrics.rate}%`}
-          accent="rgba(242,179,61,0.15)"
+          accent="var(--sp-status-success-soft)"
         />
       </div>
 
@@ -626,10 +598,10 @@ export function IAAtendimentoPage() {
                     <p className="text-sm font-medium text-ink">{a.label}</p>
                     <p className="text-xs text-muted-ink">{a.description}</p>
                   </div>
-                  <ToggleSwitch
+                  <AppSwitch
                     checked={a.enabled}
                     onChange={() => toggleAutomation(a.key)}
-                    label={a.label}
+                    aria-label={a.label}
                   />
                 </div>
               ))}

@@ -18,13 +18,19 @@ import {
   SetServicesDto,
   CommissionRuleDto,
 } from './dto';
+import { InvitesService } from '../invites/invites.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('professionals')
 export class ProfessionalsController {
-  constructor(private readonly service: ProfessionalsService) {}
+  constructor(
+    private readonly service: ProfessionalsService,
+    private readonly invites: InvitesService,
+  ) {}
 
   @Get()
   list(
@@ -93,5 +99,13 @@ export class ProfessionalsController {
     @Body() rules: CommissionRuleDto[],
   ) {
     return this.service.setCommissionRules(companyId, id, rules);
+  }
+
+  // Gera um convite de acesso para o profissional (onboarding de staff). Retorna
+  // o token/link. Protegido por gestão de equipe/usuários.
+  @Post(':id/invite')
+  @RequirePermission('equipe:manage', 'usuarios:manage')
+  invite(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
+    return this.invites.createForProfessional(companyId, id);
   }
 }

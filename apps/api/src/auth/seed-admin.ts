@@ -10,6 +10,7 @@
  * Run with:  pnpm --filter @beautypass/api seed:admin
  */
 import { prisma } from '@beautypass/db';
+import { seedCompanyRoles } from '@beautypass/db/rbac';
 import { auth } from './better-auth';
 
 const ADMIN_EMAIL = 'admin@beautypass.dev';
@@ -54,19 +55,14 @@ async function main() {
     if (created?.companyId && created.companyId !== company.id) {
       const autoCompanyId = created.companyId;
       await prisma.userCompany.deleteMany({ where: { userId: res.user.id } });
-      const role =
-        (await prisma.role.findFirst({
-          where: { companyId: company.id, name: 'Administrador' },
-        })) ??
-        (await prisma.role.create({
-          data: { companyId: company.id, name: 'Administrador' },
-        }));
+      // Garante os papéis padrão na company canônica e liga o admin como 'owner'.
+      const { ownerRoleId } = await seedCompanyRoles(prisma, company.id);
       await prisma.user.update({
         where: { id: res.user.id },
         data: { companyId: company.id },
       });
       await prisma.userCompany.create({
-        data: { userId: res.user.id, companyId: company.id, roleId: role.id },
+        data: { userId: res.user.id, companyId: company.id, roleId: ownerRoleId },
       });
       // Remove the throwaway auto-provisioned company (cascades its role/links).
       await prisma.company.delete({ where: { id: autoCompanyId } }).catch(() => undefined);

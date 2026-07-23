@@ -14,7 +14,10 @@ import {
 import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { AuthModule } from '../auth/auth.module';
 
 class OpenCashDto {
   @IsOptional() @IsNumber() @Min(0) openingBalance?: number;
@@ -239,12 +242,16 @@ export class CashRegistersService {
   }
 }
 
-@UseGuards(JwtAuthGuard)
+// RBAC: leitura (caixas abertos, histórico, detalhe) exige caixa:view_all;
+// abrir/fechar/sangria/suprimento exige caixa:operate (ou caixa:manage, que
+// dá gestão total). Owner ('*') passa em tudo.
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('cash-registers')
 export class CashRegistersController {
   constructor(private readonly service: CashRegistersService) {}
 
   @Post('open')
+  @RequirePermission('caixa:operate', 'caixa:manage')
   open(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
@@ -254,16 +261,19 @@ export class CashRegistersController {
   }
 
   @Get('open')
+  @RequirePermission('caixa:view_all')
   getOpen(@CurrentUser('companyId') companyId: string) {
     return this.service.getOpen(companyId);
   }
 
   @Get('opened')
+  @RequirePermission('caixa:view_all')
   listOpened(@CurrentUser('companyId') companyId: string) {
     return this.service.listOpened(companyId);
   }
 
   @Get()
+  @RequirePermission('caixa:view_all')
   history(
     @CurrentUser('companyId') companyId: string,
     @Query('from') from?: string,
@@ -273,11 +283,13 @@ export class CashRegistersController {
   }
 
   @Get(':id')
+  @RequirePermission('caixa:view_all')
   detail(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.detail(companyId, id);
   }
 
   @Post(':id/movements')
+  @RequirePermission('caixa:operate', 'caixa:manage')
   addMovement(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -287,6 +299,7 @@ export class CashRegistersController {
   }
 
   @Post(':id/close')
+  @RequirePermission('caixa:operate', 'caixa:manage')
   close(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
@@ -298,6 +311,9 @@ export class CashRegistersController {
 }
 
 @Module({
+  // AuthModule: fornece AuthService/PermissionGuard pro @RequirePermission
+  // aplicado no CashRegistersController.
+  imports: [AuthModule],
   controllers: [CashRegistersController],
   providers: [CashRegistersService],
 })

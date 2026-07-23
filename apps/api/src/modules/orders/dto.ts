@@ -24,7 +24,9 @@ export class AddItemDto {
   @IsString() refId: string;
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsNumber() @Min(0.001) quantity?: number;
-  @IsNumber() @Min(0) unitPrice: number;
+  // Opcional: quando ausente/0, o backend resolve o preço pelo catálogo
+  // (Service.price / Product.salePrice). Ver OrdersService.resolveUnitPrice.
+  @IsOptional() @IsNumber() @Min(0) unitPrice?: number;
   @IsOptional() @IsNumber() @Min(0) discount?: number;
 }
 

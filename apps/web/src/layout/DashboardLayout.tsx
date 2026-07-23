@@ -5,16 +5,20 @@ import { BottomNav } from './BottomNav';
 import { CreateSheetProvider, PageActionsProvider } from './PageActions';
 import { CreateDrawerHost, CreateDrawerProvider } from './CreateDrawer';
 import { ConfirmProvider } from '../components/ConfirmDialog';
-import { ChatSupportDrawer } from '../components/ChatSupportDrawer';
-import { IconMessage } from '../components/icons';
+import { CrmLockedModal } from '../components/CrmLockedModal';
+import { NotificationToaster } from '../components/NotificationToaster';
+import { IconTip } from '../components/IconTip';
+import { IconUsers } from '../components/icons';
 import { useThemeSync } from '../theme/useThemeSync';
+import { useSidebarStyle } from '../theme/sidebarStyle';
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   // Pull the account's theme once the session is available (localStorage stays
   // the fast pre-paint cache; the account is the cross-device source of truth).
   useThemeSync();
+  const sidebarStyle = useSidebarStyle();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [crmOpen, setCrmOpen] = useState(false);
   const { pathname } = useLocation();
   // Full-bleed pages manage their own height + scroll (no page padding,
   // no max-width, no main scroll). The agenda is one big internal scroller.
@@ -26,9 +30,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     <CreateDrawerProvider>
     <ConfirmProvider>
     <div className="flex h-dvh w-full overflow-hidden">
-      {/* Desktop static sidebar */}
-      <div className="hidden lg:block">
-        <Sidebar />
+      {/* Desktop static sidebar (sólida encostada, ou flutuante com margem) */}
+      <div className={`hidden lg:block ${sidebarStyle === 'floating' ? 'p-2.5' : ''}`}>
+        <Sidebar onOpenCrm={() => setCrmOpen(true)} />
       </div>
 
       {/* Mobile off-canvas drawer — always mounted so it can slide in/out
@@ -50,10 +54,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           onClick={() => setDrawerOpen(false)}
           aria-hidden="true"
         />
-        {/* Panel slides from the left */}
+        {/* Panel slides from the left. No mobile o menu é SEMPRE sólido/encostado
+            — a personalização flutuante do sidebar só vale no desktop. */}
         <div
           className={[
-            'absolute inset-y-0 left-0 shadow-[var(--shadow-pop)] transition-transform duration-300 ease-out will-change-transform',
+            'absolute shadow-[var(--shadow-pop)] transition-transform duration-300 ease-out will-change-transform',
+            'inset-y-0 left-0',
             drawerOpen ? 'translate-x-0' : '-translate-x-full',
           ].join(' ')}
         >
@@ -80,25 +86,34 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar (same style as the club) */}
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
 
-      {/* Chat FAB global — visível em todas as páginas exceto Agenda
-          (Belasis /calendar não tem FAB nesta rota). */}
+      {/* Atalho global do CRM — abre apenas o aviso de módulo não adquirido. */}
       {!fullBleed && (
-        <button
-          type="button"
-          aria-label="Abrir chat de suporte"
-          onClick={() => setChatOpen(true)}
-          className="fixed bottom-24 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow-pop)] transition-transform active:scale-95 md:bottom-6 md:right-6"
+        <IconTip
+          label="Abrir CRM"
+          placement="left"
+          className="fixed bottom-24 right-4 z-40 md:bottom-6 md:right-6"
         >
-          <IconMessage size={22} />
-        </button>
+          <button
+            type="button"
+            aria-label="Abrir CRM"
+            onClick={() => setCrmOpen(true)}
+            className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow-pop)] transition-transform active:scale-95"
+          >
+            <IconUsers size={22} />
+          </button>
+        </IconTip>
       )}
 
-      {/* Drawer do chat de suporte — POST /help/chat (Claude Haiku). */}
-      <ChatSupportDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
+      <CrmLockedModal open={crmOpen} onClose={() => setCrmOpen(false)} />
 
       {/* Create-in-place host — abre o drawer da entidade direto (Sidebar/BottomNav
           "Novo") sem navegar. Uma única instância global, dentro do provider. */}
       <CreateDrawerHost />
+
+      {/* Notification watcher (sem UI): observa a lista de notificações e dispara
+          toasts no canto inferior direito para agendamentos novos/confirmados/
+          cancelados. Montado aqui pois só existe logado. */}
+      <NotificationToaster />
     </div>
     </ConfirmProvider>
     </CreateDrawerProvider>

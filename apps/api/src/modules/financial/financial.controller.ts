@@ -24,15 +24,20 @@ import {
   UpdateTransactionDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+// RBAC: leitura exige financeiro:view; toda mutação exige financeiro:manage.
+// Owner (curinga '*') passa em tudo.
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller()
 export class FinancialController {
   constructor(private readonly service: FinancialService) {}
 
   // ---- summary ----
   @Get('financial/summary')
+  @RequirePermission('financeiro:view')
   summary(
     @CurrentUser('companyId') companyId: string,
     @Query() query: SummaryQueryDto,
@@ -42,6 +47,7 @@ export class FinancialController {
 
   // ---- transactions ----
   @Get('transactions')
+  @RequirePermission('financeiro:view')
   listTransactions(
     @CurrentUser('companyId') companyId: string,
     @Query() query: ListTransactionsQueryDto,
@@ -50,6 +56,7 @@ export class FinancialController {
   }
 
   @Post('transactions')
+  @RequirePermission('financeiro:manage')
   createTransaction(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateTransactionDto,
@@ -58,6 +65,7 @@ export class FinancialController {
   }
 
   @Post('transactions/transfer')
+  @RequirePermission('financeiro:manage')
   createTransfer(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateTransferDto,
@@ -66,6 +74,7 @@ export class FinancialController {
   }
 
   @Post('transactions/:id/reverse')
+  @RequirePermission('financeiro:manage')
   reverseTransaction(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
@@ -75,6 +84,7 @@ export class FinancialController {
   }
 
   @Patch('transactions/:id')
+  @RequirePermission('financeiro:manage')
   updateTransaction(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -84,6 +94,7 @@ export class FinancialController {
   }
 
   @Delete('transactions/:id')
+  @RequirePermission('financeiro:manage')
   removeTransaction(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -93,11 +104,13 @@ export class FinancialController {
 
   // ---- financial-accounts ----
   @Get('financial-accounts')
+  @RequirePermission('financeiro:view')
   listAccounts(@CurrentUser('companyId') companyId: string) {
     return this.service.listAccounts(companyId);
   }
 
   @Post('financial-accounts')
+  @RequirePermission('financeiro:manage')
   createAccount(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateFinancialAccountDto,
@@ -106,6 +119,7 @@ export class FinancialController {
   }
 
   @Patch('financial-accounts/:id')
+  @RequirePermission('financeiro:manage')
   updateAccount(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -115,6 +129,7 @@ export class FinancialController {
   }
 
   @Delete('financial-accounts/:id')
+  @RequirePermission('financeiro:manage')
   removeAccount(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -124,11 +139,13 @@ export class FinancialController {
 
   // ---- payment-methods ----
   @Get('payment-methods')
+  @RequirePermission('financeiro:view')
   listPaymentMethods(@CurrentUser('companyId') companyId: string) {
     return this.service.listPaymentMethods(companyId);
   }
 
   @Post('payment-methods')
+  @RequirePermission('financeiro:manage')
   createPaymentMethod(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreatePaymentMethodDto,
@@ -137,6 +154,7 @@ export class FinancialController {
   }
 
   @Patch('payment-methods/:id')
+  @RequirePermission('financeiro:manage')
   updatePaymentMethod(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -146,6 +164,7 @@ export class FinancialController {
   }
 
   @Delete('payment-methods/:id')
+  @RequirePermission('financeiro:manage')
   removePaymentMethod(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -155,11 +174,13 @@ export class FinancialController {
 
   // ---- financial-categories ----
   @Get('financial-categories')
+  @RequirePermission('financeiro:view')
   listCategories(@CurrentUser('companyId') companyId: string) {
     return this.service.listCategories(companyId);
   }
 
   @Post('financial-categories')
+  @RequirePermission('financeiro:manage')
   createCategory(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateFinancialCategoryDto,
@@ -168,6 +189,7 @@ export class FinancialController {
   }
 
   @Patch('financial-categories/:id')
+  @RequirePermission('financeiro:manage')
   updateCategory(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -177,6 +199,7 @@ export class FinancialController {
   }
 
   @Delete('financial-categories/:id')
+  @RequirePermission('financeiro:manage')
   removeCategory(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,

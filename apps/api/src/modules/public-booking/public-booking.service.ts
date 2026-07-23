@@ -136,6 +136,8 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
                 ``,
                 `Não houve resposta a tempo, então confirmamos pra você. Avisamos ${v.customerFirstName}.`,
               ].join('\n'),
+              // Interações: aviso ao gestor (não ao cliente).
+              { companyId: appt.companyId, kind: 'manager' },
             );
           }
         }
@@ -168,10 +170,14 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       select: { name: true, logoUrl: true, timezone: true, addressJson: true },
     });
     const tz = company?.timezone ?? 'America/Sao_Paulo';
-    const [status, rating, plan] = await Promise.all([
+    const [status, rating, plan, webProfile] = await Promise.all([
       this.openStatus(companyId, tz),
       this.ratingSummary(companyId),
       this.planLabel(companyId),
+      this.prisma.client.salonWebProfile.findUnique({
+        where: { companyId },
+        select: { accentColor: true },
+      }),
     ]);
     return {
       slug,
@@ -185,6 +191,9 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       plan,
       whatsapp: this.formatWhatsApp(company?.addressJson ?? null),
       googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+      // Cor de destaque (marca) do agendamento online, "#RRGGBB". Null → o
+      // web-club aplica o rosa padrão da casa.
+      accentColor: webProfile?.accentColor ?? null,
     };
   }
 
@@ -528,6 +537,8 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       where: { id: appointmentId, companyId },
       select: {
         start: true,
+        // customerId exposto p/ vincular as mensagens ao histórico "Interações".
+        customerId: true,
         company: { select: { name: true, timezone: true } },
         customer: { select: { name: true, email: true, phone: true } },
         professional: { select: { name: true } },
@@ -548,6 +559,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       minute: '2-digit',
     }).format(appt.start);
     return {
+      customerId: appt.customerId ?? null,
       salonName: appt.company.name,
       professionalName: appt.professional?.name ?? null,
       serviceNames: appt.items.map((it) => it.service.name).join(', ') || 'Serviço',
@@ -609,7 +621,11 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         ``,
         `_Se houver mais de um pendente, inclua o código, ex.: "1 ${code}"._`,
       ].filter((l): l is string => l !== null);
-      await this.whatsapp.enqueueText(managerPhone, lines.join('\n'));
+      // Interações: pedido de confirmação enviado ao gestor.
+      await this.whatsapp.enqueueText(managerPhone, lines.join('\n'), {
+        companyId,
+        kind: 'manager',
+      });
     } catch (err) {
       this.logger.error(`Falha ao pedir confirmação ao salão: ${(err as Error).message}`);
     }
@@ -629,6 +645,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         await this.whatsapp.enqueueText(
           msg.fromDigits,
           'Não entendi. Responda *1* para confirmar, *2* para cancelar ou *3* para sugerir outro horário.',
+          { companyId, kind: 'manager' },
         );
         return;
       }
@@ -675,7 +692,10 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       // Free-text remainder after the digit (and optional code) — reason/suggestion.
       const extra = rest;
       if (!pending) {
-        await this.whatsapp.enqueueText(msg.fromDigits, 'Não há agendamentos pendentes de confirmação. ✅');
+        await this.whatsapp.enqueueText(msg.fromDigits, 'Não há agendamentos pendentes de confirmação. ✅', {
+          companyId,
+          kind: 'manager',
+        });
         return;
       }
 
@@ -690,7 +710,10 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           undefined,
         );
         await this.sendBookingConfirmation(companyId, pending.id);
-        await this.whatsapp.enqueueText(msg.fromDigits, `✅ Confirmado! Avisamos ${clientName}.`);
+        await this.whatsapp.enqueueText(msg.fromDigits, `✅ Confirmado! Avisamos ${clientName}.`, {
+          companyId,
+          kind: 'manager',
+        });
         return;
       }
 
@@ -702,7 +725,10 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           undefined,
         );
         await this.notifyClientCanceled(companyId, pending.id, extra);
-        await this.whatsapp.enqueueText(msg.fromDigits, `❌ Cancelado. Avisamos ${clientName}.`);
+        await this.whatsapp.enqueueText(msg.fromDigits, `❌ Cancelado. Avisamos ${clientName}.`, {
+          companyId,
+          kind: 'manager',
+        });
         return;
       }
 
@@ -712,6 +738,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         await this.whatsapp.enqueueText(
           msg.fromDigits,
           'Para sugerir, escreva a sugestão junto, ex.: "3 que tal quinta às 15h?".',
+          { companyId, kind: 'manager' },
         );
         return;
       }
@@ -719,6 +746,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       await this.whatsapp.enqueueText(
         msg.fromDigits,
         `📨 Sugestão enviada a ${clientName}. O agendamento segue *pendente* até você confirmar (responda 1) ou cancelar (responda 2).`,
+        { companyId, kind: 'manager' },
       );
     } catch (err) {
       this.logger.error(`Falha ao processar resposta do salão: ${(err as Error).message}`);
@@ -744,7 +772,12 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           ``,
           `Se quiser, é só agendar um novo horário. 💖`,
         ];
-        await this.whatsapp.enqueueText(v.customerPhone, lines.join('\n'));
+        // Interações: cancelamento avisado ao cliente.
+        await this.whatsapp.enqueueText(v.customerPhone, lines.join('\n'), {
+          companyId,
+          customerId: v.customerId ?? undefined,
+          kind: 'cancellation',
+        });
       }
       if (v.customerEmail) {
         await this.email.send({
@@ -784,7 +817,12 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           ``,
           `Pode responder por aqui para combinar o melhor horário. 💖`,
         ];
-        await this.whatsapp.enqueueText(v.customerPhone, lines.join('\n'));
+        // Interações: sugestão de novo horário ao cliente (fluxo de confirmação).
+        await this.whatsapp.enqueueText(v.customerPhone, lines.join('\n'), {
+          companyId,
+          customerId: v.customerId ?? undefined,
+          kind: 'confirmation',
+        });
       }
       if (v.customerEmail) {
         await this.email.send({
@@ -816,6 +854,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         where: { id: appointmentId, companyId },
         select: {
           start: true,
+          customerId: true,
           company: { select: { name: true, timezone: true } },
           customer: { select: { name: true, email: true, phone: true } },
           professional: { select: { name: true } },
@@ -869,6 +908,8 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
             dateLabel,
             timeLabel,
           }),
+          // Interações: confirmação de agendamento enviada ao cliente.
+          { companyId, customerId: appt.customerId ?? undefined, kind: 'confirmation' },
         );
       }
     } catch {
@@ -1170,7 +1211,11 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         ``,
         `O horário foi liberado na sua agenda.`,
       ].filter((l): l is string => l !== null);
-      await this.whatsapp.enqueueText(managerPhone, lines.join('\n'));
+      // Interações: aviso ao gestor de cancelamento feito pelo cliente.
+      await this.whatsapp.enqueueText(managerPhone, lines.join('\n'), {
+        companyId,
+        kind: 'manager',
+      });
     } catch (err) {
       this.logger.error(`Falha ao avisar salão do cancelamento: ${(err as Error).message}`);
     }

@@ -97,6 +97,28 @@ export function formatPhone(raw: string | null | undefined): string {
   return raw;
 }
 
+/**
+ * Tempo relativo curto em pt-BR a partir de um timestamp em ms (ex.: o
+ * `dataUpdatedAt` do react-query v5). Usado no indicador "Atualizado há X"
+ * do Painel. Re-chame periodicamente (setInterval) p/ manter o texto vivo.
+ *
+ * 0 ou inválido → "—". <45s → "agora mesmo". Depois: "há N min" / "há N h" /
+ * "há N d".
+ */
+export function timeAgo(ts: number | null | undefined): string {
+  if (!ts || !Number.isFinite(ts)) return '—';
+  const diffMs = Date.now() - ts;
+  if (diffMs < 0) return 'agora mesmo';
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return 'agora mesmo';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `há ${min} min`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `há ${days} d`;
+}
+
 export function initials(name: string | null | undefined): string {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);

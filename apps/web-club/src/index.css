@@ -37,6 +37,25 @@
   --shadow-pop: 0 16px 40px rgba(26, 26, 26, 0.12);
 }
 
+/* ── Booking accent (salon brand color) ──────────────────────────────────────
+   The public booking flow is themed by the salon's own accent color. `App`
+   sets `--booking-accent` from the portal payload; everything else derives from
+   it via color-mix so a single hex drives the whole palette. Defaults to the
+   house pink (#F08CA5) when the salon hasn't customized it. */
+:root {
+  --booking-accent: #f08ca5; /* base — buttons, active chips, highlights */
+  /* Derived tones (recomputed from --booking-accent via color-mix). */
+  --booking-accent-strong: color-mix(in oklab, var(--booking-accent) 82%, #000);
+  --booking-accent-soft: color-mix(in oklab, var(--booking-accent) 16%, #fff);
+  --booking-accent-surface: color-mix(in oklab, var(--booking-accent) 8%, #fff);
+  --booking-accent-ink: color-mix(in oklab, var(--booking-accent) 62%, #000);
+  --booking-accent-disabled: color-mix(in oklab, var(--booking-accent) 42%, #fff);
+  --booking-accent-shadow: color-mix(in oklab, var(--booking-accent) 32%, transparent);
+  /* The house "pink" shadow now tracks the salon accent so glow/elevation on
+     accented controls matches the brand color everywhere it's referenced. */
+  --shadow-pink: 0 8px 24px var(--booking-accent-shadow);
+}
+
 /* HeroUI accent tokens: gold CTA (#F2B33D) with dark ink text; cream canvas. */
 @layer base {
   :root,
@@ -187,16 +206,16 @@ h1, h2, h3, h4, h5, h6,
   animation: step-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Mobile bottom tab bar: brand black, paints into the home-indicator safe area
-   so the bar reads solid black down to the screen edge. */
+/* Mobile booking steps: warm translucent dock with safe-area support. */
 .club-bottomnav {
-  background: #111111;
-  background-image: linear-gradient(0deg, #111111 0%, #1a1a1a 100%);
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 -12px 30px rgba(26, 26, 26, 0.08);
+  backdrop-filter: blur(18px);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .club-bottomnav button {
-  min-height: 56px;
+  min-height: 48px;
 }
 
 .club-action-dock {

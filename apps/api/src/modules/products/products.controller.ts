@@ -22,20 +22,25 @@ import {
   UpdateProductDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+// RBAC: catálogo (categorias/marcas/produtos) + estoque (movimentos/lotes).
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller()
 export class ProductsController {
   constructor(private readonly service: ProductsService) {}
 
   // ---- product-categories ----
   @Get('product-categories')
+  @RequirePermission('catalogo:view')
   listCategories(@CurrentUser('companyId') companyId: string) {
     return this.service.listCategories(companyId);
   }
 
   @Post('product-categories')
+  @RequirePermission('catalogo:manage')
   createCategory(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateProductCategoryDto,
@@ -44,6 +49,7 @@ export class ProductsController {
   }
 
   @Patch('product-categories/:id')
+  @RequirePermission('catalogo:manage')
   updateCategory(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -53,6 +59,7 @@ export class ProductsController {
   }
 
   @Delete('product-categories/:id')
+  @RequirePermission('catalogo:manage')
   removeCategory(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -63,6 +70,7 @@ export class ProductsController {
   // ---- brands ----
   // ?status=active|inactive filtra por Brand.active (Status real).
   @Get('brands')
+  @RequirePermission('catalogo:view')
   listBrands(
     @CurrentUser('companyId') companyId: string,
     @Query('status') status?: string,
@@ -73,6 +81,7 @@ export class ProductsController {
   }
 
   @Post('brands')
+  @RequirePermission('catalogo:manage')
   createBrand(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateBrandDto,
@@ -81,6 +90,7 @@ export class ProductsController {
   }
 
   @Patch('brands/:id')
+  @RequirePermission('catalogo:manage')
   updateBrand(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -90,6 +100,7 @@ export class ProductsController {
   }
 
   @Delete('brands/:id')
+  @RequirePermission('catalogo:manage')
   removeBrand(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -99,6 +110,7 @@ export class ProductsController {
 
   // ---- products ----
   @Get('products')
+  @RequirePermission('catalogo:view')
   list(
     @CurrentUser('companyId') companyId: string,
     @Query('categoryId') categoryId?: string,
@@ -113,6 +125,7 @@ export class ProductsController {
   }
 
   @Get('products/:id')
+  @RequirePermission('catalogo:view')
   findOne(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -121,6 +134,7 @@ export class ProductsController {
   }
 
   @Post('products')
+  @RequirePermission('catalogo:manage')
   create(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateProductDto,
@@ -129,6 +143,7 @@ export class ProductsController {
   }
 
   @Patch('products/:id')
+  @RequirePermission('catalogo:manage')
   update(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -138,6 +153,7 @@ export class ProductsController {
   }
 
   @Delete('products/:id')
+  @RequirePermission('catalogo:manage')
   remove(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -145,7 +161,9 @@ export class ProductsController {
     return this.service.remove(companyId, id);
   }
 
+  // Movimento de estoque → permissão de estoque, não de catálogo.
   @Post('products/:id/movements')
+  @RequirePermission('estoque:manage')
   createMovement(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -156,6 +174,7 @@ export class ProductsController {
 
   // ---- product-batches (lotes) ----
   @Get('product-batches')
+  @RequirePermission('catalogo:view')
   listBatches(
     @CurrentUser('companyId') companyId: string,
     @Query('productId') productId?: string,
@@ -164,6 +183,7 @@ export class ProductsController {
   }
 
   @Post('product-batches')
+  @RequirePermission('estoque:manage')
   createBatch(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateProductBatchDto,
@@ -172,6 +192,7 @@ export class ProductsController {
   }
 
   @Patch('product-batches/:id')
+  @RequirePermission('estoque:manage')
   updateBatch(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -181,6 +202,7 @@ export class ProductsController {
   }
 
   @Delete('product-batches/:id')
+  @RequirePermission('estoque:manage')
   removeBatch(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,

@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BookingPage } from './pages/BookingPage';
 import { SalonGate } from './pages/SalonGate';
 import { useCustomerSession } from './lib/auth';
-import { DEFAULT_BOOKING_SLUG, getSubdomainSlug } from './lib/config';
+import { ADMIN_ORIGIN, DEFAULT_BOOKING_SLUG, getSubdomainSlug } from './lib/config';
 
 // Secondary routes are code-split so the home (BookingPage) ships the smallest
 // possible initial bundle. They load on demand when the customer navigates.
@@ -24,13 +24,35 @@ function BookingRoute() {
   return <BookingPage slug={slug} basePath={`/${slug}`} />;
 }
 
+function ProfessionalInviteRedirect() {
+  const { token } = useParams();
+  const target = token
+    ? `${ADMIN_ORIGIN}/convite/${encodeURIComponent(token)}`
+    : `${ADMIN_ORIGIN}/login`;
+
+  useEffect(() => {
+    window.location.replace(target);
+  }, [target]);
+
+  return (
+    <main className="club-page grid min-h-dvh place-items-center px-4">
+      <div className="max-w-sm text-center">
+        <p className="text-sm text-muted-ink">Abrindo seu convite profissional…</p>
+        <a href={target} className="mt-3 inline-flex text-sm font-semibold text-primary underline">
+          Continuar para o convite
+        </a>
+      </div>
+    </main>
+  );
+}
+
 // Path-based ("/:slug/...") login + account routes, so a salon reached via the
 // shared host keeps its slug in the URL. The booking portal it returns to is
 // "/:slug".
 function SlugLoginRoute() {
   const { slug } = useParams();
   if (!slug) return <Navigate to="/" replace />;
-  return <LoginPage backTo={`/${slug}`} />;
+  return <LoginPage backTo={`/${slug}`} slug={slug} />;
 }
 
 function SlugAccountRoute() {
@@ -49,8 +71,11 @@ function RouteFallback() {
   return (
     <div className="club-page flex flex-col" role="status" aria-label="Carregando página">
       <header className="club-topbar">
-        <div className="mx-auto flex min-h-16 max-w-5xl items-center px-4 py-2.5">
-          <img src="/brand/salonpass-wordmark-white.svg" alt="Salonpass" className="h-6 w-auto" />
+        {/* Neutral salon-shaped placeholder (logo disc + name line) while the
+            portal resolves — the public flow never shows the SalonPass mark. */}
+        <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2.5 px-4 py-2.5">
+          <span className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-white/15 sm:h-10 sm:w-10" />
+          <span className="h-4 w-28 animate-pulse rounded bg-white/15" />
         </div>
       </header>
       <main className="club-page-main mx-auto w-full max-w-2xl flex-1 py-7">
@@ -90,6 +115,8 @@ export function App() {
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
+      {/* Compatibilidade com convites antigos gerados para o domínio da agenda. */}
+      <Route path="/convite/:token" element={<ProfessionalInviteRedirect />} />
       <Route
         path="/"
         element={
@@ -99,7 +126,9 @@ export function App() {
       {/* Subdomain / baked-default tenant: login + account live at the host root. */}
       <Route
         path="/login"
-        element={tenantSlug ? <LoginPage backTo="/" /> : <Navigate to="/" replace />}
+        element={
+          tenantSlug ? <LoginPage backTo="/" slug={tenantSlug} /> : <Navigate to="/" replace />
+        }
       />
       <Route
         path="/conta"

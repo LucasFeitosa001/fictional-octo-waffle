@@ -8,9 +8,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { DateRangePicker } from '../../components/DatePicker';
 import {
   IconCalendar,
-  IconChevron,
   IconDownload,
   IconTrash,
   IconTrendUp,
@@ -51,7 +51,7 @@ function Kpi({
   return (
     <div className={`${CARD} p-5`}>
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-status-danger-soft text-status-danger-fg">
           {icon}
         </span>
         <span className="text-sm font-medium text-ink">{title}</span>
@@ -117,26 +117,12 @@ export function AgendamentosExcluidosPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-ink">Período</label>
-              <div className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-3 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 sm:h-10">
-                <input
-                  type="date"
-                  value={pending.from}
-                  max={pending.to || undefined}
-                  onChange={(e) => setPending((p) => ({ ...p, from: e.target.value }))}
-                  aria-label="Data inicial"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                />
-                <IconChevron size={14} className="-rotate-90 shrink-0 text-muted-ink" aria-hidden />
-                <input
-                  type="date"
-                  value={pending.to}
-                  min={pending.from || undefined}
-                  onChange={(e) => setPending((p) => ({ ...p, to: e.target.value }))}
-                  aria-label="Data final"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                />
-                <IconCalendar size={16} className="shrink-0 text-muted-ink" aria-hidden />
-              </div>
+              <DateRangePicker
+                from={pending.from}
+                to={pending.to}
+                onChange={setPending}
+                ariaLabel="Período"
+              />
             </div>
           </div>
 
@@ -221,7 +207,7 @@ export function AgendamentosExcluidosPage() {
                       labelFormatter={(l: string) => shortDay(l)}
                       formatter={(v: number) => [formatNumber(v), 'Excluídos']}
                     />
-                    <Bar dataKey="count" fill={colors.pink} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                    <Bar dataKey="count" fill={colors.expense} radius={[4, 4, 0, 0]} maxBarSize={36} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -254,7 +240,7 @@ export function AgendamentosExcluidosPage() {
                     {items.map((it) => (
                       <tr
                         key={it.id}
-                        className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                        className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                       >
                         <td className="px-5 py-3 text-ink">{formatDate(it.start)}</td>
                         <td className="px-5 py-3 text-ink">{it.customerName ?? '—'}</td>

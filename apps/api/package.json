@@ -10,6 +10,7 @@
     "seed:admin": "tsx src/auth/seed-admin.ts",
     "test:isolation": "nest build && node dist/test/tenant-isolation.e2e.js",
     "test:booking": "nest build && node dist/test/public-booking.e2e.js",
+    "test:orders-finish": "nest build && node dist/test/orders-finish.e2e.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
@@ -19,6 +20,7 @@
     "@beautypass/db": "workspace:*",
     "@beautypass/shared": "workspace:*",
     "@better-auth/expo": "^1.3.4",
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -28,6 +30,7 @@
     "baileys": "6.7.23",
     "bcryptjs": "^2.4.3",
     "better-auth": "^1.3.4",
+    "bullmq": "^5.80.11",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "express": "^5.2.1",

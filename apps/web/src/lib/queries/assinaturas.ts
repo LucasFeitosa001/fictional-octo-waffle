@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 
 // =====================================================================
 // Types — ASSINATURAS (memberships). Money fields are Decimal strings.
@@ -85,7 +86,10 @@ export function useCreateMembershipPlan() {
   return useMutation({
     mutationFn: (body: CreateMembershipPlanBody) =>
       api.post<MembershipPlan>('/membership-plans', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['membership-plans'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['membership-plans'] });
+      toastSuccess('Plano criado');
+    },
   });
 }
 
@@ -94,7 +98,10 @@ export function useUpdateMembershipPlan() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateMembershipPlanBody }) =>
       api.patch<MembershipPlan>(`/membership-plans/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['membership-plans'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['membership-plans'] });
+      toastSuccess('Plano salvo');
+    },
   });
 }
 
@@ -103,7 +110,10 @@ export function useDeleteMembershipPlan() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<{ id: string; deleted: boolean }>(`/membership-plans/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['membership-plans'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['membership-plans'] });
+      toastSuccess('Plano excluído');
+    },
   });
 }
 
@@ -124,7 +134,10 @@ export function useCreateCustomerMembership() {
   return useMutation({
     mutationFn: (body: CreateCustomerMembershipBody) =>
       api.post<CustomerMembership>('/customer-memberships', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-memberships'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-memberships'] });
+      toastSuccess('Assinatura criada');
+    },
   });
 }
 
@@ -133,6 +146,9 @@ export function useUpdateCustomerMembership() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateCustomerMembershipBody }) =>
       api.patch<CustomerMembership>(`/customer-memberships/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-memberships'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-memberships'] });
+      toastSuccess('Assinatura salva');
+    },
   });
 }

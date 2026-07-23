@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Button, ScrollShadow, Tooltip } from '@heroui/react';
 import {
   IconBox,
@@ -37,12 +37,23 @@ import {
   IconTarget,
   IconTruck,
   IconUser,
-  IconUserPlus,
   IconUsers,
   IconWhatsApp,
+  IconLock,
 } from '../components/icons';
 import { useSession, signOut } from '../lib/auth';
+import { useFeatures, type FeatureKey } from '../lib/queries/features';
+import { useCan } from '../lib/queries/permissions';
+import { CompanySwitcher } from '../components/CompanySwitcher';
+import { useMinhasContas } from '../lib/queries/contas';
+import { useBookingLink } from '../lib/queries/marketing';
+import { APP_VERSION, CLUB_ORIGIN } from '../lib/config';
+import { toast, toastSuccess, TOAST_TIMEOUT } from '../lib/toast';
+import { useSidebarStyle } from '../theme/sidebarStyle';
 import { NotificationBell } from '../components/NotificationBell';
+import { IconTip } from '../components/IconTip';
+import { ZoomControls } from '../components/ZoomControls';
+import { InstallPwaButton } from '../components/InstallPwaButton';
 import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
 import { CREATE_GROUPS, type CreateItem } from './PageActions';
 import { useCreateDrawer } from './CreateDrawer';
@@ -55,6 +66,19 @@ type NavItem = {
   icon: IconType;
   end?: boolean;
   badge?: 'Beta' | 'novo';
+  action?: 'copy-booking-link';
+  /**
+   * FASE 2: paid feature this item belongs to. When the company's plan does not
+   * include it, the item shows a lock icon (still clickable — the destination
+   * page renders its own upsell). In dev (premium plan) nothing is locked.
+   */
+  feature?: FeatureKey;
+  /**
+   * FASE RBAC: permissão (ou lista, OR) que o papel precisa ter para VER o item.
+   * Sem `perm` → todo mundo vê. Com `perm` → some da navegação de quem não pode.
+   * Diferente de `feature` (que só cadeia): sem permissão o item não aparece.
+   */
+  perm?: string | string[];
 };
 
 type NavGroup = {
@@ -90,11 +114,11 @@ const NAVIGATION: NavEntry[] = [
     title: 'Principal',
     icon: IconHome,
     items: [
-      { to: '/', label: 'Painel', icon: IconHome, end: true },
-      { to: '/agenda', label: 'Agenda', icon: IconCalendar },
-      { to: '/comandas', label: 'Comandas', icon: IconReceipt },
-      { to: '/pacotes', label: 'Pacotes', icon: IconLayers },
-      { to: '/assinaturas', label: 'Vendas por Assinatura', icon: IconRepeat },
+      { to: '/painel', label: 'Painel', icon: IconHome, end: true },
+      { to: '/agenda', label: 'Agenda', icon: IconCalendar, perm: 'agenda:view' },
+      { to: '/comandas', label: 'Comandas', icon: IconReceipt, perm: 'comandas:view' },
+      { to: '/pacotes', label: 'Pacotes', icon: IconLayers, perm: 'catalogo:view' },
+      { to: '/assinaturas', label: 'Vendas por Assinatura', icon: IconRepeat, perm: 'catalogo:view' },
     ],
   },
   {
@@ -103,14 +127,15 @@ const NAVIGATION: NavEntry[] = [
     title: 'Financeiro',
     icon: IconDollar,
     items: [
-      { to: '/financeiro', label: 'Painel', icon: IconChart, end: true },
-      { to: '/financeiro/transacoes', label: 'Transações', icon: IconDollar },
-      { to: '/financeiro/contas', label: 'Cadastros', icon: IconCreditCard },
-      { to: '/financeiro/caixas', label: 'Caixas abertos', icon: IconCash, end: true },
-      { to: '/financeiro/caixas/historico', label: 'Histórico de caixa', icon: IconClock },
-      { to: '/caixa', label: 'Belasis Pay', icon: IconCreditCard, badge: 'novo' },
-      { to: '/financeiro/notas-fiscais', label: 'Notas Fiscais', icon: IconReceipt },
-      { to: '/financeiro/configuracoes', label: 'Configurações', icon: IconSettings },
+      { to: '/financeiro', label: 'Painel', icon: IconChart, end: true, perm: 'financeiro:view' },
+      { to: '/financeiro/transacoes', label: 'Transações', icon: IconDollar, perm: 'financeiro:view' },
+      { to: '/financeiro/contas', label: 'Cadastros', icon: IconCreditCard, perm: 'financeiro:view' },
+      // Caixa: quem só opera o próprio caixa também acessa (caixa:operate OU view_all).
+      { to: '/financeiro/caixas', label: 'Caixas abertos', icon: IconCash, end: true, perm: ['caixa:operate', 'caixa:view_all'] },
+      { to: '/financeiro/caixas/historico', label: 'Histórico de caixa', icon: IconClock, perm: ['caixa:operate', 'caixa:view_all'] },
+      { to: '/financeiro/belasis-pay', label: 'SalonPay', icon: IconCreditCard, badge: 'novo', perm: 'financeiro:view' },
+      { to: '/financeiro/notas-fiscais', label: 'Notas Fiscais', icon: IconReceipt, feature: 'nfe', perm: 'financeiro:view' },
+      { to: '/financeiro/configuracoes', label: 'Configurações', icon: IconSettings, perm: 'financeiro:view' },
     ],
   },
   {
@@ -119,9 +144,10 @@ const NAVIGATION: NavEntry[] = [
     title: 'Comissões',
     icon: IconPercent,
     items: [
-      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true },
-      { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash },
-      { to: '/comissoes/config', label: 'Configurações', icon: IconSettings },
+      // Profissional vê as próprias (view_own); gestão vê todas (view_all).
+      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash, perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/config', label: 'Configurações', icon: IconSettings, perm: 'comissoes:config' },
     ],
   },
   {
@@ -130,11 +156,13 @@ const NAVIGATION: NavEntry[] = [
     title: 'Cadastros',
     icon: IconUsers,
     items: [
-      { to: '/clientes', label: 'Clientes', icon: IconUsers },
-      { to: '/cadastros/anamneses', label: 'Anamneses', icon: IconMessage },
-      { to: '/cadastros/convidar', label: 'Convidar profissionais', icon: IconUserPlus },
-      { to: '/profissionais', label: 'Profissionais', icon: IconScissors },
-      { to: '/fornecedores', label: 'Fornecedores', icon: IconTruck },
+      { to: '/clientes', label: 'Clientes', icon: IconUsers, perm: 'clientes:view' },
+      { to: '/cadastros/anamneses', label: 'Anamneses', icon: IconMessage, perm: 'anamneses:manage' },
+      // "Profissionais" é a página CONSOLIDADA de equipe: cadastro + acesso (gerar
+      // login) + permissões granulares. Absorveu "Convidar profissionais" e
+      // "Usuários" (rotas antigas redirecionam pra cá em App.tsx).
+      { to: '/profissionais', label: 'Profissionais', icon: IconScissors, perm: 'equipe:view' },
+      { to: '/fornecedores', label: 'Fornecedores', icon: IconTruck, perm: 'catalogo:view' },
     ],
   },
   {
@@ -143,13 +171,13 @@ const NAVIGATION: NavEntry[] = [
     title: 'Controle',
     icon: IconLayers,
     items: [
-      { to: '/servicos', label: 'Serviços', icon: IconScissors },
-      { to: '/produtos', label: 'Produtos', icon: IconBox },
-      { to: '/controle/pacotes-predefinidos', label: 'Pacotes Predefinidos', icon: IconLayers },
-      { to: '/categorias', label: 'Categorias', icon: IconFolder },
-      { to: '/marcas', label: 'Marcas', icon: IconTag },
-      { to: '/controle/compras', label: 'Compras', icon: IconBox },
-      { to: '/controle/gerador-documento', label: 'Gerador de Documento', icon: IconCopy },
+      { to: '/servicos', label: 'Serviços', icon: IconScissors, perm: 'catalogo:view' },
+      { to: '/produtos', label: 'Produtos', icon: IconBox, perm: 'catalogo:view' },
+      { to: '/controle/pacotes-predefinidos', label: 'Pacotes Predefinidos', icon: IconLayers, perm: 'catalogo:view' },
+      { to: '/categorias', label: 'Categorias', icon: IconFolder, perm: 'catalogo:view' },
+      { to: '/marcas', label: 'Marcas', icon: IconTag, perm: 'catalogo:view' },
+      { to: '/controle/compras', label: 'Compras', icon: IconBox, perm: 'estoque:manage' },
+      { to: '/controle/gerador-documento', label: 'Gerador de Documento', icon: IconCopy, perm: 'catalogo:view' },
     ],
   },
   {
@@ -158,8 +186,9 @@ const NAVIGATION: NavEntry[] = [
     title: 'Relatórios',
     icon: IconChart,
     items: [
-      { to: '/relatorios', label: 'Painel', icon: IconHome, end: true },
-      { to: '/metas', label: 'Metas', icon: IconTarget },
+      // O hub de relatórios abre tanto os operacionais quanto os financeiros.
+      { to: '/relatorios', label: 'Painel', icon: IconHome, end: true, perm: ['relatorios:operacional', 'relatorios:financeiro'] },
+      { to: '/metas', label: 'Metas', icon: IconTarget, perm: 'relatorios:operacional' },
     ],
   },
   {
@@ -169,6 +198,8 @@ const NAVIGATION: NavEntry[] = [
     label: 'WhatsApp API Oficial',
     icon: IconWhatsApp,
     badge: 'novo',
+    feature: 'whatsapp_api',
+    perm: 'marketing:view',
   },
   {
     kind: 'group',
@@ -176,12 +207,12 @@ const NAVIGATION: NavEntry[] = [
     title: 'Marketing',
     icon: IconMegaphone,
     items: [
-      { to: '/marketing/link', label: 'Link de Agendamento', icon: IconLink },
-      { to: '/marketing/agendamento-online', label: 'Agendamento Online', icon: IconCalendar },
-      { to: '/marketing/campanhas', label: 'Automação de Marketing', icon: IconSend },
-      { to: '/marketing/promocoes', label: 'Promoções', icon: IconMegaphone },
-      { to: '/marketing/avaliacoes', label: 'Avaliações', icon: IconStar },
-      { to: '/marketing/cashback', label: 'Cashback', icon: IconGift },
+      { to: '/marketing/link', label: 'Link de Agendamento', icon: IconLink, action: 'copy-booking-link', perm: 'marketing:view' },
+      { to: '/marketing/agendamento-online', label: 'Agendamento Online', icon: IconCalendar, perm: 'marketing:view' },
+      { to: '/marketing/campanhas', label: 'Automação de Marketing', icon: IconSend, feature: 'messaging', perm: 'marketing:view' },
+      { to: '/marketing/promocoes', label: 'Promoções', icon: IconMegaphone, perm: 'marketing:view' },
+      { to: '/marketing/avaliacoes', label: 'Avaliações', icon: IconStar, perm: 'marketing:view' },
+      { to: '/marketing/cashback', label: 'Cashback', icon: IconGift, perm: 'marketing:view' },
     ],
   },
 ];
@@ -206,6 +237,7 @@ const FOOTER_NAVIGATION: NavEntry[] = [
     to: '/configuracoes',
     label: 'Configurações',
     icon: IconSettings,
+    perm: 'config:view',
   },
   {
     kind: 'link',
@@ -274,32 +306,111 @@ function subNavLinkClass(state: { isActive: boolean }) {
 
 function MenuBadge({ children }: { children: 'Beta' | 'novo' }) {
   return (
-    <span className="ml-2 shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[9px] font-bold leading-none text-ink">
+    <span className="shrink-0 rounded-md bg-[#FCE4EA] px-1.5 py-0.5 text-[9px] font-bold leading-none text-[#A84065] ring-1 ring-inset ring-white/30">
       {children}
     </span>
   );
+}
+
+/** Lock affixed to a paid menu item the current plan does not include. */
+function LockBadge() {
+  return (
+    <span
+      className="ml-2 shrink-0 text-white/45"
+      aria-label="Recurso de um plano superior"
+      title="Recurso de um plano superior — faça upgrade"
+    >
+      <IconLock size={13} />
+    </span>
+  );
+}
+
+async function copyText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Clipboard indisponível');
 }
 
 export function Sidebar({
   onNavigate,
   mobile = false,
   mobileOpen = false,
+  onOpenCrm,
 }: {
   onNavigate?: () => void;
   mobile?: boolean;
   /** Sinaliza (edge false→true) que o drawer mobile abriu — reseta collapsedGroups
    *  sem remontar (remount quebra a animação de saída do drawer parent). */
   mobileOpen?: boolean;
+  /** Desktop: abre o aviso do CRM. */
+  onOpenCrm?: () => void;
 }) {
-  const navigate = useNavigate();
   const location = useLocation();
+  const sidebarStyle = useSidebarStyle();
   const { data: session } = useSession();
   const { openCreate } = useCreateDrawer();
+  const bookingLink = useBookingLink();
+  // FASE 2: features ativas do plano. Fail-open: sem dados (loading/erro) nada é
+  // travado — só mostramos cadeado quando SABEMOS que a feature não está no plano.
+  const { data: featuresData } = useFeatures();
+  function isLocked(feature?: FeatureKey): boolean {
+    if (!feature) return false;
+    if (!featuresData) return false; // fail-open
+    return !featuresData.features.includes(feature);
+  }
+
+  // FASE RBAC: gating por PAPEL da navegação. Diferente de features (cadeado),
+  // aqui o item some do menu de quem não tem a permissão. Enquanto as permissões
+  // AINDA carregam mostramos tudo (gate de UI, não de segurança — o backend é
+  // quem barra de fato); ao resolver, aplicamos o gate real (fail-closed).
+  const { can, isLoading: permsLoading } = useCan();
+  function canSee(perm?: string | string[]): boolean {
+    if (!perm) return true; // item aberto a todos
+    if (permsLoading) return true; // não piscar o menu no primeiro paint
+    const perms = Array.isArray(perm) ? perm : [perm];
+    return perms.some((p) => can(p));
+  }
+
+  // Filtra grupos/links pelo papel. Grupo cujos itens somem por completo também
+  // some. Links diretos são avaliados pelo próprio `perm`.
+  function filterEntries(entries: NavEntry[]): NavEntry[] {
+    const out: NavEntry[] = [];
+    for (const entry of entries) {
+      if (entry.kind === 'link') {
+        if (canSee(entry.perm)) out.push(entry);
+        continue;
+      }
+      const items = entry.items.filter((item) => canSee(item.perm));
+      if (items.length > 0) out.push({ ...entry, items });
+    }
+    return out;
+  }
+
+  const visibleNavigation = filterEntries(NAVIGATION);
+  const visibleFooter = filterEntries(FOOTER_NAVIGATION);
+
+  // Só mostra o seletor de empresa quando o usuário é membro de mais de uma.
+  const { data: contas } = useMinhasContas();
+  const hasMultipleCompanies = (contas?.length ?? 0) > 1;
 
   const [collapsed, setCollapsed] = useState(() => {
     if (mobile) return false;
     return typeof localStorage !== 'undefined' && localStorage.getItem(COLLAPSE_KEY) === '1';
   });
+  // O colapso do sidebar é MANUAL (toggle), respeitando a preferência salva.
+  // NÃO forçamos minimizar em telas estreitas — em tablet/iPad o usuário decide.
+  const forcedCollapsed = false;
   const isCollapsed = !mobile && collapsed;
 
   const activeGroupKey = findActiveGroupKey(location.pathname);
@@ -368,6 +479,26 @@ export function Sidebar({
       }
       return next;
     });
+  }
+
+  async function copyBookingLink() {
+    onNavigate?.();
+    const slug = bookingLink.data?.slug?.trim();
+    if (!slug) {
+      toast.danger('Não foi possível carregar o link de agendamento.', {
+        timeout: TOAST_TIMEOUT,
+      });
+      return;
+    }
+
+    try {
+      await copyText(`${CLUB_ORIGIN}/${slug}`);
+      toastSuccess('Link de agendamento copiado!');
+    } catch {
+      toast.danger('Não foi possível copiar o link de agendamento.', {
+        timeout: TOAST_TIMEOUT,
+      });
+    }
   }
 
   // Keep the active route's group expanded as navigation changes (no persist —
@@ -440,7 +571,7 @@ export function Sidebar({
     // o submenu inteiro (subitens clicáveis), como no Belasis.
     return (
       <Tooltip key={entry.key} delay={0}>
-        <Tooltip.Trigger className="contents">{control}</Tooltip.Trigger>
+        <Tooltip.Trigger className="block w-full">{control}</Tooltip.Trigger>
         <Tooltip.Content placement="right" className="db-sidebar rounded-xl border border-white/10 p-1.5 text-white shadow-[var(--shadow-pop)]">
           {entry.kind === 'link' ? (
             <span className="block px-2 py-0.5 text-xs font-medium">{label}</span>
@@ -449,6 +580,28 @@ export function Sidebar({
               <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/45">{entry.title}</p>
               {entry.items.map((item) => {
                 const ItemIcon = item.icon;
+                const content = (
+                  <>
+                    {ItemIcon ? <ItemIcon size={16} /> : null}
+                    <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+                      <span className="truncate">{item.label}</span>
+                      {!isLocked(item.feature) && item.badge && <MenuBadge>{item.badge}</MenuBadge>}
+                    </span>
+                    {isLocked(item.feature) && <LockBadge />}
+                  </>
+                );
+                if (item.action === 'copy-booking-link') {
+                  return (
+                    <button
+                      key={item.to}
+                      type="button"
+                      onClick={() => void copyBookingLink()}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/[0.1] hover:text-white"
+                    >
+                      {content}
+                    </button>
+                  );
+                }
                 return (
                   <NavLink
                     key={item.to}
@@ -461,8 +614,7 @@ export function Sidebar({
                       ].join(' ')
                     }
                   >
-                    {ItemIcon ? <ItemIcon size={16} /> : null}
-                    {item.label}
+                    {content}
                   </NavLink>
                 );
               })}
@@ -479,8 +631,11 @@ export function Sidebar({
       return (
         <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
           <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
-          <span className="min-w-0 flex-1 truncate pr-1">{entry.label}</span>
-          {entry.badge && <MenuBadge>{entry.badge}</MenuBadge>}
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 pr-1">
+            <span className="truncate">{entry.label}</span>
+            {!isLocked(entry.feature) && entry.badge && <MenuBadge>{entry.badge}</MenuBadge>}
+          </span>
+          {isLocked(entry.feature) && <LockBadge />}
         </NavLink>
       );
     }
@@ -512,13 +667,38 @@ export function Sidebar({
           ].join(' ')}
         >
           <div className="flex flex-col gap-1">
-            {entry.items.map(({ to, label, icon: ItemIcon, end, badge }) => (
-              <NavLink key={to} to={to} end={end} onClick={onNavigate} className={subNavLinkClass}>
-                <span className="grid h-9 w-8 shrink-0 place-items-center"><ItemIcon size={17} /></span>
-                <span className="min-w-0 flex-1 truncate pr-1">{label}</span>
-                {badge && <MenuBadge>{badge}</MenuBadge>}
-              </NavLink>
-            ))}
+            {entry.items.map((item) => {
+              const ItemIcon = item.icon;
+              const content = (
+                <>
+                  <span className="grid h-9 w-8 shrink-0 place-items-center"><ItemIcon size={17} /></span>
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5 pr-1 text-left">
+                    <span className="truncate">{item.label}</span>
+                    {!isLocked(item.feature) && item.badge && <MenuBadge>{item.badge}</MenuBadge>}
+                  </span>
+                  {isLocked(item.feature) && <LockBadge />}
+                </>
+              );
+
+              if (item.action === 'copy-booking-link') {
+                return (
+                  <button
+                    key={item.to}
+                    type="button"
+                    onClick={() => void copyBookingLink()}
+                    className={subNavLinkClass({ isActive: false })}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+
+              return (
+                <NavLink key={item.to} to={item.to} end={item.end} onClick={onNavigate} className={subNavLinkClass}>
+                  {content}
+                </NavLink>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -530,6 +710,7 @@ export function Sidebar({
       className={[
         'db-sidebar flex h-full shrink-0 flex-col py-4 transition-[width] duration-300 ease-out',
         mobile ? 'db-sidebar-mobile' : '',
+        !mobile && sidebarStyle === 'floating' ? 'db-sidebar-floating' : '',
         isCollapsed ? 'w-[76px] px-1' : mobile ? 'w-[220px] px-1' : 'w-[240px] px-1',
       ].join(' ')}
     >
@@ -549,38 +730,72 @@ export function Sidebar({
           </div>
         )}
 
-        <div className={isCollapsed ? 'flex flex-col items-center gap-2 text-white' : 'flex items-center gap-1 text-white'}>
+        <div className={isCollapsed ? 'flex flex-col items-center gap-2 text-white' : 'flex items-center gap-2 text-white'}>
+          {!mobile && (
+            <IconTip label="Abrir CRM" placement="bottom">
+              <button
+                type="button"
+                onClick={() => onOpenCrm?.()}
+                aria-label="Abrir CRM"
+                className="relative rounded-lg p-2 text-current transition-colors hover:bg-black/5"
+              >
+                <IconUsers size={22} />
+              </button>
+            </IconTip>
+          )}
           <NotificationBell />
           {mobile && (
             <>
-              <NavLink
-                to="/ajuda/suporte"
-                onClick={onNavigate}
-                aria-label="Falar com o suporte"
-                className="relative rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                <IconMessage size={22} />
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" aria-hidden />
-              </NavLink>
-              <NavLink
-                to="/ajuda/base-conhecimento"
-                onClick={onNavigate}
-                aria-label="Ajuda"
-                className="rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                <IconHelpCircle size={22} />
-              </NavLink>
+              <IconTip label="Falar com o suporte" placement="bottom">
+                <NavLink
+                  to="/ajuda/suporte"
+                  onClick={onNavigate}
+                  aria-label="Falar com o suporte"
+                  className="relative rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <IconMessage size={22} />
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" aria-hidden />
+                </NavLink>
+              </IconTip>
+              <IconTip label="Ajuda" placement="bottom">
+                <NavLink
+                  to="/ajuda/base-conhecimento"
+                  onClick={onNavigate}
+                  aria-label="Ajuda"
+                  className="rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <IconHelpCircle size={22} />
+                </NavLink>
+              </IconTip>
             </>
           )}
           {!mobile && (
-            <button
-              type="button"
-              onClick={toggleCollapse}
-              aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
-              className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            <IconTip
+              label={
+                forcedCollapsed
+                  ? 'Menu minimizado automaticamente (tela estreita)'
+                  : isCollapsed
+                    ? 'Expandir menu'
+                    : 'Recolher menu'
+              }
+              placement="bottom"
             >
-              <IconPanelLeft size={18} />
-            </button>
+              <button
+                type="button"
+                onClick={toggleCollapse}
+                disabled={forcedCollapsed}
+                aria-label={
+                  forcedCollapsed
+                    ? 'Menu minimizado automaticamente (tela estreita)'
+                    : isCollapsed
+                      ? 'Expandir menu'
+                      : 'Recolher menu'
+                }
+                className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-white/60"
+              >
+                <IconPanelLeft size={18} />
+              </button>
+            </IconTip>
           )}
         </div>
       </div>
@@ -590,30 +805,22 @@ export function Sidebar({
       <div ref={profileRef} className="relative mt-3">
         <button
           type="button"
-          onClick={() => {
-            if (isCollapsed) {
-              onNavigate?.();
-              navigate('/perfil');
-              return;
-            }
-            setProfileOpen((v) => !v);
-          }}
+          onClick={() => setProfileOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={profileOpen}
           className={[
-            'flex w-full items-center rounded-xl text-left transition-colors hover:bg-white/[0.1]',
+            'flex w-full items-center rounded-xl text-left transition-opacity hover:opacity-90',
             isCollapsed
               ? 'h-11 justify-center'
               : mobile
                 ? 'gap-3 px-1 py-2'
-                : 'gap-3 bg-white/[0.06] px-3 py-2.5',
-            profileOpen && !isCollapsed ? 'bg-white/[0.12]' : '',
+                : 'gap-3 px-3 py-2.5',
           ].join(' ')}
         >
           <span
             className={[
-              'grid shrink-0 place-items-center overflow-hidden bg-gold font-bold text-ink',
-              mobile ? 'h-10 w-10 rounded-lg text-base' : 'h-9 w-9 rounded-full text-sm',
+              'grid shrink-0 place-items-center overflow-hidden bg-[#FCE4EA] font-bold text-[#A84065] ring-1 ring-inset ring-white/25',
+              mobile ? 'h-10 w-10 rounded-[10px] text-base' : 'h-9 w-9 rounded-[10px] text-sm',
             ].join(' ')}
           >
             {session?.user?.image ? (
@@ -627,25 +834,40 @@ export function Sidebar({
               <span className={`block truncate text-white ${mobile ? 'text-base font-bold' : 'text-sm font-semibold'}`}>Olá, {firstName.toUpperCase()}</span>
               <span className="mt-0.5 flex items-center gap-1 text-xs text-white/55">
                 Meu perfil
-                <IconChevron size={11} className={`transition-transform duration-200 ${profileOpen ? '-rotate-180' : '-rotate-90'}`} />
+                <IconChevron size={11} className={`transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`} />
               </span>
             </span>
           )}
         </button>
 
-        {/* Dropdown — animação fade + slide-y. z-50 pra ficar sobre outros itens. */}
-        {!isCollapsed && (
-          <div
-            role="menu"
-            aria-hidden={!profileOpen}
-            className={[
-              'absolute inset-x-0 top-full z-50 mt-2 origin-top overflow-hidden rounded-xl border border-white/[0.1] bg-ink-soft p-1.5 shadow-[var(--shadow-pop)]',
-              'transition-all duration-200 ease-out',
-              profileOpen
-                ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
-                : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
-            ].join(' ')}
-          >
+        {/* Dropdown "Minha conta". Colapsado: flyout à direita (largura fixa).
+            Expandido: abre abaixo do card, na largura do sidebar. */}
+        <div
+          role="menu"
+          aria-hidden={!profileOpen}
+          className={[
+            'absolute z-50 origin-top overflow-hidden rounded-xl border border-white/[0.1] bg-ink-soft p-1.5 shadow-[var(--shadow-pop)]',
+            'transition-all duration-200 ease-out',
+            isCollapsed ? 'bottom-0 left-full ml-2 w-56' : 'inset-x-0 top-full mt-2',
+            profileOpen
+              ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+              : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+          ].join(' ')}
+        >
+            {/* FASE RBAC: seletor de empresa ativa — só aparece com >1 conta.
+                Fecha o dropdown e, no mobile, o drawer ao trocar. */}
+            {hasMultipleCompanies && (
+              <>
+                <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/45">
+                  Empresa ativa
+                </p>
+                <CompanySwitcher
+                  className="db-company-switcher"
+                  onSwitched={() => { setProfileOpen(false); onNavigate?.(); }}
+                />
+                <div className="my-1 border-t border-white/[0.08]" />
+              </>
+            )}
             <button
               type="button"
               onClick={() => { setProfileOpen(false); setMinhaContaOpen(true); }}
@@ -663,6 +885,15 @@ export function Sidebar({
             >
               <IconCreditCard size={16} className="text-white/70" />
               Assinatura
+            </NavLink>
+            <NavLink
+              to="/perfil/adicionais"
+              onClick={() => { setProfileOpen(false); onNavigate?.(); }}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-white transition-colors hover:bg-white/[0.08]"
+              role="menuitem"
+            >
+              <IconSparkles size={16} className="text-white/70" />
+              Adicionais
             </NavLink>
             <div className="my-1 border-t border-white/[0.08]" />
             <button
@@ -686,7 +917,6 @@ export function Sidebar({
               Sair
             </button>
           </div>
-        )}
       </div>
 
       <div ref={createRef} className="relative mt-3">
@@ -698,7 +928,7 @@ export function Sidebar({
                 onClick={handleCreateClick}
                 aria-label="Novo"
                 aria-expanded={createOpen}
-                className="grid h-10 w-full place-items-center rounded-xl bg-white text-ink transition-colors hover:bg-white/90"
+                className="grid h-10 w-full place-items-center rounded-xl bg-[var(--sp-primary-fg)] text-[#3740C8] transition-opacity hover:opacity-90"
               >
                 <IconPlus size={18} />
               </button>
@@ -710,12 +940,7 @@ export function Sidebar({
         ) : (
           <Button
             variant="secondary"
-            className={[
-              'h-10 w-full rounded-xl bg-white font-semibold text-ink shadow-none hover:bg-white/90',
-              // Belasis mobile hamburger centers the "Novo +" pill content; the
-              // desktop expanded rail keeps label-left / plus-right.
-              mobile ? 'justify-center gap-2' : 'justify-between',
-            ].join(' ')}
+            className="h-10 w-full justify-center gap-2 rounded-xl bg-[var(--sp-primary-fg)] font-semibold text-[#3740C8] shadow-none hover:opacity-90"
             onClick={handleCreateClick}
             aria-expanded={createOpen}
             aria-haspopup="menu"
@@ -733,11 +958,17 @@ export function Sidebar({
             Largura responsiva: no mobile o rail é estreito (~220px) então o
             dropdown extravasa pra direita sobre o backdrop — clampado ao
             viewport pra nunca cortar. */}
-        {createOpen && (
-          <div
-            role="menu"
-            className="absolute left-0 top-full z-50 mt-2 max-h-[min(560px,72vh)] w-[min(336px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-black/[0.06] bg-warm-white p-3 shadow-[var(--shadow-pop)]"
-          >
+        <div
+          role="menu"
+          aria-hidden={!createOpen}
+          className={[
+            'absolute left-0 top-full z-50 mt-2 max-h-[min(560px,72vh)] w-[min(336px,calc(100vw-1.5rem))] origin-top-left overflow-y-auto rounded-2xl border border-black/[0.06] bg-warm-white p-3 shadow-[var(--shadow-pop)]',
+            'transition-[opacity,transform] duration-200 ease-out',
+            createOpen
+              ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+              : 'pointer-events-none -translate-y-1.5 scale-[0.98] opacity-0',
+          ].join(' ')}
+        >
             {CREATE_GROUPS.map((group) => (
               <div key={group.label} className="mb-3 last:mb-0">
                 <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9AA0A6]">
@@ -766,18 +997,17 @@ export function Sidebar({
                 </div>
               </div>
             ))}
-          </div>
-        )}
+        </div>
       </div>
 
       <ScrollShadow
-        className="db-sidebar-scroll -mr-1 mt-3 flex-1 pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-white/35 scrollbar-active:scrollbar-thumb-white/45"
+        className="db-sidebar-scroll -mr-1 mt-3 flex-1 pr-1 scrollbar-none"
       >
         <nav className="flex flex-col gap-1">
-          {NAVIGATION.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
+          {visibleNavigation.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
           {/* Ajuda / Configurações / Indique e ganhe seguem a ordem do menu
               (não são mais pinned no rodapé — scrollam junto com o resto). */}
-          {FOOTER_NAVIGATION.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
+          {visibleFooter.map((entry) => (isCollapsed ? renderCollapsedEntry(entry) : renderExpandedEntry(entry)))}
           {/* Mobile: Sair segue a ordem também, como último item da lista. */}
           {mobile && !isCollapsed && (
             <button
@@ -796,9 +1026,55 @@ export function Sidebar({
               Sair da conta
             </button>
           )}
-          {!isCollapsed && <div className="px-2.5 pt-3 text-[10px] text-white/35">v5.7.12</div>}
+          {!isCollapsed && <div className="px-2.5 pt-3 text-[10px] text-white/35">{APP_VERSION}</div>}
         </nav>
       </ScrollShadow>
+
+      {/* Instalar como app (PWA) — só aparece quando o navegador oferece o prompt. */}
+      <div className="mt-2">
+        <InstallPwaButton collapsed={isCollapsed} />
+      </div>
+
+      {/* Zoom de acessibilidade (aproximar/afastar), salvo por dispositivo —
+          pinned no rodapé do sidebar (desktop e menu mobile). */}
+      <div className="mt-2">
+        <ZoomControls collapsed={isCollapsed} />
+      </div>
+
+      {/* Atalho do CRM no rodapé do sidebar desktop. */}
+      {!mobile && onOpenCrm && (
+        <div className="mt-2 border-t border-white/[0.1] pt-3">
+          {isCollapsed ? (
+            <Tooltip delay={150}>
+              <Tooltip.Trigger className="contents">
+                <button
+                  type="button"
+                  onClick={onOpenCrm}
+                  aria-label="Abrir CRM"
+                  className="grid h-11 w-full place-items-center rounded-lg text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
+                >
+                  <IconUsers size={19} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content
+                placement="right"
+                className="rounded-lg bg-ink-soft px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]"
+              >
+                CRM
+              </Tooltip.Content>
+            </Tooltip>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenCrm}
+              className="group flex min-h-10 w-full items-center rounded-lg text-sm font-normal text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center"><IconUsers size={19} /></span>
+              <span className="min-w-0 flex-1 truncate pr-1 text-left">CRM</span>
+            </button>
+          )}
+        </div>
+      )}
 
       <MinhaContaDrawer isOpen={minhaContaOpen} onClose={() => setMinhaContaOpen(false)} />
     </aside>

@@ -11,6 +11,7 @@ import { formatDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsOverview, type NewCustomerItem } from '../../lib/queries/relatorios';
 import { BackToReports, CARD } from './reportShared';
+import { DateRangePicker } from '../../components/DatePicker';
 
 /* ------------------------------------------------------------------ types -- */
 
@@ -137,27 +138,6 @@ function CheckboxItem({
   );
 }
 
-/** Input de data estilo antd-picker. */
-function DateInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <input
-      type="date"
-      value={value}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-muted"
-    />
-  );
-}
-
 /* -------------------------------------------------------------------- page -- */
 
 export function ClientesPage() {
@@ -227,19 +207,13 @@ export function ClientesPage() {
 
           {/* Criado em (dates) — range picker */}
           <Field label="Criado em">
-            <div className="flex w-full max-w-md items-center gap-2 rounded-lg border border-line bg-warm-white px-3 py-1.5">
-              <DateInput
-                value={range.from}
-                placeholder="Data inicial"
-                onChange={(from) => setRange((r) => ({ ...r, from }))}
-              />
-              <IconChevron size={16} className="-rotate-90 shrink-0 text-muted" />
-              <DateInput
-                value={range.to}
-                placeholder="Data final"
-                onChange={(to) => setRange((r) => ({ ...r, to }))}
-              />
-            </div>
+            <DateRangePicker
+              from={range.from}
+              to={range.to}
+              onChange={setRange}
+              ariaLabel="Criado em"
+              className="max-w-md"
+            />
           </Field>
 
           {/* Formato do relatório (type_of_clients) */}

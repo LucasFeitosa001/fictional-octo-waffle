@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Button, Card } from '@heroui/react';
 import { EmptyState, LoadingState } from '../../components/States';
 import { DataTable, type Column } from '../../components/DataTable';
-import { IconChevron, IconDownload, IconGift, IconPhone } from '../../components/icons';
+import { IconDownload, IconGift, IconPhone } from '../../components/icons';
 import { formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsBirthdays, type BirthdayItem } from '../../lib/queries/relatorios';
 import { BackToReports, CARD } from './reportShared';
+import { DateRangePicker } from '../../components/DatePicker';
 
 const MONTHS = [
   'Janeiro',
@@ -23,21 +24,6 @@ const MONTHS = [
   'Dezembro',
 ];
 
-const MONTHS_ABBR = [
-  'jan',
-  'fev',
-  'mar',
-  'abr',
-  'mai',
-  'jun',
-  'jul',
-  'ago',
-  'set',
-  'out',
-  'nov',
-  'dez',
-];
-
 /** Status do cliente, espelhando o radio-group do Belasis (Todos/Ativos/Inativos). */
 type Status = 'all' | 'actives' | 'inactives';
 const STATUS_OPTIONS: { value: Status; label: string }[] = [
@@ -46,50 +32,12 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
   { value: 'inactives', label: 'Inativos' },
 ];
 
-/** "YYYY-MM-DD" -> "01 jul, 2026" (formato do range picker do Belasis). */
-function formatBrLong(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (!m) return iso;
-  const [, y, mo, d] = m;
-  return `${d} ${MONTHS_ABBR[Number(mo) - 1]}, ${y}`;
-}
-
 /** Período inicial: primeiro → último dia do mês corrente. */
 function defaultRange() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   return { from: isoDate(from), to: isoDate(to) };
-}
-
-/** Campo de data cru (native) estilizado como o range do Belasis. */
-function RangeInput({
-  value,
-  onChange,
-  min,
-  max,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  min?: string;
-  max?: string;
-}) {
-  return (
-    <div className="relative flex-1">
-      <input
-        type="date"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 [color-scheme:light]"
-        aria-label="Data"
-      />
-      <span className="pointer-events-none block truncate text-center text-sm text-ink sm:text-base">
-        {formatBrLong(value)}
-      </span>
-    </div>
-  );
 }
 
 export function AniversariantesPage() {
@@ -133,7 +81,7 @@ export function AniversariantesPage() {
       key: 'day',
       header: 'Dia do aniversário',
       render: (r) => (
-        <span className="inline-flex items-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-gold-strong">
+        <span className="inline-flex items-center rounded-md bg-[var(--sp-data-customers-soft)] px-2 py-0.5 text-xs font-semibold text-data-customers">
           dia {r.day ?? '—'}
         </span>
       ),
@@ -195,19 +143,12 @@ export function AniversariantesPage() {
             {/* Período — range box (De → Até) idêntico ao Belasis */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-ink">Período</label>
-              <div className="flex h-10 items-center rounded-xl border border-line bg-warm-white px-[11px]">
-                <RangeInput
-                  value={range.from}
-                  max={range.to || undefined}
-                  onChange={(v) => setRange((r) => ({ ...r, from: v }))}
-                />
-                <IconChevron size={16} className="-rotate-90 shrink-0 text-muted" />
-                <RangeInput
-                  value={range.to}
-                  min={range.from || undefined}
-                  onChange={(v) => setRange((r) => ({ ...r, to: v }))}
-                />
-              </div>
+              <DateRangePicker
+                from={range.from}
+                to={range.to}
+                onChange={setRange}
+                ariaLabel="Período"
+              />
             </div>
 
             {/* Gerar relatório — botão primário block */}
@@ -240,7 +181,7 @@ export function AniversariantesPage() {
           <Card.Content className="p-0 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[color-mix(in_oklab,var(--sp-primary)_15%,transparent)] text-gold-strong">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--sp-data-customers-soft)] text-data-customers">
                   <IconGift size={20} />
                 </span>
                 <div>

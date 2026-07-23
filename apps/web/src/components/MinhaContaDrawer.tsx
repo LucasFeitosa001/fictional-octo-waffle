@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { Button, Input, ListBox, Select, Spinner, Switch, TextField } from '@heroui/react';
+import { Button, Input, ListBox, Select, Spinner, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from './Drawer';
+import { SwitchRow } from './SwitchRow';
 import { useSession } from '../lib/auth';
 import { api } from '../lib/api';
 import { useUploadImage } from '../hooks/useUploadImage';
@@ -557,17 +558,19 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
           <SectionTitle status={notifState.status === 'success' ? 'Notif ✓' : undefined}>
             Notificações{prefsLoading && ' (carregando…)'}
           </SectionTitle>
-          <ToggleRow
+          <SwitchRow
             label="Receber notificações por e-mail"
-            hint="Confirmações, lembretes e resumos semanais."
+            description="Confirmações, lembretes e resumos semanais."
             checked={notifyEmail}
             onChange={setNotifyEmail}
+            className="py-2"
           />
-          <ToggleRow
+          <SwitchRow
             label="Receber notificações por SMS"
-            hint="Alertas rápidos no celular (podem ter custo)."
+            description="Alertas rápidos no celular (podem ter custo)."
             checked={notifySms}
             onChange={setNotifySms}
+            className="py-2"
           />
           {notifState.status === 'error' && notifState.error && (
             <span className="text-xs text-red-500">{notifState.error}</span>
@@ -611,33 +614,5 @@ function Field({
       </label>
       {children}
     </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <Switch
-      isSelected={checked}
-      onChange={onChange}
-      className="flex w-full items-center justify-between gap-3 py-2"
-    >
-      <span className="min-w-0 text-sm text-ink">
-        {label}
-        {hint && <span className="block text-xs text-muted-ink">{hint}</span>}
-      </span>
-      <Switch.Control>
-        <Switch.Thumb />
-      </Switch.Control>
-    </Switch>
   );
 }

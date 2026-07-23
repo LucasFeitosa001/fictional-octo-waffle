@@ -1,9 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../../components/States';
 import { HelpTooltip } from '../../components/HelpTooltip';
+import { AppSwitch } from '../../components/SwitchRow';
+import { AppTabs } from '../../components/AppTabs';
 import {
   IconChart,
   IconCircleCheck,
@@ -33,11 +35,12 @@ const CARD_CLASS = 'rounded-2xl border border-line bg-card shadow-[var(--shadow-
 
 // Abas do topo do módulo Comissões (Belasis: Resumo / Em aberto / Pagas /
 // Configurações). As de relatório levam ao Resumo; "Configurações" é a atual.
-const TABS: { label: string; icon: ReactNode; to?: string }[] = [
-  { label: 'Resumo', icon: <IconHome size={15} />, to: '/commissions/summary' },
-  { label: 'Comissões em aberto', icon: <IconChart size={15} />, to: '/commissions/summary' },
-  { label: 'Comissões pagas', icon: <IconCircleCheck size={15} />, to: '/commissions/summary' },
-  { label: 'Configurações', icon: <IconSettings size={15} /> },
+type CommissionTab = 'summary' | 'open' | 'paid' | 'settings';
+const TABS: { id: CommissionTab; label: string; icon: ReactNode }[] = [
+  { id: 'summary', label: 'Resumo', icon: <IconHome size={15} /> },
+  { id: 'open', label: 'Comissões em aberto', icon: <IconChart size={15} /> },
+  { id: 'paid', label: 'Comissões pagas', icon: <IconCircleCheck size={15} /> },
+  { id: 'settings', label: 'Configurações', icon: <IconSettings size={15} /> },
 ];
 
 const YESNO_PAYER: { value: CommissionPayer; label: string }[] = [
@@ -56,6 +59,7 @@ const CONSUMED_PRICE_OPTS: { value: ConsumedPriceBy; label: string }[] = [
 ];
 
 export function ComissoesConfigPage() {
+  const navigate = useNavigate();
   const rules = useCommissionRules();
   const allRules = rules.data ?? [];
   // A regra scope="all" carrega a configuração padrão/global editada aqui.
@@ -69,28 +73,15 @@ export function ComissoesConfigPage() {
         </h1>
       </header>
 
-      {/* Abas do módulo (segmented) */}
-      <nav className="mb-5 -mx-1 flex gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1">
-        {TABS.map((t) => {
-          const active = !t.to;
-          const cls =
-            'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
-            (active
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-ink hover:bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)] hover:text-ink');
-          return active ? (
-            <span key={t.label} className={cls} aria-current="page">
-              {t.icon}
-              {t.label}
-            </span>
-          ) : (
-            <Link key={t.label} to={t.to as string} className={cls}>
-              {t.icon}
-              {t.label}
-            </Link>
-          );
-        })}
-      </nav>
+      <AppTabs
+        items={TABS}
+        selectedKey="settings"
+        onSelectionChange={(key) => {
+          if (key !== 'settings') navigate('/commissions/summary');
+        }}
+        ariaLabel="Áreas de comissões"
+        className="mb-5"
+      />
 
       {rules.isLoading ? (
         <LoadingState />
@@ -296,10 +287,10 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
             </>
           }
         >
-          <Switch
+          <AppSwitch
             checked={considersAdditionalCost}
             onChange={setConsidersAdditionalCost}
-            label="Custo adicional dos serviços"
+            aria-label="Custo adicional dos serviços"
           />
         </SettingRow>
 
@@ -372,10 +363,10 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
             </>
           }
         >
-          <Switch
+          <AppSwitch
             checked={showGrossValue}
             onChange={setShowGrossValue}
-            label="Exibir valor bruto no relatório de comissões"
+            aria-label="Exibir valor bruto no relatório de comissões"
           />
         </SettingRow>
 
@@ -518,38 +509,5 @@ function RadioGroup<T extends string>({
         );
       })}
     </div>
-  );
-}
-
-function Switch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ' +
-        (checked
-          ? 'bg-primary'
-          : 'bg-[color-mix(in_oklab,var(--sp-ink)_20%,transparent)]')
-      }
-    >
-      <span
-        className={
-          'absolute h-5 w-5 rounded-full bg-white shadow transition-all ' +
-          (checked ? 'left-[22px]' : 'left-0.5')
-        }
-      />
-    </button>
   );
 }

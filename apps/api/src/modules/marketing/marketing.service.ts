@@ -160,6 +160,9 @@ export class MarketingService {
       themePreference: p?.themePreference ?? 'auto',
       schedulingFlow: p?.schedulingFlow ?? 'service',
       requiredLogin: p?.requiredLogin ?? false,
+      // Cor de destaque do agendamento online (hex "#RRGGBB") ou "" quando não
+      // definida — o web-club cai no rosa padrão da casa.
+      accentColor: p?.accentColor ?? '',
     };
   }
 
@@ -177,6 +180,10 @@ export class MarketingService {
       ...(dto.themePreference !== undefined ? { themePreference: dto.themePreference } : {}),
       ...(dto.schedulingFlow !== undefined ? { schedulingFlow: dto.schedulingFlow } : {}),
       ...(dto.requiredLogin !== undefined ? { requiredLogin: dto.requiredLogin } : {}),
+      // "" limpa a cor (volta ao padrão); um hex normalizado em maiúsculas é persistido.
+      ...(dto.accentColor !== undefined
+        ? { accentColor: dto.accentColor.trim() ? dto.accentColor.trim().toUpperCase() : null }
+        : {}),
     };
     await this.prisma.client.salonWebProfile.upsert({
       where: { companyId },

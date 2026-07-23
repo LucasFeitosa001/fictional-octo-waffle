@@ -1,12 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  BulkCommissionPaymentDto,
+  CreateCommissionAdvanceDto,
   CreateCommissionPaymentDto,
   CreateCommissionRuleDto,
   UpdateCommissionEntryDto,
   UpdateCommissionRuleDto,
 } from './dto';
+
+/** Um item resolvido para pagamento (um profissional). */
+interface PaymentItemInput {
+  professionalId: string;
+  entryIds?: string[];
+  advanceIds?: string[];
+  note?: string;
+}
 
 interface SummaryFilters {
   from?: string;
@@ -306,24 +321,308 @@ export class CommissionsService {
   }
 
   // ---- payments ----
-  async createPayment(companyId: string, dto: CreateCommissionPaymentDto) {
+  // Fórmula Belasis: amount = max(0, Comissões + Bonificações − Vales).
+  //
+  // Núcleo do pagamento de UM item (um profissional), executado dentro de uma
+  // transação. Reaproveitado por createPayment (single) e payBulk (lote):
+  //  1. entryIds vazio → pega TODAS as entries `open` do profissional (filtrando
+  //     por closing se informado); senão, apenas as entries informadas que ainda
+  //     estejam `open`.
+  //  2. commissionTotal = Σ commissionAmount; bonusTotal = Σ bonusAmount.
+  //  3. advanceIds vazio → desconta TODOS os vales `open` do profissional; senão,
+  //     apenas os informados que ainda estejam `open`.
+  //  4. amount = max(0, comissões + bônus − vales).
+  //  5. cria CommissionPayment com a quebra; marca entries=paid+paymentId e
+  //     vales=deducted+paymentId.
+  private async payItem(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    item: PaymentItemInput,
+    opts: { closingId?: string; paidByUserId?: string },
+  ) {
+    // 1. Entries a quitar (apenas `open`).
+    const entryWhere: Prisma.CommissionEntryWhereInput = {
+      companyId,
+      professionalId: item.professionalId,
+      status: 'open',
+    };
+    if (item.entryIds && item.entryIds.length > 0) {
+      entryWhere.id = { in: item.entryIds };
+    }
+    const entries = await tx.commissionEntry.findMany({
+      where: entryWhere,
+      select: { id: true, commissionAmount: true, bonusAmount: true },
+    });
+
+    // 3. Vales a descontar (apenas `open`).
+    const advanceWhere: Prisma.CommissionAdvanceWhereInput = {
+      companyId,
+      professionalId: item.professionalId,
+      status: 'open',
+    };
+    if (item.advanceIds && item.advanceIds.length > 0) {
+      advanceWhere.id = { in: item.advanceIds };
+    }
+    const advances = await tx.commissionAdvance.findMany({
+      where: advanceWhere,
+      select: { id: true, amount: true },
+    });
+
+    // 2 + 4. Somatórios e fórmula.
+    const zero = new Prisma.Decimal(0);
+    const commissionTotal = entries.reduce(
+      (acc, e) => acc.add(e.commissionAmount),
+      zero,
+    );
+    const bonusTotal = entries.reduce((acc, e) => acc.add(e.bonusAmount), zero);
+    const advancesTotal = advances.reduce((acc, a) => acc.add(a.amount), zero);
+    const gross = commissionTotal.add(bonusTotal).sub(advancesTotal);
+    const amount = gross.isNegative() ? zero : gross; // nunca negativo
+
+    // 5. Cria o pagamento com a quebra.
+    const payment = await tx.commissionPayment.create({
+      data: {
+        companyId,
+        professionalId: item.professionalId,
+        commissionTotal,
+        bonusTotal,
+        advancesTotal,
+        amount,
+        ...(opts.closingId ? { closingId: opts.closingId } : {}),
+        ...(opts.paidByUserId ? { paidByUserId: opts.paidByUserId } : {}),
+        ...(item.note ? { note: item.note } : {}),
+      },
+    });
+
+    // Marca entries pagas e vinculadas ao pagamento (para permitir estorno).
+    if (entries.length > 0) {
+      await tx.commissionEntry.updateMany({
+        where: { id: { in: entries.map((e) => e.id) } },
+        data: { status: 'paid', paymentId: payment.id },
+      });
+    }
+    // Marca vales deduzidos e vinculados ao pagamento.
+    if (advances.length > 0) {
+      await tx.commissionAdvance.updateMany({
+        where: { id: { in: advances.map((a) => a.id) } },
+        data: { status: 'deducted', paymentId: payment.id },
+      });
+    }
+
+    return { ...payment, entriesCount: entries.length };
+  }
+
+  /** POST /commission-payments — pagamento de um único profissional. */
+  async createPayment(
+    companyId: string,
+    dto: CreateCommissionPaymentDto,
+    paidByUserId?: string,
+  ) {
+    return this.prisma.client.$transaction((tx) =>
+      this.payItem(
+        tx,
+        companyId,
+        {
+          professionalId: dto.professionalId,
+          entryIds: dto.entryIds,
+          advanceIds: dto.advanceIds,
+          note: dto.note,
+        },
+        { closingId: dto.closingId, paidByUserId },
+      ),
+    );
+  }
+
+  /** POST /commission-payments/bulk — paga vários profissionais numa transação. */
+  async payBulk(
+    companyId: string,
+    dto: BulkCommissionPaymentDto,
+    paidByUserId?: string,
+  ) {
     return this.prisma.client.$transaction(async (tx) => {
-      const payment = await tx.commissionPayment.create({
+      const payments: Awaited<ReturnType<typeof this.payItem>>[] = [];
+      for (const item of dto.items) {
+        payments.push(
+          await this.payItem(
+            tx,
+            companyId,
+            {
+              professionalId: item.professionalId,
+              entryIds: item.entryIds,
+              advanceIds: item.advanceIds,
+              note: item.note,
+            },
+            { closingId: dto.closingId, paidByUserId },
+          ),
+        );
+      }
+      return { count: payments.length, payments };
+    });
+  }
+
+  /** GET /commission-payments — histórico de pagamentos com quebra e responsável. */
+  async listPayments(
+    companyId: string,
+    filters: { professionalId?: string; from?: string; to?: string },
+  ) {
+    const where: Prisma.CommissionPaymentWhereInput = { companyId };
+    if (filters.professionalId) where.professionalId = filters.professionalId;
+    if (filters.from || filters.to) {
+      where.paidAt = {
+        ...(filters.from ? { gte: new Date(filters.from) } : {}),
+        ...(filters.to ? { lte: new Date(filters.to) } : {}),
+      };
+    }
+
+    const payments = await this.prisma.client.commissionPayment.findMany({
+      where,
+      orderBy: { paidAt: 'desc' },
+      include: {
+        professional: { select: { id: true, name: true } },
+        paidByUser: { select: { id: true, name: true } },
+        _count: { select: { entries: true } },
+      },
+    });
+
+    return payments.map((p) => ({
+      id: p.id,
+      paidAt: p.paidAt.toISOString(),
+      professional: { id: p.professional.id, name: p.professional.name },
+      paidByUser: p.paidByUser
+        ? { id: p.paidByUser.id, name: p.paidByUser.name }
+        : null,
+      commissionTotal: Number(p.commissionTotal),
+      bonusTotal: Number(p.bonusTotal),
+      advancesTotal: Number(p.advancesTotal),
+      amount: Number(p.amount),
+      closingId: p.closingId,
+      note: p.note,
+      entriesCount: p._count.entries,
+    }));
+  }
+
+  /**
+   * DELETE /commission-payments/:id — estorna um pagamento (com justificativa).
+   * Reabre as entries (status=open, paymentId=null) e os vales (status=open,
+   * paymentId=null), grava auditoria (AuditLog) e remove o CommissionPayment.
+   * Belasis permite estornar mesmo com o closing fechado, mas exige justificativa
+   * — por isso registramos o closingId/estado na auditoria.
+   */
+  async deletePayment(
+    companyId: string,
+    id: string,
+    justification: string,
+    userId?: string,
+  ) {
+    const trimmed = (justification ?? '').trim();
+    if (!trimmed) {
+      throw new BadRequestException('Justificativa é obrigatória para excluir o pagamento');
+    }
+
+    const payment = await this.prisma.client.commissionPayment.findFirst({
+      where: { id, companyId },
+      include: { closing: { select: { id: true, status: true } } },
+    });
+    if (!payment) throw new NotFoundException('Pagamento de comissão não encontrado');
+
+    return this.prisma.client.$transaction(async (tx) => {
+      // Reabre as entries quitadas por este pagamento.
+      await tx.commissionEntry.updateMany({
+        where: { paymentId: id, companyId },
+        data: { status: 'open', paymentId: null },
+      });
+      // Reabre os vales deduzidos por este pagamento.
+      await tx.commissionAdvance.updateMany({
+        where: { paymentId: id, companyId },
+        data: { status: 'open', paymentId: null },
+      });
+
+      // Auditoria (Belasis exige justificativa; registramos usuário, valor e
+      // se o pagamento estava atrelado a um fechamento fechado).
+      await tx.auditLog.create({
         data: {
           companyId,
-          professionalId: dto.professionalId,
-          amount: dto.amount,
-          ...(dto.closingId ? { closingId: dto.closingId } : {}),
+          userId: userId ?? null,
+          action: 'commission_payment.delete',
+          entityType: 'CommissionPayment',
+          entityId: id,
+          dataJson: {
+            justification: trimmed,
+            professionalId: payment.professionalId,
+            amount: Number(payment.amount),
+            commissionTotal: Number(payment.commissionTotal),
+            bonusTotal: Number(payment.bonusTotal),
+            advancesTotal: Number(payment.advancesTotal),
+            closingId: payment.closingId,
+            closingStatus: payment.closing?.status ?? null,
+          } as Prisma.InputJsonValue,
         },
       });
-      if (dto.entryIds && dto.entryIds.length > 0) {
-        await tx.commissionEntry.updateMany({
-          where: { id: { in: dto.entryIds }, companyId },
-          data: { status: 'paid' },
-        });
-      }
-      return payment;
+
+      await tx.commissionPayment.delete({ where: { id } });
+      return { id, deleted: true, justification: trimmed };
     });
+  }
+
+  // ---- advances (vales / adiantamentos) ----
+  /** POST /commission-advances — concede um vale (status open). */
+  async createAdvance(companyId: string, dto: CreateCommissionAdvanceDto) {
+    const professional = await this.prisma.client.professional.findFirst({
+      where: { id: dto.professionalId, companyId },
+      select: { id: true },
+    });
+    if (!professional) throw new NotFoundException('Profissional não encontrado');
+
+    return this.prisma.client.commissionAdvance.create({
+      data: {
+        companyId,
+        professionalId: dto.professionalId,
+        amount: dto.amount,
+        ...(dto.date ? { date: new Date(dto.date) } : {}),
+        ...(dto.note ? { note: dto.note } : {}),
+      },
+    });
+  }
+
+  /** GET /commission-advances — lista vales (com nome do profissional). */
+  async listAdvances(
+    companyId: string,
+    filters: { professionalId?: string; status?: string },
+  ) {
+    const where: Prisma.CommissionAdvanceWhereInput = { companyId };
+    if (filters.professionalId) where.professionalId = filters.professionalId;
+    if (filters.status === 'open' || filters.status === 'deducted') {
+      where.status = filters.status;
+    }
+
+    const advances = await this.prisma.client.commissionAdvance.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      include: { professional: { select: { id: true, name: true } } },
+    });
+
+    return advances.map((a) => ({
+      id: a.id,
+      professional: { id: a.professional.id, name: a.professional.name },
+      amount: Number(a.amount),
+      date: a.date.toISOString(),
+      note: a.note,
+      status: a.status,
+      paymentId: a.paymentId,
+    }));
+  }
+
+  /** DELETE /commission-advances/:id — remove um vale (só se ainda `open`). */
+  async deleteAdvance(companyId: string, id: string) {
+    const advance = await this.prisma.client.commissionAdvance.findFirst({
+      where: { id, companyId },
+    });
+    if (!advance) throw new NotFoundException('Vale não encontrado');
+    if (advance.status !== 'open') {
+      throw new ForbiddenException('Vale já deduzido em um pagamento não pode ser excluído');
+    }
+    await this.prisma.client.commissionAdvance.delete({ where: { id } });
+    return { id, deleted: true };
   }
 
   // ---- rules ----

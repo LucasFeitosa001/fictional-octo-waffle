@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Avatar } from '@heroui/react';
 import { IconChevron, IconLogout, IconSearch, IconSettings, IconSparkles } from '../components/icons';
 import { NotificationBell } from '../components/NotificationBell';
+import { CompanySwitcher } from '../components/CompanySwitcher';
+import { useMinhasContas } from '../lib/queries/contas';
 import { signOut, useSession } from '../lib/auth';
 import { initials } from '../lib/format';
 
@@ -19,7 +21,7 @@ const PAGE_META: { path: string; title: string; description: string }[] = [
   { path: '/financeiro/cadastros/categorias', title: 'Categorias', description: 'Categorias de transações financeiras' },
   { path: '/financeiro/cadastros/formas-pagamento', title: 'Formas de pagamento', description: 'Configuração de meios de pagamento' },
   { path: '/financeiro/cadastros/contas', title: 'Contas bancárias', description: 'Contas ativas e integrações' },
-  { path: '/financeiro/belasis-pay', title: 'Belasis Pay', description: 'Cadastro do gateway de pagamento' },
+  { path: '/financeiro/belasis-pay', title: 'SalonPay', description: 'Cadastro do gateway de pagamento' },
   { path: '/financeiro/caixas-abertos', title: 'Caixas abertos', description: 'Movimentações dos caixas em aberto' },
   { path: '/financeiro/caixas', title: 'Caixas abertos', description: 'Movimentações dos caixas em aberto' },
   { path: '/financeiro/historico-caixa', title: 'Histórico de caixa', description: 'Fechamentos e conferências' },
@@ -71,6 +73,10 @@ export function Topbar() {
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // FASE RBAC: seletor de empresa espelhado no menu de usuário — só com >1 conta.
+  const { data: contas } = useMinhasContas();
+  const hasMultipleCompanies = (contas?.length ?? 0) > 1;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -138,7 +144,7 @@ export function Topbar() {
           >
             <Avatar size="sm">
               {image && <Avatar.Image src={image} alt={name} />}
-              <Avatar.Fallback className="bg-gold text-ink">
+              <Avatar.Fallback className="bg-[#FCE4EA] text-[#A84065]">
                 {initials(name)}
               </Avatar.Fallback>
             </Avatar>
@@ -167,7 +173,7 @@ export function Topbar() {
               <div className="flex items-center gap-3 px-2.5 py-2">
                 <Avatar size="sm">
                   {image && <Avatar.Image src={image} alt={name} />}
-                  <Avatar.Fallback className="bg-gold text-ink">
+                  <Avatar.Fallback className="bg-[#FCE4EA] text-[#A84065]">
                     {initials(name)}
                   </Avatar.Fallback>
                 </Avatar>
@@ -177,6 +183,16 @@ export function Topbar() {
                 </div>
               </div>
               <div className="my-1 h-px bg-[var(--color-soft-border)]" />
+              {/* FASE RBAC: alternar empresa ativa (mesmo componente do Sidebar). */}
+              {hasMultipleCompanies && (
+                <>
+                  <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    Empresa ativa
+                  </p>
+                  <CompanySwitcher onSwitched={() => setMenuOpen(false)} />
+                  <div className="my-1 h-px bg-[var(--color-soft-border)]" />
+                </>
+              )}
               <button
                 type="button"
                 role="menuitem"

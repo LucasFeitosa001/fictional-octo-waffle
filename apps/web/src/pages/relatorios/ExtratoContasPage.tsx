@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { LoadingState } from '../../components/States';
 import {
-  IconCalendar,
   IconChevron,
   IconCreditCard,
   IconDownload,
 } from '../../components/icons';
+import { DateRangePicker } from '../../components/DatePicker';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import {
@@ -90,26 +90,12 @@ export function ExtratoContasPage() {
       <div className="mb-4 flex flex-col gap-4 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:flex-row sm:items-end sm:gap-6 sm:p-5">
         <div className="min-w-0 flex-1">
           <span className="mb-1.5 block text-sm text-ink">Período</span>
-          <div className="flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-card px-3 text-sm text-ink focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/30">
-            <input
-              type="date"
-              value={range.from}
-              max={range.to || undefined}
-              onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-              aria-label="Data inicial"
-              className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-            />
-            <IconChevron size={14} className="shrink-0 -rotate-90 text-muted-ink" />
-            <input
-              type="date"
-              value={range.to}
-              min={range.from || undefined}
-              onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-              aria-label="Data final"
-              className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-            />
-            <IconCalendar size={16} className="shrink-0 text-muted-ink" />
-          </div>
+          <DateRangePicker
+            from={range.from}
+            to={range.to}
+            onChange={setRange}
+            ariaLabel="Período"
+          />
         </div>
         <div className="min-w-0 sm:w-64">
           <span className="mb-1.5 block text-sm text-ink">Conta</span>
@@ -228,7 +214,7 @@ export function ExtratoContasPage() {
                       return (
                         <tr
                           key={t.id}
-                          className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                          className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                         >
                           <td className="whitespace-nowrap px-5 py-3 text-muted-ink">
                             {formatDate(txDate(t))}

@@ -97,18 +97,19 @@ export function ResultadoServicosPage() {
               <Kpi
                 icon={<IconDollar size={18} />}
                 title="Receita bruta"
+                tone="services"
                 value={formatMoney(d?.totalRevenue ?? 0)}
               />
               <Kpi
                 icon={<IconWallet size={18} />}
                 title="Custos"
-                tone="danger"
+                tone="expense"
                 value={formatMoney(d?.totalCost ?? 0)}
               />
               <Kpi
                 icon={<IconPercent size={18} />}
                 title="Comissões"
-                tone="gold"
+                tone="payable"
                 value={formatMoney(d?.totalCommission ?? 0)}
               />
               <Kpi
@@ -142,7 +143,7 @@ export function ResultadoServicosPage() {
                       tickFormatter={(v: number) => formatMoney(v)}
                     />
                     <Tooltip formatter={(v: number) => formatMoney(v)} />
-                    <Bar dataKey="v" fill={colors.primary} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey="v" fill={colors.services} radius={[4, 4, 0, 0]} maxBarSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -172,7 +173,7 @@ export function ResultadoServicosPage() {
                       return (
                         <tr
                           key={s.id}
-                          className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                          className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                         >
                           <td className="px-5 py-3 font-medium text-ink">{s.name}</td>
                           <td className="px-5 py-3 text-right text-muted-ink">
@@ -202,7 +203,7 @@ export function ResultadoServicosPage() {
                     })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-primary/5 font-semibold text-ink">
+                    <tr className="bg-ink/5 font-semibold text-ink">
                       <td className="px-5 py-3">Total</td>
                       <td className="px-5 py-3 text-right">
                         {formatNumber(items.reduce((a, s) => a + s.count, 0))}

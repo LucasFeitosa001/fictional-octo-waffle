@@ -2,22 +2,30 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../components/Drawer';
+import { FilterAside } from '../components/FilterAside';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { InlineSearch } from '../components/InlineSearch';
+import { IconTip } from '../components/IconTip';
 import { useConfirm } from '../components/ConfirmDialog';
 import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { AnimatedSelectionCell } from '../components/AnimatedSelectionCell';
+import { FilterCheckbox } from '../components/FilterCheckbox';
 import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { SwitchRow } from '../components/SwitchRow';
 import {
   buildSelectActions,
   useSelectMode,
   type BulkAction,
 } from '../hooks/useSelectMode';
-import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { EmptyState, ErrorState } from '../components/States';
+import { TableSkeleton } from '../components/Skeletons';
 import {
   IconArrowDown,
   IconArrowUp,
   IconCheck,
   IconChevron,
   IconFilter,
+  IconLayers,
   IconPencil,
   IconPlay,
   IconPlus,
@@ -25,6 +33,7 @@ import {
   IconSettings,
   IconTag,
   IconTrash,
+  IconX,
 } from '../components/icons';
 import { formatNumber } from '../lib/format';
 import { useSetPageActions } from '../layout/PageActions';
@@ -56,6 +65,9 @@ export function MarcasPage() {
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  // Campo de busca desktop: revelado pelo botão "Buscar" do header. Expande
+  // INLINE na própria fileira de botões (largura 0 → ~240px) sem empurrar a
+  // tabela. No mobile o comportamento antigo (bloco abaixo do header) é mantido.
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   // Belasis: filtro de Status (Ativos / Inativos) com checkboxes independentes.
@@ -213,8 +225,8 @@ export function MarcasPage() {
 
   return (
     <div className="pb-10">
-      {/* Cabeçalho: título + tutorial/ajuda + Buscar / Filtrar / Novo (igual Belasis) */}
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Cabeçalho (T6): título + tutorial/ajuda + fileira compacta (T2/T3). */}
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="text-xl font-semibold text-ink sm:text-2xl">Marcas</h1>
           {/* play-circle: botão de tutorial ao lado do título (Belasis) */}
@@ -230,27 +242,79 @@ export function MarcasPage() {
             Cadastre marcas para classificar seus produtos e filtrar a listagem.
           </HelpTooltip>
         </div>
-        <div className="hidden flex-wrap items-center gap-2 md:flex">
-          <ToolbarButton
-            active={searchOpen}
-            onClick={() => setSearchOpen((v) => !v)}
-          >
-            <IconSearch size={16} /> Buscar
-          </ToolbarButton>
-          <ToolbarButton
-            active={filterOpen || activeFilterCount > 0}
+        <div className="hidden flex-wrap items-center gap-1.5 md:flex">
+          {/* Busca inline (componente único de toolbar — ver InlineSearch). */}
+          <InlineSearch
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
+            value={searchInput}
+            onValueChange={setSearchInput}
+            onSubmit={applySearch}
+            onClose={() => {
+              setSearchInput('');
+              setSearch('');
+            }}
+            placeholder="Buscar marca"
+          />
+          <button
+            type="button"
             onClick={() => setFilterOpen((v) => !v)}
+            className={`btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors md:inline-flex ${
+              filterOpen || activeFilterCount > 0
+                ? 'border-primary bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] text-primary'
+                : 'border-line bg-card text-ink hover:bg-canvas'
+            }`}
           >
-            <IconFilter size={16} /> Filtrar
+            <IconFilter size={16} />
+            <span className="hidden sm:inline">Filtrar</span>
             {activeFilterCount > 0 && (
               <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <IconPlus size={16} /> Novo
-          </Button>
+          </button>
+          {/* Ações em massa (T3): SEMPRE visível no desktop, à esquerda de "Novo". */}
+          {sel.selectMode ? (
+            <div className="hidden items-center md:inline-flex">
+              <button
+                type="button"
+                onClick={() => (sel.count > 0 ? setActionsOpen(true) : sel.selectAll())}
+                className={`btn-ghost-hover inline-flex h-9 items-center gap-1.5 rounded-l-lg border px-3 text-sm font-medium transition-colors ${
+                  sel.count > 0
+                    ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'border-line bg-card text-ink hover:bg-canvas'
+                }`}
+              >
+                <IconLayers size={16} />
+                <span>{sel.count > 0 ? `Ações (${sel.count})` : 'Selecionar todos'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={sel.cancel}
+                aria-label="Sair do modo seleção"
+                className="btn-ghost-hover inline-flex h-9 items-center justify-center rounded-r-lg border border-l-0 border-line bg-card px-2 text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={sel.enter}
+              className="btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink transition-colors hover:bg-canvas md:inline-flex"
+            >
+              <IconLayers size={16} />
+              <span>Ações</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="btn-primary-hover hidden h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 md:inline-flex"
+          >
+            <IconPlus size={16} />
+            <span>Novo</span>
+          </button>
         </div>
       </header>
 
@@ -297,65 +361,42 @@ export function MarcasPage() {
         </div>
       </div>
 
-      {/* Barra de busca (toggle desktop) */}
-      {searchOpen && (
-        <div className="mb-4 hidden max-w-xl items-center gap-2 md:flex">
-          <TextField
-            value={searchInput}
-            onChange={setSearchInput}
-            className="min-w-0 flex-1"
-            aria-label="Buscar marca"
-          >
-            <Input
-              placeholder="Digite para buscar"
-              className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              onKeyDown={(e) => e.key === 'Enter' && applySearch()}
-            />
-          </TextField>
-          <Button variant="primary" onClick={applySearch}>
-            Buscar
-          </Button>
-        </div>
-      )}
-
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Painel de filtros lateral (Filtrar) */}
-        {filterOpen && (
-          <aside className="w-full shrink-0 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:w-72">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold text-ink">Filtros</span>
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Limpar
-                </button>
-              )}
-            </div>
+        <FilterAside open={filterOpen} width="lg:w-72">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-ink">Filtros</span>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
 
-            <FilterGroup title="Status">
-              <CheckRow
-                checked={statusAtivos}
-                onClick={() => setStatusAtivos((v) => !v)}
-              >
-                Ativos
-              </CheckRow>
-              <CheckRow
-                checked={statusInativos}
-                onClick={() => setStatusInativos((v) => !v)}
-              >
-                Inativos
-              </CheckRow>
-            </FilterGroup>
-          </aside>
-        )}
+          <FilterGroup title="Status">
+            <CheckRow
+              checked={statusAtivos}
+              onClick={() => setStatusAtivos((v) => !v)}
+            >
+              Ativos
+            </CheckRow>
+            <CheckRow
+              checked={statusInativos}
+              onClick={() => setStatusInativos((v) => !v)}
+            >
+              Inativos
+            </CheckRow>
+          </FilterGroup>
+        </FilterAside>
 
         {/* Conteúdo principal: tabela / cards */}
         <div className="min-w-0 flex-1">
           {brands.isLoading ? (
-            <LoadingState />
+            <TableSkeleton columns={2} />
           ) : brands.isError ? (
             <ErrorState onRetry={() => brands.refetch()} />
           ) : rows.length === 0 ? (
@@ -388,17 +429,19 @@ export function MarcasPage() {
           ) : (
             <>
               {/* ===== Desktop: tabela ===== */}
-              <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
+              <div className="hidden overflow-clip rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
                 <table className="w-full border-collapse text-sm">
-                  <thead>
+                  {/* T8: thead sticky no topo do scroll do <main>. Fundo sólido
+                      (bg-card) + z-20 pra cobrir as linhas ao rolar. */}
+                  <thead className="sticky top-0 z-20 bg-card">
                     <tr className="border-b border-line text-left text-sm font-semibold text-ink/75">
-                      <th className="w-10 py-3 pl-4 pr-2">
+                      <AnimatedSelectionCell active={sel.selectMode} header className="py-3 pl-4 pr-2">
                         <CheckBox
                           checked={pageAllSelected}
                           onClick={togglePage}
                           label="Selecionar todas"
                         />
-                      </th>
+                      </AnimatedSelectionCell>
                       <th className="px-4 py-3 font-semibold">
                         <button
                           type="button"
@@ -444,20 +487,21 @@ export function MarcasPage() {
                               : '',
                           ].join(' ')}
                         >
-                          <td
+                          <AnimatedSelectionCell
+                            active={sel.selectMode}
                             className="py-2.5 pl-4 pr-2"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
                           >
                             <CheckBox
                               checked={sel.isSelected(b.id)}
                               onClick={() => sel.toggle(b.id)}
                               label={`Selecionar ${b.name}`}
                             />
-                          </td>
+                          </AnimatedSelectionCell>
                           <td className="px-4 py-2.5">
                             <span
                               title={b.name}
-                              className="block w-full truncate text-left font-medium text-primary"
+                              className="block w-full truncate text-left font-medium text-primary hover:underline"
                             >
                               {b.name}
                             </span>
@@ -514,7 +558,7 @@ export function MarcasPage() {
                           }
                           className="block min-w-0 flex-1 text-left"
                         >
-                          <span className="block min-w-0 truncate font-medium text-ink">
+                          <span className="block min-w-0 truncate font-medium text-primary hover:underline">
                             {b.name}
                           </span>
                           <span
@@ -608,26 +652,28 @@ function RowActions({
 }) {
   return (
     <div className="flex items-center justify-center gap-1 text-muted-ink">
-      <button
-        type="button"
-        aria-label="Editar"
-        title="Editar"
-        onClick={onEdit}
-        className="rounded p-1 hover:bg-canvas hover:text-primary"
-      >
-        <IconPencil size={16} />
-      </button>
+      <IconTip label="Editar">
+        <button
+          type="button"
+          aria-label="Editar"
+          onClick={onEdit}
+          className="rounded p-1 hover:bg-canvas hover:text-primary"
+        >
+          <IconPencil size={16} />
+        </button>
+      </IconTip>
       <span className="h-4 w-px bg-line" />
-      <button
-        type="button"
-        aria-label="Remover"
-        title="Remover"
-        onClick={onDelete}
-        disabled={deleting}
-        className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
-      >
-        <IconTrash size={16} />
-      </button>
+      <IconTip label="Excluir">
+        <button
+          type="button"
+          aria-label="Remover"
+          onClick={onDelete}
+          disabled={deleting}
+          className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
+        >
+          <IconTrash size={16} />
+        </button>
+      </IconTip>
     </div>
   );
 }
@@ -655,7 +701,7 @@ function Pagination({
 }) {
   if (pageCount <= 1) return null;
   const arrow =
-    'inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-card text-ink transition-colors hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40';
+    'btn-ghost-hover inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-card text-ink transition-colors hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40';
   return (
     <nav className="flex items-center gap-1" aria-label="Paginação">
       <button
@@ -702,34 +748,6 @@ function Pagination({
   );
 }
 
-function ToolbarButton({
-  children,
-  onClick,
-  active,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        active
-          ? 'border-primary bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] text-primary'
-          : 'border-line bg-card text-ink hover:bg-canvas',
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  );
-}
-
 function FilterGroup({
   title,
   children,
@@ -757,21 +775,9 @@ function CheckRow({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 rounded px-1 py-1 text-left text-sm text-ink hover:bg-canvas"
-    >
-      <span
-        className={[
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-          checked ? 'border-primary bg-primary text-primary-foreground' : 'border-line bg-card',
-        ].join(' ')}
-      >
-        {checked && <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
-      </span>
-      <span className="min-w-0 truncate">{children}</span>
-    </button>
+    <FilterCheckbox checked={checked} onToggle={onClick} className="px-1 py-1">
+      {children}
+    </FilterCheckbox>
   );
 }
 
@@ -862,8 +868,7 @@ export function BrandDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar marca' : 'Nova marca'}
-      // Belasis: content-wrapper rect w=600px (new-open.css.json), slide 0.3s ease.
-      widthClass="sm:w-[600px]"
+      widthClass="sm:w-[480px]"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -885,15 +890,13 @@ export function BrandDrawer({
           </TextField>
         </Field>
 
-        <div className="flex items-center justify-between rounded-md border border-line bg-canvas p-3">
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-ink">Ativo</span>
-            <span className="text-xs text-muted-ink">
-              Marcas inativas ficam ocultas nos cadastros.
-            </span>
-          </div>
-          <Switch checked={active} onChange={setActive} label="Ativo" />
-        </div>
+        <SwitchRow
+          className="rounded-md border border-line bg-canvas p-3"
+          label="Ativo"
+          description="Marcas inativas ficam ocultas nos cadastros."
+          checked={active}
+          onChange={setActive}
+        />
 
         {error && (
           <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -925,33 +928,3 @@ function Field({
   );
 }
 
-function Switch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={[
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
-        checked ? 'bg-primary' : 'bg-[color-mix(in_oklab,var(--sp-ink)_20%,transparent)]',
-      ].join(' ')}
-    >
-      <span
-        className={[
-          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
-          checked ? 'translate-x-[22px]' : 'translate-x-0.5',
-        ].join(' ')}
-      />
-    </button>
-  );
-}

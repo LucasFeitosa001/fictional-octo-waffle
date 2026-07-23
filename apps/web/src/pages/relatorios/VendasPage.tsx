@@ -13,10 +13,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { DateRangePicker } from '../../components/DatePicker';
 import { Drawer } from '../../components/Drawer';
 import {
-  IconCalendar,
-  IconChevron,
   IconDollar,
   IconDownload,
   IconHome,
@@ -29,6 +28,7 @@ import { formatMoney, formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsSales } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { getCategoricalColor } from '../../theme/dataColors';
 import { BackToReports, shortDay } from './reportShared';
 
 // ── card no estilo Belasis (branco + sombra suave), 100% themeable ────────────
@@ -76,16 +76,24 @@ function Kpi({
   title,
   value,
   hint,
+  tone,
 }: {
   icon: React.ReactNode;
   title: string;
   value: string;
   hint?: string;
+  tone: 'sales' | 'orders';
 }) {
   return (
     <div className={`${CARD} p-5`}>
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          style={{
+            background: `var(--sp-data-${tone}-soft)`,
+            color: `var(--sp-data-${tone})`,
+          }}
+        >
           {icon}
         </span>
         <span className="text-sm font-medium text-ink">{title}</span>
@@ -220,27 +228,12 @@ export function VendasPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-ink">Período</label>
-                  {/* Range picker no estilo ant-picker-range */}
-                  <div className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-3 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 sm:h-10">
-                    <input
-                      type="date"
-                      value={pending.from}
-                      max={pending.to || undefined}
-                      onChange={(e) => setPending((p) => ({ ...p, from: e.target.value }))}
-                      aria-label="Data inicial"
-                      className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                    />
-                    <IconChevron size={14} className="-rotate-90 shrink-0 text-muted-ink" aria-hidden />
-                    <input
-                      type="date"
-                      value={pending.to}
-                      min={pending.from || undefined}
-                      onChange={(e) => setPending((p) => ({ ...p, to: e.target.value }))}
-                      aria-label="Data final"
-                      className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                    />
-                    <IconCalendar size={16} className="shrink-0 text-muted-ink" aria-hidden />
-                  </div>
+                  <DateRangePicker
+                    from={pending.from}
+                    to={pending.to}
+                    onChange={setPending}
+                    ariaLabel="Período"
+                  />
                 </div>
               </div>
 
@@ -287,16 +280,19 @@ export function VendasPage() {
                   icon={<IconDollar size={18} />}
                   title="Vendas no período"
                   value={formatMoney(d?.salesTotal ?? 0)}
+                  tone="sales"
                 />
                 <Kpi
                   icon={<IconReceipt size={18} />}
                   title="Comandas finalizadas"
                   value={formatNumber(d?.ordersCount ?? 0)}
+                  tone="orders"
                 />
                 <Kpi
                   icon={<IconTrendUp size={18} />}
                   title="Ticket médio"
                   value={formatMoney(ticketMedio)}
+                  tone="sales"
                 />
               </div>
 
@@ -332,9 +328,9 @@ export function VendasPage() {
                         <Line
                           type="monotone"
                           dataKey="total"
-                          stroke={colors.primary}
+                          stroke={colors.sales}
                           strokeWidth={2.5}
-                          dot={{ r: 3, fill: colors.primary }}
+                          dot={{ r: 3, fill: colors.sales }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -364,8 +360,8 @@ export function VendasPage() {
                               outerRadius={80}
                               innerRadius={40}
                             >
-                              {byCategory.map((_, i) => (
-                                <Cell key={i} fill={colors.palette[i % colors.palette.length]} />
+                              {byCategory.map((category) => (
+                                <Cell key={category.category} fill={getCategoricalColor(category.category)} />
                               ))}
                             </Pie>
                             <Tooltip formatter={(v: number) => formatMoney(v)} />
@@ -373,11 +369,11 @@ export function VendasPage() {
                         </ResponsiveContainer>
                       </div>
                       <ul className="mt-3 flex flex-col divide-y divide-[var(--color-soft-border)]">
-                        {byCategory.map((c, i) => (
+                        {byCategory.map((c) => (
                           <li key={c.category} className="flex items-center gap-3 py-2">
                             <span
                               className="h-3 w-3 shrink-0 rounded-full"
-                              style={{ background: colors.palette[i % colors.palette.length] }}
+                              style={{ background: getCategoricalColor(c.category) }}
                             />
                             <span className="flex-1 truncate text-sm text-ink">{c.category}</span>
                             <span className="text-sm font-semibold text-ink">
@@ -416,7 +412,7 @@ export function VendasPage() {
                             axisLine={false}
                           />
                           <Tooltip formatter={(v: number) => formatMoney(v)} />
-                          <Bar dataKey="v" fill={colors.primary} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                          <Bar dataKey="v" fill={colors.sales} radius={[4, 4, 0, 0]} maxBarSize={36} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -450,7 +446,7 @@ export function VendasPage() {
                           return (
                             <tr
                               key={p.id}
-                              className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                              className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                             >
                               <td className="px-5 py-3 text-ink">{p.name}</td>
                               <td className="px-5 py-3 text-right font-medium text-ink">
@@ -464,7 +460,7 @@ export function VendasPage() {
                         })}
                       </tbody>
                       <tfoot>
-                        <tr className="bg-primary/5 font-semibold text-ink">
+                        <tr className="bg-ink/5 font-semibold text-ink">
                           <td className="px-5 py-3">Total</td>
                           <td className="px-5 py-3 text-right">{formatMoney(d?.salesTotal ?? 0)}</td>
                           <td className="px-5 py-3 text-right">100%</td>

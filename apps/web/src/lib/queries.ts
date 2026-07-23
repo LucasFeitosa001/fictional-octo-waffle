@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
+import { toastSuccess } from './toast';
 import type {
   AppointmentRow,
   AvailabilityResponse,
@@ -68,7 +69,10 @@ export function useCreateService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ServiceBody) => api.post<ServiceRow>('/services', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['services'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['services'] });
+      toastSuccess('Serviço cadastrado');
+    },
   });
 }
 
@@ -77,7 +81,10 @@ export function useUpdateService() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<ServiceBody> }) =>
       api.patch<ServiceRow>(`/services/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['services'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['services'] });
+      toastSuccess('Serviço salvo');
+    },
   });
 }
 
@@ -85,7 +92,10 @@ export function useDeleteService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ServiceRow>(`/services/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['services'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['services'] });
+      toastSuccess('Serviço excluído');
+    },
   });
 }
 
@@ -162,6 +172,7 @@ export function useCreateAppointment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess('Agendamento criado');
     },
   });
 }
@@ -206,6 +217,7 @@ export function useCreateOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess('Comanda aberta');
     },
   });
 }
@@ -218,6 +230,7 @@ export function useUpdateOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess('Comanda atualizada');
     },
   });
 }
@@ -229,6 +242,7 @@ export function useDeleteOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess('Comanda excluída');
     },
   });
 }
@@ -246,7 +260,8 @@ export interface AddOrderItemBody {
   refId: string;
   professionalId?: string;
   quantity?: number;
-  unitPrice: number;
+  /** Opcional: se ausente/0, o backend usa o preço do catálogo (serviço/produto). */
+  unitPrice?: number;
   discount?: number;
 }
 

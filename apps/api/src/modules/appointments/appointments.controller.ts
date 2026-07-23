@@ -10,7 +10,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
-import { CreateAppointmentDto, UpdateAppointmentDto, StatusDto, SuggestDto } from './dto';
+import {
+  CreateAppointmentDto,
+  UpdateAppointmentDto,
+  StatusDto,
+  SuggestDto,
+  BlockTimeDto,
+} from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 
@@ -55,6 +61,13 @@ export class AppointmentsController {
   @Post('appointments')
   create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateAppointmentDto) {
     return this.service.create(companyId, dto);
+  }
+
+  // "Ocupar horários": cria um bloqueio de agenda (indisponibilidade) que ocupa
+  // o horário do profissional sem cliente/serviços associados.
+  @Post('appointments/block')
+  block(@CurrentUser('companyId') companyId: string, @Body() dto: BlockTimeDto) {
+    return this.service.block(companyId, dto);
   }
 
   @Patch('appointments/:id')

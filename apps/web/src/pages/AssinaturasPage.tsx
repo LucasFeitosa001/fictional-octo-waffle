@@ -8,15 +8,20 @@ import { Drawer } from '../components/Drawer';
 import { FullDrawer } from '../components/FullDrawer';
 import { ItemPickerDrawer, type PickedItem } from '../components/ItemPickerDrawer';
 import { useConfirm } from '../components/ConfirmDialog';
+import { FilterCheckbox } from '../components/FilterCheckbox';
+import { AppTabs } from '../components/AppTabs';
 import {
   IconCheck,
   IconDownload,
   IconFilter,
+  IconLayers,
   IconPlus,
   IconRepeat,
   IconScissors,
   IconSearch,
+  IconSettings,
   IconTrash,
+  IconUsers,
 } from '../components/icons';
 import { formatDate, formatMoney } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
@@ -84,45 +89,11 @@ function subCode(m: CustomerMembership): string {
 // ---------------------------------------------------------------------------
 
 type MainTab = 'subscribers' | 'plans' | 'settings';
-const MAIN_TABS: { id: MainTab; label: string; shortLabel?: string }[] = [
-  { id: 'subscribers', label: 'Assinantes' },
-  { id: 'plans', label: 'Modelos de assinatura', shortLabel: 'Modelos' },
-  { id: 'settings', label: 'Configurações' },
+const MAIN_TABS: { id: MainTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'subscribers', label: 'Assinantes', icon: <IconUsers size={16} /> },
+  { id: 'plans', label: 'Modelos de assinatura', icon: <IconLayers size={16} /> },
+  { id: 'settings', label: 'Configurações', icon: <IconSettings size={16} /> },
 ];
-
-function TabBar({ tab, onTab }: { tab: MainTab; onTab: (t: MainTab) => void }) {
-  return (
-    <div className="mb-4 -mx-1 overflow-x-auto px-1">
-      <div className="inline-flex min-w-max gap-1 border-b border-[var(--color-soft-border)]">
-        {MAIN_TABS.map((t) => {
-          const active = t.id === tab;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onTab(t.id)}
-              className={[
-                'relative whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors',
-                active
-                  ? 'text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary'
-                  : 'text-muted-ink hover:text-foreground',
-              ].join(' ')}
-            >
-              {t.shortLabel ? (
-                <>
-                  <span className="md:hidden">{t.shortLabel}</span>
-                  <span className="hidden md:inline">{t.label}</span>
-                </>
-              ) : (
-                t.label
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Pagination (Belasis "N no total … 20 / página")
@@ -221,15 +192,9 @@ function CheckRow({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 py-1 text-sm">
-      <input
-        type="checkbox"
-        className="h-4 w-4 accent-[var(--sp-primary)]"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+    <FilterCheckbox checked={checked} onChange={onChange} className="py-1">
       {children}
-    </label>
+    </FilterCheckbox>
   );
 }
 
@@ -409,7 +374,13 @@ export function AssinaturasPage() {
     <div>
       <PageHeader title="Vendas por Assinatura" actions={headerActions} />
 
-      <TabBar tab={tab} onTab={setTab} />
+      <AppTabs
+        items={MAIN_TABS}
+        selectedKey={tab}
+        onSelectionChange={setTab}
+        ariaLabel="Áreas de vendas por assinatura"
+        className="mb-4"
+      />
 
       {tab === 'subscribers' && (
         <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
@@ -1030,6 +1001,7 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
       isOpen={isOpen}
       onClose={onClose}
       title="Nova assinatura"
+      mobileBackLabel="Voltar"
       sections={[
         { key: 'cliente', label: 'Cliente' },
         { key: 'data', label: 'Data' },
@@ -1227,7 +1199,9 @@ function EditarAssinaturaDrawer({
       isOpen={membership != null}
       onClose={onClose}
       title={membership ? `Editar assinatura ${subCode(membership)}` : 'Editar assinatura'}
+      mobileBackLabel="Voltar"
       widthClass="sm:w-[520px]"
+      fullscreen
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -1424,7 +1398,9 @@ function PlanDrawer({
         isOpen={isOpen}
         onClose={onClose}
         title={editing ? 'Editar modelo de assinatura' : 'Novo modelo de assinatura'}
+        mobileBackLabel="Voltar"
         widthClass="sm:w-[620px]"
+        fullscreen
         footer={
           <>
             <Button variant="outline" onClick={onClose}>
@@ -1512,6 +1488,7 @@ function PlanDrawer({
         onClose={() => setItemPickerOpen(false)}
         onSelect={addItem}
         servicesOnly
+        mobileBackLabel="Voltar"
       />
     </>
   );

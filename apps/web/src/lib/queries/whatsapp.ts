@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { API_BASE_URL } from '../config';
 
 export type WhatsappStatus = 'disabled' | 'connecting' | 'qr' | 'open' | 'closed';
 
@@ -9,6 +10,7 @@ export interface WhatsappConnection {
 }
 
 const WHATSAPP_KEY = ['whatsapp', 'connection'] as const;
+const WHATSAPP_QR_KEY = ['whatsapp', 'qr'] as const;
 
 /**
  * Connection status of the salon's WhatsApp. Polls while the section is open so
@@ -20,6 +22,36 @@ export function useWhatsappStatus(enabled = true) {
     queryFn: () => api.get<WhatsappConnection>('/whatsapp/connection/status'),
     enabled,
     refetchInterval: enabled ? 4000 : false,
+  });
+}
+
+/**
+ * Fetches the pending pairing QR as an object URL for `<img src>`. The endpoint
+ * (`/whatsapp/connection/qr.png`) is guarded by the session cookie and returns a
+ * raw PNG (or 204 when nothing is pending), so the shared JSON `api` client can't
+ * read it — we hit it with a credentialed `fetch` and turn the blob into a URL.
+ * Enabled only while a QR is actually pending; kept fresh alongside the status
+ * poll so a rotated code updates on its own.
+ */
+export function useWhatsappQr(enabled: boolean) {
+  return useQuery({
+    queryKey: WHATSAPP_QR_KEY,
+    enabled,
+    // The QR image rotates roughly every ~20s server-side; refetch keeps ours warm.
+    refetchInterval: enabled ? 15000 : false,
+    // A fresh object URL each fetch; RQ garbage-collects the query but not the URL,
+    // so the consumer revokes the previous one when a new value arrives.
+    gcTime: 0,
+    queryFn: async () => {
+      const res = await window.fetch(`${API_BASE_URL}/whatsapp/connection/qr.png`, {
+        credentials: 'include',
+        headers: { Accept: 'image/png' },
+      });
+      if (res.status === 204 || !res.ok) return null;
+      const blob = await res.blob();
+      if (!blob.size) return null;
+      return URL.createObjectURL(blob);
+    },
   });
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, ListBox, Select } from '@heroui/react';
+import { Button, Card, Chip, ListBox, Select } from '@heroui/react';
 import {
   Bar,
   BarChart,
@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import { PageHeader } from '../../components/PageHeader';
-import { EmptyState, LoadingState } from '../../components/States';
+import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DataTable, type Column } from '../../components/DataTable';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
 import {
@@ -22,9 +22,13 @@ import {
   IconSend,
   IconWhatsApp,
 } from '../../components/icons';
-import { formatNumber, isoDate } from '../../lib/format';
+import { formatDateTime, formatNumber, isoDate } from '../../lib/format';
 import { useSetPageActions } from '../../layout/PageActions';
-import { useReportsMessages } from '../../lib/queries/relatorios';
+import {
+  useReportsMessages,
+  useReportsMessagesRows,
+  type MessageRowItem,
+} from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { BackToReports, CARD } from './reportShared';
 
@@ -60,24 +64,68 @@ function typeIcon(type: string) {
   }
 }
 
-/* --- Opções dos filtros (espelham o Belasis /reports/messages/sent) ------- */
+/* --- Opções dos filtros (ligadas ao endpoint /reports/messages/rows) ------ */
 
-type StatusFilter = 'both' | 'sent' | 'failed';
+// Status do outbox de WhatsApp: 'both' (sem filtro) / 'sent' / 'failed' /
+// 'pending'. O valor 'both' é só de UI — não é enviado ao backend.
+type StatusFilter = 'both' | 'sent' | 'failed' | 'pending';
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'both', label: 'Ambos' },
+  { value: 'both', label: 'Todos' },
   { value: 'sent', label: 'Enviado' },
   { value: 'failed', label: 'Falha de Envio' },
+  { value: 'pending', label: 'Pendente' },
 ];
 
-// Tipos de envio do Belasis (kind): lembrete/aniversario/retorno/outros.
+// Tipos de mensagem (kind) que o outbox grava. `id === 'all'` é só de UI e não
+// é enviado ao backend; os demais casam 1:1 com o campo `kind`.
 const SEND_TYPE_OPTIONS: { id: string; label: string }[] = [
   { id: 'all', label: 'Todos' },
-  { id: 'lembrete', label: 'Lembretes' },
-  { id: 'aniversario', label: 'Aniversários' },
-  { id: 'return', label: 'Retornos' },
-  { id: 'outros', label: 'Outros Envios' },
+  { id: 'reminder', label: 'Lembretes' },
+  { id: 'confirmation', label: 'Confirmações' },
+  { id: 'cancellation', label: 'Cancelamentos' },
+  { id: 'followup', label: 'Follow-ups' },
+  { id: 'campaign', label: 'Campanhas' },
+  { id: 'invite', label: 'Convites' },
+  { id: 'manager', label: 'Avisos à equipe' },
+  { id: 'manual', label: 'Manuais' },
 ];
+
+// Rótulos legíveis do `kind` na tabela (mesma convenção da aba do cliente).
+const MESSAGE_KIND_LABEL: Record<string, string> = {
+  reminder: 'Lembrete',
+  confirmation: 'Confirmação',
+  cancellation: 'Cancelamento',
+  followup: 'Follow-up',
+  campaign: 'Campanha',
+  invite: 'Convite',
+  manager: 'Aviso à equipe',
+  manual: 'Manual',
+};
+
+function messageKindLabel(kind: string | null): string {
+  if (!kind) return 'Mensagem';
+  return MESSAGE_KIND_LABEL[kind] ?? kind;
+}
+
+// Status → rótulo + cor do Chip.
+const MESSAGE_STATUS: Record<
+  string,
+  { label: string; color: 'success' | 'danger' | 'warning' | 'default' }
+> = {
+  sent: { label: 'Enviado', color: 'success' },
+  delivered: { label: 'Entregue', color: 'success' },
+  failed: { label: 'Falha', color: 'danger' },
+  pending: { label: 'Pendente', color: 'warning' },
+  queued: { label: 'Na fila', color: 'warning' },
+};
+
+function messageStatus(status: string): {
+  label: string;
+  color: 'success' | 'danger' | 'warning' | 'default';
+} {
+  return MESSAGE_STATUS[status] ?? { label: status, color: 'default' };
+}
 
 /** Grupo de status estilo "ant-radio-group-solid" (pílulas conectadas). */
 function StatusSegmented({
@@ -118,18 +166,6 @@ function StatusSegmented({
   );
 }
 
-/** Linha do relatório (colunas idênticas ao Belasis reports_messages_sent). */
-interface MessageRow {
-  id: string;
-  clientName: string;
-  sentTo: string;
-  sendMode: string;
-  kind: string;
-  date: string;
-  situation: string;
-  status: string;
-}
-
 function StatCard({
   icon,
   label,
@@ -142,7 +178,7 @@ function StatCard({
   return (
     <Card className={CARD}>
       <Card.Content className="flex items-center gap-3 p-4">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/15 text-gold-strong">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--sp-data-messages-soft)] text-data-messages">
           {icon}
         </span>
         <div className="min-w-0">
@@ -156,74 +192,91 @@ function StatCard({
 
 export function MensagensPage() {
   const [range, setRange] = useState(defaultRange);
-  // Filtros presentacionais do Belasis. O endpoint atual só aceita período;
-  // status/tipo/clientes ficam prontos na UI. // TODO: encaminhar ao backend.
+  // Filtros ligados ao endpoint /reports/messages/rows. 'both'/'all' significam
+  // "sem filtro" e não são encaminhados ao backend.
   const [status, setStatus] = useState<StatusFilter>('both');
   const [sendType, setSendType] = useState<string>('all');
 
   const query = useReportsMessages(range.from, range.to);
   const d = query.data;
 
+  // Linhas por mensagem (detalhamento). Aplica os mesmos período/status/tipo.
+  const rowsQuery = useReportsMessagesRows({
+    from: range.from,
+    to: range.to,
+    status: status === 'both' ? undefined : status,
+    kind: sendType === 'all' ? undefined : sendType,
+    limit: 200,
+  });
+  const rows: MessageRowItem[] = rowsQuery.data?.rows ?? [];
+
   // Mobile (<768px): a ação principal desta página vive na BottomNav (padrão
   // Belasis), reutilizando exatamente o mesmo handler do botão desktop.
+  const refetchAll = () => {
+    void query.refetch();
+    void rowsQuery.refetch();
+  };
+  const isFetching = query.isFetching || rowsQuery.isFetching;
   useSetPageActions(
     [
       {
         key: 'gerar',
         label: 'Gerar relatório',
         icon: <IconSearch size={22} />,
-        onClick: () => {
-          void query.refetch();
-        },
-        disabled: query.isFetching,
+        onClick: refetchAll,
+        disabled: isFetching,
       },
     ],
-    [query.refetch, query.isFetching],
+    [query.refetch, rowsQuery.refetch, isFetching],
   );
 
   const byChannel = d?.byChannel ?? [];
   const byType = d?.byType ?? [];
 
-  // O endpoint retorna agregados (sem linhas por mensagem). A tabela detalhada
-  // do Belasis lista cada envio; assim que houver endpoint por-mensagem, popular.
-  const rows: MessageRow[] = []; // TODO: linhas por mensagem (reports_messages_sent)
-
-  const columns: Column<MessageRow>[] = [
+  const columns: Column<MessageRowItem>[] = [
     {
-      key: 'clientName',
-      header: 'Cliente',
+      key: 'at',
+      header: 'Data/hora',
       isRowHeader: true,
-      render: (r) => <span className="font-medium text-ink">{r.clientName}</span>,
+      render: (r) => <span className="font-medium text-ink">{formatDateTime(r.at)}</span>,
     },
     {
-      key: 'sentTo',
-      header: 'Enviado para',
-      render: (r) => <span className="text-muted-ink">{r.sentTo || '—'}</span>,
+      key: 'customerName',
+      header: 'Cliente',
+      render: (r) => (
+        <span className="text-muted-ink">{r.customerName || '—'}</span>
+      ),
     },
     {
-      key: 'sendMode',
-      header: 'Modo de Envio',
-      render: (r) => <span className="text-muted-ink">{r.sendMode}</span>,
+      key: 'toPhone',
+      header: 'Telefone',
+      render: (r) => <span className="text-muted-ink">{r.toPhone || '—'}</span>,
     },
     {
       key: 'kind',
-      header: 'Tipo de Mensagem',
-      render: (r) => <span className="text-muted-ink">{r.kind}</span>,
-    },
-    {
-      key: 'date',
-      header: 'Data de Envio',
-      render: (r) => <span className="text-muted-ink">{r.date}</span>,
-    },
-    {
-      key: 'situation',
-      header: 'Status',
-      render: (r) => <span className="text-muted-ink">{r.situation}</span>,
+      header: 'Tipo',
+      render: (r) => <span className="text-muted-ink">{messageKindLabel(r.kind)}</span>,
     },
     {
       key: 'status',
-      header: 'Situação',
-      render: (r) => <span className="text-muted-ink">{r.status}</span>,
+      header: 'Status',
+      render: (r) => {
+        const st = messageStatus(r.status);
+        return (
+          <Chip variant="soft" color={st.color} size="sm">
+            {st.label}
+          </Chip>
+        );
+      },
+    },
+    {
+      key: 'textPreview',
+      header: 'Prévia',
+      render: (r) => (
+        <span className="text-muted-ink" title={r.textPreview}>
+          {r.textPreview || '—'}
+        </span>
+      ),
     },
   ];
 
@@ -303,11 +356,7 @@ export function MensagensPage() {
             </div>
 
             {/* Gerar relatório */}
-            <Button
-              variant="primary"
-              onClick={() => query.refetch()}
-              isDisabled={query.isFetching}
-            >
+            <Button variant="primary" onClick={refetchAll} isDisabled={isFetching}>
               <IconSearch size={16} /> Gerar relatório
             </Button>
           </div>
@@ -387,7 +436,7 @@ export function MensagensPage() {
                       <Tooltip formatter={(v: number) => [formatNumber(v), 'Mensagens']} />
                       <Bar
                         dataKey="v"
-                        fill={colors.primary}
+                        fill={colors.messages}
                         radius={[4, 4, 0, 0]}
                         maxBarSize={48}
                       />
@@ -407,7 +456,11 @@ export function MensagensPage() {
                   Total de registros: {formatNumber(rows.length)}
                 </span>
               </div>
-              {rows.length === 0 ? (
+              {rowsQuery.isLoading ? (
+                <LoadingState />
+              ) : rowsQuery.isError ? (
+                <ErrorState onRetry={() => rowsQuery.refetch()} />
+              ) : rows.length === 0 ? (
                 <EmptyState
                   title="Nenhum item encontrado"
                   description="Nenhuma mensagem detalhada para os filtros selecionados."

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight } from '@gravity-ui/icons';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
+import { SalonBrand } from '../components/SalonBrand';
 import { AgendaGridSkeleton } from '../components/Skeletons';
 import { useAgenda, usePortal } from '../lib/booking';
 
@@ -91,11 +92,7 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
           >
             <ArrowLeft width={22} height={22} />
           </button>
-          <img
-            src="/brand/salonpass-wordmark-white.svg"
-            alt="Salonpass"
-            className="h-6 w-auto sm:h-7"
-          />
+          <SalonBrand slug={slug} />
         </div>
       </header>
 

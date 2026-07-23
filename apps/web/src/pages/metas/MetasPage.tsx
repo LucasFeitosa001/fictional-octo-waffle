@@ -74,7 +74,7 @@ function shiftPeriod(p: string, delta: number) {
 }
 
 const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
-const PROGRESS_TRACK = 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)]';
+const PROGRESS_TRACK = 'bg-[var(--sp-data-balance-soft)]';
 
 function fmtValue(kind: GoalKind, n: number) {
   return KIND_IS_MONEY[kind] ? formatMoney(n) : formatNumber(n);
@@ -92,7 +92,7 @@ function ProgressCell({ goal }: { goal: Goal }) {
       <div className={`flex items-center gap-2`}>
         <div className={`h-2 w-full overflow-hidden rounded-full ${PROGRESS_TRACK}`}>
           <div
-            className={`h-full rounded-full transition-all ${done ? 'bg-success' : 'bg-primary'}`}
+            className={`h-full rounded-full transition-all ${done ? 'bg-status-success' : 'bg-data-balance'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -100,8 +100,8 @@ function ProgressCell({ goal }: { goal: Goal }) {
           className={[
             'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
             done
-              ? 'bg-success/15 text-success'
-              : 'bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] text-primary',
+              ? 'bg-status-success-soft text-status-success-fg'
+              : 'bg-[var(--sp-data-balance-soft)] text-data-balance',
           ].join(' ')}
         >
           {pct}%
@@ -354,7 +354,7 @@ export function MetasPage() {
                         onClick={() => openEdit(g)}
                         className="flex w-full items-center gap-2.5 text-left"
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--sp-data-balance-soft)] text-data-balance">
                           <IconTarget size={16} />
                         </span>
                         <span className="min-w-0">
@@ -400,7 +400,7 @@ export function MetasPage() {
                       onClick={() => openEdit(g)}
                       className="flex min-w-0 items-center gap-2.5 text-left"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--sp-data-balance-soft)] text-data-balance">
                         <IconTarget size={18} />
                       </span>
                       <span className="min-w-0">
@@ -763,6 +763,7 @@ function MetaDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={editing ? 'Editar meta' : 'Nova meta'}
+      fullscreen
       footer={
         success ? (
           <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>

@@ -397,7 +397,7 @@ export class ReportsService {
   }
 
   // GET /reports/messages?from&to — mensagens enviadas por canal e por tipo.
-  // Fontes: WhatsappOutbox (global — sem companyId no schema), CampaignMessage
+  // Fontes: WhatsappOutbox (agora company-scoped via companyId), CampaignMessage
   // (via Campaign.channel) e AppointmentNotification/Notification (por tipo).
   async messages(companyId: string, from?: string, to?: string) {
     const { range, hasRange } = buildRange(from, to);
@@ -410,9 +410,10 @@ export class ReportsService {
       apptNotifications,
       notifications,
     ] = await Promise.all([
-      // WhatsappOutbox não possui companyId no schema — contagem global honesta.
+      // WhatsappOutbox agora tem companyId — conta só os desta empresa. Registros
+      // antigos sem companyId ficam de fora do agregado (contagem honesta por tenant).
       this.prisma.client.whatsappOutbox.count({
-        where: { status: 'sent', ...(hasRange ? { sentAt: range } : {}) },
+        where: { companyId, status: 'sent', ...(hasRange ? { sentAt: range } : {}) },
       }),
       this.prisma.client.campaignMessage.findMany({
         where: {
@@ -529,6 +530,110 @@ export class ReportsService {
         appointmentNotifications: apptNotifications.length,
         notifications: notifications.length,
       },
+    };
+  }
+
+  // GET /reports/messages/rows?from&to&status&kind — LINHAS por mensagem do
+  // relatório de mensagens (company-scoped). Fonte: WhatsappOutbox onde
+  // companyId = empresa ativa OU o telefone casa com o de algum Customer da
+  // empresa (registros antigos/sem companyId). Filtros: from/to (por sentAt OU
+  // createdAt), status (sent|failed|pending), kind.
+  async messagesRows(
+    companyId: string,
+    opts: {
+      from?: string;
+      to?: string;
+      status?: string;
+      kind?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) {
+    const { from, to, status, kind } = opts;
+    const limit = opts.limit && opts.limit > 0 ? opts.limit : 100;
+    const offset = opts.offset && opts.offset > 0 ? opts.offset : 0;
+    const { range, hasRange } = dateRange(from, to);
+
+    // Telefones dos clientes da empresa → últimos 8 dígitos, p/ casar com o
+    // outbox mesmo em registros antigos que não têm companyId gravado.
+    const customers = await this.prisma.client.customer.findMany({
+      where: { companyId, phone: { not: null } },
+      select: { id: true, name: true, phone: true },
+    });
+    const tailToCustomer = new Map<string, { id: string; name: string }>();
+    const phoneTails: string[] = [];
+    for (const c of customers) {
+      const digits = (c.phone ?? '').replace(/\D/g, '');
+      if (digits.length < 8) continue;
+      const tail = digits.slice(-8);
+      phoneTails.push(tail);
+      // Primeiro cliente vence em caso de colisão de tail (raro).
+      if (!tailToCustomer.has(tail)) tailToCustomer.set(tail, { id: c.id, name: c.name });
+    }
+
+    // Período: casa por sentAt OU createdAt (mensagem pode estar pendente).
+    const dateFilter = hasRange
+      ? { OR: [{ sentAt: range }, { createdAt: range }] }
+      : {};
+
+    const rows = await this.prisma.client.whatsappOutbox.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { companyId },
+              ...(phoneTails.length
+                ? phoneTails.map((t) => ({ toPhone: { endsWith: t } }))
+                : []),
+            ],
+          },
+          ...(status ? [{ status }] : []),
+          ...(kind ? [{ kind }] : []),
+          dateFilter,
+        ],
+      },
+      orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+      skip: offset,
+    });
+
+    // Nome do cliente: prioriza customerId direto; senão casa pelo tail do telefone.
+    const directIds = Array.from(
+      new Set(rows.map((r) => r.customerId).filter((v): v is string => Boolean(v))),
+    );
+    const directNames = directIds.length
+      ? await this.prisma.client.customer.findMany({
+          where: { id: { in: directIds }, companyId },
+          select: { id: true, name: true },
+        })
+      : [];
+    const nameById = new Map<string, string>(
+      directNames.map((c) => [c.id, c.name] as [string, string]),
+    );
+
+    const data = rows.map((r) => {
+      const tail = (r.toPhone ?? '').replace(/\D/g, '').slice(-8);
+      const customerName =
+        (r.customerId ? nameById.get(r.customerId) : undefined) ??
+        tailToCustomer.get(tail)?.name ??
+        null;
+      return {
+        id: r.id,
+        at: r.sentAt ?? r.createdAt,
+        toPhone: r.toPhone,
+        customerName,
+        kind: r.kind ?? null,
+        status: r.status,
+        textPreview: r.text.length > 140 ? `${r.text.slice(0, 140)}…` : r.text,
+      };
+    });
+
+    return {
+      period: { from: from ?? null, to: to ?? null },
+      rows: data,
+      limit,
+      offset,
+      totals: { count: data.length },
     };
   }
 

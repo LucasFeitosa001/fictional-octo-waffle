@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Chip, Input, TextField } from '@heroui/react';
 import { FullDrawer } from '../components/FullDrawer';
+import { AppTabs } from '../components/AppTabs';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { ApiClientError } from '@beautypass/shared';
@@ -98,7 +99,6 @@ export function PacotePerfilModal({
           </span>
         </div>
       }
-      widthClass="md:w-[720px] lg:w-[900px]"
     >
       {detail.isLoading ? (
         <LoadingState />
@@ -243,32 +243,15 @@ function PackageEditor({
           </div>
         )}
 
-        {/* Tabs */}
-        <nav
-          aria-label="Seções do pacote"
-          className="flex gap-1 border-b border-line"
-        >
-          {(
-            [
-              { id: 'itens', label: 'Itens' },
-              { id: 'sessoes', label: 'Sessões' },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              aria-current={tab === t.id ? 'page' : undefined}
-              className={`whitespace-nowrap rounded-t-lg px-3 py-2 text-sm transition-colors ${
-                tab === t.id
-                  ? 'border-b-2 border-gold font-medium text-ink'
-                  : 'text-muted-ink hover:text-ink'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        <AppTabs
+          items={[
+            { id: 'itens', label: 'Itens', icon: <IconLayers size={16} /> },
+            { id: 'sessoes', label: 'Sessões', icon: <IconClock size={16} /> },
+          ]}
+          selectedKey={tab}
+          onSelectionChange={setTab}
+          ariaLabel="Seções do pacote"
+        />
 
         {tab === 'itens' ? (
           <ItensTab

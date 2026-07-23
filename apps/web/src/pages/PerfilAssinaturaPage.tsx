@@ -4,10 +4,23 @@
 // troca de plano/forma de pagamento (bump/downgrade + prorata) e cancelamento
 // via POST /billing/subscription/cancel.
 
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip } from '@heroui/react';
 import { PageHeader } from '../components/PageHeader';
-import { IconDownload, IconEye } from '../components/icons';
+import { MobileBackHeader } from '../components/MobileBackHeader';
+import { AppTabs } from '../components/AppTabs';
+import {
+  IconCheck,
+  IconCreditCard,
+  IconDownload,
+  IconEye,
+  IconSparkles,
+  IconStar,
+  IconX,
+} from '../components/icons';
+import { useFeatures } from '../lib/queries/features';
+import { usePlans, type Plan, type PlanName } from '../lib/queries/plans';
 
 // ---------------------------------------------------------------------------
 // Style tokens
@@ -16,18 +29,20 @@ import { IconDownload, IconEye } from '../components/icons';
 const CARD =
   'rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-4 shadow-[var(--shadow-card)] sm:p-5';
 
+/** The plan we nudge users toward (visually highlighted / "Recomendado"). */
+const RECOMMENDED_PLAN: PlanName = 'pro';
+
 // ---------------------------------------------------------------------------
-// Mock data — remover ao plugar backend
+// Mock data — remover ao plugar billing real. Faturas/pagamento seguem mock
+// enquanto GET /billing/* não existe; o foco desta tela é plano + comparação.
 // ---------------------------------------------------------------------------
 
-const PLAN = {
-  name: 'Até 5 usuários - Anual',
-  seats: 'Até 5 usuários',
-  price: 2124.0,
+const BILLING = {
+  price: 199.0,
   addons: 0,
-  discount: 424.8,
-  total: 1699.2,
-  nextDue: '19 jul, 2026',
+  discount: 0,
+  total: 199.0,
+  nextDue: '19 ago, 2026',
   paymentMethod: 'Boleto' as const,
 };
 
@@ -49,20 +64,20 @@ const INVOICES: Invoice[] = [
   {
     createdAt: '05/07/2026',
     dueAt: '12/07/2026',
-    plan: 'Até 5 usuários',
-    period: 'Anual',
-    amount: 1699.2,
+    plan: 'Pro',
+    period: 'Mensal',
+    amount: 199.0,
     method: 'Boleto',
     status: 'Pendente',
     boletoUrl: '#',
   },
   {
-    createdAt: '05/07/2024',
-    dueAt: '12/07/2024',
-    paidAt: '05/07/2024',
-    plan: 'Até 5 usuários',
-    period: 'Bianual',
-    amount: 1884.0,
+    createdAt: '05/06/2026',
+    dueAt: '12/06/2026',
+    paidAt: '06/06/2026',
+    plan: 'Pro',
+    period: 'Mensal',
+    amount: 199.0,
     method: 'Cartão',
     status: 'Pago',
     invoiceUrl: '#',
@@ -96,46 +111,152 @@ function StatusPill({ status }: { status: InvoiceStatus }) {
 // ---------------------------------------------------------------------------
 
 type MainTab = 'assinatura' | 'adicionais';
-const MAIN_TABS: { id: MainTab; label: string; to?: string }[] = [
-  { id: 'assinatura', label: 'Assinatura' },
-  { id: 'adicionais', label: 'Adicionais', to: '/perfil/adicionais' },
+const MAIN_TABS: { id: MainTab; label: string; icon: React.ReactNode; to?: string }[] = [
+  { id: 'assinatura', label: 'Assinatura', icon: <IconCreditCard size={16} /> },
+  { id: 'adicionais', label: 'Adicionais', icon: <IconSparkles size={16} />, to: '/perfil/adicionais' },
 ];
 
-function TabBar({
-  tab,
-  onTab,
+// ---------------------------------------------------------------------------
+// Plano atual (destacado) — lê o plano vigente da empresa via GET /feature-flags
+// ---------------------------------------------------------------------------
+
+function CurrentPlanBanner({
+  planLabel,
+  status,
+  tagline,
 }: {
-  tab: MainTab;
-  onTab: (t: MainTab) => void;
+  planLabel: string;
+  status: string | null;
+  tagline?: string;
 }) {
+  const statusLabel =
+    status === 'active'
+      ? 'Assinatura ativa'
+      : status === 'trialing'
+      ? 'Período de teste'
+      : status === 'past_due'
+      ? 'Pagamento pendente'
+      : status === 'canceled'
+      ? 'Cancelada'
+      : 'Sem assinatura';
+  const statusColor: 'success' | 'warning' | 'danger' | 'default' =
+    status === 'active'
+      ? 'success'
+      : status === 'trialing'
+      ? 'warning'
+      : status === 'past_due' || status === 'canceled'
+      ? 'danger'
+      : 'default';
+
   return (
-    <div className="mb-4 -mx-1 overflow-x-auto px-1">
-      <div className="inline-flex min-w-max gap-1 border-b border-[var(--color-soft-border)]">
-        {MAIN_TABS.map((t) => {
-          const active = t.id === tab;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onTab(t.id)}
-              className={[
-                'relative whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors',
-                active
-                  ? 'text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary'
-                  : 'text-muted-ink hover:text-foreground',
-              ].join(' ')}
-            >
-              {t.label}
-            </button>
-          );
-        })}
+    <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-warm-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary">
+            Seu plano
+          </div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-extrabold text-foreground">
+              {planLabel}
+            </span>
+          </div>
+          {tagline ? (
+            <p className="mt-1 max-w-md text-sm leading-snug text-muted-ink">
+              {tagline}
+            </p>
+          ) : null}
+        </div>
+        <Chip variant="soft" color={statusColor} size="sm" className="shrink-0">
+          {statusLabel}
+        </Chip>
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Sub components
+// Card de plano (comparação lado a lado)
+// ---------------------------------------------------------------------------
+
+function PlanCard({
+  plan,
+  isCurrent,
+  isRecommended,
+  onChoose,
+}: {
+  plan: Plan;
+  isCurrent: boolean;
+  isRecommended: boolean;
+  onChoose: (plan: Plan) => void;
+}) {
+  return (
+    <div
+      className={[
+        'relative flex flex-col rounded-2xl border bg-warm-white p-5 shadow-[var(--shadow-card)]',
+        isCurrent
+          ? 'border-primary ring-2 ring-primary/30'
+          : isRecommended
+          ? 'border-gold/60 ring-1 ring-gold/40'
+          : 'border-[var(--color-soft-border)]',
+      ].join(' ')}
+    >
+      {/* Badge topo direito */}
+      {isCurrent ? (
+        <span className="absolute -top-2.5 right-4 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
+          Seu plano
+        </span>
+      ) : isRecommended ? (
+        <span className="absolute -top-2.5 right-4 inline-flex items-center gap-1 rounded-full bg-gold px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink shadow-sm">
+          <IconStar size={11} /> Recomendado
+        </span>
+      ) : null}
+
+      <div className="text-lg font-extrabold text-foreground">{plan.label}</div>
+      <p className="mt-1 min-h-[2.5rem] text-sm leading-snug text-muted-ink">
+        {plan.tagline}
+      </p>
+
+      <div className="mt-3 flex items-baseline gap-1">
+        <span className="text-2xl font-extrabold text-ink tabular-nums">
+          {formatMoney(plan.priceMonthly)}
+        </span>
+        <span className="text-sm text-muted-ink">/mês</span>
+      </div>
+
+      <ul className="mt-4 flex flex-1 flex-col gap-2">
+        {plan.features.map((f) => (
+          <li key={f.key} className="flex items-start gap-2">
+            <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-600">
+              <IconCheck size={11} />
+            </span>
+            <span className="text-sm leading-snug text-foreground">
+              {f.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-5">
+        {isCurrent ? (
+          <Button variant="outline" className="w-full" isDisabled>
+            Plano atual
+          </Button>
+        ) : (
+          <Button
+            variant={isRecommended ? 'primary' : 'outline'}
+            className="w-full"
+            onPress={() => onChoose(plan)}
+          >
+            Escolher {plan.label}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub components (resumo/pagamentos)
 // ---------------------------------------------------------------------------
 
 function SummaryRow({
@@ -188,6 +309,9 @@ function PaymentActionCell({ inv }: { inv: Invoice }) {
 
 export function PerfilAssinaturaPage() {
   const navigate = useNavigate();
+  const { data: features } = useFeatures();
+  const { data: plans } = usePlans();
+  const [notice, setNotice] = useState<string | null>(null);
 
   function handleTab(t: MainTab) {
     if (t === 'assinatura') return;
@@ -195,45 +319,118 @@ export function PerfilAssinaturaPage() {
     if (target) navigate(target);
   }
 
+  const currentPlanName = (features?.plan ?? null) as PlanName | null;
+  const currentPlan = plans?.find((p) => p.name === currentPlanName) ?? null;
+  const currentPlanLabel = currentPlan?.label ?? 'Sem plano';
+
+  function handleChoose(plan: Plan) {
+    // TODO(backend): iniciar troca de plano (POST /billing/subscription).
+    setNotice(
+      `Contratação do plano ${plan.label} estará disponível em breve. ` +
+        `Fale com nosso time para ativar agora.`,
+    );
+  }
+
+  function handleMobileBack() {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/configuracoes');
+  }
+
   return (
     <div className="pb-24">
+      <MobileBackHeader title="Minha assinatura" onBack={handleMobileBack} />
       <PageHeader title="Minha conta" subtitle="Assinatura, plano e cobrança" />
 
-      <TabBar tab="assinatura" onTab={handleTab} />
+      <AppTabs
+        items={MAIN_TABS}
+        selectedKey="assinatura"
+        onSelectionChange={handleTab}
+        ariaLabel="Minha assinatura"
+        className="mb-4"
+      />
 
       {/* ------------------------------------------------------------------ */}
-      {/* Plano atual                                                         */}
+      {/* Plano atual (destacado)                                            */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mb-4">
-        <div className={CARD}>
-          <div className="text-sm font-semibold uppercase tracking-wide text-muted-ink">
-            Plano atual
-          </div>
-          <div className="mt-2 text-lg font-bold text-foreground">{PLAN.name}</div>
-          <div className="mt-1 text-sm text-muted-ink">{PLAN.seats}</div>
-        </div>
+      <section className="mb-5">
+        <CurrentPlanBanner
+          planLabel={currentPlanLabel}
+          status={features?.status ?? null}
+          tagline={currentPlan?.tagline}
+        />
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Resumo do plano                                                    */}
+      {/* Comparação de planos                                               */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="mb-6">
+        <div className="mb-3">
+          <h2 className="text-base font-bold text-foreground">
+            Escolha o plano ideal
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-ink">
+            Compare o que cada plano oferece. Cada nível inclui tudo do anterior.
+          </p>
+        </div>
+
+        {notice ? (
+          <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
+            <p className="text-sm text-ink">{notice}</p>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              aria-label="Fechar aviso"
+              className="shrink-0 text-muted-ink hover:text-foreground"
+            >
+              <IconX size={16} />
+            </button>
+          </div>
+        ) : null}
+
+        {plans && plans.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {plans.map((plan) => (
+              <PlanCard
+                key={plan.name}
+                plan={plan}
+                isCurrent={plan.name === currentPlanName}
+                isRecommended={
+                  plan.name === RECOMMENDED_PLAN && plan.name !== currentPlanName
+                }
+                onChoose={handleChoose}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className={CARD + ' text-sm text-muted-ink'}>
+            Carregando planos…
+          </div>
+        )}
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Resumo do plano (billing — mock enquanto GET /billing não existe)  */}
       {/* ------------------------------------------------------------------ */}
       <section className="mb-4">
         <div className={CARD}>
           <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-ink">
-            Resumo do plano
+            Resumo da cobrança
           </div>
           <div className="flex flex-col gap-2.5">
-            <SummaryRow label="Plano" value={formatMoney(PLAN.price)} />
-            <SummaryRow label="Adicionais" value={formatMoney(PLAN.addons)} />
+            <SummaryRow label="Plano" value={formatMoney(BILLING.price)} />
+            <SummaryRow label="Adicionais" value={formatMoney(BILLING.addons)} />
             <SummaryRow
               label="Descontos"
-              value={`- ${formatMoney(PLAN.discount)}`}
+              value={`- ${formatMoney(BILLING.discount)}`}
               variant="discount"
             />
             <div className="my-1 h-px bg-[var(--color-soft-border)]" />
             <SummaryRow
               label="Total"
-              value={formatMoney(PLAN.total)}
+              value={formatMoney(BILLING.total)}
               variant="total"
             />
           </div>
@@ -251,7 +448,7 @@ export function PerfilAssinaturaPage() {
                 Próxima renovação
               </div>
               <div className="mt-1 text-base font-bold text-foreground">
-                {PLAN.nextDue}
+                {BILLING.nextDue}
               </div>
             </div>
             <Chip variant="soft" color="success" size="sm" className="shrink-0">
@@ -272,7 +469,7 @@ export function PerfilAssinaturaPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-base font-bold text-foreground">
-                {PLAN.paymentMethod}
+                {BILLING.paymentMethod}
               </div>
             </div>
             <Button

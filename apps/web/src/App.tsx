@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from './lib/auth';
+import { useCan } from './lib/queries/permissions';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardLayout } from './layout/DashboardLayout';
 import { PainelPage } from './pages/PainelPage';
@@ -26,7 +27,10 @@ import { CaixaHistoricoPage } from './pages/financeiro/CaixaHistoricoPage';
 import { NotasFiscaisPage } from './pages/financeiro/NotasFiscaisPage';
 import { FinanceiroConfiguracoesPage } from './pages/financeiro/FinanceiroConfiguracoesPage';
 import { AnamnesesPage } from './pages/cadastros/AnamnesesPage';
-import { ConvidarProfissionaisPage } from './pages/cadastros/ConvidarProfissionaisPage';
+// "Convidar profissionais" e "Usuários" foram ABSORVIDOS pela página
+// consolidada Profissionais (/profissionais). As rotas antigas redirecionam
+// pra lá — os componentes originais não são mais montados.
+import { ConvitePage } from './pages/ConvitePage';
 import { PacotesPredefinidosPage } from './pages/controle/PacotesPredefinidosPage';
 import { ComprasPage } from './pages/controle/ComprasPage';
 import { GeradorDocumentoPage } from './pages/controle/GeradorDocumentoPage';
@@ -80,6 +84,8 @@ import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
 import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
 import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
 import { PerfilAssinaturaPage } from './pages/PerfilAssinaturaPage';
+import { FeatureGate } from './components/FeatureGate';
+import { IconLock } from './components/icons';
 
 /**
  * Splash fade-out controller.
@@ -118,6 +124,50 @@ function useHideSplashWhenReady(ready: boolean) {
   }, [ready]);
 }
 
+/**
+ * FASE RBAC — 403 amigável quando o papel não concede acesso à rota. Mantém o
+ * usuário dentro do app (não estoura pra /login) e oferece voltar ao painel.
+ */
+function ForbiddenRoute() {
+  return (
+    <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
+      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-pink/12 text-pink ring-1 ring-inset ring-pink/20">
+        <IconLock size={26} />
+      </span>
+      <h1 className="font-brand text-xl font-bold text-foreground">Acesso restrito</h1>
+      <p className="text-sm text-muted">
+        Seu perfil não tem permissão para acessar esta área. Fale com o
+        responsável pela conta se precisar de acesso.
+      </p>
+      <Link
+        to="/painel"
+        className="mt-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Voltar ao painel
+      </Link>
+    </div>
+  );
+}
+
+/**
+ * FASE RBAC — envolve rotas que exigem uma permissão específica. Enquanto as
+ * permissões carregam não decide nada (null: evita piscar o 403); resolvido,
+ * libera os filhos ou mostra o 403 amigável. `perm` aceita lista (OR).
+ */
+function ProtectedRoute({
+  perm,
+  children,
+}: {
+  perm: string | string[];
+  children: ReactNode;
+}) {
+  const { can, isLoading } = useCan();
+  if (isLoading) return null; // não pisca o 403 antes de saber o papel
+  const perms = Array.isArray(perm) ? perm : [perm];
+  if (perms.some((p) => can(p))) return <>{children}</>;
+  return <ForbiddenRoute />;
+}
+
 function ProtectedRoutes() {
   const { data: session, isPending } = useSession();
   // Render null SOMENTE no primeiro load (sem session em cache). Better Auth
@@ -130,7 +180,8 @@ function ProtectedRoutes() {
   return (
     <DashboardLayout>
       <Routes>
-        <Route path="/" element={<PainelPage />} />
+        <Route path="/" element={<Navigate to="/painel" replace />} />
+        <Route path="/painel" element={<PainelPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/agendamentos" element={<AgendamentosPage />} />
         <Route path="/comandas" element={<ComandasPage />} />
@@ -138,7 +189,10 @@ function ProtectedRoutes() {
         <Route path="/clientes" element={<ClientesPage />} />
         <Route path="/profissionais" element={<ProfissionaisPage />} />
         <Route path="/cadastros/anamneses" element={<AnamnesesPage />} />
-        <Route path="/cadastros/convidar" element={<ConvidarProfissionaisPage />} />
+        {/* Rotas antigas de equipe → redirecionam para a página consolidada
+            Profissionais (que agora concentra convite/acesso + permissões). */}
+        <Route path="/cadastros/convidar" element={<Navigate to="/profissionais" replace />} />
+        <Route path="/cadastros/usuarios" element={<Navigate to="/profissionais" replace />} />
         <Route path="/servicos" element={<ServicosPage />} />
         <Route path="/produtos" element={<ProdutosPage />} />
         <Route path="/categorias" element={<CategoriasPage />} />
@@ -150,72 +204,91 @@ function ProtectedRoutes() {
         <Route path="/pacotes" element={<PacotesPage />} />
         <Route path="/assinaturas" element={<AssinaturasPage />} />
         <Route path="/vendas-por-assinatura" element={<AssinaturasPage />} />
-        <Route path="/financeiro" element={<FinanceiroPainelPage />} />
-        <Route path="/financeiro/transacoes" element={<TransacoesPage />} />
-        <Route path="/financeiro/contas" element={<ContasPage />} />
-        <Route path="/financeiro/caixas" element={<CaixasAbertosPage />} />
-        <Route path="/financeiro/caixas-abertos" element={<CaixasAbertosPage />} />
-        <Route path="/financeiro/caixas/historico" element={<CaixaHistoricoPage />} />
-        <Route path="/financeiro/notas-fiscais" element={<NotasFiscaisPage />} />
-        <Route path="/financeiro/configuracoes" element={<FinanceiroConfiguracoesPage />} />
-        <Route path="/financeiro/cadastros/categorias" element={<FinanceiroCategoriasPage />} />
-        <Route path="/financeiro/cadastros/formas-pagamento" element={<ContasPage defaultTab="formas" />} />
-        <Route path="/financeiro/cadastros/contas" element={<ContasPage defaultTab="contas" />} />
-        <Route path="/financeiro/belasis-pay" element={<BelasisPayCadastroPage />} />
-        <Route path="/financeiro/historico-caixa" element={<CaixaHistoricoPage />} />
-        <Route path="/financeiro/caixas-abertos/:id" element={<CaixasAbertosPage />} />
-        <Route path="/caixa" element={<CaixaPage />} />
-        <Route path="/comissoes" element={<ComissoesResumoPage />} />
-        <Route path="/comissoes/resumo" element={<ComissoesResumoPage />} />
-        <Route path="/comissoes/em-aberto" element={<ComissoesResumoPage />} />
-        <Route path="/comissoes/pagas" element={<ComissoesResumoPage />} />
-        <Route path="/comissoes/config" element={<ComissoesConfigPage />} />
-        <Route path="/relatorios" element={<RelatoriosPage />} />
-        <Route path="/relatorios/vendas" element={<VendasPage />} />
-        <Route path="/relatorios/financeiro/dre" element={<DrePage />} />
-        <Route path="/relatorios/agendamentos" element={<RelAgendamentosPage />} />
-        <Route path="/relatorios/clientes" element={<RelClientesPage />} />
-        <Route path="/relatorios/aniversariantes" element={<AniversariantesPage />} />
-        <Route path="/relatorios/estoque" element={<EstoquePage />} />
-        <Route path="/relatorios/ranking" element={<RankingPage />} />
-        <Route path="/relatorios/mensagens" element={<MensagensPage />} />
+        {/* Financeiro — exige financeiro:view (profissional/recepção não veem). */}
+        <Route path="/financeiro" element={<ProtectedRoute perm="financeiro:view"><FinanceiroPainelPage /></ProtectedRoute>} />
+        <Route path="/financeiro/transacoes" element={<ProtectedRoute perm="financeiro:view"><TransacoesPage /></ProtectedRoute>} />
+        <Route path="/financeiro/contas" element={<ProtectedRoute perm="financeiro:view"><ContasPage /></ProtectedRoute>} />
+        {/* Caixas: quem opera o próprio caixa (caixa:operate) ou vê todos (view_all). */}
+        <Route path="/financeiro/caixas" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
+        <Route path="/financeiro/caixas-abertos" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
+        <Route path="/financeiro/caixas/historico" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaHistoricoPage /></ProtectedRoute>} />
+        <Route path="/financeiro/notas-fiscais" element={<ProtectedRoute perm="financeiro:view"><NotasFiscaisPage /></ProtectedRoute>} />
+        <Route path="/financeiro/configuracoes" element={<ProtectedRoute perm="financeiro:view"><FinanceiroConfiguracoesPage /></ProtectedRoute>} />
+        <Route path="/financeiro/cadastros/categorias" element={<ProtectedRoute perm="financeiro:view"><FinanceiroCategoriasPage /></ProtectedRoute>} />
+        <Route path="/financeiro/cadastros/formas-pagamento" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="formas" /></ProtectedRoute>} />
+        <Route path="/financeiro/cadastros/contas" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="contas" /></ProtectedRoute>} />
+        <Route path="/financeiro/belasis-pay" element={<ProtectedRoute perm="financeiro:view"><BelasisPayCadastroPage /></ProtectedRoute>} />
+        <Route path="/financeiro/historico-caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaHistoricoPage /></ProtectedRoute>} />
+        <Route path="/financeiro/caixas-abertos/:id" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
+        <Route path="/caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaPage /></ProtectedRoute>} />
+        {/* Comissões — profissional vê as próprias (view_own); config é gestão. */}
+        <Route path="/comissoes" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
+        <Route path="/comissoes/resumo" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
+        <Route path="/comissoes/em-aberto" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
+        <Route path="/comissoes/pagas" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
+        <Route path="/comissoes/config" element={<ProtectedRoute perm="comissoes:config"><ComissoesConfigPage /></ProtectedRoute>} />
+        {/* Relatórios operacionais — exigem relatorios:operacional. */}
+        <Route path="/relatorios" element={<ProtectedRoute perm="relatorios:operacional"><RelatoriosPage /></ProtectedRoute>} />
+        <Route path="/relatorios/vendas" element={<ProtectedRoute perm="relatorios:operacional"><VendasPage /></ProtectedRoute>} />
+        {/* Relatórios financeiros — exigem relatorios:financeiro. */}
+        <Route path="/relatorios/financeiro/dre" element={<ProtectedRoute perm="relatorios:financeiro"><DrePage /></ProtectedRoute>} />
+        <Route path="/relatorios/agendamentos" element={<ProtectedRoute perm="relatorios:operacional"><RelAgendamentosPage /></ProtectedRoute>} />
+        <Route path="/relatorios/clientes" element={<ProtectedRoute perm="relatorios:operacional"><RelClientesPage /></ProtectedRoute>} />
+        <Route path="/relatorios/aniversariantes" element={<ProtectedRoute perm="relatorios:operacional"><AniversariantesPage /></ProtectedRoute>} />
+        <Route path="/relatorios/estoque" element={<ProtectedRoute perm="relatorios:operacional"><EstoquePage /></ProtectedRoute>} />
+        <Route path="/relatorios/ranking" element={<ProtectedRoute perm="relatorios:operacional"><RankingPage /></ProtectedRoute>} />
+        <Route path="/relatorios/mensagens" element={<ProtectedRoute perm="relatorios:operacional"><MensagensPage /></ProtectedRoute>} />
         {/* Relatórios — rotas /reports/... antes mortas no submenu (navegação
             quebrada → 404). Agora registradas: reais sobre dados existentes ou
             placeholder "Em breve" quando dependem de backend novo. */}
         <Route path="/reports/financial" element={<Navigate to="/reports/financial/dre" replace />} />
-        <Route path="/reports/financial/dre" element={<DrePage />} />
-        <Route path="/reports/financial/cash-movements" element={<FluxoCaixaPage />} />
-        <Route path="/reports/financial/extract" element={<ExtratoContasPage />} />
-        <Route path="/reports/financial/extract-movements" element={<ExtratoMovimentacoesPage />} />
-        <Route path="/reports/financial/service-revenue" element={<ResultadoServicosPage />} />
-        <Route path="/reports/financial/product-revenue" element={<ResultadoProdutosPage />} />
-        <Route path="/reports/financial/billing-projection" element={<ProjecaoFaturamentoPage />} />
-        <Route path="/reports/financial/bill-recs" element={<RecebimentosPage />} />
-        <Route path="/reports/financial/bill-pays" element={<DespesasPage />} />
+        <Route path="/reports/financial/dre" element={<ProtectedRoute perm="relatorios:financeiro"><DrePage /></ProtectedRoute>} />
+        <Route path="/reports/financial/cash-movements" element={<ProtectedRoute perm="relatorios:financeiro"><FluxoCaixaPage /></ProtectedRoute>} />
+        <Route path="/reports/financial/extract" element={<ProtectedRoute perm="relatorios:financeiro"><ExtratoContasPage /></ProtectedRoute>} />
+        <Route path="/reports/financial/extract-movements" element={<ProtectedRoute perm="relatorios:financeiro"><ExtratoMovimentacoesPage /></ProtectedRoute>} />
+        <Route path="/reports/financial/service-revenue" element={<ProtectedRoute perm="relatorios:financeiro"><ResultadoServicosPage /></ProtectedRoute>} />
+        <Route path="/reports/financial/product-revenue" element={<ProtectedRoute perm="relatorios:financeiro"><ResultadoProdutosPage /></ProtectedRoute>} />
+        <Route path="/reports/financial/billing-projection" element={<ProtectedRoute perm="relatorios:financeiro"><ProjecaoFaturamentoPage /></ProtectedRoute>} />
+        <Route path="/reports/financial/bill-recs" element={<ProtectedRoute perm="relatorios:financeiro"><RecebimentosPage /></ProtectedRoute>} />
+        <Route path="/reports/financial/bill-pays" element={<ProtectedRoute perm="relatorios:financeiro"><DespesasPage /></ProtectedRoute>} />
         <Route path="/reports/calendars" element={<Navigate to="/reports/calendars/all" replace />} />
-        <Route path="/reports/calendars/all" element={<RelAgendamentosPage />} />
-        <Route path="/reports/calendars/deleted" element={<AgendamentosExcluidosPage />} />
-        <Route path="/reports/calendars/origin" element={<OrigemAgendamentosPage />} />
-        <Route path="/reports/calendars/creation" element={<CriacaoAgendamentoPage />} />
-        <Route path="/reports/calendars/care-messages-today" element={<CuidadosHojePage />} />
+        <Route path="/reports/calendars/all" element={<ProtectedRoute perm="relatorios:operacional"><RelAgendamentosPage /></ProtectedRoute>} />
+        <Route path="/reports/calendars/deleted" element={<ProtectedRoute perm="relatorios:operacional"><AgendamentosExcluidosPage /></ProtectedRoute>} />
+        <Route path="/reports/calendars/origin" element={<ProtectedRoute perm="relatorios:operacional"><OrigemAgendamentosPage /></ProtectedRoute>} />
+        <Route path="/reports/calendars/creation" element={<ProtectedRoute perm="relatorios:operacional"><CriacaoAgendamentoPage /></ProtectedRoute>} />
+        <Route path="/reports/calendars/care-messages-today" element={<ProtectedRoute perm="relatorios:operacional"><CuidadosHojePage /></ProtectedRoute>} />
         <Route path="/reports/inventory" element={<Navigate to="/reports/inventory/stock" replace />} />
-        <Route path="/reports/inventory/stock" element={<EstoquePage />} />
-        <Route path="/reports/inventory/products-services" element={<ProdutosServicosPage />} />
-        <Route path="/reports/inventory/movements" element={<MovimentacaoEstoquePage />} />
-        <Route path="/reports/inventory/purchases" element={<ComprasRelatorioPage />} />
-        <Route path="/reports/inventory/suggestion" element={<SugestaoCompraPage />} />
-        <Route path="/reports/inventory/consumed" element={<ProdutosConsumidosPage />} />
-        <Route path="/reports/invoices" element={<NotasFiscaisPage />} />
-        <Route path="/metas" element={<MetasPage />} />
-        <Route path="/marketing/agendamento-online" element={<AgendamentoOnlinePage />} />
-        <Route path="/marketing/link" element={<LinkAgendamentoPage />} />
-        <Route path="/marketing/promocoes" element={<PromocoesPage />} />
-        <Route path="/marketing/campanhas" element={<CampanhasPage />} />
-        <Route path="/marketing/avaliacoes" element={<AvaliacoesPage />} />
-        <Route path="/marketing/cashback" element={<CashbackPage />} />
+        <Route path="/reports/inventory/stock" element={<ProtectedRoute perm="relatorios:operacional"><EstoquePage /></ProtectedRoute>} />
+        <Route path="/reports/inventory/products-services" element={<ProtectedRoute perm="relatorios:operacional"><ProdutosServicosPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory/movements" element={<ProtectedRoute perm="relatorios:operacional"><MovimentacaoEstoquePage /></ProtectedRoute>} />
+        <Route path="/reports/inventory/purchases" element={<ProtectedRoute perm="relatorios:operacional"><ComprasRelatorioPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory/suggestion" element={<ProtectedRoute perm="relatorios:operacional"><SugestaoCompraPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory/consumed" element={<ProtectedRoute perm="relatorios:operacional"><ProdutosConsumidosPage /></ProtectedRoute>} />
+        <Route path="/reports/invoices" element={<ProtectedRoute perm="relatorios:operacional"><NotasFiscaisPage /></ProtectedRoute>} />
+        <Route path="/metas" element={<ProtectedRoute perm="relatorios:operacional"><MetasPage /></ProtectedRoute>} />
+        {/* Marketing — exige marketing:view. */}
+        <Route path="/marketing/agendamento-online" element={<ProtectedRoute perm="marketing:view"><AgendamentoOnlinePage /></ProtectedRoute>} />
+        <Route path="/marketing/link" element={<ProtectedRoute perm="marketing:view"><LinkAgendamentoPage /></ProtectedRoute>} />
+        <Route path="/marketing/promocoes" element={<ProtectedRoute perm="marketing:view"><PromocoesPage /></ProtectedRoute>} />
+        <Route
+          path="/marketing/campanhas"
+          element={
+            <ProtectedRoute perm="marketing:view">
+              <FeatureGate
+                feature="messaging"
+                title="Automação de Marketing"
+                description="A automação de marketing (envio de campanhas e mensagens automáticas) faz parte de um plano superior — faça upgrade para desbloquear."
+              >
+                <CampanhasPage />
+              </FeatureGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/marketing/avaliacoes" element={<ProtectedRoute perm="marketing:view"><AvaliacoesPage /></ProtectedRoute>} />
+        <Route path="/marketing/cashback" element={<ProtectedRoute perm="marketing:view"><CashbackPage /></ProtectedRoute>} />
         <Route path="/whatsapp" element={<IAAtendimentoPage />} />
         <Route path="/ia-atendimento" element={<IAAtendimentoPage />} />
-        <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+        <Route path="/configuracoes" element={<ProtectedRoute perm="config:view"><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/ajuda" element={<AjudaPage />} />
         <Route path="/ajuda/suporte" element={<AjudaPage />} />
         <Route path="/ajuda/base-conhecimento" element={<AjudaPage />} />
@@ -284,6 +357,9 @@ export function App() {
     <Routes>
       {/* The customer-facing booking portal now lives in the dedicated club app
           (apps/web-club), served at its own origin. */}
+      {/* FASE RBAC — aceite de convite é PÚBLICO: fica FORA do gate de sessão
+          (ProtectedRoutes) para abrir sem login. Precisa vir antes do "/*". */}
+      <Route path="/convite/:token" element={<ConvitePage />} />
       <Route
         path="/login"
         element={

@@ -8,9 +8,11 @@ import {
   TextField,
 } from '@heroui/react';
 import { Drawer } from './Drawer';
+import { DatePicker } from './DatePicker';
+import { AppSwitch } from './SwitchRow';
 import { CustomerAvatar } from './CustomerPickerDrawer';
 import { useNavigate } from 'react-router-dom';
-import { IconCalendar, IconChevron, IconInfo, IconSearch } from './icons';
+import { IconChevron, IconInfo, IconSearch } from './icons';
 import {
   ApiClientError,
   APPOINTMENT_STATUS_LABELS,
@@ -28,14 +30,28 @@ import {
   useSetAppointmentStatus,
 } from '../lib/queries';
 import { formatDuration, formatMoney, formatSlotTime, isoDate } from '../lib/format';
-import type { AvailabilitySlot } from '../lib/types';
+import { api } from '../lib/api';
+import type { AppointmentFollowUpInput, AvailabilitySlot } from '../lib/types';
+import { FOLLOWUP_TEMPLATES } from '../lib/followupTemplates';
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;
+  /**
+   * Chamado após criar o agendamento + a comanda ("Criar comanda"), com o id da
+   * order recém-criada. Se fornecido, o pai assume a navegação para a comanda
+   * (fecha o drawer por conta própria); caso contrário o modal navega sozinho
+   * para /comandas/:id.
+   */
+  onCreatedOrder?: (orderId: string) => void;
   /** Pre-select this date (ISO yyyy-mm-dd) when the modal opens. */
   initialDate?: string;
+  /**
+   * Pre-select this customer when the modal opens (fluxo cliente→agendamento a
+   * partir do perfil). Evita re-buscar o cliente: usamos os dados já em mãos.
+   */
+  initialCustomer?: { id: string; name: string; phone?: string | null } | null;
 }
 
 const NONE = '';
@@ -79,6 +95,43 @@ function nextDate(base: Date, freq: Freq, times: number): Date {
   return d;
 }
 
+// ── "Avisar o cliente" (aviso personalizado no drawer) ─────────────────────
+// Espelha a UX do FollowUpConfigCard (Configurações → Notificações): unidades de
+// tempo (segundos → dias), âncora do disparo e chips de variáveis do template.
+type WarnUnit = AppointmentFollowUpInput['delayUnit'];
+const WARN_UNIT_OPTIONS: { id: WarnUnit; label: string }[] = [
+  { id: 'seconds', label: 'segundos' },
+  { id: 'minutes', label: 'minutos' },
+  { id: 'hours', label: 'horas' },
+  { id: 'days', label: 'dias' },
+];
+const WARN_UNIT_LABEL: Record<WarnUnit, string> = {
+  seconds: 'segundos',
+  minutes: 'minutos',
+  hours: 'horas',
+  days: 'dias',
+};
+
+type WarnWhen = NonNullable<AppointmentFollowUpInput['when']>;
+const WARN_WHEN_OPTIONS: { id: WarnWhen; label: string }[] = [
+  { id: 'after', label: 'Depois do atendimento' },
+  { id: 'before', label: 'Antes do atendimento' },
+  { id: 'from_now', label: 'A partir de agora' },
+];
+const WARN_WHEN_LABEL: Record<WarnWhen, string> = {
+  after: 'Depois do atendimento',
+  before: 'Antes do atendimento',
+  from_now: 'A partir de agora',
+};
+
+// Variáveis suportadas na mensagem — clicar insere o token no textarea.
+const WARN_VARS: { token: string; label: string }[] = [
+  { token: '{cliente}', label: 'primeiro nome do cliente' },
+  { token: '{estabelecimento}', label: 'nome do salão' },
+  { token: '{servico}', label: 'serviços do agendamento' },
+  { token: '{link}', label: 'link de reagendamento' },
+];
+
 // Belasis usa formulário horizontal: label 13px 600 acima de cada controle.
 function Field({
   label,
@@ -97,7 +150,7 @@ function Field({
   );
 }
 
-// Switch inline (ant-switch): knob desliza 180ms; ligado = primário Belasis.
+// Switch inline: HeroUI v3 Switch (AppSwitch) + rótulo clicável à direita.
 function InlineToggle({
   checked,
   onChange,
@@ -108,30 +161,16 @@ function InlineToggle({
   label: string;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="inline-flex items-center gap-2.5"
-    >
-      <span
-        className={
-          'relative inline-flex h-[22px] w-11 shrink-0 items-center rounded-full transition-colors duration-[180ms] ' +
-          (checked ? 'bg-primary' : 'bg-default-300')
-        }
+    <span className="inline-flex items-center gap-2.5">
+      <AppSwitch checked={checked} onChange={onChange} aria-label={label} />
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={'text-sm ' + (checked ? 'font-medium text-foreground' : 'text-muted')}
       >
-        <span
-          className={
-            'inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition-transform duration-[180ms] ' +
-            (checked ? 'translate-x-[23px]' : 'translate-x-[3px]')
-          }
-        />
-      </span>
-      <span className={'text-sm ' + (checked ? 'font-medium text-foreground' : 'text-muted')}>
         {label}
-      </span>
-    </button>
+      </button>
+    </span>
   );
 }
 
@@ -155,17 +194,13 @@ function UserGlyph() {
   );
 }
 
-// dd/mm/yyyy a partir de um ISO yyyy-mm-dd (campo Data do Belasis).
-function shortDate(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso;
-}
-
 export function NewAppointmentModal({
   isOpen,
   onOpenChange,
   onCreated,
+  onCreatedOrder,
   initialDate,
+  initialCustomer,
 }: NewAppointmentModalProps) {
   const nav = useNavigate();
   const [items, setItems] = useState<ApptItem[]>(() => [emptyItem()]);
@@ -183,11 +218,22 @@ export function NewAppointmentModal({
   // Ações
   const [sendReminder, setSendReminder] = useState(true);
   const [squeezeIn, setSqueezeIn] = useState(false);
+  // Avisar o cliente (aviso personalizado agendado)
+  const [warnEnabled, setWarnEnabled] = useState(false);
+  const [warnTemplateId, setWarnTemplateId] = useState<string>('');
+  const [warnMessage, setWarnMessage] = useState('');
+  const [warnDelayValue, setWarnDelayValue] = useState('1');
+  const [warnDelayUnit, setWarnDelayUnit] = useState<WarnUnit>('days');
+  const [warnWhen, setWarnWhen] = useState<WarnWhen>('after');
+  const [warnIncludeLink, setWarnIncludeLink] = useState(true);
   // Recorrência
   const [freq, setFreq] = useState<Freq>('none');
   const [repeatMore, setRepeatMore] = useState(1);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  // Id da comanda criada pelo botão "Criar comanda" — habilita o link de fallback
+  // na tela de sucesso caso a navegação automática não aconteça.
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   // O primeiro item define horário/disponibilidade — o agendamento tem um único
   // start; itens extras são serviços adicionais na mesma comanda.
@@ -236,8 +282,14 @@ export function NewAppointmentModal({
       setDate(initialDate || isoDate(new Date()));
       setSlotStart('');
       setCustomerSearch('');
-      setCustomerId('');
-      setSelectedCustomer(null);
+      // Pré-seleciona o cliente vindo do perfil (fluxo cliente→agendamento),
+      // usando os dados já em mãos — sem re-buscar pelo picker.
+      setCustomerId(initialCustomer?.id ?? '');
+      setSelectedCustomer(
+        initialCustomer
+          ? { id: initialCustomer.id, name: initialCustomer.name, phone: initialCustomer.phone ?? null }
+          : null,
+      );
       setPickerOpen(false);
       setCreatingNew(false);
       setNewName('');
@@ -245,12 +297,20 @@ export function NewAppointmentModal({
       setNotes('');
       setSendReminder(true);
       setSqueezeIn(false);
+      setWarnEnabled(false);
+      setWarnTemplateId('');
+      setWarnMessage('');
+      setWarnDelayValue('1');
+      setWarnDelayUnit('days');
+      setWarnWhen('after');
+      setWarnIncludeLink(true);
       setFreq('none');
       setRepeatMore(1);
       setFormError(null);
       setSuccess(false);
+      setCreatedOrderId(null);
     }
-  }, [isOpen, initialDate]);
+  }, [isOpen, initialDate, initialCustomer]);
 
   // Clear the picked slot when the inputs that produced it change.
   useEffect(() => {
@@ -325,6 +385,22 @@ export function NewAppointmentModal({
         professionalId: it.professionalId || undefined,
       }));
 
+      // Aviso personalizado ("Avisar o cliente"): só monta o objeto quando o
+      // toggle está ligado. Mensagem custom tem precedência; senão manda só o
+      // templateId (o backend resolve o texto do modelo). O backend calcula o
+      // atraso a partir de delayValue+delayUnit ancorado por `when`.
+      const followUpPayload: AppointmentFollowUpInput | undefined = warnEnabled
+        ? {
+            enabled: true,
+            message: warnMessage.trim() || undefined,
+            templateId: warnMessage.trim() ? undefined : warnTemplateId || undefined,
+            delayValue: Math.max(1, Number(warnDelayValue) || 1),
+            delayUnit: warnDelayUnit,
+            when: warnWhen,
+            includeLink: warnIncludeLink,
+          }
+        : undefined;
+
       const createdIds: string[] = [];
       const main = await createAppointment.mutateAsync({
         customerId: resolvedCustomerId,
@@ -333,6 +409,7 @@ export function NewAppointmentModal({
         end: endFor(slot.start),
         notes: combinedNotes,
         items: itemsPayload,
+        followUp: followUpPayload,
       });
       createdIds.push(main.id);
 
@@ -349,6 +426,7 @@ export function NewAppointmentModal({
               end: endFor(start),
               notes: combinedNotes,
               items: itemsPayload,
+              followUp: followUpPayload,
             });
             createdIds.push(extra.id);
           } catch {
@@ -395,19 +473,56 @@ export function NewAppointmentModal({
     if (result) setSuccess(true);
   }
 
-  // Create the appointment, then open a comanda (order) for the same client.
+  // Transfere os serviços selecionados no formulário para a comanda como itens
+  // (POST /orders/:id/items), com o unitPrice = price do serviço. Mesma ligação
+  // usada pelo "Criar comanda" da Agenda (createComanda), só que a origem dos
+  // itens aqui é o form, não um agendamento já persistido.
+  async function transferItemsToOrder(orderId: string) {
+    const validItems = items.filter((it) => it.serviceId);
+    for (const it of validItems) {
+      const svc = serviceItems.find((s) => s.id === it.serviceId);
+      await api.post(`/orders/${orderId}/items`, {
+        kind: 'service',
+        refId: it.serviceId,
+        professionalId: it.professionalId || primary.professionalId || undefined,
+        quantity: 1,
+        unitPrice: Number(svc?.price ?? 0),
+      });
+    }
+  }
+
+  // Create the appointment, then open a comanda (order) for the same client,
+  // transfere os serviços como itens e navega direto para /comandas/:id.
   async function handleComanda() {
     const result = await submit();
     if (!result) return;
+    let orderId: string | null = null;
     try {
-      await createOrder.mutateAsync({
+      const order = await createOrder.mutateAsync({
         customerId: result.customerId,
         professionalId: primary.professionalId || undefined,
         notes: notes.trim() || undefined,
       });
-      setSuccess(true);
+      orderId = order.id;
+      setCreatedOrderId(order.id);
+      await transferItemsToOrder(order.id);
+      // Se o pai quer controlar a navegação (ex.: AgendaPage), delega e deixa
+      // ele fechar o drawer; senão navega para a comanda e fecha aqui.
+      if (onCreatedOrder) {
+        onCreatedOrder(order.id);
+      } else {
+        onOpenChange(false);
+        nav(`/comandas/${order.id}`);
+      }
     } catch {
-      setFormError('Agendamento criado, mas não foi possível criar a comanda.');
+      // A comanda pode ter sido criada mas a transferência de itens falhou —
+      // mostra a tela de sucesso com o link de fallback para a comanda.
+      setSuccess(true);
+      setFormError(
+        orderId
+          ? 'Agendamento e comanda criados, mas alguns itens não foram adicionados. Abra a comanda para conferir.'
+          : 'Agendamento criado, mas não foi possível criar a comanda.',
+      );
     }
   }
 
@@ -462,6 +577,7 @@ export function NewAppointmentModal({
       title="Novo agendamento"
       footer={footer}
       widthClass="sm:w-[min(1180px,94vw)]"
+      fullscreen
     >
       {/* Sub-drawer: seletor de cliente (bottom-sheet, funciona em mobile). */}
       <CustomerPickerDrawer
@@ -485,6 +601,19 @@ export function NewAppointmentModal({
           </div>
           <p className="text-base font-semibold text-foreground">Agendamento criado com sucesso!</p>
           <p className="text-sm text-muted">A agenda foi atualizada.</p>
+          {createdOrderId && (
+            <Button
+              variant="primary"
+              className="mt-3 bg-success text-white hover:bg-success/90"
+              onClick={() => {
+                const id = createdOrderId;
+                onOpenChange(false);
+                nav(`/comandas/${id}`);
+              }}
+            >
+              Abrir comanda
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
@@ -566,19 +695,7 @@ export function NewAppointmentModal({
               </Field>
 
               <Field label="Data" className="lg:col-span-2">
-                <div className="relative">
-                  <div className="flex h-11 items-center justify-between gap-2 rounded-lg border border-default-200 bg-white px-3 text-sm text-foreground">
-                    <span>{shortDate(date)}</span>
-                    <IconCalendar size={16} className="text-muted" />
-                  </div>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    aria-label="Data"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                  />
-                </div>
+                <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
               </Field>
 
               <Field label="Status" className="lg:col-span-3">
@@ -587,12 +704,10 @@ export function NewAppointmentModal({
                   selectedKey={status}
                   onSelectionChange={(k) => setStatus(String(k) as AppointmentStatus)}
                 >
-                  <Select.Trigger className={triggerCls}>
+                  <Select.Trigger className={`${triggerCls} min-h-[44px] touch-manipulation`}>
+                    {/* Select.Value já renderiza a bolinha + label do item
+                        selecionado (defaultChildren) — não duplicar a bolinha. */}
                     <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: STATUS_COLOR[status] }}
-                      />
                       <Select.Value />
                     </span>
                   </Select.Trigger>
@@ -687,29 +802,47 @@ export function NewAppointmentModal({
                       demais mantêm alinhamento com um espaçador no desktop. */}
                   {idx === 0 ? (
                     <Field label="Horário" className="lg:col-span-2">
-                      <Select
-                        aria-label="Horário"
-                        selectedKey={slotStart || null}
-                        isDisabled={!canPickSlot || slots.length === 0}
-                        onSelectionChange={(k) => { setSlotStart(k ? String(k) : NONE); setFormError(null); }}
-                      >
-                        <Select.Trigger className={triggerCls}>
-                          <Select.Value>
-                            {({ isPlaceholder, selectedText }) =>
-                              isPlaceholder ? 'Horário' : selectedText
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {slots.map((slot: AvailabilitySlot) => (
-                              <ListBox.Item key={slot.start} id={slot.start} textValue={formatSlotTime(slot.start)}>
+                      {!canPickSlot ? (
+                        <div className="flex min-h-[44px] items-center rounded-lg border border-default-200 bg-white px-3 text-sm text-muted">
+                          Selecione serviço e profissional
+                        </div>
+                      ) : availability.isFetching ? (
+                        <span className="flex min-h-[44px] items-center gap-2 text-sm text-muted">
+                          <Spinner size="sm" /> Buscando horários…
+                        </span>
+                      ) : slots.length === 0 ? (
+                        <div className="flex min-h-[44px] items-center rounded-lg border border-warning/40 bg-warning/5 px-3 text-sm text-foreground">
+                          Nenhum horário disponível nesta data.
+                        </div>
+                      ) : (
+                        <div
+                          aria-label="Horários disponíveis"
+                          className="flex max-h-44 flex-wrap gap-2 overflow-y-auto overscroll-contain pr-1"
+                        >
+                          {slots.map((slot: AvailabilitySlot) => {
+                            const selectedSlot = slot.start === slotStart;
+                            return (
+                              <button
+                                key={slot.start}
+                                type="button"
+                                aria-pressed={selectedSlot}
+                                onClick={() => {
+                                  setSlotStart(slot.start);
+                                  setFormError(null);
+                                }}
+                                className={[
+                                  'min-h-[44px] rounded-lg border px-3 text-sm font-medium transition-colors touch-manipulation',
+                                  selectedSlot
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : 'border-default-200 bg-white text-foreground hover:border-primary/50 hover:bg-primary/5',
+                                ].join(' ')}
+                              >
                                 {formatSlotTime(slot.start)}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </Field>
                   ) : (
                     <div className="hidden lg:col-span-2 lg:block" aria-hidden />
@@ -769,32 +902,168 @@ export function NewAppointmentModal({
                   {primaryService.description}
                 </p>
               )}
-              {canPickSlot && availability.isFetching && (
-                <span className="flex items-center gap-2 text-xs text-muted">
-                  <Spinner size="sm" /> Buscando horários…
-                </span>
-              )}
-              {canPickSlot && !availability.isFetching && slots.length === 0 && (
-                <div className="flex flex-col gap-1 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-foreground">
-                  <span className="font-medium">Nenhum horário disponível nesta data.</span>
-                  <span className="text-muted-ink">
-                    Verifique se o profissional tem <strong>expediente</strong> e <strong>serviços vinculados</strong> cadastrados. Muitos profissionais importados não têm essa configuração.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => { onOpenChange(false); nav('/profissionais'); }}
-                    className="mt-1 self-start text-xs font-semibold text-primary hover:underline"
-                  >
-                    Configurar profissional →
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* ── Ações (switches inline) ──────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-              <InlineToggle checked={sendReminder} onChange={setSendReminder} label="Enviar lembrete" />
+              {/* Lembrete PRÉ-atendimento (24h/2h antes) — distinto do follow-up
+                  pós-atendimento, que é configurado em Configurações → Notificações. */}
+              <InlineToggle checked={sendReminder} onChange={setSendReminder} label="Enviar lembrete (antes do atendimento)" />
               <InlineToggle checked={squeezeIn} onChange={setSqueezeIn} label="Encaixar agendamento" />
+            </div>
+
+            {/* ── Avisar o cliente (aviso personalizado agendado) ──────────
+                Distinto do lembrete fixo acima: mensagem/template + tempo (até
+                segundos) + âncora + link, agendado como job atrasado no backend.
+                Espelha a UX do FollowUpConfigCard (Configurações → Notificações). */}
+            <div className="flex flex-col gap-4 rounded-xl border border-default-200 bg-cream/40 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Avisar o cliente</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    Envie um aviso personalizado por WhatsApp no tempo que você escolher —
+                    com mensagem pronta ou sua, e o link de reagendamento.
+                  </p>
+                </div>
+                <AppSwitch
+                  checked={warnEnabled}
+                  onChange={setWarnEnabled}
+                  aria-label="Avisar o cliente"
+                />
+              </div>
+
+              {warnEnabled && (
+                <div className="flex flex-col gap-5">
+                  {/* Modelos prontos: preenchem a mensagem (ainda editável). */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[13px] font-semibold text-foreground">Modelo</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {FOLLOWUP_TEMPLATES.map((tpl) => {
+                        const active = warnTemplateId === tpl.id && !warnMessage.trim();
+                        return (
+                          <button
+                            key={tpl.id}
+                            type="button"
+                            onClick={() => {
+                              setWarnTemplateId(tpl.id);
+                              setWarnMessage(tpl.message);
+                            }}
+                            title="Preencher a mensagem com este modelo (você ainda pode editar)"
+                            className={
+                              'rounded-full border px-3 py-1 text-xs transition-colors ' +
+                              (active
+                                ? 'border-primary bg-primary/10 text-foreground'
+                                : 'border-default-200 bg-white text-muted hover:border-primary/50 hover:text-foreground')
+                            }
+                          >
+                            {tpl.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Mensagem editável + chips de variáveis. */}
+                  <Field label="Mensagem">
+                    <textarea
+                      value={warnMessage}
+                      onChange={(e) => setWarnMessage(e.target.value)}
+                      rows={4}
+                      placeholder="Escreva a mensagem ou escolha um modelo acima. Deixe em branco para usar o texto padrão."
+                      className="resize-none rounded-lg border border-default-200 bg-white px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
+                    />
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-muted">Variáveis:</span>
+                      {WARN_VARS.map((v) => (
+                        <button
+                          key={v.token}
+                          type="button"
+                          onClick={() => setWarnMessage((m) => `${m}${v.token}`)}
+                          title={v.label}
+                          className="rounded-md border border-default-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-foreground transition-colors hover:bg-cream"
+                        >
+                          {v.token}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+
+                  {/* Tempo (valor + unidade) e âncora do disparo. */}
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
+                    <Field label="Enviar" className="lg:col-span-3">
+                      <TextField
+                        value={warnDelayValue}
+                        onChange={setWarnDelayValue}
+                        aria-label="Quantidade de tempo do aviso"
+                      >
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          className={triggerCls}
+                        />
+                      </TextField>
+                    </Field>
+
+                    <Field label="Unidade" className="lg:col-span-3">
+                      <Select
+                        aria-label="Unidade de tempo do aviso"
+                        selectedKey={warnDelayUnit}
+                        onSelectionChange={(k) => setWarnDelayUnit(String(k) as WarnUnit)}
+                      >
+                        <Select.Trigger className={triggerCls}>
+                          <Select.Value>
+                            {({ selectedText }) => selectedText || WARN_UNIT_LABEL[warnDelayUnit]}
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {WARN_UNIT_OPTIONS.map((u) => (
+                              <ListBox.Item key={u.id} id={u.id} textValue={u.label}>
+                                {u.label}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </Field>
+
+                    <Field label="Quando" className="lg:col-span-6">
+                      <Select
+                        aria-label="Âncora do aviso"
+                        selectedKey={warnWhen}
+                        onSelectionChange={(k) => setWarnWhen(String(k) as WarnWhen)}
+                      >
+                        <Select.Trigger className={triggerCls}>
+                          <Select.Value>
+                            {({ selectedText }) => selectedText || WARN_WHEN_LABEL[warnWhen]}
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {WARN_WHEN_OPTIONS.map((w) => (
+                              <ListBox.Item key={w.id} id={w.id} textValue={w.label}>
+                                {w.label}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </Field>
+                  </div>
+                  <p className="-mt-2 text-xs text-muted">
+                    Ex.: <strong>1 dia · Depois do atendimento</strong>. Use{' '}
+                    <strong>segundos</strong> para testar o disparo rápido.
+                  </p>
+
+                  {/* Link de reagendamento. */}
+                  <InlineToggle
+                    checked={warnIncludeLink}
+                    onChange={setWarnIncludeLink}
+                    label="Incluir link de reagendamento"
+                  />
+                </div>
+              )}
             </div>
 
             {/* ── Além deste, repetir mais ─────────────────────────────── */}

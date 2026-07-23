@@ -11,7 +11,10 @@ import { Type } from 'class-transformer';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { AuthModule } from '../auth/auth.module';
 
 // Contact + address details are stored in Company.addressJson (the schema has no
 // dedicated phone/email/address columns).
@@ -53,16 +56,20 @@ export class CompaniesService {
   }
 }
 
-@UseGuards(JwtAuthGuard)
+// Config da empresa: ler dados exige config:view, alterar exige config:manage.
+// Owner ('*') passa em tudo.
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('companies')
 export class CompaniesController {
   constructor(private readonly service: CompaniesService) {}
 
+  @RequirePermission('config:view')
   @Get('current')
   current(@CurrentUser('companyId') companyId: string) {
     return this.service.current(companyId);
   }
 
+  @RequirePermission('config:manage')
   @Patch('current')
   update(@CurrentUser('companyId') companyId: string, @Body() dto: UpdateCompanyDto) {
     return this.service.update(companyId, dto);
@@ -70,6 +77,8 @@ export class CompaniesController {
 }
 
 @Module({
+  // AuthModule: fornece AuthService pro PermissionGuard (@RequirePermission).
+  imports: [AuthModule],
   controllers: [CompaniesController],
   providers: [CompaniesService],
 })
