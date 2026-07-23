@@ -138,26 +138,69 @@ export class NotificationsService {
     }
   }
 
-  /** Studio in-app notifications (the panel bell), newest first. */
+  /**
+   * Studio in-app notifications (the panel bell), newest first.
+   *
+   * `types` filtra por tipo exato (ex.: `appointment.canceled`) — usado pelas
+   * páginas de categoria, que passam a lista de tipos daquela categoria.
+   * `offset` habilita a paginação real ("Mostrar mais"). `total`/`unreadCount`
+   * respeitam o filtro `types` (quando presente) para que a página de detalhe
+   * mostre a contagem correta da categoria, não a global.
+   */
   async listForCompany(
     companyId: string,
-    opts: { unreadOnly?: boolean; limit?: number } = {},
+    opts: { unreadOnly?: boolean; limit?: number; offset?: number; types?: string[] } = {},
   ): Promise<{ data: NotificationRow[]; total: number; unreadCount: number }> {
     const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
+    const offset = Math.max(opts.offset ?? 0, 0);
+    const typeFilter =
+      opts.types && opts.types.length > 0 ? { type: { in: opts.types } } : {};
     const where = {
       companyId,
+      ...typeFilter,
       ...(opts.unreadOnly ? { readAt: null } : {}),
     };
+    const countWhere = { companyId, ...typeFilter };
     const [data, total, unreadCount] = await Promise.all([
       this.prisma.client.notification.findMany({
         where,
         orderBy: { createdAt: 'desc' },
+        skip: offset,
         take: limit,
       }),
-      this.prisma.client.notification.count({ where: { companyId } }),
-      this.prisma.client.notification.count({ where: { companyId, readAt: null } }),
+      this.prisma.client.notification.count({ where: countWhere }),
+      this.prisma.client.notification.count({ where: { ...countWhere, readAt: null } }),
     ]);
     return { data, total, unreadCount };
+  }
+
+  /**
+   * Contagem por tipo (total e não-lidas). Alimenta a página de categorias
+   * (NotificacoesCategoriasPage) com números REAIS, sem precisar puxar a lista
+   * inteira no front. Retorna só os tipos que de fato têm registro.
+   */
+  async summaryByType(
+    companyId: string,
+  ): Promise<{ types: { type: string; total: number; unread: number }[] }> {
+    const [totals, unreads] = await Promise.all([
+      this.prisma.client.notification.groupBy({
+        by: ['type'],
+        where: { companyId },
+        _count: { _all: true },
+      }),
+      this.prisma.client.notification.groupBy({
+        by: ['type'],
+        where: { companyId, readAt: null },
+        _count: { _all: true },
+      }),
+    ]);
+    const unreadMap = new Map(unreads.map((u) => [u.type, u._count._all]));
+    const types = totals.map((t) => ({
+      type: t.type,
+      total: t._count._all,
+      unread: unreadMap.get(t.type) ?? 0,
+    }));
+    return { types };
   }
 
   async unreadCount(companyId: string): Promise<{ unreadCount: number }> {
@@ -175,9 +218,15 @@ export class NotificationsService {
     return { ok: true };
   }
 
-  async markAllRead(companyId: string): Promise<{ ok: true }> {
+  /**
+   * Marca todas como lidas. Se `types` vier preenchido, marca só as daquela
+   * categoria (usado pelo "marcar todas como lidas" da página de detalhe);
+   * sem `types`, marca todas da empresa (usado pelo sino).
+   */
+  async markAllRead(companyId: string, types?: string[]): Promise<{ ok: true }> {
+    const typeFilter = types && types.length > 0 ? { type: { in: types } } : {};
     await this.prisma.client.notification.updateMany({
-      where: { companyId, readAt: null },
+      where: { companyId, readAt: null, ...typeFilter },
       data: { readAt: new Date() },
     });
     return { ok: true };

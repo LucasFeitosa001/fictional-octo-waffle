@@ -11,17 +11,25 @@ import { useDbAuthState } from './whatsapp-auth';
 
 type WaStatus = 'disabled' | 'connecting' | 'qr' | 'open' | 'closed';
 
-const SESSION_ID = 'default';
-// Config rows live under a SEPARATE sessionId so logout()/clear() (which wipes
-// every row of SESSION_ID) never erases the salon's manager-number settings.
+// Config rows (manager number) live under a SEPARATE sessionId so a WhatsApp
+// re-link (which wipes every credential row of a company's sessionId) never
+// erases the salon's manager-number settings. itemId = companyId.
 const CONFIG_SESSION_ID = 'config';
 const CONFIG_CATEGORY = 'owner';
+
+// O antigo socket global usava este sessionId. Multi-tenant NÃO o usa mais (cada
+// empresa vira seu próprio sessionId = companyId). Mantido só para o boot ignorar
+// essa linha ao varrer credenciais e para documentar a migração (re-link único).
+const LEGACY_GLOBAL_SESSION_ID = 'default';
 
 // A plain-text reply that arrived at the salon's WhatsApp from the manager.
 export interface WhatsappInbound {
   fromDigits: string; // sender number, digits only (e.g. "5511988887777")
   text: string;
   quotedText?: string; // text of the message being replied to (swipe-reply)
+  // Empresa dona do socket em que a mensagem chegou. Como cada company tem seu
+  // PRÓPRIO número/socket, sabemos de imediato de qual salão veio a resposta.
+  companyId: string;
 }
 export type WhatsappInboundHandler = (msg: WhatsappInbound) => void;
 
@@ -47,33 +55,45 @@ function silentLogger(): any {
 }
 
 /**
- * Owns a single long-lived Baileys (WhatsApp Web) connection for the salon's
- * own number. The session is persisted in Postgres (see useDbAuthState), so a
- * container restart reconnects silently without a new QR scan.
+ * Estado de UMA sessão de WhatsApp (uma empresa). O gerenciador mantém um destes
+ * por companyId. Cada sessão tem seu próprio socket Baileys, status, QR pendente
+ * e credenciais persistidas em Postgres sob sessionId = companyId.
+ */
+interface SessionState {
+  companyId: string;
+  sock: WASocket | null;
+  status: WaStatus;
+  currentQr: string | null;
+  connecting: boolean;
+  reconnectAttempts: number;
+  connectTimeout: ReturnType<typeof setTimeout> | null;
+  // Últimos 8 dígitos do próprio número conectado (capturado no 'open'). Usado
+  // para reconhecer o chat "conversar consigo mesmo": salões que usam UM número
+  // para bot + gerente respondem 1/2/3 no self-chat como fromMe.
+  selfDigitsTail: string | null;
+}
+
+/**
+ * Gerencia UMA conexão Baileys (WhatsApp Web) POR EMPRESA (multi-tenant). Cada
+ * salão conecta e envia do SEU PRÓPRIO número. As credenciais de cada empresa são
+ * persistidas em Postgres (useDbAuthState com sessionId = companyId), então um
+ * restart do container reconecta silenciosamente, sem novo QR.
  *
- * IMPORTANT: only one process may hold the session at a time, or WhatsApp will
- * fight the two devices and log out. App Runner must therefore stay at a single
- * instance (autoscaling MaxSize = 1).
+ * IMPORTANTE: só um processo pode segurar cada sessão por vez, ou o WhatsApp
+ * briga entre os dois aparelhos e desloga. Por isso o App Runner precisa
+ * continuar em uma única instância (autoscaling MaxSize = 1).
  *
- * Disabled unless WHATSAPP_ENABLED=true so the connection never starts in dev or
- * before the account is meant to be linked.
+ * Desabilitado salvo WHATSAPP_ENABLED=true, para a conexão nunca subir em dev ou
+ * antes das contas serem ligadas.
  */
 @Injectable()
 export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsappService.name);
-  private sock: WASocket | null = null;
-  private status: WaStatus = 'disabled';
-  private currentQr: string | null = null;
-  private connecting = false;
+  // Uma sessão por empresa. A chave é o companyId (= sessionId das credenciais).
+  private readonly sessions = new Map<string, SessionState>();
   private inboundHandler: WhatsappInboundHandler | null = null;
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
-  private reconnectAttempts = 0;
-  // Last 8 digits of the connected bot's own number, captured on 'open'. Used to
-  // recognise the "message yourself" chat: when a salon uses ONE WhatsApp number
-  // for both the bot and the manager, the manager's 1/2/3 replies arrive as
-  // fromMe in the self-chat and would otherwise be dropped.
-  private selfDigitsTail: string | null = null;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
 
   constructor(private readonly prisma: PrismaService) {}
@@ -83,18 +103,21 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('WhatsApp desabilitado (defina WHATSAPP_ENABLED=true para ativar).');
       return;
     }
-    // Fire-and-forget: never block app boot on the WhatsApp socket.
-    void this.connect();
-    // Drain the outbox queue on a timer; it no-ops until the socket is open.
+    // Fire-and-forget: nunca bloqueia o boot da API nos sockets do WhatsApp.
+    // Reconecta cada empresa que já tem credenciais salvas.
+    void this.reconnectSavedSessions();
+    // Drena o outbox num timer; no-op enquanto nenhum socket estiver aberto.
     this.outboxTimer = setInterval(() => void this.drainOutbox(), OUTBOX_TICK_MS);
   }
 
   async onModuleDestroy() {
     if (this.outboxTimer) clearInterval(this.outboxTimer);
-    if (this.connectTimeout) clearTimeout(this.connectTimeout);
-    this.teardownSocket();
-    this.status = 'closed';
-    this.connecting = false;
+    for (const session of this.sessions.values()) {
+      if (session.connectTimeout) clearTimeout(session.connectTimeout);
+      this.teardownSocket(session);
+      session.status = 'closed';
+      session.connecting = false;
+    }
   }
 
   /**
@@ -105,6 +128,93 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   setInboundHandler(fn: WhatsappInboundHandler): void {
     this.inboundHandler = fn;
   }
+
+  // ------------------------------------------------------- sessão por empresa
+
+  /** Recupera (ou cria "vazia") a sessão de uma empresa. */
+  private getSession(companyId: string): SessionState {
+    let session = this.sessions.get(companyId);
+    if (!session) {
+      session = {
+        companyId,
+        sock: null,
+        status: 'closed',
+        currentQr: null,
+        connecting: false,
+        reconnectAttempts: 0,
+        connectTimeout: null,
+        selfDigitsTail: null,
+      };
+      this.sessions.set(companyId, session);
+    }
+    return session;
+  }
+
+  /**
+   * No boot, varre as credenciais salvas (WhatsappAuthState) e reconecta cada
+   * empresa que já tem uma sessão linkada. Ignora as linhas de config (manager)
+   * e a antiga sessão global 'default'. Empresas sem credenciais só conectam sob
+   * demanda (quando o painel pede QR/status).
+   */
+  private async reconnectSavedSessions(): Promise<void> {
+    try {
+      const rows = await this.prisma.client.whatsappAuthState.findMany({
+        where: {
+          category: 'creds',
+          itemId: 'creds',
+          sessionId: { notIn: [CONFIG_SESSION_ID, LEGACY_GLOBAL_SESSION_ID] },
+        },
+        select: { sessionId: true },
+      });
+      const companyIds = [...new Set(rows.map((r) => r.sessionId))];
+      if (companyIds.length === 0) {
+        this.logger.log('WhatsApp: nenhuma empresa com sessão salva — conexões sob demanda.');
+        return;
+      }
+      this.logger.log(`WhatsApp: reconectando ${companyIds.length} empresa(s) com sessão salva.`);
+      for (const companyId of companyIds) {
+        void this.connect(companyId);
+      }
+    } catch (err) {
+      this.logger.error(`Falha ao varrer sessões salvas do WhatsApp: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Resolve a empresa-alvo do fluxo de OPS (endpoints com WHATSAPP_ADMIN_TOKEN,
+   * que não carregam sessão de usuário). Prioridade:
+   *   1. companyId explícito na query (o operador diz qual salão linkar);
+   *   2. se houver EXATAMENTE uma empresa com credenciais/config salvas, ela;
+   *   3. caso contrário null (ambíguo) — o operador precisa informar ?companyId.
+   * Mantém o fluxo de ops utilizável sem quebrar o multi-tenant.
+   */
+  async resolveOpsCompanyId(companyId?: string): Promise<string | null> {
+    if (companyId && companyId.trim()) return companyId.trim();
+    try {
+      const rows = await this.prisma.client.whatsappAuthState.findMany({
+        where: { sessionId: { notIn: [CONFIG_SESSION_ID, LEGACY_GLOBAL_SESSION_ID] } },
+        select: { sessionId: true },
+        distinct: ['sessionId'],
+      });
+      const ids = [...new Set(rows.map((r) => r.sessionId))];
+      if (ids.length === 1) return ids[0];
+      // Nenhuma credencial ainda: cai no config (manager) se houver só uma empresa.
+      if (ids.length === 0) {
+        const cfg = await this.prisma.client.whatsappAuthState.findMany({
+          where: { sessionId: CONFIG_SESSION_ID, category: CONFIG_CATEGORY },
+          select: { itemId: true },
+          distinct: ['itemId'],
+        });
+        const cfgIds = [...new Set(cfg.map((r) => r.itemId))];
+        if (cfgIds.length === 1) return cfgIds[0];
+      }
+    } catch {
+      // ignore — devolve null (ambíguo)
+    }
+    return null;
+  }
+
+  // --------------------------------------------------------- número do gerente
 
   /**
    * Stores the salon's manager/reception number — the phone that RECEIVES the
@@ -200,14 +310,43 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return digits;
   }
 
-  getStatus(): { status: WaStatus; hasQr: boolean } {
-    return { status: this.status, hasQr: Boolean(this.currentQr) };
+  // -------------------------------------------------------------- API pública
+
+  /** Status da conexão de UMA empresa. */
+  getStatus(companyId: string): { status: WaStatus; hasQr: boolean } {
+    if (!this.enabled) return { status: 'disabled', hasQr: false };
+    const session = this.sessions.get(companyId);
+    if (!session) return { status: 'closed', hasQr: false };
+    return { status: session.status, hasQr: Boolean(session.currentQr) };
   }
 
-  /** Current pairing QR as a PNG data URL, or null when none is pending. */
-  async getQrDataUrl(): Promise<string | null> {
-    if (!this.currentQr) return null;
-    return QRCode.toDataURL(this.currentQr, { margin: 1, width: 320 });
+  /**
+   * QR de pareamento atual de uma empresa como data URL PNG, ou null quando não
+   * há pareamento pendente. Conecta sob demanda: se a empresa ainda não tem
+   * sessão viva, dispara a conexão para o QR aparecer.
+   */
+  async getQrDataUrl(companyId: string): Promise<string | null> {
+    if (!this.enabled) return null;
+    const session = this.sessions.get(companyId);
+    if (!session || (session.status !== 'open' && !session.connecting && !session.currentQr)) {
+      // Sem sessão viva → sobe uma para gerar o QR.
+      void this.connect(companyId);
+      return null;
+    }
+    if (!session.currentQr) return null;
+    return QRCode.toDataURL(session.currentQr, { margin: 1, width: 320 });
+  }
+
+  /**
+   * Garante que a sessão de uma empresa esteja conectando/conectada. Chamado pelo
+   * controller quando o painel abre a tela de conexão (pede status/QR).
+   */
+  ensureConnecting(companyId: string): void {
+    if (!this.enabled) return;
+    const session = this.sessions.get(companyId);
+    if (!session || (session.status !== 'open' && !session.connecting)) {
+      void this.connect(companyId);
+    }
   }
 
   /**
@@ -216,55 +355,56 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * → Link with phone number instead. Only valid while a pairing is pending
    * (status 'qr' / not yet registered). Returns null otherwise.
    */
-  async requestPairingCode(phone: string): Promise<string | null> {
-    if (!this.enabled || !this.sock) return null;
-    if (this.status === 'open') return null;
+  async requestPairingCode(companyId: string, phone: string): Promise<string | null> {
+    if (!this.enabled) return null;
+    // Garante uma sessão viva para essa empresa antes de pedir o código.
+    this.ensureConnecting(companyId);
+    const session = this.sessions.get(companyId);
+    if (!session || !session.sock) return null;
+    if (session.status === 'open') return null;
     let digits = (phone || '').replace(/\D/g, '');
     if (digits.length < 10) return null;
     if (!digits.startsWith('55')) digits = `55${digits}`;
     if (digits.length < 12 || digits.length > 13) return null;
     try {
-      const code = await this.sock.requestPairingCode(digits);
-      this.logger.log('Código de pareamento do WhatsApp gerado.');
+      const code = await session.sock.requestPairingCode(digits);
+      this.logger.log(`Código de pareamento do WhatsApp gerado (company=${companyId}).`);
       return code;
     } catch (err) {
-      this.logger.error(`Falha ao gerar código de pareamento: ${(err as Error).message}`);
+      this.logger.error(
+        `Falha ao gerar código de pareamento (company=${companyId}): ${(err as Error).message}`,
+      );
       return null;
     }
   }
 
-  /** Drops the stored session so a fresh QR can be generated (re-link). */
-  async logout(): Promise<void> {
+  /** Encerra e limpa a sessão de uma empresa (re-link). */
+  async logout(companyId: string): Promise<void> {
+    const session = this.sessions.get(companyId);
     try {
-      await this.sock?.logout();
+      await session?.sock?.logout();
     } catch {
-      // ignore — we clear state regardless
+      // ignore — limpamos o estado de qualquer forma
     }
-    const { clear } = await useDbAuthState(this.prisma, SESSION_ID);
+    const { clear } = await useDbAuthState(this.prisma, companyId);
     await clear();
-    this.sock = null;
-    this.currentQr = null;
-    this.status = 'closed';
-    if (this.enabled) void this.connect();
+    if (session) {
+      this.teardownSocket(session);
+      session.currentQr = null;
+      session.status = 'closed';
+      session.connecting = false;
+      session.reconnectAttempts = 0;
+      session.selfDigitsTail = null;
+      if (session.connectTimeout) {
+        clearTimeout(session.connectTimeout);
+        session.connectTimeout = null;
+      }
+      // Não remove a entrada do Map: o painel pode pedir um novo QR em seguida e
+      // uma reconexão sob demanda cria a sessão fresca.
+    }
   }
 
-  /**
-   * Sends a plain-text WhatsApp message. Fails soft: returns false (never
-   * throws) when WhatsApp is disabled, not yet connected, or the send errors —
-   * a booking must never break because of messaging.
-   */
-  async sendText(phone: string, text: string): Promise<boolean> {
-    if (!this.enabled || this.status !== 'open' || !this.sock) return false;
-    const jid = this.toJid(phone);
-    if (!jid) return false;
-    try {
-      await this.sock.sendMessage(jid, { text });
-      return true;
-    } catch (err) {
-      this.logger.error(`Falha ao enviar WhatsApp para ${phone}: ${(err as Error).message}`);
-      return false;
-    }
-  }
+  // ----------------------------------------------------------------- outbox
 
   /**
    * Enqueues a plain-text WhatsApp message instead of sending it inline. This is
@@ -274,12 +414,10 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * message survives a restart and is retried until the salon actually receives
    * it. Fails soft — bad numbers are dropped with a warning, never thrown.
    *
-   * `ctx` (opcional, RETROCOMPATÍVEL) enriquece o registro do outbox com o
-   * contexto da INTERAÇÃO (feature "Interações" do Belasis): empresa, cliente e
-   * tipo (kind: reminder | confirmation | cancellation | followup | campaign |
-   * invite | manager | manual). Quando informado, a mensagem passa a aparecer na
-   * aba "Mensagens" do cliente e nas linhas do relatório de mensagens. Quando
-   * omitido, cai no fallback por telefone (comportamento antigo intacto).
+   * `ctx.companyId` é ESSENCIAL no multi-tenant: o drain usa esse companyId para
+   * escolher o SOCKET certo (o número do salão dono da mensagem). Mensagens sem
+   * companyId não têm por onde sair e são deixadas pendentes (nenhum socket as
+   * reivindica) — todas as chamadas relevantes já passam companyId.
    */
   async enqueueText(
     phone: string,
@@ -301,8 +439,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         kind: ctx?.kind ?? null,
       },
     });
-    // Try to deliver immediately; if the socket isn't open yet the timer drains
-    // it later. drainOutbox guards itself, so this is safe to call any time.
+    // Try to deliver immediately; if no socket is open yet the timer drains it
+    // later. drainOutbox guards itself, so this is safe to call any time.
     void this.drainOutbox();
   }
 
@@ -310,20 +448,37 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /** Empresas com socket aberto agora — usado para filtrar o outbox no drain. */
+  private openCompanyIds(): string[] {
+    const ids: string[] = [];
+    for (const session of this.sessions.values()) {
+      if (session.status === 'open' && session.sock) ids.push(session.companyId);
+    }
+    return ids;
+  }
+
   /**
-   * Drains pending outbox rows one at a time, oldest first, pacing sends to avoid
-   * tripping WhatsApp's anti-spam. Re-entrancy guarded (`draining`) so the timer
-   * and the inline nudge never overlap. No-ops until the socket is open.
+   * Drena o outbox uma mensagem por vez, mais antigas primeiro, com pacing para
+   * não bater no anti-spam do WhatsApp. Só considera mensagens de empresas cujo
+   * socket está ABERTO agora (as demais ficam pendentes até a company reconectar
+   * — nunca travam a fila). Re-entrância protegida (`draining`).
    */
   private async drainOutbox(): Promise<void> {
     if (this.draining || !this.enabled) return;
-    if (this.status !== 'open' || !this.sock) return;
+    const open = this.openCompanyIds();
+    if (open.length === 0) return; // nenhuma empresa conectada — nada a enviar
     this.draining = true;
     try {
       for (;;) {
-        if (this.status !== 'open' || !this.sock) break;
+        // Recalcula a cada volta (uma company pode cair no meio do drain).
+        const openNow = this.openCompanyIds();
+        if (openNow.length === 0) break;
         const msg = await this.prisma.client.whatsappOutbox.findFirst({
-          where: { status: 'pending', nextAttemptAt: { lte: new Date() } },
+          where: {
+            status: 'pending',
+            nextAttemptAt: { lte: new Date() },
+            companyId: { in: openNow },
+          },
           orderBy: { createdAt: 'asc' },
         });
         if (!msg) break;
@@ -338,19 +493,24 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Delivers a single outbox row. On success marks it 'sent'; on failure bumps
-   * the attempt count with exponential backoff, giving up (status 'failed') after
-   * OUTBOX_MAX_ATTEMPTS so a permanently-bad number can't block the queue.
+   * Entrega UMA linha do outbox pelo socket da company dona da mensagem. Sucesso
+   * marca 'sent'; falha incrementa a tentativa com backoff exponencial e desiste
+   * ('failed') após OUTBOX_MAX_ATTEMPTS, para um número permanentemente ruim não
+   * travar a fila. Uma company que perdeu o socket no meio → deixa pendente.
    */
   private async deliverOutbox(msg: {
     id: string;
     toPhone: string;
     text: string;
     attempts: number;
+    companyId: string | null;
   }): Promise<void> {
     const db = this.prisma.client;
+    const session = msg.companyId ? this.sessions.get(msg.companyId) : undefined;
+    // Sem company ou sem socket aberto → não há por onde enviar; deixa pendente.
+    if (!session || session.status !== 'open' || !session.sock) return;
     try {
-      const jid = await this.resolveJid(msg.toPhone);
+      const jid = await this.resolveJid(session, msg.toPhone);
       if (!jid) {
         await db.whatsappOutbox.update({
           where: { id: msg.id },
@@ -363,12 +523,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn(`Outbox ${msg.id}: número ${msg.toPhone} sem WhatsApp — descartado.`);
         return;
       }
-      await this.sock!.sendMessage(jid, { text: msg.text });
+      await session.sock.sendMessage(jid, { text: msg.text });
       await db.whatsappOutbox.update({
         where: { id: msg.id },
         data: { status: 'sent', sentAt: new Date(), attempts: msg.attempts + 1, lastError: null },
       });
-      this.logger.log(`Outbox ${msg.id}: enviado para ${jid}.`);
+      this.logger.log(`Outbox ${msg.id}: enviado para ${jid} (company=${msg.companyId}).`);
     } catch (err) {
       const attempts = msg.attempts + 1;
       const failed = attempts >= OUTBOX_MAX_ATTEMPTS;
@@ -389,19 +549,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Resolves a phone to the JID WhatsApp actually serves. Brazilian numbers are
-   * ambiguous about the 9th mobile digit, so we ask the server via onWhatsApp
-   * which canonical JID exists rather than guessing. Falls back to the naive
-   * "<digits>@s.whatsapp.net" if the lookup throws (network blip), so a transient
-   * error still gets a delivery attempt.
+   * Resolves a phone to the JID WhatsApp actually serves, using a SPECIFIC
+   * company's socket. Brazilian numbers are ambiguous about the 9th mobile digit,
+   * so we ask the server via onWhatsApp which canonical JID exists rather than
+   * guessing. Falls back to the naive "<digits>@s.whatsapp.net" if the lookup
+   * throws (network blip), so a transient error still gets a delivery attempt.
    */
-  private async resolveJid(phone: string): Promise<string | null> {
+  private async resolveJid(session: SessionState, phone: string): Promise<string | null> {
     let digits = (phone || '').replace(/\D/g, '');
     if (digits.length < 10) return null;
     if (!digits.startsWith('55')) digits = `55${digits}`;
-    if (!this.sock) return null;
+    if (!session.sock) return null;
     try {
-      const results = await this.sock.onWhatsApp(digits);
+      const results = await session.sock.onWhatsApp(digits);
       const hit = results?.find((r) => r.exists && r.jid);
       if (hit?.jid) return hit.jid;
       // onWhatsApp answered but the number has no account → don't keep retrying.
@@ -412,28 +572,186 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return `${digits}@s.whatsapp.net`;
   }
 
-  // "(11) 98888-7777" → "5511988887777@s.whatsapp.net". Assumes Brazil (55) when
-  // no country code is present. Returns null for clearly invalid numbers.
-  private toJid(phone: string): string | null {
-    let digits = (phone || '').replace(/\D/g, '');
-    if (digits.length < 10) return null;
-    if (!digits.startsWith('55')) digits = `55${digits}`;
-    if (digits.length < 12 || digits.length > 13) return null;
-    return `${digits}@s.whatsapp.net`;
+  // ------------------------------------------------------------- conexão
+
+  /**
+   * Conecta (ou reconecta) o socket de UMA empresa. Idempotente por company: se
+   * já estiver conectando/aberta, não faz nada. Cada company tem seu próprio
+   * ciclo de vida (timeout, backoff, teardown).
+   */
+  private async connect(companyId: string): Promise<void> {
+    if (!this.enabled) return;
+    const session = this.getSession(companyId);
+    if (session.connecting || session.status === 'open') return;
+    session.connecting = true;
+    session.status = 'connecting';
+    // Descarta qualquer socket anterior antes de abrir um novo (ver teardownSocket).
+    this.teardownSocket(session);
+    // Baileys pode travar no handshake do WebSocket sem emitir 'open'/'close',
+    // deixando connecting=true para sempre. Um timeout de 45s pega isso e força
+    // um retry.
+    if (session.connectTimeout) clearTimeout(session.connectTimeout);
+    session.connectTimeout = setTimeout(() => {
+      if (session.connecting && session.status !== 'open') {
+        this.logger.warn(
+          `WhatsApp (company=${companyId}): timeout de conexão (45s) — forçando reconexão.`,
+        );
+        session.connecting = false;
+        session.status = 'closed';
+        this.teardownSocket(session);
+        void this.connect(companyId);
+      }
+    }, 45_000);
+    try {
+      // Credenciais keyed pela empresa: sessionId = companyId.
+      const { state, saveCreds } = await useDbAuthState(this.prisma, companyId);
+      const { version } = await fetchLatestBaileysVersion();
+
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        logger: silentLogger(),
+        browser: Browsers.appropriate('Salonpass'),
+        printQRInTerminal: false,
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+      });
+      session.sock = sock;
+
+      sock.ev.on('creds.update', () => {
+        void saveCreds();
+      });
+
+      // Inbound manager replies ("1" / "2 motivo" / "3 sugestão"). Só interessa
+      // texto puro de chats individuais; grupos e não-texto são ignorados. Como
+      // o socket é DESTA empresa, já sabemos o companyId de origem.
+      sock.ev.on('messages.upsert', (evt) => {
+        if (evt.type !== 'notify') return;
+        for (const m of evt.messages) {
+          const jid = m.key.remoteJid ?? '';
+          if (!jid.endsWith('@s.whatsapp.net')) continue; // skip groups/status
+          const text = m.message?.conversation ?? m.message?.extendedTextMessage?.text;
+          if (!text || !text.trim()) continue;
+          const trimmed = text.trim();
+          // Normalmente nossos próprios envios (fromMe) são ignorados — mas um
+          // salão que usa UM número para bot + gerente responde ao prompt no chat
+          // "conversar consigo mesmo", onde as respostas chegam como fromMe.
+          // Permite só lá, e só quando parece um comando 1/2/3.
+          if (m.key.fromMe) {
+            const selfChat =
+              !!session.selfDigitsTail &&
+              this.digitsTail(this.jidUserDigits(jid)) === session.selfDigitsTail;
+            if (!selfChat || !/^[123]\b/.test(trimmed)) continue;
+          }
+          const fromDigits = this.jidUserDigits(jid);
+          const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+          const quotedText = quoted?.conversation ?? quoted?.extendedTextMessage?.text ?? undefined;
+          try {
+            this.inboundHandler?.({ fromDigits, text: trimmed, quotedText, companyId });
+          } catch (err) {
+            this.logger.error(`Erro no handler de mensagem recebida: ${(err as Error).message}`);
+          }
+        }
+      });
+
+      sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        if (qr) {
+          session.currentQr = qr;
+          session.status = 'qr';
+          this.logger.log(`QR do WhatsApp disponível (company=${companyId}).`);
+        }
+        if (connection === 'open') {
+          if (session.connectTimeout) {
+            clearTimeout(session.connectTimeout);
+            session.connectTimeout = null;
+          }
+          session.currentQr = null;
+          session.status = 'open';
+          session.connecting = false;
+          session.reconnectAttempts = 0; // conexão saudável — zera backoff
+          // Lembra o próprio número para reconhecer o self-chat (salões de um
+          // número só respondem ao prompt como fromMe nele).
+          session.selfDigitsTail = this.digitsTail(this.jidUserDigits(sock.user?.id ?? ''));
+          this.logger.log(`WhatsApp conectado (company=${companyId}).`);
+          // Esvazia o que ficou na fila enquanto estávamos offline.
+          void this.drainOutbox();
+        }
+        if (connection === 'close') {
+          if (session.connectTimeout) {
+            clearTimeout(session.connectTimeout);
+            session.connectTimeout = null;
+          }
+          session.status = 'closed';
+          session.connecting = false;
+          const code = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output
+            ?.statusCode;
+          const loggedOut = code === DisconnectReason.loggedOut;
+          // Descarta o socket morto para ele não "substituir" o próximo.
+          this.teardownSocket(session);
+          if (loggedOut) {
+            this.logger.warn(
+              `WhatsApp desconectado (company=${companyId}): sessão encerrada — novo QR necessário.`,
+            );
+            void this.handleLoggedOut(companyId);
+          } else {
+            // Code 440 = "replaced by another device" — acontece em deploy rolling
+            // do App Runner quando duas instâncias dividem a sessão. Backoff longo
+            // (30s) para a instância antiga morrer. Outros códigos: backoff
+            // exponencial (3s → 6s → 12s … teto 30s).
+            const replaced = code === 440;
+            const delay = replaced
+              ? 30_000
+              : Math.min(30000, 3000 * 2 ** session.reconnectAttempts);
+            session.reconnectAttempts += 1;
+            this.logger.warn(
+              `WhatsApp desconectado (company=${companyId}, code=${code ?? '?'}). Reconectando em ${delay / 1000}s…`,
+            );
+            setTimeout(() => void this.connect(companyId), delay);
+          }
+        }
+      });
+    } catch (err) {
+      if (session.connectTimeout) {
+        clearTimeout(session.connectTimeout);
+        session.connectTimeout = null;
+      }
+      session.connecting = false;
+      session.status = 'closed';
+      this.logger.error(
+        `Erro ao conectar no WhatsApp (company=${companyId}): ${(err as Error).message}`,
+      );
+      setTimeout(() => void this.connect(companyId), 5000);
+    }
+  }
+
+  private async handleLoggedOut(companyId: string): Promise<void> {
+    const session = this.getSession(companyId);
+    try {
+      const { clear } = await useDbAuthState(this.prisma, companyId);
+      await clear();
+    } catch {
+      // ignore
+    }
+    this.teardownSocket(session);
+    session.currentQr = null;
+    session.selfDigitsTail = null;
+    // Reconecta para expor um QR fresco para re-link.
+    setTimeout(() => void this.connect(companyId), 2000);
   }
 
   /**
-   * Fully disposes the current socket: detaches every listener and closes the
-   * underlying websocket. Skipping this was the cause of a code=440 reconnect
-   * loop — a rolling deploy briefly ran two connections, and each `close` left a
-   * zombie socket still holding the session, so every fresh connect was instantly
-   * "replaced" (440) by the lingering one. Tearing the old socket down first
-   * guarantees only ever one live connection.
+   * Descarta por completo o socket de uma sessão: remove todos os listeners e
+   * fecha o websocket. Pular isso causava um loop de reconexão code=440 — um
+   * deploy rolling rodava brevemente duas conexões, e cada `close` deixava um
+   * socket zumbi ainda segurando a sessão, então todo connect novo era
+   * instantaneamente "substituído" (440). Derrubar o socket antigo primeiro
+   * garante uma única conexão viva por empresa.
    */
-  private teardownSocket(): void {
-    const sock = this.sock;
+  private teardownSocket(session: SessionState): void {
+    const sock = session.sock;
     if (!sock) return;
-    this.sock = null;
+    session.sock = null;
     try {
       sock.ev.removeAllListeners('connection.update');
       sock.ev.removeAllListeners('creds.update');
@@ -446,149 +764,5 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     } catch {
       // ignore — socket may already be dead
     }
-  }
-
-  private connectTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  private async connect(): Promise<void> {
-    if (this.connecting || this.status === 'open') return;
-    this.connecting = true;
-    this.status = 'connecting';
-    // Drop any previous socket before opening a new one (see teardownSocket).
-    this.teardownSocket();
-    // Baileys can hang during the WebSocket handshake without emitting 'open'
-    // or 'close', leaving `connecting = true` forever. A 45s timeout catches
-    // this and forces a retry.
-    if (this.connectTimeout) clearTimeout(this.connectTimeout);
-    this.connectTimeout = setTimeout(() => {
-      if (this.connecting && this.status !== 'open') {
-        this.logger.warn('WhatsApp: timeout de conexão (45s) — forçando reconexão.');
-        this.connecting = false;
-        this.status = 'closed';
-        this.teardownSocket();
-        void this.connect();
-      }
-    }, 45_000);
-    try {
-      const { state, saveCreds } = await useDbAuthState(this.prisma, SESSION_ID);
-      const { version } = await fetchLatestBaileysVersion();
-
-      const sock = makeWASocket({
-        version,
-        auth: state,
-        logger: silentLogger(),
-        browser: Browsers.appropriate('Salonpass'),
-        printQRInTerminal: false,
-        markOnlineOnConnect: false,
-        syncFullHistory: false,
-      });
-      this.sock = sock;
-
-      sock.ev.on('creds.update', () => {
-        void saveCreds();
-      });
-
-      // Inbound manager replies ("1" / "2 motivo" / "3 sugestão"). We only care
-      // about plain text from individual chats; groups and non-text messages are
-      // ignored. The booking flow decides what to do.
-      sock.ev.on('messages.upsert', (evt) => {
-        if (evt.type !== 'notify') return;
-        for (const m of evt.messages) {
-          const jid = m.key.remoteJid ?? '';
-          if (!jid.endsWith('@s.whatsapp.net')) continue; // skip groups/status
-          const text = m.message?.conversation ?? m.message?.extendedTextMessage?.text;
-          if (!text || !text.trim()) continue;
-          const trimmed = text.trim();
-          // Normally our own sends (fromMe) are skipped — but a salon that uses a
-          // single WhatsApp number for both the bot and the manager replies to
-          // the confirm-prompt inside the "message yourself" chat, where those
-          // replies arrive as fromMe. Allow them only there, and only when they
-          // look like a 1/2/3 command, so our own auto-sent prompts/acks (which
-          // never start with a digit) can't be fed back in and loop.
-          if (m.key.fromMe) {
-            const selfChat =
-              !!this.selfDigitsTail && this.digitsTail(this.jidUserDigits(jid)) === this.selfDigitsTail;
-            if (!selfChat || !/^[123]\b/.test(trimmed)) continue;
-          }
-          const fromDigits = this.jidUserDigits(jid);
-          const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-          const quotedText = quoted?.conversation ?? quoted?.extendedTextMessage?.text ?? undefined;
-          try {
-            this.inboundHandler?.({ fromDigits, text: trimmed, quotedText });
-          } catch (err) {
-            this.logger.error(`Erro no handler de mensagem recebida: ${(err as Error).message}`);
-          }
-        }
-      });
-
-      sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        if (qr) {
-          this.currentQr = qr;
-          this.status = 'qr';
-          this.logger.log('QR do WhatsApp disponível — escaneie em /api/v1/whatsapp/qr.');
-        }
-        if (connection === 'open') {
-          if (this.connectTimeout) { clearTimeout(this.connectTimeout); this.connectTimeout = null; }
-          this.currentQr = null;
-          this.status = 'open';
-          this.connecting = false;
-          this.reconnectAttempts = 0; // healthy connection — reset backoff
-          // Remember our own number so we can recognise the self-chat (single-
-          // number salons reply to the confirm-prompt as fromMe in it).
-          this.selfDigitsTail = this.digitsTail(this.jidUserDigits(sock.user?.id ?? ''));
-          this.logger.log('WhatsApp conectado.');
-          // Flush anything that queued up while we were offline.
-          void this.drainOutbox();
-        }
-        if (connection === 'close') {
-          if (this.connectTimeout) { clearTimeout(this.connectTimeout); this.connectTimeout = null; }
-          this.status = 'closed';
-          this.connecting = false;
-          const code = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output
-            ?.statusCode;
-          const loggedOut = code === DisconnectReason.loggedOut;
-          // Dispose the dead socket so it can't keep "replacing" the next one.
-          this.teardownSocket();
-          if (loggedOut) {
-            this.logger.warn('WhatsApp desconectado: sessão encerrada — novo QR necessário.');
-            void this.handleLoggedOut();
-          } else {
-            // Code 440 = "replaced by another device" — happens during App Runner
-            // rolling deploys when two instances share the session. Use a long
-            // backoff (30s) so the old instance has time to die. Other codes use
-            // exponential backoff (3s → 6s → 12s … capped at 30s).
-            const replaced = code === 440;
-            const delay = replaced
-              ? 30_000
-              : Math.min(30000, 3000 * 2 ** this.reconnectAttempts);
-            this.reconnectAttempts += 1;
-            this.logger.warn(
-              `WhatsApp desconectado (code=${code ?? '?'}). Reconectando em ${delay / 1000}s…`,
-            );
-            setTimeout(() => void this.connect(), delay);
-          }
-        }
-      });
-    } catch (err) {
-      if (this.connectTimeout) { clearTimeout(this.connectTimeout); this.connectTimeout = null; }
-      this.connecting = false;
-      this.status = 'closed';
-      this.logger.error(`Erro ao conectar no WhatsApp: ${(err as Error).message}`);
-      setTimeout(() => void this.connect(), 5000);
-    }
-  }
-
-  private async handleLoggedOut(): Promise<void> {
-    try {
-      const { clear } = await useDbAuthState(this.prisma, SESSION_ID);
-      await clear();
-    } catch {
-      // ignore
-    }
-    this.sock = null;
-    this.currentQr = null;
-    // Reconnect to surface a fresh QR for re-linking.
-    setTimeout(() => void this.connect(), 2000);
   }
 }

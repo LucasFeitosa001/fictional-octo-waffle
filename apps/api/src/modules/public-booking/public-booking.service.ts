@@ -634,9 +634,18 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
   // Handles a plain-text reply from a salon's manager number. Resolves which
   // salon it belongs to, acts on that salon's OLDEST pending (unconfirmed,
   // online) appointment, and notifies the client only when appropriate.
-  private async handleManagerReply(msg: { fromDigits: string; text: string; quotedText?: string }): Promise<void> {
+  private async handleManagerReply(msg: {
+    fromDigits: string;
+    text: string;
+    quotedText?: string;
+    companyId?: string;
+  }): Promise<void> {
     try {
-      const companyId = await this.whatsapp.findCompanyByManagerDigits(msg.fromDigits);
+      // Multi-tenant: cada socket é de UMA empresa, então o companyId da mensagem
+      // (empresa dona do socket em que a resposta chegou) é a fonte de verdade.
+      // Fallback ao lookup por dígitos do gerente para manter compat/robustez.
+      const companyId =
+        msg.companyId ?? (await this.whatsapp.findCompanyByManagerDigits(msg.fromDigits));
       if (!companyId) return; // not a known manager number — ignore
 
       const trimmed = msg.text.trim();

@@ -120,8 +120,11 @@ export class InvitesService {
       return false;
     }
 
-    // Só dispara quando o WhatsApp do salão está de fato conectado (status 'open').
-    const { status } = this.whatsapp.getStatus();
+    // Só dispara quando o WhatsApp DESTE salão está de fato conectado ('open').
+    // Sem companyId não há socket para consultar → trata como desconectado.
+    const { status } = companyId
+      ? this.whatsapp.getStatus(companyId)
+      : { status: 'closed' as const };
     if (status !== 'open') {
       // eslint-disable-next-line no-console
       console.log(

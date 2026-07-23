@@ -86,9 +86,16 @@ export class QueuesService implements OnModuleInit {
     private readonly notificationSettings: NotificationSettingsService,
   ) {}
 
-  /** On boot, ensure the daily birthday-campaign scan repeatable exists (idempotent). */
-  async onModuleInit(): Promise<void> {
-    await this.ensureBirthdayRepeatable();
+  /**
+   * On boot, ensure the daily birthday-campaign scan repeatable exists (idempotent).
+   *
+   * NÃO-BLOQUEANTE: fire-and-forget. Se o Redis estiver indisponível, o `add(...)`
+   * falha (enableOfflineQueue:false → erro imediato em vez de pendurar) e é
+   * engolido dentro de ensureBirthdayRepeatable — o boot da API NUNCA trava por
+   * causa do Redis. Com Redis disponível, o repeatable é (re)registrado normal.
+   */
+  onModuleInit(): void {
+    void this.ensureBirthdayRepeatable();
   }
 
   // ------------------------------------------------------------- reminders

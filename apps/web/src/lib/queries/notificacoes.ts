@@ -25,6 +25,47 @@ export interface NotificationsResponse {
   unreadCount: number;
 }
 
+export interface NotificationSummaryResponse {
+  types: { type: string; total: number; unread: number }[];
+}
+
+// ─── Taxonomia de categorias (front) ────────────────────────────────────────
+// O backend hoje só emite `appointment.created | confirmed | canceled`. Cada
+// categoria da UI mapeia para um conjunto de tipos reais. NÃO inventar
+// categorias sem tipo real por trás — se um dia surgirem novos tipos no
+// backend, adicione a categoria aqui.
+export interface NotifCategoryDef {
+  /** slug da rota (/notificacoes/:tipo) */
+  slug: string;
+  label: string;
+  /** tipos reais do backend que compõem esta categoria */
+  types: string[];
+}
+
+export const NOTIF_CATEGORIES: NotifCategoryDef[] = [
+  {
+    slug: 'agendamentos',
+    label: 'Agendamentos',
+    types: ['appointment.created', 'appointment.confirmed'],
+  },
+  {
+    slug: 'agendamentos-cancelados',
+    label: 'Agendamentos cancelados',
+    types: ['appointment.canceled'],
+  },
+];
+
+export function categoryBySlug(slug: string | undefined): NotifCategoryDef | undefined {
+  return NOTIF_CATEGORIES.find((c) => c.slug === slug);
+}
+
+/** Rótulo pt-BR por tipo de notificação (para itens individuais). */
+export const NOTIF_TYPE_LABEL: Record<string, string> = {
+  'appointment.created': 'Agendamento criado',
+  'appointment.confirmed': 'Agendamento confirmado',
+  'appointment.canceled': 'Agendamento cancelado',
+};
+
 /** Full list for the bell panel. Polls so new bookings surface without reload. */
 export function useNotifications(limit = 30) {
   return useQuery({
@@ -43,6 +84,56 @@ export function useUnreadCount() {
   });
 }
 
+/**
+ * Contagem por tipo (total + não-lidas), agregada no backend. Alimenta a
+ * página de categorias com números REAIS. Devolve um mapa por tipo e um helper
+ * pra somar os tipos de uma categoria.
+ */
+export function useNotificationSummary() {
+  const query = useQuery({
+    queryKey: ['notifications', 'summary'],
+    queryFn: () => api.get<NotificationSummaryResponse>('/notifications/summary'),
+    refetchInterval: 30_000,
+  });
+
+  const unreadByType = new Map(
+    (query.data?.types ?? []).map((t) => [t.type, t.unread]),
+  );
+
+  /** Soma as NÃO-LIDAS de todos os tipos de uma categoria (o badge da lista). */
+  const unreadForCategory = (types: string[]): number =>
+    types.reduce((acc, t) => acc + (unreadByType.get(t) ?? 0), 0);
+
+  return { ...query, unreadForCategory };
+}
+
+/**
+ * Lista paginada filtrada por tipos (uma categoria). Usada pela página de
+ * detalhe. `offset` habilita o "Mostrar mais" real; `total`/`unreadCount` já
+ * vêm restritos aos tipos filtrados (backend).
+ */
+export function useNotificationsByType(
+  types: string[],
+  opts: { limit?: number; offset?: number } = {},
+) {
+  const limit = opts.limit ?? 20;
+  const offset = opts.offset ?? 0;
+  const typeParam = types.join(',');
+  return useQuery({
+    queryKey: ['notifications', 'by-type', typeParam, limit, offset],
+    queryFn: () =>
+      api.get<NotificationsResponse>('/notifications', {
+        type: typeParam,
+        limit,
+        offset,
+      }),
+    enabled: types.length > 0,
+    // Mantém páginas anteriores visíveis enquanto a próxima carrega ("Mostrar
+    // mais" não pisca a lista inteira).
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useMarkNotificationRead() {
   const qc = useQueryClient();
   return useMutation({
@@ -51,10 +142,20 @@ export function useMarkNotificationRead() {
   });
 }
 
+/**
+ * Marca todas como lidas. Sem argumento marca TODAS da empresa (sino). Com
+ * `types` marca só as daquela categoria (página de detalhe). A mutation aceita
+ * o argumento opcional, então `markAll.mutate()` continua válido.
+ */
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<{ ok: true }>('/notifications/read-all', {}),
+    mutationFn: (types?: string[]) =>
+      api.post<{ ok: true }>(
+        '/notifications/read-all',
+        {},
+        types && types.length > 0 ? { type: types.join(',') } : undefined,
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
 }

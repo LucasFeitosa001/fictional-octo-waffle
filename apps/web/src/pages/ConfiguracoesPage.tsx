@@ -857,8 +857,7 @@ export function ConfiguracoesPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Campos presentes no Belasis mas ainda sem persistência no SalonPass.
-  // TODO: mapear para o backend quando os campos existirem em UpdateEmpresaBody.
+  // Endereço/contato — persistidos em Company.addressJson (ver empresa.ts).
   const [personType, setPersonType] = useState('PJ');
   const [whatsapp, setWhatsapp] = useState('');
   const [cep, setCep] = useState('');
@@ -879,6 +878,14 @@ export function ConfiguracoesPage() {
     setTimezone(data.timezone ?? 'America/Sao_Paulo');
     setCurrency(data.currency ?? 'BRL');
     setLogoUrl(data.logoUrl ?? null);
+    // Endereço/contato extra (addressJson).
+    setPersonType(data.addressJson?.personType ?? 'PJ');
+    setWhatsapp(data.addressJson?.whatsapp ?? '');
+    setCep(data.addressJson?.cep ?? '');
+    setDistrict(data.addressJson?.district ?? '');
+    setNumber(data.addressJson?.number ?? '');
+    setStateUf(data.addressJson?.state ?? '');
+    setCity(data.addressJson?.city ?? '');
   }, [data]);
 
   function markDirty() {
@@ -898,6 +905,13 @@ export function ConfiguracoesPage() {
         phone: phone.trim() || null,
         email: email.trim() || null,
         address: address.trim() || null,
+        whatsapp: whatsapp.trim() || null,
+        cep: cep.trim() || null,
+        district: district.trim() || null,
+        number: number.trim() || null,
+        state: stateUf.trim() || null,
+        city: city.trim() || null,
+        personType: personType || null,
       },
     };
     update.mutate(body, { onSuccess: () => setSaved(true) });
@@ -1172,10 +1186,12 @@ export function ConfiguracoesPage() {
               </Field>
 
               <Field label="WhatsApp" span="sm:col-span-2 lg:col-span-4">
-                {/* TODO: sem persistência — campo visual do Belasis. */}
                 <TextInput
                   value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
+                  onChange={(e) => {
+                    setWhatsapp(e.target.value);
+                    markDirty();
+                  }}
                   type="tel"
                   placeholder="(11) 99999-9999"
                   aria-label="WhatsApp"
@@ -1183,10 +1199,12 @@ export function ConfiguracoesPage() {
               </Field>
 
               <Field label="CEP" required span="sm:col-span-1 lg:col-span-2">
-                {/* TODO: sem persistência. */}
                 <TextInput
                   value={cep}
-                  onChange={(e) => setCep(e.target.value)}
+                  onChange={(e) => {
+                    setCep(e.target.value);
+                    markDirty();
+                  }}
                   inputMode="numeric"
                   placeholder="CEP"
                   aria-label="CEP"
@@ -1206,30 +1224,36 @@ export function ConfiguracoesPage() {
               </Field>
 
               <Field label="Bairro" required span="sm:col-span-2 lg:col-span-5">
-                {/* TODO: sem persistência. */}
                 <TextInput
                   value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
+                  onChange={(e) => {
+                    setDistrict(e.target.value);
+                    markDirty();
+                  }}
                   placeholder="Bairro"
                   aria-label="Bairro"
                 />
               </Field>
 
               <Field label="Número" required span="sm:col-span-1 lg:col-span-2">
-                {/* TODO: sem persistência. */}
                 <TextInput
                   value={number}
-                  onChange={(e) => setNumber(e.target.value)}
+                  onChange={(e) => {
+                    setNumber(e.target.value);
+                    markDirty();
+                  }}
                   placeholder="Número"
                   aria-label="Número"
                 />
               </Field>
 
               <Field label="Estado" required span="sm:col-span-1 lg:col-span-5">
-                {/* TODO: sem persistência. */}
                 <SelectInput
                   value={stateUf}
-                  onChange={(e) => setStateUf(e.target.value)}
+                  onChange={(e) => {
+                    setStateUf(e.target.value);
+                    markDirty();
+                  }}
                   aria-label="Estado"
                 >
                   <option value="">Estado</option>
@@ -1242,10 +1266,12 @@ export function ConfiguracoesPage() {
               </Field>
 
               <Field label="Cidade" required span="sm:col-span-2 lg:col-span-5">
-                {/* TODO: sem persistência. */}
                 <TextInput
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    markDirty();
+                  }}
                   placeholder="Cidade"
                   aria-label="Cidade"
                 />
