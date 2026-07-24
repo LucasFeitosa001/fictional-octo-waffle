@@ -94,8 +94,10 @@ body {
     Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Cream canvas with two faint radial washes (pink + gold) for warmth/depth. */
-  background-color: #f7f3ea;
+  /* Cream canvas with two faint radial washes (pink + gold) for warmth/depth.
+     A salon can override the base color via `--club-bg` (Setting
+     booking.appearance.backgroundColor); the warm washes stay for depth. */
+  background-color: var(--club-bg, #f7f3ea);
   background-image:
     radial-gradient(820px 480px at 50% -10%, rgba(242, 179, 61, 0.12), transparent 60%),
     radial-gradient(720px 520px at 100% 6%, rgba(240, 140, 165, 0.1), transparent 62%);

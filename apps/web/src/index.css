@@ -555,6 +555,18 @@ body {
   width: 100%;
 }
 
+/* iOS PWA standalone — mata a "barra branca" embaixo (faixa do home indicator).
+   Causa: o <body> é `position: fixed` + `height: 100dvh`; no app instalado o
+   100dvh NÃO cobre a faixa do home indicator, então o body para acima do fundo
+   físico e o <html> (sem background = BRANCO por padrão) vaza por baixo da
+   BottomNav flutuante. Pintar o backdrop raiz com a MESMA cor do canvas faz a
+   faixa virar parte do app (sem costura com a .db-canvas) e some de vez.
+   Reage ao tema porque usa a variável. No Safari com URL bar / desktop é inócuo
+   (o body cobre tudo; nada do html fica exposto). */
+html {
+  background-color: var(--sp-canvas);
+}
+
 /* Clickable controls should always advertise their affordance on devices that
    have a pointer. Native buttons (including HeroUI buttons) otherwise keep the
    platform's default arrow cursor in several browsers. */

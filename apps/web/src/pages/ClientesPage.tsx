@@ -715,27 +715,12 @@ export function ClientesPage() {
 
                 {/* Cards — mobile (cada cliente em card elevado, igual ao Belasis) */}
                 <ul className="flex flex-col gap-3 md:hidden">
-                  {rows.map((c) => (
-                    <li
-                      key={c.id}
-                      className={`flex items-center gap-3 rounded-2xl border bg-card px-4 py-4 shadow-[var(--shadow-card)] ${
-                        sel.selectMode && sel.isSelected(c.id)
-                          ? 'border-gold ring-1 ring-gold/40'
-                          : 'border-line'
-                      }`}
-                    >
-                      {sel.selectMode && (
-                        <AnimatedCheckbox checked={sel.isSelected(c.id)} />
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (sel.selectMode) sel.toggle(c.id);
-                          else setPerfil(c);
-                        }}
-                        aria-pressed={sel.selectMode ? sel.isSelected(c.id) : undefined}
-                        className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
-                      >
+                  {rows.map((c) => {
+                    const cardBody = (
+                      <>
+                        {sel.selectMode && (
+                          <AnimatedCheckbox checked={sel.isSelected(c.id)} />
+                        )}
                         <Avatar size="lg">
                           {c.avatarUrl && (
                             <Avatar.Image src={c.avatarUrl} alt={c.name} />
@@ -750,9 +735,31 @@ export function ClientesPage() {
                             {c.phone ? formatPhone(c.phone) : 'Sem telefone'}
                           </div>
                         </div>
-                      </button>
-                    </li>
-                  ))}
+                      </>
+                    );
+                    // Modo de seleção: o CARD INTEIRO alterna a seleção (qualquer
+                    // ponto, inclusive o checkbox). Fora dele, abre o perfil.
+                    // Um único <button> cobrindo o card todo evita "zonas mortas".
+                    return (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (sel.selectMode) sel.toggle(c.id);
+                            else setPerfil(c);
+                          }}
+                          aria-pressed={sel.selectMode ? sel.isSelected(c.id) : undefined}
+                          className={`flex w-full items-center gap-3 rounded-2xl border bg-card px-4 py-4 text-left shadow-[var(--shadow-card)] ${
+                            sel.selectMode && sel.isSelected(c.id)
+                              ? 'border-gold ring-1 ring-gold/40'
+                              : 'border-line'
+                          }`}
+                        >
+                          {cardBody}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
 
                 {/* Rodapé / paginação — T8: sticky no rodapé do scroll do <main>

@@ -98,6 +98,27 @@ export class UpdateWebProfileDto {
 
 export { HEX_COLOR };
 
+// ---- aparência do agendamento online (Setting key `booking.appearance`) ----
+// Cada cor é um hex "#RRGGBB" ou string vazia (limpa → volta ao default do
+// web-club). `hideNavbar` esconde a barra preta do topo da página pública.
+const HEX_OR_EMPTY = /^(#([0-9a-fA-F]{6}))?$/;
+
+export class UpdateBookingAppearanceDto {
+  @IsOptional() @IsBoolean() hideNavbar?: boolean;
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'primaryColor deve ser um hex "#RRGGBB" ou vazio' })
+  primaryColor?: string;
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'accentColor deve ser um hex "#RRGGBB" ou vazio' })
+  accentColor?: string;
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'backgroundColor deve ser um hex "#RRGGBB" ou vazio' })
+  backgroundColor?: string;
+}
+
 // ---- galeria de fotos do perfil público (GalleryPhoto, onda 7) ----
 export class CreateGalleryPhotoDto {
   @IsString() @MinLength(1) url: string;

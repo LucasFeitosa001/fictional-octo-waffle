@@ -538,26 +538,27 @@ export function MarcasPage() {
                 {paged.map((b) => {
                   const count = b.productCount ?? 0;
                   return (
-                    <li
-                      key={b.id}
-                      className={[
-                        'rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] transition-colors',
-                        sel.selectMode && sel.isSelected(b.id)
-                          ? 'border-primary ring-2 ring-primary/40'
-                          : 'border-line',
-                      ].join(' ')}
-                    >
-                      <div className="flex items-center gap-3">
+                    // Modo de seleção: o CARD INTEIRO alterna a seleção (qualquer
+                    // ponto, inclusive o checkbox). Fora dele, abre a edição. Um
+                    // único <button> cobrindo o card todo evita "zonas mortas".
+                    <li key={b.id}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sel.selectMode ? sel.toggle(b.id) : setEditing(b)
+                        }
+                        aria-pressed={sel.selectMode ? sel.isSelected(b.id) : undefined}
+                        className={[
+                          'flex w-full items-center gap-3 rounded-2xl border bg-card p-4 text-left shadow-[var(--shadow-card)] transition-colors',
+                          sel.selectMode && sel.isSelected(b.id)
+                            ? 'border-primary ring-2 ring-primary/40'
+                            : 'border-line',
+                        ].join(' ')}
+                      >
                         {sel.selectMode && (
                           <AnimatedCheckbox checked={sel.isSelected(b.id)} />
                         )}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            sel.selectMode ? sel.toggle(b.id) : setEditing(b)
-                          }
-                          className="block min-w-0 flex-1 text-left"
-                        >
+                        <span className="block min-w-0 flex-1">
                           <span className="block min-w-0 truncate font-medium text-primary hover:underline">
                             {b.name}
                           </span>
@@ -569,8 +570,8 @@ export function MarcasPage() {
                           >
                             {itemsLabel(count)}
                           </span>
-                        </button>
-                      </div>
+                        </span>
+                      </button>
                     </li>
                   );
                 })}

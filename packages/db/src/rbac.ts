@@ -134,6 +134,11 @@ export const ROLE_MAP: Record<string, string[]> = {
     'comandas:create',
     'comandas:checkout',
     'clientes:view',
+    // Leitura do catálogo: o profissional PRECISA ver serviços/produtos para
+    // montar agendamento e comanda. Sem isto, GET /services responde 403 e a
+    // tela de serviços/o modal de Novo Agendamento falha ao carregar. Só view
+    // (nunca manage — não edita o catálogo).
+    'catalogo:view',
     'comissoes:view_own',
   ],
 };
