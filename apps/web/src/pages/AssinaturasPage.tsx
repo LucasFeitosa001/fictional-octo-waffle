@@ -714,7 +714,7 @@ export function AssinaturasPage() {
           type="button"
           aria-label="Nova assinatura"
           onClick={() => setCreateSubOpen(true)}
-          className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+          className="fab-above-nav fixed right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
         >
           <IconPlus size={22} />
         </button>
@@ -724,7 +724,7 @@ export function AssinaturasPage() {
           type="button"
           aria-label="Novo modelo"
           onClick={openCreatePlan}
-          className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+          className="fab-above-nav fixed right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
         >
           <IconPlus size={22} />
         </button>

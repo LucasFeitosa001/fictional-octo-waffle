@@ -29,7 +29,7 @@ import {
   MembershipStatus,
   DiscountType,
 } from '@beautypass/db';
-import { auth } from './better-auth';
+import { auth, ensureOwnerProfessional } from './better-auth';
 
 const SAMYA_EMAIL = 'samya@beautypass.dev';
 const SAMYA_PASSWORD = 'samya123';
@@ -103,6 +103,10 @@ async function ensureSamyaUser(): Promise<{ userId: string; companyId: string }>
 
 async function main() {
   const { userId, companyId } = await ensureSamyaUser();
+
+  // A dona Samya também é uma Professional (aparece na agenda). Idempotente e
+  // fora do guard de demo, pra valer mesmo quando a demo já foi semeada antes.
+  await ensureOwnerProfessional(companyId, userId, SAMYA_NAME);
 
   // Idempotency guard for the heavy demo data.
   const existingServices = await prisma.service.count({ where: { companyId } });

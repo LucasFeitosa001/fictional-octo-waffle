@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
   Input,
@@ -29,6 +29,7 @@ import {
   useServices,
   useSetAppointmentStatus,
 } from '../lib/queries';
+import { useNotificationSettings } from '../lib/queries/notificationSettings';
 import { formatDuration, formatMoney, formatSlotTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
 import type { AppointmentFollowUpInput, AvailabilitySlot } from '../lib/types';
@@ -216,7 +217,19 @@ export function NewAppointmentModal({
   const [newPhone, setNewPhone] = useState('');
   const [notes, setNotes] = useState('');
   // Ações
-  const [sendReminder, setSendReminder] = useState(true);
+  // O DEFAULT do lembrete pré-atendimento vem da configuração do salão
+  // (Configurações → Notificações → automation.reminder). Opt-in: começa
+  // DESLIGADO quando o salão não ativou. A dona ainda pode ligar por agendamento.
+  const notificationSettings = useNotificationSettings();
+  const reminderDefault = notificationSettings.data?.reminder ?? false;
+  const [sendReminder, setSendReminder] = useState(reminderDefault);
+  // Marca se a dona já mexeu no toggle manualmente. Enquanto não mexeu, o toggle
+  // segue o default da config (útil quando a config chega depois do modal abrir).
+  const reminderTouched = useRef(false);
+  function handleSendReminderChange(v: boolean) {
+    reminderTouched.current = true;
+    setSendReminder(v);
+  }
   const [squeezeIn, setSqueezeIn] = useState(false);
   // Avisar o cliente (aviso personalizado agendado)
   const [warnEnabled, setWarnEnabled] = useState(false);
@@ -295,7 +308,10 @@ export function NewAppointmentModal({
       setNewName('');
       setNewPhone('');
       setNotes('');
-      setSendReminder(true);
+      // Reflete o default da config do salão (opt-in): começa desligado quando
+      // automation.reminder está off. Sincronizado abaixo se a config chegar depois.
+      reminderTouched.current = false;
+      setSendReminder(reminderDefault);
       setSqueezeIn(false);
       setWarnEnabled(false);
       setWarnTemplateId('');
@@ -311,6 +327,15 @@ export function NewAppointmentModal({
       setCreatedOrderId(null);
     }
   }, [isOpen, initialDate, initialCustomer]);
+
+  // Sincroniza o toggle com o default da config quando ela carrega DEPOIS de o
+  // modal já estar aberto — só enquanto a dona não mexeu manualmente (não trava a
+  // edição). Ao mexer, reminderTouched fica true e o default para de sobrescrever.
+  useEffect(() => {
+    if (isOpen && !reminderTouched.current) {
+      setSendReminder(reminderDefault);
+    }
+  }, [isOpen, reminderDefault]);
 
   // Clear the picked slot when the inputs that produced it change.
   useEffect(() => {
@@ -905,11 +930,23 @@ export function NewAppointmentModal({
             </div>
 
             {/* ── Ações (switches inline) ──────────────────────────────── */}
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-              {/* Lembrete PRÉ-atendimento (24h/2h antes) — distinto do follow-up
-                  pós-atendimento, que é configurado em Configurações → Notificações. */}
-              <InlineToggle checked={sendReminder} onChange={setSendReminder} label="Enviar lembrete (antes do atendimento)" />
-              <InlineToggle checked={squeezeIn} onChange={setSqueezeIn} label="Encaixar agendamento" />
+            <div className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+                {/* Lembrete PRÉ-atendimento (antes do atendimento) — distinto do
+                    follow-up pós-atendimento. É OPT-IN: o padrão vem de
+                    Configurações → Notificações (default desligado). A dona pode
+                    ligar por agendamento sem mudar a config do salão. */}
+                <InlineToggle
+                  checked={sendReminder}
+                  onChange={handleSendReminderChange}
+                  label="Enviar lembrete (antes do atendimento)"
+                />
+                <InlineToggle checked={squeezeIn} onChange={setSqueezeIn} label="Encaixar agendamento" />
+              </div>
+              <p className="text-xs text-muted">
+                O lembrete é opcional. O padrão vem de Configurações → Notificações
+                (começa desligado); ative aqui para enviar só neste agendamento.
+              </p>
             </div>
 
             {/* ── Avisar o cliente (aviso personalizado agendado) ──────────

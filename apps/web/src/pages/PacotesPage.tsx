@@ -824,7 +824,7 @@ export function PacotesPage() {
         type="button"
         aria-label="Novo pacote"
         onClick={() => setCreateOpen(true)}
-        className="btn-primary-hover fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+        className="btn-primary-hover fab-above-nav fixed right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
       >
         <IconPlus size={22} />
       </button>

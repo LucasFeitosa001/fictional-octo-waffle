@@ -70,6 +70,38 @@ function cookieDomain(): string | undefined {
 }
 const sharedCookieDomain = cookieDomain();
 
+/**
+ * Garante que o DONO do salão tenha um Professional vinculado (Professional.userId
+ * = user.id), pra ele aparecer na agenda como profissional sem cadastro à parte.
+ *
+ * Idempotente: só cria se ainda não existe um Professional com esse userId nessa
+ * empresa. `notifyWhatsapp` é FALSE por padrão — o app é opt-in agora, nada dispara
+ * automaticamente até o dono ativar nas Configurações.
+ */
+export async function ensureOwnerProfessional(
+  companyId: string,
+  userId: string,
+  name?: string | null,
+): Promise<void> {
+  const existing = await prisma.professional.findFirst({
+    where: { companyId, userId },
+    select: { id: true },
+  });
+  if (existing) return;
+  await prisma.professional.create({
+    data: {
+      companyId,
+      userId,
+      name: name || 'Proprietário(a)',
+      profession: 'Proprietário(a)',
+      active: true,
+      generateSchedule: true,
+      onlineBookable: true,
+      notifyWhatsapp: false,
+    },
+  });
+}
+
 export const auth = betterAuth({
   appName: 'Beautypass',
   secret: process.env.BETTER_AUTH_SECRET ?? 'dev-better-auth-secret-change-me-32chars',
@@ -153,6 +185,9 @@ export const auth = betterAuth({
           await prisma.userCompany.create({
             data: { userId: user.id, companyId: company.id, roleId: ownerRoleId },
           });
+          // O DONO do salão também é um Professional (aparece na agenda como
+          // profissional sem precisar cadastrar à parte). Vincula pelo userId.
+          await ensureOwnerProfessional(company.id, user.id, user.name);
         },
       },
     },

@@ -846,12 +846,37 @@ h1, h2, h3, h4, h5, h6,
   -webkit-overflow-scrolling: touch;
 }
 
-/* Mobile bottom tab bar: brand sidebar surface, paints into the home-indicator
-   safe area so the bar reads solid down to the screen edge. (Mirrors the club.) */
+/* Mobile bottom tab bar: brand sidebar surface. Esta é uma barra FLUTUANTE
+   (inset-x-3 + cantos + sombra), NÃO encostada na borda. O afastamento da borda
+   inferior segura (home indicator) é feito pelo `bottom-[…env(safe-area-inset-
+   bottom)]` da própria <nav> — por isso aqui NÃO repetimos `padding-bottom:
+   env(safe-area-inset-bottom)`: isso empurrava a barra pra cima duas vezes (a
+   deixava "subida" e inchada por dentro). O padding interno dos botões já vem
+   das classes utilitárias (py-2 nos TabButton/ActionButton). */
 .club-bottomnav {
   background: var(--sp-sidebar);
   background-image: linear-gradient(0deg, var(--sp-sidebar-grad-mid) 0%, var(--sp-sidebar-grad-top) 100%);
-  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Botões flutuantes (FAB) que convivem com a BottomNav ────────────────────
+   Ponto ÚNICO de verdade do offset inferior de qualquer FAB `fixed` no mobile
+   (atalho de CRM, "novo" de Pacotes/Assinaturas, etc.). O FAB precisa ficar
+   ACIMA da nav flutuante, nunca sobrepondo. O cálculo espelha a posição da nav:
+     afastamento da nav da borda  = max(0.75rem, safe-bottom + 0.5rem)
+   + altura aproximada da nav     = 4.5rem  (botões min-h-16 = 4rem + folga)
+   + gap                          = 0.75rem
+   No Safari (safe-bottom=0) → 0.75 + 4.5 + 0.75 = 6rem (= o antigo bottom-24,
+   então nada regride). Em standalone soma a inset do home indicator. Use junto
+   com `right-4` (posição horizontal) e um z abaixo da nav (z-30 < z-40). */
+.fab-above-nav {
+  bottom: calc(max(0.75rem, env(safe-area-inset-bottom) + 0.5rem) + 4.5rem + 0.75rem);
+}
+
+/* Desktop (>= md): não há BottomNav mobile — o FAB volta ao canto padrão. */
+@media (min-width: 768px) {
+  .fab-above-nav {
+    bottom: 1.5rem; /* = md:bottom-6 */
+  }
 }
 
 /* A nav do sidebar continua rolável, mas sua barra NUNCA deve ocupar espaço
@@ -875,6 +900,32 @@ h1, h2, h3, h4, h5, h6,
 .mobile-topbar {
   min-height: calc(3.75rem + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
+}
+
+/* ── PWA instalado (standalone) — safe-area do topo ─────────────────────────
+   No Safari COM URL bar, a barra do navegador já protege o notch, então
+   env(safe-area-inset-top) costuma ser 0 e o `max(1rem, …)` da casca resolve
+   pra 1rem (folga normal). Em standalone (Adicionar à Tela de Início → abre sem
+   Safari) NÃO há URL bar: o conteúdo sobe até o topo físico e o notch/Dynamic
+   Island passa a "comer" a parte de cima. `viewport-fit=cover` expõe a inset,
+   mas cabe ao CSS reservá-la.
+
+   Reforço centralizado: SÓ no PWA instalado, garantimos a reserva do topo na
+   CASCA (o scroller mobile e o container de conteúdo), com um piso mínimo pra o
+   conteúdo nunca encostar no notch. Não toca no Safari (a media não casa) nem
+   no desktop (lg: cancela o pt no próprio layout). O `--sp-safe-top` deixa o
+   valor reutilizável por componentes de topo (ex.: headers full-bleed). */
+:root {
+  --sp-safe-top: env(safe-area-inset-top);
+  --sp-safe-bottom: env(safe-area-inset-bottom);
+}
+
+@media (display-mode: standalone) {
+  /* Piso de 0.5rem além da inset física só no app instalado — respiro pra o
+     conteúdo/cabeçalho não ficar colado no vidro sob o notch. */
+  :root {
+    --sp-safe-top: calc(env(safe-area-inset-top) + 0.5rem);
+  }
 }
 
 @media (max-width: 639px) {
