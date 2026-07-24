@@ -149,12 +149,22 @@ export function Drawer({
         ].join(' ')}
       >
         {/* Header (sticky) */}
+        {/* padding-top do topo:
+            - painel `bottom` (mobile bottom-sheet/fullscreen `inset-0 h-dvh`,
+              ancorado no topo físico) → reserva `var(--sp-safe-top)` pra o
+              título/botão não ficar sob o notch/Dynamic Island no PWA instalado
+              (standalone). Igual ao MobileBackHeader das páginas internas.
+            - painel `right` (desktop, desliza da direita) → topo já abaixo do
+              notch; mantém a folga histórica. No Safari com URL bar a inset é 0
+              e ambos caem no piso normal (nada regride). */}
         <div className={[
           'sticky top-0 z-10 border-b border-[var(--color-soft-border)] bg-warm-white px-4 pb-3.5',
           isMobile && mobileBackLabel
             ? 'grid grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center'
             : 'flex items-center justify-between gap-3',
-          effectivePlacement === 'right' ? 'pt-[max(0.875rem,env(safe-area-inset-top))]' : 'pt-3.5',
+          effectivePlacement === 'right'
+            ? 'pt-[max(0.875rem,env(safe-area-inset-top))]'
+            : 'pt-[max(0.875rem,var(--sp-safe-top))]',
         ].join(' ')}>
           {isMobile && mobileBackLabel ? (
             <>
