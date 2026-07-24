@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
   CreateCashbackRuleDto,
   CreateGalleryPhotoDto,
   CreatePromotionDto,
+  UpdateBookingAppearanceDto,
   UpdateBookingLinkDto,
   UpdateBusinessHoursDto,
   UpdateCashbackConfigDto,
@@ -80,6 +82,23 @@ export class MarketingController {
     @Body() dto: UpdateWebProfileDto,
   ) {
     return this.service.updateWebProfile(companyId, dto);
+  }
+
+  // ---- aparência do agendamento online (Setting `booking.appearance`) ----
+  // Mesma dupla view/manage dos demais settings do booking-link/web-profile.
+  @RequirePermission('marketing:view')
+  @Get('booking-link/appearance')
+  getBookingAppearance(@CurrentUser('companyId') companyId: string) {
+    return this.service.getBookingAppearance(companyId);
+  }
+
+  @RequirePermission('marketing:manage')
+  @Put('booking-link/appearance')
+  updateBookingAppearance(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: UpdateBookingAppearanceDto,
+  ) {
+    return this.service.updateBookingAppearance(companyId, dto);
   }
 
   // ---- gallery (galeria de fotos do perfil público) ----

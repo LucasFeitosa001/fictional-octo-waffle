@@ -379,7 +379,9 @@ export function CashbackPage() {
                         aria-label={`Selecionar ${SCOPE_LABEL[r.scopeType]}`}
                         className="shrink-0"
                       >
-                        <Checkbox.Content>
+                        {/* padding no Content (o <label> clicável) aumenta o alvo
+                            de toque; -m-2 compensa para não deslocar o layout. */}
+                        <Checkbox.Content className="-m-2 p-2">
                           <Checkbox.Control>
                             <Checkbox.Indicator />
                           </Checkbox.Control>
@@ -398,10 +400,13 @@ export function CashbackPage() {
                       <IconGift size={20} />
                     </span>
 
-                    {/* Nome + subline (tipo | valor) */}
+                    {/* Nome + subline (tipo | valor). Em modo de seleção o corpo
+                        do card alterna a seleção (junto com o checkbox); fora
+                        dele abre a edição. */}
                     <button
                       type="button"
-                      onClick={() => openEdit(r)}
+                      onClick={() => (selectMode ? toggleSelect(r.id) : openEdit(r))}
+                      aria-pressed={selectMode ? selected.has(r.id) : undefined}
                       className="min-w-0 flex-1 text-left"
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -426,26 +431,29 @@ export function CashbackPage() {
                       </div>
                     </button>
 
-                    {/* Ações da linha */}
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(r)}
-                        aria-label="Editar regra"
-                        className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-gold/15 hover:text-gold-strong"
-                      >
-                        <IconPencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={del.isPending}
-                        onClick={() => handleRemove(r)}
-                        aria-label="Remover regra"
-                        className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
-                      >
-                        <IconTrash size={16} />
-                      </button>
-                    </div>
+                    {/* Ações da linha — ocultas no modo de seleção para o card
+                        inteiro virar alvo de toque limpo. */}
+                    {!selectMode && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(r)}
+                          aria-label="Editar regra"
+                          className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-gold/15 hover:text-gold-strong"
+                        >
+                          <IconPencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={del.isPending}
+                          onClick={() => handleRemove(r)}
+                          aria-label="Remover regra"
+                          className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+                        >
+                          <IconTrash size={16} />
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -5,6 +5,8 @@ import {
   CreateCashbackRuleDto,
   CreateGalleryPhotoDto,
   CreatePromotionDto,
+  HEX_COLOR,
+  UpdateBookingAppearanceDto,
   UpdateBookingLinkDto,
   UpdateBusinessHoursDto,
   UpdateCashbackConfigDto,
@@ -23,6 +25,42 @@ export interface BusinessHoursDay {
 }
 
 const REVIEW_SETTINGS_KEY = 'review_config';
+
+// Setting key that stores each salon's public booking-page appearance.
+export const BOOKING_APPEARANCE_KEY = 'booking.appearance';
+
+// Aparência da página pública de agendamento. Cores em hex "#RRGGBB" (ou null
+// quando não definidas → o web-club aplica seus defaults). `hideNavbar` esconde
+// a barra preta do topo. Defaults sensatos: navbar visível, cores nulas (o
+// front cai no tema da casa).
+export interface BookingAppearance {
+  hideNavbar: boolean;
+  primaryColor: string | null;
+  accentColor: string | null;
+  backgroundColor: string | null;
+}
+
+export const BOOKING_APPEARANCE_DEFAULTS: BookingAppearance = {
+  hideNavbar: false,
+  primaryColor: null,
+  accentColor: null,
+  backgroundColor: null,
+};
+
+// Coerce whatever is stored in the Setting JSON into a well-formed appearance,
+// so a partial/legacy blob never breaks the public page. Exported so the public
+// booking endpoint can reuse the exact same normalization.
+export function coerceBookingAppearance(raw: unknown): BookingAppearance {
+  const v = (raw ?? {}) as Record<string, unknown>;
+  const hex = (x: unknown): string | null =>
+    typeof x === 'string' && HEX_COLOR.test(x.trim()) ? x.trim().toUpperCase() : null;
+  return {
+    hideNavbar: v.hideNavbar === true,
+    primaryColor: hex(v.primaryColor),
+    accentColor: hex(v.accentColor),
+    backgroundColor: hex(v.backgroundColor),
+  };
+}
 
 // Salonpass defaults for the review-request texts (generic salon copy — no
 // third-party branding). Placeholders %NOME% / %LINK% are filled at send time.
@@ -430,6 +468,45 @@ export class MarketingService {
       where: { companyId_key: { companyId, key: REVIEW_SETTINGS_KEY } },
       create: { companyId, key: REVIEW_SETTINGS_KEY, valueJson: merged },
       update: { valueJson: merged },
+    });
+    return merged;
+  }
+
+  // ---- aparência do agendamento online (Setting `booking.appearance`) ----
+  // Lida/gravada exatamente como review_config: Setting por (companyId, key),
+  // com defaults sensatos quando não há linha — nunca quebra salões sem config.
+  async getBookingAppearance(companyId: string): Promise<BookingAppearance> {
+    const row = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: BOOKING_APPEARANCE_KEY } },
+    });
+    if (!row) return { ...BOOKING_APPEARANCE_DEFAULTS };
+    return coerceBookingAppearance(row.valueJson);
+  }
+
+  async updateBookingAppearance(
+    companyId: string,
+    dto: UpdateBookingAppearanceDto,
+  ): Promise<BookingAppearance> {
+    const current = await this.getBookingAppearance(companyId);
+    // "" limpa a cor (volta ao default do web-club); um hex é normalizado em
+    // maiúsculas. Campos ausentes no DTO preservam o valor atual.
+    const hex = (v: string | undefined, fallback: string | null): string | null => {
+      if (v === undefined) return fallback;
+      const t = v.trim();
+      if (!t) return null;
+      return HEX_COLOR.test(t) ? t.toUpperCase() : fallback;
+    };
+    const merged: BookingAppearance = {
+      hideNavbar: dto.hideNavbar !== undefined ? dto.hideNavbar : current.hideNavbar,
+      primaryColor: hex(dto.primaryColor, current.primaryColor),
+      accentColor: hex(dto.accentColor, current.accentColor),
+      backgroundColor: hex(dto.backgroundColor, current.backgroundColor),
+    };
+    const valueJson = merged as unknown as Prisma.InputJsonValue;
+    await this.prisma.client.setting.upsert({
+      where: { companyId_key: { companyId, key: BOOKING_APPEARANCE_KEY } },
+      create: { companyId, key: BOOKING_APPEARANCE_KEY, valueJson },
+      update: { valueJson },
     });
     return merged;
   }

@@ -25,10 +25,12 @@ import { useEmpresa } from '../../lib/queries/empresa';
 import {
   WEEKDAY_LABELS,
   useAddGalleryPhoto,
+  useBookingAppearance,
   useBusinessHours,
   useGallery,
   useRemoveGalleryPhoto,
   useToggleServiceOnline,
+  useUpdateBookingAppearance,
   useUpdateBusinessHours,
   useUpdateWebProfile,
   useWebProfile,
@@ -50,6 +52,7 @@ const PUBLIC_BASE = `${CLUB_ORIGIN}/`;
 type SectionId =
   | 'detalhes'
   | 'config'
+  | 'personalizacao'
   | 'links'
   | 'galeria'
   | 'servicos'
@@ -66,6 +69,11 @@ const SECTIONS: { id: SectionId; title: string; description: string }[] = [
     id: 'config',
     title: 'Configurações',
     description: 'Defina aqui as configurações finais para o seu agendamento online ficar perfeito!',
+  },
+  {
+    id: 'personalizacao',
+    title: 'Personalização',
+    description: 'Deixe a página com a sua cara: esconda a barra de navegação e escolha as cores.',
   },
   {
     id: 'links',
@@ -193,28 +201,52 @@ const ACCENT_PRESETS: { value: string; label: string }[] = [
   { value: '#111111', label: 'Preto' },
 ];
 
+// Sugestões de cor de FUNDO da página pública. "" = padrão (creme claro do web-club).
+const BG_PRESETS: { value: string; label: string }[] = [
+  { value: '', label: 'Padrão' },
+  { value: '#FFFFFF', label: 'Branco' },
+  { value: '#F7F3EA', label: 'Creme' },
+  { value: '#F3F4F6', label: 'Cinza claro' },
+  { value: '#FDF2F8', label: 'Rosé' },
+  { value: '#141118', label: 'Escuro' },
+];
+
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
 
-// Cor de destaque (marca) do agendamento online: paleta de sugestões + entrada
-// livre em hex (com prévia). "" = padrão da casa.
-function AccentColorField({
+// Rascunho do formulário de aparência (cores como "" quando vazias).
+type AppearanceDraft = {
+  hideNavbar: boolean;
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+};
+
+// Campo de cor reutilizável: paleta de sugestões + seletor nativo + hex livre
+// (com prévia). "" limpa a cor (volta ao padrão). `fallbackPreview` é a cor
+// mostrada na prévia/placeholder quando não há valor definido.
+function ColorField({
+  label,
+  hint,
   value,
   onChange,
+  presets,
+  fallbackPreview,
 }: {
+  label: string;
+  hint?: string;
   value: string;
   onChange: (hex: string) => void;
+  presets: { value: string; label: string }[];
+  fallbackPreview: string;
 }) {
   const normalized = value.trim().toUpperCase();
   const isValid = normalized === '' || HEX_RE.test(normalized);
-  const preview = isValid && normalized ? normalized : '#F08CA5';
+  const preview = isValid && normalized ? normalized : fallbackPreview;
   return (
-    <Field
-      label="Cor da marca"
-      hint="A cor aplicada nos botões, passos e horários da sua página de agendamento."
-    >
+    <Field label={label} hint={hint}>
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
-          {ACCENT_PRESETS.map((p) => {
+          {presets.map((p) => {
             const selected = normalized === p.value.toUpperCase();
             return (
               <button
@@ -231,8 +263,7 @@ function AccentColorField({
                   p.value
                     ? { background: p.value }
                     : {
-                        backgroundImage:
-                          'linear-gradient(135deg, #F08CA5 0 50%, #FCE4EA 50% 100%)',
+                        backgroundImage: `linear-gradient(135deg, ${fallbackPreview} 0 50%, #FFFFFF 50% 100%)`,
                       }
                 }
               >
@@ -262,7 +293,7 @@ function AccentColorField({
               const v = e.target.value.trim();
               onChange(v === '' ? '' : v.startsWith('#') ? v : `#${v}`);
             }}
-            placeholder="#F08CA5"
+            placeholder={fallbackPreview}
             aria-label="Cor em hexadecimal"
             className={FIELD}
           />
@@ -291,6 +322,8 @@ export function AgendamentoOnlinePage() {
   const gallery = useGallery();
   const addPhoto = useAddGalleryPhoto();
   const removePhoto = useRemoveGalleryPhoto();
+  const appearance = useBookingAppearance();
+  const updateAppearance = useUpdateBookingAppearance();
 
   // Which tab is active.
   const [active, setActive] = useState<SectionId>('detalhes');
@@ -313,6 +346,10 @@ export function AgendamentoOnlinePage() {
   const [galeriaMsg, setGaleriaMsg] = useState<{ ok?: string; error?: string }>({});
   const [photoUrl, setPhotoUrl] = useState('');
 
+  // Aparência (booking.appearance) — cores como "" quando vazias no formulário.
+  const [appearanceDraft, setAppearanceDraft] = useState<AppearanceDraft | null>(null);
+  const [personMsg, setPersonMsg] = useState<{ ok?: string; error?: string }>({});
+
   useEffect(() => {
     if (link.data) {
       setSlug(link.data.slug);
@@ -327,6 +364,17 @@ export function AgendamentoOnlinePage() {
   useEffect(() => {
     if (profile.data) setProfileDraft(profile.data);
   }, [profile.data]);
+
+  useEffect(() => {
+    if (appearance.data) {
+      setAppearanceDraft({
+        hideNavbar: appearance.data.hideNavbar,
+        primaryColor: appearance.data.primaryColor ?? '',
+        accentColor: appearance.data.accentColor ?? '',
+        backgroundColor: appearance.data.backgroundColor ?? '',
+      });
+    }
+  }, [appearance.data]);
 
   const savedSlug = link.data?.slug ?? '';
   const liveUrl = savedSlug ? `${PUBLIC_BASE}${savedSlug}` : '';
@@ -412,7 +460,6 @@ export function AgendamentoOnlinePage() {
   const CONFIG_FIELDS = [
     'themePreference',
     'schedulingFlow',
-    'accentColor',
     'requiredLogin',
     'wifi',
     'snackBar',
@@ -454,6 +501,40 @@ export function AgendamentoOnlinePage() {
       }
       return next;
     });
+  }
+
+  // ---- appearance (personalização) helpers ----
+  function appearanceFromData(): AppearanceDraft | null {
+    if (!appearance.data) return null;
+    return {
+      hideNavbar: appearance.data.hideNavbar,
+      primaryColor: appearance.data.primaryColor ?? '',
+      accentColor: appearance.data.accentColor ?? '',
+      backgroundColor: appearance.data.backgroundColor ?? '',
+    };
+  }
+  function setAppearanceField<K extends keyof AppearanceDraft>(key: K, value: AppearanceDraft[K]) {
+    setAppearanceDraft((cur) => (cur ? { ...cur, [key]: value } : cur));
+  }
+  const appearanceDirty = useMemo(() => {
+    const base = appearance.data;
+    if (!base || !appearanceDraft) return false;
+    return (
+      appearanceDraft.hideNavbar !== base.hideNavbar ||
+      appearanceDraft.primaryColor !== (base.primaryColor ?? '') ||
+      appearanceDraft.accentColor !== (base.accentColor ?? '') ||
+      appearanceDraft.backgroundColor !== (base.backgroundColor ?? '')
+    );
+  }, [appearanceDraft, appearance.data]);
+  async function saveAppearance() {
+    if (!appearanceDraft) return;
+    setPersonMsg({});
+    try {
+      await updateAppearance.mutateAsync(appearanceDraft);
+      setPersonMsg({ ok: 'Alterações salvas!' });
+    } catch (err) {
+      setPersonMsg({ error: err instanceof ApiClientError ? err.message : 'Não foi possível salvar.' });
+    }
   }
 
   // ---- gallery helpers ----
@@ -616,11 +697,6 @@ export function AgendamentoOnlinePage() {
               </Select>
             </Field>
 
-            <AccentColorField
-              value={profileDraft.accentColor ?? ''}
-              onChange={(hex) => setProfileField('accentColor', hex)}
-            />
-
             <SwitchRow
               checked={profileDraft.requiredLogin}
               onChange={(v: boolean) => setProfileField('requiredLogin', v)}
@@ -652,6 +728,46 @@ export function AgendamentoOnlinePage() {
             </div>
 
             <Feedback error={configMsg.error} ok={configMsg.ok} />
+          </div>
+        );
+
+      case 'personalizacao':
+        return appearance.isLoading || !appearanceDraft ? (
+          <LoadingState />
+        ) : (
+          <div className="flex flex-col gap-4">
+            <SwitchRow
+              checked={appearanceDraft.hideNavbar}
+              onChange={(v: boolean) => setAppearanceField('hideNavbar', v)}
+              label="Esconder barra de navegação"
+              description="Remove a barra escura do topo da página pública. Um acesso compacto (entrar / conta) continua disponível."
+              className="rounded-xl border border-line bg-card px-4 py-3"
+            />
+            <ColorField
+              label="Cor principal"
+              hint="Cor da marca aplicada nos botões, passos e destaques da página."
+              value={appearanceDraft.primaryColor}
+              onChange={(hex) => setAppearanceField('primaryColor', hex)}
+              presets={ACCENT_PRESETS}
+              fallbackPreview="#F08CA5"
+            />
+            <ColorField
+              label="Cor de destaque"
+              hint="Cor secundária, usada em pequenos realces."
+              value={appearanceDraft.accentColor}
+              onChange={(hex) => setAppearanceField('accentColor', hex)}
+              presets={ACCENT_PRESETS}
+              fallbackPreview="#F08CA5"
+            />
+            <ColorField
+              label="Cor de fundo"
+              hint="Cor de fundo da página pública de agendamento."
+              value={appearanceDraft.backgroundColor}
+              onChange={(hex) => setAppearanceField('backgroundColor', hex)}
+              presets={BG_PRESETS}
+              fallbackPreview="#F7F3EA"
+            />
+            <Feedback error={personMsg.error} ok={personMsg.ok} />
           </div>
         );
 
@@ -925,6 +1041,27 @@ export function AgendamentoOnlinePage() {
               isDisabled={updateProfile.isPending || !sectionDirty(CONFIG_FIELDS)}
             >
               {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </>
+        );
+      case 'personalizacao':
+        return (
+          <>
+            {appearanceDirty && appearance.data && (
+              <Button
+                variant="ghost"
+                onClick={() => setAppearanceDraft(appearanceFromData())}
+                isDisabled={updateAppearance.isPending}
+              >
+                Descartar
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              onClick={saveAppearance}
+              isDisabled={updateAppearance.isPending || !appearanceDirty}
+            >
+              {updateAppearance.isPending ? 'Salvando…' : 'Salvar'}
             </Button>
           </>
         );

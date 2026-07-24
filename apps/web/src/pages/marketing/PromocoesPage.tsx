@@ -513,8 +513,10 @@ function Check({
   onChange: (v: boolean) => void;
 }) {
   return (
+    // Alvo de toque maior (mobile/acessibilidade): o padding no Content — que é
+    // o <label> clicável — amplia a área sem afetar o layout (-m-2 compensa).
     <Checkbox isSelected={checked} onChange={onChange} className="shrink-0">
-      <Checkbox.Content>
+      <Checkbox.Content className="-m-2 p-2">
         <Checkbox.Control>
           <Checkbox.Indicator />
         </Checkbox.Control>

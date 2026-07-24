@@ -12,6 +12,12 @@ import { AppointmentsService } from '../appointments/appointments.service';
 import { EmailService } from '../email/email.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { NotificationSettingsService } from '../notifications/notification-settings.service';
+import {
+  BOOKING_APPEARANCE_KEY,
+  BOOKING_APPEARANCE_DEFAULTS,
+  coerceBookingAppearance,
+  type BookingAppearance,
+} from '../marketing/marketing.service';
 import { CreateBookingDto, CreateReviewDto, UpdateMyProfileDto } from './dto';
 
 // Statuses that still occupy a professional's agenda (everything except
@@ -179,7 +185,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       select: { name: true, logoUrl: true, timezone: true, addressJson: true },
     });
     const tz = company?.timezone ?? 'America/Sao_Paulo';
-    const [status, rating, plan, webProfile] = await Promise.all([
+    const [status, rating, plan, webProfile, appearanceRow] = await Promise.all([
       this.openStatus(companyId, tz),
       this.ratingSummary(companyId),
       this.planLabel(companyId),
@@ -187,7 +193,15 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         where: { companyId },
         select: { accentColor: true },
       }),
+      this.prisma.client.setting.findUnique({
+        where: { companyId_key: { companyId, key: BOOKING_APPEARANCE_KEY } },
+      }),
     ]);
+    // Aparência da página pública. Defaults sensatos quando não há Setting, para
+    // nunca quebrar salões sem config.
+    const appearance: BookingAppearance = appearanceRow
+      ? coerceBookingAppearance(appearanceRow.valueJson)
+      : { ...BOOKING_APPEARANCE_DEFAULTS };
     return {
       slug,
       name: company?.name ?? 'Salão',
@@ -201,8 +215,13 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       whatsapp: this.formatWhatsApp(company?.addressJson ?? null),
       googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       // Cor de destaque (marca) do agendamento online, "#RRGGBB". Null → o
-      // web-club aplica o rosa padrão da casa.
-      accentColor: webProfile?.accentColor ?? null,
+      // web-club aplica o rosa padrão da casa. Mantida por compatibilidade; a
+      // fonte preferida da cor primária agora é `appearance` (Setting
+      // `booking.appearance`), que também carrega accent/background e hideNavbar.
+      accentColor: appearance.primaryColor ?? webProfile?.accentColor ?? null,
+      // Aparência personalizável da página pública (por empresa). Sempre presente
+      // com defaults, então o web-club nunca precisa lidar com ausência.
+      appearance,
     };
   }
 

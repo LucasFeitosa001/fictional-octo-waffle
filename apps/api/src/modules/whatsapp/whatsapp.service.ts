@@ -3,6 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   Browsers,
+  proto,
 } from 'baileys';
 import type { WASocket } from 'baileys';
 import * as QRCode from 'qrcode';
@@ -37,6 +38,9 @@ export type WhatsappInboundHandler = (msg: WhatsappInbound) => void;
 const OUTBOX_TICK_MS = 5000; // how often the drain loop wakes up
 const OUTBOX_PACING_MS = 1500; // gap between consecutive sends (ban-avoidance)
 const OUTBOX_MAX_ATTEMPTS = 5; // give up after this many tries → status 'failed'
+// Quantas mensagens enviadas guardar por sessão para responder aos retry-receipts
+// (ver getMessage). Cobre com folga a janela em que um aparelho pede reenvio.
+const SENT_CACHE_MAX = 300;
 
 // Minimal pino-compatible logger so Baileys stays quiet (it logs verbosely).
 function silentLogger(): any {
@@ -71,6 +75,13 @@ interface SessionState {
   // para reconhecer o chat "conversar consigo mesmo": salões que usam UM número
   // para bot + gerente respondem 1/2/3 no self-chat como fromMe.
   selfDigitsTail: string | null;
+  // Cache id→conteúdo das últimas mensagens que ESTE socket enviou. Alimenta o
+  // hook `getMessage` do Baileys: quando um aparelho do próprio dono (o celular
+  // primário) recebe a cópia da mensagem enviada mas NÃO consegue decifrar, ele
+  // pede reenvio (retry receipt) e o Baileys chama getMessage(key) pra reobter o
+  // conteúdo e RE-ENVIAR criptografado. Sem isso a mensagem fica presa em
+  // "Aguardando esta mensagem…" no WhatsApp do dono. Limitado a SENT_CACHE_MAX.
+  sentCache: Map<string, proto.IMessage>;
 }
 
 /**
@@ -144,6 +155,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         reconnectAttempts: 0,
         connectTimeout: null,
         selfDigitsTail: null,
+        sentCache: new Map(),
       };
       this.sessions.set(companyId, session);
     }
@@ -523,7 +535,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn(`Outbox ${msg.id}: número ${msg.toPhone} sem WhatsApp — descartado.`);
         return;
       }
-      await session.sock.sendMessage(jid, { text: msg.text });
+      const sent = await session.sock.sendMessage(jid, { text: msg.text });
+      // Guarda o conteúdo enviado para o getMessage responder aos retry-receipts
+      // (ver makeWASocket) — é isso que tira a mensagem do "Aguardando esta
+      // mensagem…" no celular do dono. Mantém o cache limitado (FIFO).
+      if (sent?.key?.id && sent.message) {
+        if (session.sentCache.size >= SENT_CACHE_MAX) {
+          const oldest = session.sentCache.keys().next().value;
+          if (oldest !== undefined) session.sentCache.delete(oldest);
+        }
+        session.sentCache.set(sent.key.id, sent.message);
+      }
       await db.whatsappOutbox.update({
         where: { id: msg.id },
         data: { status: 'sent', sentAt: new Date(), attempts: msg.attempts + 1, lastError: null },
@@ -615,6 +637,16 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         printQRInTerminal: false,
         markOnlineOnConnect: false,
         syncFullHistory: false,
+        // Multi-device: responde aos "retry receipts". Quando um aparelho (em
+        // especial o CELULAR DO PRÓPRIO DONO) recebe a cópia de uma mensagem que
+        // enviamos mas não consegue decifrar, ele pede reenvio; o Baileys chama
+        // este getMessage(key) pra recuperar o conteúdo original e re-enviar
+        // criptografado. Sem isso, a mensagem fica eternamente em "Aguardando
+        // esta mensagem…" no WhatsApp do dono (o sintoma relatado). O conteúdo
+        // vem do sentCache alimentado no deliverOutbox.
+        maxMsgRetryCount: 5,
+        getMessage: async (key) =>
+          (key.id ? session.sentCache.get(key.id) : undefined) ?? undefined,
       });
       session.sock = sock;
 

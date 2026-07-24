@@ -28,12 +28,14 @@ import {
   Xmark,
 } from '@gravity-ui/icons';
 import { TopBar } from '../components/TopBar';
+import { NotificationBell } from '../components/NotificationBell';
 import { BottomNav, type BookingNavStep } from '../components/BottomNav';
 import { signIn, useCustomerSession } from '../lib/auth';
 import {
   useAvailability,
   useBook,
   useBookingAccent,
+  useBookingAppearance,
   usePortal,
   useProfessionals,
   useServices,
@@ -64,6 +66,48 @@ function WhatsAppGlyph({ size = 16 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M.06 24l1.68-6.13A11.86 11.86 0 0 1 .15 11.9C.15 5.34 5.5 0 12.07 0a11.82 11.82 0 0 1 8.41 3.49 11.82 11.82 0 0 1 3.48 8.42c0 6.56-5.35 11.9-11.9 11.9a11.9 11.9 0 0 1-5.69-1.45L.06 24zm6.6-3.8c1.68.99 3.28 1.59 5.4 1.59 5.45 0 9.89-4.43 9.9-9.88 0-5.46-4.42-9.9-9.88-9.9-5.46 0-9.9 4.43-9.9 9.89 0 2.22.65 3.89 1.75 5.62l-.99 3.62 3.72-.95zm11.4-5.3c-.08-.12-.27-.2-.56-.34-.29-.15-1.72-.85-1.99-.94-.26-.1-.46-.15-.65.14-.19.29-.74.94-.91 1.13-.17.19-.34.22-.62.07-.29-.14-1.23-.45-2.34-1.44-.86-.77-1.45-1.72-1.62-2.01-.17-.29-.02-.45.13-.59.13-.13.29-.34.43-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.07-.14-.65-1.57-.89-2.15-.24-.56-.47-.48-.65-.49l-.56-.01c-.19 0-.51.07-.77.36-.26.29-1.01.99-1.01 2.42 0 1.42 1.04 2.8 1.18 2.99.14.19 2.04 3.12 4.95 4.37.69.3 1.23.48 1.65.61.69.22 1.32.19 1.82.12.56-.08 1.72-.7 1.96-1.38.24-.68.24-1.26.17-1.38z" />
     </svg>
+  );
+}
+
+// Compact floating access control shown instead of the full black TopBar when
+// the salon hides the navbar. Keeps essential auth navigation reachable (login
+// when logged out; account + notification bell when logged in) without the bar.
+function MinimalAccess({
+  slug,
+  isLoggedIn,
+  onLogin,
+  onAccount,
+}: {
+  slug: string;
+  isLoggedIn: boolean;
+  onLogin: () => void;
+  onAccount: () => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-40 flex items-center gap-1.5">
+      {isLoggedIn ? (
+        <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-[var(--color-soft-border)] bg-[#fffdf8]/90 px-1 py-1 shadow-[var(--shadow-soft)] backdrop-blur-md">
+          <NotificationBell slug={slug} enabled={isLoggedIn} />
+          <button
+            type="button"
+            onClick={onAccount}
+            aria-label="Minha conta"
+            className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-black/5"
+          >
+            <Person width={20} height={20} />
+          </button>
+        </div>
+      ) : (
+        <Button
+          variant="primary"
+          size="sm"
+          onPress={onLogin}
+          className="pointer-events-auto min-h-9 rounded-full px-4 shadow-[var(--shadow-soft)]"
+        >
+          Entrar
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -114,9 +158,11 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const portal = usePortal(slug);
-  // Theme the whole flow with the salon's brand accent color (falls back to the
-  // house pink when the salon hasn't set one).
+  // Theme the whole flow with the salon's customized colors (primary/accent/
+  // background), falling back to the house theme when the salon hasn't set them.
   useBookingAccent(slug);
+  // Per-salon appearance: `hideNavbar` removes the black top bar entirely.
+  const appearance = useBookingAppearance(slug);
   const services = useServices(slug);
 
   // Show the salon name first in the browser tab once the portal loads.
@@ -289,16 +335,28 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
 
   return (
     <div className="club-page flex flex-col">
-      <TopBar
-        slug={slug}
-        isLoggedIn={isLoggedIn}
-        onLogin={goToLogin}
-        onAccount={goToAccount}
-        onHome={goHome}
-        whatsapp={portal.data?.whatsapp ?? null}
-        salonName={portal.data?.name}
-        logoUrl={portal.data?.logoUrl ?? null}
-      />
+      {/* The salon can hide the black top bar (Setting booking.appearance
+          .hideNavbar). When hidden, we still surface a compact floating access
+          control so login / account / notifications are never lost. */}
+      {appearance.hideNavbar ? (
+        <MinimalAccess
+          slug={slug}
+          isLoggedIn={isLoggedIn}
+          onLogin={goToLogin}
+          onAccount={goToAccount}
+        />
+      ) : (
+        <TopBar
+          slug={slug}
+          isLoggedIn={isLoggedIn}
+          onLogin={goToLogin}
+          onAccount={goToAccount}
+          onHome={goHome}
+          whatsapp={portal.data?.whatsapp ?? null}
+          salonName={portal.data?.name}
+          logoUrl={portal.data?.logoUrl ?? null}
+        />
+      )}
 
       {!done && (
         <section

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Button, Input, Label, TextField } from '@heroui/react';
+import { Button, Input, Label, Spinner, TextField } from '@heroui/react';
 import { ArrowLeft } from '@gravity-ui/icons';
 import { signIn, signUp } from '../lib/auth';
+import { useBookingAccent } from '../lib/booking';
 import { SalonBrand } from '../components/SalonBrand';
 
 // A phone (WhatsApp) is required on sign-up so confirmations/reminders can reach
@@ -11,16 +12,41 @@ function isValidPhone(value: string): boolean {
   return value.replace(/\D/g, '').length >= 10;
 }
 
+// Google's multi-color "G" — a compact brand glyph for the social button.
+function GoogleGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.97 8.97 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"
+      />
+    </svg>
+  );
+}
+
 /**
- * Full-page login / sign-up for customers (replaces the old modal). Sign-up
- * always sets accountType: 'customer' so the user never provisions a Company —
- * they just book and track appointments. On success the session cookie is set
- * and we navigate back to `backTo` (the salon portal) with a FULL reload
+ * Full-page login / sign-up for customers. Compact, modern layout inspired by
+ * the admin panel (app.salonpass.com.br): a slim salon-branded header, a tight
+ * form card and pill CTAs — less scroll on mobile. Sign-up always sets
+ * accountType: 'customer' so the user never provisions a Company — they just
+ * book and track appointments. On success the session cookie is set and we
+ * navigate back to `backTo` (the salon portal) with a FULL reload
  * (window.location), not the SPA router: better-auth's `useSession` store does
- * not pick up the brand-new cookie on a client-side navigation, so the header
- * kept showing "Entrar" after a successful login. A hard reload remounts the
- * app and re-reads /get-session with the cookie present. (Google OAuth already
- * reloads via its callbackURL redirect, so this makes both paths consistent.)
+ * not pick up the brand-new cookie on a client-side navigation. A hard reload
+ * remounts the app and re-reads /get-session with the cookie present. (Google
+ * OAuth already reloads via its callbackURL redirect.)
  */
 export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
   const navigate = useNavigate();
@@ -35,6 +61,12 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Theme the login page with the salon's brand color too (no-op when there's no
+  // slug, e.g. the shared-host login).
+  useBookingAccent(slug ?? '');
+
+  const isSignup = mode === 'signup';
 
   // Google OAuth: redirects to Google, then back to `backTo` once the session
   // cookie is set. New Google users are mapped to accountType 'customer' on the
@@ -58,7 +90,7 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
     setLoading(true);
     setError(null);
     try {
-      if (mode === 'signup') {
+      if (isSignup) {
         if (!isValidPhone(phone)) {
           setError('Informe um telefone (WhatsApp) válido com DDD.');
           setLoading(false);
@@ -95,45 +127,44 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
 
   return (
     <div className="club-page flex flex-col">
-      {/* Black header, mirrors the club TopBar so the page reads as part of the
-          same app (and paints the iOS status-bar safe area). */}
+      {/* Slim salon-branded header — mirrors the club TopBar (and paints the iOS
+          status-bar safe area) so the page reads as part of the same app. */}
       <header className="club-topbar sticky top-0 z-40 shadow-sm">
-        <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 py-2.5 sm:gap-3 md:py-3">
+        <div className="mx-auto flex min-h-14 max-w-5xl items-center gap-2 px-4 py-2 sm:gap-3">
           <button
             type="button"
             onClick={() => navigate(backTo)}
             aria-label="Voltar"
-            className="club-touch grid place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+            className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
           >
-            <ArrowLeft width={22} height={22} />
+            <ArrowLeft width={20} height={20} />
           </button>
           {slug ? (
             <SalonBrand slug={slug} />
           ) : (
-            <span className="font-brand text-base font-semibold text-white sm:text-lg">
-              Agendamento
-            </span>
+            <span className="font-brand text-base font-semibold text-white">Agendamento</span>
           )}
         </div>
       </header>
 
-      <main className="club-page-main flex flex-1 items-start justify-center py-6 sm:py-10">
-        <div className="club-form-surface w-full max-w-md px-5 py-6 sm:px-8 sm:py-8">
-          <div className="flex flex-col items-center gap-1 text-center">
-            <h1 className="font-brand text-2xl text-foreground">
-              {mode === 'login' ? 'Entrar' : 'Criar conta'}
+      {/* Mobile: form anchored toward the top (less scroll). Desktop: centered. */}
+      <main className="club-page-main flex flex-1 justify-center px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8 sm:items-center sm:pt-10">
+        <div className="w-full max-w-sm">
+          <div className="mb-6">
+            <h1 className="font-brand text-2xl leading-tight text-foreground">
+              {isSignup ? 'Criar conta' : 'Entrar'}
             </h1>
-            <p className="text-sm text-muted">
-              {mode === 'login'
-                ? 'Acesse para acompanhar seus agendamentos.'
-                : 'Crie sua conta para agendar e receber avisos.'}
+            <p className="mt-1 text-sm text-muted">
+              {isSignup
+                ? 'Agende, acompanhe seus horários e receba lembretes.'
+                : 'Acesse para acompanhar seus agendamentos.'}
             </p>
           </div>
 
-          <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
-            {mode === 'signup' && (
-              <TextField value={name} onChange={setName} autoComplete="name">
-                <Label>Nome</Label>
+          <form className="flex flex-col gap-3.5" onSubmit={onSubmit} noValidate>
+            {isSignup && (
+              <TextField value={name} onChange={setName} autoComplete="name" className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Nome</Label>
                 <Input placeholder="Seu nome" />
               </TextField>
             )}
@@ -144,14 +175,22 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
               type="email"
               isRequired
               autoComplete="email"
+              className="flex flex-col gap-1.5"
             >
-              <Label>E-mail</Label>
+              <Label className="text-sm font-medium text-foreground">E-mail</Label>
               <Input placeholder="voce@email.com" />
             </TextField>
 
-            {mode === 'signup' && (
-              <TextField value={phone} onChange={setPhone} type="tel" autoComplete="tel" isRequired>
-                <Label>Telefone (WhatsApp)</Label>
+            {isSignup && (
+              <TextField
+                value={phone}
+                onChange={setPhone}
+                type="tel"
+                autoComplete="tel"
+                isRequired
+                className="flex flex-col gap-1.5"
+              >
+                <Label className="text-sm font-medium text-foreground">Telefone (WhatsApp)</Label>
                 <Input placeholder="(00) 00000-0000" />
               </TextField>
             )}
@@ -161,92 +200,75 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
               onChange={setPassword}
               type="password"
               isRequired
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              autoComplete={isSignup ? 'new-password' : 'current-password'}
+              className="flex flex-col gap-1.5"
             >
-              <Label>Senha</Label>
+              <Label className="text-sm font-medium text-foreground">Senha</Label>
               <Input placeholder="••••••••" />
             </TextField>
 
             {error && (
-              <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
-                {error}
-              </p>
+              <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
             )}
 
             <Button
               type="submit"
               variant="primary"
               isPending={loading}
-              className="mt-1 min-h-12 w-full"
+              className="mt-1 min-h-12 w-full rounded-full"
             >
-              {mode === 'login' ? 'Entrar' : 'Criar conta'}
+              {loading ? <Spinner size="sm" /> : isSignup ? 'Criar conta' : 'Entrar'}
             </Button>
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
+          <div className="my-4 flex items-center gap-3">
+            <span aria-hidden className="h-px flex-1 bg-[var(--color-soft-border)]" />
             <span className="text-xs uppercase tracking-wide text-muted">ou</span>
-            <span className="h-px flex-1 bg-border" />
+            <span aria-hidden className="h-px flex-1 bg-[var(--color-soft-border)]" />
           </div>
 
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             onPress={onGoogle}
             isPending={googleLoading}
-            className="min-h-12 w-full"
+            className="min-h-12 w-full gap-2.5 rounded-full"
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <path
-                fill="#4285F4"
-                d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"
-              />
-              <path
-                fill="#34A853"
-                d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33Z"
-              />
-              <path
-                fill="#EA4335"
-                d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.97 8.97 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"
-              />
-            </svg>
+            {googleLoading ? <Spinner size="sm" /> : <GoogleGlyph />}
             Continuar com Google
           </Button>
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setMode((m) => (m === 'login' ? 'signup' : 'login'));
-              }}
-              className="min-h-11 rounded-xl px-3 text-sm text-muted hover:bg-[#f7f3ea] hover:text-foreground"
-            >
-              {mode === 'login' ? (
-                <>
-                  Ainda não tem conta?{' '}
-                  <span className="font-semibold text-[var(--color-pink)]">Criar conta</span>
-                </>
-              ) : (
-                <>
-                  Já tem conta?{' '}
-                  <span className="font-semibold text-[var(--color-pink)]">Entrar</span>
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setMode((m) => (m === 'login' ? 'signup' : 'login'));
+            }}
+            className="mt-5 w-full text-center text-sm text-muted transition-colors hover:text-foreground"
+          >
+            {isSignup ? (
+              <>
+                Já tem conta?{' '}
+                <span className="font-semibold text-[var(--booking-accent)]">Entrar</span>
+              </>
+            ) : (
+              <>
+                Ainda não tem conta?{' '}
+                <span className="font-semibold text-[var(--booking-accent)]">Criar conta</span>
+              </>
+            )}
+          </button>
 
-          <p className="mt-5 text-center text-xs leading-relaxed text-muted">
+          <p className="mt-6 text-center text-xs leading-relaxed text-muted">
             Ao continuar, você concorda com os{' '}
             <Link to="/termos" className="font-medium text-foreground underline underline-offset-2">
               Termos
             </Link>{' '}
             e a{' '}
-            <Link to="/privacidade" className="font-medium text-foreground underline underline-offset-2">
+            <Link
+              to="/privacidade"
+              className="font-medium text-foreground underline underline-offset-2"
+            >
               Política de Privacidade
             </Link>
             .

@@ -464,29 +464,35 @@ function Checkbox({
   ariaLabel: string;
 }) {
   return (
+    // Alvo de toque de 44px (acessibilidade/mobile): o padding cria a área
+    // clicável e o -m-2.5 mantém o quadrado visível de 16px sem deslocar o layout.
     <button
       type="button"
       aria-label={ariaLabel}
       aria-pressed={checked}
       onClick={onChange}
-      className={[
-        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-        checked
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-line bg-card hover:border-primary',
-      ].join(' ')}
+      className="-m-2.5 grid shrink-0 place-items-center p-2.5"
     >
-      {checked && (
-        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-          <path
-            d="M2.5 6.5l2.5 2.5 4.5-5"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )}
+      <span
+        className={[
+          'flex h-4 w-4 items-center justify-center rounded border transition-colors',
+          checked
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-line bg-card hover:border-primary',
+        ].join(' ')}
+      >
+        {checked && (
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 6.5l2.5 2.5 4.5-5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </span>
     </button>
   );
 }

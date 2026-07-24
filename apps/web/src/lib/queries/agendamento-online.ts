@@ -144,3 +144,45 @@ export function useRemoveGalleryPhoto() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: GALLERY_KEY }),
   });
 }
+
+// ===================== Aparência (booking.appearance) =====================
+// Personalização visual da página pública de agendamento (web-club): esconder a
+// barra de navegação do topo e as cores (principal/destaque/fundo). Persistido
+// no Setting `booking.appearance` pelo módulo de marketing. Cores em "#RRGGBB"
+// ou null (o web-club cai no padrão da casa quando null).
+export interface BookingAppearance {
+  hideNavbar: boolean;
+  primaryColor: string | null;
+  accentColor: string | null;
+  backgroundColor: string | null;
+}
+
+// Payload do PUT: cores como string ("" limpa a cor → volta ao padrão; hex
+// define). Campos ausentes preservam o valor atual no backend.
+export interface BookingAppearanceInput {
+  hideNavbar?: boolean;
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+}
+
+const BOOKING_APPEARANCE_KEY = ['booking-appearance'] as const;
+
+export function useBookingAppearance() {
+  return useQuery({
+    queryKey: BOOKING_APPEARANCE_KEY,
+    queryFn: () => api.get<BookingAppearance>('/booking-link/appearance'),
+  });
+}
+
+export function useUpdateBookingAppearance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: BookingAppearanceInput) =>
+      api.put<BookingAppearance>('/booking-link/appearance', patch),
+    onSuccess: (data) => {
+      queryClient.setQueryData(BOOKING_APPEARANCE_KEY, data);
+      void queryClient.invalidateQueries({ queryKey: BOOKING_APPEARANCE_KEY });
+    },
+  });
+}
