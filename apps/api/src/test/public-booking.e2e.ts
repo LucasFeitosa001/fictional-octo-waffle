@@ -239,12 +239,12 @@ async function run() {
     // ====================================================================
     // 1. Catalog: services with mixed visibility + a category
     // ====================================================================
-    const catRes = await api('POST', '/service-categories', {
+    const catRes = await api('POST', '/product-categories', {
       token: salon.token,
       body: { name: 'Cabelo' },
     });
     const categoryId: string = catRes.body?.id;
-    check('service-category created', !!categoryId);
+    check('product-category created', !!categoryId);
 
     async function mkService(body: Record<string, unknown>): Promise<string> {
       const r = await api('POST', '/services', { token: salon.token, body });

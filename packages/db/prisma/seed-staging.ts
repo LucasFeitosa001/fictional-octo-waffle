@@ -61,9 +61,9 @@ async function main() {
   // 2) Services (variados). Reuse existing by name; create missing. Tagged staging
   //    only for the ones we create so we do not clobber base-seed services.
   const category =
-    (await prisma.serviceCategory.findFirst({ where: { companyId, name: 'Cabelo' } })) ??
-    (await prisma.serviceCategory.create({
-      data: { companyId, name: 'Cabelo', displayOrder: 0 },
+    (await prisma.productCategory.findFirst({ where: { companyId, name: 'Cabelo' } })) ??
+    (await prisma.productCategory.create({
+      data: { companyId, name: 'Cabelo' },
     }));
 
   const serviceDefs = [

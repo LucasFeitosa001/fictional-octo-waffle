@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Checkbox, Input, ListBox, Popover, Select, Spinner, TextField } from "@heroui/react";
+import { Autocomplete, Button, Checkbox, Input, ListBox, Popover, SearchField, Select, Spinner, TextField } from "@heroui/react";
 import { ApiClientError } from "@beautypass/shared";
 import { Drawer } from "../components/Drawer";
 import { FilterAside } from "../components/FilterAside";
@@ -25,14 +25,13 @@ import {
 } from "../components/icons";
 import {
   useCreateService,
-  useCreateServiceCategory,
   useDeleteService,
-  useServiceCategories,
   useServices,
   useUpdateService,
   type ServiceBody,
   type ServiceRow,
 } from "../lib/queries";
+import { useProductCategories } from "../lib/queries/catalogo";
 import { formatMoney } from "../lib/format";
 import { useAutoCreate } from "../lib/useAutoCreate";
 import { useSetPageActions } from "../layout/PageActions";
@@ -172,7 +171,7 @@ export function ServicosPage() {
   const confirm = useConfirm();
 
   const services = useServices();
-  const categories = useServiceCategories();
+  const categories = useProductCategories();
   const deleteService = useDeleteService();
   const updateService = useUpdateService();
 
@@ -1300,7 +1299,6 @@ export function ServiceDrawer({
 }) {
   const create = useCreateService();
   const update = useUpdateService();
-  const createCat = useCreateServiceCategory();
   const [tab, setTab] = useState<DrawerTab>("cadastro");
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -1320,31 +1318,6 @@ export function ServiceDrawer({
   const [visible, setVisible] = useState(true);
   const [active, setActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Criar categoria de SERVIÇO na hora (o backend aceita POST /service-categories;
-  // não havia UI pra isso — categorias novas só existiam em Produtos, tabela outra).
-  const [newCatOpen, setNewCatOpen] = useState(false);
-  const [newCatName, setNewCatName] = useState("");
-  const [catError, setCatError] = useState<string | null>(null);
-
-  async function handleCreateCategory() {
-    const nm = newCatName.trim();
-    if (nm.length < 2) {
-      setCatError("Digite ao menos 2 caracteres.");
-      return;
-    }
-    setCatError(null);
-    try {
-      const created = await createCat.mutateAsync({ name: nm });
-      setCategoryId(created.id); // seleciona a recém-criada; a lista é invalidada
-      setNewCatName("");
-      setNewCatOpen(false);
-    } catch (err) {
-      setCatError(
-        err instanceof ApiClientError ? err.message : "Não foi possível criar a categoria.",
-      );
-    }
-  }
-
   // Upload de foto do serviço (multipart /api/v1/uploads).
   const photoInputRef = useRef<HTMLInputElement>(null);
   const uploadImage = useUploadImage();
@@ -1599,75 +1572,40 @@ export function ServiceDrawer({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Categoria" required>
-              <Select
+              <Autocomplete
                 aria-label="Categoria"
                 selectedKey={categoryId || null}
                 onSelectionChange={(k) =>
                   setCategoryId(k ? String(k) : NONE)
                 }
               >
-                <Select.Trigger>
-                  <Select.Value>
+                <Autocomplete.Trigger>
+                  <Autocomplete.Value>
                     {({ isPlaceholder, selectedText }) =>
                       isPlaceholder ? "Selecione" : selectedText
                     }
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {categories.map((c) => (
-                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                        {c.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-              {!newCatOpen ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewCatOpen(true);
-                    setCatError(null);
-                  }}
-                  className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-primary"
-                >
-                  <IconPlus size={14} /> Nova categoria
-                </button>
-              ) : (
-                <div className="mt-1.5 flex flex-col gap-1.5">
-                  <div className="flex items-stretch gap-2">
-                    <TextField
-                      value={newCatName}
-                      onChange={setNewCatName}
-                      aria-label="Nome da nova categoria"
-                      className="min-w-0 flex-1"
-                    >
-                      <Input placeholder="Nome da categoria" />
-                    </TextField>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      isDisabled={createCat.isPending || newCatName.trim().length < 2}
-                      onClick={handleCreateCategory}
-                    >
-                      {createCat.isPending ? "Criando…" : "Criar"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setNewCatOpen(false);
-                        setNewCatName("");
-                        setCatError(null);
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                  {catError && <span className="text-xs text-danger">{catError}</span>}
-                </div>
-              )}
+                  </Autocomplete.Value>
+                  <Autocomplete.Indicator />
+                </Autocomplete.Trigger>
+                <Autocomplete.Popover>
+                  <Autocomplete.Filter
+                    filter={(textValue, inputValue) =>
+                      textValue.toLowerCase().includes(inputValue.trim().toLowerCase())
+                    }
+                  >
+                    <SearchField aria-label="Buscar Categoria" autoFocus className="mb-1">
+                      <SearchField.Input placeholder="Buscar" />
+                    </SearchField>
+                    <ListBox>
+                      {categories.map((c) => (
+                        <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                          {c.name}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Autocomplete.Filter>
+                </Autocomplete.Popover>
+              </Autocomplete>
             </Field>
             <Field label="Preço de venda">
               <div className="flex min-w-0 items-stretch">
@@ -1877,4 +1815,3 @@ function Field({
     </div>
   );
 }
-

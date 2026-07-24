@@ -4,7 +4,7 @@ import { IconChevron, IconDownload } from '../../components/icons';
 import { formatMoney, formatNumber } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useProductCategories, useProducts } from '../../lib/queries/catalogo';
-import { useServiceCategories, useServices } from '../../lib/queries';
+import { useServices } from '../../lib/queries';
 import { InventoryReportShell } from './reportNav';
 
 /* -------------------------------------------------------------------------- */
@@ -79,13 +79,12 @@ export function ProdutosServicosPage() {
   const productsQuery = useProducts();
   const servicesQuery = useServices();
   const productCategories = useProductCategories();
-  const serviceCategories = useServiceCategories();
 
-  const serviceCatName = useMemo(() => {
+  const categoryName = useMemo(() => {
     const map = new Map<string, string>();
-    (serviceCategories.data ?? []).forEach((c) => map.set(c.id, c.name));
+    (productCategories.data ?? []).forEach((c) => map.set(c.id, c.name));
     return map;
-  }, [serviceCategories.data]);
+  }, [productCategories.data]);
 
   const allRows = useMemo<Row[]>(() => {
     const products: Row[] = (productsQuery.data?.data ?? []).map((p) => ({
@@ -101,24 +100,19 @@ export function ProdutosServicosPage() {
       id: `s-${s.id}`,
       name: s.name,
       type: 'service',
-      category: (s.categoryId ? serviceCatName.get(s.categoryId) : undefined) ?? '—',
+      category: (s.categoryId ? categoryName.get(s.categoryId) : undefined) ?? '—',
       price: s.price,
       stock: null,
       active: s.active ?? true,
     }));
     return [...products, ...services].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  }, [productsQuery.data, servicesQuery.data, serviceCatName]);
+  }, [productsQuery.data, servicesQuery.data, categoryName]);
 
-  // Opções de categoria dependem do tipo selecionado (produtos × serviços).
+  // Produtos e serviços compartilham as mesmas categorias.
   const categoryOptions = useMemo(() => {
-    if (type === 'product') {
-      return (productCategories.data ?? []).map((c) => ({ id: c.name, name: c.name }));
-    }
-    if (type === 'service') {
-      return (serviceCategories.data ?? []).map((c) => ({ id: c.name, name: c.name }));
-    }
-    return [];
-  }, [type, productCategories.data, serviceCategories.data]);
+    if (type === 'all') return [];
+    return (productCategories.data ?? []).map((c) => ({ id: c.name, name: c.name }));
+  }, [type, productCategories.data]);
 
   const rows = useMemo(
     () =>

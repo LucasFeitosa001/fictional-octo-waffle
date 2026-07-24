@@ -244,8 +244,8 @@ async function main() {
     return;
   }
 
-  const category = await prisma.serviceCategory.create({
-    data: { companyId: company.id, name: 'Cabelo', displayOrder: 0 },
+  const category = await prisma.productCategory.create({
+    data: { companyId: company.id, name: 'Cabelo' },
   });
 
   const services = await Promise.all(

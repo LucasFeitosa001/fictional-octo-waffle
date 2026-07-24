@@ -117,18 +117,18 @@ async function main() {
     return;
   }
 
-  // ===== SERVICE CATEGORIES & SERVICES ==================================
-  const catCabelo = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Cabelo', displayOrder: 0 },
+  // ===== PRODUCT CATEGORIES & SERVICES ==================================
+  const catCabelo = await prisma.productCategory.create({
+    data: { companyId, name: 'Cabelo' },
   });
-  const catUnhas = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Unhas', displayOrder: 1 },
+  const catUnhas = await prisma.productCategory.create({
+    data: { companyId, name: 'Unhas' },
   });
-  const catEstetica = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Estética', displayOrder: 2 },
+  const catEstetica = await prisma.productCategory.create({
+    data: { companyId, name: 'Estética' },
   });
-  const catSobrancelha = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Sobrancelha & Cílios', displayOrder: 3 },
+  const catSobrancelha = await prisma.productCategory.create({
+    data: { companyId, name: 'Sobrancelha & Cílios' },
   });
 
   const serviceDefs = [
@@ -224,8 +224,8 @@ async function main() {
   const brandLoreal = await prisma.brand.create({ data: { companyId, name: "L'Oréal" } });
   const brandOPI = await prisma.brand.create({ data: { companyId, name: 'OPI' } });
 
-  const pcCabelo = await prisma.productCategory.create({ data: { companyId, name: 'Cabelo' } });
-  const pcUnhas = await prisma.productCategory.create({ data: { companyId, name: 'Unhas' } });
+  const pcCabelo = catCabelo;
+  const pcUnhas = catUnhas;
   const pcRevenda = await prisma.productCategory.create({ data: { companyId, name: 'Revenda' } });
 
   const supplier1 = await prisma.supplier.create({
