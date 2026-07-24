@@ -50,6 +50,7 @@ export class AppointmentFollowUpDto {
 export class CreateAppointmentDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() professionalId?: string;
+  @IsOptional() @IsBoolean() remindClient?: boolean;
   @IsDateString() start: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;
@@ -68,6 +69,7 @@ export class CreateAppointmentDto {
 export class UpdateAppointmentDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() professionalId?: string;
+  @IsOptional() @IsBoolean() remindClient?: boolean;
   @IsOptional() @IsDateString() start?: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;

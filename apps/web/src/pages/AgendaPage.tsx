@@ -19,6 +19,7 @@ import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGr
 import { IconCalendar, IconChevron, IconEye, IconPlus, IconScissors, IconTrash, IconUser, IconX } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
 import { useAgendaAppointments } from '../lib/queries/agenda';
+import { useNotificationSettings } from '../lib/queries/notificationSettings';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
@@ -301,6 +302,8 @@ export function AgendaPage() {
 
   const professionals = useProfessionals();
   const services = useServices();
+  const notificationSettings = useNotificationSettings();
+  const reminderDefault = notificationSettings.data?.reminder ?? false;
   const serviceById = useMemo(
     () => new Map((services.data?.data ?? []).map((s) => [s.id, s.name])),
     [services.data],
@@ -614,12 +617,8 @@ export function AgendaPage() {
   const [reDate, setReDate] = useState('');
   const [reTime, setReTime] = useState('');
   // Toggles/textarea do drawer "Visualizando agendamento" (padrão Belasis).
-  // `notesDraft` PERSISTE de verdade: ao fechar/confirmar chamamos
-  // `persistNotes()`, que faz PATCH /appointments/:id { notes } quando o texto
-  // mudou (campo já existe no modelo Prisma). sendReminder/squeezeIn seguem
-  // locais — o modelo Appointment ainda não expõe esses campos; quando expor,
-  // basta somá-los ao body do PATCH em `persistNotes`.
-  const [sendReminder, setSendReminder] = useState(true);
+  const [sendReminder, setSendReminder] = useState(reminderDefault);
+  const [reminderTouched, setReminderTouched] = useState(false);
   const [squeezeIn, setSqueezeIn] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -627,8 +626,15 @@ export function AgendaPage() {
   // Sincroniza campos locais quando um novo agendamento é selecionado.
   useEffect(() => {
     setNotesDraft(selected?.notes ?? '');
+    setSendReminder(selected?.remindClient ?? reminderDefault);
+    setReminderTouched(false);
     setMoreMenuOpen(false);
-  }, [selected?.id]);
+  }, [selected?.id, selected?.remindClient]);
+  useEffect(() => {
+    if (selected?.remindClient == null && !reminderTouched) {
+      setSendReminder(reminderDefault);
+    }
+  }, [selected?.id, selected?.remindClient, reminderDefault, reminderTouched]);
   function openReschedule(a: AppointmentRow) {
     const d = new Date(a.start);
     setReDate(isoDate(d));
@@ -645,17 +651,25 @@ export function AgendaPage() {
     if (!selected) return null;
     const next = notesDraft.trim();
     const prev = (selected.notes ?? '').trim();
-    if (next === prev) return selected.notes ?? null;
+    if (next === prev && !reminderTouched) return selected.notes ?? null;
     // Backend interpreta undefined como "não mexer"; string vazia limpa o campo.
     const notesValue = next.length > 0 ? next : '';
     try {
       const saved = await api.patch<AppointmentRow>(`/appointments/${selected.id}`, {
         notes: notesValue,
-        // Quando o modelo Appointment expuser lembrete/encaixe, incluir aqui:
-        // sendReminder, squeezeIn,
+        ...(reminderTouched ? { remindClient: sendReminder } : {}),
       });
       // Reflete localmente e no cache da agenda para o dado não "voltar".
-      setSelected((s) => (s && s.id === saved.id ? { ...s, notes: saved.notes ?? null } : s));
+      setSelected((s) =>
+        s && s.id === saved.id
+          ? {
+              ...s,
+              notes: saved.notes ?? null,
+              ...(reminderTouched ? { remindClient: saved.remindClient } : {}),
+            }
+          : s,
+      );
+      setReminderTouched(false);
       appts.refetch();
       return saved.notes ?? null;
     } catch {
@@ -1614,7 +1628,15 @@ export function AgendaPage() {
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
                 <span>Enviar lembrete</span>
                 <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendReminder ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
-                  <input type="checkbox" checked={sendReminder} onChange={(e) => setSendReminder(e.target.checked)} className="sr-only" />
+                  <input
+                    type="checkbox"
+                    checked={sendReminder}
+                    onChange={(e) => {
+                      setSendReminder(e.target.checked);
+                      setReminderTouched(true);
+                    }}
+                    className="sr-only"
+                  />
                   <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendReminder ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
                 </span>
               </label>

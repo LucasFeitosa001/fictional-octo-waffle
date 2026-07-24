@@ -183,6 +183,8 @@ export class AppointmentsService {
         }
       : undefined;
 
+    const remindClient = dto.remindClient ?? (await this.settings.get(companyId)).reminder;
+
     // Collision check + create run in a single transaction guarded by a Postgres
     // advisory lock keyed on (companyId, professionalId). Two concurrent creates
     // for the same professional serialize: the second waits for the first to
@@ -200,6 +202,7 @@ export class AppointmentsService {
           start,
           end,
           notes: dto.notes,
+          remindClient,
           source: opts?.source ?? AppointmentSource.admin,
           ...(opts?.status ? { status: opts.status } : {}),
           items: itemsData,
@@ -321,6 +324,7 @@ export class AppointmentsService {
         // Persist end when given, or when start moved (duration preserved).
         end: dto.end || dto.start ? end : undefined,
         notes: dto.notes,
+        ...(dto.remindClient !== undefined ? { remindClient: dto.remindClient } : {}),
       },
     });
 

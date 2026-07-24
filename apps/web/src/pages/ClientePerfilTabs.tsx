@@ -461,7 +461,7 @@ function CustomerForm({
           </Field>
           <Field label="Celular">
             <TextField value={phone} onChange={setPhone} aria-label="Celular">
-              <Input placeholder="(00) 00000-0000" />
+              <Input type="tel" placeholder="+1 (918) 238-4714" />
             </TextField>
           </Field>
           <Field label="Telefone">
@@ -470,7 +470,7 @@ function CustomerForm({
               onChange={setSecondaryPhone}
               aria-label="Telefone"
             >
-              <Input placeholder="(00) 0000-0000" />
+              <Input type="tel" placeholder="+55 (11) 99999-9999" />
             </TextField>
           </Field>
           <Field label="E-mail">

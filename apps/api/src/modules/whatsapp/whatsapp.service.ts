@@ -436,14 +436,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     text: string,
     ctx?: { companyId?: string; customerId?: string; kind?: string },
   ): Promise<void> {
-    const digits = (phone || '').replace(/\D/g, '');
-    if (digits.length < 10) {
+    const normalized = this.normalizeOutgoingPhone(phone);
+    if (!normalized) {
       this.logger.warn(`Outbox: número inválido ignorado (${phone}).`);
       return;
     }
     await this.prisma.client.whatsappOutbox.create({
       data: {
-        toPhone: digits,
+        // Preserve an explicit E.164 country code. The leading + is the signal
+        // that this is not a Brazilian local number, and is needed later when
+        // resolving the WhatsApp JID.
+        toPhone: normalized.value,
         text,
         // Só grava o que veio — undefined vira NULL na coluna (retrocompatível).
         companyId: ctx?.companyId ?? null,
@@ -454,6 +457,36 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     // Try to deliver immediately; if no socket is open yet the timer drains it
     // later. drainOutbox guards itself, so this is safe to call any time.
     void this.drainOutbox();
+  }
+
+  /**
+   * Sanitizes an outgoing phone without losing an explicit E.164 marker.
+   *
+   * A value beginning with `+` already declares its country code, so it is
+   * persisted as canonical E.164 (`+19182384714`, for example). Digit-only
+   * values remain digit-only for backwards compatibility: they are Brazilian
+   * local numbers unless they are a legacy 55-prefixed E.164 value.
+   */
+  private normalizeOutgoingPhone(
+    phone: string,
+  ): { digits: string; value: string; hasExplicitCountryCode: boolean } | null {
+    const raw = (phone || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    const hasExplicitCountryCode = raw.startsWith('+');
+    // Brazilian local numbers have 10–11 digits. E.164 allows up to 15; use a
+    // lower bound only for explicit international values to avoid dropping
+    // countries with shorter national numbers.
+    const minLength = hasExplicitCountryCode ? 7 : 10;
+    if (digits.length < minLength || digits.length > 15) return null;
+    return {
+      digits,
+      value: hasExplicitCountryCode ? `+${digits}` : digits,
+      hasExplicitCountryCode,
+    };
+  }
+
+  private isBrazilianE164Digits(digits: string): boolean {
+    return digits.startsWith('55') && (digits.length === 12 || digits.length === 13);
   }
 
   private sleep(ms: number): Promise<void> {
@@ -573,23 +606,34 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   /**
    * Resolves a phone to the JID WhatsApp actually serves, using a SPECIFIC
    * company's socket. Brazilian numbers are ambiguous about the 9th mobile digit,
-   * so we ask the server via onWhatsApp which canonical JID exists rather than
-   * guessing. Falls back to the naive "<digits>@s.whatsapp.net" if the lookup
-   * throws (network blip), so a transient error still gets a delivery attempt.
+   * so only they are looked up via onWhatsApp. Other explicit E.164 numbers map
+   * directly to their country-code JID. Falls back to the naive
+   * "<digits>@s.whatsapp.net" if the Brazilian lookup throws (network blip), so a
+   * transient error still gets a delivery attempt.
    */
   private async resolveJid(session: SessionState, phone: string): Promise<string | null> {
-    let digits = (phone || '').replace(/\D/g, '');
-    if (digits.length < 10) return null;
-    if (!digits.startsWith('55')) digits = `55${digits}`;
+    const normalized = this.normalizeOutgoingPhone(phone);
+    if (!normalized) return null;
+
+    let digits = normalized.digits;
+    // A number without + is a local Brazilian number. Keep recognizing old
+    // outbox rows that were stored as 55-prefixed digits before E.164 values
+    // started preserving the leading +.
+    if (!normalized.hasExplicitCountryCode && !this.isBrazilianE164Digits(digits)) {
+      digits = `55${digits}`;
+    }
+    const isBrazilian = this.isBrazilianE164Digits(digits);
     if (!session.sock) return null;
-    try {
-      const results = await session.sock.onWhatsApp(digits);
-      const hit = results?.find((r) => r.exists && r.jid);
-      if (hit?.jid) return hit.jid;
-      // onWhatsApp answered but the number has no account → don't keep retrying.
-      if (results && results.length > 0) return null;
-    } catch {
-      // Lookup failed (transient) — fall through to the naive JID below.
+    if (isBrazilian) {
+      try {
+        const results = await session.sock.onWhatsApp(digits);
+        const hit = results?.find((r) => r.exists && r.jid);
+        if (hit?.jid) return hit.jid;
+        // onWhatsApp answered but the number has no account → don't keep retrying.
+        if (results && results.length > 0) return null;
+      } catch {
+        // Lookup failed (transient) — fall through to the naive JID below.
+      }
     }
     return `${digits}@s.whatsapp.net`;
   }
