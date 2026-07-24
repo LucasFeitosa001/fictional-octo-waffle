@@ -65,6 +65,21 @@ export function useServiceCategories() {
   });
 }
 
+// Cria uma categoria de SERVIÇO (POST /service-categories) e invalida a lista
+// ['service-categories'] — a mesma que o form de serviço lê. Sem isto não havia
+// UI para criar categorias de serviço (a tela "Categorias" só cuida de categorias
+// de PRODUTO, tabela diferente), então o select do serviço nunca mostrava as novas.
+export function useCreateServiceCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string }) =>
+      api.post<{ id: string; name: string; displayOrder: number }>('/service-categories', body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['service-categories'] });
+    },
+  });
+}
+
 export function useCreateService() {
   const qc = useQueryClient();
   return useMutation({
