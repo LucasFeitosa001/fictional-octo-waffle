@@ -7,6 +7,20 @@ import { toNodeHandler } from 'better-auth/node';
 import { AppModule } from './app.module';
 import { auth } from './auth/better-auth';
 
+// Rede de segurança de processo: um erro async de worker em background — em
+// especial os sockets do WhatsApp/Baileys, cuja camada libsignal lança
+// "Bad MAC" quando a sessão dessincroniza no reconnect — NUNCA pode derrubar a
+// API inteira (foi o que causou o crash-loop / exit code 1 em produção). Logamos
+// e seguimos servindo: HTTP, login e o resto ficam de pé independente do WhatsApp.
+process.on('unhandledRejection', (reason) => {
+  // eslint-disable-next-line no-console
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('[uncaughtException]', err);
+});
+
 async function bootstrap() {
   // Disable Nest's automatic body parser: Better Auth needs the raw request,
   // so we mount its handler BEFORE any JSON body parsing, then enable JSON
