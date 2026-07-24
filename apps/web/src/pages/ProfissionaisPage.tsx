@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar, Button, Checkbox, Chip, Input, ListBox, Select, Spinner, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
@@ -82,11 +82,13 @@ const STATUS_TABS = [
   { id: 'inactive', label: 'Inativos', icon: <IconUserMinus size={16} /> },
 ] satisfies { id: StatusFilter; label: string; icon: React.ReactNode }[];
 
+const EMPTY_PROFESSIONALS: Professional[] = [];
+
 export function ProfissionaisPage() {
   const confirm = useConfirm();
   const professionals = useProfessionals();
   const remove = useDeleteProfessional();
-  const allRows = professionals.data?.data ?? [];
+  const allRows = professionals.data?.data ?? EMPTY_PROFESSIONALS;
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Professional | null>(null);
@@ -114,7 +116,7 @@ export function ProfissionaisPage() {
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
   const sel = useSelectMode(ids);
 
-  function exportCsv() {
+  const exportCsv = useCallback(() => {
     downloadCsv<Professional>(
       'profissionais',
       [
@@ -126,7 +128,7 @@ export function ProfissionaisPage() {
       ],
       rows,
     );
-  }
+  }, [rows]);
 
   async function handleRemove(p: Professional) {
     const ok = await confirm({
@@ -141,71 +143,90 @@ export function ProfissionaisPage() {
 
   // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
   // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
-  const bulkActions: BulkAction[] = [
-    {
-      key: 'delete',
-      label: 'Excluir selecionados',
-      danger: true,
-      icon: <IconTrash size={18} />,
-      disabled: remove.isPending,
-      onClick: async () => {
-        const ok = await confirm({
-          title: `Remover ${sel.count} profissional(is)?`,
-          message: 'Essa ação não pode ser desfeita.',
-          confirmLabel: 'Remover',
-          danger: true,
-        });
-        if (!ok) return;
-        try {
-          await Promise.all([...sel.selected].map((id) => remove.mutateAsync(id)));
-          setActionsOpen(false);
-          sel.cancel();
-        } catch (err) {
-          window.alert(
-            err instanceof ApiClientError
-              ? err.message
-              : 'Não foi possível remover os profissionais.',
-          );
-        }
+  const bulkActions = useMemo<BulkAction[]>(
+    () => [
+      {
+        key: 'delete',
+        label: 'Excluir selecionados',
+        danger: true,
+        icon: <IconTrash size={18} />,
+        disabled: remove.isPending,
+        onClick: async () => {
+          const ok = await confirm({
+            title: `Remover ${sel.count} profissional(is)?`,
+            message: 'Essa ação não pode ser desfeita.',
+            confirmLabel: 'Remover',
+            danger: true,
+          });
+          if (!ok) return;
+          try {
+            await Promise.all([...sel.selected].map((id) => remove.mutateAsync(id)));
+            setActionsOpen(false);
+            sel.cancel();
+          } catch (err) {
+            window.alert(
+              err instanceof ApiClientError
+                ? err.message
+                : 'Não foi possível remover os profissionais.',
+            );
+          }
+        },
       },
-    },
-  ];
+    ],
+    [confirm, remove.isPending, remove.mutateAsync, sel.cancel, sel.count, sel.selected],
+  );
+
+  const openBulkActions = useCallback(() => setActionsOpen(true), []);
 
   // Mobile: enquanto selectMode ativo, a barra vira [Cancelar · Selecionar
   // todos · Ações] (buildSelectActions); senão, [Selecionar · Novo · Exportar].
-  useSetPageActions(
-    sel.selectMode
-      ? buildSelectActions({
-          onCancel: sel.cancel,
-          onSelectAll: sel.selectAll,
-          allSelected: sel.allSelected,
-          bulkActions,
-          onOpenActions: () => setActionsOpen(true),
-          count: sel.count,
-        })
-      : [
-          {
-            key: 'selecionar',
-            label: 'Selecionar',
-            icon: <IconCheck size={22} />,
-            onClick: sel.enter,
-          },
-          {
-            key: 'novo',
-            label: 'Novo',
-            icon: <IconPlus size={22} />,
-            onClick: () => setCreateOpen(true),
-          },
-          {
-            key: 'exportar',
-            label: 'Exportar',
-            icon: <IconDownload size={22} />,
-            onClick: () => exportCsv(),
-            disabled: rows.length === 0,
-          },
-        ],
-    [sel.selectMode, sel.allSelected, sel.count, rows],
+  const pageActions = useMemo(
+    () =>
+      sel.selectMode
+        ? buildSelectActions({
+            onCancel: sel.cancel,
+            onSelectAll: sel.selectAll,
+            allSelected: sel.allSelected,
+            bulkActions,
+            onOpenActions: openBulkActions,
+            count: sel.count,
+          })
+        : [
+            {
+              key: 'selecionar',
+              label: 'Selecionar',
+              icon: <IconCheck size={22} />,
+              onClick: sel.enter,
+            },
+            {
+              key: 'novo',
+              label: 'Novo',
+              icon: <IconPlus size={22} />,
+              onClick: () => setCreateOpen(true),
+            },
+            {
+              key: 'exportar',
+              label: 'Exportar',
+              icon: <IconDownload size={22} />,
+              onClick: exportCsv,
+              disabled: rows.length === 0,
+            },
+          ],
+    [
+      bulkActions,
+      exportCsv,
+      openBulkActions,
+      rows.length,
+      sel.allSelected,
+      sel.cancel,
+      sel.count,
+      sel.enter,
+      sel.selectAll,
+      sel.selectMode,
+    ],
   );
+
+  useSetPageActions(pageActions, [pageActions]);
 
   const totalLoaded = professionals.data?.total ?? allRows.length;
   const subtitle = professionals.isLoading

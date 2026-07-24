@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from 'react';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from './lib/auth';
 import { useCan } from './lib/queries/permissions';
@@ -86,6 +86,50 @@ import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
 import { PerfilAssinaturaPage } from './pages/PerfilAssinaturaPage';
 import { FeatureGate } from './components/FeatureGate';
 import { IconLock } from './components/icons';
+
+type RouteErrorBoundaryProps = {
+  children: ReactNode;
+};
+
+type RouteErrorBoundaryState = {
+  hasError: boolean;
+};
+
+class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBoundaryState> {
+  state: RouteErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): RouteErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    document.documentElement.setAttribute('data-app-ready', '1');
+    document.getElementById('splash')?.remove();
+    console.error('Erro ao renderizar rota', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="flex min-h-dvh items-center justify-center bg-canvas p-6">
+          <div className="w-full max-w-md rounded-2xl border border-line bg-card p-6 text-center shadow-[var(--shadow-card)]">
+            <h1 className="font-brand text-xl font-bold text-foreground">Algo deu errado nesta página</h1>
+            <p className="mt-2 text-sm text-muted">Você pode recarregar a página para tentar novamente.</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              Recarregar
+            </button>
+          </div>
+        </main>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 /**
  * Splash fade-out controller.
@@ -311,6 +355,7 @@ function ProtectedRoutes() {
 export function App() {
   const { data: session, isPending } = useSession();
   const queryClient = useQueryClient();
+  const location = useLocation();
 
   // Hand off from the pre-hydration HTML splash to React exactly once, the
   // first time the session query resolves. Until this fires, the splash sits
@@ -354,7 +399,8 @@ export function App() {
   }, [session?.user?.id, queryClient]);
 
   return (
-    <Routes>
+    <RouteErrorBoundary key={location.pathname}>
+      <Routes>
       {/* The customer-facing booking portal now lives in the dedicated club app
           (apps/web-club), served at its own origin. */}
       {/* FASE RBAC — aceite de convite é PÚBLICO: fica FORA do gate de sessão
@@ -373,6 +419,7 @@ export function App() {
         }
       />
       <Route path="/*" element={<ProtectedRoutes />} />
-    </Routes>
+      </Routes>
+    </RouteErrorBoundary>
   );
 }
