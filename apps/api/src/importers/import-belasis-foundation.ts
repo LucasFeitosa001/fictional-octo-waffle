@@ -29,14 +29,14 @@ async function main() {
   const estMin = new Map<string, number>((load('estoque-min.json') as any[]).map((e) => [norm(e.name), e.minStock]));
   const profs = load('profissionais.json') as string[];
 
-  // ---- Categorias (Service + Product) e Marcas ----
+  // ---- Categorias de Produto compartilhadas por serviços/produtos e Marcas ----
   const svcCatNames = [...new Set(itens.filter((i) => i.kind === 'service' && i.category).map((i) => i.category as string))];
   const prodCatNames = [...new Set(itens.filter((i) => i.kind === 'product' && i.category).map((i) => i.category as string))];
   const brandNames = [...new Set(itens.filter((i) => i.brand).map((i) => i.brand as string))];
   const svcCat = new Map<string, string>();
   for (const name of svcCatNames) {
-    const found = await prisma.serviceCategory.findFirst({ where: { companyId, name } });
-    const row = found ?? (await prisma.serviceCategory.create({ data: { companyId, name } }));
+    const found = await prisma.productCategory.findFirst({ where: { companyId, name } });
+    const row = found ?? (await prisma.productCategory.create({ data: { companyId, name } }));
     svcCat.set(norm(name), row.id);
   }
   const prodCat = new Map<string, string>();
@@ -51,7 +51,7 @@ async function main() {
     const row = found ?? (await prisma.brand.create({ data: { companyId, name } }));
     brands.set(norm(name), row.id);
   }
-  console.log(`Categorias serviço: ${svcCat.size} · categorias produto: ${prodCat.size} · marcas: ${brands.size}`);
+  console.log(`Categorias compartilhadas de serviço: ${svcCat.size} · categorias de produto: ${prodCat.size} · marcas: ${brands.size}`);
 
   // ---- Profissionais ----
   let profN = 0;

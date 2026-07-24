@@ -21,7 +21,6 @@ import { BrandDrawer } from '../pages/MarcasPage';
 import { NovoComandaDrawer } from '../pages/ComandasPage';
 import { LancamentoModal, TransferenciaModal } from '../pages/financeiro/TransacoesPage';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
-import { useServiceCategories } from '../lib/queries';
 import { useBrands, useProductCategories } from '../lib/queries/catalogo';
 
 export type { CreateKind };
@@ -92,16 +91,9 @@ export function CreateDrawerHost() {
 function CreateDrawerHostContent() {
   const { openKind, closeCreate } = useCreateDrawer();
 
-  // Service categories come from useServiceCategories() (['service-categories']),
-  // NOT the product ones — ServiceDrawer requires them as a prop.
-  const serviceCategories = useServiceCategories();
   const productCategories = useProductCategories();
   const brands = useBrands();
 
-  const serviceCategoryOptions = useMemo(
-    () => (serviceCategories.data ?? []).map((c) => ({ id: c.id, name: c.name })),
-    [serviceCategories.data],
-  );
   const productCategoryOptions = useMemo(
     () => (productCategories.data ?? []).map((c) => ({ id: c.id, name: c.name })),
     [productCategories.data],
@@ -120,7 +112,7 @@ function CreateDrawerHostContent() {
         mode="create"
         isOpen={openKind === 'servico'}
         onClose={closeCreate}
-        categories={serviceCategoryOptions}
+        categories={productCategoryOptions}
       />
       <ProductDrawer
         mode="create"

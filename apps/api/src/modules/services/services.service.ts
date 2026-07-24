@@ -23,6 +23,7 @@ export class ServicesService {
     const [data, total] = await Promise.all([
       this.prisma.client.service.findMany({
         where,
+        include: { category: true },
         orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
       }),
       this.prisma.client.service.count({ where }),
