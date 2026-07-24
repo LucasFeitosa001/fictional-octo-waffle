@@ -17,6 +17,8 @@ export interface AppointmentNotificationData {
   serviceNames: string[];
   start: Date;
   end: Date;
+  /** Motivo opcional informado ao cancelar. */
+  reason?: string | null;
 }
 
 export interface ComposedMessages {
@@ -66,9 +68,10 @@ export function composeAppointmentMessages(
   const label = EVENT_LABEL[event];
   const client = data.customerName ?? 'cliente';
 
+  const reason = data.reason?.trim();
   const clientLine =
     event === 'canceled'
-      ? `Olá, ${client}! Seu ${services} com ${prof} em ${when} foi cancelado. Qualquer dúvida, fale com a gente. 💕`
+      ? `Olá, ${client}! Seu ${services} com ${prof} em ${when} foi cancelado.${reason ? ` Motivo: ${reason}.` : ''} Qualquer dúvida, fale com a gente. 💕`
       : `Olá, ${client}! Seu ${services} com ${prof} está ${label} para ${when} (até ${endTime}) no ${data.companyName}. Até lá! 💕`;
 
   return {

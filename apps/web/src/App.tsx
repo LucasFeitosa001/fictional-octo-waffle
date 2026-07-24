@@ -330,8 +330,8 @@ function ProtectedRoutes() {
         />
         <Route path="/marketing/avaliacoes" element={<ProtectedRoute perm="marketing:view"><AvaliacoesPage /></ProtectedRoute>} />
         <Route path="/marketing/cashback" element={<ProtectedRoute perm="marketing:view"><CashbackPage /></ProtectedRoute>} />
-        <Route path="/whatsapp" element={<IAAtendimentoPage />} />
-        <Route path="/ia-atendimento" element={<IAAtendimentoPage />} />
+        <Route path="/whatsapp" element={<ProtectedRoute perm="marketing:view"><IAAtendimentoPage /></ProtectedRoute>} />
+        <Route path="/ia-atendimento" element={<ProtectedRoute perm="marketing:view"><IAAtendimentoPage /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute perm="config:view"><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/ajuda" element={<AjudaPage />} />
         <Route path="/ajuda/suporte" element={<AjudaPage />} />

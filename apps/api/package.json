@@ -10,6 +10,7 @@
     "seed:admin": "tsx src/auth/seed-admin.ts",
     "test:isolation": "nest build && node dist/test/tenant-isolation.e2e.js",
     "test:booking": "nest build && node dist/test/public-booking.e2e.js",
+    "test:whatsapp-inbox": "nest build && node dist/test/whatsapp-inbox.e2e.js",
     "test:orders-finish": "nest build && node dist/test/orders-finish.e2e.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"

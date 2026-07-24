@@ -179,6 +179,8 @@ export interface AppointmentRow {
   end: string;
   notes?: string | null;
   remindClient?: boolean | null;
+  notifyConfirmation?: boolean | null;
+  notifyCancellation?: boolean | null;
   customer?: Customer | null;
   professional?: Professional | null;
   items?: { id: string; serviceId: string; price: string }[];
@@ -392,6 +394,8 @@ export interface CreateAppointmentBody {
   end?: string;
   notes?: string;
   remindClient?: boolean;
+  notifyConfirmation?: boolean;
+  notifyCancellation?: boolean;
   items?: { serviceId: string; professionalId?: string }[];
   followUp?: AppointmentFollowUpInput;
 }

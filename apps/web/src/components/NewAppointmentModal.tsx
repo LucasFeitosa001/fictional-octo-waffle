@@ -222,13 +222,27 @@ export function NewAppointmentModal({
   // DESLIGADO quando o salão não ativou. A dona ainda pode ligar por agendamento.
   const notificationSettings = useNotificationSettings();
   const reminderDefault = notificationSettings.data?.reminder ?? false;
+  const confirmationDefault = notificationSettings.data?.confirmation ?? false;
+  const cancellationDefault = notificationSettings.data?.cancellation ?? false;
   const [sendReminder, setSendReminder] = useState(reminderDefault);
+  const [sendConfirmation, setSendConfirmation] = useState(confirmationDefault);
+  const [sendCancellation, setSendCancellation] = useState(cancellationDefault);
   // Marca se a dona já mexeu no toggle manualmente. Enquanto não mexeu, o toggle
   // segue o default da config (útil quando a config chega depois do modal abrir).
   const reminderTouched = useRef(false);
+  const confirmationTouched = useRef(false);
+  const cancellationTouched = useRef(false);
   function handleSendReminderChange(v: boolean) {
     reminderTouched.current = true;
     setSendReminder(v);
+  }
+  function handleSendConfirmationChange(v: boolean) {
+    confirmationTouched.current = true;
+    setSendConfirmation(v);
+  }
+  function handleSendCancellationChange(v: boolean) {
+    cancellationTouched.current = true;
+    setSendCancellation(v);
   }
   const [squeezeIn, setSqueezeIn] = useState(false);
   // Avisar o cliente (aviso personalizado agendado)
@@ -312,6 +326,10 @@ export function NewAppointmentModal({
       // automation.reminder está off. Sincronizado abaixo se a config chegar depois.
       reminderTouched.current = false;
       setSendReminder(reminderDefault);
+      confirmationTouched.current = false;
+      cancellationTouched.current = false;
+      setSendConfirmation(confirmationDefault);
+      setSendCancellation(cancellationDefault);
       setSqueezeIn(false);
       setWarnEnabled(false);
       setWarnTemplateId('');
@@ -336,6 +354,15 @@ export function NewAppointmentModal({
       setSendReminder(reminderDefault);
     }
   }, [isOpen, reminderDefault]);
+
+  useEffect(() => {
+    if (isOpen && !confirmationTouched.current) {
+      setSendConfirmation(confirmationDefault);
+    }
+    if (isOpen && !cancellationTouched.current) {
+      setSendCancellation(cancellationDefault);
+    }
+  }, [isOpen, confirmationDefault, cancellationDefault]);
 
   // Clear the picked slot when the inputs that produced it change.
   useEffect(() => {
@@ -433,6 +460,8 @@ export function NewAppointmentModal({
         end: endFor(slot.start),
         notes: combinedNotes,
         remindClient: sendReminder,
+        notifyConfirmation: sendConfirmation,
+        notifyCancellation: sendCancellation,
         items: itemsPayload,
         followUp: followUpPayload,
       });
@@ -451,6 +480,8 @@ export function NewAppointmentModal({
               end: endFor(start),
               notes: combinedNotes,
               remindClient: sendReminder,
+              notifyConfirmation: sendConfirmation,
+              notifyCancellation: sendCancellation,
               items: itemsPayload,
               followUp: followUpPayload,
             });
@@ -936,7 +967,17 @@ export function NewAppointmentModal({
 
             {/* ── Ações (switches inline) ──────────────────────────────── */}
             <div className="flex flex-col gap-1.5">
-              <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InlineToggle
+                  checked={sendConfirmation}
+                  onChange={handleSendConfirmationChange}
+                  label="Avisar ao marcar/confirmar"
+                />
+                <InlineToggle
+                  checked={sendCancellation}
+                  onChange={handleSendCancellationChange}
+                  label="Avisar se cancelar"
+                />
                 {/* Lembrete PRÉ-atendimento (antes do atendimento) — distinto do
                     follow-up pós-atendimento. É OPT-IN: o padrão vem de
                     Configurações → Notificações (default desligado). A dona pode
@@ -949,8 +990,8 @@ export function NewAppointmentModal({
                 <InlineToggle checked={squeezeIn} onChange={setSqueezeIn} label="Encaixar agendamento" />
               </div>
               <p className="text-xs text-muted">
-                O lembrete é opcional. O padrão vem de Configurações → Notificações
-                (começa desligado); ative aqui para enviar só neste agendamento.
+                Os três avisos usam o padrão de Configurações → Notificações,
+                mas podem ser ligados ou desligados somente para este agendamento.
               </p>
             </div>
 

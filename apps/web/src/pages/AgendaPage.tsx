@@ -304,6 +304,8 @@ export function AgendaPage() {
   const services = useServices();
   const notificationSettings = useNotificationSettings();
   const reminderDefault = notificationSettings.data?.reminder ?? false;
+  const confirmationDefault = notificationSettings.data?.confirmation ?? false;
+  const cancellationDefault = notificationSettings.data?.cancellation ?? false;
   const serviceById = useMemo(
     () => new Map((services.data?.data ?? []).map((s) => [s.id, s.name])),
     [services.data],
@@ -527,17 +529,30 @@ export function AgendaPage() {
     }
   }
 
-  async function changeStatus(a: AppointmentRow, status: AppointmentRow['status']) {
+  async function changeStatus(
+    a: AppointmentRow,
+    status: AppointmentRow['status'],
+    reason?: string,
+  ): Promise<boolean> {
     try {
-      await statusMutation.mutateAsync({ id: a.id, status });
+      // Se o status for alterado dentro do drawer, persiste ANTES os toggles
+      // desse agendamento. Assim "desligar cancelamento" + cancelar em seguida
+      // nunca dispara usando o valor antigo do banco.
+      if (selected?.id === a.id) {
+        const saved = await persistAppointmentEdits();
+        if (!saved.ok) return false;
+      }
+      await statusMutation.mutateAsync({ id: a.id, status, reason });
       setSelected((s) => (s && s.id === a.id ? { ...s, status } : s));
       flash(
-        status === 'confirmed' ? 'Confirmado. Cliente notificado.'
-          : status === 'canceled' ? 'Cancelado. Cliente notificado.'
+        status === 'confirmed' ? 'Agendamento confirmado.'
+          : status === 'canceled' ? 'Agendamento cancelado.'
           : 'Status atualizado.',
       );
+      return true;
     } catch {
       flash('Erro ao atualizar.');
+      return false;
     }
   }
 
@@ -555,9 +570,15 @@ export function AgendaPage() {
 
   async function confirmCancel() {
     if (!selected) return;
-    await changeStatus(selected, 'canceled');
-    setShowCancel(false);
-    setCancelReason('');
+    const changed = await changeStatus(
+      selected,
+      'canceled',
+      cancelReason.trim() || undefined,
+    );
+    if (changed) {
+      setShowCancel(false);
+      setCancelReason('');
+    }
   }
 
   // ── Batch actions on the current selection ────────────────────────────────
@@ -618,7 +639,11 @@ export function AgendaPage() {
   const [reTime, setReTime] = useState('');
   // Toggles/textarea do drawer "Visualizando agendamento" (padrão Belasis).
   const [sendReminder, setSendReminder] = useState(reminderDefault);
+  const [sendConfirmation, setSendConfirmation] = useState(confirmationDefault);
+  const [sendCancellation, setSendCancellation] = useState(cancellationDefault);
   const [reminderTouched, setReminderTouched] = useState(false);
+  const [confirmationTouched, setConfirmationTouched] = useState(false);
+  const [cancellationTouched, setCancellationTouched] = useState(false);
   const [squeezeIn, setSqueezeIn] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -627,14 +652,40 @@ export function AgendaPage() {
   useEffect(() => {
     setNotesDraft(selected?.notes ?? '');
     setSendReminder(selected?.remindClient ?? reminderDefault);
+    setSendConfirmation(selected?.notifyConfirmation ?? confirmationDefault);
+    setSendCancellation(selected?.notifyCancellation ?? cancellationDefault);
     setReminderTouched(false);
+    setConfirmationTouched(false);
+    setCancellationTouched(false);
     setMoreMenuOpen(false);
-  }, [selected?.id, selected?.remindClient]);
+  }, [
+    selected?.id,
+    selected?.remindClient,
+    selected?.notifyConfirmation,
+    selected?.notifyCancellation,
+  ]);
   useEffect(() => {
     if (selected?.remindClient == null && !reminderTouched) {
       setSendReminder(reminderDefault);
     }
-  }, [selected?.id, selected?.remindClient, reminderDefault, reminderTouched]);
+    if (selected?.notifyConfirmation == null && !confirmationTouched) {
+      setSendConfirmation(confirmationDefault);
+    }
+    if (selected?.notifyCancellation == null && !cancellationTouched) {
+      setSendCancellation(cancellationDefault);
+    }
+  }, [
+    selected?.id,
+    selected?.remindClient,
+    selected?.notifyConfirmation,
+    selected?.notifyCancellation,
+    reminderDefault,
+    confirmationDefault,
+    cancellationDefault,
+    reminderTouched,
+    confirmationTouched,
+    cancellationTouched,
+  ]);
   function openReschedule(a: AppointmentRow) {
     const d = new Date(a.start);
     setReDate(isoDate(d));
@@ -647,17 +698,33 @@ export function AgendaPage() {
   // '') e só dispara o PATCH quando há mudança real, evitando requests à toa.
   // Retorna o valor salvo (ou null quando não há agendamento) para que quem
   // chama (ex.: criar comanda) use a nota já atualizada.
-  async function persistNotes(): Promise<string | null> {
-    if (!selected) return null;
+  async function persistAppointmentEdits(): Promise<{
+    ok: boolean;
+    notes: string | null;
+  }> {
+    if (!selected) return { ok: true, notes: null };
     const next = notesDraft.trim();
     const prev = (selected.notes ?? '').trim();
-    if (next === prev && !reminderTouched) return selected.notes ?? null;
+    if (
+      next === prev &&
+      !reminderTouched &&
+      !confirmationTouched &&
+      !cancellationTouched
+    ) {
+      return { ok: true, notes: selected.notes ?? null };
+    }
     // Backend interpreta undefined como "não mexer"; string vazia limpa o campo.
     const notesValue = next.length > 0 ? next : '';
     try {
       const saved = await api.patch<AppointmentRow>(`/appointments/${selected.id}`, {
         notes: notesValue,
         ...(reminderTouched ? { remindClient: sendReminder } : {}),
+        ...(confirmationTouched
+          ? { notifyConfirmation: sendConfirmation }
+          : {}),
+        ...(cancellationTouched
+          ? { notifyCancellation: sendCancellation }
+          : {}),
       });
       // Reflete localmente e no cache da agenda para o dado não "voltar".
       setSelected((s) =>
@@ -666,16 +733,28 @@ export function AgendaPage() {
               ...s,
               notes: saved.notes ?? null,
               ...(reminderTouched ? { remindClient: saved.remindClient } : {}),
+              ...(confirmationTouched
+                ? { notifyConfirmation: saved.notifyConfirmation }
+                : {}),
+              ...(cancellationTouched
+                ? { notifyCancellation: saved.notifyCancellation }
+                : {}),
             }
           : s,
       );
       setReminderTouched(false);
+      setConfirmationTouched(false);
+      setCancellationTouched(false);
       appts.refetch();
-      return saved.notes ?? null;
+      return { ok: true, notes: saved.notes ?? null };
     } catch {
-      flash('Não foi possível salvar a observação.');
-      return selected.notes ?? null;
+      flash('Não foi possível salvar as alterações do agendamento.');
+      return { ok: false, notes: selected.notes ?? null };
     }
+  }
+
+  async function persistNotes(): Promise<string | null> {
+    return (await persistAppointmentEdits()).notes;
   }
 
   // Fecha o drawer de detalhe salvando a observação antes de limpar o estado.
@@ -696,8 +775,17 @@ export function AgendaPage() {
     // Se a observação também mudou, envia junto no mesmo PATCH — assim o texto
     // não se perde ao reagendar (o drawer fecha sem passar por closeDetail).
     const notesChanged = notesDraft.trim() !== (selected.notes ?? '').trim();
-    const body: { start: string; notes?: string } = { start: newStart.toISOString() };
+    const body: {
+      start: string;
+      notes?: string;
+      remindClient?: boolean;
+      notifyConfirmation?: boolean;
+      notifyCancellation?: boolean;
+    } = { start: newStart.toISOString() };
     if (notesChanged) body.notes = notesDraft.trim();
+    if (reminderTouched) body.remindClient = sendReminder;
+    if (confirmationTouched) body.notifyConfirmation = sendConfirmation;
+    if (cancellationTouched) body.notifyCancellation = sendCancellation;
     try {
       await api.patch(`/appointments/${selected.id}`, body);
       setShowReschedule(false);
@@ -1625,6 +1713,36 @@ export function AgendaPage() {
             {/* AÇÕES: toggles */}
             <section className="flex flex-col gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Ações</h3>
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
+                <span>Avisar ao marcar/confirmar</span>
+                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendConfirmation ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
+                  <input
+                    type="checkbox"
+                    checked={sendConfirmation}
+                    onChange={(e) => {
+                      setSendConfirmation(e.target.checked);
+                      setConfirmationTouched(true);
+                    }}
+                    className="sr-only"
+                  />
+                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendConfirmation ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
+                <span>Avisar se cancelar</span>
+                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendCancellation ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
+                  <input
+                    type="checkbox"
+                    checked={sendCancellation}
+                    onChange={(e) => {
+                      setSendCancellation(e.target.checked);
+                      setCancellationTouched(true);
+                    }}
+                    className="sr-only"
+                  />
+                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendCancellation ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
+                </span>
+              </label>
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
                 <span>Enviar lembrete</span>
                 <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendReminder ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>

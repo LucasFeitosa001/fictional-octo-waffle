@@ -125,7 +125,6 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           { status: AppointmentStatus.confirmed },
           undefined,
         );
-        await this.sendBookingConfirmation(appt.companyId, appt.id);
         if (!managerPhones.has(appt.companyId)) {
           managerPhones.set(appt.companyId, await this.whatsapp.getManagerPhone(appt.companyId));
         }
@@ -149,7 +148,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
                 `📅 *Data:* ${v.dateLabel}`,
                 `⏰ *Horário:* ${v.timeLabel}`,
                 ``,
-                `Não houve resposta a tempo, então confirmamos pra você. Avisamos ${v.customerFirstName}.`,
+                `Não houve resposta a tempo, então confirmamos pra você. O aviso a ${v.customerFirstName} respeita a configuração deste agendamento.`,
               ].join('\n'),
               // Interações: aviso ao gestor (não ao cliente).
               { companyId: appt.companyId, kind: 'manager' },
@@ -546,9 +545,6 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     if (salonConfirms && managerPhone) {
       // Ask the salon to confirm; the CLIENT is only told once the salon replies.
       void this.sendSalonConfirmationRequest(companyId, appointment.id, managerPhone);
-    } else {
-      // No salon gatekeeper → confirm immediately and notify the client.
-      void this.sendBookingConfirmation(companyId, appointment.id);
     }
 
     return { id: appointment.id, status: appointment.status, payment: 'pay_at_salon' };
@@ -568,7 +564,15 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         // customerId exposto p/ vincular as mensagens ao histórico "Interações".
         customerId: true,
         company: { select: { name: true, timezone: true } },
-        customer: { select: { name: true, email: true, phone: true } },
+        customer: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            notificationsEnabled: true,
+            whatsappOptIn: true,
+          },
+        },
         professional: { select: { name: true } },
         items: { select: { service: { select: { name: true } } } },
       },
@@ -595,6 +599,8 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       customerFirstName: (appt.customer?.name ?? '').trim().split(' ')[0] || 'cliente',
       customerEmail: appt.customer?.email?.trim() || null,
       customerPhone: appt.customer?.phone?.trim() || null,
+      customerNotificationsEnabled: appt.customer?.notificationsEnabled ?? null,
+      customerWhatsappOptIn: appt.customer?.whatsappOptIn ?? null,
       dateLabel,
       timeLabel,
     };
@@ -680,6 +686,10 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       const companyId =
         msg.companyId ?? (await this.whatsapp.findCompanyByManagerDigits(msg.fromDigits));
       if (!companyId) return; // not a known manager number — ignore
+      // O socket também recebe mensagens de CLIENTES. Só o número configurado
+      // como gerente pode executar os comandos 1/2/3; sem esta validação qualquer
+      // "oi" de cliente cairia no roteador administrativo.
+      if (!(await this.whatsapp.isManagerPhone(companyId, msg.fromDigits))) return;
 
       const trimmed = msg.text.trim();
       const action = trimmed[0];
@@ -751,8 +761,7 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           { status: AppointmentStatus.confirmed },
           undefined,
         );
-        await this.sendBookingConfirmation(companyId, pending.id);
-        await this.whatsapp.enqueueText(msg.fromDigits, `✅ Confirmado! Avisamos ${clientName}.`, {
+        await this.whatsapp.enqueueText(msg.fromDigits, `✅ Confirmado! O agendamento de ${clientName} foi atualizado.`, {
           companyId,
           kind: 'manager',
         });
@@ -763,11 +772,10 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         await this.appointments.setStatus(
           companyId,
           pending.id,
-          { status: AppointmentStatus.canceled },
+          { status: AppointmentStatus.canceled, reason: extra || undefined },
           undefined,
         );
-        await this.notifyClientCanceled(companyId, pending.id, extra);
-        await this.whatsapp.enqueueText(msg.fromDigits, `❌ Cancelado. Avisamos ${clientName}.`, {
+        await this.whatsapp.enqueueText(msg.fromDigits, `❌ Cancelado. O agendamento de ${clientName} foi atualizado.`, {
           companyId,
           kind: 'manager',
         });
@@ -784,57 +792,16 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         );
         return;
       }
-      await this.notifyClientSuggestion(companyId, pending.id, extra);
+      const suggestionSent = await this.notifyClientSuggestion(companyId, pending.id, extra);
       await this.whatsapp.enqueueText(
         msg.fromDigits,
-        `📨 Sugestão enviada a ${clientName}. O agendamento segue *pendente* até você confirmar (responda 1) ou cancelar (responda 2).`,
+        suggestionSent
+          ? `📨 Sugestão enviada a ${clientName}. O agendamento segue *pendente* até você confirmar (responda 1) ou cancelar (responda 2).`
+          : `⚠️ O agendamento segue *pendente*, mas ${clientName} não recebeu a sugestão porque não possui um canal habilitado ou optou por não receber mensagens.`,
         { companyId, kind: 'manager' },
       );
     } catch (err) {
       this.logger.error(`Falha ao processar resposta do salão: ${(err as Error).message}`);
-    }
-  }
-
-  // Tells the client their booking was canceled by the salon, relaying the
-  // optional reason the manager typed.
-  private async notifyClientCanceled(
-    companyId: string,
-    appointmentId: string,
-    reason: string,
-  ): Promise<void> {
-    try {
-      const v = await this.loadApptView(companyId, appointmentId);
-      if (!v) return;
-      const reasonLine = reason ? `\n\nMotivo: ${reason}` : '';
-      if (v.customerPhone) {
-        const lines = [
-          `Olá, ${v.customerFirstName}.`,
-          ``,
-          `Infelizmente seu agendamento no *${v.salonName}* (${v.serviceNames} — ${v.dateLabel} às ${v.timeLabel}) foi *cancelado* pelo salão.${reasonLine}`,
-          ``,
-          `Se quiser, é só agendar um novo horário. 💖`,
-        ];
-        // Interações: cancelamento avisado ao cliente.
-        await this.whatsapp.enqueueText(v.customerPhone, lines.join('\n'), {
-          companyId,
-          customerId: v.customerId ?? undefined,
-          kind: 'cancellation',
-        });
-      }
-      if (v.customerEmail) {
-        await this.email.send({
-          to: v.customerEmail,
-          subject: `Agendamento cancelado — ${v.salonName}`,
-          html:
-            `<p>Olá, ${v.customerFirstName}.</p>` +
-            `<p>Infelizmente seu agendamento no <strong>${v.salonName}</strong> ` +
-            `(${v.serviceNames} — ${v.dateLabel} às ${v.timeLabel}) foi cancelado pelo salão.` +
-            (reason ? `<br>Motivo: ${reason}` : '') +
-            `</p><p>Se quiser, é só agendar um novo horário.</p>`,
-        });
-      }
-    } catch (err) {
-      this.logger.error(`Falha ao avisar cliente do cancelamento: ${(err as Error).message}`);
     }
   }
 
@@ -844,11 +811,15 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     companyId: string,
     appointmentId: string,
     suggestion: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const v = await this.loadApptView(companyId, appointmentId);
-      if (!v) return;
-      if (v.customerPhone) {
+      if (!v) return false;
+      const notificationsAllowed = v.customerNotificationsEnabled !== false;
+      const whatsappAllowed =
+        notificationsAllowed && v.customerWhatsappOptIn !== false;
+      let sent = false;
+      if (v.customerPhone && whatsappAllowed) {
         const lines = [
           `Olá, ${v.customerFirstName}! ✨`,
           ``,
@@ -865,8 +836,9 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           customerId: v.customerId ?? undefined,
           kind: 'confirmation',
         });
+        sent = true;
       }
-      if (v.customerEmail) {
+      if (v.customerEmail && notificationsAllowed) {
         await this.email.send({
           to: v.customerEmail,
           subject: `Sugestão de novo horário — ${v.salonName}`,
@@ -877,149 +849,13 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
             `<p><strong>${suggestion}</strong></p>` +
             `<p>Entre em contato com o salão para combinar o melhor horário.</p>`,
         });
+        sent = true;
       }
+      return sent;
     } catch (err) {
       this.logger.error(`Falha ao enviar sugestão ao cliente: ${(err as Error).message}`);
+      return false;
     }
-  }
-
-  // Loads the just-created appointment's display data and notifies the customer
-  // by e-mail and WhatsApp. Wrapped so any failure (no contact on file, Resend
-  // or WhatsApp down) is swallowed: the appointment already exists and must
-  // stand on its own.
-  private async sendBookingConfirmation(
-    companyId: string,
-    appointmentId: string,
-  ): Promise<void> {
-    try {
-      // OPT-IN: só envia a confirmação ao cliente quando o salão ativou
-      // `confirmation` (default OFF). Sem o toggle, nada é enviado ao cliente.
-      const auto = await this.settings.get(companyId);
-      if (!auto.confirmation) return;
-
-      const appt = await this.prisma.client.appointment.findFirst({
-        where: { id: appointmentId, companyId },
-        select: {
-          start: true,
-          customerId: true,
-          company: { select: { name: true, timezone: true } },
-          customer: { select: { name: true, email: true, phone: true } },
-          professional: { select: { name: true } },
-          items: { select: { service: { select: { name: true } } } },
-        },
-      });
-      if (!appt) return;
-
-      const tz = appt.company.timezone || 'America/Sao_Paulo';
-      const dateLabel = new Intl.DateTimeFormat('pt-BR', {
-        timeZone: tz,
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-      }).format(appt.start);
-      const timeLabel = new Intl.DateTimeFormat('pt-BR', {
-        timeZone: tz,
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(appt.start);
-      const serviceNames = appt.items.map((it) => it.service.name).join(', ') || 'Serviço';
-      const salonName = appt.company.name;
-      const professionalName = appt.professional?.name ?? null;
-      const firstName = (appt.customer?.name ?? '').trim().split(' ')[0] || 'cliente';
-
-      const email = appt.customer?.email?.trim();
-      if (email) {
-        await this.email.send({
-          to: email,
-          subject: `Agendamento confirmado — ${salonName}`,
-          html: this.bookingEmailHtml({
-            firstName,
-            salonName,
-            serviceNames,
-            professionalName,
-            dateLabel,
-            timeLabel,
-          }),
-        });
-      }
-
-      const phone = appt.customer?.phone?.trim();
-      if (phone) {
-        await this.whatsapp.enqueueText(
-          phone,
-          this.bookingWhatsappText({
-            firstName,
-            salonName,
-            serviceNames,
-            professionalName,
-            dateLabel,
-            timeLabel,
-          }),
-          // Interações: confirmação de agendamento enviada ao cliente.
-          { companyId, customerId: appt.customerId ?? undefined, kind: 'confirmation' },
-        );
-      }
-    } catch {
-      // Intentionally swallowed — booking succeeds regardless of notifications.
-    }
-  }
-
-  // Plain-text WhatsApp confirmation (uses WhatsApp markdown: *bold*).
-  private bookingWhatsappText(p: {
-    firstName: string;
-    salonName: string;
-    serviceNames: string;
-    professionalName: string | null;
-    dateLabel: string;
-    timeLabel: string;
-  }): string {
-    const lines = [
-      `Olá, ${p.firstName}! ✨`,
-      ``,
-      `Seu agendamento no *${p.salonName}* está confirmado:`,
-      ``,
-      `💅 *Serviço:* ${p.serviceNames}`,
-      p.professionalName ? `👩 *Profissional:* ${p.professionalName}` : null,
-      `📅 *Data:* ${p.dateLabel}`,
-      `⏰ *Horário:* ${p.timeLabel}`,
-      ``,
-      `O pagamento é feito no salão. Até logo! 💖`,
-    ].filter((l): l is string => l !== null);
-    return lines.join('\n');
-  }
-
-  // Minimal, inline-styled HTML so it renders consistently across e-mail clients.
-  private bookingEmailHtml(p: {
-    firstName: string;
-    salonName: string;
-    serviceNames: string;
-    professionalName: string | null;
-    dateLabel: string;
-    timeLabel: string;
-  }): string {
-    const row = (label: string, value: string) =>
-      `<tr><td style="padding:6px 0;color:#6b6b6b;font-size:14px;">${label}</td>` +
-      `<td style="padding:6px 0;color:#1a1a1a;font-size:14px;font-weight:600;text-align:right;">${value}</td></tr>`;
-    return `<!doctype html><html><body style="margin:0;background:#faf6f4;font-family:Arial,Helvetica,sans-serif;">
-  <div style="max-width:480px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#ffffff;border-radius:16px;padding:28px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-      <h1 style="margin:0 0 6px;font-size:20px;color:#1a1a1a;">Agendamento confirmado ✨</h1>
-      <p style="margin:0 0 20px;color:#6b6b6b;font-size:15px;line-height:1.5;">
-        Olá, ${p.firstName}! Seu horário no <strong>${p.salonName}</strong> está confirmado.
-      </p>
-      <table style="width:100%;border-collapse:collapse;border-top:1px solid #efe7e3;border-bottom:1px solid #efe7e3;">
-        ${row('Serviço', p.serviceNames)}
-        ${p.professionalName ? row('Profissional', p.professionalName) : ''}
-        ${row('Data', p.dateLabel)}
-        ${row('Horário', p.timeLabel)}
-      </table>
-      <p style="margin:20px 0 0;color:#9a9a9a;font-size:13px;line-height:1.5;">
-        O pagamento é feito no salão. Em caso de imprevisto, entre em contato para reagendar.
-      </p>
-    </div>
-    <p style="text-align:center;color:#b3aba7;font-size:12px;margin:18px 0 0;">Enviado por Salonpass</p>
-  </div>
-</body></html>`;
   }
 
   // Appointments of the logged-in customer at this salon (most recent first).

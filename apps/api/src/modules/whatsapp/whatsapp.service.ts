@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import makeWASocket, {
   DisconnectReason,
-  fetchLatestBaileysVersion,
   Browsers,
+  normalizeMessageContent,
   proto,
 } from 'baileys';
 import type { WASocket } from 'baileys';
@@ -28,16 +28,77 @@ export interface WhatsappInbound {
   fromDigits: string; // sender number, digits only (e.g. "5511988887777")
   text: string;
   quotedText?: string; // text of the message being replied to (swipe-reply)
+  messageId?: string;
+  remoteJid: string;
+  pushName?: string;
+  kind?: string;
+  metadata?: Record<string, string | number | boolean | null>;
+  fromMe: boolean;
+  timestamp: Date;
   // Empresa dona do socket em que a mensagem chegou. Como cada company tem seu
   // PRÓPRIO número/socket, sabemos de imediato de qual salão veio a resposta.
   companyId: string;
 }
-export type WhatsappInboundHandler = (msg: WhatsappInbound) => void;
+export type WhatsappInboundHandler = (
+  msg: WhatsappInbound,
+) => void | Promise<void>;
 
-// Outbox worker tuning.
-const OUTBOX_TICK_MS = 5000; // how often the drain loop wakes up
-const OUTBOX_PACING_MS = 1500; // gap between consecutive sends (ban-avoidance)
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? '', 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+// Outbox worker tuning. Baileys NÃO impõe rate limit; portanto a aplicação
+// precisa suavizar rajadas. Os defaults deliberadamente conservadores podem ser
+// ajustados por ambiente sem novo deploy.
+const OUTBOX_TICK_MS = envInt('WHATSAPP_OUTBOX_TICK_MS', 5000, 1000, 60000);
 const OUTBOX_MAX_ATTEMPTS = 5; // give up after this many tries → status 'failed'
+const TRANSACTIONAL_DELAY_MIN_MS = envInt(
+  'WHATSAPP_DELAY_MIN_MS',
+  6000,
+  1000,
+  120000,
+);
+const TRANSACTIONAL_DELAY_MAX_MS = envInt(
+  'WHATSAPP_DELAY_MAX_MS',
+  12000,
+  TRANSACTIONAL_DELAY_MIN_MS,
+  180000,
+);
+const BULK_DELAY_MIN_MS = envInt(
+  'WHATSAPP_BULK_DELAY_MIN_MS',
+  18000,
+  TRANSACTIONAL_DELAY_MIN_MS,
+  300000,
+);
+const BULK_DELAY_MAX_MS = envInt(
+  'WHATSAPP_BULK_DELAY_MAX_MS',
+  35000,
+  BULK_DELAY_MIN_MS,
+  600000,
+);
+const RECIPIENT_COOLDOWN_MS = envInt(
+  'WHATSAPP_RECIPIENT_COOLDOWN_MS',
+  60000,
+  0,
+  3600000,
+);
+const OUTBOX_DEDUP_WINDOW_MS = envInt(
+  'WHATSAPP_DEDUP_WINDOW_MS',
+  10 * 60 * 1000,
+  0,
+  60 * 60 * 1000,
+);
+const BULK_HOURLY_LIMIT = envInt('WHATSAPP_BULK_HOURLY_LIMIT', 60, 1, 1000);
+const BULK_KINDS = ['campaign', 'followup'] as const;
+const CLIENT_AUTOMATION_KINDS = [
+  'confirmation',
+  'cancellation',
+  'reminder',
+  'followup',
+  'campaign',
+] as const;
 // Quantas mensagens enviadas guardar por sessão para responder aos retry-receipts
 // (ver getMessage). Cobre com folga a janela em que um aparelho pede reenvio.
 const SENT_CACHE_MAX = 300;
@@ -82,6 +143,9 @@ interface SessionState {
   // conteúdo e RE-ENVIAR criptografado. Sem isso a mensagem fica presa em
   // "Aguardando esta mensagem…" no WhatsApp do dono. Limitado a SENT_CACHE_MAX.
   sentCache: Map<string, proto.IMessage>;
+  // Próximo instante em que ESTA sessão pode enviar. Cada empresa tem sua
+  // própria cadência, então uma campanha de um salão não paralisa os demais.
+  nextSendAt: number;
 }
 
 /**
@@ -102,10 +166,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsappService.name);
   // Uma sessão por empresa. A chave é o companyId (= sessionId das credenciais).
   private readonly sessions = new Map<string, SessionState>();
-  private inboundHandler: WhatsappInboundHandler | null = null;
+  private readonly inboundHandlers = new Set<WhatsappInboundHandler>();
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
+  // Evita que duas chamadas concorrentes passem juntas pela consulta de
+  // deduplicação antes de uma delas persistir a linha no banco.
+  private readonly enqueueInFlight = new Set<string>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -137,7 +204,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * one handler is supported — last registration wins.
    */
   setInboundHandler(fn: WhatsappInboundHandler): void {
-    this.inboundHandler = fn;
+    this.inboundHandlers.add(fn);
+  }
+
+  /** Registra um consumidor adicional do stream de mensagens da empresa. */
+  addInboundHandler(fn: WhatsappInboundHandler): () => void {
+    this.inboundHandlers.add(fn);
+    return () => this.inboundHandlers.delete(fn);
   }
 
   // ------------------------------------------------------- sessão por empresa
@@ -156,6 +229,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         connectTimeout: null,
         selfDigitsTail: null,
         sentCache: new Map(),
+        nextSendAt: 0,
       };
       this.sessions.set(companyId, session);
     }
@@ -298,6 +372,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return null;
   }
 
+  async isManagerPhone(companyId: string, phone: string): Promise<boolean> {
+    const manager = await this.getManagerPhone(companyId);
+    const managerTail = this.digitsTail(manager ?? '');
+    const phoneTail = this.digitsTail(phone);
+    return Boolean(managerTail && phoneTail && managerTail === phoneTail);
+  }
+
   // Last 8 digits of a phone number — the stable tail shared across 55-prefix and
   // 9th-digit variants. Empty string when too short.
   private digitsTail(phone: string): string {
@@ -325,11 +406,22 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   // -------------------------------------------------------------- API pública
 
   /** Status da conexão de UMA empresa. */
-  getStatus(companyId: string): { status: WaStatus; hasQr: boolean } {
-    if (!this.enabled) return { status: 'disabled', hasQr: false };
+  getStatus(
+    companyId: string,
+  ): { status: WaStatus; hasQr: boolean; phone: string | null } {
+    if (!this.enabled) {
+      return { status: 'disabled', hasQr: false, phone: null };
+    }
     const session = this.sessions.get(companyId);
-    if (!session) return { status: 'closed', hasQr: false };
-    return { status: session.status, hasQr: Boolean(session.currentQr) };
+    if (!session) {
+      return { status: 'closed', hasQr: false, phone: null };
+    }
+    const phone = this.jidUserDigits(session.sock?.user?.id ?? '') || null;
+    return {
+      status: session.status,
+      hasQr: Boolean(session.currentQr),
+      phone,
+    };
   }
 
   /**
@@ -434,26 +526,82 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   async enqueueText(
     phone: string,
     text: string,
-    ctx?: { companyId?: string; customerId?: string; kind?: string },
+    ctx?: {
+      companyId?: string;
+      customerId?: string;
+      kind?: string;
+      inboxMessageId?: string;
+    },
   ): Promise<void> {
     const normalized = this.normalizeOutgoingPhone(phone);
     if (!normalized) {
       this.logger.warn(`Outbox: número inválido ignorado (${phone}).`);
       return;
     }
-    await this.prisma.client.whatsappOutbox.create({
-      data: {
-        // Preserve an explicit E.164 country code. The leading + is the signal
-        // that this is not a Brazilian local number, and is needed later when
-        // resolving the WhatsApp JID.
-        toPhone: normalized.value,
-        text,
-        // Só grava o que veio — undefined vira NULL na coluna (retrocompatível).
-        companyId: ctx?.companyId ?? null,
-        customerId: ctx?.customerId ?? null,
-        kind: ctx?.kind ?? null,
-      },
-    });
+    const companyId = ctx?.companyId ?? null;
+    const dedupKey = `${companyId ?? '-'}\u0000${normalized.value}\u0000${text}`;
+    // Mensagens nascidas no inbox têm identidade própria e precisam sempre
+    // ganhar sua linha na outbox; deduplicá-las aqui deixaria o balão novo
+    // eternamente em "pending". A deduplicação continua valendo para as
+    // automações transacionais/campanhas que não possuem inboxMessageId.
+    const shouldDeduplicate =
+      ctx?.kind !== 'manual' && !ctx?.inboxMessageId;
+    if (
+      shouldDeduplicate &&
+      OUTBOX_DEDUP_WINDOW_MS > 0 &&
+      this.enqueueInFlight.has(dedupKey)
+    ) {
+      this.logger.warn(
+        `Outbox: duplicata concorrente ignorada (company=${companyId ?? 'sem-company'}, to=${normalized.value}).`,
+      );
+      return;
+    }
+    this.enqueueInFlight.add(dedupKey);
+    try {
+      if (shouldDeduplicate && OUTBOX_DEDUP_WINDOW_MS > 0) {
+        const duplicate = await this.prisma.client.whatsappOutbox.findFirst({
+          where: {
+            companyId,
+            toPhone: normalized.value,
+            text,
+            OR: [
+              // Uma duplicata nunca deve ultrapassar a original ainda pendente,
+              // mesmo que o socket tenha ficado offline por bastante tempo.
+              { status: 'pending' },
+              {
+                status: 'sent',
+                createdAt: {
+                  gte: new Date(Date.now() - OUTBOX_DEDUP_WINDOW_MS),
+                },
+              },
+            ],
+          },
+          select: { id: true },
+        });
+        if (duplicate) {
+          this.logger.warn(
+            `Outbox: mensagem duplicada ignorada (company=${companyId ?? 'sem-company'}, original=${duplicate.id}).`,
+          );
+          return;
+        }
+      }
+      await this.prisma.client.whatsappOutbox.create({
+        data: {
+          // Preserve an explicit E.164 country code. The leading + is the signal
+          // that this is not a Brazilian local number, and is needed later when
+          // resolving the WhatsApp JID.
+          toPhone: normalized.value,
+          text,
+          // Só grava o que veio — undefined vira NULL na coluna (retrocompatível).
+          companyId,
+          customerId: ctx?.customerId ?? null,
+          kind: ctx?.kind ?? null,
+          inboxMessageId: ctx?.inboxMessageId ?? null,
+        },
+      });
+    } finally {
+      this.enqueueInFlight.delete(dedupKey);
+    }
     // Try to deliver immediately; if no socket is open yet the timer drains it
     // later. drainOutbox guards itself, so this is safe to call any time.
     void this.drainOutbox();
@@ -489,15 +637,39 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return digits.startsWith('55') && (digits.length === 12 || digits.length === 13);
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private randomBetween(min: number, max: number): number {
+    if (max <= min) return min;
+    return Math.floor(min + Math.random() * (max - min + 1));
+  }
+
+  private isBulkKind(kind: string | null | undefined): boolean {
+    return BULK_KINDS.includes(kind as (typeof BULK_KINDS)[number]);
+  }
+
+  private isClientAutomationKind(kind: string | null | undefined): boolean {
+    return CLIENT_AUTOMATION_KINDS.includes(
+      kind as (typeof CLIENT_AUTOMATION_KINDS)[number],
+    );
+  }
+
+  /** Intervalo aleatório, maior para campanha/follow-up do que para transacional. */
+  private nextPacingDelay(kind: string | null | undefined): number {
+    return this.isBulkKind(kind)
+      ? this.randomBetween(BULK_DELAY_MIN_MS, BULK_DELAY_MAX_MS)
+      : this.randomBetween(TRANSACTIONAL_DELAY_MIN_MS, TRANSACTIONAL_DELAY_MAX_MS);
   }
 
   /** Empresas com socket aberto agora — usado para filtrar o outbox no drain. */
-  private openCompanyIds(): string[] {
+  private openCompanyIds(readyAt = Number.POSITIVE_INFINITY): string[] {
     const ids: string[] = [];
     for (const session of this.sessions.values()) {
-      if (session.status === 'open' && session.sock) ids.push(session.companyId);
+      if (
+        session.status === 'open' &&
+        session.sock &&
+        session.nextSendAt <= readyAt
+      ) {
+        ids.push(session.companyId);
+      }
     }
     return ids;
   }
@@ -516,19 +688,26 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     try {
       for (;;) {
         // Recalcula a cada volta (uma company pode cair no meio do drain).
-        const openNow = this.openCompanyIds();
+        const openNow = this.openCompanyIds(Date.now());
         if (openNow.length === 0) break;
-        const msg = await this.prisma.client.whatsappOutbox.findFirst({
-          where: {
-            status: 'pending',
-            nextAttemptAt: { lte: new Date() },
-            companyId: { in: openNow },
-          },
-          orderBy: { createdAt: 'asc' },
-        });
+        const where = {
+          status: 'pending',
+          nextAttemptAt: { lte: new Date() },
+          companyId: { in: openNow },
+        } as const;
+        // Transacionais (marcado/cancelado/lembrete/gestor) passam na frente de
+        // campanhas antigas para uma rajada de marketing não atrasar a operação.
+        const msg =
+          (await this.prisma.client.whatsappOutbox.findFirst({
+            where: { ...where, kind: { notIn: [...BULK_KINDS] } },
+            orderBy: { createdAt: 'asc' },
+          })) ??
+          (await this.prisma.client.whatsappOutbox.findFirst({
+            where,
+            orderBy: { createdAt: 'asc' },
+          }));
         if (!msg) break;
         await this.deliverOutbox(msg);
-        await this.sleep(OUTBOX_PACING_MS);
       }
     } catch (err) {
       this.logger.error(`Erro ao drenar outbox: ${(err as Error).message}`);
@@ -549,12 +728,15 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     text: string;
     attempts: number;
     companyId: string | null;
+    kind: string | null;
+    inboxMessageId: string | null;
   }): Promise<void> {
     const db = this.prisma.client;
     const session = msg.companyId ? this.sessions.get(msg.companyId) : undefined;
     // Sem company ou sem socket aberto → não há por onde enviar; deixa pendente.
     if (!session || session.status !== 'open' || !session.sock) return;
     try {
+      if (await this.deferIfRateLimited(msg)) return;
       const jid = await this.resolveJid(session, msg.toPhone);
       if (!jid) {
         await db.whatsappOutbox.update({
@@ -565,6 +747,15 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
             lastError: 'Número sem WhatsApp / JID irresolúvel',
           },
         });
+        if (msg.inboxMessageId) {
+          await db.whatsappInboxMessage.updateMany({
+            where: { id: msg.inboxMessageId },
+            data: {
+              status: 'failed',
+              metadataJson: { error: 'Número sem WhatsApp / JID irresolúvel' },
+            },
+          });
+        }
         this.logger.warn(`Outbox ${msg.id}: número ${msg.toPhone} sem WhatsApp — descartado.`);
         return;
       }
@@ -583,6 +774,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         where: { id: msg.id },
         data: { status: 'sent', sentAt: new Date(), attempts: msg.attempts + 1, lastError: null },
       });
+      if (msg.inboxMessageId) {
+        await db.whatsappInboxMessage.updateMany({
+          where: { id: msg.inboxMessageId },
+          data: {
+            status: 'sent',
+            sentAt: new Date(),
+            whatsappMessageId: sent?.key?.id ?? undefined,
+          },
+        });
+      }
+      session.nextSendAt = Date.now() + this.nextPacingDelay(msg.kind);
       this.logger.log(`Outbox ${msg.id}: enviado para ${jid} (company=${msg.companyId}).`);
     } catch (err) {
       const attempts = msg.attempts + 1;
@@ -597,10 +799,111 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           nextAttemptAt: new Date(Date.now() + backoffMs),
         },
       });
+      if (msg.inboxMessageId) {
+        await db.whatsappInboxMessage.updateMany({
+          where: { id: msg.inboxMessageId },
+          data: {
+            status: failed ? 'failed' : 'pending',
+            ...(failed
+              ? { metadataJson: { error: (err as Error).message.slice(0, 500) } }
+              : {}),
+          },
+        });
+      }
       this.logger.error(
         `Outbox ${msg.id}: falha (tentativa ${attempts}/${OUTBOX_MAX_ATTEMPTS}) — ${(err as Error).message}`,
       );
     }
+  }
+
+  /**
+   * Proteções duráveis (sobrevivem a restart):
+   *   1. não manda duas automações ao mesmo número dentro do cooldown;
+   *   2. campanha/follow-up respeita um teto deslizante por empresa/hora.
+   *
+   * Ao atingir um limite, apenas move nextAttemptAt; nada é perdido e mensagens
+   * transacionais de outros destinatários continuam passando.
+   */
+  private async deferIfRateLimited(msg: {
+    id: string;
+    toPhone: string;
+    companyId: string | null;
+    kind: string | null;
+  }): Promise<boolean> {
+    if (!msg.companyId) return false;
+    const db = this.prisma.client;
+    const now = Date.now();
+
+    if (
+      RECIPIENT_COOLDOWN_MS > 0 &&
+      this.isClientAutomationKind(msg.kind)
+    ) {
+      const previous = await db.whatsappOutbox.findFirst({
+        where: {
+          id: { not: msg.id },
+          companyId: msg.companyId,
+          toPhone: msg.toPhone,
+          status: 'sent',
+          sentAt: { gte: new Date(now - RECIPIENT_COOLDOWN_MS) },
+        },
+        orderBy: { sentAt: 'desc' },
+        select: { sentAt: true },
+      });
+      if (previous?.sentAt) {
+        const nextAttemptAt = new Date(
+          previous.sentAt.getTime() +
+            RECIPIENT_COOLDOWN_MS +
+            this.randomBetween(500, 2500),
+        );
+        await db.whatsappOutbox.update({
+          where: { id: msg.id },
+          data: {
+            nextAttemptAt,
+            lastError: 'Adiado pelo cooldown do destinatário',
+          },
+        });
+        return true;
+      }
+    }
+
+    if (this.isBulkKind(msg.kind)) {
+      const windowStart = new Date(now - 60 * 60 * 1000);
+      const sentInWindow = await db.whatsappOutbox.count({
+        where: {
+          companyId: msg.companyId,
+          status: 'sent',
+          kind: { in: [...BULK_KINDS] },
+          sentAt: { gte: windowStart },
+        },
+      });
+      if (sentInWindow >= BULK_HOURLY_LIMIT) {
+        const oldest = await db.whatsappOutbox.findFirst({
+          where: {
+            companyId: msg.companyId,
+            status: 'sent',
+            kind: { in: [...BULK_KINDS] },
+            sentAt: { gte: windowStart },
+          },
+          orderBy: { sentAt: 'asc' },
+          select: { sentAt: true },
+        });
+        const nextAttemptAt = new Date(
+          (oldest?.sentAt?.getTime() ?? now) +
+            60 * 60 * 1000 +
+            this.randomBetween(1000, 5000),
+        );
+        await db.whatsappOutbox.update({
+          where: { id: msg.id },
+          data: {
+            nextAttemptAt,
+            lastError: `Adiado pelo limite de ${BULK_HOURLY_LIMIT} envios em massa/hora`,
+          },
+        });
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -671,10 +974,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     try {
       // Credenciais keyed pela empresa: sessionId = companyId.
       const { state, saveCreds } = await useDbAuthState(this.prisma, companyId);
-      const { version } = await fetchLatestBaileysVersion();
-
       const sock = makeWASocket({
-        version,
         auth: state,
         logger: silentLogger(),
         browser: Browsers.appropriate('Salonpass'),
@@ -702,11 +1002,70 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       // texto puro de chats individuais; grupos e não-texto são ignorados. Como
       // o socket é DESTA empresa, já sabemos o companyId de origem.
       sock.ev.on('messages.upsert', (evt) => {
-        if (evt.type !== 'notify') return;
         for (const m of evt.messages) {
           const jid = m.key.remoteJid ?? '';
           if (!jid.endsWith('@s.whatsapp.net')) continue; // skip groups/status
-          const text = m.message?.conversation ?? m.message?.extendedTextMessage?.text;
+          // Remove wrappers ephemeral/view-once antes de identificar o conteúdo.
+          // O inbox mantém uma representação textual de mídia, mesmo sem baixar
+          // o arquivo, para a conversa nunca "sumir" quando chega áudio/foto.
+          const content = normalizeMessageContent(m.message);
+          let kind = 'text';
+          let metadata:
+            | Record<string, string | number | boolean | null>
+            | undefined;
+          let text =
+            content?.conversation ??
+            content?.extendedTextMessage?.text ??
+            content?.imageMessage?.caption ??
+            content?.videoMessage?.caption;
+          if (content?.imageMessage) {
+            kind = 'image';
+            text = text?.trim() || '📷 Imagem recebida';
+            metadata = {
+              mimetype: content.imageMessage.mimetype ?? null,
+              media: true,
+            };
+          } else if (content?.videoMessage) {
+            kind = 'video';
+            text = text?.trim() || '🎥 Vídeo recebido';
+            metadata = {
+              mimetype: content.videoMessage.mimetype ?? null,
+              media: true,
+            };
+          } else if (content?.audioMessage) {
+            kind = 'audio';
+            text = '🎤 Áudio recebido';
+            metadata = {
+              mimetype: content.audioMessage.mimetype ?? null,
+              seconds: content.audioMessage.seconds ?? 0,
+              media: true,
+            };
+          } else if (content?.documentMessage) {
+            kind = 'document';
+            text = `📎 ${content.documentMessage.fileName || 'Documento recebido'}`;
+            metadata = {
+              mimetype: content.documentMessage.mimetype ?? null,
+              fileName: content.documentMessage.fileName ?? null,
+              media: true,
+            };
+          } else if (content?.stickerMessage) {
+            kind = 'sticker';
+            text = '🏷️ Figurinha recebida';
+            metadata = { media: true };
+          } else if (content?.locationMessage) {
+            kind = 'location';
+            text = '📍 Localização recebida';
+            metadata = {
+              latitude: content.locationMessage.degreesLatitude ?? 0,
+              longitude: content.locationMessage.degreesLongitude ?? 0,
+            };
+          } else if (
+            content?.contactMessage ||
+            content?.contactsArrayMessage
+          ) {
+            kind = 'contact';
+            text = '👤 Contato recebido';
+          }
           if (!text || !text.trim()) continue;
           const trimmed = text.trim();
           // Normalmente nossos próprios envios (fromMe) são ignorados — mas um
@@ -717,15 +1076,40 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
             const selfChat =
               !!session.selfDigitsTail &&
               this.digitsTail(this.jidUserDigits(jid)) === session.selfDigitsTail;
-            if (!selfChat || !/^[123]\b/.test(trimmed)) continue;
+            // Mensagens enviadas pelo celular para clientes também alimentam o
+            // inbox. O self-chat só interessa ao roteador 1/2/3; os demais
+            // handlers decidem se querem ignorá-lo.
+            if (selfChat && !/^[123]\b/.test(trimmed)) continue;
           }
           const fromDigits = this.jidUserDigits(jid);
-          const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+          const quoted =
+            content?.extendedTextMessage?.contextInfo?.quotedMessage;
           const quotedText = quoted?.conversation ?? quoted?.extendedTextMessage?.text ?? undefined;
-          try {
-            this.inboundHandler?.({ fromDigits, text: trimmed, quotedText, companyId });
-          } catch (err) {
-            this.logger.error(`Erro no handler de mensagem recebida: ${(err as Error).message}`);
+          const timestampSeconds =
+            typeof m.messageTimestamp === 'number'
+              ? m.messageTimestamp
+              : Number(m.messageTimestamp ?? 0);
+          const inbound: WhatsappInbound = {
+            fromDigits,
+            text: trimmed,
+            quotedText,
+            messageId: m.key.id ?? undefined,
+            remoteJid: jid,
+            pushName: m.pushName ?? undefined,
+            kind,
+            metadata,
+            fromMe: Boolean(m.key.fromMe),
+            timestamp: timestampSeconds
+              ? new Date(timestampSeconds * 1000)
+              : new Date(),
+            companyId,
+          };
+          for (const handler of this.inboundHandlers) {
+            Promise.resolve(handler(inbound)).catch((err) => {
+              this.logger.error(
+                `Erro no handler de mensagem recebida: ${(err as Error).message}`,
+              );
+            });
           }
         }
       });
@@ -746,6 +1130,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           session.status = 'open';
           session.connecting = false;
           session.reconnectAttempts = 0; // conexão saudável — zera backoff
+          // Evita despejar imediatamente todo o backlog após um reconnect.
+          session.nextSendAt =
+            Date.now() +
+            this.randomBetween(
+              TRANSACTIONAL_DELAY_MIN_MS,
+              TRANSACTIONAL_DELAY_MAX_MS,
+            );
           // Lembra o próprio número para reconhecer o self-chat (salões de um
           // número só respondem ao prompt como fromMe nele).
           session.selfDigitsTail = this.digitsTail(this.jidUserDigits(sock.user?.id ?? ''));
