@@ -71,7 +71,7 @@ async function main() {
     });
     console.log('Depois: serviços com categoria =', afterCount);
     console.log('Depois: amostra =', afterSample);
-  });
+  }, { timeout: 30_000, maxWait: 15_000 });
 }
 
 main()
