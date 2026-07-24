@@ -197,13 +197,23 @@ export function FullDrawer({
               : `inset-0 h-dvh ${show ? 'translate-x-0' : 'translate-x-full'}`,
         ].join(' ')}
       >
-        {/* HEADER */}
+        {/* HEADER
+            No MOBILE o painel é `inset-0 h-dvh` (ancorado no topo físico), então
+            o header SEMPRE precisa reservar a safe-area do topo — senão o
+            título/X fica sob o notch no PWA instalado (standalone). Usamos
+            `var(--sp-safe-top)` (pega o +0.5rem do standalone) em vez de
+            `env(...)` cru, igual ao MobileBackHeader. Vale COM e SEM
+            `mobileBackLabel` (antes o ramo `else` = `py-4` não reservava nada).
+            No desktop o header é normal (`px-6 py-4`); no Safari com URL bar a
+            inset é 0 e tudo cai no piso normal. */}
         <header
           className={[
             'shrink-0 border-b border-line bg-warm-white',
             isMobile && mobileBackLabel
-              ? 'grid min-h-14 grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]'
-              : 'flex items-center justify-between px-6 py-4',
+              ? 'grid min-h-14 grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center px-4 pb-2 pt-[max(0.5rem,var(--sp-safe-top))]'
+              : isMobile
+                ? 'flex items-center justify-between px-6 pb-4 pt-[max(1rem,var(--sp-safe-top))]'
+                : 'flex items-center justify-between px-6 py-4',
           ].join(' ')}
         >
           {isMobile && mobileBackLabel ? (

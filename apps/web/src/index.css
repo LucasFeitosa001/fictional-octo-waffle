@@ -848,11 +848,12 @@ h1, h2, h3, h4, h5, h6,
 
 /* Mobile bottom tab bar: brand sidebar surface. Esta é uma barra FLUTUANTE
    (inset-x-3 + cantos + sombra), NÃO encostada na borda. O afastamento da borda
-   inferior segura (home indicator) é feito pelo `bottom-[…env(safe-area-inset-
-   bottom)]` da própria <nav> — por isso aqui NÃO repetimos `padding-bottom:
-   env(safe-area-inset-bottom)`: isso empurrava a barra pra cima duas vezes (a
-   deixava "subida" e inchada por dentro). O padding interno dos botões já vem
-   das classes utilitárias (py-2 nos TabButton/ActionButton). */
+   inferior segura (home indicator) é feito pelo `bottom-[max(0.5rem,env(safe-
+   area-inset-bottom))]` da própria <nav> (BottomNav.tsx) — por isso aqui NÃO
+   repetimos `padding-bottom: env(safe-area-inset-bottom)`: isso empurrava a
+   barra pra cima duas vezes (a deixava "subida" e inchada por dentro). O padding
+   interno dos botões já vem das classes utilitárias (py-2 nos TabButton/
+   ActionButton). */
 .club-bottomnav {
   background: var(--sp-sidebar);
   background-image: linear-gradient(0deg, var(--sp-sidebar-grad-mid) 0%, var(--sp-sidebar-grad-top) 100%);
@@ -862,14 +863,15 @@ h1, h2, h3, h4, h5, h6,
    Ponto ÚNICO de verdade do offset inferior de qualquer FAB `fixed` no mobile
    (atalho de CRM, "novo" de Pacotes/Assinaturas, etc.). O FAB precisa ficar
    ACIMA da nav flutuante, nunca sobrepondo. O cálculo espelha a posição da nav:
-     afastamento da nav da borda  = max(0.75rem, safe-bottom + 0.5rem)
+     afastamento da nav da borda  = max(0.5rem, safe-bottom)   (BottomNav.tsx)
    + altura aproximada da nav     = 4.5rem  (botões min-h-16 = 4rem + folga)
    + gap                          = 0.75rem
-   No Safari (safe-bottom=0) → 0.75 + 4.5 + 0.75 = 6rem (= o antigo bottom-24,
-   então nada regride). Em standalone soma a inset do home indicator. Use junto
-   com `right-4` (posição horizontal) e um z abaixo da nav (z-30 < z-40). */
+   No Safari (safe-bottom=0) → 0.5 + 4.5 + 0.75 = 5.75rem. Em standalone o
+   afastamento vira a inset do home indicator (acompanha a nav mais junta ao
+   fundo). Use junto com `right-4` (posição horizontal) e um z abaixo da nav
+   (z-30 < z-40). */
 .fab-above-nav {
-  bottom: calc(max(0.75rem, env(safe-area-inset-bottom) + 0.5rem) + 4.5rem + 0.75rem);
+  bottom: calc(max(0.5rem, env(safe-area-inset-bottom)) + 4.5rem + 0.75rem);
 }
 
 /* Desktop (>= md): não há BottomNav mobile — o FAB volta ao canto padrão. */

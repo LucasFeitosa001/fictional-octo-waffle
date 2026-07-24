@@ -17,6 +17,8 @@ import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { ButtonStyleSwitcher } from '../components/ButtonStyleSwitcher';
 import { CloseStyleSwitcher } from '../components/CloseStyleSwitcher';
 import { SidebarStyleSwitcher } from '../components/SidebarStyleSwitcher';
+import { SwitchRow } from '../components/SwitchRow';
+import { useCrmShortcutEnabled, setCrmShortcutEnabled } from '../theme/crmShortcut';
 import { MobileBackHeader } from '../components/MobileBackHeader';
 import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
 import { APP_VERSION } from '../lib/config';
@@ -808,6 +810,10 @@ export function ConfiguracoesPage() {
   // No mobile, o Drawer vira bottom-sheet automaticamente.
   const [minhaContaOpen, setMinhaContaOpen] = useState(false);
 
+  // Preferência do atalho flutuante do CRM (mostrar/esconder). Salvo neste
+  // dispositivo; o DashboardLayout lê a mesma preferência para exibir o botão.
+  const crmShortcutEnabled = useCrmShortcutEnabled();
+
   // `active` null => mobile mostra a lista de seções; no desktop cai em 'detalhes'.
   const [active, setActive] = useState<TabId | null>(null);
   const [mobileHistory, setMobileHistory] = useState<TabId[]>([]);
@@ -1542,6 +1548,22 @@ export function ConfiguracoesPage() {
               </p>
               <div className="mt-4">
                 <SidebarStyleSwitcher />
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <h2 className="text-base font-semibold text-ink">Atalhos</h2>
+              <p className="mt-1 text-sm text-muted-ink">
+                Botões flutuantes que aparecem sobre as telas. A escolha fica salva
+                neste dispositivo.
+              </p>
+              <div className="mt-4">
+                <SwitchRow
+                  label="Mostrar atalho do CRM"
+                  description="Botão flutuante de acesso rápido ao CRM, no canto da tela."
+                  checked={crmShortcutEnabled}
+                  onChange={setCrmShortcutEnabled}
+                />
               </div>
             </section>
 

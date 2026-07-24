@@ -11,12 +11,14 @@ import { IconTip } from '../components/IconTip';
 import { IconUsers } from '../components/icons';
 import { useThemeSync } from '../theme/useThemeSync';
 import { useSidebarStyle } from '../theme/sidebarStyle';
+import { useCrmShortcutEnabled } from '../theme/crmShortcut';
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   // Pull the account's theme once the session is available (localStorage stays
   // the fast pre-paint cache; the account is the cross-device source of truth).
   useThemeSync();
   const sidebarStyle = useSidebarStyle();
+  const crmShortcutEnabled = useCrmShortcutEnabled();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
   const { pathname } = useLocation();
@@ -97,8 +99,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           Mobile: `.fab-above-nav` posiciona o botão ACIMA da BottomNav flutuante
           (offset único, ver index.css), nunca sobrepondo. z-30 fica ABAIXO da
           nav (z-40), reforçando que a nav sempre vence. Desktop (md:): a própria
-          .fab-above-nav volta pro canto (bottom 1.5rem); right-6 alinha o X. */}
-      {!fullBleed && (
+          .fab-above-nav volta pro canto (bottom 1.5rem); right-6 alinha o X.
+          Escondido quando o usuário desliga "Mostrar atalho do CRM" em
+          Configurações → Personalizar (useCrmShortcutEnabled). */}
+      {!fullBleed && crmShortcutEnabled && (
         <IconTip
           label="Abrir CRM"
           placement="left"
