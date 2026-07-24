@@ -74,7 +74,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           // Full-bleed (agenda): gerencia a própria altura/scroll. Só reservamos
           // a safe-area do topo no mobile (o header interno da agenda não pode
           // ficar sob o notch); no desktop (lg:) não há notch e o topbar cobre.
-          <main className="db-canvas flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)] lg:pt-0">
+          <main className="db-canvas flex min-h-0 flex-1 flex-col overflow-hidden pt-[var(--sp-safe-top)] lg:pt-0">
             {children}
           </main>
         ) : (
@@ -83,7 +83,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 — telas SEM MobileBackHeader não podem começar sob o notch. Telas
                 COM MobileBackHeader cancelam esse padding com a classe .has-back-header
                 (o próprio header assume a safe-area). No desktop (lg:) volta ao py-6. */}
-            <div className="mobile-page-content mx-auto min-w-0 max-w-[1560px] px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-4 lg:px-5 lg:py-6 lg:pb-6 lg:pt-6">
+            <div className="mobile-page-content mx-auto min-w-0 max-w-[1560px] px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-[max(1rem,var(--sp-safe-top))] sm:px-4 lg:px-5 lg:py-6 lg:pb-6 lg:pt-6">
               {children}
             </div>
           </main>
@@ -93,12 +93,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar (same style as the club) */}
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
 
-      {/* Atalho global do CRM — abre apenas o aviso de módulo não adquirido. */}
+      {/* Atalho global do CRM — abre apenas o aviso de módulo não adquirido.
+          Mobile: `.fab-above-nav` posiciona o botão ACIMA da BottomNav flutuante
+          (offset único, ver index.css), nunca sobrepondo. z-30 fica ABAIXO da
+          nav (z-40), reforçando que a nav sempre vence. Desktop (md:): a própria
+          .fab-above-nav volta pro canto (bottom 1.5rem); right-6 alinha o X. */}
       {!fullBleed && (
         <IconTip
           label="Abrir CRM"
           placement="left"
-          className="fixed bottom-24 right-4 z-40 md:bottom-6 md:right-6"
+          className="fab-above-nav fixed right-4 z-30 md:right-6 md:z-40"
         >
           <button
             type="button"

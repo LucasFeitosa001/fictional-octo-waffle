@@ -11,7 +11,7 @@
  */
 import { prisma } from '@beautypass/db';
 import { seedCompanyRoles } from '@beautypass/db/rbac';
-import { auth } from './better-auth';
+import { auth, ensureOwnerProfessional } from './better-auth';
 
 const ADMIN_EMAIL = 'admin@beautypass.dev';
 const ADMIN_PASSWORD = 'beautypass123';
@@ -26,6 +26,10 @@ async function main() {
   const hasCredential = existingUser?.accounts.some((a) => a.providerId === 'credential');
 
   if (existingUser && hasCredential) {
+    // Garante o Professional do dono mesmo em credencial já existente (idempotente).
+    if (existingUser.companyId) {
+      await ensureOwnerProfessional(existingUser.companyId, existingUser.id, ADMIN_NAME);
+    }
     console.log(`Admin credential already present for ${ADMIN_EMAIL}. Nothing to do.`);
     return;
   }
@@ -64,9 +68,15 @@ async function main() {
       await prisma.userCompany.create({
         data: { userId: res.user.id, companyId: company.id, roleId: ownerRoleId },
       });
-      // Remove the throwaway auto-provisioned company (cascades its role/links).
+      // Remove the throwaway auto-provisioned company (cascades its role/links,
+      // incluindo o Professional que o hook criou lá). Recria o Professional do
+      // dono na company canônica.
       await prisma.company.delete({ where: { id: autoCompanyId } }).catch(() => undefined);
+      await ensureOwnerProfessional(company.id, res.user.id, ADMIN_NAME);
     }
+  } else {
+    // Sem company canônica: o admin fica na company auto-provisionada pelo hook,
+    // que já criou o Professional do dono. Nada a fazer aqui.
   }
 
   console.log(`Admin ready: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);

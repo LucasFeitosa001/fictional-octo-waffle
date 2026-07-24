@@ -26,6 +26,17 @@
          estático aqui (gerava dois <link rel=manifest> conflitantes). -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- status-bar-style (SÓ vale em standalone / "Adicionar à Tela de Início"):
+         - "default"/"black": o conteúdo é renderizado ABAIXO da status bar (o
+           iOS reserva a barra; safe-area-inset-top continua exposta p/ o notch/
+           Dynamic Island, mas a barra em si NÃO sobrepõe o conteúdo).
+         - "black-translucent": o conteúdo preenche a tela INTEIRA, ficando SOB
+           a status bar (obrigaria a pintar essa faixa e depender 100% da
+           safe-area). Ref.: Apple SafariHTMLRef (MetaTags).
+         Ficamos em "default": a status bar fica opaca (não engole o conteúdo) e
+         o app só precisa reservar env(safe-area-inset-top) para o notch. Com
+         viewport-fit=cover, essa reserva é responsabilidade do CSS (feita na
+         casca mobile: .mobile-page-content / .mobile-topbar / MobileBackHeader). -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Salonpass Pro" />
     <meta name="application-name" content="Salonpass Pro" />

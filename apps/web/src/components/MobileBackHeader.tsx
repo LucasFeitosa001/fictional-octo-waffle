@@ -23,7 +23,7 @@ export function MobileBackHeader({
         // DENTRO da barra, deixando o botão "Voltar" logo ABAIXO do notch e 100%
         // tocável. lg:mt-0 acompanha o lg:pt-6 do wrapper. z-40 fica acima do
         // conteúdo pra o toque no Voltar nunca ser interceptado.
-        'sticky top-0 z-40 -mx-3 -mt-[max(1rem,env(safe-area-inset-top))] mb-4 border-b border-line bg-canvas/95 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur lg:mt-0',
+        'sticky top-0 z-40 -mx-3 -mt-[max(1rem,var(--sp-safe-top))] mb-4 border-b border-line bg-canvas/95 px-3 pb-2 pt-[max(0.5rem,var(--sp-safe-top))] backdrop-blur lg:mt-0',
         desktopHiddenClass,
       ].join(' ')}
     >
