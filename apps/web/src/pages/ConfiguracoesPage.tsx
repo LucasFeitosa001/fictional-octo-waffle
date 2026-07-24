@@ -261,12 +261,14 @@ const AUTOMATION_OPTIONS: {
   {
     id: 'confirmation',
     label: 'Confirmação de agendamento',
-    description: 'Mensagem ao cliente quando um horário é criado ou confirmado.',
+    description:
+      'Padrão para novos agendamentos. Pode ser ligado ou desligado em cada agendamento.',
   },
   {
     id: 'cancellation',
     label: 'Cancelamento',
-    description: 'Mensagem ao cliente quando um agendamento é cancelado.',
+    description:
+      'Padrão para novos agendamentos. Pode ser ligado ou desligado em cada agendamento.',
   },
   {
     id: 'reminder',
@@ -304,10 +306,10 @@ function AutomaticNotificationsCard() {
           Notificações automáticas (WhatsApp)
         </h2>
         <p className="text-sm text-muted-ink">
-          Escolha quais mensagens automáticas o Salonpass envia. <strong>Tudo é
+          Escolha o padrão das mensagens automáticas do Salonpass. <strong>Tudo é
           opt-in</strong>: por padrão nada é enviado (nem ao cliente nem ao
-          profissional) — cada opção começa <strong>desligada</strong> e só passa
-          a valer depois que você a ativa aqui.
+          profissional). Confirmação, cancelamento e lembrete ainda podem ser
+          alterados individualmente dentro de cada agendamento.
         </p>
       </div>
 

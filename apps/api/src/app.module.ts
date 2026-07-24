@@ -26,6 +26,7 @@ import { GoalsModule } from './modules/goals/goals.module';
 import { AnamnesisTemplatesModule } from './modules/anamnesis-templates/anamnesis-templates.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { WhatsappInboxModule } from './modules/whatsapp-inbox/whatsapp-inbox.module';
 import { HelpModule } from './modules/help/help.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { QueuesModule } from './modules/queues/queues.module';
@@ -62,6 +63,7 @@ import { InvitesModule } from './modules/invites/invites.module';
     AnamnesisTemplatesModule,
     UploadsModule,
     WhatsappModule,
+    WhatsappInboxModule,
     HelpModule,
     NotificationsModule,
     QueuesModule,

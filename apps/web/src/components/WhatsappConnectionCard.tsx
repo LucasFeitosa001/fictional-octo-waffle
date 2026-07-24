@@ -126,7 +126,10 @@ export function WhatsappConnectionCard({ onGoToNotifications }: WhatsappConnecti
       {status === 'disabled' ? (
         <DisabledState />
       ) : status === 'open' ? (
-        <ConnectedState onRelinked={() => void statusQuery.refetch()} />
+        <ConnectedState
+          phone={statusQuery.data?.phone ?? null}
+          onRelinked={() => void statusQuery.refetch()}
+        />
       ) : (
         <ConnectSection status={status} hasQr={hasQr} />
       )}
@@ -152,7 +155,13 @@ function DisabledState() {
 
 /* ----------------------------- Conectado ----------------------------- */
 
-function ConnectedState({ onRelinked }: { onRelinked: () => void }) {
+function ConnectedState({
+  phone,
+  onRelinked,
+}: {
+  phone: string | null;
+  onRelinked: () => void;
+}) {
   const logout = useLogoutWhatsapp();
   const confirm = useConfirm();
 
@@ -178,6 +187,12 @@ function ConnectedState({ onRelinked }: { onRelinked: () => void }) {
           <p className="mt-1 text-sm text-muted-ink">
             O salão já pode enviar lembretes, follow-ups e campanhas automaticamente.
           </p>
+          {phone ? (
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-card px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              <IconPhone size={13} />
+              {formatPhone(phone)}
+            </p>
+          ) : null}
         </div>
       </div>
       <Button

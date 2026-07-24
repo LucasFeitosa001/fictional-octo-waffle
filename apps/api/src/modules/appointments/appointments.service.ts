@@ -183,7 +183,16 @@ export class AppointmentsService {
         }
       : undefined;
 
-    const remindClient = dto.remindClient ?? (await this.settings.get(companyId)).reminder;
+    // Os três controles começam com o padrão do salão, mas ficam gravados no
+    // agendamento. Assim a recepção pode mudar um horário sem alterar todos os
+    // demais; linhas antigas (NULL) continuam caindo no padrão no momento do
+    // envio.
+    const notificationDefaults = await this.settings.get(companyId);
+    const remindClient = dto.remindClient ?? notificationDefaults.reminder;
+    const notifyConfirmation =
+      dto.notifyConfirmation ?? notificationDefaults.confirmation;
+    const notifyCancellation =
+      dto.notifyCancellation ?? notificationDefaults.cancellation;
 
     // Collision check + create run in a single transaction guarded by a Postgres
     // advisory lock keyed on (companyId, professionalId). Two concurrent creates
@@ -203,6 +212,8 @@ export class AppointmentsService {
           end,
           notes: dto.notes,
           remindClient,
+          notifyConfirmation,
+          notifyCancellation,
           source: opts?.source ?? AppointmentSource.admin,
           ...(opts?.status ? { status: opts.status } : {}),
           items: itemsData,
@@ -325,6 +336,12 @@ export class AppointmentsService {
         end: dto.end || dto.start ? end : undefined,
         notes: dto.notes,
         ...(dto.remindClient !== undefined ? { remindClient: dto.remindClient } : {}),
+        ...(dto.notifyConfirmation !== undefined
+          ? { notifyConfirmation: dto.notifyConfirmation }
+          : {}),
+        ...(dto.notifyCancellation !== undefined
+          ? { notifyCancellation: dto.notifyCancellation }
+          : {}),
       },
     });
 
@@ -409,13 +426,23 @@ export class AppointmentsService {
       [AppointmentStatus.canceled]: 'canceled',
     };
     const event = STATUS_EVENT[dto.status];
-    if (event && dto.status !== current.status) {
+    // `created` já representa "horário marcado". Uma transição comum
+    // scheduled → confirmed não deve mandar uma segunda mensagem logo depois.
+    // Só existe aviso de confirmed separado quando o pedido online estava
+    // realmente pendente (unconfirmed) e o salão o aprovou.
+    const shouldNotifyEvent =
+      event &&
+      dto.status !== current.status &&
+      (event !== 'confirmed' || current.status === AppointmentStatus.unconfirmed);
+    if (shouldNotifyEvent) {
       // O envio ao cliente (WhatsApp + e-mail) é feito SOMENTE por
       // notifyAppointment, que respeita o opt-in do salão
       // (auto.confirmation / auto.cancellation). Removemos o segundo envio via
-      // sendCustomerConfirmation/Cancellation: era NÃO-gated — vazava mensagem
-      // com o toggle OFF e DUPLICAVA a mensagem quando ON.
-      void this.notifications.notifyAppointment(event, companyId, id);
+      // antigos caminhos diretos de confirmação/cancelamento: eram NÃO-gated,
+      // vazavam mensagem com o toggle OFF e DUPLICAVAM quando ON.
+      void this.notifications.notifyAppointment(event, companyId, id, {
+        reason: dto.reason,
+      });
     }
 
     // Event-driven queue side effects on status transitions:
@@ -459,7 +486,15 @@ export class AppointmentsService {
         // customerId exposto p/ vincular as mensagens ao histórico "Interações".
         customerId: true,
         company: { select: { name: true, timezone: true } },
-        customer: { select: { name: true, email: true, phone: true } },
+        customer: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            notificationsEnabled: true,
+            whatsappOptIn: true,
+          },
+        },
         professional: { select: { name: true, phone: true, notifyWhatsapp: true } },
         items: { select: { service: { select: { name: true } } } },
       },
@@ -483,76 +518,21 @@ export class AppointmentsService {
       customerFirstName: (appt.customer?.name ?? '').trim().split(' ')[0] || 'cliente',
       customerEmail: appt.customer?.email?.trim() || null,
       customerPhone: appt.customer?.phone?.trim() || null,
+      customerNotificationsEnabled: appt.customer?.notificationsEnabled ?? null,
+      customerWhatsappOptIn: appt.customer?.whatsappOptIn ?? null,
       dateLabel,
       timeLabel,
     };
-  }
-
-  private async sendCustomerConfirmation(companyId: string, appointmentId: string): Promise<void> {
-    try {
-      const v = await this.loadApptView(companyId, appointmentId);
-      if (!v) return;
-      if (v.customerPhone) {
-        await this.whatsapp.enqueueText(v.customerPhone, [
-          `Olá, ${v.customerFirstName}! ✨`,
-          ``,
-          `Seu agendamento no *${v.salonName}* está confirmado:`,
-          ``,
-          `💅 *Serviço:* ${v.serviceNames}`,
-          v.professionalName ? `👩 *Profissional:* ${v.professionalName}` : null,
-          `📅 *Data:* ${v.dateLabel}`,
-          `⏰ *Horário:* ${v.timeLabel}`,
-          ``,
-          `O pagamento é feito no salão. Até logo! 💖`,
-        ].filter((l): l is string => l !== null).join('\n'),
-        // Interações: confirmação enviada ao cliente.
-        { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation' });
-      }
-      if (v.customerEmail) {
-        await this.email.send({
-          to: v.customerEmail,
-          subject: `Agendamento confirmado — ${v.salonName}`,
-          html: this.confirmationHtml(v),
-        });
-      }
-    } catch (err) {
-      this.logger.error(`Falha ao notificar cliente (confirmação): ${(err as Error).message}`);
-    }
-  }
-
-  private async sendCustomerCancellation(companyId: string, appointmentId: string, reason?: string): Promise<void> {
-    try {
-      const v = await this.loadApptView(companyId, appointmentId);
-      if (!v) return;
-      const reasonLine = reason ? `\n\nMotivo: ${reason}` : '';
-      if (v.customerPhone) {
-        await this.whatsapp.enqueueText(v.customerPhone, [
-          `Olá, ${v.customerFirstName}.`,
-          ``,
-          `Infelizmente seu agendamento no *${v.salonName}* (${v.serviceNames} — ${v.dateLabel} às ${v.timeLabel}) foi *cancelado* pelo salão.${reasonLine}`,
-          ``,
-          `Se quiser, é só agendar um novo horário. 💖`,
-        ].join('\n'),
-        // Interações: cancelamento avisado ao cliente.
-        { companyId, customerId: v.customerId ?? undefined, kind: 'cancellation' });
-      }
-      if (v.customerEmail) {
-        await this.email.send({
-          to: v.customerEmail,
-          subject: `Agendamento cancelado — ${v.salonName}`,
-          html: `<p>Olá, ${v.customerFirstName}.</p><p>Infelizmente seu agendamento no <strong>${v.salonName}</strong> (${v.serviceNames} — ${v.dateLabel} às ${v.timeLabel}) foi cancelado pelo salão.${reason ? `<br>Motivo: ${reason}` : ''}</p><p>Se quiser, é só agendar um novo horário.</p>`,
-        });
-      }
-    } catch (err) {
-      this.logger.error(`Falha ao notificar cliente (cancelamento): ${(err as Error).message}`);
-    }
   }
 
   private async sendCustomerSuggestion(companyId: string, appointmentId: string, suggestion: string): Promise<void> {
     try {
       const v = await this.loadApptView(companyId, appointmentId);
       if (!v) return;
-      if (v.customerPhone) {
+      const notificationsAllowed = v.customerNotificationsEnabled !== false;
+      const whatsappAllowed =
+        notificationsAllowed && v.customerWhatsappOptIn !== false;
+      if (v.customerPhone && whatsappAllowed) {
         await this.whatsapp.enqueueText(v.customerPhone, [
           `Olá, ${v.customerFirstName}! ✨`,
           ``,
@@ -566,7 +546,7 @@ export class AppointmentsService {
         // Interações: sugestão de novo horário ao cliente (parte do fluxo de confirmação).
         { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation' });
       }
-      if (v.customerEmail) {
+      if (v.customerEmail && notificationsAllowed) {
         await this.email.send({
           to: v.customerEmail,
           subject: `Sugestão de novo horário — ${v.salonName}`,
@@ -576,12 +556,6 @@ export class AppointmentsService {
     } catch (err) {
       this.logger.error(`Falha ao enviar sugestão ao cliente: ${(err as Error).message}`);
     }
-  }
-
-  private confirmationHtml(v: { customerFirstName: string; salonName: string; serviceNames: string; professionalName: string | null; dateLabel: string; timeLabel: string }): string {
-    const row = (label: string, value: string) =>
-      `<tr><td style="padding:6px 0;color:#6b6b6b;font-size:14px;">${label}</td><td style="padding:6px 0;color:#1a1a1a;font-size:14px;font-weight:600;text-align:right;">${value}</td></tr>`;
-    return `<!doctype html><html><body style="margin:0;background:#faf6f4;font-family:Arial,Helvetica,sans-serif;"><div style="max-width:480px;margin:0 auto;padding:32px 20px;"><div style="background:#fff;border-radius:16px;padding:28px;box-shadow:0 1px 4px rgba(0,0,0,0.06);"><h1 style="margin:0 0 6px;font-size:20px;color:#1a1a1a;">Agendamento confirmado ✨</h1><p style="margin:0 0 20px;color:#6b6b6b;font-size:15px;line-height:1.5;">Olá, ${v.customerFirstName}! Seu horário no <strong>${v.salonName}</strong> está confirmado.</p><table style="width:100%;border-collapse:collapse;border-top:1px solid #efe7e3;border-bottom:1px solid #efe7e3;">${row('Serviço', v.serviceNames)}${v.professionalName ? row('Profissional', v.professionalName) : ''}${row('Data', v.dateLabel)}${row('Horário', v.timeLabel)}</table><p style="margin:20px 0 0;color:#9a9a9a;font-size:13px;line-height:1.5;">O pagamento é feito no salão.</p></div><p style="text-align:center;color:#b3aba7;font-size:12px;margin:18px 0 0;">Enviado por Salonpass</p></div></body></html>`;
   }
 
   private async sendProfessionalNewAppointment(companyId: string, appointmentId: string): Promise<void> {
@@ -680,6 +654,19 @@ export class AppointmentsService {
         const slotEnd = t + durationMs;
         // Skip slots already in the past.
         if (slotEnd <= now) continue;
+        // Um horário só está disponível quando não sobrepõe nenhum
+        // agendamento ativo do profissional. Sem este filtro a API listava
+        // janelas já ocupadas e a recepcionista virtual podia oferecer um
+        // horário impossível.
+        if (
+          busy.some(
+            (appointment) =>
+              appointment.start.getTime() < slotEnd &&
+              appointment.end.getTime() > slotStart,
+          )
+        ) {
+          continue;
+        }
         slots.push({
           start: new Date(slotStart).toISOString(),
           end: new Date(slotEnd).toISOString(),

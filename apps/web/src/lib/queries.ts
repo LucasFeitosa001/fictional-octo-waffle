@@ -180,8 +180,19 @@ export function useCreateAppointment() {
 export function useSetAppointmentStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: AppointmentRow['status'] }) =>
-      api.patch<AppointmentRow>(`/appointments/${id}/status`, { status }),
+    mutationFn: ({
+      id,
+      status,
+      reason,
+    }: {
+      id: string;
+      status: AppointmentRow['status'];
+      reason?: string;
+    }) =>
+      api.patch<AppointmentRow>(`/appointments/${id}/status`, {
+        status,
+        ...(reason ? { reason } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });

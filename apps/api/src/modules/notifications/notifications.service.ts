@@ -54,6 +54,7 @@ export class NotificationsService {
     event: AppointmentEvent,
     companyId: string,
     appointmentId: string,
+    opts?: { reason?: string },
   ): Promise<void> {
     try {
       const appt = await this.prisma.client.appointment.findFirst({
@@ -77,6 +78,7 @@ export class NotificationsService {
         serviceNames: appt.items.map((it) => it.service?.name).filter((n): n is string => !!n),
         start: appt.start,
         end: appt.end,
+        reason: opts?.reason,
       });
 
       // Client channels — dryrun logs only; live would dispatch here.
@@ -86,10 +88,34 @@ export class NotificationsService {
       // so out of the box the client is NOT spammed on booking/cancel.
       // The studio bell + club-app notification below are NOT gated here.
       const auto = await this.settings.get(companyId);
+      const appointmentOverride =
+        event === 'canceled'
+          ? appt.notifyCancellation
+          : appt.notifyConfirmation;
+      // Pedido online que ainda aguarda o salão NÃO avisa "agendado" ao cliente.
+      // A mensagem sai quando o status virar confirmed. Isso também elimina a
+      // antiga duplicidade created + confirmed em sequência.
+      const pendingOnlineConfirmation =
+        event === 'created' &&
+        appt.source === 'online' &&
+        appt.status === 'unconfirmed';
       const clientAllowed =
-        event === 'canceled' ? auto.cancellation : auto.confirmation;
+        !pendingOnlineConfirmation &&
+        (appointmentOverride ??
+          (event === 'canceled' ? auto.cancellation : auto.confirmation));
       if (clientAllowed) {
-        await this.dispatchClient(event, companyId, messages, appt.customer?.id ?? undefined);
+        await this.dispatchClient(
+          event,
+          companyId,
+          messages,
+          appt.customer
+            ? {
+                id: appt.customer.id,
+                notificationsEnabled: appt.customer.notificationsEnabled,
+                whatsappOptIn: appt.customer.whatsappOptIn,
+              }
+            : undefined,
+        );
       } else {
         this.logger.debug(
           `[notify ${this.mode}] company=${companyId} event=${event} — envio ao cliente desativado na config, pulando dispatchClient.`,
@@ -265,23 +291,31 @@ export class NotificationsService {
     event: AppointmentEvent,
     companyId: string,
     messages: ReturnType<typeof composeAppointmentMessages>,
-    customerId?: string,
+    customer?: {
+      id: string;
+      notificationsEnabled: boolean | null;
+      whatsappOptIn: boolean | null;
+    },
   ): Promise<void> {
     const tag = `[notify ${this.mode}] company=${companyId} event=${event}`;
     // Interações: mapeia o evento do agendamento para o tipo de mensagem.
     // canceled → cancellation; created/confirmed → confirmation.
     const kind = event === 'canceled' ? 'cancellation' : 'confirmation';
-    if (messages.clientWhatsapp) {
+    const notificationsAllowed = customer?.notificationsEnabled !== false;
+    const whatsappAllowed = notificationsAllowed && customer?.whatsappOptIn !== false;
+    if (messages.clientWhatsapp && whatsappAllowed) {
       this.logger.log(`${tag} WhatsApp -> ${messages.clientWhatsapp.to}: ${messages.clientWhatsapp.text}`);
       if (this.isLive) {
         await this.whatsapp.enqueueText(messages.clientWhatsapp.to, messages.clientWhatsapp.text, {
           companyId,
-          customerId,
+          customerId: customer?.id,
           kind,
         });
       }
+    } else if (messages.clientWhatsapp && !whatsappAllowed) {
+      this.logger.debug(`${tag} WhatsApp bloqueado pelo opt-out do cliente.`);
     }
-    if (messages.clientEmail) {
+    if (messages.clientEmail && notificationsAllowed) {
       this.logger.log(`${tag} Email -> ${messages.clientEmail.to}: ${messages.clientEmail.subject}`);
       if (this.isLive) {
         await this.email.send({
@@ -290,6 +324,8 @@ export class NotificationsService {
           html: `<p>${messages.clientEmail.body.replace(/\n/g, '<br>')}</p>`,
         });
       }
+    } else if (messages.clientEmail && !notificationsAllowed) {
+      this.logger.debug(`${tag} e-mail bloqueado pelas preferências do cliente.`);
     }
   }
 }

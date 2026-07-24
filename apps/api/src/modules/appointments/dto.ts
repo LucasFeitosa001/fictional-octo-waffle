@@ -51,6 +51,10 @@ export class CreateAppointmentDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsBoolean() remindClient?: boolean;
+  /** Envia a mensagem de horário marcado/confirmado para este agendamento. */
+  @IsOptional() @IsBoolean() notifyConfirmation?: boolean;
+  /** Envia uma mensagem ao cliente se este agendamento for cancelado. */
+  @IsOptional() @IsBoolean() notifyCancellation?: boolean;
   @IsDateString() start: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;
@@ -70,6 +74,8 @@ export class UpdateAppointmentDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsBoolean() remindClient?: boolean;
+  @IsOptional() @IsBoolean() notifyConfirmation?: boolean;
+  @IsOptional() @IsBoolean() notifyCancellation?: boolean;
   @IsOptional() @IsDateString() start?: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;

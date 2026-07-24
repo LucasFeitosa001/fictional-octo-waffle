@@ -226,6 +226,29 @@ async function run() {
       update: { data: { managerPhone: MANAGER_PHONE } },
     });
 
+    // Two identical enqueue calls racing each other must result in ONE durable
+    // outbox row. This protects every producer (booking, cancellation, queues,
+    // campaigns) from accidental double dispatch.
+    const { WhatsappService } = await import(
+      '../modules/whatsapp/whatsapp.service.js'
+    );
+    const whatsapp = app.get(WhatsappService);
+    const dedupProbe = `probe-dedup-${Date.now()}`;
+    await Promise.all([
+      whatsapp.enqueueText(MANAGER_PHONE, dedupProbe, {
+        companyId,
+        kind: 'manager',
+      }),
+      whatsapp.enqueueText(MANAGER_PHONE, dedupProbe, {
+        companyId,
+        kind: 'manager',
+      }),
+    ]);
+    const dedupRows = await prisma.whatsappOutbox.count({
+      where: { companyId, toPhone: MANAGER_PHONE, text: dedupProbe },
+    });
+    check('WhatsApp outbox discards concurrent duplicate message', dedupRows === 1);
+
     // Automatic WhatsApp is OPT-IN (everything OFF by default). This suite asserts
     // that the client confirmation and the manager heads-ups ARE enqueued, so we
     // explicitly opt this throwaway salon in. Without this the sends are correctly
@@ -589,6 +612,66 @@ async function run() {
     checkKeys('booking result', guestBook.body, ['id', 'status', 'payment']);
     check('booking payment === pay_at_salon', guestBook.body?.payment === 'pay_at_salon');
     check('booking returns an id', typeof guestBook.body?.id === 'string');
+
+    // A disponibilidade precisa excluir a janela recém-ocupada. Esta regressão
+    // também protege o agendamento via IA, que usa o mesmo serviço.
+    const availabilityAfterGuest = await api(
+      'GET',
+      `/public/booking/${slug}/availability?serviceId=${sVisible}&professionalId=${pMain}&date=${tomorrow}`,
+    );
+    const slotsAfterGuest = availabilityAfterGuest.body?.slots ?? [];
+    const guestStartMs = new Date(`${tomorrow}T16:00:00-03:00`).getTime();
+    const guestEndMs = guestStartMs + 30 * 60_000;
+    check(
+      'availability excludes slot occupied by existing appointment',
+      !slotsAfterGuest.some(
+        (slot: { start: string; end: string }) =>
+          new Date(slot.start).getTime() < guestEndMs &&
+          new Date(slot.end).getTime() > guestStartMs,
+      ),
+    );
+
+    // Confirmation/cancellation are company defaults SNAPSHOTTED into each new
+    // appointment. This lets the salon change one appointment without changing
+    // every other appointment. This tenant opted both defaults in above.
+    const guestNotificationPrefs = await prisma.appointment.findUnique({
+      where: { id: guestBook.body?.id },
+      select: {
+        notifyConfirmation: true,
+        notifyCancellation: true,
+      },
+    });
+    check(
+      'new booking inherits confirmation notification default',
+      guestNotificationPrefs?.notifyConfirmation === true,
+    );
+    check(
+      'new booking inherits cancellation notification default',
+      guestNotificationPrefs?.notifyCancellation === true,
+    );
+
+    // A single appointment can override both defaults through the regular
+    // appointment PATCH used by the agenda drawer.
+    const notificationOverride = await api(
+      'PATCH',
+      `/appointments/${guestBook.body?.id}`,
+      {
+        token: salon.token,
+        body: {
+          notifyConfirmation: false,
+          notifyCancellation: false,
+        },
+      },
+    );
+    check('per-booking notification override → 200', notificationOverride.status === 200);
+    check(
+      'per-booking confirmation override persisted',
+      notificationOverride.body?.notifyConfirmation === false,
+    );
+    check(
+      'per-booking cancellation override persisted',
+      notificationOverride.body?.notifyCancellation === false,
+    );
 
     // Guest booking now occupies the public agenda (privacy-safe block).
     const agenda2 = await api('GET', `/public/booking/${slug}/agenda?from=${from}&to=${to}`);

@@ -7,6 +7,8 @@ export type WhatsappStatus = 'disabled' | 'connecting' | 'qr' | 'open' | 'closed
 export interface WhatsappConnection {
   status: WhatsappStatus;
   hasQr: boolean;
+  /** Número efetivamente vinculado ao socket da empresa, quando conectado. */
+  phone: string | null;
 }
 
 const WHATSAPP_KEY = ['whatsapp', 'connection'] as const;

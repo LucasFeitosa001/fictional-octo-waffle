@@ -1,156 +1,78 @@
-import { useMemo, useRef, useState } from 'react';
-import { Avatar, Button, Card, Input, TextField } from '@heroui/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Avatar, Button, Card, Input, Spinner, TextField } from '@heroui/react';
 import { PageHeader } from '../../components/PageHeader';
-import { AppSwitch } from '../../components/SwitchRow';
+import { AppSwitch, SwitchRow } from '../../components/SwitchRow';
+import { WhatsappConnectionCard } from '../../components/WhatsappConnectionCard';
 import {
+  IconAlertTriangle,
   IconBot,
   IconCalendarPlus,
   IconCheck,
   IconChevron,
   IconCircleCheck,
-  IconClock,
   IconMessage,
   IconPlus,
+  IconSearch,
   IconSend,
   IconSparkles,
-  IconStar,
   IconTrash,
   IconWhatsApp,
   IconX,
 } from '../../components/icons';
 import { initials } from '../../lib/format';
+import { toastSuccess } from '../../lib/toast';
+import { useCan } from '../../lib/queries/permissions';
+import {
+  useWhatsappStatus,
+  type WhatsappStatus,
+} from '../../lib/queries/whatsapp';
+import {
+  type AiTone,
+  type ConversationFilter,
+  type WhatsappFaq,
+  useSendWhatsappInboxMessage,
+  useUpdateWhatsappConversation,
+  useUpdateWhatsappInboxConfig,
+  useWhatsappConversations,
+  useWhatsappInboxConfig,
+  useWhatsappInboxMessages,
+  useWhatsappInboxStats,
+} from '../../lib/queries/whatsappInbox';
 
-// ---------------------------------------------------------------------------
-// Types & seeded mock state (client-side only — no backend exists for IA yet)
-// ---------------------------------------------------------------------------
-
-type Sender = 'customer' | 'ai' | 'agent';
-
-interface ChatMessage {
-  id: string;
-  sender: Sender;
-  text: string;
-  time: string;
-}
-
-interface Conversation {
-  id: string;
-  name: string;
-  phone: string;
-  unread: number;
-  handledByAi: boolean;
-  resolved: boolean;
-  messages: ChatMessage[];
-}
-
-let idSeq = 1000;
-const nextId = () => `id-${++idSeq}`;
-
-const SEED_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'c1',
-    name: 'Marina Costa',
-    phone: '+55 11 98877-1020',
-    unread: 0,
-    handledByAi: true,
-    resolved: true,
-    messages: [
-      { id: 'm1', sender: 'customer', text: 'Oi! Vocês têm horário pra corte amanhã de manhã?', time: '09:12' },
-      { id: 'm2', sender: 'ai', text: 'Olá, Marina! 😊 Temos sim. Amanhã às 09:30 ou 11:00 com a Paula. Qual prefere?', time: '09:12' },
-      { id: 'm3', sender: 'customer', text: 'Pode ser 09:30!', time: '09:13' },
-      { id: 'm4', sender: 'ai', text: 'Perfeito! Agendei seu corte com a Paula amanhã às 09:30. Te envio um lembrete 1h antes. ✅', time: '09:13' },
-    ],
-  },
-  {
-    id: 'c2',
-    name: 'Bruno Almeida',
-    phone: '+55 11 99654-3321',
-    unread: 2,
-    handledByAi: true,
-    resolved: false,
-    messages: [
-      { id: 'm5', sender: 'customer', text: 'Quanto fica barba + corte?', time: '14:02' },
-      { id: 'm6', sender: 'ai', text: 'Oi, Bruno! O combo Barba + Corte sai por R$ 75. Quer que eu já reserve um horário?', time: '14:02' },
-      { id: 'm7', sender: 'customer', text: 'Tem hoje à tarde?', time: '14:30' },
-    ],
-  },
-  {
-    id: 'c3',
-    name: 'Carla Nunes',
-    phone: '+55 11 98123-7788',
-    unread: 0,
-    handledByAi: false,
-    resolved: false,
-    messages: [
-      { id: 'm8', sender: 'customer', text: 'Preciso remarcar meu horário de sexta, deu um imprevisto.', time: '11:40' },
-      { id: 'm9', sender: 'agent', text: 'Claro, Carla! Posso passar para sábado às 15h, tudo bem?', time: '11:45' },
-    ],
-  },
-  {
-    id: 'c4',
-    name: 'Diego Ramos',
-    phone: '+55 11 99011-2255',
-    unread: 1,
-    handledByAi: true,
-    resolved: false,
-    messages: [
-      { id: 'm10', sender: 'ai', text: 'Oi, Diego! Faz tempo que você não aparece por aqui. 💈 Que tal um corte essa semana? Tenho 20% off pra te receber de volta.', time: '08:30' },
-      { id: 'm11', sender: 'customer', text: 'Opa, que legal! Quinta de tarde dá?', time: '10:15' },
-    ],
-  },
-  {
-    id: 'c5',
-    name: 'Eduarda Lima',
-    phone: '+55 11 98455-9090',
-    unread: 0,
-    handledByAi: true,
-    resolved: true,
-    messages: [
-      { id: 'm12', sender: 'customer', text: 'Vocês abrem no feriado?', time: 'Ontem' },
-      { id: 'm13', sender: 'ai', text: 'Olá, Eduarda! No feriado funcionamos das 10h às 16h. Quer agendar algo? ✨', time: 'Ontem' },
-      { id: 'm14', sender: 'customer', text: 'Por enquanto não, obrigada!', time: 'Ontem' },
-      { id: 'm15', sender: 'ai', text: 'Imagina! Qualquer coisa é só chamar. 💛', time: 'Ontem' },
-    ],
-  },
-];
-
-type Tone = 'simpatico' | 'profissional' | 'direto';
-
-const TONES: { key: Tone; label: string; hint: string }[] = [
-  { key: 'simpatico', label: 'Simpático', hint: 'Caloroso, com emojis' },
+const TONES: Array<{ key: AiTone; label: string; hint: string }> = [
+  { key: 'simpatico', label: 'Simpático', hint: 'Caloroso e natural' },
   { key: 'profissional', label: 'Profissional', hint: 'Cordial e formal' },
-  { key: 'direto', label: 'Direto', hint: 'Objetivo e rápido' },
+  { key: 'direto', label: 'Direto', hint: 'Objetivo e breve' },
 ];
 
-interface Automation {
-  key: string;
-  label: string;
-  description: string;
-  enabled: boolean;
+const FILTERS: Array<{ key: ConversationFilter; label: string }> = [
+  { key: 'all', label: 'Todas' },
+  { key: 'unread', label: 'Não lidas' },
+  { key: 'open', label: 'Em aberto' },
+  { key: 'resolved', label: 'Resolvidas' },
+];
+
+interface ConfigDraft {
+  agentName: string;
+  greeting: string;
+  tone: AiTone;
+  autoReply: boolean;
+  bookingViaChat: boolean;
+  handoffEnabled: boolean;
+  knowledgeBase: string;
+  faq: WhatsappFaq[];
 }
 
-const SEED_AUTOMATIONS: Automation[] = [
-  { key: 'confirm', label: 'Confirmar agendamentos', description: 'IA confirma horários automaticamente pelo WhatsApp.', enabled: true },
-  { key: 'reminders', label: 'Lembretes de horário', description: 'Envia lembrete 1h antes do atendimento.', enabled: true },
-  { key: 'winback', label: 'Recuperar inativos 30+ dias', description: 'Reengaja clientes que sumiram com oferta especial.', enabled: true },
-  { key: 'review', label: 'Pedir avaliação no Google', description: 'Solicita review após o atendimento concluído.', enabled: false },
-];
-
-interface FaqItem {
-  id: string;
-  question: string;
-  answer: string;
-}
-
-const SEED_FAQ: FaqItem[] = [
-  { id: 'f1', question: 'Qual o horário de funcionamento?', answer: 'Seg a Sáb, das 09h às 19h.' },
-  { id: 'f2', question: 'Vocês aceitam Pix?', answer: 'Sim! Aceitamos Pix, cartão e dinheiro.' },
-  { id: 'f3', question: 'Onde fica o salão?', answer: 'Rua das Flores, 123 — ao lado da praça central.' },
-];
-
-// ---------------------------------------------------------------------------
-// Small presentational helpers
-// ---------------------------------------------------------------------------
+const EMPTY_CONFIG: ConfigDraft = {
+  agentName: 'Duda',
+  greeting: 'Olá! Sou a assistente virtual do salão. Como posso ajudar?',
+  tone: 'simpatico',
+  autoReply: true,
+  bookingViaChat: true,
+  handoffEnabled: true,
+  knowledgeBase: '',
+  faq: [],
+};
 
 function IaBadge() {
   return (
@@ -189,227 +111,479 @@ function MetricCard({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+function formatPhone(phone: string) {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 13) {
+    return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+  return phone.startsWith('+') ? phone : `+${phone}`;
+}
+
+function formatConversationTime(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) {
+    return new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  }
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  }).format(date);
+}
+
+function formatMessageTime(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
 
 export function IAAtendimentoPage() {
-  const [connected, setConnected] = useState(true);
-  const [autoReply, setAutoReply] = useState(true);
-  const [tone, setTone] = useState<Tone>('simpatico');
-  const [automations, setAutomations] = useState<Automation[]>(SEED_AUTOMATIONS);
-  const [faq, setFaq] = useState<FaqItem[]>(SEED_FAQ);
-  const [conversations, setConversations] = useState<Conversation[]>(SEED_CONVERSATIONS);
-  const [selectedId, setSelectedId] = useState<string>(SEED_CONVERSATIONS[1].id);
-  // On mobile the inbox is master-detail: false = show list, true = show open thread.
+  const permissions = useCan();
+  const canManage = permissions.can('marketing:manage');
+  const whatsapp = useWhatsappStatus();
+  const configQuery = useWhatsappInboxConfig();
+  const stats = useWhatsappInboxStats();
+  const updateConfig = useUpdateWhatsappInboxConfig();
+  const updateConversation = useUpdateWhatsappConversation();
+  const sendMessage = useSendWhatsappInboxMessage();
+
+  const whatsappStatus: WhatsappStatus =
+    whatsapp.data?.status ?? 'connecting';
+  const connected = whatsappStatus === 'open';
+  const [showConnectionPanel, setShowConnectionPanel] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<ConversationFilter>('all');
+  const conversationsQuery = useWhatsappConversations(search, filter);
+  const conversations = conversationsQuery.data?.data ?? [];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected =
+    conversations.find((conversation) => conversation.id === selectedId) ??
+    null;
+  const messagesQuery = useWhatsappInboxMessages(selectedId);
+  const messages = messagesQuery.data?.data ?? [];
   const [threadOpenMobile, setThreadOpenMobile] = useState(false);
   const [draft, setDraft] = useState('');
+  const [configDraft, setConfigDraft] =
+    useState<ConfigDraft>(EMPTY_CONFIG);
+  const [loadedConfigVersion, setLoadedConfigVersion] = useState<string | null>(
+    null,
+  );
   const [newQuestion, setNewQuestion] = useState('');
   const [newAnswer, setNewAnswer] = useState('');
   const threadRef = useRef<HTMLDivElement>(null);
 
-  const selected = conversations.find((c) => c.id === selectedId) ?? null;
+  useEffect(() => {
+    const config = configQuery.data;
+    if (!config || config.updatedAt === loadedConfigVersion) return;
+    setConfigDraft({
+      agentName: config.agentName,
+      greeting: config.greeting,
+      tone: config.tone,
+      autoReply: config.autoReply,
+      bookingViaChat: config.bookingViaChat,
+      handoffEnabled: config.handoffEnabled,
+      knowledgeBase: config.knowledgeBase ?? '',
+      faq: config.faq,
+    });
+    setLoadedConfigVersion(config.updatedAt);
+  }, [configQuery.data, loadedConfigVersion]);
 
-  const metrics = useMemo(() => {
-    const today = conversations.length;
-    const byAi = conversations.filter((c) => c.handledByAi).length;
-    const resolved = conversations.filter((c) => c.resolved).length;
-    const rate = today > 0 ? Math.round((resolved / today) * 100) : 0;
-    return { today, byAi, rate };
-  }, [conversations]);
+  useEffect(() => {
+    if (!selectedId && conversations.length) {
+      setSelectedId(conversations[0].id);
+    } else if (
+      selectedId &&
+      conversations.length &&
+      !conversations.some((conversation) => conversation.id === selectedId)
+    ) {
+      setSelectedId(conversations[0].id);
+    }
+  }, [conversations, selectedId]);
+
+  useEffect(() => {
+    if (!selected || selected.unreadCount === 0) return;
+    updateConversation.mutate({
+      id: selected.id,
+      body: { read: true },
+    });
+  }, [selected?.id, selected?.unreadCount]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      threadRef.current?.scrollTo({
+        top: threadRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    });
+  }, [messages.length, selectedId]);
+
+  const configDirty = useMemo(() => {
+    const current = configQuery.data;
+    if (!current) return false;
+    return (
+      configDraft.agentName !== current.agentName ||
+      configDraft.greeting !== current.greeting ||
+      configDraft.tone !== current.tone ||
+      configDraft.autoReply !== current.autoReply ||
+      configDraft.bookingViaChat !== current.bookingViaChat ||
+      configDraft.handoffEnabled !== current.handoffEnabled ||
+      configDraft.knowledgeBase !== (current.knowledgeBase ?? '') ||
+      JSON.stringify(configDraft.faq) !== JSON.stringify(current.faq)
+    );
+  }, [configDraft, configQuery.data]);
 
   function selectConversation(id: string) {
     setSelectedId(id);
     setThreadOpenMobile(true);
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)),
-    );
   }
 
-  function sendMessage(asAgent: boolean) {
+  function submitMessage() {
     const text = draft.trim();
-    if (!text || !selected) return;
-    const msg: ChatMessage = {
-      id: nextId(),
-      sender: asAgent ? 'agent' : 'ai',
-      text,
-      time: 'agora',
-    };
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === selected.id
-          ? { ...c, messages: [...c.messages, msg], handledByAi: asAgent ? false : c.handledByAi }
-          : c,
-      ),
+    if (!connected || !selected || !text || sendMessage.isPending) return;
+    sendMessage.mutate(
+      { id: selected.id, text },
+      {
+        onSuccess: () => {
+          setDraft('');
+          requestAnimationFrame(() => {
+            threadRef.current?.scrollTo({
+              top: threadRef.current.scrollHeight,
+              behavior: 'smooth',
+            });
+          });
+        },
+      },
     );
-    setDraft('');
-    requestAnimationFrame(() => {
-      threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
-    });
   }
 
-  function takeOver() {
+  function patchConversation(body: {
+    handledByAi?: boolean;
+    resolved?: boolean;
+  }) {
     if (!selected) return;
-    setConversations((prev) =>
-      prev.map((c) => (c.id === selected.id ? { ...c, handledByAi: false } : c)),
-    );
-  }
-
-  function toggleAutomation(key: string) {
-    setAutomations((prev) =>
-      prev.map((a) => (a.key === key ? { ...a, enabled: !a.enabled } : a)),
-    );
+    updateConversation.mutate({ id: selected.id, body });
   }
 
   function addFaq() {
-    const q = newQuestion.trim();
-    const a = newAnswer.trim();
-    if (!q || !a) return;
-    setFaq((prev) => [...prev, { id: nextId(), question: q, answer: a }]);
+    const question = newQuestion.trim();
+    const answer = newAnswer.trim();
+    if (!question || !answer) return;
+    setConfigDraft((current) => ({
+      ...current,
+      faq: [...current.faq, { question, answer }],
+    }));
     setNewQuestion('');
     setNewAnswer('');
   }
 
-  function removeFaq(id: string) {
-    setFaq((prev) => prev.filter((f) => f.id !== id));
+  function saveConfig() {
+    updateConfig.mutate(
+      {
+        ...configDraft,
+        agentName: configDraft.agentName.trim(),
+        greeting: configDraft.greeting.trim(),
+        knowledgeBase: configDraft.knowledgeBase.trim(),
+      },
+      {
+        onSuccess: () => toastSuccess('Configuração da recepcionista salva'),
+      },
+    );
   }
+
+  function setAiEnabled(enabled: boolean) {
+    updateConfig.mutate(
+      { enabled },
+      {
+        onSuccess: () =>
+          toastSuccess(
+            enabled ? 'Recepcionista virtual ativada' : 'Recepcionista pausada',
+          ),
+      },
+    );
+  }
+
+  const linkedPhone = whatsapp.data?.phone;
+  const isAiEnabled = configQuery.data?.enabled ?? false;
 
   return (
     <div>
       <PageHeader
-        title="WhatsApp API Oficial"
-        subtitle="Recepcionista virtual no WhatsApp — agenda, confirma e tira dúvidas sozinha"
+        title="WhatsApp e IA"
+        subtitle="Caixa real do número vinculado, atendimento humano e recepcionista virtual"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {/* WhatsApp connection */}
+          <>
             <button
               type="button"
-              onClick={() => setConnected((v) => !v)}
+              onClick={() =>
+                setShowConnectionPanel((visible) =>
+                  connected ? !visible : true,
+                )
+              }
               className={[
-                'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
                 connected
                   ? 'border-[#25D366]/40 bg-[#25D366]/10 text-[#128C3E]'
-                  : 'border-default-300 bg-white text-muted-ink hover:bg-default-50',
+                  : whatsappStatus === 'qr' ||
+                      whatsappStatus === 'connecting'
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-700'
+                    : 'border-default-300 bg-white text-muted-ink hover:bg-default-50',
               ].join(' ')}
             >
               <IconWhatsApp size={16} />
-              {connected ? 'WhatsApp conectado' : 'Conectar WhatsApp'}
+              {whatsapp.isLoading
+                ? 'Verificando…'
+                : connected
+                  ? linkedPhone
+                    ? formatPhone(linkedPhone)
+                    : 'WhatsApp conectado'
+                  : whatsappStatus === 'qr' ||
+                      whatsappStatus === 'connecting'
+                    ? 'Conectando…'
+                    : 'Conectar WhatsApp'}
               <span
-                className={`h-2 w-2 rounded-full ${connected ? 'bg-[#25D366]' : 'bg-default-300'}`}
+                className={[
+                  'h-2 w-2 rounded-full',
+                  connected
+                    ? 'bg-[#25D366]'
+                    : whatsappStatus === 'qr' ||
+                        whatsappStatus === 'connecting'
+                      ? 'animate-pulse bg-amber-500'
+                      : 'bg-default-300',
+                ].join(' ')}
               />
             </button>
-            {/* Auto-reply */}
-            <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-soft-border)] bg-warm-white px-3 py-2 shadow-[var(--shadow-soft)]">
+            <div className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--color-soft-border)] bg-warm-white px-3 py-2 shadow-[var(--shadow-soft)]">
               <IconBot size={16} className="text-gold-strong" />
-              <span className="text-sm font-medium text-ink">Auto-resposta</span>
+              <span className="text-sm font-medium text-ink">
+                {isAiEnabled ? 'IA ativa' : 'IA pausada'}
+              </span>
               <AppSwitch
-                checked={autoReply}
-                onChange={(v) => setAutoReply(v)}
-                aria-label="Auto-resposta"
+                checked={isAiEnabled}
+                onChange={setAiEnabled}
+                isDisabled={
+                  configQuery.isLoading ||
+                  updateConfig.isPending ||
+                  permissions.isLoading ||
+                  !canManage
+                }
+                aria-label="Ativar recepcionista virtual"
               />
             </div>
-          </div>
+          </>
         }
       />
 
-      {/* Metrics strip */}
+      {!whatsapp.isLoading && (!connected || showConnectionPanel) ? (
+        <Card className="mb-5 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
+          <Card.Content className="p-5 sm:p-6">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="font-brand text-base font-semibold text-ink">
+                  Número vinculado ao salão
+                </p>
+                <p className="mt-1 text-sm text-muted-ink">
+                  A conexão é a mesma de Configurações e alimenta esta caixa de
+                  entrada, lembretes e automações.
+                </p>
+              </div>
+              {connected ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowConnectionPanel(false)}
+                >
+                  <IconX size={16} /> Fechar
+                </Button>
+              ) : null}
+            </div>
+            <WhatsappConnectionCard />
+          </Card.Content>
+        </Card>
+      ) : null}
+
+      {!configQuery.isLoading && !configQuery.data?.aiAvailable ? (
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3 text-amber-900">
+          <IconAlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">
+              IA generativa sem chave configurada
+            </p>
+            <p className="text-xs leading-relaxed">
+              FAQ, preços e agendamento continuam funcionando pelo motor local.
+              Configure ANTHROPIC_API_KEY na API para respostas livres e
+              contextuais.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard
           icon={<IconMessage size={20} className="text-data-messages" />}
           label="Conversas hoje"
-          value={String(metrics.today)}
+          value={String(stats.data?.conversationsToday ?? 0)}
           accent="var(--sp-data-messages-soft)"
+        />
+        <MetricCard
+          icon={<IconSparkles size={20} className="text-gold-strong" />}
+          label="Respostas da IA hoje"
+          value={String(stats.data?.aiMessagesToday ?? 0)}
+          accent="var(--sp-gold-soft)"
         />
         <MetricCard
           icon={<IconCalendarPlus size={20} className="text-data-appointments" />}
           label="Agendamentos pela IA"
-          value={String(metrics.byAi)}
+          value={String(stats.data?.bookingsViaAi ?? 0)}
           accent="var(--sp-data-appointments-soft)"
-        />
-        <MetricCard
-          icon={<IconClock size={20} className="text-data-messages" />}
-          label="Tempo médio de resposta"
-          value="8s"
-          accent="var(--sp-data-messages-soft)"
         />
         <MetricCard
           icon={<IconCircleCheck size={20} className="text-status-success-fg" />}
           label="Taxa de resolução"
-          value={`${metrics.rate}%`}
+          value={`${stats.data?.resolutionRate ?? 0}%`}
           accent="var(--sp-status-success-soft)"
         />
       </div>
 
-      {/* Inbox: list + thread */}
-      <div className="mb-5 grid gap-4 lg:grid-cols-[320px_1fr]">
-        {/* Conversation list */}
+      <div className="mb-5 grid gap-4 lg:grid-cols-[340px_1fr]">
         <Card
           className={`min-w-0 overflow-hidden border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] ${
             threadOpenMobile ? 'hidden lg:block' : ''
           }`}
         >
-          <div className="flex items-center justify-between border-b border-[var(--color-soft-border)] px-4 py-3">
-            <p className="font-brand text-sm font-semibold text-ink">Conversas</p>
+          <div className="border-b border-[var(--color-soft-border)] p-3">
+            <div className="relative">
+              <IconSearch
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+              />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar nome ou telefone"
+                className="h-10 w-full rounded-xl border border-[var(--color-soft-border)] bg-white pl-9 pr-3 text-sm text-ink outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/20"
+              />
+            </div>
+            <div className="mt-2 flex gap-1 overflow-x-auto pb-0.5">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setFilter(item.key)}
+                  className={[
+                    'shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium transition',
+                    filter === item.key
+                      ? 'bg-ink text-white'
+                      : 'bg-cream text-muted-ink hover:text-ink',
+                  ].join(' ')}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-b border-[var(--color-soft-border)] px-4 py-2.5">
+            <p className="font-brand text-sm font-semibold text-ink">
+              Conversas
+            </p>
             <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-strong">
               <IconWhatsApp size={12} /> {conversations.length}
             </span>
           </div>
+
           <div className="max-h-[560px] divide-y divide-[var(--color-soft-border)] overflow-y-auto">
-            {conversations.map((c) => {
-              const last = c.messages[c.messages.length - 1];
-              const isActive = c.id === selectedId;
-              return (
+            {conversationsQuery.isLoading ? (
+              <div className="grid min-h-48 place-items-center">
+                <Spinner size="sm" />
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="px-5 py-12 text-center">
+                <IconMessage
+                  size={28}
+                  className="mx-auto mb-2 text-muted"
+                />
+                <p className="text-sm font-medium text-ink">
+                  Nenhuma conversa encontrada
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Novas mensagens do número vinculado aparecerão aqui.
+                </p>
+              </div>
+            ) : (
+              conversations.map((conversation) => (
                 <button
-                  key={c.id}
+                  key={conversation.id}
                   type="button"
-                  onClick={() => selectConversation(c.id)}
+                  onClick={() => selectConversation(conversation.id)}
                   className={[
                     'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
-                    isActive ? 'bg-gold/10' : 'hover:bg-cream',
+                    conversation.id === selectedId
+                      ? 'bg-gold/10'
+                      : 'hover:bg-cream',
                   ].join(' ')}
                 >
                   <Avatar size="sm">
+                    {conversation.customer?.avatarUrl ? (
+                      <Avatar.Image
+                        src={conversation.customer.avatarUrl}
+                        alt=""
+                      />
+                    ) : null}
                     <Avatar.Fallback className="bg-ink text-gold">
-                      {initials(c.name)}
+                      {initials(conversation.name)}
                     </Avatar.Fallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-ink">{c.name}</span>
-                      {c.handledByAi && <IaBadge />}
+                      <span className="truncate text-sm font-semibold text-ink">
+                        {conversation.name}
+                      </span>
+                      {conversation.handledByAi ? <IaBadge /> : null}
                     </div>
                     <p className="truncate text-xs text-muted-ink">
-                      {last.sender === 'customer' ? '' : '✓ '}
-                      {last.text}
+                      {conversation.lastOutboundAt ===
+                      conversation.lastMessageAt
+                        ? '✓ '
+                        : ''}
+                      {conversation.lastMessageText || 'Sem mensagens'}
                     </p>
                   </div>
-                  {c.unread > 0 && (
-                    <span className="mt-1 grid h-5 min-w-5 place-items-center rounded-full bg-pink px-1 text-[11px] font-bold text-white">
-                      {c.unread}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-[10px] text-muted">
+                      {formatConversationTime(conversation.lastMessageAt)}
                     </span>
-                  )}
+                    {conversation.unreadCount > 0 ? (
+                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-pink px-1 text-[11px] font-bold text-white">
+                        {conversation.unreadCount}
+                      </span>
+                    ) : conversation.resolved ? (
+                      <IconCheck size={14} className="text-status-success-fg" />
+                    ) : null}
+                  </div>
                 </button>
-              );
-            })}
+              ))
+            )}
           </div>
         </Card>
 
-        {/* Thread */}
         <Card
-          className={`min-h-[560px] min-w-0 flex-col border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] lg:flex ${
+          className={`min-h-[620px] min-w-0 flex-col border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] lg:flex ${
             threadOpenMobile ? 'flex' : 'hidden'
           }`}
         >
           {selected ? (
             <>
-              {/* Thread header */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-soft-border)] px-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <button
                     type="button"
                     onClick={() => setThreadOpenMobile(false)}
                     aria-label="Voltar para conversas"
-                    className="-ml-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-cream hover:text-ink lg:hidden"
+                    className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-ink transition hover:bg-cream hover:text-ink lg:hidden"
                   >
                     <IconChevron size={20} className="rotate-90" />
                   </button>
@@ -418,157 +592,311 @@ export function IAAtendimentoPage() {
                       {initials(selected.name)}
                     </Avatar.Fallback>
                   </Avatar>
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{selected.name}</p>
-                    <p className="text-xs text-muted-ink">{selected.phone}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {selected.name}
+                    </p>
+                    <p className="text-xs text-muted-ink">
+                      {formatPhone(selected.phone)}
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {selected.handledByAi ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold-strong">
-                      <IconBot size={13} /> IA no comando
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold-strong">
+                        <IconBot size={13} /> IA no comando
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          patchConversation({ handledByAi: false })
+                        }
+                        isDisabled={updateConversation.isPending}
+                      >
+                        Assumir
+                      </Button>
+                    </>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-pink/15 px-2.5 py-1 text-xs font-semibold text-[#c25d77]">
-                      Atendente
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-pink/15 px-2.5 py-1 text-xs font-semibold text-[#c25d77]">
+                        Atendente
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          patchConversation({ handledByAi: true })
+                        }
+                        isDisabled={
+                          updateConversation.isPending || !isAiEnabled
+                        }
+                      >
+                        Devolver para IA
+                      </Button>
+                    </>
                   )}
-                  <Button variant="outline" size="sm" onClick={takeOver} isDisabled={!selected.handledByAi}>
-                    Assumir conversa
+                  <Button
+                    variant={selected.resolved ? 'outline' : 'primary'}
+                    size="sm"
+                    onClick={() =>
+                      patchConversation({ resolved: !selected.resolved })
+                    }
+                    isDisabled={updateConversation.isPending}
+                  >
+                    <IconCircleCheck size={15} />
+                    {selected.resolved ? 'Reabrir' : 'Resolver'}
                   </Button>
                 </div>
               </div>
 
-              {/* Messages */}
-              <div ref={threadRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-                {selected.messages.map((m) => {
-                  const isCustomer = m.sender === 'customer';
-                  return (
-                    <div
-                      key={m.id}
-                      className={`flex ${isCustomer ? 'justify-start' : 'justify-end'}`}
-                    >
-                      <div
-                        className={[
-                          'max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-[var(--shadow-soft)]',
-                          isCustomer
-                            ? 'rounded-tl-sm bg-white text-ink'
-                            : m.sender === 'ai'
-                              ? 'rounded-tr-sm bg-gold text-ink'
-                              : 'rounded-tr-sm bg-ink text-white',
-                        ].join(' ')}
-                      >
-                        {m.sender === 'ai' && (
-                          <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#7a5a12]">
-                            <IconSparkles size={11} /> IA
-                          </span>
-                        )}
-                        {m.sender === 'agent' && (
-                          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-white/60">
-                            Atendente
-                          </span>
-                        )}
-                        <p className="leading-snug">{m.text}</p>
-                        <p
-                          className={`mt-0.5 text-right text-[10px] ${
-                            isCustomer ? 'text-[#9a948c]' : m.sender === 'ai' ? 'text-[#7a5a12]' : 'text-white/50'
-                          }`}
-                        >
-                          {m.time}
-                        </p>
-                      </div>
+              <div
+                ref={threadRef}
+                className="flex-1 space-y-3 overflow-y-auto bg-[var(--sp-canvas)] px-4 py-4"
+              >
+                {messagesQuery.isLoading ? (
+                  <div className="grid h-full place-items-center">
+                    <Spinner size="sm" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="grid h-full place-items-center text-center text-muted">
+                    <div>
+                      <IconMessage size={30} className="mx-auto mb-2" />
+                      <p className="text-sm">A conversa ainda está vazia.</p>
                     </div>
-                  );
-                })}
+                  </div>
+                ) : (
+                  messages.map((message) => {
+                    const isCustomer = message.sender === 'customer';
+                    return (
+                      <div
+                        key={message.id}
+                        className={`flex ${
+                          isCustomer ? 'justify-start' : 'justify-end'
+                        }`}
+                      >
+                        <div
+                          className={[
+                            'max-w-[86%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm shadow-[var(--shadow-soft)] sm:max-w-[75%]',
+                            isCustomer
+                              ? 'rounded-tl-sm border border-[var(--color-soft-border)] bg-white text-ink'
+                              : message.sender === 'ai'
+                                ? 'rounded-tr-sm bg-gold text-ink'
+                                : 'rounded-tr-sm bg-ink text-white',
+                          ].join(' ')}
+                        >
+                          {message.sender === 'ai' ? (
+                            <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#7a5a12]">
+                              <IconSparkles size={11} /> IA
+                            </span>
+                          ) : null}
+                          {message.sender === 'agent' ? (
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-white/60">
+                              Atendente
+                            </span>
+                          ) : null}
+                          <p className="leading-snug">{message.text}</p>
+                          <div
+                            className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
+                              isCustomer
+                                ? 'text-[#9a948c]'
+                                : message.sender === 'ai'
+                                  ? 'text-[#7a5a12]'
+                                  : 'text-white/55'
+                            }`}
+                          >
+                            <span>{formatMessageTime(message.createdAt)}</span>
+                            {!isCustomer ? (
+                              <span>
+                                {message.status === 'pending'
+                                  ? '◷'
+                                  : message.status === 'failed'
+                                    ? '!'
+                                    : '✓'}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
-              {/* Composer */}
               <div className="border-t border-[var(--color-soft-border)] p-3">
+                {!connected ? (
+                  <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Vincule o WhatsApp para enviar mensagens.
+                  </p>
+                ) : null}
                 <div className="flex items-center gap-2">
-                  <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-[var(--color-soft-border)] bg-white focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/25">
-                    <TextField
-                      value={draft}
-                      onChange={setDraft}
-                      aria-label="Mensagem"
-                      className="min-w-0 flex-1"
-                    >
-                      <Input
-                        placeholder="Escreva uma mensagem…"
-                        className="border-0 shadow-none focus:ring-0"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage(true);
-                          }
-                        }}
-                      />
-                    </TextField>
-                  </div>
+                  <TextField
+                    value={draft}
+                    onChange={setDraft}
+                    aria-label="Mensagem"
+                    className="min-w-0 flex-1"
+                  >
+                    <Input
+                      placeholder="Escreva como atendente…"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          submitMessage();
+                        }
+                      }}
+                    />
+                  </TextField>
                   <Button
                     variant="primary"
-                    onClick={() => sendMessage(true)}
-                    isDisabled={!draft.trim()}
+                    onClick={submitMessage}
+                    isDisabled={
+                      !connected || !draft.trim() || sendMessage.isPending
+                    }
                     className="bg-gold text-ink shadow-[var(--shadow-gold)] hover:bg-[#e6a92f]"
                   >
-                    <IconSend size={16} /> Enviar
+                    {sendMessage.isPending ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <IconSend size={16} />
+                    )}
+                    Enviar
                   </Button>
                 </div>
                 <p className="mt-1.5 px-1 text-[11px] text-[#9a948c]">
-                  Enviar como atendente pausa a IA nesta conversa.
+                  Uma mensagem humana assume a conversa e pausa a IA apenas
+                  para este contato.
                 </p>
               </div>
             </>
           ) : (
-            <div className="grid flex-1 place-items-center text-muted">
-              <div className="flex flex-col items-center gap-2">
-                <IconMessage size={32} />
-                <p className="text-sm">Selecione uma conversa</p>
+            <div className="grid flex-1 place-items-center px-6 text-center text-muted">
+              <div>
+                <IconMessage size={34} className="mx-auto mb-2" />
+                <p className="text-sm font-medium text-ink">
+                  Selecione uma conversa
+                </p>
+                <p className="mt-1 text-xs">
+                  As mensagens reais do número vinculado aparecerão aqui.
+                </p>
               </div>
             </div>
           )}
         </Card>
       </div>
 
-      {/* Config panel */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Persona / tone */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-brand text-lg font-semibold text-ink">
+            Configuração da recepcionista
+          </h2>
+          <p className="text-sm text-muted">
+            Persona, comportamento e conhecimento usados nas respostas.
+          </p>
+        </div>
+        <Button
+          variant="primary"
+          onClick={saveConfig}
+          isDisabled={!canManage || !configDirty || updateConfig.isPending}
+        >
+          {updateConfig.isPending ? <Spinner size="sm" /> : <IconCheck size={16} />}
+          Salvar
+        </Button>
+      </div>
+
+      {!permissions.isLoading && !canManage ? (
+        <p className="mb-4 rounded-xl border border-[var(--color-soft-border)] bg-cream px-4 py-3 text-sm text-muted-ink">
+          Seu perfil pode atender as conversas, mas somente um responsável com
+          permissão de marketing pode alterar a configuração da IA.
+        </p>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card className="min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
-          <Card.Content className="flex flex-col gap-3 p-5">
+          <Card.Content className="flex flex-col gap-4 p-5">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-gold">
                 <IconBot size={18} />
               </span>
               <div>
-                <p className="font-brand text-sm font-semibold text-ink">Persona da IA</p>
-                <p className="text-xs text-muted">Tom de voz das respostas</p>
+                <p className="font-brand text-sm font-semibold text-ink">
+                  Persona da IA
+                </p>
+                <p className="text-xs text-muted">Nome, saudação e tom</p>
               </div>
             </div>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-muted-ink">
+                Nome da recepcionista
+              </span>
+              <input
+                disabled={!canManage}
+                value={configDraft.agentName}
+                maxLength={80}
+                onChange={(event) =>
+                  setConfigDraft((current) => ({
+                    ...current,
+                    agentName: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-xl border border-[var(--color-soft-border)] bg-white px-3 text-sm text-ink outline-none focus:border-gold focus:ring-2 focus:ring-gold/20"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-muted-ink">
+                Saudação inicial
+              </span>
+              <textarea
+                disabled={!canManage}
+                value={configDraft.greeting}
+                maxLength={1000}
+                rows={3}
+                onChange={(event) =>
+                  setConfigDraft((current) => ({
+                    ...current,
+                    greeting: event.target.value,
+                  }))
+                }
+                className="w-full resize-y rounded-xl border border-[var(--color-soft-border)] bg-white px-3 py-2 text-sm text-ink outline-none focus:border-gold focus:ring-2 focus:ring-gold/20"
+              />
+            </label>
+
             <div className="flex flex-col gap-2">
-              {TONES.map((t) => {
-                const isActive = tone === t.key;
+              {TONES.map((tone) => {
+                const active = configDraft.tone === tone.key;
                 return (
                   <button
-                    key={t.key}
+                    key={tone.key}
                     type="button"
-                    onClick={() => setTone(t.key)}
+                    disabled={!canManage}
+                    onClick={() =>
+                      setConfigDraft((current) => ({
+                        ...current,
+                        tone: tone.key,
+                      }))
+                    }
                     className={[
                       'flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-all',
-                      isActive
+                      active
                         ? 'border-transparent bg-gold shadow-[var(--shadow-gold)]'
                         : 'border-[var(--color-soft-border)] bg-white hover:bg-cream',
                     ].join(' ')}
                   >
                     <span>
-                      <span
-                        className={`block text-sm font-semibold ${isActive ? 'text-ink' : 'text-ink'}`}
-                      >
-                        {t.label}
+                      <span className="block text-sm font-semibold text-ink">
+                        {tone.label}
                       </span>
-                      <span className={`block text-xs ${isActive ? 'text-[#7a5a12]' : 'text-muted-ink'}`}>
-                        {t.hint}
+                      <span
+                        className={`block text-xs ${
+                          active ? 'text-[#7a5a12]' : 'text-muted-ink'
+                        }`}
+                      >
+                        {tone.hint}
                       </span>
                     </span>
-                    {isActive && <IconCheck size={18} className="text-ink" />}
+                    {active ? <IconCheck size={18} /> : null}
                   </button>
                 );
               })}
@@ -576,91 +904,166 @@ export function IAAtendimentoPage() {
           </Card.Content>
         </Card>
 
-        {/* Automations */}
         <Card className="min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
-          <Card.Content className="flex flex-col gap-3 p-5">
+          <Card.Content className="flex flex-col gap-4 p-5">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-gold/15 text-gold-strong">
                 <IconSparkles size={18} />
               </span>
               <div>
-                <p className="font-brand text-sm font-semibold text-ink">Automações</p>
-                <p className="text-xs text-muted">O que a IA faz sozinha</p>
+                <p className="font-brand text-sm font-semibold text-ink">
+                  Comportamento
+                </p>
+                <p className="text-xs text-muted">O que a IA pode fazer</p>
               </div>
             </div>
-            <div className="flex flex-col gap-2">
-              {automations.map((a) => (
-                <div
-                  key={a.key}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-[var(--color-soft-border)] bg-white px-3.5 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink">{a.label}</p>
-                    <p className="text-xs text-muted-ink">{a.description}</p>
-                  </div>
-                  <AppSwitch
-                    checked={a.enabled}
-                    onChange={() => toggleAutomation(a.key)}
-                    aria-label={a.label}
-                  />
-                </div>
-              ))}
+
+            <div className="divide-y divide-[var(--color-soft-border)] rounded-xl border border-[var(--color-soft-border)] bg-white px-3.5">
+              <SwitchRow
+                label="Responder automaticamente"
+                description="Responde novas mensagens quando a IA está ativa."
+                checked={configDraft.autoReply}
+                isDisabled={!canManage}
+                onChange={(checked) =>
+                  setConfigDraft((current) => ({
+                    ...current,
+                    autoReply: checked,
+                  }))
+                }
+                className="py-3"
+              />
+              <SwitchRow
+                label="Agendar pelo chat"
+                description="Consulta a agenda e cria o horário após confirmação."
+                checked={configDraft.bookingViaChat}
+                isDisabled={!canManage}
+                onChange={(checked) =>
+                  setConfigDraft((current) => ({
+                    ...current,
+                    bookingViaChat: checked,
+                  }))
+                }
+                className="py-3"
+              />
+              <SwitchRow
+                label="Transferir para atendente"
+                description="Pausa a IA quando a pergunta exige uma pessoa."
+                checked={configDraft.handoffEnabled}
+                isDisabled={!canManage}
+                onChange={(checked) =>
+                  setConfigDraft((current) => ({
+                    ...current,
+                    handoffEnabled: checked,
+                  }))
+                }
+                className="py-3"
+              />
             </div>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-muted-ink">
+                Informações extras do salão
+              </span>
+              <textarea
+                disabled={!canManage}
+                value={configDraft.knowledgeBase}
+                maxLength={12000}
+                rows={8}
+                placeholder="Ex.: estacionamento, formas de pagamento, política de atraso, endereço e orientações especiais."
+                onChange={(event) =>
+                  setConfigDraft((current) => ({
+                    ...current,
+                    knowledgeBase: event.target.value,
+                  }))
+                }
+                className="w-full resize-y rounded-xl border border-[var(--color-soft-border)] bg-white px-3 py-2 text-sm text-ink outline-none focus:border-gold focus:ring-2 focus:ring-gold/20"
+              />
+              <span className="mt-1 block text-right text-[10px] text-muted">
+                {configDraft.knowledgeBase.length}/12000
+              </span>
+            </label>
           </Card.Content>
         </Card>
 
-        {/* FAQ / knowledge base */}
         <Card className="min-w-0 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
           <Card.Content className="flex flex-col gap-3 p-5">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-pink/15 text-[#c25d77]">
-                <IconStar size={18} />
+                <IconMessage size={18} />
               </span>
               <div>
-                <p className="font-brand text-sm font-semibold text-ink">Base de conhecimento</p>
-                <p className="text-xs text-muted">Perguntas e respostas da IA</p>
+                <p className="font-brand text-sm font-semibold text-ink">
+                  Perguntas frequentes
+                </p>
+                <p className="text-xs text-muted">
+                  Respostas exatas ensinadas à IA
+                </p>
               </div>
             </div>
-            <div className="flex flex-col gap-2">
-              {faq.map((f) => (
+
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {configDraft.faq.map((faq, index) => (
                 <div
-                  key={f.id}
+                  key={`${faq.question}-${index}`}
                   className="group flex items-start justify-between gap-2 rounded-xl border border-[var(--color-soft-border)] bg-white px-3.5 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink">{f.question}</p>
-                    <p className="text-xs text-muted-ink">{f.answer}</p>
+                    <p className="text-sm font-medium text-ink">
+                      {faq.question}
+                    </p>
+                    <p className="whitespace-pre-wrap text-xs text-muted-ink">
+                      {faq.answer}
+                    </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeFaq(f.id)}
+                    disabled={!canManage}
+                    onClick={() =>
+                      setConfigDraft((current) => ({
+                        ...current,
+                        faq: current.faq.filter(
+                          (_item, itemIndex) => itemIndex !== index,
+                        ),
+                      }))
+                    }
                     aria-label="Remover pergunta"
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[#9a948c] transition-colors hover:bg-danger/10 hover:text-danger"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#9a948c] transition-colors hover:bg-danger/10 hover:text-danger"
                   >
                     <IconTrash size={15} />
                   </button>
                 </div>
               ))}
-              {faq.length === 0 && (
+              {configDraft.faq.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-[var(--color-soft-border)] px-3 py-4 text-center text-xs text-muted">
-                  Nenhuma pergunta cadastrada ainda.
+                  Nenhuma pergunta cadastrada.
                 </p>
-              )}
+              ) : null}
             </div>
 
-            {/* Add new FAQ */}
             <div className="flex flex-col gap-2 rounded-xl border border-dashed border-[var(--color-soft-border)] bg-white p-3">
-              <TextField value={newQuestion} onChange={setNewQuestion} aria-label="Pergunta">
-                <Input placeholder="Nova pergunta…" />
-              </TextField>
-              <TextField value={newAnswer} onChange={setNewAnswer} aria-label="Resposta">
-                <Input placeholder="Resposta da IA…" />
-              </TextField>
+              <input
+                disabled={!canManage}
+                value={newQuestion}
+                maxLength={300}
+                onChange={(event) => setNewQuestion(event.target.value)}
+                placeholder="Nova pergunta…"
+                className="h-10 rounded-xl border border-[var(--color-soft-border)] px-3 text-sm text-ink outline-none focus:border-gold focus:ring-2 focus:ring-gold/20"
+              />
+              <textarea
+                disabled={!canManage}
+                value={newAnswer}
+                maxLength={2000}
+                rows={3}
+                onChange={(event) => setNewAnswer(event.target.value)}
+                placeholder="Resposta da recepcionista…"
+                className="resize-y rounded-xl border border-[var(--color-soft-border)] px-3 py-2 text-sm text-ink outline-none focus:border-gold focus:ring-2 focus:ring-gold/20"
+              />
               <div className="flex justify-end gap-2">
-                {(newQuestion || newAnswer) && (
+                {newQuestion || newAnswer ? (
                   <Button
                     variant="ghost"
                     size="sm"
+                    isDisabled={!canManage}
                     onClick={() => {
                       setNewQuestion('');
                       setNewAnswer('');
@@ -668,12 +1071,14 @@ export function IAAtendimentoPage() {
                   >
                     <IconX size={15} /> Limpar
                   </Button>
-                )}
+                ) : null}
                 <Button
                   variant="primary"
                   size="sm"
                   onClick={addFaq}
-                  isDisabled={!newQuestion.trim() || !newAnswer.trim()}
+                  isDisabled={
+                    !canManage || !newQuestion.trim() || !newAnswer.trim()
+                  }
                 >
                   <IconPlus size={15} /> Adicionar
                 </Button>
