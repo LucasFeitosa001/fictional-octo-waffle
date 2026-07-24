@@ -99,13 +99,20 @@ export class AppointmentRemindersProcessor extends WorkerHost {
 
     const optedOut = appt.customer ? isOptedOut(appt.customer) : true;
 
-    // SECOND LOCK (per-company toggle): reminders start OFF by default. When the
-    // owner hasn't enabled them, don't send — but still record the marker below
-    // (like no-phone/opt-out) so the delayed job isn't retried forever.
     const auto = await this.settings.get(companyId);
+    const shouldSend =
+      appt.remindClient !== null && appt.remindClient !== undefined
+        ? appt.remindClient
+        : auto.reminder;
+
+    if (!shouldSend) {
+      this.logger.debug(`${tag} sem envio (lembrete desativado), apenas marcado.`);
+      await this.markProcessed(appt.id, kind, false, tag);
+      return;
+    }
 
     let sent = false;
-    if (msg && !optedOut && auto.reminder) {
+    if (msg && !optedOut) {
       sent = await dispatchWhatsapp(
         this.logger,
         this.whatsapp,
@@ -117,23 +124,28 @@ export class AppointmentRemindersProcessor extends WorkerHost {
         { companyId, customerId: appt.customerId ?? undefined, kind: 'reminder' },
       );
     } else {
-      const why = !auto.reminder
-        ? 'lembrete desativado na config'
-        : !msg
-          ? 'sem telefone'
-          : 'opt-out';
+      const why = !msg ? 'sem telefone' : 'opt-out';
       this.logger.debug(`${tag} sem envio (${why}), apenas marcado.`);
     }
 
-    // Record the marker either way so we never re-send. sentAt is only set when a
-    // real dispatch happened (live + enabled); null means "evaluated, not sent".
-    // Fail-soft: if this insert throws AFTER a send already went to the outbox, a
-    // job retry must not re-send — so we swallow the error rather than fail the
-    // job (the send is the irreversible side effect; the marker is best-effort).
+    await this.markProcessed(appt.id, kind, sent, tag);
+  }
+
+  // Record the marker either way so we never re-send. sentAt is only set when a
+  // real dispatch happened (live + enabled); null means "evaluated, not sent".
+  // Fail-soft: if this insert throws AFTER a send already went to the outbox, a
+  // job retry must not re-send — so we swallow the error rather than fail the
+  // job (the send is the irreversible side effect; the marker is best-effort).
+  private async markProcessed(
+    appointmentId: string,
+    kind: AppointmentReminderJob['kind'],
+    sent: boolean,
+    tag: string,
+  ): Promise<void> {
     await this.prisma.client.appointmentNotification
       .create({
         data: {
-          appointmentId: appt.id,
+          appointmentId,
           type: kind,
           channel: NotificationChannel.whatsapp,
           sentAt: sent ? new Date() : null,

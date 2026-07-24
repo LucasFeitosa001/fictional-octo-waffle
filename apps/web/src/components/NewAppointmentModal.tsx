@@ -394,8 +394,7 @@ export function NewAppointmentModal({
         resolvedCustomerId = created.id;
       }
 
-      const reminderNote = sendReminder ? undefined : 'Sem lembrete automático.';
-      const combinedNotes = [notes.trim() || null, reminderNote].filter(Boolean).join(' ') || undefined;
+      const combinedNotes = notes.trim() || undefined;
       // Duração total = soma das durações dos itens (o start é único).
       const dur =
         validItems.reduce((sum, it) => sum + (it.durationMin || 0), 0) ||
@@ -433,6 +432,7 @@ export function NewAppointmentModal({
         start: slot.start,
         end: endFor(slot.start),
         notes: combinedNotes,
+        remindClient: sendReminder,
         items: itemsPayload,
         followUp: followUpPayload,
       });
@@ -450,6 +450,7 @@ export function NewAppointmentModal({
               start,
               end: endFor(start),
               notes: combinedNotes,
+              remindClient: sendReminder,
               items: itemsPayload,
               followUp: followUpPayload,
             });
@@ -679,7 +680,11 @@ export function NewAppointmentModal({
                       <Input className={triggerCls} placeholder="Nome do cliente" />
                     </TextField>
                     <TextField value={newPhone} onChange={setNewPhone} aria-label="Telefone">
-                      <Input className={triggerCls} placeholder="Telefone (WhatsApp)" />
+                      <Input
+                        className={triggerCls}
+                        type="tel"
+                        placeholder="Telefone (WhatsApp): +1 (918) 238-4714"
+                      />
                     </TextField>
                   </div>
                 ) : (

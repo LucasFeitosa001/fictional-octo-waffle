@@ -1146,6 +1146,7 @@ model Appointment {
   start          DateTime
   end            DateTime
   notes          String?
+  remindClient   Boolean?
   // Onda 7: cor de exibição do agendamento na agenda.
   color          String?
   source         AppointmentSource @default(admin)

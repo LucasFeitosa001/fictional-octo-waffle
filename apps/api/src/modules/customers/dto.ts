@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -9,10 +9,17 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
+
+// Keep the caller's phone representation intact: in particular, `+` carries
+// the country-code intent for an E.164 number. Trimming surrounding whitespace
+// is the only normalization performed at the DTO boundary.
+const trimPhone = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class CustomerDependentDto {
   @IsString() @MinLength(1) name: string;
@@ -30,8 +37,8 @@ export class CreateCustomerDto {
   name: string;
 
   @IsOptional() @IsString() nickname?: string;
-  @IsOptional() @IsString() phone?: string;
-  @IsOptional() @IsString() secondaryPhone?: string;
+  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) phone?: string;
+  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) secondaryPhone?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsISO8601() birthday?: string;
   @IsOptional() @IsString() cpf?: string;
@@ -79,8 +86,8 @@ export class CreateCustomerDto {
 export class UpdateCustomerDto {
   @IsOptional() @IsString() @MinLength(2) name?: string;
   @IsOptional() @IsString() nickname?: string;
-  @IsOptional() @IsString() phone?: string;
-  @IsOptional() @IsString() secondaryPhone?: string;
+  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) phone?: string;
+  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) secondaryPhone?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsISO8601() birthday?: string;
   @IsOptional() @IsString() cpf?: string;
