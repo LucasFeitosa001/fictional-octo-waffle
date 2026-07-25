@@ -51,3 +51,8 @@ export class SendWhatsappInboxMessageDto {
   @MaxLength(4096)
   text!: string;
 }
+
+export class StartWhatsappConversationDto extends SendWhatsappInboxMessageDto {
+  @IsOptional() @IsString() customerId?: string;
+  @IsOptional() @IsString() @MaxLength(30) phone?: string;
+}

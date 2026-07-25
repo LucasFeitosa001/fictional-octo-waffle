@@ -116,6 +116,12 @@ async function run() {
   const { WhatsappInboxService } = await import(
     '../modules/whatsapp-inbox/whatsapp-inbox.service.js'
   );
+  const { WhatsappService, whatsappParticipantIdentity } = await import(
+    '../modules/whatsapp/whatsapp.service.js'
+  );
+  const { WhatsappReminderPollerService } = await import(
+    '../modules/notifications/whatsapp-reminder-poller.service.js'
+  );
   const { prisma } = await import('@beautypass/db');
 
   const app = await NestFactory.create(AppModule, {
@@ -137,7 +143,23 @@ async function run() {
   await app.listen(PORT);
 
   let companyId = '';
+  let secondCompanyId = '';
   try {
+    const lidIdentity = whatsappParticipantIdentity(
+      '123456789012345@lid',
+      false,
+      '5585991234567@s.whatsapp.net',
+    );
+    check('listener aceita chat individual LID', lidIdentity.individual);
+    check(
+      'listener usa senderPn em vez dos dígitos opacos do LID',
+      lidIdentity.phoneDigits === '5585991234567',
+    );
+    check(
+      'listener continua rejeitando grupos',
+      !whatsappParticipantIdentity('123456@g.us', false).individual,
+    );
+
     const email = `wa-inbox-${Date.now()}@test.local`;
     const signup = await api('POST', '/auth/sign-up/email', {
       body: {
@@ -240,6 +262,7 @@ async function run() {
     });
 
     const inbox = app.get(WhatsappInboxService) as any;
+    const whatsapp = app.get(WhatsappService);
     const phone = '5585991234567';
     const remoteJid = `${phone}@s.whatsapp.net`;
     await inbox.captureWhatsappMessage({
@@ -320,11 +343,39 @@ async function run() {
       ),
     );
 
+    // Simula uma notificação antiga, criada antes da integração do inbox. O
+    // primeiro GET da lista precisa retrovincular essa outbox à conversa real.
+    const linkedConversation =
+      await prisma.whatsappConversation.findFirstOrThrow({
+        where: { companyId, remoteJid },
+      });
+    const legacyOutbox = await prisma.whatsappOutbox.create({
+      data: {
+        companyId,
+        customerId: linkedConversation.customerId,
+        toPhone: phone,
+        text: 'Seu agendamento está confirmado. ✅',
+        kind: 'confirmation',
+        status: 'sent',
+        attempts: 1,
+        sentAt: new Date(),
+      },
+    });
+
     const list = await api('GET', '/whatsapp/inbox/conversations', {
       token: token ?? undefined,
     });
     check('lista real responde 200', list.status === 200);
     check('lista contém conversa capturada', list.body?.data?.length === 1);
+    const legacyLinked = await prisma.whatsappOutbox.findUnique({
+      where: { id: legacyOutbox.id },
+      include: { inboxMessage: true },
+    });
+    check(
+      'outbox antiga foi recuperada para o inbox',
+      legacyLinked?.inboxMessage?.sender === 'system' &&
+        legacyLinked.inboxMessage.status === 'sent',
+    );
 
     const id = list.body?.data?.[0]?.id as string;
     const history = await api(
@@ -333,7 +384,57 @@ async function run() {
       { token: token ?? undefined },
     );
     check('histórico real responde 200', history.status === 200);
-    check('histórico contém cliente e IA', history.body?.data?.length >= 4);
+    check(
+      'histórico contém cliente, IA e automação',
+      history.body?.data?.length >= 5 &&
+        history.body.data.some((item: any) => item.sender === 'system'),
+    );
+
+    // Toda NOVA automação passa pelo observer da outbox e aparece imediatamente
+    // como pending, mesmo com o transporte desligado neste teste.
+    await whatsapp.enqueueText(phone, 'Lembrete de teste', {
+      companyId,
+      customerId: linkedConversation.customerId ?? undefined,
+      kind: 'reminder',
+    });
+    const reminderMirrored = await waitFor(async () => {
+      return (
+        (await prisma.whatsappInboxMessage.count({
+          where: {
+            companyId,
+            conversationId: id,
+            sender: 'system',
+            kind: 'reminder',
+            text: 'Lembrete de teste',
+            status: 'pending',
+          },
+        })) === 1
+      );
+    });
+    check('nova automação aparece no inbox antes do envio', reminderMirrored);
+    const reminderOutbox = await prisma.whatsappOutbox.findFirst({
+      where: { companyId, text: 'Lembrete de teste' },
+      orderBy: { createdAt: 'desc' },
+    });
+    check(
+      'automação e outbox ficaram ligadas',
+      Boolean(reminderOutbox?.inboxMessageId),
+    );
+
+    // Mensagens administrativas (gestor/profissional) continuam fora da caixa
+    // de clientes.
+    await whatsapp.enqueueText('5511900000099', 'Aviso interno', {
+      companyId,
+      kind: 'manager',
+    });
+    const managerOutbox = await prisma.whatsappOutbox.findFirst({
+      where: { companyId, text: 'Aviso interno' },
+      orderBy: { createdAt: 'desc' },
+    });
+    check(
+      'aviso interno não polui o inbox de clientes',
+      managerOutbox?.inboxMessageId === null,
+    );
 
     await inbox.captureWhatsappMessage({
       companyId,
@@ -380,6 +481,32 @@ async function run() {
     check('takeover pausa IA da conversa', takeover.body?.handledByAi === false);
     check('marcar lida zera contador', takeover.body?.unreadCount === 0);
 
+    // O WhatsApp atual pode identificar a conversa por LID. Ela deve fundir com
+    // a conversa do mesmo cliente, preservar o número alternativo e usar o JID
+    // observado nas próximas respostas.
+    const lidJid = `987654321${Date.now()}@lid`;
+    await inbox.captureWhatsappMessage({
+      companyId,
+      fromDigits: phone,
+      remoteJid: lidJid,
+      fromMe: false,
+      pushName: 'Maria WhatsApp',
+      messageId: `incoming-lid-${Date.now()}`,
+      timestamp: new Date(),
+      text: 'Mensagem recebida por LID',
+      metadata: { lid: true, phoneKnown: true },
+    });
+    const lidConversation = await prisma.whatsappConversation.findUnique({
+      where: { id },
+    });
+    check('chat LID fundiu sem duplicar conversa', lidConversation?.remoteJid === lidJid);
+    check(
+      'chat LID manteve uma conversa por cliente',
+      (await prisma.whatsappConversation.count({
+        where: { companyId, customerId: linkedConversation.customerId },
+      })) === 1,
+    );
+
     const manual = await api(
       'POST',
       `/whatsapp/inbox/conversations/${id}/messages`,
@@ -396,6 +523,13 @@ async function run() {
         where: { inboxMessageId: manual.body?.id },
       })) === 1,
     );
+    const manualOutbox = await prisma.whatsappOutbox.findUnique({
+      where: { inboxMessageId: manual.body?.id },
+    });
+    check(
+      'resposta ao chat LID preserva o destinatário real',
+      manualOutbox?.toJid === lidJid,
+    );
 
     const stats = await api('GET', '/whatsapp/inbox/stats', {
       token: token ?? undefined,
@@ -403,7 +537,185 @@ async function run() {
     check('métricas reais respondem 200', stats.status === 200);
     check('métricas contam conversa de hoje', stats.body?.conversationsToday === 1);
     check('métricas contam agendamento da IA', stats.body?.bookingsViaAi === 1);
+
+    // A página também inicia conversa manual com um cliente que ainda nunca
+    // escreveu para o salão.
+    const proactiveCustomer = await prisma.customer.create({
+      data: {
+        companyId,
+        name: 'Joana Proativa',
+        phone: '5585997654321',
+        notificationsEnabled: true,
+        whatsappOptIn: true,
+      },
+    });
+    const proactive = await api('POST', '/whatsapp/inbox/conversations', {
+      token: token ?? undefined,
+      body: {
+        customerId: proactiveCustomer.id,
+        text: 'Olá, Joana! Como podemos ajudar?',
+      },
+    });
+    check('nova conversa manual responde 201', proactive.status === 201);
+    check(
+      'nova conversa manual cria balão e outbox',
+      proactive.body?.message?.sender === 'agent' &&
+        Boolean(
+          await prisma.whatsappOutbox.findUnique({
+            where: { inboxMessageId: proactive.body?.message?.id },
+          }),
+        ),
+    );
+
+    // Produção opera sem workers Redis. O fallback no banco precisa localizar
+    // horários próximos, criar um claim único, enfileirar no outbox/inbox e não
+    // repetir no próximo tick. O transporte externo continua desligado neste
+    // teste; habilitamos somente a decisão de enqueue do poller in-process.
+    const reminderPoller = app.get(WhatsappReminderPollerService) as any;
+    reminderPoller.mode = {
+      mode: 'live',
+      isLive: true,
+      whatsappEnabled: true,
+      canSendWhatsapp: true,
+    };
+    const dueStart = new Date(Date.now() + 90 * 60 * 1000);
+    const reminderAppointment = await prisma.appointment.create({
+      data: {
+        companyId,
+        customerId: proactiveCustomer.id,
+        professionalId: professional.id,
+        status: 'scheduled',
+        start: dueStart,
+        end: new Date(dueStart.getTime() + 30 * 60 * 1000),
+        remindClient: true,
+        items: {
+          create: {
+            serviceId: service.id,
+            professionalId: professional.id,
+            durationMin: 30,
+            price: 70,
+          },
+        },
+      },
+    });
+    const reminderOutboxBefore = await prisma.whatsappOutbox.count({
+      where: {
+        companyId,
+        customerId: proactiveCustomer.id,
+        kind: 'reminder',
+      },
+    });
+    await reminderPoller.runOnce(new Date());
+    const reminderMarker =
+      await prisma.appointmentNotification.findUnique({
+        where: {
+          appointmentId_type_channel: {
+            appointmentId: reminderAppointment.id,
+            type: 'reminder_2h',
+            channel: 'whatsapp',
+          },
+        },
+      });
+    check(
+      'fallback persistente criou marcador de lembrete 2h',
+      Boolean(reminderMarker?.sentAt),
+    );
+    const reminderOutboxAfter = await prisma.whatsappOutbox.count({
+      where: {
+        companyId,
+        customerId: proactiveCustomer.id,
+        kind: 'reminder',
+      },
+    });
+    check(
+      'fallback sem Redis colocou lembrete no outbox/inbox',
+      reminderOutboxAfter === reminderOutboxBefore + 1,
+    );
+    await reminderPoller.runOnce(new Date());
+    check(
+      'claim único impede lembrete duplicado no tick seguinte',
+      (await prisma.whatsappOutbox.count({
+        where: {
+          companyId,
+          customerId: proactiveCustomer.id,
+          kind: 'reminder',
+        },
+      })) === reminderOutboxAfter,
+    );
+
+    // Isolamento multiempresa: o mesmo telefone em outro salão cria conversa,
+    // outbox e histórico totalmente separados.
+    const secondEmail = `wa-inbox-tenant-${Date.now()}@test.local`;
+    const secondSignup = await api('POST', '/auth/sign-up/email', {
+      body: {
+        name: 'Segundo Salão Inbox',
+        email: secondEmail,
+        password: 'whatsapp-inbox-test-456',
+      },
+    });
+    let secondToken = secondSignup.token;
+    if (!secondToken) {
+      secondToken = (
+        await api('POST', '/auth/sign-in/email', {
+          body: {
+            email: secondEmail,
+            password: 'whatsapp-inbox-test-456',
+          },
+        })
+      ).token;
+    }
+    for (let attempt = 0; attempt < 20 && !secondCompanyId; attempt += 1) {
+      const company = await api('GET', '/companies/current', {
+        token: secondToken ?? undefined,
+      });
+      secondCompanyId = company.body?.id ?? '';
+      if (!secondCompanyId)
+        await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    check('segunda empresa provisionada', Boolean(secondCompanyId));
+    const secondCustomer = await prisma.customer.create({
+      data: {
+        companyId: secondCompanyId,
+        name: 'Maria Outro Salão',
+        phone,
+        notificationsEnabled: true,
+        whatsappOptIn: true,
+      },
+    });
+    await whatsapp.enqueueText(phone, 'Confirmação do segundo salão', {
+      companyId: secondCompanyId,
+      customerId: secondCustomer.id,
+      kind: 'confirmation',
+    });
+    const isolated = await waitFor(async () => {
+      return (
+        (await prisma.whatsappInboxMessage.count({
+          where: {
+            companyId: secondCompanyId,
+            text: 'Confirmação do segundo salão',
+          },
+        })) === 1
+      );
+    });
+    check('segunda empresa recebeu sua própria automação', isolated);
+    check(
+      'mensagem da segunda empresa não vazou na primeira',
+      (await prisma.whatsappInboxMessage.count({
+        where: {
+          companyId,
+          text: 'Confirmação do segundo salão',
+        },
+      })) === 0,
+    );
   } finally {
+    if (secondCompanyId) {
+      await prisma.whatsappOutbox
+        .deleteMany({ where: { companyId: secondCompanyId } })
+        .catch(() => undefined);
+      await prisma.company
+        .delete({ where: { id: secondCompanyId } })
+        .catch(() => undefined);
+    }
     if (companyId) {
       await prisma.whatsappOutbox
         .deleteMany({ where: { companyId } })

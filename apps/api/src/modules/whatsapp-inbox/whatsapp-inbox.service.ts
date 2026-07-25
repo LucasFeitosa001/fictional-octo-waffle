@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -14,9 +15,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import {
   WhatsappInbound,
+  WhatsappOutboundQueued,
   WhatsappService,
 } from '../whatsapp/whatsapp.service';
 import {
+  StartWhatsappConversationDto,
   UpdateAiAttendantDto,
   UpdateWhatsappConversationDto,
 } from './dto';
@@ -69,13 +72,24 @@ const DEFAULT_AUTOMATIONS = {
   reminders: true,
   handoff: true,
 };
+const CUSTOMER_OUTBOUND_KINDS = [
+  'confirmation',
+  'cancellation',
+  'reminder',
+  'followup',
+  'campaign',
+] as const;
+const NON_CUSTOMER_OUTBOUND_KINDS = ['manager', 'invite'] as const;
+const OUTBOX_ALREADY_LINKED = 'WHATSAPP_OUTBOX_ALREADY_LINKED';
 
 @Injectable()
 export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsappInboxService.name);
   private unsubscribeInbound: (() => void) | null = null;
+  private unsubscribeOutbound: (() => void) | null = null;
   private readonly aiTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly aiRunning = new Set<string>();
+  private readonly backfilledCompanies = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -87,10 +101,14 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     this.unsubscribeInbound = this.whatsapp.addInboundHandler((message) =>
       this.captureWhatsappMessage(message),
     );
+    this.unsubscribeOutbound = this.whatsapp.addOutboundHandler((message) =>
+      this.captureQueuedOutbound(message),
+    );
   }
 
   onModuleDestroy() {
     this.unsubscribeInbound?.();
+    this.unsubscribeOutbound?.();
     for (const timer of this.aiTimers.values()) clearTimeout(timer);
     this.aiTimers.clear();
   }
@@ -253,6 +271,9 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     companyId: string,
     filters: { q?: string; status?: string },
   ) {
+    // Compatibilidade com mensagens que já estavam na outbox antes da caixa
+    // real existir. Executa uma única vez por empresa/processo e é idempotente.
+    await this.backfillOutbox(companyId);
     const q = filters.q?.trim();
     const status = filters.status;
     const data = await this.prisma.client.whatsappConversation.findMany({
@@ -355,8 +376,72 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
       customerId: conversation.customerId ?? undefined,
       kind: 'manual',
       inboxMessageId: message.id,
+      recipientJid: conversation.remoteJid,
     });
     return message;
+  }
+
+  /** Inicia uma conversa manual mesmo quando o cliente ainda não escreveu. */
+  async startAgentConversation(
+    companyId: string,
+    dto: StartWhatsappConversationDto,
+  ) {
+    const customer = dto.customerId
+      ? await this.prisma.client.customer.findFirst({
+          where: {
+            id: dto.customerId,
+            companyId,
+            deletedAt: null,
+          },
+          select: { id: true, name: true, phone: true },
+        })
+      : null;
+    if (dto.customerId && !customer) {
+      throw new NotFoundException('Cliente não encontrado');
+    }
+    const rawPhone = dto.phone?.trim() || customer?.phone?.trim() || '';
+    let digits = rawPhone.replace(/\D/g, '');
+    if (digits.length < 10 || digits.length > 15) {
+      throw new BadRequestException(
+        'Informe um cliente com WhatsApp ou um número válido',
+      );
+    }
+    if (
+      !rawPhone.startsWith('+') &&
+      !digits.startsWith('55') &&
+      digits.length <= 11
+    ) {
+      digits = `55${digits}`;
+    }
+    const phone = rawPhone.startsWith('+') ? `+${digits}` : digits;
+    const remoteJid = `${digits}@s.whatsapp.net`;
+    let conversation = await this.findConversationForParticipant(
+      companyId,
+      remoteJid,
+      phone,
+      customer?.id,
+    );
+    if (!conversation) {
+      conversation = await this.prisma.client.whatsappConversation.create({
+        data: {
+          companyId,
+          remoteJid,
+          phone,
+          displayName: customer?.name || phone,
+          customerId: customer?.id ?? null,
+          handledByAi: false,
+        },
+      });
+    }
+    const message = await this.sendAgentMessage(
+      companyId,
+      conversation.id,
+      dto.text,
+    );
+    return {
+      conversation: await this.findConversation(companyId, conversation.id),
+      message,
+    };
   }
 
   private async findConversation(companyId: string, id: string) {
@@ -398,6 +483,235 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private customerFacingOutbound(message: WhatsappOutboundQueued): boolean {
+    if (
+      NON_CUSTOMER_OUTBOUND_KINDS.includes(
+        message.kind as (typeof NON_CUSTOMER_OUTBOUND_KINDS)[number],
+      )
+    ) {
+      return false;
+    }
+    return Boolean(
+      message.customerId ||
+        CUSTOMER_OUTBOUND_KINDS.includes(
+          message.kind as (typeof CUSTOMER_OUTBOUND_KINDS)[number],
+        ),
+    );
+  }
+
+  private remoteJidForOutbound(message: WhatsappOutboundQueued): string {
+    if (
+      message.toJid?.endsWith('@s.whatsapp.net') ||
+      message.toJid?.endsWith('@lid')
+    ) {
+      return message.toJid;
+    }
+    const raw = message.toPhone.trim();
+    let digits = raw.replace(/\D/g, '');
+    if (!raw.startsWith('+') && !digits.startsWith('55') && digits.length <= 11) {
+      digits = `55${digits}`;
+    }
+    return `${digits}@s.whatsapp.net`;
+  }
+
+  private async findConversationForParticipant(
+    companyId: string,
+    remoteJid: string,
+    phone: string,
+    customerId?: string | null,
+  ) {
+    const exact =
+      await this.prisma.client.whatsappConversation.findUnique({
+        where: {
+          companyId_remoteJid: { companyId, remoteJid },
+        },
+      });
+    if (exact) return exact;
+    if (customerId) {
+      const byCustomer =
+        await this.prisma.client.whatsappConversation.findFirst({
+          where: { companyId, customerId },
+          orderBy: { lastMessageAt: 'desc' },
+        });
+      if (byCustomer) return byCustomer;
+    }
+    const tail = this.digitsTail(phone);
+    if (!tail) return null;
+    return this.prisma.client.whatsappConversation.findFirst({
+      where: {
+        companyId,
+        phone: { endsWith: tail },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+    });
+  }
+
+  /**
+   * Espelha qualquer automação destinada a cliente na mesma caixa usada por IA
+   * e atendente. O vínculo outbox→mensagem é reivindicado condicionalmente para
+   * continuar idempotente durante deploy blue/green.
+   */
+  private async captureQueuedOutbound(
+    message: WhatsappOutboundQueued,
+  ): Promise<void> {
+    if (!this.customerFacingOutbound(message)) return;
+    const customer = message.customerId
+      ? await this.prisma.client.customer.findFirst({
+          where: {
+            id: message.customerId,
+            companyId: message.companyId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            notificationsEnabled: true,
+            whatsappOptIn: true,
+          },
+        })
+      : await this.findCustomerByPhone(message.companyId, message.toPhone);
+    const remoteJid = this.remoteJidForOutbound(message);
+    const existing = await this.findConversationForParticipant(
+      message.companyId,
+      remoteJid,
+      message.toPhone,
+      customer?.id ?? message.customerId,
+    );
+    const eventAt = message.sentAt ?? message.createdAt;
+    try {
+      await this.prisma.client.$transaction(async (tx) => {
+        const current = await tx.whatsappOutbox.findUnique({
+          where: { id: message.outboxId },
+          select: { inboxMessageId: true },
+        });
+        if (!current || current.inboxMessageId) {
+          throw new Error(OUTBOX_ALREADY_LINKED);
+        }
+
+        const conversation = existing
+          ? await tx.whatsappConversation.update({
+              where: { id: existing.id },
+              data: {
+                phone: message.toPhone || existing.phone,
+                ...(customer?.id ? { customerId: customer.id } : {}),
+                ...(customer?.name ? { displayName: customer.name } : {}),
+                ...(eventAt >= existing.lastMessageAt
+                  ? {
+                      lastMessageText: message.text,
+                      lastMessageAt: eventAt,
+                      lastOutboundAt: eventAt,
+                    }
+                  : {}),
+              },
+            })
+          : await tx.whatsappConversation.create({
+              data: {
+                companyId: message.companyId,
+                remoteJid,
+                phone: message.toPhone,
+                displayName:
+                  customer?.name || message.toPhone || 'Contato do WhatsApp',
+                customerId: customer?.id ?? null,
+                lastMessageText: message.text,
+                lastMessageAt: eventAt,
+                lastOutboundAt: eventAt,
+              },
+            });
+
+        const inboxMessage = await tx.whatsappInboxMessage.create({
+          data: {
+            companyId: message.companyId,
+            conversationId: conversation.id,
+            direction: 'outbound',
+            sender: 'system',
+            text: message.text,
+            status: message.status,
+            kind: message.kind,
+            metadataJson: { outboxId: message.outboxId },
+            sentAt: message.sentAt,
+            createdAt: message.createdAt,
+          },
+        });
+        const claimed = await tx.whatsappOutbox.updateMany({
+          where: {
+            id: message.outboxId,
+            inboxMessageId: null,
+          },
+          data: { inboxMessageId: inboxMessage.id },
+        });
+        if (claimed.count !== 1) throw new Error(OUTBOX_ALREADY_LINKED);
+      });
+    } catch (err) {
+      if ((err as Error).message === OUTBOX_ALREADY_LINKED) return;
+      throw err;
+    }
+  }
+
+  private async backfillOutbox(companyId: string): Promise<void> {
+    if (this.backfilledCompanies.has(companyId)) return;
+    let mirrored = 0;
+    // Limite defensivo: um salão com histórico gigantesco não bloqueia a tela.
+    for (let batchIndex = 0; batchIndex < 10; batchIndex += 1) {
+      const batch = await this.prisma.client.whatsappOutbox.findMany({
+        where: {
+          companyId,
+          inboxMessageId: null,
+          AND: [
+            // SQL NOT IN não inclui NULL. O OR explícito preserva mensagens
+            // antigas sem kind quando elas já estão vinculadas a um cliente.
+            {
+              OR: [
+                { kind: null },
+                { kind: { notIn: [...NON_CUSTOMER_OUTBOUND_KINDS] } },
+              ],
+            },
+            {
+              OR: [
+                { customerId: { not: null } },
+                { kind: { in: [...CUSTOMER_OUTBOUND_KINDS] } },
+              ],
+            },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 250,
+      });
+      if (!batch.length) break;
+      let progressed = 0;
+      for (const row of batch) {
+        await this.captureQueuedOutbound({
+          outboxId: row.id,
+          companyId: row.companyId!,
+          customerId: row.customerId,
+          toPhone: row.toPhone,
+          toJid: row.toJid,
+          text: row.text,
+          kind: row.kind,
+          status: row.status,
+          createdAt: row.createdAt,
+          sentAt: row.sentAt,
+        });
+        const linked =
+          await this.prisma.client.whatsappOutbox.findUnique({
+            where: { id: row.id },
+            select: { inboxMessageId: true },
+          });
+        if (linked?.inboxMessageId) {
+          progressed += 1;
+          mirrored += 1;
+        }
+      }
+      if (progressed === 0 || batch.length < 250) break;
+    }
+    this.backfilledCompanies.add(companyId);
+    if (mirrored > 0) {
+      this.logger.log(
+        `Inbox WhatsApp: ${mirrored} mensagem(ns) antigas espelhadas (company=${companyId}).`,
+      );
+    }
+  }
+
   /**
    * Entrada única do Baileys. Persiste tanto mensagens do cliente quanto as
    * enviadas pelo celular conectado; mensagens administrativas do número do
@@ -434,6 +748,13 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
       // events.upsert do Baileys como `fromMe`. Reconhecemos o balão pending
       // antes do upsert para não duplicá-lo e, sobretudo, para não pausar a IA
       // quando a própria IA acabou de responder.
+      const existingConversation =
+        await this.findConversationForParticipant(
+          message.companyId,
+          message.remoteJid,
+          message.fromDigits,
+          customer?.id,
+        );
       const pendingOutbound = message.fromMe
         ? await this.prisma.client.whatsappInboxMessage.findFirst({
             where: {
@@ -441,25 +762,53 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
               direction: 'outbound',
               status: 'pending',
               text: message.text,
-              conversation: { remoteJid: message.remoteJid },
+              ...(existingConversation
+                ? { conversationId: existingConversation.id }
+                : { conversation: { remoteJid: message.remoteJid } }),
             },
             orderBy: { createdAt: 'desc' },
           })
         : null;
-      const conversation =
-        await this.prisma.client.whatsappConversation.upsert({
-          where: {
-            companyId_remoteJid: {
-              companyId: message.companyId,
-              remoteJid: message.remoteJid,
+      const conversation = existingConversation
+        ? await this.prisma.client.whatsappConversation.update({
+            where: { id: existingConversation.id },
+            data: {
+              // Se a conversa nasceu de uma automação (JID por telefone) e a
+              // resposta real chegou por LID, passa a usar o JID observado.
+              ...(existingConversation.remoteJid !== message.remoteJid
+                ? { remoteJid: message.remoteJid }
+                : {}),
+              ...(message.fromDigits ? { phone: message.fromDigits } : {}),
+              ...(customer?.id ? { customerId: customer.id } : {}),
+              ...(message.pushName?.trim()
+                ? { displayName: message.pushName.trim() }
+                : {}),
+              ...(message.fromMe
+                ? {
+                    lastOutboundAt: receivedAt,
+                    ...(pendingOutbound?.sender === 'ai'
+                      ? {}
+                      : { handledByAi: false }),
+                  }
+                : {
+                    lastInboundAt: receivedAt,
+                    unreadCount: { increment: 1 },
+                    resolved: false,
+                  }),
+              lastMessageText: message.text,
+              lastMessageAt: receivedAt,
             },
-          },
-          create: {
+          })
+        : await this.prisma.client.whatsappConversation.create({
+            data: {
             companyId: message.companyId,
             remoteJid: message.remoteJid,
             phone: message.fromDigits,
             displayName:
-              customer?.name || message.pushName?.trim() || message.fromDigits,
+              customer?.name ||
+              message.pushName?.trim() ||
+              message.fromDigits ||
+              'Contato do WhatsApp',
             customerId: customer?.id,
             unreadCount: message.fromMe ? 0 : 1,
             lastMessageText: message.text,
@@ -472,29 +821,8 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
                     : { handledByAi: false }),
                 }
               : { lastInboundAt: receivedAt }),
-          },
-          update: {
-            phone: message.fromDigits,
-            ...(customer?.id ? { customerId: customer.id } : {}),
-            ...(message.pushName?.trim()
-              ? { displayName: message.pushName.trim() }
-              : {}),
-            ...(message.fromMe
-              ? {
-                  lastOutboundAt: receivedAt,
-                  ...(pendingOutbound?.sender === 'ai'
-                    ? {}
-                    : { handledByAi: false }),
-                }
-              : {
-                  lastInboundAt: receivedAt,
-                  unreadCount: { increment: 1 },
-                  resolved: false,
-                }),
-            lastMessageText: message.text,
-            lastMessageAt: receivedAt,
-          },
-        });
+            },
+          });
 
       if (pendingOutbound) {
         await this.prisma.client.whatsappInboxMessage.update({
@@ -1238,6 +1566,7 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     conversation: {
       id: string;
       phone: string;
+      remoteJid: string;
       customerId: string | null;
     },
     plan: ReplyPlan,
@@ -1270,6 +1599,7 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
       customerId: conversation.customerId ?? undefined,
       kind: 'ai',
       inboxMessageId: message.id,
+      recipientJid: conversation.remoteJid,
     });
   }
 }

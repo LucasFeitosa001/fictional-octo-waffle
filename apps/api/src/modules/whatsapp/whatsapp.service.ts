@@ -15,6 +15,36 @@ import { useDbAuthState } from './whatsapp-auth';
 
 type WaStatus = 'disabled' | 'connecting' | 'qr' | 'open' | 'closed';
 
+function jidUserDigitsValue(jid: string): string {
+  return (jid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
+}
+
+export function whatsappParticipantIdentity(
+  remoteJid: string,
+  fromMe: boolean,
+  senderPn?: string | null,
+  participantPn?: string | null,
+): {
+  individual: boolean;
+  isLid: boolean;
+  phoneDigits: string;
+} {
+  const isPhoneJid = remoteJid.endsWith('@s.whatsapp.net');
+  const isLid = remoteJid.endsWith('@lid');
+  const phoneJid = isPhoneJid
+    ? remoteJid
+    : isLid && !fromMe
+      ? (senderPn ?? participantPn ?? '')
+      : '';
+  return {
+    individual: isPhoneJid || isLid,
+    isLid,
+    phoneDigits: phoneJid.endsWith('@s.whatsapp.net')
+      ? jidUserDigitsValue(phoneJid)
+      : '',
+  };
+}
+
 // Config rows (manager number) live under a SEPARATE sessionId so a WhatsApp
 // re-link (which wipes every credential row of a company's sessionId) never
 // erases the salon's manager-number settings. itemId = companyId.
@@ -48,6 +78,23 @@ export interface WhatsappInbound {
 }
 export type WhatsappInboundHandler = (
   msg: WhatsappInbound,
+) => void | Promise<void>;
+
+/** Mensagem que acabou de entrar na outbox durável. */
+export interface WhatsappOutboundQueued {
+  outboxId: string;
+  companyId: string;
+  customerId: string | null;
+  toPhone: string;
+  toJid: string | null;
+  text: string;
+  kind: string | null;
+  status: string;
+  createdAt: Date;
+  sentAt: Date | null;
+}
+export type WhatsappOutboundHandler = (
+  msg: WhatsappOutboundQueued,
 ) => void | Promise<void>;
 
 function envInt(name: string, fallback: number, min: number, max: number): number {
@@ -179,6 +226,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   // Uma sessão por empresa. A chave é o companyId (= sessionId das credenciais).
   private readonly sessions = new Map<string, SessionState>();
   private readonly inboundHandlers = new Set<WhatsappInboundHandler>();
+  private readonly outboundHandlers = new Set<WhatsappOutboundHandler>();
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
@@ -250,6 +298,27 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   addInboundHandler(fn: WhatsappInboundHandler): () => void {
     this.inboundHandlers.add(fn);
     return () => this.inboundHandlers.delete(fn);
+  }
+
+  /**
+   * Observa mensagens assim que entram na outbox. O inbox usa este evento para
+   * criar o balão antes do envio e refletir depois pending/sent/failed.
+   */
+  addOutboundHandler(fn: WhatsappOutboundHandler): () => void {
+    this.outboundHandlers.add(fn);
+    return () => this.outboundHandlers.delete(fn);
+  }
+
+  private async emitOutboundQueued(message: WhatsappOutboundQueued) {
+    for (const handler of this.outboundHandlers) {
+      try {
+        await handler(message);
+      } catch (err) {
+        this.logger.error(
+          `Erro no handler de mensagem enviada: ${(err as Error).message}`,
+        );
+      }
+    }
   }
 
   // ------------------------------------------------------- sessão por empresa
@@ -432,7 +501,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   // "558994588003". Naively stripping non-digits would fold the ":7" device id
   // into the number and corrupt the tail comparison.
   private jidUserDigits(jid: string): string {
-    return (jid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
+    return jidUserDigitsValue(jid);
   }
 
   // Normalize to Brazilian digits (prefix 55 when absent). Empty when invalid.
@@ -577,15 +646,25 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       customerId?: string;
       kind?: string;
       inboxMessageId?: string;
+      /** JID já observado no inbox (`@s.whatsapp.net` ou `@lid`). */
+      recipientJid?: string;
     },
   ): Promise<void> {
+    const recipientJid = this.normalizeRecipientJid(ctx?.recipientJid);
     const normalized = this.normalizeOutgoingPhone(phone);
-    if (!normalized) {
+    if (!normalized && !recipientJid) {
       this.logger.warn(`Outbox: número inválido ignorado (${phone}).`);
       return;
     }
+    const toPhone =
+      normalized?.value ?? this.jidUserDigits(recipientJid ?? '');
+    if (!toPhone) {
+      this.logger.warn('Outbox: destinatário sem número ou JID válido.');
+      return;
+    }
     const companyId = ctx?.companyId ?? null;
-    const dedupKey = `${companyId ?? '-'}\u0000${normalized.value}\u0000${text}`;
+    const dedupRecipient = recipientJid ?? toPhone;
+    const dedupKey = `${companyId ?? '-'}\u0000${dedupRecipient}\u0000${text}`;
     // Mensagens nascidas no inbox têm identidade própria e precisam sempre
     // ganhar sua linha na outbox; deduplicá-las aqui deixaria o balão novo
     // eternamente em "pending". A deduplicação continua valendo para as
@@ -598,7 +677,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       this.enqueueInFlight.has(dedupKey)
     ) {
       this.logger.warn(
-        `Outbox: duplicata concorrente ignorada (company=${companyId ?? 'sem-company'}, to=${normalized.value}).`,
+        `Outbox: duplicata concorrente ignorada (company=${companyId ?? 'sem-company'}).`,
       );
       return;
     }
@@ -608,7 +687,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         const duplicate = await this.prisma.client.whatsappOutbox.findFirst({
           where: {
             companyId,
-            toPhone: normalized.value,
+            toPhone,
+            toJid: recipientJid,
             text,
             OR: [
               // Uma duplicata nunca deve ultrapassar a original ainda pendente,
@@ -631,12 +711,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           return;
         }
       }
-      await this.prisma.client.whatsappOutbox.create({
+      const queued = await this.prisma.client.whatsappOutbox.create({
         data: {
           // Preserve an explicit E.164 country code. The leading + is the signal
           // that this is not a Brazilian local number, and is needed later when
           // resolving the WhatsApp JID.
-          toPhone: normalized.value,
+          toPhone,
+          toJid: recipientJid,
           text,
           // Só grava o que veio — undefined vira NULL na coluna (retrocompatível).
           companyId,
@@ -644,7 +725,37 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           kind: ctx?.kind ?? null,
           inboxMessageId: ctx?.inboxMessageId ?? null,
         },
+        select: {
+          id: true,
+          companyId: true,
+          customerId: true,
+          toPhone: true,
+          toJid: true,
+          text: true,
+          kind: true,
+          status: true,
+          createdAt: true,
+          sentAt: true,
+          inboxMessageId: true,
+        },
       });
+      // Mensagens já criadas dentro do inbox (IA/atendente) só precisam que a
+      // outbox atualize o status. As demais — confirmação, cancelamento,
+      // lembrete, follow-up e campanha — ganham o balão por este evento.
+      if (queued.companyId && !queued.inboxMessageId) {
+        await this.emitOutboundQueued({
+          outboxId: queued.id,
+          companyId: queued.companyId,
+          customerId: queued.customerId,
+          toPhone: queued.toPhone,
+          toJid: queued.toJid,
+          text: queued.text,
+          kind: queued.kind,
+          status: queued.status,
+          createdAt: queued.createdAt,
+          sentAt: queued.sentAt,
+        });
+      }
     } finally {
       this.enqueueInFlight.delete(dedupKey);
     }
@@ -677,6 +788,18 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       value: hasExplicitCountryCode ? `+${digits}` : digits,
       hasExplicitCountryCode,
     };
+  }
+
+  /** Aceita somente JIDs individuais; grupo/status/newsletter nunca entram. */
+  private normalizeRecipientJid(value?: string): string | null {
+    const jid = value?.trim() ?? '';
+    if (
+      !jid ||
+      (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@lid'))
+    ) {
+      return null;
+    }
+    return this.jidUserDigits(jid) ? jid : null;
   }
 
   private isBrazilianE164Digits(digits: string): boolean {
@@ -771,6 +894,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private async deliverOutbox(msg: {
     id: string;
     toPhone: string;
+    toJid: string | null;
     text: string;
     attempts: number;
     companyId: string | null;
@@ -783,7 +907,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     if (!session || session.status !== 'open' || !session.sock) return;
     try {
       if (await this.deferIfRateLimited(msg)) return;
-      const jid = await this.resolveJid(session, msg.toPhone);
+      const jid =
+        this.normalizeRecipientJid(msg.toJid ?? undefined) ??
+        (await this.resolveJid(session, msg.toPhone));
       if (!jid) {
         await db.whatsappOutbox.update({
           where: { id: msg.id },
@@ -987,6 +1113,38 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return `${digits}@s.whatsapp.net`;
   }
 
+  /**
+   * Conteúdo durável para retry-receipts. O cache em memória resolve a janela
+   * imediata; o banco resolve pedidos que chegam depois de restart/deploy.
+   */
+  private async getMessageForRetry(
+    session: SessionState,
+    messageId?: string | null,
+  ): Promise<proto.IMessage | undefined> {
+    if (!messageId) return undefined;
+    const cached = session.sentCache.get(messageId);
+    if (cached) return cached;
+    const persisted =
+      await this.prisma.client.whatsappInboxMessage.findFirst({
+        where: {
+          companyId: session.companyId,
+          whatsappMessageId: messageId,
+          direction: 'outbound',
+        },
+        select: { text: true },
+      });
+    if (!persisted) return undefined;
+    const message = proto.Message.fromObject({
+      conversation: persisted.text,
+    });
+    if (session.sentCache.size >= SENT_CACHE_MAX) {
+      const oldest = session.sentCache.keys().next().value;
+      if (oldest !== undefined) session.sentCache.delete(oldest);
+    }
+    session.sentCache.set(messageId, message);
+    return message;
+  }
+
   // ------------------------------------------------------------- conexão
 
   /**
@@ -1138,8 +1296,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         // esta mensagem…" no WhatsApp do dono (o sintoma relatado). O conteúdo
         // vem do sentCache alimentado no deliverOutbox.
         maxMsgRetryCount: 5,
+        retryRequestDelayMs: 1000,
         getMessage: async (key) =>
-          (key.id ? session.sentCache.get(key.id) : undefined) ?? undefined,
+          this.getMessageForRetry(session, key.id),
       });
       session.sock = sock;
 
@@ -1153,7 +1312,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       sock.ev.on('messages.upsert', (evt) => {
         for (const m of evt.messages) {
           const jid = m.key.remoteJid ?? '';
-          if (!jid.endsWith('@s.whatsapp.net')) continue; // skip groups/status
+          const participant = whatsappParticipantIdentity(
+            jid,
+            Boolean(m.key.fromMe),
+            m.key.senderPn,
+            m.key.participantPn,
+          );
+          if (!participant.individual) continue; // skip groups/status/newsletters
           // Remove wrappers ephemeral/view-once antes de identificar o conteúdo.
           // O inbox mantém uma representação textual de mídia, mesmo sem baixar
           // o arquivo, para a conversa nunca "sumir" quando chega áudio/foto.
@@ -1230,7 +1395,18 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
             // handlers decidem se querem ignorá-lo.
             if (selfChat && !/^[123]\b/.test(trimmed)) continue;
           }
-          const fromDigits = this.jidUserDigits(jid);
+          // Em chats LID, o identificador antes de @lid não é telefone. Para
+          // mensagens recebidas, o Baileys 6.7 expõe o PN alternativo no key.
+          // Quando ele não vier, preservamos o JID e ainda conseguimos responder
+          // por ele graças a WhatsappOutbox.toJid.
+          const fromDigits = participant.phoneDigits;
+          if (participant.isLid) {
+            metadata = {
+              ...(metadata ?? {}),
+              lid: true,
+              phoneKnown: Boolean(fromDigits),
+            };
+          }
           const quoted =
             content?.extendedTextMessage?.contextInfo?.quotedMessage;
           const quotedText = quoted?.conversation ?? quoted?.extendedTextMessage?.text ?? undefined;

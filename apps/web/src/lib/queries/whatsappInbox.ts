@@ -72,7 +72,7 @@ export interface WhatsappInboxMessage {
   conversationId: string;
   whatsappMessageId: string | null;
   direction: 'inbound' | 'outbound';
-  sender: 'customer' | 'ai' | 'agent';
+  sender: 'customer' | 'ai' | 'agent' | 'system';
   text: string;
   status: 'received' | 'pending' | 'sent' | 'failed';
   kind: string | null;
@@ -192,6 +192,27 @@ export function useSendWhatsappInboxMessage() {
         queryKey: [...MESSAGES_KEY, variables.id],
       });
       void queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
+    },
+  });
+}
+
+export function useStartWhatsappConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      customerId?: string;
+      phone?: string;
+      text: string;
+    }) =>
+      api.post<{
+        conversation: WhatsappConversation;
+        message: WhatsappInboxMessage;
+      }>('/whatsapp/inbox/conversations', body),
+    onSuccess: (saved) => {
+      void queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: [...MESSAGES_KEY, saved.conversation.id],
+      });
     },
   });
 }
