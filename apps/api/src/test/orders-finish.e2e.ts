@@ -165,7 +165,8 @@ async function run() {
     const incomeCat = await prisma.financialCategory.create({
       data: { companyId, name: 'Serviços', kind: 'credit' },
     });
-    // Payment method that goes to cash (cash) vs one that does not (card).
+    // Payment methods with different financial-auto flags. Both must still
+    // appear in the open cash register's payment reconciliation.
     const pmCash = await prisma.paymentMethod.create({
       data: { companyId, name: 'Dinheiro', goesToCash: true, defaultAccountId: accCaixa.id },
     });
@@ -197,10 +198,61 @@ async function run() {
       data: { companyId, productId: product.id, code: 'L1', quantity: 10 },
     });
 
-    // Open cash register.
+    // Open cash register yesterday: cash registers remain open across days
+    // until somebody explicitly closes them.
+    const openedYesterday = new Date(Date.now() - 36 * 60 * 60 * 1000);
     const cash = await prisma.cashRegister.create({
-      data: { companyId, number: 1, openingBalance: 0, status: 'open' },
+      data: {
+        companyId,
+        number: 1,
+        openingBalance: 0,
+        status: 'open',
+        openedAt: openedYesterday,
+      },
     });
+
+    // Guardrail: a partial payment cannot finish a command or silently omit it
+    // from the cash register.
+    const underpaidOrder = await prisma.order.create({
+      data: {
+        companyId,
+        number: 2,
+        status: 'open',
+        items: {
+          create: {
+            kind: 'service',
+            refId: service.id,
+            professionalId: pro.id,
+            quantity: 1,
+            unitPrice: 100,
+            grossValue: 100,
+          },
+        },
+      },
+    });
+    await prisma.orderPayment.create({
+      data: {
+        orderId: underpaidOrder.id,
+        paymentMethodId: pmCash.id,
+        amount: 50,
+        status: 'pending',
+      },
+    });
+    const underpaidFinish = await api('POST', `/orders/${underpaidOrder.id}/finish`, {
+      token: salon.token,
+    });
+    check('underpaid finish → 400', underpaidFinish.status === 400);
+    const underpaidAfter = await prisma.order.findUnique({
+      where: { id: underpaidOrder.id },
+      select: { status: true },
+    });
+    check('underpaid finish: order remains open', underpaidAfter?.status === 'open');
+    check(
+      'underpaid finish: no cash movement',
+      (await prisma.cashMovement.count({
+        where: { cashRegisterId: cash.id, refId: underpaidOrder.id },
+      })) === 0,
+    );
 
     // Comanda with: 1 service (R$100, pro), 1 sold product (2 x R$50 = R$100, batch).
     const order = await prisma.order.create({
@@ -266,14 +318,24 @@ async function run() {
       txns.every((t) => t.categoryId === incomeCat.id),
     );
 
-    // --- Caixa: CashMovement(in) only for goesToCash payment (cash R$150) ---
+    // --- Caixa: every payment is reconciled, regardless of financial-auto flag ---
     const moves = await prisma.cashMovement.findMany({
       where: { cashRegisterId: cash.id, refType: 'order', refId: order.id },
     });
-    check('finish: exactly 1 cash movement (only goesToCash payment)', moves.length === 1);
-    check('finish: cash movement is type in', moves[0]?.type === 'in');
-    check('finish: cash movement amount = 150 (cash only)', D(moves[0]?.amount) === 150);
-    check('finish: cash movement method is the cash method', moves[0]?.paymentMethodId === pmCash.id);
+    check('finish: exactly 2 cash movements (all payments)', moves.length === 2);
+    check('finish: cash movements are type in', moves.every((m) => m.type === 'in'));
+    check(
+      'finish: cash movements sum to the full order (200)',
+      Math.abs(moves.reduce((sum, movement) => sum + D(movement.amount), 0) - 200) < 0.001,
+    );
+    check(
+      'finish: cash register includes card even with goesToCash=false',
+      moves.some((movement) => movement.paymentMethodId === pmCard.id),
+    );
+    check(
+      'finish: yesterday cash remains the selected register',
+      moves.every((movement) => movement.cashRegisterId === cash.id),
+    );
 
     // --- Comissão: CommissionEntry per commissionable item ---
     const entries = await prisma.commissionEntry.findMany({
@@ -306,7 +368,7 @@ async function run() {
     const entries2 = await prisma.commissionEntry.count({ where: { companyId, orderId: order.id } });
     const prodIdem = await prisma.product.findUnique({ where: { id: product.id }, select: { stock: true } });
     check('idempotent: transactions still 2', txns2 === 2);
-    check('idempotent: cash movements still 1', moves2 === 1);
+    check('idempotent: cash movements still 2', moves2 === 2);
     check('idempotent: commission entries still 2', entries2 === 2);
     check('idempotent: product stock still 8', D(prodIdem?.stock) === 8);
 
@@ -363,6 +425,46 @@ async function run() {
       where: { companyId, orderId: order.id, status: 'open' },
     });
     check('cancel: no open commission entry remains', openEntriesAfterCancel === 0);
+
+    // Guardrail: a paid comanda also cannot finish when there is no manually
+    // open cash register. No register is opened automatically by date.
+    await prisma.cashRegister.update({
+      where: { id: cash.id },
+      data: { status: 'closed', closedAt: new Date() },
+    });
+    const noCashOrder = await prisma.order.create({
+      data: {
+        companyId,
+        number: 3,
+        status: 'open',
+        items: {
+          create: {
+            kind: 'service',
+            refId: service.id,
+            professionalId: pro.id,
+            quantity: 1,
+            unitPrice: 100,
+            grossValue: 100,
+          },
+        },
+        payments: {
+          create: {
+            paymentMethodId: pmCash.id,
+            amount: 100,
+            status: 'pending',
+          },
+        },
+      },
+    });
+    const noCashFinish = await api('POST', `/orders/${noCashOrder.id}/finish`, {
+      token: salon.token,
+    });
+    check('finish without open cash → 400', noCashFinish.status === 400);
+    const noCashAfter = await prisma.order.findUnique({
+      where: { id: noCashOrder.id },
+      select: { status: true },
+    });
+    check('finish without open cash: order remains open', noCashAfter?.status === 'open');
   } finally {
     const { prisma } = await import('@beautypass/db');
     if (companyId) {

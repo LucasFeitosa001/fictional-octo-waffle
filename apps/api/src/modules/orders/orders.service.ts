@@ -594,6 +594,41 @@ export class OrdersService {
   async addPayment(companyId: string, id: string, dto: AddPaymentDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
+
+    // Uma comanda não pode receber mais que o saldo líquido ainda em aberto.
+    // No pagamento em dinheiro o front envia apenas o valor da venda (o valor
+    // entregue pelo cliente serve somente para calcular/exibir o troco).
+    const activePayments = await this.prisma.client.orderPayment.findMany({
+      where: { orderId: id, status: { not: 'reversed' } },
+      select: { amount: true },
+    });
+    const paidTotal = activePayments.reduce(
+      (sum, payment) => sum.add(payment.amount),
+      new Prisma.Decimal(0),
+    );
+    const remaining = new Prisma.Decimal(order.netTotal).sub(paidTotal);
+    const amount = new Prisma.Decimal(dto.amount);
+    if (amount.greaterThan(remaining.add(new Prisma.Decimal('0.009')))) {
+      throw new BadRequestException(
+        `O pagamento ultrapassa o restante da comanda (${remaining.toFixed(2)}).`,
+      );
+    }
+
+    if (dto.paymentMethodId) {
+      const method = await this.prisma.client.paymentMethod.findFirst({
+        where: { id: dto.paymentMethodId, companyId, active: true },
+        select: { id: true },
+      });
+      if (!method) throw new BadRequestException('Forma de pagamento inválida.');
+    }
+    if (dto.accountId) {
+      const account = await this.prisma.client.financialAccount.findFirst({
+        where: { id: dto.accountId, companyId },
+        select: { id: true },
+      });
+      if (!account) throw new BadRequestException('Conta financeira inválida.');
+    }
+
     return this.prisma.client.orderPayment.create({
       data: {
         orderId: id,
@@ -609,8 +644,13 @@ export class OrdersService {
   /** Estorno permanece permitido mesmo com a comanda finalizada. */
   async reversePayment(companyId: string, id: string, pid: string) {
     await this.loadOrder(companyId, id);
+    const payment = await this.prisma.client.orderPayment.findFirst({
+      where: { id: pid, orderId: id },
+      select: { id: true },
+    });
+    if (!payment) throw new NotFoundException('Pagamento não encontrado.');
     return this.prisma.client.orderPayment.update({
-      where: { id: pid },
+      where: { id: payment.id },
       data: { status: 'reversed' },
     });
   }
@@ -644,34 +684,77 @@ export class OrdersService {
 
     await this.recalculate(id);
 
-    // Carrega o estado consolidado da comanda para os geradores (dentro do escopo
-    // da empresa). Tudo o que segue roda numa única $transaction.
-    const order = await this.prisma.client.order.findUniqueOrThrow({
-      where: { id },
-      include: {
-        items: { include: { professional: true } },
-        payments: true,
-      },
-    });
-
-    // Categoria financeira de receita (kind=credit). Resolvida FORA da transação
-    // (é read-only e reaproveitável); nullable quando a empresa não tem seed.
-    const incomeCategory = await this.prisma.client.financialCategory.findFirst({
-      where: { companyId, kind: 'credit', active: true },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    });
-
-    // Caixa aberto (se houver) — só pagamentos goesToCash geram CashMovement.
-    const openCash = await this.prisma.client.cashRegister.findFirst({
-      where: { companyId, status: 'open' },
-      orderBy: { openedAt: 'desc' },
-      select: { id: true },
-    });
-
     const finished = await this.prisma.client.$transaction(async (tx) => {
+      // Trava a comanda durante toda a reconciliação. Evita que pagamento,
+      // fechamento e reabertura concorrentes deixem Financeiro/Caixa divergentes.
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "Order"
+        WHERE "id" = ${id} AND "companyId" = ${companyId}
+        FOR UPDATE
+      `;
+
+      const order = await tx.order.findFirstOrThrow({
+        where: { id, companyId },
+        include: {
+          items: { include: { professional: true } },
+          payments: true,
+        },
+      });
+      if (order.status === 'finished') return order;
+      if (order.status === 'canceled') {
+        throw new BadRequestException('Comanda cancelada — não pode ser finalizada.');
+      }
+
+      // Invariante: faturar significa que o valor líquido foi integralmente
+      // recebido. Antes esse ponto aceitava zero/parcelas incompletas e a
+      // comanda simplesmente desaparecia do caixa.
+      const activePayments = order.payments.filter((payment) => payment.status !== 'reversed');
+      const paidTotal = activePayments.reduce(
+        (sum, payment) => sum.add(payment.amount),
+        new Prisma.Decimal(0),
+      );
+      const netTotal = new Prisma.Decimal(order.netTotal);
+      if (!paidTotal.equals(netTotal)) {
+        const remaining = Prisma.Decimal.max(netTotal.sub(paidTotal), 0);
+        throw new BadRequestException(
+          `Registre o pagamento completo antes de faturar. Restante: R$ ${remaining.toFixed(2)}.`,
+        );
+      }
+
+      // O caixa não é diário: seleciona o último que continua ABERTO, ainda que
+      // tenha sido aberto ontem ou em data anterior. FOR UPDATE serializa com o
+      // fechamento manual para ser impossível faturar no meio de um close.
+      const [openCash] = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id"
+        FROM "CashRegister"
+        WHERE "companyId" = ${companyId} AND "status" = 'open'
+        ORDER BY "openedAt" DESC
+        LIMIT 1
+        FOR UPDATE
+      `;
+      if (netTotal.greaterThan(0) && !openCash) {
+        throw new BadRequestException(
+          'Nenhum caixa está aberto. Abra o caixa antes de faturar a comanda.',
+        );
+      }
+
+      const incomeCategory = await tx.financialCategory.findFirst({
+        where: { companyId, kind: 'credit', active: true },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+
+      const paidAt = new Date();
+      await tx.orderPayment.updateMany({
+        where: { orderId: id, status: { not: 'reversed' } },
+        data: { status: 'paid', paidAt },
+      });
+
       await this.generateIncomeTransactions(tx, companyId, order, incomeCategory?.id ?? null);
-      await this.generateCashMovements(tx, companyId, order, openCash?.id ?? null);
+      if (openCash) {
+        await this.generateCashMovements(tx, order, openCash.id);
+      }
       await this.generateCommissionEntries(tx, companyId, order);
       await this.decrementSoldStock(tx, order);
 
@@ -690,7 +773,7 @@ export class OrdersService {
     // Event-driven: closing the comanda schedules the post-service follow-up
     // (delayed FOLLOWUP_DELAY_HOURS). Only when there's a customer to message.
     // Idempotent per order via the follow-up job's deterministic jobId + marker.
-    if (order.customerId) {
+    if (finished.customerId) {
       void this.queues.enqueueFollowUp(companyId, { orderId: id });
     }
     return finished;
@@ -779,14 +862,18 @@ export class OrdersService {
   }
 
   /**
-   * Caixa → CashMovement(in) para cada pagamento cujo método `goesToCash=true`
-   * (só o que entra fisicamente no caixa). Sem caixa aberto, não faz nada.
-   * Idempotência: pula se já há movimento (refType='order', refId=order.id) para
-   * o mesmo pagamento (rastreado em `description`).
+   * Caixa → CashMovement(in) para CADA pagamento ativo da comanda.
+   *
+   * O caixa do produto é também a conferência de recebimentos por forma
+   * (Dinheiro/Pix/Crédito/Outros), como no histórico importado do Belasis; por
+   * isso nenhuma forma pode fazer a comanda sumir do caixa aberto. A flag
+   * legada `goesToCash` nunca pode ocultar uma venda já recebida da conferência.
+   *
+   * Idempotência: pula se já há movimento líquido ativo para o paymentId
+   * (rastreado em `description`).
    */
   private async generateCashMovements(
     tx: Prisma.TransactionClient,
-    companyId: string,
     order: {
       id: string;
       payments: {
@@ -796,25 +883,8 @@ export class OrdersService {
         status: string;
       }[];
     },
-    cashRegisterId: string | null,
+    cashRegisterId: string,
   ) {
-    if (!cashRegisterId) return;
-
-    const methodIds = [
-      ...new Set(
-        order.payments
-          .filter((p) => p.paymentMethodId)
-          .map((p) => p.paymentMethodId as string),
-      ),
-    ];
-    const cashMethods = methodIds.length
-      ? await tx.paymentMethod.findMany({
-          where: { id: { in: methodIds }, companyId, goesToCash: true },
-          select: { id: true },
-        })
-      : [];
-    const goesToCash = new Set(cashMethods.map((m) => m.id));
-
     // Idempotência por NET, por pagamento: um `in` (description=paymentId) só
     // conta se ainda não foi compensado por um `out` (description=reversal:paymentId).
     // Assim, um pagamento estornado por reopen anterior volta a entrar no caixa.
@@ -831,7 +901,6 @@ export class OrdersService {
 
     for (const p of order.payments) {
       if (p.status === 'reversed') continue;
-      if (!p.paymentMethodId || !goesToCash.has(p.paymentMethodId)) continue;
       if ((netInByPay.get(p.id) ?? 0) > 0) continue; // entrada ativa → não duplica
 
       await tx.cashMovement.create({

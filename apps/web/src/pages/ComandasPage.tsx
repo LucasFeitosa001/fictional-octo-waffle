@@ -1647,6 +1647,7 @@ export function VerComandaDrawer({
       await finish.mutateAsync();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Não foi possível faturar a comanda.');
+      throw err;
     }
   }
 
@@ -2200,23 +2201,65 @@ function PagamentosDrawer({
   const typed = parseNum(amount);
   const troco = Math.max(0, typed - remaining);
   const quicks = ['Dinheiro', 'Cartão', 'Outros'];
+  const selectedQuickMethod = useMemo(() => {
+    if (quickMethod !== 'Dinheiro') return null;
+    return (
+      methodList.find(
+        (method) =>
+          method.name
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .toLowerCase() === 'dinheiro',
+      ) ?? null
+    );
+  }, [methodList, quickMethod]);
+
+  function paymentBody(value: number) {
+    const resolvedMethodId = methodId || selectedQuickMethod?.id;
+    return {
+      paymentMethodId: resolvedMethodId || undefined,
+      amount: Math.min(value, remaining),
+      description: resolvedMethodId ? undefined : quickMethod,
+    };
+  }
 
   async function handleAdd() {
     setError(null);
     const value = parseNum(amount);
+    if (remaining <= 0.009) {
+      setError('O valor da comanda já está integralmente pago.');
+      return;
+    }
     if (value <= 0) {
       setError('Informe um valor válido.');
       return;
     }
     try {
-      await add.mutateAsync({
-        paymentMethodId: methodId || undefined,
-        amount: value,
-        description: methodId ? undefined : quickMethod,
-      });
+      await add.mutateAsync(paymentBody(value));
       setAmount('');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Não foi possível registrar o pagamento.');
+    }
+  }
+
+  async function handleFaturar() {
+    setError(null);
+    try {
+      if (remaining > 0.009) {
+        const value = parseNum(amount);
+        if (value + 0.009 < remaining) {
+          setError(`Falta registrar ${formatMoney(remaining - Math.max(value, 0))}.`);
+          return;
+        }
+        if (value <= 0) {
+          setError('Informe o valor e a forma de pagamento antes de faturar.');
+          return;
+        }
+        await add.mutateAsync(paymentBody(value));
+      }
+      await onFaturar();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Não foi possível faturar a comanda.');
     }
   }
 
@@ -2244,11 +2287,12 @@ function PagamentosDrawer({
           </Button>
           <Button
             variant="primary"
-            isDisabled={faturando}
-            onClick={onFaturar}
+            isDisabled={faturando || add.isPending}
+            onClick={handleFaturar}
             className="!bg-[#16a34a] !text-white hover:!bg-[#15803d]"
           >
-            <IconCheck size={16} /> {faturando ? 'Faturando…' : 'Faturar'}
+            <IconCheck size={16} />{' '}
+            {faturando || add.isPending ? 'Faturando…' : 'Faturar'}
           </Button>
         </>
       }
