@@ -29,6 +29,12 @@ async function bootstrap() {
     bodyParser: false,
   });
 
+  // App Runner encerra a instância antiga com SIGTERM durante um rolling deploy.
+  // Sem os shutdown hooks, os providers não recebem onModuleDestroy e os sockets
+  // Baileys da instância em drenagem continuam conectados, disputando a mesma
+  // sessão com a instância nova (disconnect 440 em loop).
+  app.enableShutdownHooks();
+
   app.setGlobalPrefix('api/v1');
 
   // CORS: allow web (Vite) + Expo. credentials:true so cookie sessions work.

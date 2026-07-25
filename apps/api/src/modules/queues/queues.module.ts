@@ -13,6 +13,8 @@ import {
   QUEUE_CAMPAIGNS,
 } from './queue-names';
 
+const queueWorkersEnabled = process.env.QUEUE_WORKERS_ENABLED !== 'false';
+
 /**
  * BullMQ engine for the message automations. Registers the Redis connection and
  * the three queues, wires the producer (QueuesService) and the three processors.
@@ -60,9 +62,13 @@ import {
   ],
   providers: [
     QueuesService,
-    AppointmentRemindersProcessor,
-    FollowUpsProcessor,
-    CampaignsProcessor,
+    // Um Redis que responde com erro de quota continua "conectado"; nesse caso
+    // o BullMQ repete os comandos bloqueantes sem backoff e pode inundar os logs.
+    // Esta chave operacional permite manter HTTP, inbox/outbox e WhatsApp no ar
+    // enquanto a cota é renovada, sem instanciar workers consumidores.
+    ...(queueWorkersEnabled
+      ? [AppointmentRemindersProcessor, FollowUpsProcessor, CampaignsProcessor]
+      : []),
   ],
   exports: [QueuesService],
 })
