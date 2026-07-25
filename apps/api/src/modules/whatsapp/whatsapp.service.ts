@@ -8,6 +8,8 @@ import makeWASocket, {
 } from 'baileys';
 import type { WASocket, WAVersion } from 'baileys';
 import * as QRCode from 'qrcode';
+import { randomUUID } from 'node:crypto';
+import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { useDbAuthState } from './whatsapp-auth';
 
@@ -18,6 +20,10 @@ type WaStatus = 'disabled' | 'connecting' | 'qr' | 'open' | 'closed';
 // erases the salon's manager-number settings. itemId = companyId.
 const CONFIG_SESSION_ID = 'config';
 const CONFIG_CATEGORY = 'owner';
+const RUNTIME_CATEGORY = 'runtime';
+const CONNECTION_LEASE_ITEM_ID = 'connection-lease';
+const CONNECTION_LEASE_TTL_MS = 45_000;
+const CONNECTION_LEASE_HEARTBEAT_MS = 15_000;
 
 // O antigo socket global usava este sessionId. Multi-tenant NÃO o usa mais (cada
 // empresa vira seu próprio sessionId = companyId). Mantido só para o boot ignorar
@@ -147,6 +153,11 @@ interface SessionState {
   // Próximo instante em que ESTA sessão pode enviar. Cada empresa tem sua
   // própria cadência, então uma campanha de um salão não paralisa os demais.
   nextSendAt: number;
+  // Lease distribuído no PostgreSQL. App Runner faz blue-green e pode manter
+  // duas instâncias vivas por alguns minutos mesmo com MaxSize=1; só a dona do
+  // lease pode abrir o socket Baileys desta empresa.
+  hasLease: boolean;
+  leaseHeartbeat: ReturnType<typeof setInterval> | null;
 }
 
 /**
@@ -171,6 +182,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
+  private readonly instanceId = randomUUID();
   // A versão embutida no pacote Baileys fica obsoleta antes de um novo release
   // npm e o WhatsApp rejeita o handshake com 405. Busca uma vez por processo e
   // reutiliza em todos os sockets/empresas; se a consulta falhar, o Baileys
@@ -217,9 +229,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     if (this.outboxTimer) clearInterval(this.outboxTimer);
     for (const session of this.sessions.values()) {
       if (session.connectTimeout) clearTimeout(session.connectTimeout);
+      if (session.leaseHeartbeat) clearInterval(session.leaseHeartbeat);
       this.teardownSocket(session);
       session.status = 'closed';
       session.connecting = false;
+      await this.releaseConnectionLease(session.companyId);
     }
   }
 
@@ -255,6 +269,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         selfDigitsTail: null,
         sentCache: new Map(),
         nextSendAt: 0,
+        hasLease: false,
+        leaseHeartbeat: null,
       };
       this.sessions.set(companyId, session);
     }
@@ -528,6 +544,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         clearTimeout(session.connectTimeout);
         session.connectTimeout = null;
       }
+      if (session.leaseHeartbeat) {
+        clearInterval(session.leaseHeartbeat);
+        session.leaseHeartbeat = null;
+      }
+      await this.releaseConnectionLease(companyId);
       // Não remove a entrada do Map: o painel pode pedir um novo QR em seguida e
       // uma reconexão sob demanda cria a sessão fresca.
     }
@@ -969,6 +990,94 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   // ------------------------------------------------------------- conexão
 
   /**
+   * Adquire/renova atomically o lease de uma empresa. A linha usa a própria
+   * WhatsappAuthState para não exigir outra migration. O UPSERT só substitui um
+   * dono diferente quando o TTL expirou; duas instâncias que concorram recebem
+   * resultados distintos e apenas uma abre o Baileys.
+   */
+  private async acquireConnectionLease(companyId: string): Promise<boolean> {
+    const expiresAt = new Date(Date.now() + CONNECTION_LEASE_TTL_MS).toISOString();
+    const data = JSON.stringify({ ownerId: this.instanceId, expiresAt });
+    try {
+      const rows = await this.prisma.client.$queryRaw<Array<{ data: unknown }>>(
+        Prisma.sql`
+          INSERT INTO "WhatsappAuthState"
+            ("sessionId", "category", "itemId", "data", "updatedAt")
+          VALUES (
+            ${companyId},
+            ${RUNTIME_CATEGORY},
+            ${CONNECTION_LEASE_ITEM_ID},
+            CAST(${data} AS JSONB),
+            NOW()
+          )
+          ON CONFLICT ("sessionId", "category", "itemId") DO UPDATE
+          SET "data" = EXCLUDED."data", "updatedAt" = NOW()
+          WHERE
+            "WhatsappAuthState"."data"->>'ownerId' = ${this.instanceId}
+            OR COALESCE(
+              NULLIF("WhatsappAuthState"."data"->>'expiresAt', '')::timestamptz,
+              to_timestamp(0)
+            ) < NOW()
+          RETURNING "data"
+        `,
+      );
+      return rows.length === 1;
+    } catch (err) {
+      this.logger.error(
+        `Falha ao adquirir lease do WhatsApp (company=${companyId}): ${(err as Error).message}`,
+      );
+      return false;
+    }
+  }
+
+  /** Libera somente o lease pertencente a este processo. */
+  private async releaseConnectionLease(companyId: string): Promise<void> {
+    try {
+      await this.prisma.client.$executeRaw(
+        Prisma.sql`
+          DELETE FROM "WhatsappAuthState"
+          WHERE "sessionId" = ${companyId}
+            AND "category" = ${RUNTIME_CATEGORY}
+            AND "itemId" = ${CONNECTION_LEASE_ITEM_ID}
+            AND "data"->>'ownerId' = ${this.instanceId}
+        `,
+      );
+    } catch {
+      // Best effort: se o processo morrer abruptamente, o TTL libera sozinho.
+    }
+    const session = this.sessions.get(companyId);
+    if (session) session.hasLease = false;
+  }
+
+  private scheduleLeaseRetry(session: SessionState): void {
+    if (session.connectTimeout) clearTimeout(session.connectTimeout);
+    session.connectTimeout = setTimeout(() => {
+      session.connectTimeout = null;
+      void this.connect(session.companyId);
+    }, CONNECTION_LEASE_HEARTBEAT_MS);
+  }
+
+  private startLeaseHeartbeat(session: SessionState): void {
+    if (session.leaseHeartbeat) clearInterval(session.leaseHeartbeat);
+    session.leaseHeartbeat = setInterval(() => {
+      void this.acquireConnectionLease(session.companyId).then((renewed) => {
+        if (renewed) return;
+        // Outro processo assumiu (ou o banco deixou de renovar): fecha antes de
+        // tentar novamente para nunca manter dois sockets para a mesma empresa.
+        session.hasLease = false;
+        if (session.leaseHeartbeat) {
+          clearInterval(session.leaseHeartbeat);
+          session.leaseHeartbeat = null;
+        }
+        this.teardownSocket(session);
+        session.status = 'closed';
+        session.connecting = false;
+        this.scheduleLeaseRetry(session);
+      });
+    }, CONNECTION_LEASE_HEARTBEAT_MS);
+  }
+
+  /**
    * Conecta (ou reconecta) o socket de UMA empresa. Idempotente por company: se
    * já estiver conectando/aberta, não faz nada. Cada company tem seu próprio
    * ciclo de vida (timeout, backoff, teardown).
@@ -979,6 +1088,16 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     if (session.connecting || session.status === 'open') return;
     session.connecting = true;
     session.status = 'connecting';
+    const hasLease = await this.acquireConnectionLease(companyId);
+    if (!hasLease) {
+      session.hasLease = false;
+      session.connecting = false;
+      session.status = 'closed';
+      this.scheduleLeaseRetry(session);
+      return;
+    }
+    session.hasLease = true;
+    this.startLeaseHeartbeat(session);
     // Descarta qualquer socket anterior antes de abrir um novo (ver teardownSocket).
     this.teardownSocket(session);
     // Baileys pode travar no handshake do WebSocket sem emitir 'open'/'close',
