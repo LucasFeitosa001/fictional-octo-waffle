@@ -392,6 +392,32 @@ async function run() {
     check('portal open === true (all-day schedule)', portal.body?.open === true);
     check('portal todayHours.start === 00:00', portal.body?.todayHours?.start === '00:00');
 
+    const savedAppearance = await api('PUT', '/booking-link/appearance', {
+      token: salon.token,
+      body: {
+        hideNavbar: true,
+        primaryColor: '#123456',
+        accentColor: '#ABCDEF',
+        backgroundColor: '#F4F1EC',
+      },
+    });
+    check('admin salva personalização do agendamento online', savedAppearance.status === 200);
+    check(
+      'personalização normaliza e devolve todas as opções',
+      savedAppearance.body?.hideNavbar === true &&
+        savedAppearance.body?.primaryColor === '#123456' &&
+        savedAppearance.body?.accentColor === '#ABCDEF' &&
+        savedAppearance.body?.backgroundColor === '#F4F1EC',
+    );
+    const customizedPortal = await api('GET', `/public/booking/${slug}`);
+    check(
+      'portal público recebe personalização do salão',
+      customizedPortal.body?.appearance?.hideNavbar === true &&
+        customizedPortal.body?.appearance?.primaryColor === '#123456' &&
+        customizedPortal.body?.appearance?.accentColor === '#ABCDEF' &&
+        customizedPortal.body?.appearance?.backgroundColor === '#F4F1EC',
+    );
+
     // Unknown slug → 404 on every public GET.
     const unknown = await api('GET', `/public/booking/nao-existe-${Date.now()}`);
     check('portal unknown slug → 404', unknown.status === 404);

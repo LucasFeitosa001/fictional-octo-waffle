@@ -18,7 +18,7 @@ export const CLOSE_STYLES: { id: CloseStyleId; label: string; description: strin
 const KEY = 'sp-close-style';
 const DEFAULT: CloseStyleId = 'label';
 
-function isCloseStyle(v: unknown): v is CloseStyleId {
+export function isCloseStyle(v: unknown): v is CloseStyleId {
   return v === 'label' || v === 'round' || v === 'icon';
 }
 

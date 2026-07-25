@@ -4,9 +4,43 @@ import { api } from '../lib/api';
 import { applyTheme, isThemeId, type ThemeId } from './theme';
 import {
   applyButtonRadius,
+  getStoredButtonRadius,
   isButtonRadiusId,
   type ButtonRadiusId,
 } from './buttonStyle';
+import {
+  getStoredSidebarStyle,
+  isSidebarStyle,
+  setSidebarStyle,
+  type SidebarStyleId,
+} from './sidebarStyle';
+import {
+  getStoredCloseStyle,
+  isCloseStyle,
+  setCloseStyle,
+  type CloseStyleId,
+} from './closeStyle';
+import {
+  getStoredCrmShortcut,
+  setCrmShortcutEnabled,
+} from './crmShortcut';
+import { getStoredTheme } from './theme';
+
+export interface AppearancePreferences {
+  theme?: ThemeId | null;
+  buttonRadius?: ButtonRadiusId;
+  sidebarStyle?: SidebarStyleId;
+  closeStyle?: CloseStyleId;
+  crmShortcut?: boolean;
+}
+
+// Evita duas fontes de verdade concorrentes:
+// 1. uma leitura iniciada no mount não pode sobrescrever uma escolha feita
+//    enquanto a requisição estava em voo;
+// 2. gravações rápidas (tema + sidebar + botão) chegam à API na mesma ordem em
+//    que o usuário clicou, sem uma resposta lenta restaurar o valor anterior.
+let localAppearanceRevision = 0;
+let saveQueue: Promise<unknown> = Promise.resolve();
 
 /**
  * Cloud theme persistence.
@@ -36,38 +70,35 @@ export function useThemeSync(): void {
     syncedFor.current = userId;
 
     let cancelled = false;
+    const revisionAtRequest = localAppearanceRevision;
     api
-      .get<{ theme: string }>('/users/me/theme')
+      .get<AppearancePreferences>('/users/me/appearance')
       .then((res) => {
-        if (cancelled) return;
-        const cloud = res?.theme;
-        // Only override when the account theme is valid AND differs from what's
-        // already on <html> (the current source of truth for the applied value).
-        if (isThemeId(cloud) && cloud !== document.documentElement.dataset.theme) {
-          applyTheme(cloud); // silent — do NOT saveThemeToCloud here
-        }
-      })
-      .catch(() => {
-        /* offline / unauthenticated / 404 → keep the local (localStorage) theme */
-      });
-
-    // Same pattern for the button-radius preference (independent endpoint so it
-    // degrades gracefully if the backend doesn't expose it yet — the local
-    // localStorage value simply stays authoritative).
-    api
-      .get<{ buttonRadius: string }>('/users/me/button-radius')
-      .then((res) => {
-        if (cancelled) return;
-        const cloud = res?.buttonRadius;
+        if (cancelled || revisionAtRequest !== localAppearanceRevision) return;
         if (
-          isButtonRadiusId(cloud) &&
-          cloud !== document.documentElement.dataset.btnRadius
+          isThemeId(res?.theme) &&
+          res.theme !== document.documentElement.dataset.theme
         ) {
-          applyButtonRadius(cloud); // silent — do NOT saveButtonRadiusToCloud here
+          applyTheme(res.theme);
+        }
+        if (
+          isButtonRadiusId(res?.buttonRadius) &&
+          res.buttonRadius !== document.documentElement.dataset.btnRadius
+        ) {
+          applyButtonRadius(res.buttonRadius);
+        }
+        if (isSidebarStyle(res?.sidebarStyle)) {
+          setSidebarStyle(res.sidebarStyle);
+        }
+        if (isCloseStyle(res?.closeStyle)) {
+          setCloseStyle(res.closeStyle);
+        }
+        if (typeof res?.crmShortcut === 'boolean') {
+          setCrmShortcutEnabled(res.crmShortcut);
         }
       })
       .catch(() => {
-        /* offline / 404 → keep the local button style */
+        /* offline / unauthenticated → mantém toda a preferência local */
       });
 
     return () => {
@@ -83,7 +114,7 @@ export function useThemeSync(): void {
  * the cloud. Call this only for genuine user-driven changes (the theme selector).
  */
 export function saveThemeToCloud(theme: ThemeId): void {
-  api.post('/users/me/theme', { theme }).catch(() => {
+  void saveAppearanceToCloud({ theme }).catch(() => {
     /* offline → still applied + cached locally; cloud copy just lags */
   });
 }
@@ -95,7 +126,30 @@ export function saveThemeToCloud(theme: ThemeId): void {
  * cloud copy lags — the choice still holds locally via localStorage.
  */
 export function saveButtonRadiusToCloud(buttonRadius: ButtonRadiusId): void {
-  api.post('/users/me/button-radius', { buttonRadius }).catch(() => {
+  void saveAppearanceToCloud({ buttonRadius }).catch(() => {
     /* offline / 404 → still applied + cached locally; cloud copy just lags */
+  });
+}
+
+/** Salva um fragmento das preferências mantendo a ordem dos cliques. */
+export function saveAppearanceToCloud(
+  patch: AppearancePreferences,
+): Promise<AppearancePreferences> {
+  localAppearanceRevision += 1;
+  const request = saveQueue
+    .catch(() => undefined)
+    .then(() => api.post<AppearancePreferences>('/users/me/appearance', patch));
+  saveQueue = request.catch(() => undefined);
+  return request;
+}
+
+/** Snapshot completo usado pelo botão explícito "Salvar personalização". */
+export function saveCurrentAppearanceToCloud(): Promise<AppearancePreferences> {
+  return saveAppearanceToCloud({
+    theme: getStoredTheme(),
+    buttonRadius: getStoredButtonRadius(),
+    sidebarStyle: getStoredSidebarStyle(),
+    closeStyle: getStoredCloseStyle(),
+    crmShortcut: getStoredCrmShortcut(),
   });
 }

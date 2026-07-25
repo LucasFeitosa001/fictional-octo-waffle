@@ -23,6 +23,7 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
+import type { Prisma } from '@beautypass/db';
 import { seedCompanyRoles } from '@beautypass/db/rbac';
 import { PrismaService } from '../../prisma/prisma.service';
 import { auth } from '../../auth/better-auth';
@@ -90,16 +91,61 @@ class NotificationPrefsDto {
   @IsOptional() @IsBoolean() sms?: boolean;
 }
 
-// IDs de tema válidos — espelha THEMES em apps/web/src/theme/theme.ts. Persistido
-// por-usuário (User.themePreference) para sincronizar o tema entre dispositivos.
-// null → o cliente aplica o default 'salonpass'.
-const THEME_IDS = ['salonpass', 'belasis'] as const;
+// IDs oferecidos em Configurações → Personalizar. Esta lista precisa espelhar
+// apps/web/src/theme/theme.ts; antes a UI oferecia sete opções, mas a API
+// aceitava apenas duas e descartava silenciosamente as demais com HTTP 400.
+const THEME_IDS = [
+  'salonpass',
+  'belasis',
+  'esmeralda',
+  'blush',
+  'violeta',
+  'grafite',
+  'coral',
+] as const;
+const BUTTON_RADIUS_IDS = ['rounded', 'medium', 'square'] as const;
+const SIDEBAR_STYLE_IDS = ['solid', 'floating'] as const;
+const CLOSE_STYLE_IDS = ['label', 'round', 'icon'] as const;
 
 class ThemePrefDto {
   @IsString()
   @IsIn(THEME_IDS as unknown as string[])
   theme: string;
 }
+
+class AppearancePrefDto {
+  @IsOptional()
+  @IsString()
+  @IsIn(THEME_IDS as unknown as string[])
+  theme?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(BUTTON_RADIUS_IDS as unknown as string[])
+  buttonRadius?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(SIDEBAR_STYLE_IDS as unknown as string[])
+  sidebarStyle?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(CLOSE_STYLE_IDS as unknown as string[])
+  closeStyle?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  crmShortcut?: boolean;
+}
+
+type AppearancePreferences = {
+  theme?: string;
+  buttonRadius?: string;
+  sidebarStyle?: string;
+  closeStyle?: string;
+  crmShortcut?: boolean;
+};
 
 @Injectable()
 export class UsersService {
@@ -380,10 +426,66 @@ export class UsersService {
   async updateTheme(userId: string, dto: ThemePrefDto) {
     const row = await this.prisma.client.user.update({
       where: { id: userId },
-      data: { themePreference: dto.theme },
+      data: {
+        themePreference: dto.theme,
+        appearancePreferences: {
+          ...(await this.getStoredAppearance(userId)),
+          theme: dto.theme,
+        } as Prisma.InputJsonValue,
+      },
       select: { themePreference: true },
     });
     return { theme: row.themePreference };
+  }
+
+  private async getStoredAppearance(userId: string): Promise<AppearancePreferences> {
+    const row = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: { appearancePreferences: true },
+    });
+    const stored = row?.appearancePreferences;
+    return stored && typeof stored === 'object' && !Array.isArray(stored)
+      ? (stored as AppearancePreferences)
+      : {};
+  }
+
+  async getAppearance(userId: string) {
+    const row = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: { appearancePreferences: true, themePreference: true },
+    });
+    const stored =
+      row?.appearancePreferences &&
+      typeof row.appearancePreferences === 'object' &&
+      !Array.isArray(row.appearancePreferences)
+        ? (row.appearancePreferences as AppearancePreferences)
+        : {};
+    // A coluna antiga continua sendo fallback para contas que já tinham tema
+    // salvo antes da preferência unificada existir.
+    return {
+      ...stored,
+      theme: stored.theme ?? row?.themePreference ?? null,
+    };
+  }
+
+  async updateAppearance(userId: string, dto: AppearancePrefDto) {
+    const current = await this.getStoredAppearance(userId);
+    const merged: AppearancePreferences = {
+      ...current,
+      ...(dto.theme !== undefined ? { theme: dto.theme } : {}),
+      ...(dto.buttonRadius !== undefined ? { buttonRadius: dto.buttonRadius } : {}),
+      ...(dto.sidebarStyle !== undefined ? { sidebarStyle: dto.sidebarStyle } : {}),
+      ...(dto.closeStyle !== undefined ? { closeStyle: dto.closeStyle } : {}),
+      ...(dto.crmShortcut !== undefined ? { crmShortcut: dto.crmShortcut } : {}),
+    };
+    await this.prisma.client.user.update({
+      where: { id: userId },
+      data: {
+        appearancePreferences: merged as Prisma.InputJsonValue,
+        ...(dto.theme !== undefined ? { themePreference: dto.theme } : {}),
+      },
+    });
+    return merged;
   }
 }
 
@@ -426,6 +528,22 @@ export class UsersController {
   @HttpCode(200)
   updateMyTheme(@CurrentUser('userId') userId: string, @Body() dto: ThemePrefDto) {
     return this.service.updateTheme(userId, dto);
+  }
+
+  // Preferências visuais completas por usuário. Mantidas antes de `:id` para
+  // "me" nunca ser interpretado como identificador de outro usuário.
+  @Get('me/appearance')
+  getMyAppearance(@CurrentUser('userId') userId: string) {
+    return this.service.getAppearance(userId);
+  }
+
+  @Post('me/appearance')
+  @HttpCode(200)
+  updateMyAppearance(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: AppearancePrefDto,
+  ) {
+    return this.service.updateAppearance(userId, dto);
   }
 
   @Get(':id')

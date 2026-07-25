@@ -18,7 +18,7 @@ export const SIDEBAR_STYLES: { id: SidebarStyleId; label: string; description: s
 const KEY = 'sp-sidebar-style';
 const DEFAULT: SidebarStyleId = 'solid';
 
-function isSidebarStyle(v: unknown): v is SidebarStyleId {
+export function isSidebarStyle(v: unknown): v is SidebarStyleId {
   return v === 'solid' || v === 'floating';
 }
 
