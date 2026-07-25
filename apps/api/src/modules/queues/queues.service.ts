@@ -69,6 +69,7 @@ export interface AppointmentCustomFollowUpParams {
 @Injectable()
 export class QueuesService implements OnModuleInit {
   private readonly logger = new Logger(QueuesService.name);
+  private readonly queuesEnabled = process.env.QUEUES_ENABLED !== 'false';
 
   // Default retry policy for every enqueue: 3 attempts, exponential backoff.
   // Completed jobs are cleaned up; failed jobs are kept for inspection.
@@ -95,6 +96,12 @@ export class QueuesService implements OnModuleInit {
    * causa do Redis. Com Redis disponível, o repeatable é (re)registrado normal.
    */
   onModuleInit(): void {
+    if (!this.queuesEnabled) {
+      this.logger.warn(
+        'Filas desativadas por QUEUES_ENABLED=false; API e WhatsApp seguem sem BullMQ.',
+      );
+      return;
+    }
     void this.ensureBirthdayRepeatable();
   }
 
@@ -114,6 +121,7 @@ export class QueuesService implements OnModuleInit {
     appointmentId: string,
     start: Date,
   ): Promise<void> {
+    if (!this.queuesEnabled) return;
     const now = Date.now();
     const startMs = start.getTime();
     const offsets: { kind: ReminderKind; jobName: string; offsetMs: number }[] = [
@@ -144,6 +152,7 @@ export class QueuesService implements OnModuleInit {
 
   /** Cancels both pending reminders for an appointment (called on cancel/delete). */
   async cancelAppointmentReminders(appointmentId: string): Promise<void> {
+    if (!this.queuesEnabled) return;
     const ids: ReminderKind[] = ['reminder_24h', 'reminder_2h'];
     for (const kind of ids) {
       try {
@@ -175,6 +184,7 @@ export class QueuesService implements OnModuleInit {
     ref: { appointmentId?: string; orderId?: string },
     overrides?: { delayMs?: number; recurrence?: number },
   ): Promise<void> {
+    if (!this.queuesEnabled) return;
     const delay =
       overrides?.delayMs !== undefined
         ? Math.max(0, overrides.delayMs)
@@ -239,6 +249,7 @@ export class QueuesService implements OnModuleInit {
     cfg: AppointmentCustomFollowUpParams,
     anchor: { start: Date; end: Date },
   ): Promise<void> {
+    if (!this.queuesEnabled) return;
     const unit = UNIT_MS[cfg.delayUnit] ?? UNIT_MS.minutes;
     const delayMs = Math.max(1, Math.round(cfg.delayValue)) * unit;
     const when: CustomFollowUpWhen = cfg.when ?? 'after';
@@ -277,6 +288,7 @@ export class QueuesService implements OnModuleInit {
 
   /** Cancela o aviso personalizado pendente de um agendamento (cancel/delete/reagenda). */
   async cancelAppointmentCustomFollowUp(appointmentId: string): Promise<void> {
+    if (!this.queuesEnabled) return;
     try {
       await this.followUps.remove(appointmentCustomFollowUpJobId(appointmentId));
     } catch (err) {
@@ -296,6 +308,7 @@ export class QueuesService implements OnModuleInit {
    * per-message retry. jobId = the CampaignMessage id → exactly-once enqueue.
    */
   async enqueueCampaignMessage(job: CampaignMessageJob): Promise<void> {
+    if (!this.queuesEnabled) return;
     try {
       await this.campaigns.add(JOB_CAMPAIGN_MESSAGE, job, {
         ...this.defaultJobOptions,
@@ -314,6 +327,7 @@ export class QueuesService implements OnModuleInit {
    * (server tz). Idempotent: BullMQ dedupes a repeatable by its jobId + pattern.
    */
   async ensureBirthdayRepeatable(): Promise<void> {
+    if (!this.queuesEnabled) return;
     try {
       await this.campaigns.add(
         JOB_BIRTHDAY_SCAN,
