@@ -62,8 +62,7 @@ type SortKey = "name" | "price" | "commission" | "duration" | "site";
 
 type ServiceBelasisFields = ServiceRow & {
   additionalCost?: string | number | null;
-  commission?: string | number | null;
-  commissionPercent?: string | number | null;
+  defaultCommissionPercent?: string | number | null;
   priceType?: string | null;
   additionalCostType?: string | null;
 };
@@ -81,7 +80,7 @@ function formatMobileDuration(min: number): string {
 
 function commissionOf(service: ServiceRow): number | null {
   const extra = service as ServiceBelasisFields;
-  const raw = extra.commissionPercent ?? extra.commission;
+  const raw = extra.defaultCommissionPercent;
   return raw == null || raw === "" ? null : Number(raw);
 }
 
@@ -1440,6 +1439,7 @@ export function ServiceDrawer({
       imageUrls,
       cashbackPercent:
         cashbackEnabled && cashbackPercent ? Number(cashbackPercent) : 0,
+      defaultCommissionPercent: commission ? Number(commission) : 0,
       onlineBookable,
       favorite,
       visible,
