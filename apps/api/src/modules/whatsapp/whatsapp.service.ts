@@ -2,10 +2,11 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import makeWASocket, {
   DisconnectReason,
   Browsers,
+  fetchLatestBaileysVersion,
   normalizeMessageContent,
   proto,
 } from 'baileys';
-import type { WASocket } from 'baileys';
+import type { WASocket, WAVersion } from 'baileys';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { useDbAuthState } from './whatsapp-auth';
@@ -170,11 +171,35 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
+  // A versão embutida no pacote Baileys fica obsoleta antes de um novo release
+  // npm e o WhatsApp rejeita o handshake com 405. Busca uma vez por processo e
+  // reutiliza em todos os sockets/empresas; se a consulta falhar, o Baileys
+  // ainda consegue tentar com o fallback interno.
+  private waVersionPromise: Promise<WAVersion | undefined> | null = null;
   // Evita que duas chamadas concorrentes passem juntas pela consulta de
   // deduplicação antes de uma delas persistir a linha no banco.
   private readonly enqueueInFlight = new Set<string>();
 
   constructor(private readonly prisma: PrismaService) {}
+
+  private getCurrentWaVersion(): Promise<WAVersion | undefined> {
+    if (!this.waVersionPromise) {
+      this.waVersionPromise = fetchLatestBaileysVersion()
+        .then(({ version, isLatest }) => {
+          this.logger.log(
+            `WhatsApp Web protocol ${version.join('.')} (latest=${isLatest}).`,
+          );
+          return version;
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Não foi possível consultar a versão atual do WhatsApp Web; usando fallback do Baileys: ${(err as Error).message}`,
+          );
+          return undefined;
+        });
+    }
+    return this.waVersionPromise;
+  }
 
   onModuleInit() {
     if (!this.enabled) {
@@ -974,10 +999,15 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     try {
       // Credenciais keyed pela empresa: sessionId = companyId.
       const { state, saveCreds } = await useDbAuthState(this.prisma, companyId);
+      const version = await this.getCurrentWaVersion();
       const sock = makeWASocket({
         auth: state,
+        ...(version ? { version } : {}),
         logger: silentLogger(),
-        browser: Browsers.appropriate('Salonpass'),
+        // Identidade estável e coerente com o container Linux. Usar
+        // Browsers.appropriate aqui incorporava a versão do kernel/WSL no
+        // handshake, o que já causou rejeições de pareamento no Baileys.
+        browser: Browsers.ubuntu('Salonpass'),
         printQRInTerminal: false,
         markOnlineOnConnect: false,
         syncFullHistory: false,
