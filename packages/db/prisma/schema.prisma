@@ -2173,10 +2173,12 @@ model WhatsappInboxMessage {
   direction         String // inbound | outbound
   sender            String // customer | ai | agent | system
   text              String
-  status            String    @default("received") // received | pending | sent | failed
+  status            String    @default("received") // received | pending | sent | delivered | read | failed
   kind              String?
   metadataJson      Json?
   sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
   receivedAt        DateTime?
   createdAt         DateTime  @default(now())
 
@@ -2253,6 +2255,14 @@ model WhatsappOutbox {
   // segunda resolução de destinatário em respostas do inbox.
   toJid          String?
   text           String
+  // Mídia opcional do chat. O arquivo é salvo pelo módulo de uploads antes de
+  // entrar na fila; assim imagem/áudio têm a mesma durabilidade, pacing e retry
+  // dos textos. `mediaType`: image | audio.
+  mediaUrl       String?
+  mediaType      String?
+  mediaMimeType  String?
+  mediaFileName  String?
+  mediaPtt       Boolean   @default(false)
   status         String    @default("pending") // pending | sent | failed
   attempts       Int       @default(0)
   lastError      String?

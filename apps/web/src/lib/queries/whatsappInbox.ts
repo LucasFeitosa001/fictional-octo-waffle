@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiClientError } from '@beautypass/shared';
 import { api } from '../api';
+import { API_BASE_URL } from '../config';
 import type { WhatsappConnection } from './whatsapp';
 
 export type AiTone = 'simpatico' | 'profissional' | 'direto';
@@ -74,10 +76,18 @@ export interface WhatsappInboxMessage {
   direction: 'inbound' | 'outbound';
   sender: 'customer' | 'ai' | 'agent' | 'system';
   text: string;
-  status: 'received' | 'pending' | 'sent' | 'failed';
+  status:
+    | 'received'
+    | 'pending'
+    | 'sent'
+    | 'delivered'
+    | 'read'
+    | 'failed';
   kind: string | null;
   metadataJson: unknown;
   sentAt: string | null;
+  deliveredAt: string | null;
+  readAt: string | null;
   receivedAt: string | null;
   createdAt: string;
 }
@@ -187,6 +197,78 @@ export function useSendWhatsappInboxMessage() {
         `/whatsapp/inbox/conversations/${id}/messages`,
         { text },
       ),
+    onSuccess: (_message, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [...MESSAGES_KEY, variables.id],
+      });
+      void queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
+    },
+  });
+}
+
+interface DirectUploadResponse {
+  url: string;
+  key: string;
+}
+
+async function uploadWhatsappMedia(file: File): Promise<DirectUploadResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('kind', 'whatsapp');
+  const response = await window.fetch(`${API_BASE_URL}/uploads`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  });
+  const raw = await response.text();
+  let body: unknown;
+  try {
+    body = raw ? JSON.parse(raw) : undefined;
+  } catch {
+    body = undefined;
+  }
+  if (!response.ok) {
+    const error = body as { message?: string | string[] } | undefined;
+    const message = Array.isArray(error?.message)
+      ? error.message.join(', ')
+      : error?.message || response.statusText || 'Falha ao enviar arquivo';
+    throw new ApiClientError(response.status, message);
+  }
+  const stored = body as Partial<DirectUploadResponse> | undefined;
+  if (!stored?.url || !stored.key) {
+    throw new Error('Resposta de upload inválida');
+  }
+  return { url: stored.url, key: stored.key };
+}
+
+export function useSendWhatsappInboxMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      file,
+      caption,
+      ptt,
+    }: {
+      id: string;
+      file: File;
+      caption?: string;
+      ptt?: boolean;
+    }) => {
+      const stored = await uploadWhatsappMedia(file);
+      const mediaType = file.type.startsWith('image/') ? 'image' : 'audio';
+      return api.post<WhatsappInboxMessage>(
+        `/whatsapp/inbox/conversations/${id}/messages`,
+        {
+          text: caption?.trim() || undefined,
+          mediaType,
+          mediaUrl: stored.url,
+          mediaMimeType: file.type.split(';')[0],
+          mediaFileName: file.name,
+          mediaPtt: ptt ?? false,
+        },
+      );
+    },
     onSuccess: (_message, variables) => {
       void queryClient.invalidateQueries({
         queryKey: [...MESSAGES_KEY, variables.id],

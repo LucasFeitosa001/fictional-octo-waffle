@@ -84,6 +84,23 @@ function validHex(value: string | null | undefined): string | null {
 }
 
 /**
+ * O editor administrativo abre o portal em um iframe com estes parâmetros para
+ * que o rascunho seja visto antes de salvar. Eles só alteram a renderização
+ * daquela aba/iframe; nunca persistem configuração nem mudam o portal normal.
+ */
+function bookingPreviewAppearance(): BookingAppearance | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('spPreview') !== '1') return null;
+  return {
+    hideNavbar: params.get('hideNavbar') === '1',
+    primaryColor: validHex(params.get('primaryColor')),
+    accentColor: validHex(params.get('accentColor')),
+    backgroundColor: validHex(params.get('backgroundColor')),
+  };
+}
+
+/**
  * Resolves the salon's appearance for the booking page from the portal payload,
  * always returning a fully-populated object (falls back to DEFAULT_APPEARANCE).
  * The primary color prefers `appearance.primaryColor`, then the legacy
@@ -91,6 +108,8 @@ function validHex(value: string | null | undefined): string | null {
  */
 export function useBookingAppearance(slug: string): BookingAppearance {
   const portal = usePortal(slug);
+  const preview = bookingPreviewAppearance();
+  if (preview) return preview;
   const a = portal.data?.appearance;
   const primary =
     validHex(a?.primaryColor) ?? validHex(portal.data?.accentColor) ?? null;

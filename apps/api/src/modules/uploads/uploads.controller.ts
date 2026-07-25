@@ -21,7 +21,7 @@ import { PresignUploadDto } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
+const MAX_UPLOAD_BYTES = 16 * 1024 * 1024; // mídia do WhatsApp: até 16 MB
 
 const MIME_BY_EXT: Record<string, string> = {
   png: 'image/png',
@@ -30,6 +30,13 @@ const MIME_BY_EXT: Record<string, string> = {
   webp: 'image/webp',
   gif: 'image/gif',
   svg: 'image/svg+xml',
+  ogg: 'audio/ogg',
+  opus: 'audio/opus',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  webm: 'audio/webm',
+  wav: 'audio/wav',
 };
 
 @Controller('uploads')

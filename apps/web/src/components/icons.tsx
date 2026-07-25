@@ -60,6 +60,9 @@ import {
   Person,
   LayoutColumns,
   Lock,
+  Microphone,
+  Paperclip,
+  Picture,
 } from '@gravity-ui/icons';
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
@@ -156,6 +159,9 @@ export const IconPlay = gravity(PlayFill);
 export const IconUser = gravity(Person);
 export const IconColumns = gravity(LayoutColumns);
 export const IconLock = gravity(Lock);
+export const IconMic = gravity(Microphone);
+export const IconPaperclip = gravity(Paperclip);
+export const IconPicture = gravity(Picture);
 
 // --- Custom SVGs (no faithful @gravity-ui/icons equivalent) ----------------
 export const IconCash = (p: IconProps) => (

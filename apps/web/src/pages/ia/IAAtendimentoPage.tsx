@@ -16,6 +16,8 @@ import {
   IconChevron,
   IconCircleCheck,
   IconMessage,
+  IconMic,
+  IconPaperclip,
   IconPlus,
   IconSearch,
   IconSend,
@@ -25,6 +27,7 @@ import {
   IconX,
 } from '../../components/icons';
 import { initials } from '../../lib/format';
+import { API_BASE_URL } from '../../lib/config';
 import { toast, toastSuccess } from '../../lib/toast';
 import { useCan } from '../../lib/queries/permissions';
 import {
@@ -35,6 +38,8 @@ import {
   type AiTone,
   type ConversationFilter,
   type WhatsappFaq,
+  type WhatsappInboxMessage,
+  useSendWhatsappInboxMedia,
   useSendWhatsappInboxMessage,
   useStartWhatsappConversation,
   useUpdateWhatsappConversation,
@@ -158,6 +163,60 @@ function automationLabel(kind: string | null) {
   return kind ? (labels[kind] ?? 'Automação') : 'Automação';
 }
 
+function mediaMetadata(message: WhatsappInboxMessage): {
+  type: 'image' | 'audio';
+  url: string;
+  mimeType?: string;
+  ptt?: boolean;
+} | null {
+  const value = message.metadataJson;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const metadata = value as Record<string, unknown>;
+  const type =
+    metadata.mediaType === 'image' || metadata.mediaType === 'audio'
+      ? metadata.mediaType
+      : message.kind === 'image' || message.kind === 'audio'
+        ? message.kind
+        : null;
+  if (!type || typeof metadata.mediaUrl !== 'string') return null;
+  const url = metadata.mediaUrl.startsWith('/api/')
+    ? `${new URL(API_BASE_URL, window.location.origin).origin}${metadata.mediaUrl}`
+    : metadata.mediaUrl;
+  return {
+    type,
+    url,
+    mimeType:
+      typeof metadata.mimetype === 'string' ? metadata.mimetype : undefined,
+    ptt: metadata.ptt === true,
+  };
+}
+
+function isMediaPlaceholder(message: WhatsappInboxMessage): boolean {
+  if (message.kind === 'image') return /^📷 Imagem(?: recebida)?$/.test(message.text);
+  if (message.kind === 'audio') return /^🎤 Áudio(?: recebido)?$/.test(message.text);
+  return false;
+}
+
+function DeliveryTicks({
+  status,
+}: {
+  status: WhatsappInboxMessage['status'];
+}) {
+  if (status === 'pending') return <span title="Na fila">◷</span>;
+  if (status === 'failed') return <span title="Falha no envio">!</span>;
+  if (status === 'sent') return <span title="Enviada">✓</span>;
+  const read = status === 'read';
+  return (
+    <span
+      title={read ? 'Lida' : 'Entregue'}
+      aria-label={read ? 'Mensagem lida' : 'Mensagem entregue'}
+      className={read ? 'font-bold text-[#53bdeb]' : 'font-bold'}
+    >
+      ✓✓
+    </span>
+  );
+}
+
 export function IAAtendimentoPage() {
   const permissions = useCan();
   const canManage = permissions.can('marketing:manage');
@@ -167,6 +226,7 @@ export function IAAtendimentoPage() {
   const updateConfig = useUpdateWhatsappInboxConfig();
   const updateConversation = useUpdateWhatsappConversation();
   const sendMessage = useSendWhatsappInboxMessage();
+  const sendMedia = useSendWhatsappInboxMedia();
   const startConversation = useStartWhatsappConversation();
 
   const whatsappStatus: WhatsappStatus =
@@ -196,6 +256,11 @@ export function IAAtendimentoPage() {
   const [newQuestion, setNewQuestion] = useState('');
   const [newAnswer, setNewAnswer] = useState('');
   const threadRef = useRef<HTMLDivElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const [recording, setRecording] = useState(false);
 
   useEffect(() => {
     const config = configQuery.data;
@@ -242,6 +307,15 @@ export function IAAtendimentoPage() {
     });
   }, [messages.length, selectedId]);
 
+  useEffect(() => {
+    return () => {
+      if (recorderRef.current?.state === 'recording') {
+        recorderRef.current.stop();
+      }
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
   const configDirty = useMemo(() => {
     const current = configQuery.data;
     if (!current) return false;
@@ -279,6 +353,90 @@ export function IAAtendimentoPage() {
         },
       },
     );
+  }
+
+  function submitMedia(file: File, ptt = false) {
+    if (!connected || !selected || sendMedia.isPending) return;
+    if (file.size > 16 * 1024 * 1024) {
+      toast.danger('O arquivo deve ter no máximo 16 MB');
+      return;
+    }
+    if (!file.type.startsWith('image/') && !file.type.startsWith('audio/')) {
+      toast.danger('Escolha uma imagem ou um áudio');
+      return;
+    }
+    const caption = file.type.startsWith('image/') ? draft.trim() : '';
+    sendMedia.mutate(
+      { id: selected.id, file, caption, ptt },
+      {
+        onSuccess: () => {
+          if (caption) setDraft('');
+          requestAnimationFrame(() => {
+            threadRef.current?.scrollTo({
+              top: threadRef.current.scrollHeight,
+              behavior: 'smooth',
+            });
+          });
+        },
+        onError: (error) => {
+          toast.danger(
+            error instanceof Error ? error.message : 'Falha ao enviar mídia',
+          );
+        },
+      },
+    );
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (!connected || !selected || sendMedia.isPending) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      toast.danger('Este navegador não permite gravar áudio');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const supportedMime = [
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/ogg;codecs=opus',
+      ].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(
+        stream,
+        supportedMime ? { mimeType: supportedMime } : undefined,
+      );
+      recordingStreamRef.current = stream;
+      recordingChunksRef.current = [];
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordingChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const rawType = recorder.mimeType || supportedMime || 'audio/webm';
+        const type = rawType.split(';')[0];
+        const extension =
+          type === 'audio/mp4' ? 'm4a' : type === 'audio/ogg' ? 'ogg' : 'webm';
+        const blob = new Blob(recordingChunksRef.current, { type });
+        stream.getTracks().forEach((track) => track.stop());
+        recordingStreamRef.current = null;
+        recorderRef.current = null;
+        recordingChunksRef.current = [];
+        setRecording(false);
+        if (blob.size > 0) {
+          submitMedia(
+            new File([blob], `audio-${Date.now()}.${extension}`, { type }),
+            true,
+          );
+        }
+      };
+      recorder.start(500);
+      setRecording(true);
+    } catch {
+      toast.danger('Não foi possível acessar o microfone');
+    }
   }
 
   function chooseNewRecipient(customer: PickedCustomer) {
@@ -506,13 +664,17 @@ export function IAAtendimentoPage() {
         />
       </div>
 
-      <div className="mb-5 grid gap-4 lg:grid-cols-[340px_1fr]">
+      {/* Janela de atendimento com altura própria, como WhatsApp Web.
+          O histórico nunca aumenta a página: somente a lista lateral e o miolo
+          das mensagens rolam. No mobile a janela ocupa o viewport útil acima
+          da barra inferior; no desktop usa uma altura confortável e limitada. */}
+      <div className="mb-5 grid h-[max(520px,calc(100dvh-8rem))] max-h-[720px] min-h-0 gap-4 lg:h-[clamp(560px,68dvh,720px)] lg:grid-cols-[340px_1fr]">
         <Card
-          className={`min-w-0 overflow-hidden border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] ${
+          className={`h-full min-h-0 min-w-0 flex-col overflow-hidden border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] ${
             threadOpenMobile ? 'hidden lg:block' : ''
-          }`}
+          } ${threadOpenMobile ? '' : 'flex'} lg:!flex`}
         >
-          <div className="border-b border-[var(--color-soft-border)] p-3">
+          <div className="shrink-0 border-b border-[var(--color-soft-border)] p-3">
             <div className="relative">
               <IconSearch
                 size={15}
@@ -544,7 +706,7 @@ export function IAAtendimentoPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-b border-[var(--color-soft-border)] px-4 py-2.5">
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-soft-border)] px-4 py-2.5">
             <p className="font-brand text-sm font-semibold text-ink">
               Conversas
             </p>
@@ -563,7 +725,7 @@ export function IAAtendimentoPage() {
             </div>
           </div>
 
-          <div className="max-h-[560px] divide-y divide-[var(--color-soft-border)] overflow-y-auto">
+          <div className="min-h-0 flex-1 divide-y divide-[var(--color-soft-border)] overflow-y-auto overscroll-contain">
             {conversationsQuery.isLoading ? (
               <div className="grid min-h-48 place-items-center">
                 <Spinner size="sm" />
@@ -639,13 +801,13 @@ export function IAAtendimentoPage() {
         </Card>
 
         <Card
-          className={`min-h-[620px] min-w-0 flex-col border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] lg:flex ${
+          className={`h-full min-h-0 min-w-0 flex-col overflow-hidden border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)] lg:flex ${
             threadOpenMobile ? 'flex' : 'hidden'
           }`}
         >
           {selected ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-soft-border)] px-4 py-3">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-soft-border)] px-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <button
                     type="button"
@@ -721,7 +883,7 @@ export function IAAtendimentoPage() {
 
               <div
                 ref={threadRef}
-                className="flex-1 space-y-3 overflow-y-auto bg-[var(--sp-canvas)] px-4 py-4"
+                className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[var(--sp-canvas)] px-4 py-4"
               >
                 {messagesQuery.isLoading ? (
                   <div className="grid h-full place-items-center">
@@ -737,6 +899,7 @@ export function IAAtendimentoPage() {
                 ) : (
                   messages.map((message) => {
                     const isCustomer = message.sender === 'customer';
+                    const media = mediaMetadata(message);
                     return (
                       <div
                         key={message.id}
@@ -772,7 +935,37 @@ export function IAAtendimentoPage() {
                               {automationLabel(message.kind)}
                             </span>
                           ) : null}
-                          <p className="leading-snug">{message.text}</p>
+                          {media?.type === 'image' ? (
+                            <a
+                              href={media.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mb-1 block overflow-hidden rounded-xl bg-black/5"
+                              title="Abrir imagem em tamanho completo"
+                            >
+                              <img
+                                src={media.url}
+                                alt={message.text || 'Imagem do WhatsApp'}
+                                loading="lazy"
+                                className="max-h-80 w-full object-contain"
+                              />
+                            </a>
+                          ) : null}
+                          {media?.type === 'audio' ? (
+                            <audio
+                              controls
+                              preload="metadata"
+                              src={media.url}
+                              className="my-1 h-10 w-[min(280px,70vw)] max-w-full"
+                            >
+                              Seu navegador não consegue reproduzir este áudio.
+                            </audio>
+                          ) : null}
+                          {!media || !isMediaPlaceholder(message) ? (
+                            <p className="break-words leading-snug [overflow-wrap:anywhere]">
+                              {message.text}
+                            </p>
+                          ) : null}
                           <div
                             className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
                               isCustomer
@@ -786,13 +979,7 @@ export function IAAtendimentoPage() {
                           >
                             <span>{formatMessageTime(message.createdAt)}</span>
                             {!isCustomer ? (
-                              <span>
-                                {message.status === 'pending'
-                                  ? '◷'
-                                  : message.status === 'failed'
-                                    ? '!'
-                                    : '✓'}
-                              </span>
+                              <DeliveryTicks status={message.status} />
                             ) : null}
                           </div>
                         </div>
@@ -802,13 +989,48 @@ export function IAAtendimentoPage() {
                 )}
               </div>
 
-              <div className="border-t border-[var(--color-soft-border)] p-3">
+              <div className="shrink-0 border-t border-[var(--color-soft-border)] bg-warm-white p-3">
                 {!connected ? (
                   <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     Vincule o WhatsApp para enviar mensagens.
                   </p>
                 ) : null}
                 <div className="flex items-center gap-2">
+                  <input
+                    ref={mediaInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,audio/ogg,audio/mpeg,audio/mp4,audio/aac,audio/webm,audio/wav"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.currentTarget.value = '';
+                      if (file) submitMedia(file);
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    isIconOnly
+                    aria-label="Anexar imagem ou áudio"
+                    onClick={() => mediaInputRef.current?.click()}
+                    isDisabled={!connected || !selected || sendMedia.isPending}
+                    className="shrink-0 text-muted-ink"
+                  >
+                    <IconPaperclip size={18} />
+                  </Button>
+                  <Button
+                    variant={recording ? 'primary' : 'ghost'}
+                    isIconOnly
+                    aria-label={recording ? 'Parar gravação' : 'Gravar áudio'}
+                    onClick={() => void toggleRecording()}
+                    isDisabled={!connected || !selected || sendMedia.isPending}
+                    className={
+                      recording
+                        ? 'shrink-0 animate-pulse bg-red-500 text-white'
+                        : 'shrink-0 text-muted-ink'
+                    }
+                  >
+                    <IconMic size={18} />
+                  </Button>
                   <TextField
                     value={draft}
                     onChange={setDraft}
@@ -829,11 +1051,14 @@ export function IAAtendimentoPage() {
                     variant="primary"
                     onClick={submitMessage}
                     isDisabled={
-                      !connected || !draft.trim() || sendMessage.isPending
+                      !connected ||
+                      !draft.trim() ||
+                      sendMessage.isPending ||
+                      sendMedia.isPending
                     }
                     className="bg-gold text-ink shadow-[var(--shadow-gold)] hover:bg-[#e6a92f]"
                   >
-                    {sendMessage.isPending ? (
+                    {sendMessage.isPending || sendMedia.isPending ? (
                       <Spinner size="sm" />
                     ) : (
                       <IconSend size={16} />
@@ -841,6 +1066,11 @@ export function IAAtendimentoPage() {
                     Enviar
                   </Button>
                 </div>
+                {recording ? (
+                  <p className="mt-1.5 px-1 text-xs font-medium text-red-600">
+                    Gravando… toque no microfone para parar e enviar.
+                  </p>
+                ) : null}
                 <p className="mt-1.5 px-1 text-[11px] text-[#9a948c]">
                   Uma mensagem humana assume a conversa e pausa a IA apenas
                   para este contato.

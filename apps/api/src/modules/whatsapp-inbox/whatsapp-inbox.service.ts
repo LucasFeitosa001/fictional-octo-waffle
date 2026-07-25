@@ -14,15 +14,18 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppointmentsService } from '../appointments/appointments.service';
 import {
+  WhatsappDeliveryUpdate,
   WhatsappInbound,
   WhatsappOutboundQueued,
   WhatsappService,
 } from '../whatsapp/whatsapp.service';
 import {
+  SendWhatsappInboxMessageDto,
   StartWhatsappConversationDto,
   UpdateAiAttendantDto,
   UpdateWhatsappConversationDto,
 } from './dto';
+import { UploadsService } from '../uploads/uploads.service';
 
 type Tone = 'simpatico' | 'profissional' | 'direto';
 type Faq = { question: string; answer: string };
@@ -129,6 +132,7 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsappInboxService.name);
   private unsubscribeInbound: (() => void) | null = null;
   private unsubscribeOutbound: (() => void) | null = null;
+  private unsubscribeDelivery: (() => void) | null = null;
   private readonly aiTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly aiRunning = new Set<string>();
   private readonly backfilledCompanies = new Set<string>();
@@ -137,6 +141,7 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsappService,
     private readonly appointments: AppointmentsService,
+    private readonly uploads: UploadsService,
   ) {}
 
   onModuleInit() {
@@ -146,11 +151,15 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     this.unsubscribeOutbound = this.whatsapp.addOutboundHandler((message) =>
       this.captureQueuedOutbound(message),
     );
+    this.unsubscribeDelivery = this.whatsapp.addDeliveryHandler((update) =>
+      this.captureDeliveryUpdate(update),
+    );
   }
 
   onModuleDestroy() {
     this.unsubscribeInbound?.();
     this.unsubscribeOutbound?.();
+    this.unsubscribeDelivery?.();
     for (const timer of this.aiTimers.values()) clearTimeout(timer);
     this.aiTimers.clear();
   }
@@ -366,7 +375,28 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     id: string,
     dto: UpdateWhatsappConversationDto,
   ) {
-    await this.findConversation(companyId, id);
+    const conversation = await this.findConversation(companyId, id);
+    if (dto.read && conversation.unreadCount > 0) {
+      const unreadMessages =
+        await this.prisma.client.whatsappInboxMessage.findMany({
+          where: {
+            companyId,
+            conversationId: id,
+            direction: 'inbound',
+            whatsappMessageId: { not: null },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: Math.min(200, Math.max(conversation.unreadCount, 1)),
+          select: { whatsappMessageId: true },
+        });
+      await this.whatsapp.markMessagesRead(
+        companyId,
+        conversation.remoteJid,
+        unreadMessages.flatMap((message) =>
+          message.whatsappMessageId ? [message.whatsappMessageId] : [],
+        ),
+      );
+    }
     return this.prisma.client.whatsappConversation.update({
       where: { id },
       data: {
@@ -385,10 +415,62 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
   async sendAgentMessage(
     companyId: string,
     conversationId: string,
-    rawText: string,
+    dto: SendWhatsappInboxMessageDto,
   ) {
-    const text = rawText.trim();
+    const rawText = dto.text?.trim() ?? '';
+    const hasMedia = Boolean(dto.mediaType && dto.mediaUrl);
+    if (!rawText && !hasMedia) {
+      throw new BadRequestException('Escreva uma mensagem ou anexe uma mídia');
+    }
+    if (Boolean(dto.mediaType) !== Boolean(dto.mediaUrl)) {
+      throw new BadRequestException('Mídia incompleta');
+    }
+    if (dto.mediaUrl && !this.uploads.isTrustedUploadUrl(dto.mediaUrl)) {
+      throw new BadRequestException('Arquivo de mídia não pertence ao Salonpass');
+    }
+    const mimeType = dto.mediaType
+      ? (dto.mediaMimeType || (dto.mediaType === 'image'
+          ? 'image/jpeg'
+          : 'audio/ogg'))
+          .toLowerCase()
+          .split(';')[0]
+      : null;
+    if (
+      dto.mediaType === 'image' &&
+      !['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'].includes(
+        mimeType ?? '',
+      )
+    ) {
+      throw new BadRequestException('Formato de imagem não suportado');
+    }
+    if (
+      dto.mediaType === 'audio' &&
+      ![
+        'audio/ogg',
+        'audio/opus',
+        'audio/mpeg',
+        'audio/mp4',
+        'audio/aac',
+        'audio/webm',
+        'audio/wav',
+        'audio/x-wav',
+      ].includes(mimeType ?? '')
+    ) {
+      throw new BadRequestException('Formato de áudio não suportado');
+    }
+    const text =
+      rawText ||
+      (dto.mediaType === 'image' ? '📷 Imagem' : '🎤 Áudio');
     const conversation = await this.findConversation(companyId, conversationId);
+    const metadata: Record<string, string | boolean | null> = {};
+    if (dto.mediaType && dto.mediaUrl && mimeType) {
+      metadata.media = true;
+      metadata.mediaType = dto.mediaType;
+      metadata.mediaUrl = dto.mediaUrl;
+      metadata.mimetype = mimeType;
+      metadata.fileName = dto.mediaFileName ?? null;
+      metadata.ptt = dto.mediaPtt ?? false;
+    }
     const message = await this.prisma.client.$transaction(async (tx) => {
       const created = await tx.whatsappInboxMessage.create({
         data: {
@@ -398,7 +480,9 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
           sender: 'agent',
           text,
           status: 'pending',
-          kind: 'manual',
+          kind: dto.mediaType ?? 'manual',
+          metadataJson:
+            Object.keys(metadata).length > 0 ? metadata : undefined,
         },
       });
       await tx.whatsappConversation.update({
@@ -419,6 +503,17 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
       kind: 'manual',
       inboxMessageId: message.id,
       recipientJid: conversation.remoteJid,
+      ...(dto.mediaType && dto.mediaUrl && mimeType
+        ? {
+            media: {
+              type: dto.mediaType,
+              url: dto.mediaUrl,
+              mimeType,
+              fileName: dto.mediaFileName,
+              ptt: dto.mediaPtt,
+            },
+          }
+        : {}),
     });
     return message;
   }
@@ -478,7 +573,7 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     const message = await this.sendAgentMessage(
       companyId,
       conversation.id,
-      dto.text,
+      { text: dto.text },
     );
     return {
       conversation: await this.findConversation(companyId, conversation.id),
@@ -690,6 +785,51 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async captureDeliveryUpdate(
+    update: WhatsappDeliveryUpdate,
+  ): Promise<void> {
+    if (update.status === 'read') {
+      await this.prisma.client.whatsappInboxMessage.updateMany({
+        where: {
+          companyId: update.companyId,
+          whatsappMessageId: update.whatsappMessageId,
+          direction: 'outbound',
+          status: { not: 'failed' },
+        },
+        data: {
+          status: 'read',
+          deliveredAt: update.at,
+          readAt: update.at,
+        },
+      });
+      return;
+    }
+    if (update.status === 'delivered') {
+      await this.prisma.client.whatsappInboxMessage.updateMany({
+        where: {
+          companyId: update.companyId,
+          whatsappMessageId: update.whatsappMessageId,
+          direction: 'outbound',
+          status: { in: ['pending', 'sent'] },
+        },
+        data: {
+          status: 'delivered',
+          deliveredAt: update.at,
+        },
+      });
+      return;
+    }
+    await this.prisma.client.whatsappInboxMessage.updateMany({
+      where: {
+        companyId: update.companyId,
+        whatsappMessageId: update.whatsappMessageId,
+        direction: 'outbound',
+        status: 'pending',
+      },
+      data: { status: 'sent', sentAt: update.at },
+    });
+  }
+
   private async backfillOutbox(companyId: string): Promise<void> {
     if (this.backfilledCompanies.has(companyId)) return;
     let mirrored = 0;
@@ -779,6 +919,36 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
             select: { id: true },
           });
         if (duplicate) return;
+      }
+
+      const metadata: Record<string, string | number | boolean | null> = {
+        ...(message.metadata ?? {}),
+      };
+      if (message.media) {
+        try {
+          const stored = await this.uploads.upload({
+            companyId: message.companyId,
+            kind: 'whatsapp',
+            filename: message.media.fileName,
+            contentType: message.media.mimetype,
+            buffer: message.media.buffer,
+            baseUrl:
+              process.env.BETTER_AUTH_URL ||
+              `http://localhost:${process.env.PORT ?? 3334}`,
+          });
+          metadata.media = true;
+          metadata.mediaType = message.media.type;
+          metadata.mediaUrl = stored.url;
+          metadata.mediaKey = stored.key;
+          metadata.mimetype = message.media.mimetype;
+          metadata.fileName = message.media.fileName;
+          metadata.ptt = message.media.ptt;
+        } catch (err) {
+          metadata.mediaError = (err as Error).message.slice(0, 300);
+          this.logger.warn(
+            `Falha ao armazenar mídia do WhatsApp (company=${message.companyId}): ${(err as Error).message}`,
+          );
+        }
       }
 
       const customer = await this.findCustomerByPhone(
@@ -889,13 +1059,20 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
           text: message.text,
           status: message.fromMe ? 'sent' : 'received',
           kind: message.kind ?? 'text',
-          metadataJson: message.metadata,
+          metadataJson:
+            Object.keys(metadata).length > 0
+              ? (metadata as Prisma.InputJsonObject)
+              : undefined,
           sentAt: message.fromMe ? receivedAt : null,
           receivedAt: message.fromMe ? null : receivedAt,
         },
       });
 
-      if (!message.fromMe) {
+      if (
+        !message.fromMe &&
+        message.kind !== 'image' &&
+        message.kind !== 'audio'
+      ) {
         this.scheduleAiReply(message.companyId, conversation.id);
       }
     } catch (err) {
