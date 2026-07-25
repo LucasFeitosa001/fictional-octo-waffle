@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { useConfirm } from '../components/ConfirmDialog';
 import { DatePicker } from '../components/DatePicker';
 import { Drawer } from '../components/Drawer';
+import { TemporaryAccessCard } from '../components/TemporaryAccessCard';
 import { InlineSearch } from '../components/InlineSearch';
 import { ImageUpload } from '../components/ImageUpload';
 import { PermissionsEditor } from '../components/PermissionsEditor';
@@ -21,6 +22,7 @@ import {
   IconLock,
   IconPencil,
   IconPlus,
+  IconRefresh,
   IconScissors,
   IconSearch,
   IconSettings,
@@ -53,9 +55,14 @@ import {
   type ProfessionalBody,
   type ProfessionalCommissionRuleRow,
 } from '../lib/queries/profissionais';
-import { useRoles, useUpdateUsuarioRole } from '../lib/queries/usuarios';
+import {
+  useCreateProfessionalAccess,
+  useRoles,
+  useUpdateUsuarioRole,
+} from '../lib/queries/usuarios';
 import { useWhatsappStatus } from '../lib/queries/whatsapp';
 import { initials, toDateInput } from '../lib/format';
+import { generateTemporaryPassword } from '../lib/password';
 import type { Professional } from '../lib/types';
 import { toast } from '../lib/toast';
 import { useAutoCreate } from '../lib/useAutoCreate';
@@ -1386,17 +1393,49 @@ function AccessTab({
   onGoToPermissions: () => void;
 }) {
   const invite = useInviteProfessional();
+  const createAccess = useCreateProfessionalAccess();
   const roles = useRoles();
   const updateRole = useUpdateUsuarioRole();
   const [link, setLink] = useState<InviteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [accessEmail, setAccessEmail] = useState('');
+  const [accessPassword, setAccessPassword] = useState('');
+  const [createdAccess, setCreatedAccess] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
   // Só habilita "Enviar por WhatsApp" quando o profissional tem telefone E o
   // WhatsApp do salão está conectado (status 'open'). Sem isso, o envio não sai.
   const whatsapp = useWhatsappStatus(!userId);
   const hasPhone = Boolean(professionalPhone && professionalPhone.trim());
   const whatsappConnected = whatsapp.data?.status === 'open';
   const canSendWhatsapp = hasPhone && whatsappConnected;
+  const canCreateAccess =
+    /.+@.+\..+/.test(accessEmail.trim()) &&
+    accessPassword.length >= 8 &&
+    !createAccess.isPending;
+
+  async function handleCreateAccess() {
+    setError(null);
+    try {
+      const saved = await createAccess.mutateAsync({
+        professionalId,
+        email: accessEmail.trim(),
+        password: accessPassword,
+      });
+      setCreatedAccess({
+        email: saved.email,
+        password: saved.temporaryPassword ?? accessPassword,
+      });
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível criar o acesso.',
+      );
+    }
+  }
 
   // "Gerar link de acesso" APENAS gera o link — nunca envia WhatsApp (opt-in).
   async function handleGenerate() {
@@ -1434,6 +1473,24 @@ function AccessTab({
   }
 
   // ── Já tem acesso ──
+  if (createdAccess) {
+    return (
+      <div className="flex flex-col gap-4">
+        <TemporaryAccessCard
+          email={createdAccess.email}
+          password={createdAccess.password}
+        />
+        <Button
+          variant="outline"
+          className="self-start"
+          onClick={onGoToPermissions}
+        >
+          <IconLock size={16} /> Configurar permissões
+        </Button>
+      </div>
+    );
+  }
+
   if (userId) {
     return (
       <div className="flex flex-col gap-4">
@@ -1494,22 +1551,89 @@ function AccessTab({
     );
   }
 
-  // ── Sem acesso: gerar link ──
+  // ── Sem acesso: criar agora ou manter o convite como alternativa ──
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start gap-3 rounded-xl border border-dashed border-line bg-canvas/60 px-4 py-3">
+      <div className="flex items-start gap-3 rounded-xl border border-line bg-primary/5 px-4 py-3">
         <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-          <IconLink size={16} />
+          <IconUserPlus size={16} />
         </span>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-ink">Dar acesso ao Salonpass</h3>
+          <h3 className="text-sm font-semibold text-ink">
+            Criar acesso agora
+          </h3>
           <p className="mt-0.5 text-xs text-muted-ink">
-            Gere um link para {professionalName || 'o profissional'} criar o próprio login. O link
-            só é enviado por WhatsApp se você clicar em "Enviar por WhatsApp". Depois disso você
-            poderá configurar as permissões.
+            O login de {professionalName || 'este profissional'} fica pronto
+            imediatamente, sem precisar abrir convite ou preencher cadastro.
           </p>
         </div>
       </div>
+
+      <div className="grid gap-3 rounded-xl border border-line bg-card p-4">
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-ink">E-mail</span>
+          <input
+            type="email"
+            value={accessEmail}
+            onChange={(event) => setAccessEmail(event.target.value)}
+            placeholder="profissional@exemplo.com"
+            autoComplete="off"
+            className="h-11 rounded-lg border border-line bg-canvas px-3 text-sm text-ink outline-none focus:border-primary"
+          />
+        </label>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-ink">
+            Senha temporária
+          </span>
+          <input
+            type="text"
+            value={accessPassword}
+            onChange={(event) => setAccessPassword(event.target.value)}
+            placeholder="Mínimo 8 caracteres"
+            autoComplete="new-password"
+            className="h-11 rounded-lg border border-line bg-canvas px-3 font-mono text-sm text-ink outline-none focus:border-primary"
+          />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() =>
+              setAccessPassword(generateTemporaryPassword())
+            }
+          >
+            <IconRefresh size={14} /> Gerar senha
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            className="gap-1.5"
+            isDisabled={!canCreateAccess}
+            onClick={handleCreateAccess}
+          >
+            {createAccess.isPending ? (
+              <Spinner size="sm" />
+            ) : (
+              <IconUserPlus size={15} />
+            )}
+            Criar acesso
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 py-1">
+        <span className="h-px flex-1 bg-line" />
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
+          ou enviar convite
+        </span>
+        <span className="h-px flex-1 bg-line" />
+      </div>
+
+      <p className="text-xs leading-relaxed text-muted-ink">
+        Se preferir, gere um link para a própria pessoa escolher e confirmar a
+        senha. Nada é enviado automaticamente.
+      </p>
 
       {!link ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

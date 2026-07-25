@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Chip, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../../components/Drawer';
+import { TemporaryAccessCard } from '../../components/TemporaryAccessCard';
 import { PageHeader } from '../../components/PageHeader';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
@@ -10,6 +11,7 @@ import {
   IconCheck,
   IconLock,
   IconPlus,
+  IconRefresh,
   IconUserPlus,
   IconUsers,
 } from '../../components/icons';
@@ -22,6 +24,7 @@ import {
   type Role,
   type Usuario,
 } from '../../lib/queries/usuarios';
+import { generateTemporaryPassword } from '../../lib/password';
 
 // ─── Matriz papel × permissões (read-only) ──────────────────────────────────
 // Espelho ESTÁTICO da fonte de verdade em packages/db/src/rbac.ts (ROLE_MAP +
@@ -146,6 +149,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'comandas:create',
     'comandas:checkout',
     'clientes:view',
+    'catalogo:view',
     'comissoes:view_own',
   ],
 };
@@ -175,7 +179,7 @@ export function UsuariosPage() {
     [
       {
         key: 'novo-usuario',
-        label: 'Convidar',
+        label: 'Criar acesso',
         icon: <IconUserPlus size={22} />,
         onClick: () => setCreateOpen(true),
       },
@@ -251,7 +255,7 @@ export function UsuariosPage() {
               className="hidden md:inline-flex"
               onClick={() => setCreateOpen(true)}
             >
-              <IconPlus size={16} /> Convidar usuário
+              <IconPlus size={16} /> Criar usuário
             </Button>
           </Can>
         }
@@ -273,11 +277,11 @@ export function UsuariosPage() {
             <EmptyState
               icon={<IconUsers size={32} />}
               title="Nenhum usuário cadastrado"
-              description="Convide sua equipe e defina o papel de cada pessoa."
+              description="Crie o acesso da equipe e defina o papel de cada pessoa."
               action={
                 <Can perm="usuarios:manage">
                   <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                    <IconPlus size={16} /> Convidar usuário
+                    <IconPlus size={16} /> Criar usuário
                   </Button>
                 </Can>
               }
@@ -369,6 +373,10 @@ function CreateUsuarioDrawer({
   const [password, setPassword] = useState('');
   const [roleId, setRoleId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [createdAccess, setCreatedAccess] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -377,27 +385,31 @@ function CreateUsuarioDrawer({
       setPassword('');
       setRoleId(null);
       setError(null);
+      setCreatedAccess(null);
     }
   }, [isOpen]);
 
   const pending = create.isPending;
-  // password é exigido pelo backend (mín. 6).
+  // A senha pode ser digitada ou gerada localmente com Web Crypto.
   const canSave =
     name.trim().length >= 2 &&
     /.+@.+\..+/.test(email.trim()) &&
-    password.trim().length >= 6 &&
+    password.length >= 8 &&
     !pending;
 
   async function handleSave() {
     setError(null);
     try {
-      await create.mutateAsync({
+      const saved = await create.mutateAsync({
         name: name.trim(),
         email: email.trim(),
-        password: password.trim(),
+        password,
         roleId: roleId ?? undefined,
       });
-      onClose();
+      setCreatedAccess({
+        email: saved.email,
+        password: saved.temporaryPassword ?? password,
+      });
     } catch (err) {
       setError(
         err instanceof ApiClientError
@@ -411,25 +423,39 @@ function CreateUsuarioDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title="Convidar usuário"
+      title="Criar acesso de usuário"
       widthClass="sm:w-[480px]"
       footer={
         <>
-          <Button variant="outline" className="h-11 shrink-0" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            variant="primary"
-            className="h-11 shrink-0"
-            isDisabled={!canSave}
-            onClick={handleSave}
-          >
-            {pending ? 'Salvando…' : 'Convidar'}
-          </Button>
+          {createdAccess ? (
+            <Button variant="primary" className="h-11 shrink-0" onClick={onClose}>
+              Concluir
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" className="h-11 shrink-0" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                className="h-11 shrink-0"
+                isDisabled={!canSave}
+                onClick={handleSave}
+              >
+                {pending ? 'Criando…' : 'Criar acesso'}
+              </Button>
+            </>
+          )}
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      {createdAccess ? (
+        <TemporaryAccessCard
+          email={createdAccess.email}
+          password={createdAccess.password}
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
         <Field label="Nome" required>
           <TextField value={name} onChange={setName} aria-label="Nome">
             <Input placeholder="Nome completo" />
@@ -444,11 +470,25 @@ function CreateUsuarioDrawer({
 
         <Field label="Senha" required>
           <TextField value={password} onChange={setPassword} aria-label="Senha">
-            <Input type="password" placeholder="Mínimo 6 caracteres" autoComplete="new-password" />
+            <Input
+              type="text"
+              placeholder="Mínimo 8 caracteres"
+              autoComplete="new-password"
+            />
           </TextField>
-          <span className="text-xs text-muted">
-            A pessoa usa este e-mail e senha para acessar o painel.
-          </span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted">
+              A pessoa entra imediatamente com este e-mail e senha.
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setPassword(generateTemporaryPassword())}
+            >
+              <IconRefresh size={14} /> Gerar senha
+            </Button>
+          </div>
         </Field>
 
         <Field label="Papel">
@@ -466,7 +506,8 @@ function CreateUsuarioDrawer({
             {error}
           </div>
         )}
-      </div>
+        </div>
+      )}
     </Drawer>
   );
 }

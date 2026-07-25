@@ -40,9 +40,16 @@ export interface Role {
 export interface CreateUsuarioBody {
   name: string;
   email: string;
-  password: string;
+  password?: string;
+  generatePassword?: boolean;
   phone?: string;
   roleId?: string;
+}
+
+export interface CreatedUsuario extends Usuario {
+  professionalId?: string | null;
+  /** Só existe quando o backend gerou a senha; nunca volta em leituras futuras. */
+  temporaryPassword?: string;
 }
 
 const USUARIOS_KEY = ['users'] as const;
@@ -79,10 +86,40 @@ export function useRoles() {
 export function useCreateUsuario() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreateUsuarioBody) => api.post<Usuario>('/users', body),
+    mutationFn: (body: CreateUsuarioBody) =>
+      api.post<CreatedUsuario>('/users', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: USUARIOS_KEY });
       toastSuccess('Usuário criado');
+    },
+  });
+}
+
+/** Cria login + senha e vincula imediatamente a um Professional existente. */
+export function useCreateProfessionalAccess() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      professionalId,
+      ...body
+    }: {
+      professionalId: string;
+      email: string;
+      password?: string;
+      generatePassword?: boolean;
+      roleId?: string;
+    }) =>
+      api.post<CreatedUsuario>(
+        `/users/professional/${professionalId}`,
+        body,
+      ),
+    onSuccess: (_saved, variables) => {
+      void qc.invalidateQueries({ queryKey: USUARIOS_KEY });
+      void qc.invalidateQueries({ queryKey: ['professionals'] });
+      void qc.invalidateQueries({
+        queryKey: ['professional', variables.professionalId],
+      });
+      toastSuccess('Acesso criado');
     },
   });
 }
