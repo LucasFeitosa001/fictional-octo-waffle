@@ -30,6 +30,7 @@ export function useDashboard(from: string, to: string) {
 /** Service as returned by the API (extends shared type with extra fields). */
 export interface ServiceRow extends Service {
   cashbackPercent?: string;
+  defaultCommissionPercent?: string;
   favorite?: boolean;
   visible?: boolean;
 }
@@ -43,6 +44,7 @@ export interface ServiceBody {
   imageUrl?: string | null;
   imageUrls?: string[];
   cashbackPercent?: number;
+  defaultCommissionPercent?: number;
   onlineBookable?: boolean;
   favorite?: boolean;
   visible?: boolean;

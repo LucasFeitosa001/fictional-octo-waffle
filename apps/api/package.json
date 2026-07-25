@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "seed:admin": "tsx src/auth/seed-admin.ts",
+    "backfill:belasis-commissions": "tsx src/importers/backfill-belasis-commissions.ts",
     "test:isolation": "nest build && node dist/test/tenant-isolation.e2e.js",
     "test:booking": "nest build && node dist/test/public-booking.e2e.js",
     "test:whatsapp-inbox": "nest build && node dist/test/whatsapp-inbox.e2e.js",

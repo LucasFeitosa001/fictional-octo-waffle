@@ -173,15 +173,13 @@ async function run() {
       data: { companyId, name: 'Crédito', goesToCash: false },
     });
 
-    // Professional who receives commission, with a service-scoped 30% rule.
+    // Professional who receives commission. The service carries the catalog
+    // default (the Belasis model); a per-professional rule may override it.
     const pro = await prisma.professional.create({
       data: { companyId, name: 'Paula Cabeleireira', receivesCommission: true },
     });
     const service = await prisma.service.create({
-      data: { companyId, name: 'Corte', price: 100 },
-    });
-    await prisma.professionalCommissionRule.create({
-      data: { professionalId: pro.id, scopeType: 'service', scopeId: service.id, type: 'percent', value: 30 },
+      data: { companyId, name: 'Corte', price: 100, defaultCommissionPercent: 30 },
     });
 
     // Product to SELL directly (10% default commission), with a batch.

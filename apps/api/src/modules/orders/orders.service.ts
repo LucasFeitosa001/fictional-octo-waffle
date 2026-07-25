@@ -904,7 +904,9 @@ export class OrdersService {
           baseAmount,
           commissionAmount,
           status: 'open',
-          competenceDate: now,
+          // Competência é a data da venda/comanda, não o instante em que alguém
+          // clicou em "Finalizar". Isso mantém os filtros e backfills corretos.
+          competenceDate: order.date,
           availableDate: now,
         },
       });
@@ -917,7 +919,7 @@ export class OrdersService {
    *   1. ProfessionalCommissionRule scope=service|product por scopeId (o item)
    *   2. ProfessionalCommissionRule scope=category (categoria do serviço/produto)
    *   3. ProfessionalCommissionRule scope=all
-   *   4. Fallback: Product.defaultCommissionPercent (só produtos); 0 p/ serviço.
+   *   4. Fallback: Service/Product.defaultCommissionPercent.
    * Regras `fixed` são convertidas para percentual efetivo sobre a base do item,
    * pois CommissionEntry armazena base+valor (evita distorcer o "valorVendido").
    */
@@ -976,7 +978,14 @@ export class OrdersService {
     const all = rules.find((r) => r.scopeType === 'all');
     if (all) return toPercent(all);
 
-    // 4. fallback: comissão padrão do produto.
+    // 4. fallback: comissão padrão do item no catálogo.
+    if (item.kind === 'service') {
+      const service = await tx.service.findUnique({
+        where: { id: item.refId },
+        select: { defaultCommissionPercent: true },
+      });
+      return new Prisma.Decimal(service?.defaultCommissionPercent ?? 0);
+    }
     if (item.kind === 'product') {
       const prod = await tx.product.findUnique({
         where: { id: item.refId },

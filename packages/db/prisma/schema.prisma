@@ -926,6 +926,9 @@ model Service {
   imageUrls          String[]  @default([])
   additionalCost     Decimal   @default(0) @db.Decimal(12, 2)
   cashbackPercent    Decimal   @default(0) @db.Decimal(5, 2)
+  // Comissão padrão (%) do serviço. Pode ser sobrescrita pela regra individual
+  // do profissional (ProfessionalCommissionRule).
+  defaultCommissionPercent Decimal @default(0) @db.Decimal(5, 2)
   onlineBookable     Boolean   @default(true)
   favorite           Boolean   @default(false)
   visible            Boolean   @default(true)

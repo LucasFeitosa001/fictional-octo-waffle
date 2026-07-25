@@ -81,6 +81,7 @@ export interface Service {
   description?: string | null;
   imageUrl?: string | null;
   imageUrls?: string[];
+  defaultCommissionPercent?: string; // Decimal serialized
   onlineBookable: boolean;
   active: boolean;
 }

@@ -74,7 +74,8 @@ async function main() {
       const legacyId = `svc:${norm(it.name)}`;
       const data: any = {
         name: it.name, price: it.price ?? 0, durationMin: it.durationMin || 30,
-        cashbackPercent: 0, categoryId: it.category ? svcCat.get(norm(it.category)) : undefined,
+        cashbackPercent: 0, defaultCommissionPercent: it.commission ?? 0,
+        categoryId: it.category ? svcCat.get(norm(it.category)) : undefined,
         legacyId, legacySource: SRC_TAG,
       };
       const ex = await prisma.service.findFirst({ where: { companyId, OR: [{ legacyId }, { name: it.name }] } });
