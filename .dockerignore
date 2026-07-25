@@ -1,9 +1,15 @@
 **/node_modules
 **/dist
 **/.turbo
+**/.next
+**/out
 .git
 .gstack
 **/*.log
 apps/web/dist
 apps/mobile/.expo
+apps/api/uploads
+apps/web-e2e/playwright-report
+apps/web-e2e/test-results
+belasis-reference
 **/.env
