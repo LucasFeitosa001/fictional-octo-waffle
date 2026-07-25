@@ -261,6 +261,74 @@ async function run() {
       },
     });
 
+    // O gestor pode criar o login diretamente, sem o profissional abrir um
+    // convite. A senha gerada volta uma única vez e precisa autenticar de
+    // verdade pelo Account(provider=credential) do Better Auth.
+    const directAccessEmail = `direct-access-${Date.now()}@test.local`;
+    const directAccess = await api(
+      'POST',
+      `/users/professional/${professional.id}`,
+      {
+        token: token ?? undefined,
+        body: {
+          email: directAccessEmail,
+          generatePassword: true,
+        },
+      },
+    );
+    const temporaryPassword = directAccess.body?.temporaryPassword as
+      | string
+      | undefined;
+    check('gestor cria acesso sem convite', directAccess.status === 201);
+    check(
+      'senha temporária forte retorna uma única vez',
+      Boolean(
+        temporaryPassword &&
+          temporaryPassword.length >= 12 &&
+          /[a-z]/.test(temporaryPassword) &&
+          /[A-Z]/.test(temporaryPassword) &&
+          /\d/.test(temporaryPassword) &&
+          /[^a-zA-Z0-9]/.test(temporaryPassword),
+      ),
+    );
+    const directSignIn = await api('POST', '/auth/sign-in/email', {
+      body: {
+        email: directAccessEmail,
+        password: temporaryPassword,
+      },
+    });
+    check('senha gerada autentica no Better Auth', Boolean(directSignIn.token));
+    const directCompany = await api('GET', '/session/companies', {
+      token: directSignIn.token ?? undefined,
+    });
+    check(
+      'novo acesso abre a empresa correta, sem empresa temporária',
+      directCompany.body?.data?.length === 1 &&
+        directCompany.body.data[0]?.company?.id === companyId &&
+        directCompany.body.data[0]?.active === true,
+    );
+    const linkedProfessional = await prisma.professional.findUnique({
+      where: { id: professional.id },
+      select: {
+        userId: true,
+        user: {
+          select: {
+            accounts: {
+              where: { providerId: 'credential' },
+              select: { id: true },
+            },
+          },
+        },
+      },
+    });
+    check(
+      'profissional ficou ligado à credencial real',
+      Boolean(
+        linkedProfessional?.userId &&
+          linkedProfessional.user?.accounts.length === 1,
+      ),
+    );
+
     const inbox = app.get(WhatsappInboxService) as any;
     const whatsapp = app.get(WhatsappService);
     const phone = '5585991234567';

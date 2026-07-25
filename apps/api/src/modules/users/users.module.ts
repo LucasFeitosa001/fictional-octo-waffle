@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,6 +13,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { randomInt } from 'node:crypto';
 import {
   IsArray,
   IsBoolean,
@@ -21,8 +23,9 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
-import * as bcrypt from 'bcryptjs';
+import { seedCompanyRoles } from '@beautypass/db/rbac';
 import { PrismaService } from '../../prisma/prisma.service';
+import { auth } from '../../auth/better-auth';
 import { AuthModule } from '../auth/auth.module';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
@@ -33,9 +36,37 @@ import { CurrentUser } from '../../common/current-user.decorator';
 class CreateUserDto {
   @IsString() @MinLength(2) name: string;
   @IsEmail() email: string;
-  @IsString() @MinLength(6) password: string;
+  @IsOptional() @IsString() @MinLength(8) password?: string;
+  @IsOptional() @IsBoolean() generatePassword?: boolean;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() roleId?: string;
+}
+
+class CreateProfessionalAccessDto {
+  @IsEmail() email: string;
+  @IsOptional() @IsString() @MinLength(8) password?: string;
+  @IsOptional() @IsBoolean() generatePassword?: boolean;
+  @IsOptional() @IsString() roleId?: string;
+}
+
+export function generateTemporaryPassword(length = 14): string {
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  const symbols = '!@#$%';
+  const all = `${lower}${upper}${digits}${symbols}`;
+  const chars = [
+    lower[randomInt(lower.length)],
+    upper[randomInt(upper.length)],
+    digits[randomInt(digits.length)],
+    symbols[randomInt(symbols.length)],
+  ];
+  while (chars.length < length) chars.push(all[randomInt(all.length)]);
+  for (let index = chars.length - 1; index > 0; index -= 1) {
+    const swapWith = randomInt(index + 1);
+    [chars[index], chars[swapWith]] = [chars[swapWith], chars[index]];
+  }
+  return chars.join('');
 }
 
 // Atribui/troca o papel do usuário na empresa ativa.
@@ -84,19 +115,209 @@ export class UsersService {
   }
 
   async create(companyId: string, dto: CreateUserDto) {
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    const user = await this.prisma.client.user.create({
-      data: {
-        companyId,
-        name: dto.name,
-        email: dto.email,
-        phone: dto.phone,
-        passwordHash,
-        userCompanies: { create: { companyId, roleId: dto.roleId } },
-      },
-      select: { id: true, name: true, email: true, phone: true, active: true },
+    return this.createCredentialAccess(companyId, {
+      name: dto.name,
+      email: dto.email,
+      password: dto.password,
+      generatePassword: dto.generatePassword,
+      phone: dto.phone,
+      roleId: dto.roleId,
     });
-    return user;
+  }
+
+  async createProfessionalAccess(
+    companyId: string,
+    professionalId: string,
+    dto: CreateProfessionalAccessDto,
+  ) {
+    const professional =
+      await this.prisma.client.professional.findFirst({
+        where: {
+          id: professionalId,
+          companyId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          userId: true,
+        },
+      });
+    if (!professional) {
+      throw new NotFoundException('Profissional não encontrado');
+    }
+    if (professional.userId) {
+      throw new BadRequestException('Este profissional já tem acesso vinculado');
+    }
+    return this.createCredentialAccess(companyId, {
+      name: professional.name,
+      email: dto.email,
+      password: dto.password,
+      generatePassword: dto.generatePassword,
+      phone: professional.phone ?? undefined,
+      roleId: dto.roleId,
+      professionalId,
+    });
+  }
+
+  /**
+   * Cria uma credencial REAL do Better Auth e só então move o usuário para a
+   * empresa ativa. Gravar apenas User.passwordHash não funciona: o login por
+   * e-mail lê Account(providerId=credential). A senha temporária, quando
+   * gerada, só volta nesta resposta e nunca é persistida em texto puro.
+   */
+  private async createCredentialAccess(
+    companyId: string,
+    input: {
+      name: string;
+      email: string;
+      password?: string;
+      generatePassword?: boolean;
+      phone?: string;
+      roleId?: string;
+      professionalId?: string;
+    },
+  ) {
+    const name = input.name.trim();
+    const email = input.email.trim().toLowerCase();
+    if (name.length < 2) throw new BadRequestException('Informe o nome');
+
+    const generated = !input.password && input.generatePassword === true;
+    const password = input.password || (generated ? generateTemporaryPassword() : '');
+    if (password.length < 8) {
+      throw new BadRequestException(
+        'Informe uma senha com pelo menos 8 caracteres ou escolha gerar uma senha',
+      );
+    }
+
+    const existing = await this.prisma.client.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException('Já existe uma conta com este e-mail');
+    }
+
+    let roleId = input.roleId;
+    if (roleId) {
+      const role = await this.prisma.client.role.findFirst({
+        where: { id: roleId, companyId },
+        select: { id: true },
+      });
+      if (!role) {
+        throw new BadRequestException('Papel não pertence a esta empresa');
+      }
+    } else {
+      const seeded = await seedCompanyRoles(this.prisma.client, companyId);
+      roleId = seeded.roleIdByCode.professional;
+    }
+
+    const signUp = await auth.api.signUpEmail({
+      body: {
+        name,
+        email,
+        password,
+        accountType: 'staff',
+        ...(input.phone?.trim() ? { phone: input.phone.trim() } : {}),
+      },
+    });
+    const userId = signUp.user.id;
+    const provisioned = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true },
+    });
+    const throwawayCompanyId =
+      provisioned?.companyId && provisioned.companyId !== companyId
+        ? provisioned.companyId
+        : null;
+
+    try {
+      await this.prisma.client.$transaction(async (tx) => {
+        await tx.userCompany.deleteMany({ where: { userId } });
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            companyId,
+            phone: input.phone?.trim() || null,
+            accountType: 'staff',
+          },
+        });
+        await tx.userCompany.create({
+          data: { userId, companyId, roleId },
+        });
+        // signUpEmail também cria uma sessão para o chamador. Como foi o gestor
+        // — não o novo funcionário — quem criou a conta, esse token não deve
+        // permanecer ativo. O primeiro login legítimo cria a própria sessão.
+        await tx.session.deleteMany({ where: { userId } });
+        if (input.professionalId) {
+          // O hook de signup cria um Professional "Proprietário(a)" na empresa
+          // temporária. Professional.userId é unique, então removemos esse
+          // perfil descartável antes de vincular o perfil real do salão.
+          if (throwawayCompanyId) {
+            await tx.professional.deleteMany({
+              where: { companyId: throwawayCompanyId, userId },
+            });
+          }
+          const linked = await tx.professional.updateMany({
+            where: {
+              id: input.professionalId,
+              companyId,
+              userId: null,
+            },
+            data: { userId },
+          });
+          if (linked.count !== 1) {
+            throw new BadRequestException(
+              'O profissional já recebeu outro acesso',
+            );
+          }
+          // Qualquer link anterior deixa de ser válido assim que o acesso é
+          // criado diretamente pelo gestor.
+          await tx.professionalInvite.updateMany({
+            where: {
+              companyId,
+              professionalId: input.professionalId,
+              status: 'pending',
+            },
+            data: { status: 'accepted', email },
+          });
+        }
+        if (throwawayCompanyId) {
+          await tx.company.delete({ where: { id: throwawayCompanyId } });
+        }
+      });
+    } catch (error) {
+      // O signUp ocorre antes da transação porque é o Better Auth que cria a
+      // Account credential. Se o vínculo falhar, remove o provisionamento
+      // temporário para o mesmo e-mail poder ser tentado novamente.
+      if (throwawayCompanyId) {
+        await this.prisma.client.company
+          .delete({ where: { id: throwawayCompanyId } })
+          .catch(() => undefined);
+      } else {
+        await this.prisma.client.user
+          .delete({ where: { id: userId } })
+          .catch(() => undefined);
+      }
+      throw error;
+    }
+
+    const user = await this.prisma.client.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        active: true,
+      },
+    });
+    return {
+      ...user,
+      professionalId: input.professionalId ?? null,
+      temporaryPassword: generated ? password : undefined,
+    };
   }
 
   findOne(companyId: string, id: string) {
@@ -216,6 +437,20 @@ export class UsersController {
   @RequirePermission('usuarios:manage')
   create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateUserDto) {
     return this.service.create(companyId, dto);
+  }
+
+  @Post('professional/:professionalId')
+  @RequirePermission('usuarios:manage', 'equipe:manage')
+  createProfessionalAccess(
+    @CurrentUser('companyId') companyId: string,
+    @Param('professionalId') professionalId: string,
+    @Body() dto: CreateProfessionalAccessDto,
+  ) {
+    return this.service.createProfessionalAccess(
+      companyId,
+      professionalId,
+      dto,
+    );
   }
 
   // Atribui/troca o papel do usuário na empresa ativa.
