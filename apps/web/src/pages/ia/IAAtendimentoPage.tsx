@@ -414,8 +414,8 @@ export function IAAtendimentoPage() {
             </p>
             <p className="text-xs leading-relaxed">
               FAQ, preços e agendamento continuam funcionando pelo motor local.
-              Configure ANTHROPIC_API_KEY na API para respostas livres e
-              contextuais.
+              Configure GROQ_API_KEY ou ANTHROPIC_API_KEY na API para respostas
+              livres e contextuais.
             </p>
           </div>
         </div>
