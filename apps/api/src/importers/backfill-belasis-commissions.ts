@@ -145,6 +145,7 @@ async function main() {
       select: {
         id: true,
         number: true,
+        legacyId: true,
         items: {
           select: {
             professionalId: true,
@@ -189,6 +190,15 @@ async function main() {
     }
   }
   const ordersByNumber = new Map(orders.map((order) => [order.number, order]));
+  // Durante a importação inicial algumas comandas precisaram ser renumeradas
+  // para não colidir com números já usados. O número original do relatório foi
+  // preservado como `cmd:<número>` em legacyId e é a chave correta para cruzar
+  // os XLS do Belasis. Comandas nativas continuam resolvidas pelo número atual.
+  const ordersByLegacyNumber = new Map<number, (typeof orders)[number]>();
+  for (const order of orders) {
+    const match = order.legacyId?.match(/^cmd:(\d+)$/);
+    if (match) ordersByLegacyNumber.set(Number(match[1]), order);
+  }
   const existingKeys = new Set(
     existingEntries
       .filter(
@@ -239,7 +249,9 @@ async function main() {
       );
       continue;
     }
-    const order = ordersByNumber.get(desired.orderNumber);
+    const order =
+      ordersByLegacyNumber.get(desired.orderNumber) ??
+      ordersByNumber.get(desired.orderNumber);
     if (!order) {
       entryProblems.push(`#${desired.orderNumber}: comanda não encontrada`);
       continue;
