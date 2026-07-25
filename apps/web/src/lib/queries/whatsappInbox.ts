@@ -24,6 +24,7 @@ export interface WhatsappInboxConfig {
   faq: WhatsappFaq[];
   channel: WhatsappConnection;
   aiAvailable: boolean;
+  aiProvider?: 'groq' | 'anthropic' | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -39,6 +39,7 @@ const PORT = Number(process.env.WHATSAPP_INBOX_TEST_PORT ?? 4604);
 process.env.BETTER_AUTH_URL = `http://localhost:${PORT}`;
 process.env.WHATSAPP_ENABLED = 'false';
 delete process.env.ANTHROPIC_API_KEY;
+delete process.env.GROQ_API_KEY;
 const BASE = `http://localhost:${PORT}/api/v1`;
 
 let passed = 0;

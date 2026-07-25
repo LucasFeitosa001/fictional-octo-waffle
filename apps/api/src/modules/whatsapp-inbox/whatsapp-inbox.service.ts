@@ -139,7 +139,14 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
       tone: config.tone as Tone,
       faq: this.faq(config.faqJson),
       channel,
-      aiAvailable: Boolean(process.env.ANTHROPIC_API_KEY),
+      aiAvailable: Boolean(
+        process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY,
+      ),
+      aiProvider: process.env.GROQ_API_KEY
+        ? 'groq'
+        : process.env.ANTHROPIC_API_KEY
+          ? 'anthropic'
+          : null,
     };
   }
 
@@ -183,7 +190,14 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
       tone: saved.tone as Tone,
       faq: this.faq(saved.faqJson),
       channel: this.whatsapp.getStatus(companyId),
-      aiAvailable: Boolean(process.env.ANTHROPIC_API_KEY),
+      aiAvailable: Boolean(
+        process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY,
+      ),
+      aiProvider: process.env.GROQ_API_KEY
+        ? 'groq'
+        : process.env.ANTHROPIC_API_KEY
+          ? 'anthropic'
+          : null,
     };
   }
 
@@ -696,8 +710,9 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     history: Array<{ sender: string; text: string }>,
     context: BusinessContext,
   ): Promise<AiDecision> {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
+    const groqApiKey = process.env.GROQ_API_KEY;
+    const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+    if (!groqApiKey && !anthropicApiKey) {
       return this.fallbackDecision(config, history, context);
     }
 
@@ -733,12 +748,62 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     ].join('\n');
     const messages = this.anthropicHistory(history);
 
+    if (groqApiKey) {
+      try {
+        const response = await fetch(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${groqApiKey}`,
+            },
+            body: JSON.stringify({
+              model:
+                process.env.GROQ_WHATSAPP_MODEL ??
+                'llama-3.3-70b-versatile',
+              max_completion_tokens: 900,
+              temperature: 0.2,
+              response_format: { type: 'json_object' },
+              messages: [
+                { role: 'system', content: system },
+                ...messages,
+              ],
+            }),
+            signal: AbortSignal.timeout(25_000),
+          },
+        );
+        if (!response.ok) {
+          const body = await response.text().catch(() => '');
+          throw new Error(`Groq ${response.status}: ${body.slice(0, 200)}`);
+        }
+        const json = (await response.json()) as {
+          choices?: Array<{
+            message?: { content?: string | null };
+          }>;
+        };
+        const raw = json.choices?.[0]?.message?.content ?? '';
+        return this.parseDecision(raw);
+      } catch (err) {
+        this.logger.warn(
+          `Groq indisponível${anthropicApiKey ? '; tentando Anthropic' : '; usando fallback local'}: ${(err as Error).message}`,
+        );
+        if (!anthropicApiKey) {
+          return this.fallbackDecision(config, history, context);
+        }
+      }
+    }
+
+    if (!anthropicApiKey) {
+      return this.fallbackDecision(config, history, context);
+    }
+
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-api-key': apiKey,
+          'x-api-key': anthropicApiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
