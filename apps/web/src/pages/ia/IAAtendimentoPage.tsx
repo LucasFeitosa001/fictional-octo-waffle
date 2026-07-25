@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar, Button, Card, Input, Spinner, TextField } from '@heroui/react';
 import { PageHeader } from '../../components/PageHeader';
+import { Drawer } from '../../components/Drawer';
+import {
+  CustomerPickerDrawer,
+  type PickedCustomer,
+} from '../../components/CustomerPickerDrawer';
 import { AppSwitch, SwitchRow } from '../../components/SwitchRow';
 import { WhatsappConnectionCard } from '../../components/WhatsappConnectionCard';
 import {
@@ -20,7 +25,7 @@ import {
   IconX,
 } from '../../components/icons';
 import { initials } from '../../lib/format';
-import { toastSuccess } from '../../lib/toast';
+import { toast, toastSuccess } from '../../lib/toast';
 import { useCan } from '../../lib/queries/permissions';
 import {
   useWhatsappStatus,
@@ -31,6 +36,7 @@ import {
   type ConversationFilter,
   type WhatsappFaq,
   useSendWhatsappInboxMessage,
+  useStartWhatsappConversation,
   useUpdateWhatsappConversation,
   useUpdateWhatsappInboxConfig,
   useWhatsappConversations,
@@ -141,6 +147,17 @@ function formatMessageTime(value: string) {
   }).format(new Date(value));
 }
 
+function automationLabel(kind: string | null) {
+  const labels: Record<string, string> = {
+    confirmation: 'Confirmação',
+    cancellation: 'Cancelamento',
+    reminder: 'Lembrete',
+    followup: 'Pós-atendimento',
+    campaign: 'Campanha',
+  };
+  return kind ? (labels[kind] ?? 'Automação') : 'Automação';
+}
+
 export function IAAtendimentoPage() {
   const permissions = useCan();
   const canManage = permissions.can('marketing:manage');
@@ -150,6 +167,7 @@ export function IAAtendimentoPage() {
   const updateConfig = useUpdateWhatsappInboxConfig();
   const updateConversation = useUpdateWhatsappConversation();
   const sendMessage = useSendWhatsappInboxMessage();
+  const startConversation = useStartWhatsappConversation();
 
   const whatsappStatus: WhatsappStatus =
     whatsapp.data?.status ?? 'connecting';
@@ -167,6 +185,9 @@ export function IAAtendimentoPage() {
   const messages = messagesQuery.data?.data ?? [];
   const [threadOpenMobile, setThreadOpenMobile] = useState(false);
   const [draft, setDraft] = useState('');
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [newRecipient, setNewRecipient] = useState<PickedCustomer | null>(null);
+  const [newConversationText, setNewConversationText] = useState('');
   const [configDraft, setConfigDraft] =
     useState<ConfigDraft>(EMPTY_CONFIG);
   const [loadedConfigVersion, setLoadedConfigVersion] = useState<string | null>(
@@ -255,6 +276,43 @@ export function IAAtendimentoPage() {
               behavior: 'smooth',
             });
           });
+        },
+      },
+    );
+  }
+
+  function chooseNewRecipient(customer: PickedCustomer) {
+    if (!customer.phone?.trim()) {
+      toast.danger('Esse cliente não possui telefone cadastrado');
+      return;
+    }
+    setNewRecipient(customer);
+    setNewConversationText('');
+  }
+
+  function submitNewConversation() {
+    const text = newConversationText.trim();
+    if (
+      !connected ||
+      !newRecipient?.phone ||
+      !text ||
+      startConversation.isPending
+    ) {
+      return;
+    }
+    startConversation.mutate(
+      {
+        customerId: newRecipient.id,
+        phone: newRecipient.phone,
+        text,
+      },
+      {
+        onSuccess: ({ conversation }) => {
+          setSelectedId(conversation.id);
+          setThreadOpenMobile(true);
+          setNewRecipient(null);
+          setNewConversationText('');
+          toastSuccess('Mensagem adicionada à fila do WhatsApp');
         },
       },
     );
@@ -490,9 +548,19 @@ export function IAAtendimentoPage() {
             <p className="font-brand text-sm font-semibold text-ink">
               Conversas
             </p>
-            <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-strong">
-              <IconWhatsApp size={12} /> {conversations.length}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={!connected}
+                onClick={() => setCustomerPickerOpen(true)}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-ink px-2.5 text-xs font-semibold text-white transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <IconPlus size={13} /> Nova
+              </button>
+              <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-strong">
+                <IconWhatsApp size={12} /> {conversations.length}
+              </span>
+            </div>
           </div>
 
           <div className="max-h-[560px] divide-y divide-[var(--color-soft-border)] overflow-y-auto">
@@ -683,6 +751,8 @@ export function IAAtendimentoPage() {
                               ? 'rounded-tl-sm border border-[var(--color-soft-border)] bg-white text-ink'
                               : message.sender === 'ai'
                                 ? 'rounded-tr-sm bg-gold text-ink'
+                                : message.sender === 'system'
+                                  ? 'rounded-tr-sm border border-[#b7dfb2] bg-[#dcf8d2] text-ink'
                                 : 'rounded-tr-sm bg-ink text-white',
                           ].join(' ')}
                         >
@@ -696,6 +766,12 @@ export function IAAtendimentoPage() {
                               Atendente
                             </span>
                           ) : null}
+                          {message.sender === 'system' ? (
+                            <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#367347]">
+                              <IconWhatsApp size={11} />
+                              {automationLabel(message.kind)}
+                            </span>
+                          ) : null}
                           <p className="leading-snug">{message.text}</p>
                           <div
                             className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
@@ -703,6 +779,8 @@ export function IAAtendimentoPage() {
                                 ? 'text-[#9a948c]'
                                 : message.sender === 'ai'
                                   ? 'text-[#7a5a12]'
+                                  : message.sender === 'system'
+                                    ? 'text-[#4f805d]'
                                   : 'text-white/55'
                             }`}
                           >
@@ -1087,6 +1165,80 @@ export function IAAtendimentoPage() {
           </Card.Content>
         </Card>
       </div>
+
+      <CustomerPickerDrawer
+        isOpen={customerPickerOpen}
+        onClose={() => setCustomerPickerOpen(false)}
+        onSelect={chooseNewRecipient}
+      />
+      <Drawer
+        isOpen={Boolean(newRecipient)}
+        onClose={() => {
+          setNewRecipient(null);
+          setNewConversationText('');
+        }}
+        title="Nova conversa"
+        widthClass="sm:w-[480px]"
+        zClass="z-[100]"
+        mobileBackLabel="Voltar"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setNewRecipient(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={submitNewConversation}
+              isDisabled={
+                !newConversationText.trim() || startConversation.isPending
+              }
+            >
+              {startConversation.isPending ? (
+                <Spinner size="sm" />
+              ) : (
+                <IconSend size={16} />
+              )}
+              Enviar
+            </Button>
+          </>
+        }
+      >
+        {newRecipient ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-[var(--color-soft-border)] bg-cream px-4 py-3">
+              <p className="text-sm font-semibold text-ink">
+                {newRecipient.name}
+              </p>
+              <p className="text-xs text-muted-ink">
+                {formatPhone(newRecipient.phone ?? '')}
+              </p>
+            </div>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted-ink">
+                Mensagem
+              </span>
+              <textarea
+                autoFocus
+                value={newConversationText}
+                maxLength={4096}
+                rows={6}
+                onChange={(event) =>
+                  setNewConversationText(event.target.value)
+                }
+                placeholder="Escreva a primeira mensagem…"
+                className="w-full resize-y rounded-xl border border-[var(--color-soft-border)] bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-gold focus:ring-2 focus:ring-gold/20"
+              />
+            </label>
+            <p className="text-xs leading-relaxed text-muted">
+              A mensagem entra na fila com atraso humanizado e aparece nesta
+              conversa como atendimento humano.
+            </p>
+          </div>
+        ) : null}
+      </Drawer>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
 import {
   SendWhatsappInboxMessageDto,
+  StartWhatsappConversationDto,
   UpdateAiAttendantDto,
   UpdateWhatsappConversationDto,
 } from './dto';
@@ -53,6 +54,15 @@ export class WhatsappInboxController {
     @Query('status') status?: string,
   ) {
     return this.service.listConversations(companyId, { q, status });
+  }
+
+  @RequirePermission('marketing:view')
+  @Post('conversations')
+  startConversation(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: StartWhatsappConversationDto,
+  ) {
+    return this.service.startAgentConversation(companyId, dto);
   }
 
   @RequirePermission('marketing:view')

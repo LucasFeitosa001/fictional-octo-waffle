@@ -1220,6 +1220,9 @@ model AppointmentNotification {
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
+  // Business idempotency: the same automation/kind cannot be handled twice for
+  // one appointment, even during an App Runner blue/green overlap.
+  @@unique([appointmentId, type, channel])
   @@index([appointmentId])
 }
 
@@ -2163,7 +2166,7 @@ model WhatsappInboxMessage {
   conversationId    String
   whatsappMessageId String?
   direction         String // inbound | outbound
-  sender            String // customer | ai | agent
+  sender            String // customer | ai | agent | system
   text              String
   status            String    @default("received") // received | pending | sent | failed
   kind              String?
@@ -2240,6 +2243,10 @@ model WhatsappAuthState {
 model WhatsappOutbox {
   id             String    @id @default(cuid())
   toPhone        String
+  // JID resolvido/observado no WhatsApp. Necessário para conversas LID, nas
+  // quais o número pode não estar disponível no evento, e também evita uma
+  // segunda resolução de destinatário em respostas do inbox.
+  toJid          String?
   text           String
   status         String    @default("pending") // pending | sent | failed
   attempts       Int       @default(0)
@@ -2265,6 +2272,7 @@ model WhatsappOutbox {
 
   @@index([status, nextAttemptAt])
   @@index([companyId])
+  @@index([companyId, toJid])
   @@index([customerId])
 }
 
