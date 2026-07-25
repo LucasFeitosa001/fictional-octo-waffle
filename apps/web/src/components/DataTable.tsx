@@ -22,6 +22,11 @@ interface DataTableProps<T> {
   rows: T[];
   getKey: (row: T) => string;
   'aria-label': string;
+  /**
+   * Mobile: tocar em qualquer área não-interativa do card executa esta ação.
+   * Botões, links, inputs e controles internos continuam com sua ação própria.
+   */
+  onRowClick?: (row: T) => void;
   /** Optional per-row background/tint (Belasis tinta linhas por natureza). */
   rowClassName?: (row: T) => string | undefined;
   /**
@@ -128,6 +133,7 @@ export function DataTable<T>({
   rows,
   getKey,
   'aria-label': ariaLabel,
+  onRowClick,
   rowClassName,
   storageKey,
 }: DataTableProps<T>) {
@@ -254,7 +260,22 @@ export function DataTable<T>({
         {rows.map((row) => (
           <li
             key={getKey(row)}
+            onClick={(event) => {
+              if (!onRowClick) return;
+              const target = event.target;
+              if (
+                target instanceof Element &&
+                target.closest('button, a, input, select, textarea, [role="button"], [role="checkbox"]')
+              ) {
+                return;
+              }
+              onRowClick(row);
+            }}
             className={`overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white p-4 shadow-[var(--shadow-soft)] ${
+              onRowClick
+                ? 'cursor-pointer transition-colors active:bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
+                : ''
+            } ${
               rowClassName?.(row) ?? ''
             }`}
           >
@@ -267,7 +288,9 @@ export function DataTable<T>({
               <dl className="flex flex-col divide-y divide-[var(--color-soft-border)]">
                 {detailCols.map((c) => (
                   <div key={c.key} className="flex min-h-10 items-center justify-between gap-4 py-2 text-sm">
-                    <dt className="shrink-0 text-xs font-medium text-muted">{c.header}</dt>
+                    <dt className="shrink-0 text-xs font-medium text-muted">
+                      {c.label ?? c.header}
+                    </dt>
                     <dd className="min-w-0 break-words text-right font-medium text-foreground">{c.render(row)}</dd>
                   </div>
                 ))}
