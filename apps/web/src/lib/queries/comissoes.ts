@@ -124,6 +124,7 @@ export interface CommissionDetailItem {
   bonusAmount: number;
   status: CommissionEntryStatus;
   signed: boolean;
+  availableDate: string | null;
   orderItems: CommissionDetailOrderItem[];
 }
 

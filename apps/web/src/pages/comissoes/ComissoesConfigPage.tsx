@@ -77,7 +77,9 @@ export function ComissoesConfigPage() {
         items={TABS}
         selectedKey="settings"
         onSelectionChange={(key) => {
-          if (key !== 'settings') navigate('/commissions/summary');
+          if (key === 'summary') navigate('/comissoes/resumo');
+          if (key === 'open') navigate('/comissoes/em-aberto');
+          if (key === 'paid') navigate('/comissoes/pagas');
         }}
         ariaLabel="Áreas de comissões"
         className="mb-5"

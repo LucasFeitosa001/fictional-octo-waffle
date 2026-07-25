@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Chip, ListBox, Select } from '@heroui/react';
 import { DataTable, type Column } from '../../components/DataTable';
 import { Drawer } from '../../components/Drawer';
@@ -95,6 +95,12 @@ function shortDate(iso: string): string {
 
 export function ComissoesResumoPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeStatus = location.pathname.endsWith('/em-aberto')
+    ? 'open'
+    : location.pathname.endsWith('/pagas')
+      ? 'paid'
+      : '';
   // Belasis abre a tela já com um período padrão de 30 dias (ex.: "19 jun → 19 jul"),
   // e não com o campo vazio. Reproduz o mesmo comportamento da captura.
   const [from, setFrom] = useState(() => {
@@ -104,10 +110,17 @@ export function ComissoesResumoPage() {
   });
   const [to, setTo] = useState(() => isoDate(new Date()));
   const [professionalId, setProfessionalId] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(routeStatus);
   const [detailFor, setDetailFor] = useState<CommissionSummaryRow | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const isMobile = useIsMobile();
+
+  // Mantém as URLs diretas/abas sincronizadas. Antes, abrir
+  // `/comissoes/pagas` ainda mostrava o Resumo porque o estado sempre iniciava
+  // vazio.
+  useEffect(() => {
+    setStatus(routeStatus);
+  }, [routeStatus]);
 
   // Seleção para pagamento em lote (Set de professionalId).
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -544,8 +557,10 @@ export function ComissoesResumoPage() {
           items={[...TABS]}
           selectedKey={status}
           onSelectionChange={(key) => {
-            if (key === 'settings') navigate('/commissions/settings');
-            else setStatus(key);
+            if (key === 'settings') navigate('/comissoes/config');
+            else if (key === 'open') navigate('/comissoes/em-aberto');
+            else if (key === 'paid') navigate('/comissoes/pagas');
+            else navigate('/comissoes/resumo');
           }}
           ariaLabel="Áreas de comissões"
           className="mt-3"
@@ -570,6 +585,7 @@ export function ComissoesResumoPage() {
           color={CARD_COLORS.open}
           tooltip="Comissões geradas e ainda não pagas ao profissional."
           loading={overview.isLoading}
+          onClick={() => navigate('/comissoes/em-aberto')}
         />
         <KpiCard
           label="Comissões pagas"
@@ -577,6 +593,7 @@ export function ComissoesResumoPage() {
           color={CARD_COLORS.paid}
           tooltip="Comissões já quitadas no período filtrado."
           loading={overview.isLoading}
+          onClick={() => navigate('/comissoes/pagas')}
         />
         <KpiCard
           label="Comissões a liberar"
@@ -584,6 +601,7 @@ export function ComissoesResumoPage() {
           color={CARD_COLORS.release}
           tooltip={TO_RELEASE_TOOLTIP}
           loading={overview.isLoading}
+          onClick={() => navigate('/comissoes/em-aberto')}
         />
       </div>
 
@@ -607,70 +625,106 @@ export function ComissoesResumoPage() {
         </div>
       )}
 
-      {/* ABA PAGAS: histórico de pagamentos (visível em mobile e desktop). */}
+      {/* ABA PAGAS: primeiro os lançamentos pagos por profissional (inclusive
+          histórico importado), depois os recibos/pagamentos registrados. */}
       {isPaidTab ? (
-        <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Pagamentos realizados</h3>
-              <span className="text-xs text-muted">{paymentRows.length} pagamento(s)</span>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <DateRangeFilter
-                from={from}
-                to={to}
-                onChange={({ from: f, to: t }) => {
-                  setFrom(f);
-                  setTo(t);
-                }}
-                fromLabel="Período"
-              />
-              <div className="flex w-full flex-col gap-1 sm:w-auto sm:min-w-[12rem]">
-                <label className="text-xs font-medium text-muted">Profissional</label>
-                <Select
-                  aria-label="Profissional"
-                  selectedKey={professionalId || ''}
-                  onSelectionChange={(k) => setProfessionalId(k ? String(k) : '')}
-                >
-                  <Select.Trigger>
-                    <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {profOptions.map((o) => (
-                        <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
-                          {o.name}
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
+        <div className="flex flex-col gap-4">
+          <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Comissões pagas por profissional
+                </h3>
+                <span className="text-xs text-muted">
+                  Toque em uma profissional para ver cada lançamento
+                </span>
               </div>
+              <span className="text-xs text-muted">{rows.length} resultado(s)</span>
             </div>
+
+            {summary.isLoading ? (
+              <LoadingState />
+            ) : summary.isError ? (
+              <ErrorState onRetry={() => summary.refetch()} />
+            ) : rows.length === 0 ? (
+              <EmptyState
+                icon={<IconPercent size={32} />}
+                title="Nenhuma comissão paga no período"
+                description="Ajuste os filtros para consultar outro período."
+              />
+            ) : (
+              <DataTable
+                aria-label="Comissões pagas por profissional"
+                columns={columns.filter((column) => column.key !== 'select')}
+                rows={rows}
+                getKey={(r) => r.professionalId}
+                onRowClick={setDetailFor}
+              />
+            )}
           </div>
 
-          {payments.isLoading ? (
-            <LoadingState />
-          ) : payments.isError ? (
-            <ErrorState onRetry={() => payments.refetch()} />
-          ) : paymentRows.length === 0 ? (
-            <EmptyState
-              icon={<IconCircleCheck size={32} />}
-              title="Nenhum pagamento no período"
-              description="Ajuste o período/profissional ou registre pagamentos na aba Resumo."
-            />
-          ) : (
-            <DataTable
-              aria-label="Histórico de pagamentos de comissão"
-              columns={paymentColumns}
-              rows={paymentRows}
-              getKey={(p) => p.id}
-            />
-          )}
+          <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Pagamentos realizados</h3>
+                <span className="text-xs text-muted">{paymentRows.length} pagamento(s)</span>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <DateRangeFilter
+                  from={from}
+                  to={to}
+                  onChange={({ from: f, to: t }) => {
+                    setFrom(f);
+                    setTo(t);
+                  }}
+                  fromLabel="Período"
+                />
+                <div className="flex w-full flex-col gap-1 sm:w-auto sm:min-w-[12rem]">
+                  <label className="text-xs font-medium text-muted">Profissional</label>
+                  <Select
+                    aria-label="Profissional"
+                    selectedKey={professionalId || ''}
+                    onSelectionChange={(k) => setProfessionalId(k ? String(k) : '')}
+                  >
+                    <Select.Trigger>
+                      <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {profOptions.map((o) => (
+                          <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
+                            {o.name}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {payments.isLoading ? (
+              <LoadingState />
+            ) : payments.isError ? (
+              <ErrorState onRetry={() => payments.refetch()} />
+            ) : paymentRows.length === 0 ? (
+              <EmptyState
+                icon={<IconCircleCheck size={32} />}
+                title="Nenhum recibo de pagamento no período"
+                description="As comissões importadas aparecem acima. Novos pagamentos gerarão recibos aqui."
+              />
+            ) : (
+              <DataTable
+                aria-label="Histórico de pagamentos de comissão"
+                columns={paymentColumns}
+                rows={paymentRows}
+                getKey={(p) => p.id}
+              />
+            )}
+          </div>
         </div>
       ) : (
-        /* DESKTOP: filtro lateral (desliza da esquerda) + resumo por profissional.
-           Mobile: tabela escondida — Belasis mostra só os 3 KPI cards no mobile. */
+        /* Desktop: filtro lateral. Mobile: cards clicáveis por profissional. */
         <div className="md:flex md:items-start md:gap-4">
           <FilterAside open={filterOpen} desktopOnly breakpoint="md">
             <div className="mb-3 flex items-center justify-between">
@@ -688,9 +742,16 @@ export function ComissoesResumoPage() {
             <div className="mt-4 flex flex-col gap-2">{filterFooter}</div>
           </FilterAside>
           {/* Resumo por profissional (data-wiring preservado). */}
-          <div className="hidden min-w-0 flex-1 md:block rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+          <div className="min-w-0 flex-1 rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Comissões por profissional</h3>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Comissões por profissional
+                </h3>
+                <span className="text-xs text-muted md:hidden">
+                  Toque em uma profissional para ver cada lançamento
+                </span>
+              </div>
               <span className="text-xs text-muted">{rows.length} resultado(s)</span>
             </div>
 
@@ -710,6 +771,7 @@ export function ComissoesResumoPage() {
                 columns={columns}
                 rows={rows}
                 getKey={(r) => r.professionalId}
+                onRowClick={setDetailFor}
               />
             )}
           </div>
@@ -785,27 +847,52 @@ function KpiCard({
   color,
   tooltip,
   loading,
+  onClick,
 }: {
   label: string;
   value: string;
   color: string;
   tooltip?: string;
   loading?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <div
-      className="rounded-xl p-4 text-center shadow-[rgba(99,99,99,0.2)_0_2px_8px_0]"
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (onClick && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      className={`rounded-xl p-4 text-center shadow-[rgba(99,99,99,0.2)_0_2px_8px_0] ${
+        onClick
+          ? 'cursor-pointer transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:translate-y-0'
+          : ''
+      }`}
       style={{ background: color }}
     >
       <div className="flex items-center justify-center gap-1 text-[1.05rem] font-medium text-white">
         <span>{label}</span>
         {tooltip && (
-          <HelpTooltip className="ml-1 inline-flex items-center text-white opacity-90 hover:opacity-100">
-            {tooltip}
-          </HelpTooltip>
+          <span
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <HelpTooltip className="ml-1 inline-flex items-center text-white opacity-90 hover:opacity-100">
+              {tooltip}
+            </HelpTooltip>
+          </span>
         )}
       </div>
       <div className="mt-1 text-2xl font-bold text-white">{loading ? '—' : value}</div>
+      {onClick && (
+        <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-white/90">
+          Ver detalhes <IconChevron size={13} className="-rotate-90" />
+        </div>
+      )}
     </div>
   );
 }
@@ -838,6 +925,21 @@ const DETAIL_COLUMNS: Column<CommissionDetailItem>[] = [
     },
   },
   {
+    key: 'base',
+    header: 'Valor base',
+    render: (it) => formatMoney(it.baseAmount),
+  },
+  {
+    key: 'percentual',
+    header: 'Percentual',
+    render: (it) =>
+      it.baseAmount > 0
+        ? `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(
+            (it.commissionAmount / it.baseAmount) * 100,
+          )}%`
+        : '—',
+  },
+  {
     key: 'valor',
     header: 'Comissão',
     render: (it) => (
@@ -845,6 +947,24 @@ const DETAIL_COLUMNS: Column<CommissionDetailItem>[] = [
         {formatMoney(it.commissionAmount + it.bonusAmount)}
       </span>
     ),
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (it) => (
+      <Chip
+        color={it.status === 'paid' ? 'success' : it.status === 'open' ? 'warning' : 'default'}
+        variant="soft"
+        size="sm"
+      >
+        {ENTRY_STATUS_LABEL[it.status]}
+      </Chip>
+    ),
+  },
+  {
+    key: 'disponivel',
+    header: 'Disponível em',
+    render: (it) => (it.availableDate ? formatDate(it.availableDate) : 'Imediatamente'),
   },
 ];
 
@@ -884,6 +1004,11 @@ function DetailDrawer({
         {/* Card de comissão do profissional */}
         <div className="rounded-lg border border-[var(--color-soft-border)] bg-white p-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Metric
+              label="Valor vendido"
+              value={formatMoney(d?.totals.base ?? 0)}
+              help="Base total usada para calcular as comissões deste período."
+            />
             <Metric
               label="Bonificações"
               value={formatMoney(d?.totals.bonus ?? 0)}

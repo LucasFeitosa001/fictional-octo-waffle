@@ -36,6 +36,26 @@ interface DetailFilters {
   status?: string;
 }
 
+/**
+ * O filtro de UI trabalha com datas civis (YYYY-MM-DD). O limite final precisa
+ * incluir o dia inteiro; `new Date(to)` sozinho representa 00:00 e eliminava
+ * comissões geradas no próprio dia final.
+ */
+function inclusiveDateRange(
+  from?: string,
+  to?: string,
+): { gte?: Date; lt?: Date } | undefined {
+  if (!from && !to) return undefined;
+  const range: { gte?: Date; lt?: Date } = {};
+  if (from) range.gte = new Date(`${from}T00:00:00.000Z`);
+  if (to) {
+    const nextDay = new Date(`${to}T00:00:00.000Z`);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    range.lt = nextDay;
+  }
+  return range;
+}
+
 @Injectable()
 export class CommissionsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -47,12 +67,8 @@ export class CommissionsService {
     if (filters.status === 'open' || filters.status === 'paid' || filters.status === 'reversed') {
       where.status = filters.status;
     }
-    if (filters.from || filters.to) {
-      where.competenceDate = {
-        ...(filters.from ? { gte: new Date(filters.from) } : {}),
-        ...(filters.to ? { lte: new Date(filters.to) } : {}),
-      };
-    }
+    const dateRange = inclusiveDateRange(filters.from, filters.to);
+    if (dateRange) where.competenceDate = dateRange;
 
     const [entries, professionals] = await Promise.all([
       this.prisma.client.commissionEntry.findMany({ where }),
@@ -134,12 +150,8 @@ export class CommissionsService {
   async overview(companyId: string, filters: SummaryFilters) {
     const where: Prisma.CommissionEntryWhereInput = { companyId };
     if (filters.professionalId) where.professionalId = filters.professionalId;
-    if (filters.from || filters.to) {
-      where.competenceDate = {
-        ...(filters.from ? { gte: new Date(filters.from) } : {}),
-        ...(filters.to ? { lte: new Date(filters.to) } : {}),
-      };
-    }
+    const dateRange = inclusiveDateRange(filters.from, filters.to);
+    if (dateRange) where.competenceDate = dateRange;
 
     const entries = await this.prisma.client.commissionEntry.findMany({
       where,
@@ -191,12 +203,8 @@ export class CommissionsService {
     if (filters.status === 'open' || filters.status === 'paid' || filters.status === 'reversed') {
       where.status = filters.status;
     }
-    if (filters.from || filters.to) {
-      where.competenceDate = {
-        ...(filters.from ? { gte: new Date(filters.from) } : {}),
-        ...(filters.to ? { lte: new Date(filters.to) } : {}),
-      };
-    }
+    const dateRange = inclusiveDateRange(filters.from, filters.to);
+    if (dateRange) where.competenceDate = dateRange;
 
     const entries = await this.prisma.client.commissionEntry.findMany({
       where,
@@ -210,10 +218,18 @@ export class CommissionsService {
           select: {
             id: true,
             number: true,
+            legacyId: true,
             date: true,
             customer: { select: { name: true } },
             items: {
-              select: { kind: true, refId: true, quantity: true, unitPrice: true, grossValue: true },
+              select: {
+                kind: true,
+                refId: true,
+                professionalId: true,
+                quantity: true,
+                unitPrice: true,
+                grossValue: true,
+              },
             },
           },
         })
@@ -249,10 +265,22 @@ export class CommissionsService {
 
     const items = entries.map((e) => {
       const order = e.orderId ? orderById.get(e.orderId) : undefined;
+      const ownOrderItems =
+        order?.items.filter((item) => item.professionalId === professionalId) ?? [];
+      // Imports muito antigos podem não ter FK no item. Nesse caso preservamos
+      // os itens da comanda em vez de deixar o detalhamento vazio.
+      const relevantOrderItems =
+        ownOrderItems.length > 0 ? ownOrderItems : (order?.items ?? []);
+      const legacyNumberMatch = order?.legacyId?.match(/^cmd:(\d+)$/);
       return {
         id: e.id,
         orderId: e.orderId ?? null,
-        orderNumber: order?.number ?? null,
+        // Para lançamentos importados, exibe o número que consta nos relatórios
+        // do Belasis; algumas comandas foram renumeradas internamente para
+        // evitar colisões durante a migração.
+        orderNumber: legacyNumberMatch
+          ? Number(legacyNumberMatch[1])
+          : (order?.number ?? null),
         customerName: order?.customer?.name ?? null,
         date: (e.competenceDate ?? order?.date ?? e.createdAt).toISOString(),
         baseAmount: Number(e.baseAmount),
@@ -260,7 +288,8 @@ export class CommissionsService {
         bonusAmount: Number(e.bonusAmount),
         status: e.status,
         signed: e.signed,
-        orderItems: (order?.items ?? []).map((it) => ({
+        availableDate: e.availableDate?.toISOString() ?? null,
+        orderItems: relevantOrderItems.map((it) => ({
           kind: it.kind,
           name: nameByRef.get(`${it.kind}:${it.refId}`) ?? '—',
           quantity: Number(it.quantity),
@@ -467,12 +496,8 @@ export class CommissionsService {
   ) {
     const where: Prisma.CommissionPaymentWhereInput = { companyId };
     if (filters.professionalId) where.professionalId = filters.professionalId;
-    if (filters.from || filters.to) {
-      where.paidAt = {
-        ...(filters.from ? { gte: new Date(filters.from) } : {}),
-        ...(filters.to ? { lte: new Date(filters.to) } : {}),
-      };
-    }
+    const dateRange = inclusiveDateRange(filters.from, filters.to);
+    if (dateRange) where.paidAt = dateRange;
 
     const payments = await this.prisma.client.commissionPayment.findMany({
       where,
