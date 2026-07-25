@@ -40,6 +40,7 @@ import {
   type WebProfile,
 } from '../../lib/queries/agendamento-online';
 import { CLUB_ORIGIN } from '../../lib/config';
+import { toast, TOAST_TIMEOUT } from '../../lib/toast';
 
 const FIELD =
   'w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold focus:ring-2 focus:ring-[color-mix(in_oklab,var(--sp-primary)_25%,transparent)]';
@@ -380,6 +381,22 @@ export function AgendamentoOnlinePage() {
   const liveUrl = savedSlug ? `${PUBLIC_BASE}${savedSlug}` : '';
   const draftUrl = `${PUBLIC_BASE}${slug}`;
   const activeLink = link.data?.active ?? false;
+  const previewUrl = useMemo(() => {
+    if (!liveUrl) return '';
+    const url = new URL(liveUrl);
+    url.searchParams.set('spPreview', '1');
+    url.searchParams.set(
+      'hideNavbar',
+      appearanceDraft?.hideNavbar ? '1' : '0',
+    );
+    url.searchParams.set('primaryColor', appearanceDraft?.primaryColor ?? '');
+    url.searchParams.set('accentColor', appearanceDraft?.accentColor ?? '');
+    url.searchParams.set(
+      'backgroundColor',
+      appearanceDraft?.backgroundColor ?? '',
+    );
+    return url.toString();
+  }, [appearanceDraft, liveUrl]);
 
   const linkDirty = link.data
     ? slug !== link.data.slug || linkActive !== link.data.active
@@ -407,8 +424,19 @@ export function AgendamentoOnlinePage() {
       await navigator.clipboard.writeText(draftUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+      toast.success('Link de agendamento copiado', {
+        description: draftUrl,
+        timeout: 10_000,
+        actionProps: {
+          children: 'Abrir',
+          onPress: () =>
+            window.open(draftUrl, '_blank', 'noopener,noreferrer'),
+        },
+      });
     } catch {
-      /* clipboard unavailable */
+      toast.danger('Não foi possível copiar o link', {
+        timeout: TOAST_TIMEOUT,
+      });
     }
   }
 
@@ -1164,7 +1192,7 @@ export function AgendamentoOnlinePage() {
             </Card>
 
             <div className="lg:sticky lg:top-4 lg:w-[340px] lg:shrink-0">
-              <PhonePreview url={liveUrl} active={activeLink} />
+              <PhonePreview url={previewUrl} active={activeLink} />
             </div>
           </div>
         </div>

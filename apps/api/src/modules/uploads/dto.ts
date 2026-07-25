@@ -1,6 +1,14 @@
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
-const KINDS = ['logo', 'professional', 'product', 'service', 'customer', 'misc'] as const;
+const KINDS = [
+  'logo',
+  'professional',
+  'product',
+  'service',
+  'customer',
+  'whatsapp',
+  'misc',
+] as const;
 export type UploadKind = (typeof KINDS)[number];
 
 export class PresignUploadDto {

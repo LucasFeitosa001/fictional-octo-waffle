@@ -91,6 +91,6 @@ export class WhatsappInboxController {
     @Param('id') id: string,
     @Body() dto: SendWhatsappInboxMessageDto,
   ) {
-    return this.service.sendAgentMessage(companyId, id, dto.text);
+    return this.service.sendAgentMessage(companyId, id, dto);
   }
 }

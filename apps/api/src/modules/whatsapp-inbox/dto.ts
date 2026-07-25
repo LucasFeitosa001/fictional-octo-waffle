@@ -48,13 +48,26 @@ export class UpdateWhatsappConversationDto {
 }
 
 export class SendWhatsappInboxMessageDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  text?: string;
+
+  @IsOptional()
+  @IsIn(['image', 'audio'])
+  mediaType?: 'image' | 'audio';
+
+  @IsOptional() @IsString() @MaxLength(2048) mediaUrl?: string;
+  @IsOptional() @IsString() @MaxLength(120) mediaMimeType?: string;
+  @IsOptional() @IsString() @MaxLength(240) mediaFileName?: string;
+  @IsOptional() @IsBoolean() mediaPtt?: boolean;
+}
+
+export class StartWhatsappConversationDto {
+  @IsOptional() @IsString() customerId?: string;
+  @IsOptional() @IsString() @MaxLength(30) phone?: string;
   @IsString()
   @IsNotEmpty()
   @MaxLength(4096)
   text!: string;
-}
-
-export class StartWhatsappConversationDto extends SendWhatsappInboxMessageDto {
-  @IsOptional() @IsString() customerId?: string;
-  @IsOptional() @IsString() @MaxLength(30) phone?: string;
 }

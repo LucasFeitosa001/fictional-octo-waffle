@@ -48,7 +48,7 @@ import { CompanySwitcher } from '../components/CompanySwitcher';
 import { useMinhasContas } from '../lib/queries/contas';
 import { useBookingLink } from '../lib/queries/marketing';
 import { APP_VERSION, CLUB_ORIGIN } from '../lib/config';
-import { toast, toastSuccess, TOAST_TIMEOUT } from '../lib/toast';
+import { toast, TOAST_TIMEOUT } from '../lib/toast';
 import { useSidebarStyle } from '../theme/sidebarStyle';
 import { NotificationBell } from '../components/NotificationBell';
 import { IconTip } from '../components/IconTip';
@@ -492,8 +492,17 @@ export function Sidebar({
     }
 
     try {
-      await copyText(`${CLUB_ORIGIN}/${slug}`);
-      toastSuccess('Link de agendamento copiado!');
+      const url = `${CLUB_ORIGIN}/${slug}`;
+      await copyText(url);
+      toast.success('Link de agendamento copiado', {
+        description: url,
+        timeout: 10_000,
+        actionProps: {
+          children: 'Abrir',
+          onPress: () =>
+            window.open(url, '_blank', 'noopener,noreferrer'),
+        },
+      });
     } catch {
       toast.danger('Não foi possível copiar o link de agendamento.', {
         timeout: TOAST_TIMEOUT,

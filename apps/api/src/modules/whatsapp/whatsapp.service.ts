@@ -2,11 +2,12 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import makeWASocket, {
   DisconnectReason,
   Browsers,
+  downloadMediaMessage,
   fetchLatestBaileysVersion,
   normalizeMessageContent,
   proto,
 } from 'baileys';
-import type { WASocket, WAVersion } from 'baileys';
+import type { WAMessage, WASocket, WAVersion } from 'baileys';
 import * as QRCode from 'qrcode';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@beautypass/db';
@@ -70,6 +71,13 @@ export interface WhatsappInbound {
   pushName?: string;
   kind?: string;
   metadata?: Record<string, string | number | boolean | null>;
+  media?: {
+    type: 'image' | 'audio';
+    buffer: Buffer;
+    mimetype: string;
+    fileName: string;
+    ptt: boolean;
+  };
   fromMe: boolean;
   timestamp: Date;
   // Empresa dona do socket em que a mensagem chegou. Como cada company tem seu
@@ -95,6 +103,16 @@ export interface WhatsappOutboundQueued {
 }
 export type WhatsappOutboundHandler = (
   msg: WhatsappOutboundQueued,
+) => void | Promise<void>;
+
+export interface WhatsappDeliveryUpdate {
+  companyId: string;
+  whatsappMessageId: string;
+  status: 'sent' | 'delivered' | 'read';
+  at: Date;
+}
+export type WhatsappDeliveryHandler = (
+  update: WhatsappDeliveryUpdate,
 ) => void | Promise<void>;
 
 function envInt(name: string, fallback: number, min: number, max: number): number {
@@ -156,6 +174,7 @@ const CLIENT_AUTOMATION_KINDS = [
 // Quantas mensagens enviadas guardar por sessão para responder aos retry-receipts
 // (ver getMessage). Cobre com folga a janela em que um aparelho pede reenvio.
 const SENT_CACHE_MAX = 300;
+const MAX_INBOUND_MEDIA_BYTES = 16 * 1024 * 1024;
 
 // Minimal pino-compatible logger so Baileys stays quiet (it logs verbosely).
 function silentLogger(): any {
@@ -227,6 +246,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly sessions = new Map<string, SessionState>();
   private readonly inboundHandlers = new Set<WhatsappInboundHandler>();
   private readonly outboundHandlers = new Set<WhatsappOutboundHandler>();
+  private readonly deliveryHandlers = new Set<WhatsappDeliveryHandler>();
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
@@ -309,6 +329,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return () => this.outboundHandlers.delete(fn);
   }
 
+  /** Observa os ACKs do WhatsApp (servidor, entregue e lido) dos nossos envios. */
+  addDeliveryHandler(fn: WhatsappDeliveryHandler): () => void {
+    this.deliveryHandlers.add(fn);
+    return () => this.deliveryHandlers.delete(fn);
+  }
+
   private async emitOutboundQueued(message: WhatsappOutboundQueued) {
     for (const handler of this.outboundHandlers) {
       try {
@@ -316,6 +342,98 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       } catch (err) {
         this.logger.error(
           `Erro no handler de mensagem enviada: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
+
+  private async emitDeliveryUpdate(update: WhatsappDeliveryUpdate) {
+    for (const handler of this.deliveryHandlers) {
+      try {
+        await handler(update);
+      } catch (err) {
+        this.logger.error(
+          `Erro no handler de recibo do WhatsApp: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
+
+  private async dispatchInbound(
+    inbound: WhatsappInbound,
+    rawMessage: WAMessage,
+    sock: WASocket,
+    session: SessionState,
+  ): Promise<void> {
+    const sentByThisWorker =
+      inbound.fromMe &&
+      Boolean(inbound.messageId && session.sentCache.has(inbound.messageId));
+    if (
+      (inbound.kind === 'image' || inbound.kind === 'audio') &&
+      !sentByThisWorker
+    ) {
+      try {
+        const downloaded = await downloadMediaMessage(
+          rawMessage,
+          'buffer',
+          {},
+          {
+            logger: silentLogger(),
+            reuploadRequest: sock.updateMediaMessage,
+          },
+        );
+        const buffer = Buffer.from(downloaded);
+        if (buffer.length > MAX_INBOUND_MEDIA_BYTES) {
+          inbound.metadata = {
+            ...(inbound.metadata ?? {}),
+            mediaError: 'Arquivo maior que 16 MB',
+          };
+        } else {
+          const mimetype = String(
+            inbound.metadata?.mimetype ||
+              (inbound.kind === 'image' ? 'image/jpeg' : 'audio/ogg'),
+          ).split(';')[0];
+          const extension =
+            inbound.kind === 'image'
+              ? mimetype === 'image/png'
+                ? 'png'
+                : mimetype === 'image/webp'
+                  ? 'webp'
+                  : mimetype === 'image/gif'
+                    ? 'gif'
+                    : 'jpg'
+              : mimetype === 'audio/mpeg'
+                ? 'mp3'
+                : mimetype === 'audio/mp4'
+                  ? 'm4a'
+                  : mimetype === 'audio/webm'
+                    ? 'webm'
+                    : 'ogg';
+          inbound.media = {
+            type: inbound.kind,
+            buffer,
+            mimetype,
+            fileName: `whatsapp-${inbound.messageId ?? Date.now()}.${extension}`,
+            ptt: Boolean(inbound.metadata?.ptt),
+          };
+        }
+      } catch (err) {
+        inbound.metadata = {
+          ...(inbound.metadata ?? {}),
+          mediaError: (err as Error).message.slice(0, 300),
+        };
+        this.logger.warn(
+          `Não foi possível baixar mídia recebida (company=${inbound.companyId}, message=${inbound.messageId ?? '?'}): ${(err as Error).message}`,
+        );
+      }
+    }
+
+    for (const handler of this.inboundHandlers) {
+      try {
+        await handler(inbound);
+      } catch (err) {
+        this.logger.error(
+          `Erro no handler de mensagem recebida: ${(err as Error).message}`,
         );
       }
     }
@@ -648,6 +766,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       inboxMessageId?: string;
       /** JID já observado no inbox (`@s.whatsapp.net` ou `@lid`). */
       recipientJid?: string;
+      media?: {
+        type: 'image' | 'audio';
+        url: string;
+        mimeType: string;
+        fileName?: string;
+        ptt?: boolean;
+      };
     },
   ): Promise<void> {
     const recipientJid = this.normalizeRecipientJid(ctx?.recipientJid);
@@ -664,7 +789,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     }
     const companyId = ctx?.companyId ?? null;
     const dedupRecipient = recipientJid ?? toPhone;
-    const dedupKey = `${companyId ?? '-'}\u0000${dedupRecipient}\u0000${text}`;
+    const dedupKey = `${companyId ?? '-'}\u0000${dedupRecipient}\u0000${text}\u0000${ctx?.media?.url ?? ''}`;
     // Mensagens nascidas no inbox têm identidade própria e precisam sempre
     // ganhar sua linha na outbox; deduplicá-las aqui deixaria o balão novo
     // eternamente em "pending". A deduplicação continua valendo para as
@@ -690,6 +815,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
             toPhone,
             toJid: recipientJid,
             text,
+            mediaUrl: ctx?.media?.url,
+            mediaType: ctx?.media?.type,
+            mediaMimeType: ctx?.media?.mimeType,
+            mediaFileName: ctx?.media?.fileName,
+            mediaPtt: ctx?.media?.ptt ?? false,
             OR: [
               // Uma duplicata nunca deve ultrapassar a original ainda pendente,
               // mesmo que o socket tenha ficado offline por bastante tempo.
@@ -802,6 +932,50 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return this.jidUserDigits(jid) ? jid : null;
   }
 
+  private absoluteMediaUrl(value: string): string {
+    if (/^https?:\/\//i.test(value)) return value;
+    const apiBase = (
+      process.env.BETTER_AUTH_URL ||
+      process.env.API_URL ||
+      `http://localhost:${process.env.PORT ?? 3334}`
+    ).replace(/\/$/, '');
+    return `${apiBase}${value.startsWith('/') ? '' : '/'}${value}`;
+  }
+
+  /**
+   * Marca no WhatsApp as mensagens que o atendente realmente abriu. Além de
+   * zerar o contador local, isso envia o receipt que transforma os vistos do
+   * cliente em azuis (se a confirmação de leitura estiver habilitada na conta).
+   */
+  async markMessagesRead(
+    companyId: string,
+    remoteJid: string,
+    messageIds: string[],
+  ): Promise<void> {
+    const session = this.sessions.get(companyId);
+    const jid = this.normalizeRecipientJid(remoteJid);
+    const ids = [...new Set(messageIds.filter(Boolean))];
+    if (
+      !session ||
+      session.status !== 'open' ||
+      !session.sock ||
+      !jid ||
+      ids.length === 0
+    ) {
+      return;
+    }
+    try {
+      await session.sock.readMessages(
+        ids.map((id) => ({ remoteJid: jid, id, fromMe: false })),
+      );
+    } catch (err) {
+      // A leitura local continua válida mesmo se o socket cair nesse instante.
+      this.logger.warn(
+        `Falha ao enviar recibo de leitura (company=${companyId}): ${(err as Error).message}`,
+      );
+    }
+  }
+
   private isBrazilianE164Digits(digits: string): boolean {
     return digits.startsWith('55') && (digits.length === 12 || digits.length === 13);
   }
@@ -896,6 +1070,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     toPhone: string;
     toJid: string | null;
     text: string;
+    mediaUrl: string | null;
+    mediaType: string | null;
+    mediaMimeType: string | null;
+    mediaFileName: string | null;
+    mediaPtt: boolean;
     attempts: number;
     companyId: string | null;
     kind: string | null;
@@ -922,16 +1101,31 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         if (msg.inboxMessageId) {
           await db.whatsappInboxMessage.updateMany({
             where: { id: msg.inboxMessageId },
-            data: {
-              status: 'failed',
-              metadataJson: { error: 'Número sem WhatsApp / JID irresolúvel' },
-            },
+            data: { status: 'failed' },
           });
         }
         this.logger.warn(`Outbox ${msg.id}: número ${msg.toPhone} sem WhatsApp — descartado.`);
         return;
       }
-      const sent = await session.sock.sendMessage(jid, { text: msg.text });
+      const mediaUrl = msg.mediaUrl
+        ? this.absoluteMediaUrl(msg.mediaUrl)
+        : null;
+      const sent =
+        msg.mediaType === 'image' && mediaUrl
+          ? await session.sock.sendMessage(jid, {
+              image: { url: mediaUrl },
+              ...(msg.text && !msg.text.startsWith('📷 Imagem')
+                ? { caption: msg.text }
+                : {}),
+              ...(msg.mediaMimeType ? { mimetype: msg.mediaMimeType } : {}),
+            })
+          : msg.mediaType === 'audio' && mediaUrl
+            ? await session.sock.sendMessage(jid, {
+                audio: { url: mediaUrl },
+                mimetype: msg.mediaMimeType || 'audio/ogg',
+                ptt: msg.mediaPtt,
+              })
+            : await session.sock.sendMessage(jid, { text: msg.text });
       // Guarda o conteúdo enviado para o getMessage responder aos retry-receipts
       // (ver makeWASocket) — é isso que tira a mensagem do "Aguardando esta
       // mensagem…" no celular do dono. Mantém o cache limitado (FIFO).
@@ -976,9 +1170,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           where: { id: msg.inboxMessageId },
           data: {
             status: failed ? 'failed' : 'pending',
-            ...(failed
-              ? { metadataJson: { error: (err as Error).message.slice(0, 500) } }
-              : {}),
           },
         });
       }
@@ -1334,7 +1525,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
             content?.videoMessage?.caption;
           if (content?.imageMessage) {
             kind = 'image';
-            text = text?.trim() || '📷 Imagem recebida';
+            text =
+              text?.trim() ||
+              (m.key.fromMe ? '📷 Imagem' : '📷 Imagem recebida');
             metadata = {
               mimetype: content.imageMessage.mimetype ?? null,
               media: true,
@@ -1348,10 +1541,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
             };
           } else if (content?.audioMessage) {
             kind = 'audio';
-            text = '🎤 Áudio recebido';
+            text = m.key.fromMe ? '🎤 Áudio' : '🎤 Áudio recebido';
             metadata = {
               mimetype: content.audioMessage.mimetype ?? null,
               seconds: content.audioMessage.seconds ?? 0,
+              ptt: content.audioMessage.ptt ?? false,
               media: true,
             };
           } else if (content?.documentMessage) {
@@ -1429,13 +1623,56 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               : new Date(),
             companyId,
           };
-          for (const handler of this.inboundHandlers) {
-            Promise.resolve(handler(inbound)).catch((err) => {
-              this.logger.error(
-                `Erro no handler de mensagem recebida: ${(err as Error).message}`,
-              );
-            });
-          }
+          void this.dispatchInbound(inbound, m, sock, session);
+        }
+      });
+
+      // ACKs de chats individuais: SERVER_ACK (enviado), DELIVERY_ACK
+      // (entregue) e READ/PLAYED (lido). Persistidos pelo inbox para renderizar
+      // os mesmos ✓ / ✓✓ / ✓✓ azuis do WhatsApp.
+      sock.ev.on('messages.update', (updates) => {
+        for (const { key, update } of updates) {
+          if (!key.id || key.fromMe === false || update.status == null) continue;
+          const waStatus = Number(update.status);
+          const status: WhatsappDeliveryUpdate['status'] | null =
+            waStatus >= proto.WebMessageInfo.Status.READ
+              ? 'read'
+              : waStatus >= proto.WebMessageInfo.Status.DELIVERY_ACK
+                ? 'delivered'
+                : waStatus >= proto.WebMessageInfo.Status.SERVER_ACK
+                  ? 'sent'
+                  : null;
+          if (!status) continue;
+          void this.emitDeliveryUpdate({
+            companyId,
+            whatsappMessageId: key.id,
+            status,
+            at: new Date(),
+          });
+        }
+      });
+
+      // Grupos não entram no inbox, mas algumas versões/dispositivos também
+      // publicam recibos individuais por este evento. Ouvi-lo torna a
+      // integração resiliente sem criar duplicidade (updates são idempotentes).
+      sock.ev.on('message-receipt.update', (updates) => {
+        for (const { key, receipt } of updates) {
+          if (!key.id || key.fromMe === false) continue;
+          const readTimestamp = receipt.readTimestamp ?? receipt.playedTimestamp;
+          const deliveredTimestamp = receipt.receiptTimestamp;
+          const status: WhatsappDeliveryUpdate['status'] | null = readTimestamp
+            ? 'read'
+            : deliveredTimestamp
+              ? 'delivered'
+              : null;
+          if (!status) continue;
+          const rawTimestamp = Number(readTimestamp ?? deliveredTimestamp ?? 0);
+          void this.emitDeliveryUpdate({
+            companyId,
+            whatsappMessageId: key.id,
+            status,
+            at: rawTimestamp ? new Date(rawTimestamp * 1000) : new Date(),
+          });
         }
       });
 
@@ -1548,6 +1785,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       sock.ev.removeAllListeners('connection.update');
       sock.ev.removeAllListeners('creds.update');
       sock.ev.removeAllListeners('messages.upsert');
+      sock.ev.removeAllListeners('messages.update');
+      sock.ev.removeAllListeners('message-receipt.update');
     } catch {
       // ignore — best-effort cleanup
     }
