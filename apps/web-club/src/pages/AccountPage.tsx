@@ -14,6 +14,7 @@ import { signOut, useCustomerSession } from '../lib/auth';
 import { AppointmentListSkeleton } from '../components/Skeletons';
 import { SalonBrand } from '../components/SalonBrand';
 import {
+  useBookingAccent,
   useCancelAppointment,
   useMyAppointments,
   useMyProfile,
@@ -38,6 +39,7 @@ function readPermission(): PermState {
  */
 export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) {
   const navigate = useNavigate();
+  useBookingAccent(slug);
   const { data: session, isPending } = useCustomerSession();
   const isLoggedIn = !!session;
 

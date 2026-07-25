@@ -19,6 +19,10 @@ import { CloseStyleSwitcher } from '../components/CloseStyleSwitcher';
 import { SidebarStyleSwitcher } from '../components/SidebarStyleSwitcher';
 import { SwitchRow } from '../components/SwitchRow';
 import { useCrmShortcutEnabled, setCrmShortcutEnabled } from '../theme/crmShortcut';
+import {
+  saveAppearanceToCloud,
+  saveCurrentAppearanceToCloud,
+} from '../theme/useThemeSync';
 import { MobileBackHeader } from '../components/MobileBackHeader';
 import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
 import { APP_VERSION } from '../lib/config';
@@ -871,6 +875,8 @@ export function ConfiguracoesPage() {
   const [currency, setCurrency] = useState('BRL');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [appearanceSaving, setAppearanceSaving] = useState(false);
+  const [appearanceMessage, setAppearanceMessage] = useState<string | null>(null);
 
   // Endereço/contato — persistidos em Company.addressJson (ver empresa.ts).
   const [personType, setPersonType] = useState('PJ');
@@ -930,6 +936,21 @@ export function ConfiguracoesPage() {
       },
     };
     update.mutate(body, { onSuccess: () => setSaved(true) });
+  }
+
+  async function handleAppearanceSave() {
+    setAppearanceSaving(true);
+    setAppearanceMessage(null);
+    try {
+      await saveCurrentAppearanceToCloud();
+      setAppearanceMessage('Personalização salva na sua conta.');
+    } catch {
+      setAppearanceMessage(
+        'A aparência continua aplicada neste dispositivo, mas não foi possível sincronizar a conta.',
+      );
+    } finally {
+      setAppearanceSaving(false);
+    }
   }
 
   const canSave = name.trim().length >= 2 && !update.isPending;
@@ -1515,7 +1536,7 @@ export function ConfiguracoesPage() {
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Tema de cores</h2>
               <p className="mt-1 text-sm text-muted-ink">
-                Muda a paleta de todo o sistema. A escolha fica salva neste dispositivo.
+                Muda a paleta de todo o sistema e sincroniza a escolha com sua conta.
               </p>
               <div className="mt-4">
                 <ThemeSwitcher />
@@ -1526,7 +1547,7 @@ export function ConfiguracoesPage() {
               <h2 className="text-base font-semibold text-ink">Estilo dos botões</h2>
               <p className="mt-1 text-sm text-muted-ink">
                 Define o arredondamento dos botões do sistema. A escolha fica salva
-                como o tema.
+                como o tema, inclusive ao trocar de página ou dispositivo.
               </p>
               <div className="mt-4">
                 <ButtonStyleSwitcher />
@@ -1564,7 +1585,12 @@ export function ConfiguracoesPage() {
                   label="Mostrar atalho do CRM"
                   description="Botão flutuante de acesso rápido ao CRM, no canto da tela."
                   checked={crmShortcutEnabled}
-                  onChange={setCrmShortcutEnabled}
+                  onChange={(enabled) => {
+                    setCrmShortcutEnabled(enabled);
+                    void saveAppearanceToCloud({ crmShortcut: enabled }).catch(() => {
+                      /* a escolha segue aplicada localmente */
+                    });
+                  }}
                 />
               </div>
             </section>
@@ -1577,15 +1603,27 @@ export function ConfiguracoesPage() {
               </div>
             </section>
 
-            {/* O logo/tema é salvo junto com a empresa. */}
-            <div className="flex justify-end">
+            <div className="flex flex-col items-end gap-2">
+              {appearanceMessage && (
+                <p
+                  className={[
+                    'text-sm',
+                    appearanceMessage.startsWith('Personalização')
+                      ? 'text-success'
+                      : 'text-danger',
+                  ].join(' ')}
+                  role="status"
+                >
+                  {appearanceMessage}
+                </p>
+              )}
               <button
                 type="button"
-                onClick={() => handleSubmit({ preventDefault() {} } as React.FormEvent)}
-                disabled={!canSave}
+                onClick={handleAppearanceSave}
+                disabled={appearanceSaving}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {update.isPending ? 'Salvando…' : 'Salvar'}
+                {appearanceSaving ? 'Salvando…' : 'Salvar personalização'}
               </button>
             </div>
           </div>

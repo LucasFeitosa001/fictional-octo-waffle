@@ -1,4 +1,5 @@
 import { SIDEBAR_STYLES, setSidebarStyle, useSidebarStyle, type SidebarStyleId } from '../theme/sidebarStyle';
+import { saveAppearanceToCloud } from '../theme/useThemeSync';
 
 /** Mini-preview de um "app": sidebar sólida (encostada) vs flutuante (margem + cantos + sombra). */
 function SidebarPreview({ id }: { id: SidebarStyleId }) {
@@ -26,7 +27,12 @@ export function SidebarStyleSwitcher() {
           <button
             key={s.id}
             type="button"
-            onClick={() => setSidebarStyle(s.id)}
+            onClick={() => {
+              setSidebarStyle(s.id);
+              void saveAppearanceToCloud({ sidebarStyle: s.id }).catch(() => {
+                /* segue aplicado localmente; o botão Salvar permite tentar de novo */
+              });
+            }}
             aria-pressed={active}
             className={[
               'flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors',

@@ -334,6 +334,11 @@ model User {
   // cliente aplica o default 'salonpass'. Persiste por-usuário na nuvem para
   // sincronizar entre dispositivos.
   themePreference String?
+  // Preferências completas da interface interna (tema, formato dos botões,
+  // sidebar, botão fechar e atalho do CRM). JSON permite evoluir o editor sem
+  // criar uma coluna nova para cada opção visual; themePreference continua
+  // preenchido por compatibilidade com clientes anteriores.
+  appearancePreferences Json?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

@@ -86,7 +86,7 @@ function MinimalAccess({
   return (
     <div className="pointer-events-none fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-40 flex items-center gap-1.5">
       {isLoggedIn ? (
-        <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-[var(--color-soft-border)] bg-[#fffdf8]/90 px-1 py-1 shadow-[var(--shadow-soft)] backdrop-blur-md">
+        <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-[var(--color-soft-border)] bg-[var(--booking-surface)]/90 px-1 py-1 shadow-[var(--shadow-soft)] backdrop-blur-md">
           <NotificationBell slug={slug} enabled={isLoggedIn} />
           <button
             type="button"
@@ -361,7 +361,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
       {!done && (
         <section
           id="inicio"
-          className="scroll-mt-20 border-b border-[var(--color-soft-border)] bg-[#fffdf8]/95 shadow-[var(--shadow-soft)] backdrop-blur-xl"
+          className="scroll-mt-20 border-b border-[var(--color-soft-border)] bg-[var(--booking-surface)]/95 shadow-[var(--shadow-soft)] backdrop-blur-xl"
         >
           <SalonHero
             portal={portal.data}
@@ -373,9 +373,9 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
 
       <main className="club-page-main mx-auto w-full max-w-2xl flex-1 pb-36 pt-2.5 sm:pt-3 md:pb-24">
         {done ? (
-          <Card className="mx-auto mt-6 max-w-md border border-[var(--color-soft-border)] bg-[#fffdf8] text-center shadow-[var(--shadow-card)]">
+          <Card className="mx-auto mt-6 max-w-md border border-[var(--color-soft-border)] bg-[var(--booking-surface)] text-center shadow-[var(--shadow-card)]">
             <Card.Content className="flex flex-col items-center gap-3 px-5 py-8 sm:px-8 sm:py-10">
-              <span className="grid h-16 w-16 place-items-center rounded-full bg-[var(--booking-accent-soft)] text-[#F08CA5] shadow-[var(--shadow-soft)]">
+              <span className="grid h-16 w-16 place-items-center rounded-full bg-[var(--booking-accent-2-soft)] text-[var(--booking-accent-2-ink)] shadow-[var(--shadow-soft)]">
                 <CircleCheck width={36} height={36} />
               </span>
               <h2 className="font-brand text-xl text-foreground">Agendamento confirmado!</h2>
@@ -953,7 +953,10 @@ function SalonHero({
       ) : (
         <span
           className="grid h-12 w-12 shrink-0 place-items-center rounded-xl font-brand text-lg text-[var(--booking-accent-ink)] shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)] sm:h-14 sm:w-14 sm:text-xl"
-          style={{ backgroundImage: 'linear-gradient(160deg, #fbf3e3 0%, #f1ddc2 100%)' }}
+          style={{
+            backgroundImage:
+              'linear-gradient(160deg, var(--booking-accent-2-soft) 0%, var(--booking-accent-soft) 100%)',
+          }}
           aria-hidden
         >
           {initial}

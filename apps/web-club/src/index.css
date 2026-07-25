@@ -44,6 +44,9 @@
    house pink (#F08CA5) when the salon hasn't customized it. */
 :root {
   --booking-accent: #f08ca5; /* base — buttons, active chips, highlights */
+  --booking-accent-2: #f2b33d; /* secondary — badges/celebration/details */
+  --booking-page-bg: var(--club-bg, #f7f3ea);
+  --booking-surface: color-mix(in oklab, var(--booking-page-bg) 28%, #fff);
   /* Derived tones (recomputed from --booking-accent via color-mix). */
   --booking-accent-strong: color-mix(in oklab, var(--booking-accent) 82%, #000);
   --booking-accent-soft: color-mix(in oklab, var(--booking-accent) 16%, #fff);
@@ -51,6 +54,8 @@
   --booking-accent-ink: color-mix(in oklab, var(--booking-accent) 62%, #000);
   --booking-accent-disabled: color-mix(in oklab, var(--booking-accent) 42%, #fff);
   --booking-accent-shadow: color-mix(in oklab, var(--booking-accent) 32%, transparent);
+  --booking-accent-2-soft: color-mix(in oklab, var(--booking-accent-2) 18%, #fff);
+  --booking-accent-2-ink: color-mix(in oklab, var(--booking-accent-2) 66%, #000);
   /* The house "pink" shadow now tracks the salon accent so glow/elevation on
      accented controls matches the brand color everywhere it's referenced. */
   --shadow-pink: 0 8px 24px var(--booking-accent-shadow);
@@ -97,7 +102,7 @@ body {
   /* Cream canvas with two faint radial washes (pink + gold) for warmth/depth.
      A salon can override the base color via `--club-bg` (Setting
      booking.appearance.backgroundColor); the warm washes stay for depth. */
-  background-color: var(--club-bg, #f7f3ea);
+  background-color: var(--booking-page-bg);
   background-image:
     radial-gradient(820px 480px at 50% -10%, rgba(242, 179, 61, 0.12), transparent 60%),
     radial-gradient(720px 520px at 100% 6%, rgba(240, 140, 165, 0.1), transparent 62%);

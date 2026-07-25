@@ -1,5 +1,6 @@
 import { IconX } from './icons';
 import { CLOSE_STYLES, setCloseStyle, useCloseStyle, type CloseStyleId } from '../theme/closeStyle';
+import { saveAppearanceToCloud } from '../theme/useThemeSync';
 
 /** Amostra visual de como o botão "fechar" fica em cada estilo. */
 function ClosePreview({ id }: { id: CloseStyleId }) {
@@ -34,7 +35,12 @@ export function CloseStyleSwitcher() {
           <button
             key={s.id}
             type="button"
-            onClick={() => setCloseStyle(s.id)}
+            onClick={() => {
+              setCloseStyle(s.id);
+              void saveAppearanceToCloud({ closeStyle: s.id }).catch(() => {
+                /* segue aplicado localmente; o botão Salvar permite tentar de novo */
+              });
+            }}
             aria-pressed={active}
             className={[
               'flex flex-col items-center gap-3 rounded-xl border p-4 text-center transition-colors',
