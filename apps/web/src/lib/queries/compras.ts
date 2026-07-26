@@ -25,7 +25,9 @@ export interface PurchaseRow {
   /** Número sequencial por empresa (Onda 7). Nulo em compras legadas. */
   number?: number | null;
   freight?: string;
+  otherExpenses?: string;
   discount?: string;
+  otherIncome?: string;
   notes?: string | null;
   total: string;
   date: string;
@@ -58,7 +60,9 @@ export interface PurchaseDetail {
   paymentMethod?: { id: string; name: string } | null;
   number?: number | null;
   freight: string;
+  otherExpenses: string;
   discount: string;
+  otherIncome: string;
   notes?: string | null;
   total: string;
   date: string;
@@ -80,7 +84,9 @@ export interface CreatePurchaseBody {
   date?: string;
   items: PurchaseItemBody[];
   freight?: number;
+  otherExpenses?: number;
   discount?: number;
+  otherIncome?: number;
   accountId?: string;
   paymentMethodId?: string;
   notes?: string;

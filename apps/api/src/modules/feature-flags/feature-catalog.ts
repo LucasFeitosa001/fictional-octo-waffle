@@ -21,7 +21,7 @@ export const FEATURE_KEYS = [
   'messaging', // envio de mensagens (base p/ campanhas)
   'campaigns', // automação de marketing (/marketing/campanhas)
   'reports_advanced', // relatórios avançados
-  'whatsapp_api', // WhatsApp API oficial
+  'whatsapp_api', // WhatsApp conectado + inbox/recepcionista virtual
   'nfe', // emissão de notas fiscais (/financeiro/notas-fiscais)
 ] as const;
 
@@ -83,7 +83,7 @@ export const PLAN_META: Record<PlanName, { label: string; tagline: string }> = {
   },
   max: {
     label: 'Max',
-    tagline: 'Tudo liberado: WhatsApp oficial e notas fiscais para operar em escala.',
+    tagline: 'Recursos avançados de atendimento, automação e integrações para operar em escala.',
   },
 };
 
@@ -120,7 +120,7 @@ export const FEATURE_META: Record<FeatureKey, { label: string; description: stri
   memberships: {
     label: 'Assinaturas / mensalidades',
     description:
-      'Cobre planos recorrentes dos clientes e garanta receita previsível todo mês.',
+      'Organize planos recorrentes, vencimentos e renovações manuais dos clientes.',
   },
   messaging: {
     label: 'Mensagens automáticas',
@@ -138,14 +138,14 @@ export const FEATURE_META: Record<FeatureKey, { label: string; description: stri
       'Indicadores de faturamento, retenção e desempenho por profissional para decidir com dados.',
   },
   whatsapp_api: {
-    label: 'WhatsApp API oficial',
+    label: 'WhatsApp integrado',
     description:
-      'Número verificado, envios em massa e atendimento sem risco de bloqueio pelo WhatsApp.',
+      'Conecte o número do salão, centralize conversas e use a recepcionista virtual com limites de envio.',
   },
   nfe: {
-    label: 'Emissão de notas fiscais',
+    label: 'Integração fiscal',
     description:
-      'Emita NFS-e direto do sistema, com os dados do atendimento já preenchidos.',
+      'Integração com provedor fiscal em preparação; a emissão ainda não está habilitada.',
   },
 };
 

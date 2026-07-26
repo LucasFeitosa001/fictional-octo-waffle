@@ -7,6 +7,8 @@ import {
 } from './notification-settings.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
@@ -72,17 +74,19 @@ function parseTypes(type?: string): string[] | undefined {
  * silence a whole class of automatic client messages. Default (when never set):
  * only follow-up on.
  */
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('notification-settings')
 export class NotificationSettingsController {
   constructor(private readonly settings: NotificationSettingsService) {}
 
   @Get()
+  @RequirePermission('config:view', 'config:manage')
   get(@CurrentUser('companyId') companyId: string) {
     return this.settings.get(companyId);
   }
 
   @Patch()
+  @RequirePermission('config:manage')
   update(
     @CurrentUser('companyId') companyId: string,
     @Body() body: Partial<NotificationAutomationSettings>,
@@ -102,11 +106,13 @@ export class NotificationSettingsController {
 
   /** Full follow-up config (message template, delay, recurrence, booking link). */
   @Get('follow-up')
+  @RequirePermission('config:view', 'config:manage')
   getFollowUp(@CurrentUser('companyId') companyId: string) {
     return this.settings.getFollowUp(companyId);
   }
 
   @Patch('follow-up')
+  @RequirePermission('config:manage')
   updateFollowUp(
     @CurrentUser('companyId') companyId: string,
     @Body() body: Partial<FollowUpSettings>,

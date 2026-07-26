@@ -22,29 +22,36 @@ import {
   UseBalanceDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { FeatureGuard, RequireFeature } from '../feature-flags';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly service: OrdersService) {}
 
   @Get()
+  @RequirePermission('comandas:view')
   list(@CurrentUser('companyId') companyId: string, @Query('status') status?: string) {
     return this.service.list(companyId, status);
   }
 
   @Get(':id')
+  @RequirePermission('comandas:view')
   findOne(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.findOne(companyId, id);
   }
 
   @Post()
+  @RequirePermission('comandas:create')
   create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateOrderDto) {
     return this.service.create(companyId, dto);
   }
 
   @Post(':id/items')
+  @RequirePermission('comandas:edit')
   addItem(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -54,6 +61,7 @@ export class OrdersController {
   }
 
   @Patch(':id/items/:itemId')
+  @RequirePermission('comandas:edit')
   updateItem(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -64,6 +72,7 @@ export class OrdersController {
   }
 
   @Delete(':id/items/:itemId')
+  @RequirePermission('comandas:edit')
   removeItem(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -74,6 +83,7 @@ export class OrdersController {
 
   // ---- auxiliaries (rateio de comissão do item de serviço) ----
   @Post(':id/items/:itemId/auxiliaries')
+  @RequirePermission('comandas:edit')
   addAuxiliary(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -84,6 +94,7 @@ export class OrdersController {
   }
 
   @Delete(':id/items/:itemId/auxiliaries/:auxId')
+  @RequirePermission('comandas:edit')
   removeAuxiliary(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -95,6 +106,7 @@ export class OrdersController {
 
   // ---- produtos consumidos (baixa de estoque, fora do total) ----
   @Post(':id/items/:itemId/consumed-products')
+  @RequirePermission('comandas:edit')
   addConsumedProduct(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -105,6 +117,7 @@ export class OrdersController {
   }
 
   @Delete(':id/items/:itemId/consumed-products/:consumedId')
+  @RequirePermission('comandas:edit')
   removeConsumedProduct(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -116,6 +129,7 @@ export class OrdersController {
 
   // ---- crédito / cashback ----
   @Post(':id/credit')
+  @RequirePermission('comandas:edit')
   applyCredit(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -125,11 +139,14 @@ export class OrdersController {
   }
 
   @Delete(':id/credit')
+  @RequirePermission('comandas:edit')
   removeCredit(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.removeCredit(companyId, id);
   }
 
   @Post(':id/cashback')
+  @RequirePermission('comandas:edit')
+  @RequireFeature('cashback')
   applyCashback(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -139,12 +156,15 @@ export class OrdersController {
   }
 
   @Delete(':id/cashback')
+  @RequirePermission('comandas:edit')
+  @RequireFeature('cashback')
   removeCashback(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.removeCashback(companyId, id);
   }
 
   // ---- discounts / payments ----
   @Post(':id/discounts')
+  @RequirePermission('comandas:edit')
   addDiscount(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -154,6 +174,7 @@ export class OrdersController {
   }
 
   @Post(':id/payments')
+  @RequirePermission('comandas:checkout')
   addPayment(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -163,6 +184,7 @@ export class OrdersController {
   }
 
   @Post(':id/payments/:pid/reverse')
+  @RequirePermission('comandas:checkout')
   reversePayment(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -172,6 +194,7 @@ export class OrdersController {
   }
 
   @Post(':id/finish')
+  @RequirePermission('comandas:checkout')
   finish(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
@@ -181,6 +204,7 @@ export class OrdersController {
   }
 
   @Post(':id/reopen')
+  @RequirePermission('comandas:checkout')
   reopen(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
@@ -190,6 +214,7 @@ export class OrdersController {
   }
 
   @Patch(':id')
+  @RequirePermission('comandas:edit')
   update(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -199,6 +224,7 @@ export class OrdersController {
   }
 
   @Delete(':id')
+  @RequirePermission('comandas:delete')
   remove(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.remove(companyId, id);
   }

@@ -160,9 +160,12 @@ const numInputCls =
 export function ComandaDrawer({
   order,
   onClose,
+  initialPaymentsOpen = false,
 }: {
   order: OrderRow | null;
   onClose: () => void;
+  /** Abre diretamente o fluxo de pagamento, usado pelo botão "Faturar" da criação. */
+  initialPaymentsOpen?: boolean;
 }) {
   const navigate = useNavigate();
   const orderId = order?.id ?? '';
@@ -199,10 +202,10 @@ export function ComandaDrawer({
   useEffect(() => {
     setItemPickerOpen(false);
     setEditingItemId(null);
-    setPaymentsOpen(false);
+    setPaymentsOpen(Boolean(order) && initialPaymentsOpen);
     setAddingDiscount(false);
     setError(null);
-  }, [order?.id]);
+  }, [order?.id, initialPaymentsOpen]);
 
   const editable = detail?.status === 'open';
 

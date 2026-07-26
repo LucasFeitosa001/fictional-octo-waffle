@@ -498,6 +498,7 @@ export class UsersController {
   ) {}
 
   @Get()
+  @RequirePermission('usuarios:manage', 'equipe:view', 'equipe:manage')
   list(@CurrentUser('companyId') companyId: string) {
     return this.service.list(companyId);
   }
@@ -547,6 +548,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @RequirePermission('usuarios:manage', 'equipe:view', 'equipe:manage')
   findOne(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.findOne(companyId, id);
   }

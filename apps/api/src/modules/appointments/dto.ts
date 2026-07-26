@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -22,6 +23,16 @@ export class AppointmentItemDto {
 const FOLLOWUP_DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days'] as const;
 // Âncora do atraso: a partir de agora, antes do início ou depois do fim.
 const FOLLOWUP_WHEN = ['before', 'after', 'from_now'] as const;
+const STATUSES = [
+  'scheduled',
+  'confirmed',
+  'unconfirmed',
+  'waiting',
+  'in_progress',
+  'done',
+  'finished',
+  'canceled',
+] as const;
 
 /**
  * Aviso/follow-up PERSONALIZADO agendado a partir do próprio drawer de
@@ -70,6 +81,21 @@ export class CreateAppointmentDto {
   followUp?: AppointmentFollowUpDto;
 }
 
+/**
+ * Criação atômica de uma série. `start`/`end` representam a primeira ocorrência
+ * e `additionalStarts` as demais; todas usam a mesma duração e configuração.
+ */
+export class CreateAppointmentSeriesDto extends CreateAppointmentDto {
+  @IsArray()
+  @ArrayMaxSize(60)
+  @IsDateString({}, { each: true })
+  additionalStarts: string[];
+
+  @IsOptional()
+  @IsIn(STATUSES)
+  status?: (typeof STATUSES)[number];
+}
+
 export class UpdateAppointmentDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() professionalId?: string;
@@ -98,17 +124,6 @@ export class BlockTimeDto {
   @IsDateString() end: string;
   @IsOptional() @IsString() reason?: string;
 }
-
-const STATUSES = [
-  'scheduled',
-  'confirmed',
-  'unconfirmed',
-  'waiting',
-  'in_progress',
-  'done',
-  'finished',
-  'canceled',
-] as const;
 
 export class StatusDto {
   @IsIn(STATUSES) status: (typeof STATUSES)[number];

@@ -20,6 +20,8 @@ import { UploadsService } from './uploads.service';
 import { PresignUploadDto } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 
 const MAX_UPLOAD_BYTES = 16 * 1024 * 1024; // mídia do WhatsApp: até 16 MB
 
@@ -49,7 +51,14 @@ export class UploadsController {
    * Returns { url, key } — the client should then PATCH the target entity
    * with the returned `url`.
    */
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission(
+    'clientes:manage',
+    'equipe:manage',
+    'catalogo:manage',
+    'config:manage',
+    'marketing:manage',
+  )
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
@@ -87,7 +96,14 @@ export class UploadsController {
   /**
    * Backward-compat: S3 presigned PUT flow (only works when UPLOADS_BUCKET is set).
    */
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission(
+    'clientes:manage',
+    'equipe:manage',
+    'catalogo:manage',
+    'config:manage',
+    'marketing:manage',
+  )
   @Post('presign')
   presign(@CurrentUser('companyId') companyId: string, @Body() dto: PresignUploadDto) {
     return this.service.presign(companyId, dto);

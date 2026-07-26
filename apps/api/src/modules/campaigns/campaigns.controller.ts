@@ -17,12 +17,15 @@ import {
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { FeatureGuard, RequireFeature } from '../feature-flags';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 
 // Módulo pago: todos os endpoints de campanha exigem a feature 'messaging'.
 // O FeatureGuard retorna 402 (Payment Required) se o plano da empresa não a
 // inclui — é assim que "o módulo de mensagens só ativa pra quem paga".
-@UseGuards(JwtAuthGuard, FeatureGuard)
-@RequireFeature('messaging')
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
+@RequirePermission('marketing:view', 'marketing:manage')
+@RequireFeature('campaigns')
 @Controller('campaigns')
 export class CampaignsController {
   constructor(private readonly service: CampaignsService) {}
@@ -33,6 +36,7 @@ export class CampaignsController {
   }
 
   @Post()
+  @RequirePermission('marketing:manage')
   create(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateCampaignDto,
@@ -42,6 +46,7 @@ export class CampaignsController {
 
   /** Preview how many customers a segment matches, without persisting anything. */
   @Post('preview-segment')
+  @RequirePermission('marketing:manage')
   preview(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: PreviewSegmentDto,
@@ -61,6 +66,7 @@ export class CampaignsController {
   }
 
   @Patch(':id')
+  @RequirePermission('marketing:manage')
   update(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -70,6 +76,7 @@ export class CampaignsController {
   }
 
   @Delete(':id')
+  @RequirePermission('marketing:manage')
   remove(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -79,6 +86,7 @@ export class CampaignsController {
 
   /** Materializes CampaignMessage rows for the segment and enqueues sends. */
   @Post(':id/dispatch')
+  @RequirePermission('marketing:manage')
   dispatch(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,

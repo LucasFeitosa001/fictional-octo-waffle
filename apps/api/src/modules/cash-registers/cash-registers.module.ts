@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   Injectable,
   NotFoundException,
@@ -18,6 +19,7 @@ import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { AuthModule } from '../auth/auth.module';
+import { AuthService } from '../auth/auth.service';
 
 class OpenCashDto {
   @IsOptional() @IsNumber() @Min(0) openingBalance?: number;
@@ -117,47 +119,102 @@ export class CashRegistersService {
     };
   }
 
-  async open(companyId: string, dto: OpenCashDto, userId?: string) {
+  async open(
+    companyId: string,
+    dto: OpenCashDto,
+    userId: string,
+    canManageAll: boolean,
+  ) {
     const responsibleUserId = dto.responsibleUserId ?? userId;
-    // Regra: um usuário não abre 2 caixas simultâneos.
-    if (responsibleUserId) {
-      const existing = await this.prisma.client.cashRegister.findFirst({
-        where: { companyId, status: 'open', responsibleUserId },
-        select: { id: true, number: true },
+    if (responsibleUserId !== userId && !canManageAll) {
+      throw new ForbiddenException(
+        'Você só pode abrir um caixa em seu próprio nome.',
+      );
+    }
+
+    return this.prisma.client.$transaction(async (tx) => {
+      // Serializa abertura/numeração por empresa: evita dois operadores criarem
+      // o mesmo `number` ou furarem a regra de caixa único simultaneamente.
+      await tx.$queryRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:cash-register`}))
+      `;
+
+      const membership = await tx.userCompany.findFirst({
+        where: { companyId, userId: responsibleUserId },
+        select: { userId: true },
+      });
+      if (!membership) {
+        throw new ForbiddenException(
+          'O responsável escolhido não pertence a esta empresa.',
+        );
+      }
+
+      const setting = await tx.setting.findUnique({
+        where: {
+          companyId_key: { companyId, key: 'finance.settings' },
+        },
+        select: { valueJson: true },
+      });
+      const settings =
+        setting?.valueJson &&
+        typeof setting.valueJson === 'object' &&
+        !Array.isArray(setting.valueJson)
+          ? (setting.valueJson as Record<string, unknown>)
+          : {};
+      const allowMultipleCash = settings.allowMultipleCash === true;
+
+      const existing = await tx.cashRegister.findFirst({
+        where: {
+          companyId,
+          status: 'open',
+          ...(allowMultipleCash ? { responsibleUserId } : {}),
+        },
+        select: { id: true, number: true, responsibleUserId: true },
       });
       if (existing) {
         throw new ConflictException(
-          `Este usuário já possui o caixa #${existing.number} aberto.`,
+          allowMultipleCash
+            ? `Este usuário já possui o caixa #${existing.number} aberto.`
+            : `O caixa #${existing.number} já está aberto. Feche-o antes de abrir outro ou habilite múltiplos caixas nas configurações financeiras.`,
         );
       }
-    }
-    const last = await this.prisma.client.cashRegister.findFirst({
-      where: { companyId },
-      orderBy: { number: 'desc' },
-      select: { number: true },
-    });
-    return this.prisma.client.cashRegister.create({
-      data: {
-        companyId,
-        number: (last?.number ?? 0) + 1,
-        openingBalance: dto.openingBalance ?? 0,
-        responsibleUserId,
-        status: 'open',
-      },
+
+      const last = await tx.cashRegister.findFirst({
+        where: { companyId },
+        orderBy: { number: 'desc' },
+        select: { number: true },
+      });
+      return tx.cashRegister.create({
+        data: {
+          companyId,
+          number: (last?.number ?? 0) + 1,
+          openingBalance: dto.openingBalance ?? 0,
+          responsibleUserId,
+          status: 'open',
+        },
+      });
     });
   }
 
-  async getOpen(companyId: string) {
+  async getOpen(companyId: string, userId: string, canViewAll: boolean) {
     return this.prisma.client.cashRegister.findFirst({
-      where: { companyId, status: 'open' },
+      where: {
+        companyId,
+        status: 'open',
+        ...(canViewAll ? {} : { responsibleUserId: userId }),
+      },
       orderBy: { openedAt: 'desc' },
     });
   }
 
   /** Todos os caixas abertos, com responsável, movimentos e conferência consolidada. */
-  async listOpened(companyId: string) {
+  async listOpened(companyId: string, userId: string, canViewAll: boolean) {
     const regs = await this.prisma.client.cashRegister.findMany({
-      where: { companyId, status: 'open' },
+      where: {
+        companyId,
+        status: 'open',
+        ...(canViewAll ? {} : { responsibleUserId: userId }),
+      },
       orderBy: { number: 'desc' },
       include: OPEN_INCLUDE,
     });
@@ -165,76 +222,150 @@ export class CashRegistersService {
   }
 
   /** Sangria (retirada, type 'out') ou Suprimento (reforço, type 'in'). */
-  async addMovement(companyId: string, id: string, dto: MovementDto) {
-    const reg = await this.prisma.client.cashRegister.findFirst({
-      where: { id, companyId },
-      select: { id: true, status: true },
-    });
-    if (!reg) throw new NotFoundException('Caixa não encontrado');
-    if (reg.status !== 'open')
-      throw new ConflictException('Não é possível movimentar um caixa fechado.');
-    return this.prisma.client.cashMovement.create({
-      data: {
-        cashRegisterId: id,
-        type: dto.type,
-        amount: dto.amount,
-        paymentMethodId: dto.paymentMethodId,
-        refType: dto.refType,
-        refId: dto.refId,
-        description: dto.description,
-      },
+  async addMovement(
+    companyId: string,
+    id: string,
+    dto: MovementDto,
+    userId: string,
+    canManageAll: boolean,
+  ) {
+    return this.prisma.client.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "CashRegister"
+        WHERE "id" = ${id} AND "companyId" = ${companyId}
+        FOR UPDATE
+      `;
+      const reg = await tx.cashRegister.findFirst({
+        where: { id, companyId },
+        select: { id: true, status: true, responsibleUserId: true },
+      });
+      if (!reg) throw new NotFoundException('Caixa não encontrado');
+      if (!canManageAll && reg.responsibleUserId !== userId) {
+        throw new ForbiddenException(
+          'Você só pode movimentar o seu próprio caixa.',
+        );
+      }
+      if (reg.status !== 'open') {
+        throw new ConflictException(
+          'Não é possível movimentar um caixa fechado.',
+        );
+      }
+      return tx.cashMovement.create({
+        data: {
+          cashRegisterId: id,
+          type: dto.type,
+          amount: dto.amount,
+          paymentMethodId: dto.paymentMethodId,
+          refType: dto.refType,
+          refId: dto.refId,
+          description: dto.description,
+        },
+      });
     });
   }
 
-  async close(companyId: string, id: string, dto: CloseCashDto, userId?: string) {
-    const reg = await this.prisma.client.cashRegister.findFirst({
-      where: { id, companyId },
-      include: { movements: true },
+  async close(
+    companyId: string,
+    id: string,
+    dto: CloseCashDto,
+    userId: string,
+    canManageAll: boolean,
+  ) {
+    return this.prisma.client.$transaction(async (tx) => {
+      // O mesmo lock é usado pelo faturamento da comanda. Depois de adquiri-lo,
+      // relê todos os movimentos para que o saldo nunca seja calculado com uma
+      // fotografia anterior ao último faturamento.
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "CashRegister"
+        WHERE "id" = ${id} AND "companyId" = ${companyId}
+        FOR UPDATE
+      `;
+      const reg = await tx.cashRegister.findFirst({
+        where: { id, companyId },
+        include: {
+          movements: {
+            include: {
+              paymentMethod: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+      if (!reg) throw new NotFoundException('Caixa não encontrado');
+      if (!canManageAll && reg.responsibleUserId !== userId) {
+        throw new ForbiddenException('Você só pode fechar o seu próprio caixa.');
+      }
+      if (reg.status === 'closed') {
+        throw new ConflictException('Este caixa já está fechado.');
+      }
+
+      const summary = this.summarize(reg);
+      const expectedBalance = summary.saldoEmCaixa;
+      const divergence = Number(dto.countedBalance) - expectedBalance;
+      const updated = await tx.cashRegister.update({
+        where: { id },
+        data: {
+          status: 'closed',
+          countedBalance: dto.countedBalance,
+          expectedBalance,
+          divergence,
+          closedByUserId: userId,
+          closedAt: new Date(),
+        },
+      });
+      return { ...updated, expectedBalance, divergence };
     });
-    if (!reg) throw new NotFoundException('Caixa não encontrado');
-    if (reg.status === 'closed')
-      throw new ConflictException('Este caixa já está fechado.');
-    // Saldo esperado a partir dos movimentos; divergência = conferido − esperado.
-    const summary = this.summarize(reg);
-    const expectedBalance = summary.saldoEmCaixa;
-    const divergence = Number(dto.countedBalance) - expectedBalance;
-    const updated = await this.prisma.client.cashRegister.update({
-      where: { id },
-      data: {
-        status: 'closed',
-        countedBalance: dto.countedBalance,
-        // Conferência persistida: saldo esperado, divergência e quem fechou.
-        expectedBalance,
-        divergence,
-        ...(userId ? { closedByUserId: userId } : {}),
-        closedAt: new Date(),
-      },
-    });
-    return { ...updated, expectedBalance, divergence };
   }
 
-  async history(companyId: string, from?: string, to?: string) {
-    let openedAt: { gte?: Date; lte?: Date } | undefined;
+  async history(
+    companyId: string,
+    userId: string,
+    canViewAll: boolean,
+    from?: string,
+    to?: string,
+  ) {
+    let range: { gte?: Date; lt?: Date } | undefined;
     if (from || to) {
-      openedAt = {};
-      if (from) openedAt.gte = new Date(from);
+      range = {};
+      if (from) range.gte = new Date(`${from}T00:00:00.000Z`);
       if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        openedAt.lte = end;
+        const nextDay = new Date(`${to}T00:00:00.000Z`);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+        range.lt = nextDay;
       }
     }
     const data = await this.prisma.client.cashRegister.findMany({
-      where: { companyId, ...(openedAt ? { openedAt } : {}) },
+      where: {
+        companyId,
+        ...(canViewAll ? {} : { responsibleUserId: userId }),
+        ...(range
+          ? {
+              OR: [
+                { status: 'closed', closedAt: range },
+                { status: 'open', openedAt: range },
+              ],
+            }
+          : {}),
+      },
       orderBy: { number: 'desc' },
       include: { responsibleUser: { select: USER_SELECT } },
     });
     return { data, page: 1, pageSize: data.length, total: data.length };
   }
 
-  async detail(companyId: string, id: string) {
+  async detail(
+    companyId: string,
+    id: string,
+    userId: string,
+    canViewAll: boolean,
+  ) {
     const reg = await this.prisma.client.cashRegister.findFirst({
-      where: { id, companyId },
+      where: {
+        id,
+        companyId,
+        ...(canViewAll ? {} : { responsibleUserId: userId }),
+      },
       include: OPEN_INCLUDE,
     });
     if (!reg) throw new NotFoundException('Caixa não encontrado');
@@ -242,71 +373,110 @@ export class CashRegistersService {
   }
 }
 
-// RBAC: leitura (caixas abertos, histórico, detalhe) exige caixa:view_all;
-// abrir/fechar/sangria/suprimento exige caixa:operate (ou caixa:manage, que
-// dá gestão total). Owner ('*') passa em tudo.
+// RBAC: caixa:operate lê e opera somente o caixa do próprio usuário;
+// caixa:view_all amplia as leituras; caixa:manage amplia também as mutações.
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('cash-registers')
 export class CashRegistersController {
-  constructor(private readonly service: CashRegistersService) {}
+  constructor(
+    private readonly service: CashRegistersService,
+    private readonly auth: AuthService,
+  ) {}
+
+  private async access(companyId: string, userId: string) {
+    const { permissions } = await this.auth.permissions(userId, companyId);
+    const owner = permissions.includes('*');
+    return {
+      canViewAll:
+        owner ||
+        permissions.includes('caixa:view_all') ||
+        permissions.includes('caixa:manage'),
+      canManageAll: owner || permissions.includes('caixa:manage'),
+    };
+  }
 
   @Post('open')
   @RequirePermission('caixa:operate', 'caixa:manage')
-  open(
+  async open(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
     @Body() dto: OpenCashDto,
   ) {
-    return this.service.open(companyId, dto, userId);
+    const { canManageAll } = await this.access(companyId, userId);
+    return this.service.open(companyId, dto, userId, canManageAll);
   }
 
   @Get('open')
-  @RequirePermission('caixa:view_all')
-  getOpen(@CurrentUser('companyId') companyId: string) {
-    return this.service.getOpen(companyId);
+  @RequirePermission('caixa:operate', 'caixa:view_all', 'caixa:manage')
+  async getOpen(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    const { canViewAll } = await this.access(companyId, userId);
+    return this.service.getOpen(companyId, userId, canViewAll);
   }
 
   @Get('opened')
-  @RequirePermission('caixa:view_all')
-  listOpened(@CurrentUser('companyId') companyId: string) {
-    return this.service.listOpened(companyId);
+  @RequirePermission('caixa:operate', 'caixa:view_all', 'caixa:manage')
+  async listOpened(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    const { canViewAll } = await this.access(companyId, userId);
+    return this.service.listOpened(companyId, userId, canViewAll);
   }
 
   @Get()
-  @RequirePermission('caixa:view_all')
-  history(
+  @RequirePermission('caixa:operate', 'caixa:view_all', 'caixa:manage')
+  async history(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.service.history(companyId, from, to);
+    const { canViewAll } = await this.access(companyId, userId);
+    return this.service.history(companyId, userId, canViewAll, from, to);
   }
 
   @Get(':id')
-  @RequirePermission('caixa:view_all')
-  detail(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
-    return this.service.detail(companyId, id);
+  @RequirePermission('caixa:operate', 'caixa:view_all', 'caixa:manage')
+  async detail(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const { canViewAll } = await this.access(companyId, userId);
+    return this.service.detail(companyId, id, userId, canViewAll);
   }
 
   @Post(':id/movements')
   @RequirePermission('caixa:operate', 'caixa:manage')
-  addMovement(
+  async addMovement(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: MovementDto,
   ) {
-    return this.service.addMovement(companyId, id, dto);
+    const { canManageAll } = await this.access(companyId, userId);
+    return this.service.addMovement(
+      companyId,
+      id,
+      dto,
+      userId,
+      canManageAll,
+    );
   }
 
   @Post(':id/close')
   @RequirePermission('caixa:operate', 'caixa:manage')
-  close(
+  async close(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: CloseCashDto,
   ) {
-    return this.service.close(companyId, id, dto, userId);
+    const { canManageAll } = await this.access(companyId, userId);
+    return this.service.close(companyId, id, dto, userId, canManageAll);
   }
 }
 

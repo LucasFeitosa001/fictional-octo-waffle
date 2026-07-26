@@ -20,9 +20,11 @@ import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { FeatureGuard, RequireFeature } from '../feature-flags';
 
 // RBAC: pacotes (templates e pacotes de cliente) fazem parte do catálogo.
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
+@RequireFeature('packages')
 @Controller()
 export class PackagesController {
   constructor(private readonly service: PackagesService) {}

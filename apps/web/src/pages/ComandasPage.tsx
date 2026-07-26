@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Checkbox, Input, ListBox, Select, Spinner, TextField } from '@heroui/react';
-import { useQueryClient } from '@tanstack/react-query';
 import { ApiClientError, type Customer } from '@beautypass/shared';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState } from '../components/States';
@@ -62,7 +61,6 @@ import {
   useReverseOrderPayment,
 } from '../lib/queries';
 import { usePaymentMethods } from '../lib/queries/financeiro';
-import { api } from '../lib/api';
 import { formatDate, formatMoney, formatPhone, isoDate } from '../lib/format';
 import type {
   OrderDetail,
@@ -88,19 +86,6 @@ const PAY_FILTERS: { id: PayFilter; label: string }[] = [
   { id: 'paid', label: 'Finalizado' },
   { id: 'pending', label: 'Pendente' },
 ];
-
-/**
- * Métodos de pagamento apresentados no filtro (Belasis). A API `/orders` ainda
- * não expõe o método de pagamento na row, portanto o filtro é apresentacional
- * e será plugado quando o backend passar a devolver esse dado — nesse ponto
- * basta consumir `o.paymentMethod` no `rows` filter abaixo.
- */
-const PAYMENT_METHODS = [
-  { id: 'credit', label: 'Cartão de crédito' },
-  { id: 'debit', label: 'Cartão de débito' },
-  { id: 'cash', label: 'Dinheiro' },
-  { id: 'pix', label: 'Pix' },
-] as const;
 
 // ---------------------------------------------------------------------------
 // Presentation atoms (Belasis ant-tag look, themeable via --sp-* tokens)
@@ -350,6 +335,14 @@ function Pagination({
 
 export function ComandasPage() {
   const confirm = useConfirm();
+  const paymentMethodsQuery = usePaymentMethods();
+  const paymentOptions = useMemo(
+    () =>
+      (paymentMethodsQuery.data ?? [])
+        .filter((method) => method.active)
+        .map((method) => ({ id: method.id, label: method.name })),
+    [paymentMethodsQuery.data],
+  );
   // Belasis: um único toggle "Excluídas / Não excluídas" (default: Não
   // excluídas). Carregamos tudo do endpoint e filtramos por status no cliente.
   const [showExcluidas, setShowExcluidas] = useState(false);
@@ -362,9 +355,8 @@ export function ComandasPage() {
   // payment and text are applied client-side over the loaded rows.
   const [customerId, setCustomerId] = useState<string>('all');
   const [payFilter, setPayFilter] = useState<PayFilter>('all');
-  const [payMethods, setPayMethods] = useState<Set<string>>(
-    () => new Set(PAYMENT_METHODS.map((m) => m.id)),
-  );
+  const [payMethods, setPayMethods] = useState<Set<string>>(() => new Set());
+  const paymentMethodsInitialized = useRef(false);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   // Desktop: painel de filtros inline (toggle pelo botão do PageHeader).
@@ -375,12 +367,19 @@ export function ComandasPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [viewing, setViewing] = useState<OrderRow | null>(null);
+  const [openPaymentsOnView, setOpenPaymentsOnView] = useState(false);
   // Clique no NOME do cliente abre o drawer do cliente (não a comanda).
   const [clienteId, setClienteId] = useState<string | null>(null);
   const cliente = useCustomer(clienteId);
   // Bottom-sheet das ações em lote (modo de seleção padronizado, Belasis).
   const [actionsOpen, setActionsOpen] = useState(false);
   useAutoCreate(() => setCreateOpen(true));
+
+  useEffect(() => {
+    if (paymentMethodsInitialized.current || paymentOptions.length === 0) return;
+    paymentMethodsInitialized.current = true;
+    setPayMethods(new Set(paymentOptions.map((method) => method.id)));
+  }, [paymentOptions]);
 
   const customerOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -405,9 +404,18 @@ export function ComandasPage() {
       if (customerId !== 'all' && o.customer?.id !== customerId) return false;
       if (payFilter === 'paid' && o.status !== 'finished') return false;
       if (payFilter === 'pending' && o.status !== 'open') return false;
-      // Forma de pagamento: nenhuma marcada = filtra tudo. Enquanto o backend
-      // não devolver o método na row, tratamos "todas marcadas" como no-op.
-      if (payMethods.size === 0) return false;
+      // Todas marcadas preserva também comandas ainda sem pagamento. Quando o
+      // usuário seleciona um subconjunto, exige pelo menos um pagamento ativo
+      // em uma das formas escolhidas.
+      if (paymentOptions.length > 0) {
+        if (payMethods.size === 0) return false;
+        if (
+          payMethods.size < paymentOptions.length &&
+          !o.payments?.some((payment) => payMethods.has(payment.paymentMethodId))
+        ) {
+          return false;
+        }
+      }
       if (q) {
         const inNumber = String(o.number).includes(q);
         const inName = (o.customer?.name ?? '').toLowerCase().includes(q);
@@ -415,7 +423,17 @@ export function ComandasPage() {
       }
       return true;
     });
-  }, [allRows, showExcluidas, range.from, range.to, customerId, payFilter, payMethods, search]);
+  }, [
+    allRows,
+    showExcluidas,
+    range.from,
+    range.to,
+    customerId,
+    payFilter,
+    payMethods,
+    paymentOptions.length,
+    search,
+  ]);
 
   // Reset to first page whenever the active filter set changes.
   useEffect(() => {
@@ -520,7 +538,7 @@ export function ComandasPage() {
         </FilterCheckbox>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      {paymentOptions.length > 0 && <div className="flex flex-col gap-1.5">
         <span className="inline-flex items-center text-xs font-semibold text-muted-ink">
           Forma de pagamento
           <HelpTooltip>Filtra pelas formas de pagamento registradas nas comandas</HelpTooltip>
@@ -528,19 +546,19 @@ export function ComandasPage() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <FilterCheckbox
             className="w-fit"
-            checked={payMethods.size === PAYMENT_METHODS.length}
+            checked={payMethods.size === paymentOptions.length}
             isIndeterminate={
-              payMethods.size > 0 && payMethods.size < PAYMENT_METHODS.length
+              payMethods.size > 0 && payMethods.size < paymentOptions.length
             }
             onChange={(next) =>
               setPayMethods(
-                next ? new Set(PAYMENT_METHODS.map((m) => m.id)) : new Set(),
+                next ? new Set(paymentOptions.map((m) => m.id)) : new Set(),
               )
             }
           >
             Selecionar tudo
           </FilterCheckbox>
-          {PAYMENT_METHODS.map((m) => (
+          {paymentOptions.map((m) => (
             <FilterCheckbox
               key={m.id}
               className="w-fit"
@@ -558,7 +576,7 @@ export function ComandasPage() {
             </FilterCheckbox>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
@@ -948,8 +966,25 @@ export function ComandasPage() {
         )}
       </div>
 
-      <NovoComandaDrawer isOpen={createOpen} onClose={() => setCreateOpen(false)} />
-      <ComandaDrawer order={viewing} onClose={() => setViewing(null)} />
+      <NovoComandaDrawer
+        isOpen={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(order, openPayments) => {
+          setCreateOpen(false);
+          if (openPayments) {
+            setOpenPaymentsOnView(true);
+            setViewing(order);
+          }
+        }}
+      />
+      <ComandaDrawer
+        order={viewing}
+        initialPaymentsOpen={openPaymentsOnView}
+        onClose={() => {
+          setViewing(null);
+          setOpenPaymentsOnView(false);
+        }}
+      />
 
       {/* Perfil do cliente — aberto ao clicar no NOME do cliente numa linha. */}
       <ClientePerfilModal
@@ -1054,11 +1089,12 @@ const numInputCls =
 export function NovoComandaDrawer({
   isOpen,
   onClose,
+  onCreated,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  onCreated?: (order: OrderRow, openPayments: boolean) => void;
 }) {
-  const qc = useQueryClient();
   const create = useCreateOrder();
   const professionals = useProfessionals();
   const professionalItems = useMemo(
@@ -1132,30 +1168,26 @@ export function NovoComandaDrawer({
     setEditingUid(null);
   }
 
-  async function handleSave() {
+  async function handleSave(openPayments = false) {
     setError(null);
     setSaving(true);
     try {
-      // 1) Create the order shell (customerId + date + notes).
+      // Cabeçalho + itens são persistidos atomicamente pela API.
       const order = await create.mutateAsync({
         customerId: selectedCustomer?.id || undefined,
         date: new Date(`${date}T12:00:00`).toISOString(),
         notes: notes.trim() || undefined,
-      });
-      // 2) Chain each staged item onto the new order.
-      for (const it of items) {
-        await api.post(`/orders/${order.id}/items`, {
+        items: items.map((it) => ({
           kind: it.kind,
           refId: it.refId,
           professionalId: it.professionalId || undefined,
           quantity: it.quantity,
           unitPrice: it.unitPrice,
           discount: it.discount || undefined,
-        });
-      }
-      qc.invalidateQueries({ queryKey: ['orders'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      onClose();
+        })),
+      });
+      if (onCreated) onCreated(order, openPayments);
+      else onClose();
     } catch (err) {
       // Keep the drawer open on failure so nothing is lost.
       setError(
@@ -1184,11 +1216,10 @@ export function NovoComandaDrawer({
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button variant="primary" isDisabled={saving} onClick={handleSave}>
+          <Button variant="primary" isDisabled={saving} onClick={() => handleSave(false)}>
             {saving ? 'Salvando…' : 'Salvar'}
           </Button>
-          {/* TODO: "Faturar" (2ª onda) deve salvar e abrir o fluxo de pagamento. */}
-          <Button variant="primary" isDisabled={saving} onClick={handleSave}>
+          <Button variant="primary" isDisabled={saving} onClick={() => handleSave(true)}>
             <IconCheck size={16} /> Faturar
           </Button>
         </>

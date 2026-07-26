@@ -33,6 +33,7 @@ export class ProfessionalsController {
   ) {}
 
   @Get()
+  @RequirePermission('equipe:view', 'equipe:manage', 'agenda:view', 'agenda:manage')
   list(
     @CurrentUser('companyId') companyId: string,
     @Query('page') page?: string,
@@ -42,16 +43,19 @@ export class ProfessionalsController {
   }
 
   @Get(':id')
+  @RequirePermission('equipe:view', 'equipe:manage', 'agenda:view', 'agenda:manage')
   findOne(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.findOne(companyId, id);
   }
 
   @Post()
+  @RequirePermission('equipe:manage')
   create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateProfessionalDto) {
     return this.service.create(companyId, dto);
   }
 
   @Patch(':id')
+  @RequirePermission('equipe:manage')
   update(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -61,11 +65,13 @@ export class ProfessionalsController {
   }
 
   @Delete(':id')
+  @RequirePermission('equipe:manage')
   remove(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.remove(companyId, id);
   }
 
   @Put(':id/schedules')
+  @RequirePermission('equipe:manage')
   setSchedules(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -75,6 +81,7 @@ export class ProfessionalsController {
   }
 
   @Put(':id/services')
+  @RequirePermission('equipe:manage')
   setServices(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -84,6 +91,7 @@ export class ProfessionalsController {
   }
 
   @Post(':id/commission-rules')
+  @RequirePermission('comissoes:config')
   addCommissionRule(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -93,6 +101,7 @@ export class ProfessionalsController {
   }
 
   @Put(':id/commission-rules')
+  @RequirePermission('comissoes:config')
   setCommissionRules(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,

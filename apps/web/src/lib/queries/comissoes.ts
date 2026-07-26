@@ -91,6 +91,8 @@ export interface CommissionRuleSettings {
   basis?: 'competence' | 'availability';
   consider?: 'all' | 'finished';
   consumedProducts?: 'deduct' | 'ignore';
+  consumedPriceBy?: 'none' | 'cost' | 'price' | 'professional';
+  showGrossValue?: boolean;
   receiptText?: string;
 }
 

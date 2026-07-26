@@ -16,7 +16,22 @@ import {
   UpdateFinancialCategoryDto,
   UpdatePaymentMethodDto,
   UpdateTransactionDto,
+  UpdateFinanceSettingsDto,
 } from './dto';
+
+export interface FinanceSettings {
+  allowRetroactive: boolean;
+  allowEditAfterCashClose: boolean;
+  allowTransactionsWithClosedCash: boolean;
+  allowMultipleCash: boolean;
+}
+
+const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
+  allowRetroactive: true,
+  allowEditAfterCashClose: true,
+  allowTransactionsWithClosedCash: false,
+  allowMultipleCash: false,
+};
 
 /** "YYYY-MM-DD" (UTC) para agrupar lançamentos por dia. */
 function dayKey(d: Date): string {
@@ -43,6 +58,127 @@ function endOfDay(iso?: string): Date | undefined {
 @Injectable()
 export class FinancialService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getSettings(companyId: string): Promise<FinanceSettings> {
+    const row = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: 'finance.settings' } },
+      select: { valueJson: true },
+    });
+    const value =
+      row?.valueJson &&
+      typeof row.valueJson === 'object' &&
+      !Array.isArray(row.valueJson)
+        ? (row.valueJson as Record<string, unknown>)
+        : {};
+    return {
+      allowRetroactive:
+        typeof value.allowRetroactive === 'boolean'
+          ? value.allowRetroactive
+          : DEFAULT_FINANCE_SETTINGS.allowRetroactive,
+      allowEditAfterCashClose:
+        typeof value.allowEditAfterCashClose === 'boolean'
+          ? value.allowEditAfterCashClose
+          : DEFAULT_FINANCE_SETTINGS.allowEditAfterCashClose,
+      allowTransactionsWithClosedCash:
+        typeof value.allowTransactionsWithClosedCash === 'boolean'
+          ? value.allowTransactionsWithClosedCash
+          : DEFAULT_FINANCE_SETTINGS.allowTransactionsWithClosedCash,
+      allowMultipleCash:
+        typeof value.allowMultipleCash === 'boolean'
+          ? value.allowMultipleCash
+          : DEFAULT_FINANCE_SETTINGS.allowMultipleCash,
+    };
+  }
+
+  async updateSettings(
+    companyId: string,
+    dto: UpdateFinanceSettingsDto,
+  ): Promise<FinanceSettings> {
+    const current = await this.getSettings(companyId);
+    const next: FinanceSettings = { ...current, ...dto };
+    const valueJson = {
+      allowRetroactive: next.allowRetroactive,
+      allowEditAfterCashClose: next.allowEditAfterCashClose,
+      allowTransactionsWithClosedCash:
+        next.allowTransactionsWithClosedCash,
+      allowMultipleCash: next.allowMultipleCash,
+    };
+    await this.prisma.client.setting.upsert({
+      where: { companyId_key: { companyId, key: 'finance.settings' } },
+      create: {
+        companyId,
+        key: 'finance.settings',
+        valueJson,
+      },
+      update: { valueJson },
+    });
+    return next;
+  }
+
+  private isRetroactive(value?: string | Date | null): boolean {
+    if (!value) return false;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    return date < today;
+  }
+
+  private async assertTransactionPolicy(
+    companyId: string,
+    input: {
+      dueDate?: string | Date | null;
+      paidAt?: string | Date | null;
+      status?: string | null;
+    },
+  ): Promise<FinanceSettings> {
+    const settings = await this.getSettings(companyId);
+    if (
+      !settings.allowRetroactive &&
+      (this.isRetroactive(input.dueDate) || this.isRetroactive(input.paidAt))
+    ) {
+      throw new BadRequestException(
+        'Lançamentos retroativos estão desativados nas configurações financeiras.',
+      );
+    }
+    if (
+      !settings.allowTransactionsWithClosedCash &&
+      (input.status === 'paid' || Boolean(input.paidAt))
+    ) {
+      const openCash = await this.prisma.client.cashRegister.findFirst({
+        where: { companyId, status: 'open' },
+        select: { id: true },
+      });
+      if (!openCash) {
+        throw new BadRequestException(
+          'Abra o caixa antes de registrar uma movimentação paga.',
+        );
+      }
+    }
+    return settings;
+  }
+
+  private async assertClosedCashEditable(
+    companyId: string,
+    transaction: { orderId?: string | null },
+  ): Promise<void> {
+    if (!transaction.orderId) return;
+    const settings = await this.getSettings(companyId);
+    if (settings.allowEditAfterCashClose) return;
+    const closedMovement = await this.prisma.client.cashMovement.findFirst({
+      where: {
+        refType: 'order',
+        refId: transaction.orderId,
+        cashRegister: { companyId, status: 'closed' },
+      },
+      select: { id: true },
+    });
+    if (closedMovement) {
+      throw new BadRequestException(
+        'Este lançamento já foi conferido em um caixa fechado.',
+      );
+    }
+  }
 
   // ===================== Summary =====================
   // Painel financeiro (equivalente ao /finance/dashboard do Belasis):
@@ -413,6 +549,7 @@ export class FinancialService {
    */
   async reverseTransaction(companyId: string, id: string, userId?: string) {
     const original = await this.findTransaction(companyId, id);
+    await this.assertClosedCashEditable(companyId, original);
     if (original.status === 'reversed') {
       throw new BadRequestException('Transação já estornada');
     }
@@ -473,6 +610,11 @@ export class FinancialService {
       throw new NotFoundException('Conta financeira não encontrada');
     }
     const when = dto.date ? new Date(dto.date) : new Date();
+    await this.assertTransactionPolicy(companyId, {
+      dueDate: when,
+      paidAt: when,
+      status: 'paid',
+    });
     const baseDesc =
       dto.description?.trim() ||
       `Transferência: ${fromAcc.name} → ${toAcc.name}`;
@@ -507,7 +649,8 @@ export class FinancialService {
     return { out, income };
   }
 
-  createTransaction(companyId: string, dto: CreateTransactionDto) {
+  async createTransaction(companyId: string, dto: CreateTransactionDto) {
+    await this.assertTransactionPolicy(companyId, dto);
     const { dueDate, paidAt, ...rest } = dto;
     return this.prisma.client.transaction.create({
       data: {
@@ -520,7 +663,13 @@ export class FinancialService {
   }
 
   async updateTransaction(companyId: string, id: string, dto: UpdateTransactionDto) {
-    await this.findTransaction(companyId, id);
+    const current = await this.findTransaction(companyId, id);
+    await this.assertClosedCashEditable(companyId, current);
+    await this.assertTransactionPolicy(companyId, {
+      dueDate: dto.dueDate ?? current.dueDate,
+      paidAt: dto.paidAt ?? current.paidAt,
+      status: dto.status ?? current.status,
+    });
     const { dueDate, paidAt, ...rest } = dto;
     return this.prisma.client.transaction.update({
       where: { id },
@@ -533,7 +682,8 @@ export class FinancialService {
   }
 
   async removeTransaction(companyId: string, id: string) {
-    await this.findTransaction(companyId, id);
+    const current = await this.findTransaction(companyId, id);
+    await this.assertClosedCashEditable(companyId, current);
     return this.prisma.client.transaction.delete({ where: { id } });
   }
 

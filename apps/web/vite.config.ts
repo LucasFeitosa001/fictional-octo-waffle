@@ -21,7 +21,10 @@ export default defineConfig({
       // trycloudflare (HTTPS + SW + manifest = critérios de instalabilidade).
       devOptions: { enabled: true, type: 'module' },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Fontes entram no runtime cache quando realmente usadas; pré-carregar
+        // todos os alfabetos/pesos tornava a instalação inicial do PWA vários
+        // megabytes maior sem benefício para a maioria dos usuários.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Cache-first pra assets estáticos, network-first pra API
         runtimeCaching: [
@@ -82,6 +85,22 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Mantém bibliotecas grandes e estáveis fora do chunk da aplicação.
+        // Isso melhora cache entre deploys e evita baixar novamente gráficos,
+        // editor markdown e kit visual quando só uma regra de negócio mudou.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query-auth': ['@tanstack/react-query', 'better-auth'],
+          'vendor-ui': ['@heroui/react', '@heroui/styles'],
+          'vendor-charts': ['recharts'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,

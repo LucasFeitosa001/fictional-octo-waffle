@@ -21,11 +21,22 @@ const num = (v: unknown): number => (v == null ? 0 : Number(v));
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(companyId: string, search?: string, page = 1, pageSize = 20) {
-    const where = {
+  async list(
+    companyId: string,
+    search?: string,
+    page = 1,
+    pageSize = 20,
+    filters?: { active?: boolean; hasDebt?: boolean },
+  ) {
+    const where: Prisma.CustomerWhereInput = {
       companyId,
-      active: true,
       deletedAt: null,
+      ...(filters?.active !== undefined ? { active: filters.active } : {}),
+      ...(filters?.hasDebt === true
+        ? { debts: { some: { status: 'open' } } }
+        : filters?.hasDebt === false
+          ? { debts: { none: { status: 'open' } } }
+          : {}),
       ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
     };
     const [data, total] = await Promise.all([
@@ -34,10 +45,34 @@ export class CustomersService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { name: 'asc' },
+        include: {
+          tags: true,
+          debts: {
+            where: { status: 'open' },
+            select: {
+              amount: true,
+              payments: { select: { amount: true } },
+            },
+          },
+        },
       }),
       this.prisma.client.customer.count({ where }),
     ]);
-    return { data, page, pageSize, total };
+    return {
+      data: data.map(({ debts, ...customer }) => ({
+        ...customer,
+        debtBalance: debts.reduce((sum, debt) => {
+          const paid = debt.payments.reduce(
+            (paymentSum, payment) => paymentSum + num(payment.amount),
+            0,
+          );
+          return sum + Math.max(num(debt.amount) - paid, 0);
+        }, 0),
+      })),
+      page,
+      pageSize,
+      total,
+    };
   }
 
   async findOne(companyId: string, id: string) {

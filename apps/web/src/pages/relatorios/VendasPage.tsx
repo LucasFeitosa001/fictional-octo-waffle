@@ -30,6 +30,7 @@ import { useReportsSales } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { getCategoricalColor } from '../../theme/dataColors';
 import { BackToReports, shortDay } from './reportShared';
+import { ErrorState } from '../../components/States';
 
 // ── card no estilo Belasis (branco + sombra suave), 100% themeable ────────────
 const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
@@ -264,6 +265,10 @@ export function VendasPage() {
           {query.isLoading ? (
             <div className={`${CARD} mt-4 flex h-64 items-center justify-center text-sm text-muted-ink`}>
               Carregando…
+            </div>
+          ) : query.isError ? (
+            <div className={`${CARD} mt-4`}>
+              <ErrorState onRetry={() => query.refetch()} />
             </div>
           ) : !hasData ? (
             <div className={`${CARD} mt-4 flex h-64 flex-col items-center justify-center gap-1 text-center`}>

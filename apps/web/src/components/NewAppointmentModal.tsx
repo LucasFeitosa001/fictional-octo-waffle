@@ -21,17 +21,15 @@ import {
 } from '@beautypass/shared';
 import {
   useAvailability,
-  useCreateAppointment,
+  useCreateAppointmentSeries,
   useCreateCustomer,
   useCreateOrder,
   useCustomers,
   useProfessionals,
   useServices,
-  useSetAppointmentStatus,
 } from '../lib/queries';
 import { useNotificationSettings } from '../lib/queries/notificationSettings';
 import { formatDuration, formatMoney, formatSlotTime, isoDate } from '../lib/format';
-import { api } from '../lib/api';
 import type { AppointmentFollowUpInput, AvailabilitySlot } from '../lib/types';
 import { FOLLOWUP_TEMPLATES } from '../lib/followupTemplates';
 
@@ -274,9 +272,8 @@ export function NewAppointmentModal({
     primary.professionalId || undefined,
     date || undefined,
   );
-  const createAppointment = useCreateAppointment();
+  const createAppointmentSeries = useCreateAppointmentSeries();
   const createCustomer = useCreateCustomer();
-  const setAppointmentStatus = useSetAppointmentStatus();
   const createOrder = useCreateOrder();
 
   const serviceItems = services.data?.data ?? [];
@@ -383,9 +380,8 @@ export function NewAppointmentModal({
 
   const canPickSlot = Boolean(primary.serviceId && primary.professionalId && date);
   const isBusy =
-    createAppointment.isPending ||
+    createAppointmentSeries.isPending ||
     createCustomer.isPending ||
-    setAppointmentStatus.isPending ||
     createOrder.isPending;
   const canConfirm = Boolean(primary.serviceId && primary.professionalId && slotStart) && !isBusy;
 
@@ -452,8 +448,13 @@ export function NewAppointmentModal({
           }
         : undefined;
 
-      const createdIds: string[] = [];
-      const main = await createAppointment.mutateAsync({
+      const additionalStarts =
+        freq !== 'none' && repeatMore > 0
+          ? Array.from({ length: repeatMore }, (_unused, index) =>
+              nextDate(new Date(slot.start), freq, index + 1).toISOString(),
+            )
+          : [];
+      const series = await createAppointmentSeries.mutateAsync({
         customerId: resolvedCustomerId,
         professionalId: apptProfessionalId,
         start: slot.start,
@@ -464,44 +465,11 @@ export function NewAppointmentModal({
         notifyCancellation: sendCancellation,
         items: itemsPayload,
         followUp: followUpPayload,
+        additionalStarts,
+        status,
       });
-      createdIds.push(main.id);
-
-      // Recurrence: create the extra occurrences client-side (best-effort).
-      if (freq !== 'none' && repeatMore > 0) {
-        const base = new Date(slot.start);
-        for (let i = 1; i <= repeatMore; i++) {
-          const start = nextDate(base, freq, i).toISOString();
-          try {
-            const extra = await createAppointment.mutateAsync({
-              customerId: resolvedCustomerId,
-              professionalId: apptProfessionalId,
-              start,
-              end: endFor(start),
-              notes: combinedNotes,
-              remindClient: sendReminder,
-              notifyConfirmation: sendConfirmation,
-              notifyCancellation: sendCancellation,
-              items: itemsPayload,
-              followUp: followUpPayload,
-            });
-            createdIds.push(extra.id);
-          } catch {
-            /* skip occurrences that fall outside working hours, etc. */
-          }
-        }
-      }
-
-      // Apply the chosen status when it differs from the created default.
-      if (status !== main.status) {
-        for (const id of createdIds) {
-          try {
-            await setAppointmentStatus.mutateAsync({ id, status });
-          } catch {
-            /* keep the created default if the transition is rejected */
-          }
-        }
-      }
+      const main = series.data[0];
+      if (!main) throw new Error('A série não retornou o agendamento criado.');
 
       onCreated?.();
       return { id: main.id, customerId: resolvedCustomerId };
@@ -530,39 +498,33 @@ export function NewAppointmentModal({
     if (result) setSuccess(true);
   }
 
-  // Transfere os serviços selecionados no formulário para a comanda como itens
-  // (POST /orders/:id/items), com o unitPrice = price do serviço. Mesma ligação
-  // usada pelo "Criar comanda" da Agenda (createComanda), só que a origem dos
-  // itens aqui é o form, não um agendamento já persistido.
-  async function transferItemsToOrder(orderId: string) {
-    const validItems = items.filter((it) => it.serviceId);
-    for (const it of validItems) {
-      const svc = serviceItems.find((s) => s.id === it.serviceId);
-      await api.post(`/orders/${orderId}/items`, {
-        kind: 'service',
-        refId: it.serviceId,
-        professionalId: it.professionalId || primary.professionalId || undefined,
-        quantity: 1,
-        unitPrice: Number(svc?.price ?? 0),
-      });
-    }
-  }
-
-  // Create the appointment, then open a comanda (order) for the same client,
-  // transfere os serviços como itens e navega direto para /comandas/:id.
+  // Cria a comanda e todos os serviços em uma única transação da API.
   async function handleComanda() {
     const result = await submit();
     if (!result) return;
     let orderId: string | null = null;
     try {
+      const validItems = items.filter((item) => item.serviceId);
       const order = await createOrder.mutateAsync({
         customerId: result.customerId,
         professionalId: primary.professionalId || undefined,
         notes: notes.trim() || undefined,
+        items: validItems.map((item) => {
+          const service = serviceItems.find(
+            (candidate) => candidate.id === item.serviceId,
+          );
+          return {
+            kind: 'service' as const,
+            refId: item.serviceId,
+            professionalId:
+              item.professionalId || primary.professionalId || undefined,
+            quantity: 1,
+            unitPrice: Number(service?.price ?? 0),
+          };
+        }),
       });
       orderId = order.id;
       setCreatedOrderId(order.id);
-      await transferItemsToOrder(order.id);
       // Se o pai quer controlar a navegação (ex.: AgendaPage), delega e deixa
       // ele fechar o drawer; senão navega para a comanda e fecha aqui.
       if (onCreatedOrder) {
@@ -572,12 +534,11 @@ export function NewAppointmentModal({
         nav(`/comandas/${order.id}`);
       }
     } catch {
-      // A comanda pode ter sido criada mas a transferência de itens falhou —
-      // mostra a tela de sucesso com o link de fallback para a comanda.
+      // O agendamento já existe; a comanda, porém, é tudo-ou-nada.
       setSuccess(true);
       setFormError(
         orderId
-          ? 'Agendamento e comanda criados, mas alguns itens não foram adicionados. Abra a comanda para conferir.'
+          ? 'Agendamento criado. A comanda foi criada integralmente, mas não foi possível abrir sua tela.'
           : 'Agendamento criado, mas não foi possível criar a comanda.',
       );
     }

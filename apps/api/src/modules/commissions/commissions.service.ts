@@ -60,6 +60,24 @@ function inclusiveDateRange(
 export class CommissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Cadastro profissional ligado ao usuário autenticado. O controller usa este
+   * vínculo para aplicar `comissoes:view_own` sem confiar em professionalId
+   * recebido por query string.
+   */
+  async ownProfessionalId(companyId: string, userId: string): Promise<string> {
+    const professional = await this.prisma.client.professional.findFirst({
+      where: { companyId, userId },
+      select: { id: true },
+    });
+    if (!professional) {
+      throw new ForbiddenException(
+        'Seu usuário não está vinculado a um profissional desta empresa.',
+      );
+    }
+    return professional.id;
+  }
+
   // ---- summary (per-professional totals) ----
   async summary(companyId: string, filters: SummaryFilters) {
     const where: Prisma.CommissionEntryWhereInput = { companyId };

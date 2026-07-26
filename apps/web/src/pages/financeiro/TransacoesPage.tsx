@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSetPageActions } from '../../layout/PageActions';
 import {
   Button,
@@ -137,12 +138,22 @@ function origem(t: TransactionRow): string {
 
 export function TransacoesPage() {
   const confirm = useConfirm();
+  const [searchParams] = useSearchParams();
+  const initialStatus = searchParams.get('status');
+  const initialKind = searchParams.get('kind');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>(
-    'all',
+    initialStatus === 'paid' || initialStatus === 'pending'
+      ? initialStatus
+      : 'all',
+  );
+  const [kindFilter, setKindFilter] = useState<'all' | TransactionKind>(
+    initialKind === 'income' || initialKind === 'expense'
+      ? initialKind
+      : 'all',
   );
   const [showReversed, setShowReversed] = useState(false);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(searchParams.get('from') ?? '');
+  const [to, setTo] = useState(searchParams.get('to') ?? '');
   const [methodFilter, setMethodFilter] = useState(ALL);
   const [formMode, setFormMode] = useState<LancamentoMode | null>(null);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
@@ -166,11 +177,25 @@ export function TransacoesPage() {
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, methodFilter, from, to, showReversed]);
+  }, [statusFilter, kindFilter, methodFilter, from, to, showReversed]);
+
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const kind = searchParams.get('kind');
+    setStatusFilter(
+      status === 'paid' || status === 'pending' ? status : 'all',
+    );
+    setKindFilter(
+      kind === 'income' || kind === 'expense' ? kind : 'all',
+    );
+    setFrom(searchParams.get('from') ?? '');
+    setTo(searchParams.get('to') ?? '');
+  }, [searchParams]);
 
   const paymentMethods = usePaymentMethods();
 
   const transactions = useTransactions({
+    type: kindFilter === 'all' ? undefined : kindFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
     paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
     from: from || undefined,
@@ -242,6 +267,7 @@ export function TransacoesPage() {
   };
 
   const activeFilterCount =
+    (kindFilter !== 'all' ? 1 : 0) +
     (statusFilter !== 'all' ? 1 : 0) +
     (showReversed ? 1 : 0) +
     (from ? 1 : 0) +
@@ -250,6 +276,7 @@ export function TransacoesPage() {
   const hasFilters = activeFilterCount > 0;
 
   function clearFilters() {
+    setKindFilter('all');
     setStatusFilter('all');
     setShowReversed(false);
     setFrom('');
@@ -656,6 +683,8 @@ export function TransacoesPage() {
             to={to}
             setFrom={setFrom}
             setTo={setTo}
+            kindFilter={kindFilter}
+            setKindFilter={setKindFilter}
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
             methodFilter={methodFilter}
@@ -864,6 +893,8 @@ export function TransacoesPage() {
           to={to}
           setFrom={setFrom}
           setTo={setTo}
+          kindFilter={kindFilter}
+          setKindFilter={setKindFilter}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           methodFilter={methodFilter}
@@ -920,6 +951,8 @@ type FiltrosProps = {
   to: string;
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
+  kindFilter: 'all' | TransactionKind;
+  setKindFilter: (v: 'all' | TransactionKind) => void;
   statusFilter: 'all' | 'paid' | 'pending';
   setStatusFilter: (v: 'all' | 'paid' | 'pending') => void;
   methodFilter: string;
@@ -939,6 +972,8 @@ function FiltrosBody({
   to,
   setFrom,
   setTo,
+  kindFilter,
+  setKindFilter,
   statusFilter,
   setStatusFilter,
   methodFilter,
@@ -956,6 +991,32 @@ function FiltrosBody({
 
   return (
     <div className="flex flex-col gap-6">
+      <FilterSection title="Tipo">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'all' as const, name: 'Todos' },
+            { id: 'income' as const, name: 'Receitas' },
+            { id: 'expense' as const, name: 'Despesas' },
+          ].map((option) => {
+            const active = kindFilter === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setKindFilter(option.id)}
+                className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                  active
+                    ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
+                    : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
+                }`}
+              >
+                {option.name}
+              </button>
+            );
+          })}
+        </div>
+      </FilterSection>
+
       {/* Período */}
       <FilterSection title="Período">
         <div className="grid grid-cols-2 gap-3">

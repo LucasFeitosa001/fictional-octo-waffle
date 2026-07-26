@@ -326,9 +326,13 @@ export class MarketingService {
   // ---- reviews ----
   async listReviews(companyId: string, from?: string, to?: string) {
     const hasRange = Boolean(from || to);
+    const toDate = to ? new Date(to) : undefined;
+    if (toDate && to && to.length <= 10) {
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
     const range = {
       ...(from ? { gte: new Date(from) } : {}),
-      ...(to ? { lte: new Date(to) } : {}),
+      ...(toDate ? { lte: toDate } : {}),
     };
     const where = { companyId, ...(hasRange ? { createdAt: range } : {}) };
     const reviews = await this.prisma.client.review.findMany({
@@ -422,6 +426,9 @@ export class MarketingService {
   async getReviewsDashboard(companyId: string, from?: string, to?: string) {
     const fromD = from ? new Date(from) : undefined;
     const toD = to ? new Date(to) : undefined;
+    if (toD && to && to.length <= 10) {
+      toD.setUTCHours(23, 59, 59, 999);
+    }
     const current = await this.fetchReviewsForRange(companyId, fromD, undefined, toD);
 
     // Comparativo com o período anterior de mesma duração (só quando há intervalo).

@@ -23,39 +23,64 @@ import {
   UpdateCustomerDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { FeatureGuard, RequireFeature } from '../feature-flags';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly service: CustomersService) {}
 
   @Get()
+  @RequirePermission('clientes:view', 'clientes:manage')
   list(
     @CurrentUser('companyId') companyId: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('active') active?: string,
+    @Query('hasDebt') hasDebt?: string,
   ) {
-    return this.service.list(companyId, search, Number(page) || 1, Number(pageSize) || 20);
+    return this.service.list(
+      companyId,
+      search,
+      Number(page) || 1,
+      Number(pageSize) || 20,
+      {
+        active:
+          active === 'true' ? true : active === 'false' ? false : undefined,
+        hasDebt:
+          hasDebt === 'true'
+            ? true
+            : hasDebt === 'false'
+              ? false
+              : undefined,
+      },
+    );
   }
 
   @Get(':id')
+  @RequirePermission('clientes:view', 'clientes:manage')
   findOne(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.findOne(companyId, id);
   }
 
   @Get(':id/panel')
+  @RequirePermission('clientes:view', 'clientes:manage')
   panel(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.panel(companyId, id);
   }
 
   @Get(':id/debts')
+  @RequirePermission('clientes:view', 'clientes:manage')
   listDebts(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listDebts(companyId, id);
   }
 
   @Post(':id/debts')
+  @RequirePermission('clientes:manage')
   createDebt(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -65,6 +90,7 @@ export class CustomersController {
   }
 
   @Post(':id/debts/:debtId/payments')
+  @RequirePermission('clientes:manage')
   addDebtPayment(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -75,21 +101,27 @@ export class CustomersController {
   }
 
   @Get(':id/balance')
+  @RequirePermission('clientes:view', 'clientes:manage')
   balance(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.balance(companyId, id);
   }
 
   @Get(':id/credits')
+  @RequirePermission('clientes:view', 'clientes:manage')
   listCredits(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listCredits(companyId, id);
   }
 
   @Get(':id/cashback')
+  @RequirePermission('clientes:view', 'clientes:manage')
+  @RequireFeature('cashback')
   listCashback(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listCashback(companyId, id);
   }
 
   @Post(':id/cashback/redeem')
+  @RequirePermission('clientes:manage')
+  @RequireFeature('cashback')
   redeemCashback(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -99,6 +131,8 @@ export class CustomersController {
   }
 
   @Post(':id/cashback/adjust')
+  @RequirePermission('clientes:manage')
+  @RequireFeature('cashback')
   adjustCashback(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -108,6 +142,7 @@ export class CustomersController {
   }
 
   @Get(':id/appointments')
+  @RequirePermission('clientes:view', 'clientes:manage')
   listAppointments(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -116,22 +151,26 @@ export class CustomersController {
   }
 
   @Get(':id/orders')
+  @RequirePermission('clientes:view', 'clientes:manage')
   listOrders(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listOrders(companyId, id);
   }
 
   @Get(':id/packages')
+  @RequirePermission('clientes:view', 'clientes:manage')
   listPackages(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listPackages(companyId, id);
   }
 
   @Get(':id/notes')
+  @RequirePermission('clientes:view', 'clientes:manage')
   listNotes(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listNotes(companyId, id);
   }
 
   // Timeline de mensagens (aba "Mensagens" do cliente / feature Interações).
   @Get(':id/interactions')
+  @RequirePermission('clientes:view', 'clientes:manage')
   listInteractions(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -147,6 +186,7 @@ export class CustomersController {
   }
 
   @Post(':id/notes')
+  @RequirePermission('clientes:manage')
   createNote(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
@@ -157,11 +197,13 @@ export class CustomersController {
   }
 
   @Get(':id/files')
+  @RequirePermission('clientes:view', 'clientes:manage', 'anamneses:manage')
   listFiles(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.listFiles(companyId, id);
   }
 
   @Post(':id/files')
+  @RequirePermission('clientes:manage', 'anamneses:manage')
   addFile(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -171,6 +213,7 @@ export class CustomersController {
   }
 
   @Delete(':id/files/:fileId')
+  @RequirePermission('clientes:manage', 'anamneses:manage')
   removeFile(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -180,6 +223,7 @@ export class CustomersController {
   }
 
   @Get(':id/anamneses')
+  @RequirePermission('anamneses:manage')
   listAnamneses(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -188,6 +232,7 @@ export class CustomersController {
   }
 
   @Post(':id/anamneses')
+  @RequirePermission('anamneses:manage')
   createAnamnesis(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -197,6 +242,7 @@ export class CustomersController {
   }
 
   @Patch(':id/anamneses/:anamId')
+  @RequirePermission('anamneses:manage')
   updateAnamnesis(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -207,6 +253,7 @@ export class CustomersController {
   }
 
   @Delete(':id/anamneses/:anamId')
+  @RequirePermission('anamneses:manage')
   removeAnamnesis(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -216,11 +263,13 @@ export class CustomersController {
   }
 
   @Post()
+  @RequirePermission('clientes:manage')
   create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateCustomerDto) {
     return this.service.create(companyId, dto);
   }
 
   @Patch(':id')
+  @RequirePermission('clientes:manage')
   update(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -230,6 +279,7 @@ export class CustomersController {
   }
 
   @Delete(':id')
+  @RequirePermission('clientes:manage')
   remove(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.remove(companyId, id);
   }

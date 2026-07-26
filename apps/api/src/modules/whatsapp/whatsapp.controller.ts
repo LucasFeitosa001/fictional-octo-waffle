@@ -12,7 +12,10 @@ import {
 import { IsOptional, IsString } from 'class-validator';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { FeatureGuard, RequireFeature } from '../feature-flags';
 import { WhatsappService } from './whatsapp.service';
 
 /**
@@ -171,12 +174,14 @@ class ManagerPhoneDto {
  * ATIVA da sessão). O salão conecta e envia do SEU PRÓPRIO número — o socket, o
  * QR e o status são todos por empresa.
  */
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
+@RequireFeature('whatsapp_api')
 @Controller('whatsapp/connection')
 export class WhatsappConnectionController {
   constructor(private readonly whatsapp: WhatsappService) {}
 
   @Get('status')
+  @RequirePermission('config:view', 'config:manage', 'marketing:view', 'marketing:manage')
   status(@CurrentUser('companyId') companyId: string) {
     // Abrir a tela de status já sobe a conexão desta empresa sob demanda.
     this.whatsapp.ensureConnecting(companyId);
@@ -184,6 +189,7 @@ export class WhatsappConnectionController {
   }
 
   @Get('qr.png')
+  @RequirePermission('config:manage')
   async qrPng(@CurrentUser('companyId') companyId: string, @Res() res: Response) {
     const dataUrl = await this.whatsapp.getQrDataUrl(companyId);
     if (!dataUrl) {
@@ -198,12 +204,14 @@ export class WhatsappConnectionController {
 
   // Generates the 8-char "link with phone number" code for the salon's number.
   @Post('pair')
+  @RequirePermission('config:manage')
   async pair(@CurrentUser('companyId') companyId: string, @Body() dto: PairWhatsappDto) {
     const code = await this.whatsapp.requestPairingCode(companyId, dto.phone ?? '');
     return { code };
   }
 
   @Post('logout')
+  @RequirePermission('config:manage')
   async logout(@CurrentUser('companyId') companyId: string) {
     await this.whatsapp.logout(companyId);
     return { ok: true };
@@ -213,12 +221,14 @@ export class WhatsappConnectionController {
   // whose replies (1/2/3) drive the confirmation flow. Scoped to the logged-in
   // company, so each salon sets its own.
   @Get('manager')
+  @RequirePermission('config:view', 'config:manage', 'marketing:view', 'marketing:manage')
   async getManager(@CurrentUser('companyId') companyId: string) {
     const phone = await this.whatsapp.getManagerPhone(companyId);
     return { phone };
   }
 
   @Post('manager')
+  @RequirePermission('config:manage', 'marketing:manage')
   async setManager(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: ManagerPhoneDto,

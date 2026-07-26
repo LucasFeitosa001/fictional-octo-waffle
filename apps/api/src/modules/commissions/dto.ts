@@ -41,6 +41,10 @@ export class CommissionRuleSettingsDto {
   @IsOptional() @IsString() consider?: 'all' | 'finished';
   /** produtos consumidos: descontar da comissão ou ignorar */
   @IsOptional() @IsString() consumedProducts?: 'deduct' | 'ignore';
+  /** preço-base usado no desconto do produto consumido */
+  @IsOptional() @IsString() consumedPriceBy?: 'none' | 'cost' | 'price' | 'professional';
+  /** exibe a base bruta nos relatórios de comissão */
+  @IsOptional() @IsBoolean() showGrossValue?: boolean;
   /** texto padrão de recibo de comissão */
   @IsOptional() @IsString() receiptText?: string;
 }

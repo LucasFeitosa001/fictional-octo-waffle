@@ -188,6 +188,16 @@ async function run() {
     }
     check('empresa de teste provisionada', Boolean(companyId));
 
+    // A suíte não cria assinatura: habilita explicitamente o add-on sob teste
+    // para que o FeatureGuard continue sendo exercitado em condições reais.
+    await prisma.featureFlag.upsert({
+      where: {
+        companyId_key: { companyId, key: 'whatsapp_api' },
+      },
+      create: { companyId, key: 'whatsapp_api', enabled: true },
+      update: { enabled: true },
+    });
+
     // Configurações → Personalizar: todas as opções oferecidas pela UI precisam
     // persistir na conta. Este cenário cobre inclusive "coral", que antes era
     // exibido no seletor mas rejeitado pela API e voltava ao tema anterior.
