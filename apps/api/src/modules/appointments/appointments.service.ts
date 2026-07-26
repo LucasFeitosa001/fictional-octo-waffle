@@ -4,10 +4,16 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Prisma, AppointmentStatus, AppointmentSource } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateAppointmentDto, UpdateAppointmentDto, StatusDto } from './dto';
+import {
+  CreateAppointmentDto,
+  CreateAppointmentSeriesDto,
+  UpdateAppointmentDto,
+  StatusDto,
+} from './dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationSettingsService } from '../notifications/notification-settings.service';
 import { AppointmentEvent } from '../notifications/notifications.templates';
@@ -64,12 +70,15 @@ export class AppointmentsService {
       serviceId?: string;
       q?: string;
     },
+    scopeProfessionalId?: string,
   ) {
     const where: Prisma.AppointmentWhereInput = { companyId };
 
     // professionalId + status accept a single id OR a comma-separated list, so
     // the agenda can filter by several professionals/statuses at once.
-    const professionalIds = this.splitCsv(filters.professionalId);
+    const professionalIds = scopeProfessionalId
+      ? [scopeProfessionalId]
+      : this.splitCsv(filters.professionalId);
     if (professionalIds.length === 1) where.professionalId = professionalIds[0];
     else if (professionalIds.length > 1) where.professionalId = { in: professionalIds };
 
@@ -104,12 +113,22 @@ export class AppointmentsService {
   }
 
   // GET /appointments/calendar?month — counters per day (stub aggregation).
-  async calendar(companyId: string, month?: string) {
+  async calendar(
+    companyId: string,
+    month?: string,
+    scopeProfessionalId?: string,
+  ) {
     const ref = month ? new Date(`${month}-01T00:00:00`) : new Date();
     const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
     const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 1);
     const appts = await this.prisma.client.appointment.findMany({
-      where: { companyId, start: { gte: start, lt: end } },
+      where: {
+        companyId,
+        start: { gte: start, lt: end },
+        ...(scopeProfessionalId
+          ? { professionalId: scopeProfessionalId }
+          : {}),
+      },
       select: { start: true, status: true },
     });
     const counts: Record<string, number> = {};
@@ -120,9 +139,19 @@ export class AppointmentsService {
     return { month: start.toISOString().slice(0, 7), counts };
   }
 
-  async findOne(companyId: string, id: string) {
+  async findOne(
+    companyId: string,
+    id: string,
+    scopeProfessionalId?: string,
+  ) {
     const found = await this.prisma.client.appointment.findFirst({
-      where: { id, companyId },
+      where: {
+        id,
+        companyId,
+        ...(scopeProfessionalId
+          ? { professionalId: scopeProfessionalId }
+          : {}),
+      },
       include: { items: true, statusHistory: true },
     });
     if (!found) throw new NotFoundException('Agendamento não encontrado');
@@ -133,7 +162,9 @@ export class AppointmentsService {
     companyId: string,
     dto: CreateAppointmentDto,
     opts?: { source?: AppointmentSource; status?: AppointmentStatus },
+    scopeProfessionalId?: string,
   ) {
+    this.assertProfessionalScope(scopeProfessionalId, dto, true);
     const start = new Date(dto.start);
     if (Number.isNaN(start.getTime())) {
       throw new BadRequestException('Data de início inválida');
@@ -239,6 +270,181 @@ export class AppointmentsService {
     return created;
   }
 
+  /**
+   * Cria a primeira ocorrência e todas as repetições em uma única transação.
+   * Qualquer conflito, horário inválido ou FK inválida aborta a série inteira;
+   * notificações e filas só são disparadas depois do commit.
+   */
+  async createSeries(
+    companyId: string,
+    dto: CreateAppointmentSeriesDto,
+    scopeProfessionalId?: string,
+  ) {
+    this.assertProfessionalScope(scopeProfessionalId, dto, true);
+    const firstStart = new Date(dto.start);
+    if (Number.isNaN(firstStart.getTime())) {
+      throw new BadRequestException('Data de início inválida');
+    }
+    const starts = [
+      firstStart,
+      ...dto.additionalStarts.map((value) => new Date(value)),
+    ];
+    if (starts.some((value) => Number.isNaN(value.getTime()))) {
+      throw new BadRequestException('Uma das datas da recorrência é inválida');
+    }
+    const uniqueStarts = new Set(starts.map((value) => value.toISOString()));
+    if (uniqueStarts.size !== starts.length) {
+      throw new BadRequestException(
+        'A recorrência contém horários duplicados.',
+      );
+    }
+
+    if (dto.customerId) {
+      await this.assertCustomerExists(companyId, dto.customerId);
+    }
+    if (dto.professionalId) {
+      await this.assertProfessionalExists(companyId, dto.professionalId);
+    }
+
+    const itemProfessionalIds = [
+      ...new Set(
+        (dto.items ?? [])
+          .map((item) => item.professionalId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    for (const professionalId of itemProfessionalIds) {
+      await this.assertProfessionalExists(companyId, professionalId);
+    }
+
+    const serviceIds = (dto.items ?? []).map((item) => item.serviceId);
+    const services = await this.loadServices(companyId, serviceIds);
+    const serviceDuration = services.length
+      ? services.reduce((sum, service) => sum + service.durationMin, 0)
+      : DEFAULT_DURATION_MIN;
+    const firstEnd = dto.end
+      ? new Date(dto.end)
+      : new Date(firstStart.getTime() + serviceDuration * 60_000);
+    if (Number.isNaN(firstEnd.getTime()) || firstEnd <= firstStart) {
+      throw new BadRequestException(
+        'O término deve ser uma data válida depois do início.',
+      );
+    }
+    const durationMs = firstEnd.getTime() - firstStart.getTime();
+    const occurrences = starts.map((start) => ({
+      start,
+      end: new Date(start.getTime() + durationMs),
+    }));
+
+    const professionalId = dto.professionalId;
+    if (professionalId) {
+      for (const occurrence of occurrences) {
+        await this.assertWithinSchedule(
+          companyId,
+          professionalId,
+          occurrence.start,
+          occurrence.end,
+        );
+      }
+    }
+
+    const notificationDefaults = await this.settings.get(companyId);
+    const remindClient = dto.remindClient ?? notificationDefaults.reminder;
+    const notifyConfirmation =
+      dto.notifyConfirmation ?? notificationDefaults.confirmation;
+    const notifyCancellation =
+      dto.notifyCancellation ?? notificationDefaults.cancellation;
+    const status = dto.status as AppointmentStatus | undefined;
+
+    const created = await this.prisma.client.$transaction(async (tx) => {
+      if (professionalId) {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(
+            hashtext(${companyId}),
+            hashtext(${professionalId})
+          )
+        `;
+      }
+
+      const rows: Prisma.AppointmentGetPayload<{
+        include: { items: true };
+      }>[] = [];
+      for (const occurrence of occurrences) {
+        if (professionalId) {
+          await this.assertNoOverlap(
+            companyId,
+            professionalId,
+            occurrence.start,
+            occurrence.end,
+            undefined,
+            tx,
+          );
+        }
+        const row = await tx.appointment.create({
+          data: {
+            companyId,
+            customerId: dto.customerId,
+            professionalId,
+            start: occurrence.start,
+            end: occurrence.end,
+            notes: dto.notes,
+            remindClient,
+            notifyConfirmation,
+            notifyCancellation,
+            source: AppointmentSource.admin,
+            ...(status ? { status } : {}),
+            items: dto.items
+              ? {
+                  create: dto.items.map((item) => {
+                    const service = services.find(
+                      (candidate) => candidate.id === item.serviceId,
+                    );
+                    return {
+                      serviceId: item.serviceId,
+                      professionalId:
+                        item.professionalId ?? professionalId,
+                      durationMin:
+                        service?.durationMin ?? DEFAULT_DURATION_MIN,
+                      price: service?.price ?? new Prisma.Decimal(0),
+                    };
+                  }),
+                }
+              : undefined,
+          },
+          include: { items: true },
+        });
+        rows.push(row);
+      }
+      return rows;
+    });
+
+    for (let index = 0; index < created.length; index += 1) {
+      const row = created[index];
+      const occurrence = occurrences[index];
+      void this.notifications.notifyAppointment(
+        'created',
+        companyId,
+        row.id,
+      );
+      void this.sendProfessionalNewAppointment(companyId, row.id);
+      void this.queues.enqueueAppointmentReminders(
+        companyId,
+        row.id,
+        row.start,
+      );
+      if (dto.followUp?.enabled) {
+        void this.queues.enqueueAppointmentCustomFollowUp(
+          companyId,
+          row.id,
+          dto.followUp,
+          occurrence,
+        );
+      }
+    }
+
+    return { data: created, count: created.length };
+  }
+
   // POST /appointments/block — "Ocupar horários": cria um bloqueio de agenda.
   // Um bloqueio é um Appointment sem cliente e sem itens que ocupa o horário do
   // profissional (status `scheduled` entra na checagem de colisão, então nenhum
@@ -247,7 +453,9 @@ export class AppointmentsService {
   async block(
     companyId: string,
     dto: { professionalId: string; start: string; end: string; reason?: string },
+    scopeProfessionalId?: string,
   ) {
+    this.assertProfessionalScope(scopeProfessionalId, dto, true);
     const start = new Date(dto.start);
     const end = new Date(dto.end);
     if (Number.isNaN(start.getTime())) {
@@ -294,8 +502,14 @@ export class AppointmentsService {
     });
   }
 
-  async update(companyId: string, id: string, dto: UpdateAppointmentDto) {
-    const current = await this.findOne(companyId, id);
+  async update(
+    companyId: string,
+    id: string,
+    dto: UpdateAppointmentDto,
+    scopeProfessionalId?: string,
+  ) {
+    const current = await this.findOne(companyId, id, scopeProfessionalId);
+    this.assertProfessionalScope(scopeProfessionalId, dto);
 
     // Validate FK references up-front (clean 404 instead of a raw FK-violation 500).
     if (dto.customerId) await this.assertCustomerExists(companyId, dto.customerId);
@@ -384,8 +598,14 @@ export class AppointmentsService {
     return saved;
   }
 
-  async setStatus(companyId: string, id: string, dto: StatusDto, byUserId?: string) {
-    const current = await this.findOne(companyId, id);
+  async setStatus(
+    companyId: string,
+    id: string,
+    dto: StatusDto,
+    byUserId?: string,
+    scopeProfessionalId?: string,
+  ) {
+    const current = await this.findOne(companyId, id, scopeProfessionalId);
     const statusChanged = dto.status !== current.status;
 
     // Re-entering an ACTIVE status (e.g. reactivating a canceled appointment) makes
@@ -468,8 +688,13 @@ export class AppointmentsService {
   }
 
   // Send a suggested alternative time to the customer (admin action).
-  async suggestTime(companyId: string, id: string, suggestion: string) {
-    await this.findOne(companyId, id);
+  async suggestTime(
+    companyId: string,
+    id: string,
+    suggestion: string,
+    scopeProfessionalId?: string,
+  ) {
+    await this.findOne(companyId, id, scopeProfessionalId);
     void this.sendCustomerSuggestion(companyId, id, suggestion);
     return { ok: true };
   }
@@ -582,8 +807,12 @@ export class AppointmentsService {
     }
   }
 
-  async remove(companyId: string, id: string) {
-    await this.findOne(companyId, id);
+  async remove(
+    companyId: string,
+    id: string,
+    scopeProfessionalId?: string,
+  ) {
+    await this.findOne(companyId, id, scopeProfessionalId);
     // Cancel any pending reminders + custom warning before the appt is gone.
     void this.queues.cancelAppointmentReminders(id);
     void this.queues.cancelAppointmentCustomFollowUp(id);
@@ -675,6 +904,45 @@ export class AppointmentsService {
     }
 
     return { date: day, serviceId: serviceId ?? null, professionalId, slots };
+  }
+
+  async professionalForUser(
+    companyId: string,
+    userId: string,
+  ): Promise<string> {
+    const professional = await this.prisma.client.professional.findFirst({
+      where: { companyId, userId, active: true },
+      select: { id: true },
+    });
+    if (!professional) {
+      throw new ForbiddenException(
+        'Seu usuário não está vinculado a um profissional ativo.',
+      );
+    }
+    return professional.id;
+  }
+
+  private assertProfessionalScope(
+    scopeProfessionalId: string | undefined,
+    dto: {
+      professionalId?: string | null;
+      items?: { professionalId?: string | null }[];
+    },
+    requireTopLevel = false,
+  ): void {
+    if (!scopeProfessionalId) return;
+    const requested = [
+      dto.professionalId,
+      ...(dto.items ?? []).map((item) => item.professionalId),
+    ].filter((id): id is string => Boolean(id));
+    if (
+      (requireTopLevel && !dto.professionalId) ||
+      requested.some((id) => id !== scopeProfessionalId)
+    ) {
+      throw new ForbiddenException(
+        'Você só pode gerenciar a própria agenda.',
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------

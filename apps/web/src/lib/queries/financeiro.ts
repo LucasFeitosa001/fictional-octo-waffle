@@ -109,6 +109,13 @@ export interface FinancialCategory {
   active: boolean;
 }
 
+export interface FinanceSettings {
+  allowRetroactive: boolean;
+  allowEditAfterCashClose: boolean;
+  allowTransactionsWithClosedCash: boolean;
+  allowMultipleCash: boolean;
+}
+
 export interface TransactionFilters {
   type?: TransactionKind;
   status?: PaymentStatus;
@@ -202,6 +209,25 @@ export function useFinancialSummary(from?: string, to?: string) {
         from: from || undefined,
         to: to || undefined,
       }),
+  });
+}
+
+export function useFinanceSettings() {
+  return useQuery({
+    queryKey: ['finance-settings'],
+    queryFn: () => api.get<FinanceSettings>('/financial/settings'),
+  });
+}
+
+export function useUpdateFinanceSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<FinanceSettings>) =>
+      api.patch<FinanceSettings>('/financial/settings', body),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['finance-settings'], data);
+      toastSuccess('Configuração financeira salva');
+    },
   });
 }
 

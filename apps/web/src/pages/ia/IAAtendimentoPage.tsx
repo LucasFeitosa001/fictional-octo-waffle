@@ -351,6 +351,12 @@ export function IAAtendimentoPage() {
             });
           });
         },
+        onError: (error) =>
+          toast.danger(
+            error instanceof Error
+              ? error.message
+              : 'Falha ao enviar a mensagem',
+          ),
       },
     );
   }
@@ -472,6 +478,12 @@ export function IAAtendimentoPage() {
           setNewConversationText('');
           toastSuccess('Mensagem adicionada à fila do WhatsApp');
         },
+        onError: (error) =>
+          toast.danger(
+            error instanceof Error
+              ? error.message
+              : 'Falha ao iniciar a conversa',
+          ),
       },
     );
   }
@@ -481,7 +493,17 @@ export function IAAtendimentoPage() {
     resolved?: boolean;
   }) {
     if (!selected) return;
-    updateConversation.mutate({ id: selected.id, body });
+    updateConversation.mutate(
+      { id: selected.id, body },
+      {
+        onError: (error) =>
+          toast.danger(
+            error instanceof Error
+              ? error.message
+              : 'Falha ao atualizar a conversa',
+          ),
+      },
+    );
   }
 
   function addFaq() {
@@ -506,6 +528,12 @@ export function IAAtendimentoPage() {
       },
       {
         onSuccess: () => toastSuccess('Configuração da recepcionista salva'),
+        onError: (error) =>
+          toast.danger(
+            error instanceof Error
+              ? error.message
+              : 'Falha ao salvar a configuração',
+          ),
       },
     );
   }
@@ -517,6 +545,12 @@ export function IAAtendimentoPage() {
         onSuccess: () =>
           toastSuccess(
             enabled ? 'Recepcionista virtual ativada' : 'Recepcionista pausada',
+          ),
+        onError: (error) =>
+          toast.danger(
+            error instanceof Error
+              ? error.message
+              : 'Falha ao alterar a recepcionista virtual',
           ),
       },
     );
@@ -592,6 +626,26 @@ export function IAAtendimentoPage() {
           </>
         }
       />
+
+      {whatsapp.isError || configQuery.isError || stats.isError ? (
+        <div
+          role="alert"
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+        >
+          <span>Não foi possível carregar todos os dados do WhatsApp e IA.</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void whatsapp.refetch();
+              void configQuery.refetch();
+              void stats.refetch();
+            }}
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      ) : null}
 
       {!whatsapp.isLoading && (!connected || showConnectionPanel) ? (
         <Card className="mb-5 border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
@@ -729,6 +783,20 @@ export function IAAtendimentoPage() {
             {conversationsQuery.isLoading ? (
               <div className="grid min-h-48 place-items-center">
                 <Spinner size="sm" />
+              </div>
+            ) : conversationsQuery.isError ? (
+              <div className="px-5 py-12 text-center">
+                <p className="text-sm text-danger">
+                  Não foi possível carregar as conversas.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => conversationsQuery.refetch()}
+                >
+                  Tentar novamente
+                </Button>
               </div>
             ) : conversations.length === 0 ? (
               <div className="px-5 py-12 text-center">
@@ -888,6 +956,22 @@ export function IAAtendimentoPage() {
                 {messagesQuery.isLoading ? (
                   <div className="grid h-full place-items-center">
                     <Spinner size="sm" />
+                  </div>
+                ) : messagesQuery.isError ? (
+                  <div className="grid h-full place-items-center text-center">
+                    <div>
+                      <p className="text-sm text-danger">
+                        Não foi possível carregar as mensagens.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => messagesQuery.refetch()}
+                      >
+                        Tentar novamente
+                      </Button>
+                    </div>
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="grid h-full place-items-center text-center text-muted">

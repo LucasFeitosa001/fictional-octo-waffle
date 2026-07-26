@@ -4,7 +4,7 @@ import { Button, Card, Input, ListBox, Select, Switch, TextField } from '@heroui
 import { ApiClientError } from '@beautypass/shared';
 import { PageHeader } from '../../components/PageHeader';
 import { SwitchRow } from '../../components/SwitchRow';
-import { EmptyState, LoadingState } from '../../components/States';
+import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { ImageUpload } from '../../components/ImageUpload';
 import {
   IconCheck,
@@ -594,6 +594,40 @@ export function AgendamentoOnlinePage() {
 
   // ---- tab bodies ----
   function renderBody(id: SectionId): ReactNode {
+    const errorQuery =
+      id === 'detalhes'
+        ? empresa.isError || profile.isError
+        : id === 'config'
+          ? profile.isError
+          : id === 'personalizacao'
+            ? appearance.isError
+            : id === 'links'
+              ? link.isError
+              : id === 'galeria'
+                ? gallery.isError
+                : id === 'servicos'
+                  ? services.isError
+                  : id === 'horario'
+                    ? hours.isError
+                    : false;
+    if (errorQuery) {
+      return (
+        <ErrorState
+          message="Não foi possível carregar esta configuração."
+          onRetry={() => {
+            if (id === 'detalhes') {
+              void empresa.refetch();
+              void profile.refetch();
+            } else if (id === 'config') void profile.refetch();
+            else if (id === 'personalizacao') void appearance.refetch();
+            else if (id === 'links') void link.refetch();
+            else if (id === 'galeria') void gallery.refetch();
+            else if (id === 'servicos') void services.refetch();
+            else if (id === 'horario') void hours.refetch();
+          }}
+        />
+      );
+    }
     switch (id) {
       case 'detalhes':
         return empresa.isLoading || !profileDraft ? (

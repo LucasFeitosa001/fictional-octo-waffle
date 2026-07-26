@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
+import { FeatureGuard, RequireFeature } from '../feature-flags';
 import {
   SendWhatsappInboxMessageDto,
   StartWhatsappConversationDto,
@@ -20,7 +21,8 @@ import {
 } from './dto';
 import { WhatsappInboxService } from './whatsapp-inbox.service';
 
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
+@RequireFeature('whatsapp_api')
 @Controller('whatsapp/inbox')
 export class WhatsappInboxController {
   constructor(private readonly service: WhatsappInboxService) {}

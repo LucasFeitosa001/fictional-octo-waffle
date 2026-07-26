@@ -603,8 +603,7 @@ export function AgendaPage() {
   }
 
   // ── Per-appointment: create a comanda (order) from the appointment ────────
-  // Cria a order e transfere os serviços do agendamento como itens (com o price
-  // snapshot do backend) antes de abrir a comanda para faturar.
+  // Cria order + serviços atomicamente antes de abrir a comanda para faturar.
   async function createComanda(a: AppointmentRow) {
     try {
       // Salva a observação editada no drawer antes de gerar a comanda, e usa o
@@ -615,17 +614,14 @@ export function AgendaPage() {
         customerId: a.customer?.id ?? a.customerId ?? undefined,
         professionalId,
         notes: savedNotes ?? a.notes ?? undefined,
-      });
-      // Transfere os serviços do agendamento como itens da comanda.
-      for (const it of a.items ?? []) {
-        await api.post(`/orders/${order.id}/items`, {
+        items: (a.items ?? []).map((it) => ({
           kind: 'service',
           refId: it.serviceId,
-          professionalId,
+          professionalId: it.professionalId ?? professionalId,
           quantity: 1,
           unitPrice: Number(it.price),
-        });
-      }
+        })),
+      });
       setSelected(null);
       setComandaOrder(order);
     } catch {

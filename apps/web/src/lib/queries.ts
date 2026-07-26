@@ -8,6 +8,7 @@ import type {
   CompanyInfo,
   ConsumePackageItemBody,
   CreateAppointmentBody,
+  CreateAppointmentSeriesBody,
   Customer,
   CustomerPackageDetail,
   DashboardOverview,
@@ -101,14 +102,22 @@ export function useDeleteService() {
   });
 }
 
-export function useCustomers(search: string, page = 1, pageSize = 20) {
+export function useCustomers(
+  search: string,
+  page = 1,
+  pageSize = 20,
+  filters?: { active?: boolean; hasDebt?: boolean },
+) {
+  const active = filters ? filters.active : true;
   return useQuery({
-    queryKey: ['customers', search, page, pageSize],
+    queryKey: ['customers', search, page, pageSize, active, filters?.hasDebt],
     queryFn: () =>
       api.get<Paginated<Customer>>('/customers', {
         search: search || undefined,
         page,
         pageSize,
+        active,
+        hasDebt: filters?.hasDebt,
       }),
   });
 }
@@ -179,6 +188,26 @@ export function useCreateAppointment() {
   });
 }
 
+export function useCreateAppointmentSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateAppointmentSeriesBody) =>
+      api.post<{ data: AppointmentRow[]; count: number }>(
+        '/appointments/series',
+        body,
+      ),
+    onSuccess: ({ count }) => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess(
+        count === 1
+          ? 'Agendamento criado'
+          : `${count} agendamentos criados`,
+      );
+    },
+  });
+}
+
 export function useSetAppointmentStatus() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -216,6 +245,14 @@ export interface CreateOrderBody {
   /** ISO date/datetime for the comanda. Defaults to "today" server-side. */
   date?: string;
   notes?: string;
+  items?: {
+    kind: 'service' | 'product';
+    refId: string;
+    professionalId?: string;
+    quantity?: number;
+    unitPrice?: number;
+    discount?: number;
+  }[];
 }
 
 export interface UpdateOrderBody {

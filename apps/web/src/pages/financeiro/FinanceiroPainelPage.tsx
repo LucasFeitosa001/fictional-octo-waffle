@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { PageHeader } from '../../components/PageHeader';
-import { LoadingState } from '../../components/States';
+import { ErrorState, LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
 import { Drawer } from '../../components/Drawer';
 import { IconChevron, IconFilter } from '../../components/icons';
@@ -163,8 +163,6 @@ export function FinanceiroPainelPage() {
   const [range, setRange] = useState(defaultRange);
 
   // Navega para a lista de transações com filtros pré-aplicados via querystring.
-  // TODO: a TransacoesPage ainda não lê estes params — plugar useSearchParams lá
-  // para hidratar `statusFilter`, `from`, `to`, `kind` (income/expense).
   function goToTransacoes(params: Record<string, string>) {
     const qs = new URLSearchParams(params).toString();
     navigate(`/financeiro/transacoes${qs ? `?${qs}` : ''}`);
@@ -219,6 +217,8 @@ export function FinanceiroPainelPage() {
 
       {summary.isLoading ? (
         <LoadingState />
+      ) : summary.isError ? (
+        <ErrorState onRetry={() => summary.refetch()} />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr] lg:items-start">
           {/* ── Coluna esquerda: Resumo + Contas ── */}

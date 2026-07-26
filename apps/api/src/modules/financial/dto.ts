@@ -160,3 +160,10 @@ export class SummaryQueryDto {
   @IsOptional() @IsString() from?: string;
   @IsOptional() @IsString() to?: string;
 }
+
+export class UpdateFinanceSettingsDto {
+  @IsOptional() @IsBoolean() allowRetroactive?: boolean;
+  @IsOptional() @IsBoolean() allowEditAfterCashClose?: boolean;
+  @IsOptional() @IsBoolean() allowTransactionsWithClosedCash?: boolean;
+  @IsOptional() @IsBoolean() allowMultipleCash?: boolean;
+}

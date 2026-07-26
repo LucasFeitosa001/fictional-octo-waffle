@@ -5,11 +5,13 @@ import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { ReportRangeQueryDto } from './dto';
+import { FeatureGuard, RequireFeature } from '../feature-flags';
 
 // Relatórios são leitura pura (GET). Cada rota exige a permissão do seu tipo:
 // relatorios:operacional (agenda/estoque/mensagens) ou relatorios:financeiro
 // (DRE, faturamento, recebíveis, despesas). Owner ('*') passa em tudo.
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
+@RequireFeature('reports_advanced')
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly service: ReportsService) {}

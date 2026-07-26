@@ -1,15 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-function buildRange(from?: string, to?: string) {
-  const range = {
-    ...(from ? { gte: new Date(from) } : {}),
-    ...(to ? { lte: new Date(to) } : {}),
-  };
-  const hasRange = Boolean(from || to);
-  return { range, hasRange };
-}
-
 /** Data válida ou undefined. */
 function toDate(iso?: string): Date | undefined {
   if (!iso) return undefined;
@@ -46,7 +37,7 @@ export class ReportsService {
 
   // GET /reports/overview?from&to — ranking-style aggregations from real tables.
   async overview(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const dateWhere = hasRange ? { date: range } : {};
     const startWhere = hasRange ? { start: range } : {};
 
@@ -260,7 +251,7 @@ export class ReportsService {
   // GET /reports/dre?from&to — Demonstrativo de Resultado (regime de caixa:
   // transações liquidadas/paid no período, agrupadas por FinancialCategory).
   async dre(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const paidWhere = hasRange ? { paidAt: range } : {};
     const orderDateWhere = hasRange ? { date: range } : {};
 
@@ -400,7 +391,7 @@ export class ReportsService {
   // Fontes: WhatsappOutbox (agora company-scoped via companyId), CampaignMessage
   // (via Campaign.channel) e AppointmentNotification/Notification (por tipo).
   async messages(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const sentWhere = hasRange ? { sentAt: range } : {};
     const createdWhere = hasRange ? { createdAt: range } : {};
 
@@ -675,7 +666,7 @@ export class ReportsService {
   // GET /reports/sales?from&to — vendas por dia + por profissional + por
   // categoria (serviço/produto). Reusa a lógica de comandas do overview.
   async sales(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const dateWhere = hasRange ? { date: range } : {};
 
     const finishedOrders = await this.prisma.client.order.findMany({

@@ -1,6 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { PageHeader } from '../../components/PageHeader';
 import { AppSwitch } from '../../components/SwitchRow';
+import { ErrorState, LoadingState } from '../../components/States';
+import {
+  useFinanceSettings,
+  useUpdateFinanceSettings,
+  type FinanceSettings,
+} from '../../lib/queries/financeiro';
 
 /**
  * FinanceiroConfig — clone fiel da tela /finance/settings do Belasis.
@@ -16,35 +22,33 @@ import { AppSwitch } from '../../components/SwitchRow';
 
 interface SettingSwitch {
   /** id do atributo no salon_configuration do Belasis (para wiring futuro). */
-  id: string;
+  id: keyof FinanceSettings;
   title: string;
   description: ReactNode;
-  defaultOn: boolean;
 }
 
 const SETTINGS: SettingSwitch[] = [
   {
-    id: 'retroactive',
+    id: 'allowRetroactive',
     title: 'Permitir lançamentos retroativos?',
     description:
       'Ative essa opção se precisar lançar recebimentos e despesas com datas anteriores à atual. Lançamentos retroativos podem comprometer o seu caixa.',
-    defaultOn: true,
   },
   {
-    id: 'can_edit_bill_after_close_cash_accounting',
+    id: 'allowEditAfterCashClose',
     title: 'Permitir alterações de faturas após a sua conferência no caixa?',
     description: (
       <>
         Se <strong>sim</strong>, será possível alterar todas as informações dos
         recebimentos e despesas.
         <br />
-        Se <strong>não</strong>, somente o valor poderá ser alterado.
+        Se <strong>não</strong>, lançamentos de comandas já conferidos em um
+        caixa fechado não poderão ser alterados, reabertos ou excluídos.
       </>
     ),
-    defaultOn: true,
   },
   {
-    id: 'can_transaction_closed_cash_accounting',
+    id: 'allowTransactionsWithClosedCash',
     title: 'Permitir movimentações financeiras com o caixa fechado?',
     description: (
       <>
@@ -55,34 +59,40 @@ const SETTINGS: SettingSwitch[] = [
         alguma transação financeira pedindo a abertura do caixa.
       </>
     ),
-    defaultOn: false,
   },
   {
-    id: 'multiple_cash_accounting',
+    id: 'allowMultipleCash',
     title: 'Permitir múltiplos caixas por operador?',
     description:
       'Permite que cada operador abra e feche o próprio caixa de forma independente. Você pode conceder ou não a permissão para que cada profissional consiga visualizar todos os caixas ou somente o seu próprio caixa.',
-    defaultOn: false,
   },
 ];
 
 export function FinanceiroConfiguracoesPage() {
-  // TODO: substituir por hook/query real (salon_configuration) quando a API de
-  // configurações financeiras estiver disponível; hoje mantém estado local.
-  const [state, setState] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(SETTINGS.map((s) => [s.id, s.defaultOn])),
-  );
+  const query = useFinanceSettings();
+  const update = useUpdateFinanceSettings();
 
-  const toggle = (id: string) => {
-    setState((prev) => ({ ...prev, [id]: !prev[id] }));
-    // TODO: persistir alteração no back-end (salon_configuration_attributes).
+  const toggle = (id: keyof FinanceSettings) => {
+    if (!query.data || update.isPending) return;
+    update.mutate({ [id]: !query.data[id] });
   };
 
   return (
     <div>
       <PageHeader title="Configurações" />
 
-      {/* Container do form: fundo transparente, largura total (z3olam). */}
+      {query.isLoading ? <LoadingState /> : null}
+      {query.isError ? (
+        <ErrorState onRetry={() => query.refetch()} />
+      ) : null}
+      {update.isError ? (
+        <p className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          Não foi possível salvar a configuração. Tente novamente.
+        </p>
+      ) : null}
+
+      {/* Cada switch persiste imediatamente no Setting finance.settings. */}
+      {query.data ? (
       <form
         className="w-full"
         onSubmit={(e) => e.preventDefault()}
@@ -103,14 +113,16 @@ export function FinanceiroConfiguracoesPage() {
             </div>
             <div className="flex shrink-0 justify-start">
               <AppSwitch
-                checked={state[setting.id]}
+                checked={query.data[setting.id]}
                 onChange={() => toggle(setting.id)}
+                isDisabled={update.isPending}
                 aria-label={setting.title}
               />
             </div>
           </div>
         ))}
       </form>
+      ) : null}
     </div>
   );
 }

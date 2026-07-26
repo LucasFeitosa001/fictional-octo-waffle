@@ -201,6 +201,17 @@ async function run() {
     check('salon company provisioned', !!companyId);
     check('customer account got a token (no company needed)', !!customer.token);
 
+    // Este tenant propositalmente não cria Subscription para continuar
+    // cobrindo os fallbacks de plano do portal. Habilita apenas o add-on que a
+    // suíte exercita, como faria um override comercial real.
+    await prisma.featureFlag.upsert({
+      where: {
+        companyId_key: { companyId, key: 'online_booking' },
+      },
+      create: { companyId, key: 'online_booking', enabled: true },
+      update: { enabled: true },
+    });
+
     // The public portal is addressed by the BookingLink slug; GET auto-creates it.
     const linkRes = await api('GET', '/booking-link', { token: salon.token });
     const slug: string = linkRes.body?.slug;

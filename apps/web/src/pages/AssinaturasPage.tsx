@@ -172,16 +172,10 @@ function Pagination({
 }
 
 // ---------------------------------------------------------------------------
-// Filters panel — Vencimento (range) · Status · Forma de pagamento
+// Filters panel — Vencimento · Status
 // ---------------------------------------------------------------------------
 
 const STATUS_FILTER_ORDER: MembershipStatus[] = ['active', 'overdue', 'canceled'];
-type PayType = 'automatic' | 'manual';
-const PAY_OPTIONS: { id: PayType; label: string }[] = [
-  { id: 'automatic', label: 'Automático' },
-  { id: 'manual', label: 'Manual' },
-];
-
 function CheckRow({
   checked,
   onChange,
@@ -218,7 +212,6 @@ export function AssinaturasPage() {
   const [search, setSearch] = useState('');
   const [range, setRange] = useState({ from: '', to: '' });
   const [statusSet, setStatusSet] = useState<Set<MembershipStatus>>(new Set());
-  const [paySet, setPaySet] = useState<Set<PayType>>(new Set());
   const [page, setPage] = useState(1);
 
   // Modelos tab: search + filter
@@ -249,8 +242,6 @@ export function AssinaturasPage() {
       const due = m.nextDueDate?.slice(0, 10) ?? '';
       if (range.from && due && due < range.from) return false;
       if (range.to && due && due > range.to) return false;
-      // TODO: filtrar por forma de pagamento (automatic/manual) quando o
-      // endpoint expuser esse campo na assinatura. `paySet` fica pronto p/ uso.
       if (term) {
         const inName = (m.customer?.name ?? '').toLowerCase().includes(term);
         const inPlan = (m.membershipPlan?.name ?? '').toLowerCase().includes(term);
@@ -263,7 +254,7 @@ export function AssinaturasPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [tab, search, range.from, range.to, statusSet, paySet]);
+  }, [tab, search, range.from, range.to, statusSet]);
 
   const pageRows = useMemo(
     () => subRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -305,15 +296,6 @@ export function AssinaturasPage() {
       return next;
     });
   }
-  function togglePay(p: PayType, on: boolean) {
-    setPaySet((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(p);
-      else next.delete(p);
-      return next;
-    });
-  }
-
   function openCreatePlan() {
     setEditingPlan(null);
     setPlanDrawerOpen(true);
@@ -401,7 +383,7 @@ export function AssinaturasPage() {
             )}
 
             {showFilters && (
-              <div className="mb-4 grid gap-4 rounded-xl border border-[var(--color-soft-border)] bg-white p-4 sm:grid-cols-3">
+              <div className="mb-4 grid gap-4 rounded-xl border border-[var(--color-soft-border)] bg-white p-4 sm:grid-cols-2">
                 {/* Vencimento */}
                 <div className="flex flex-col gap-2">
                   <span className="text-xs font-semibold text-muted-ink">Vencimento</span>
@@ -441,29 +423,6 @@ export function AssinaturasPage() {
                   ))}
                 </div>
 
-                {/* Forma de pagamento */}
-                <div className="flex flex-col gap-1">
-                  <span className="mb-1 text-xs font-semibold text-muted-ink">
-                    Forma de pagamento
-                  </span>
-                  <CheckRow
-                    checked={paySet.size === PAY_OPTIONS.length}
-                    onChange={(on) =>
-                      setPaySet(on ? new Set(PAY_OPTIONS.map((p) => p.id)) : new Set())
-                    }
-                  >
-                    <span className="text-muted-ink">Selecionar tudo</span>
-                  </CheckRow>
-                  {PAY_OPTIONS.map((p) => (
-                    <CheckRow
-                      key={p.id}
-                      checked={paySet.has(p.id)}
-                      onChange={(on) => togglePay(p.id, on)}
-                    >
-                      <span className="text-foreground">{p.label}</span>
-                    </CheckRow>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -536,8 +495,7 @@ export function AssinaturasPage() {
                             <StatusTag status={m.status} />
                           </td>
                           <td className={`${td} text-muted-ink`}>
-                            {/* TODO: forma de renovação (Automático/Manual) quando disponível. */}
-                            —
+                            Manual
                           </td>
                           <td className={`${td} text-right font-semibold tabular-nums`}>
                             {formatMoney(m.membershipPlan?.recurringPrice)}
@@ -952,7 +910,7 @@ function TotalLine({
 // Drawer: Nova assinatura (Belasis "Novo")
 // ---------------------------------------------------------------------------
 
-type NovaSection = 'cliente' | 'data' | 'itens' | 'recorrencia' | 'observacoes';
+type NovaSection = 'cliente' | 'data' | 'itens' | 'recorrencia';
 
 function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const create = useCreateCustomerMembership();
@@ -960,7 +918,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const plans = useMembershipPlans();
   const [customerId, setCustomerId] = useState('');
   const [membershipPlanId, setMembershipPlanId] = useState('');
-  const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<NovaSection>('cliente');
 
@@ -973,7 +930,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
     if (isOpen) {
       setCustomerId('');
       setMembershipPlanId('');
-      setNotes('');
       setError(null);
       setSection('cliente');
     }
@@ -984,7 +940,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
   async function handleSave() {
     setError(null);
     try {
-      // TODO: enviar data/observações/itens quando o endpoint aceitar.
       await create.mutateAsync({ customerId, membershipPlanId });
       onClose();
     } catch (err) {
@@ -1007,7 +962,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
         { key: 'data', label: 'Data' },
         { key: 'itens', label: 'Itens da assinatura' },
         { key: 'recorrencia', label: 'Recorrência' },
-        { key: 'observacoes', label: 'Observações' },
       ]}
       activeSection={section}
       onSectionChange={(k) => setSection(k as NovaSection)}
@@ -1017,7 +971,7 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
             Cancelar
           </Button>
           <Button variant="primary" isDisabled={!canSave || create.isPending} onClick={handleSave}>
-            <IconCheck size={16} /> {create.isPending ? 'Salvando…' : 'Faturar'}
+            <IconCheck size={16} /> {create.isPending ? 'Criando…' : 'Criar assinatura'}
           </Button>
         </>
       }
@@ -1132,14 +1086,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
               </div>
             )}
           </div>
-        )}
-
-        {section === 'observacoes' && (
-          <Field label="Observações">
-            <TextField value={notes} onChange={setNotes} aria-label="Observações">
-              <Input placeholder="Escreva aqui" />
-            </TextField>
-          </Field>
         )}
 
         {error && <FormError message={error} />}

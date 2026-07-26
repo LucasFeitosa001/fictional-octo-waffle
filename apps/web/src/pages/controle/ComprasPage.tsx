@@ -778,9 +778,9 @@ function PurchaseDrawer({
   const [date, setDate] = useState(isoDate(new Date()));
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [freight, setFreight] = useState('');
-  const [otherExpenses, setOtherExpenses] = useState(''); // TODO: não persistido pela API
+  const [otherExpenses, setOtherExpenses] = useState('');
   const [discount, setDiscount] = useState('');
-  const [otherIncome, setOtherIncome] = useState(''); // TODO: não persistido pela API
+  const [otherIncome, setOtherIncome] = useState('');
   const [accountId, setAccountId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [notes, setNotes] = useState('');
@@ -821,11 +821,17 @@ function PurchaseDrawer({
         : [emptyItem()],
     );
     setFreight(Number(detailData.freight) ? String(Number(detailData.freight)) : '');
-    setOtherExpenses('');
+    setOtherExpenses(
+      Number(detailData.otherExpenses)
+        ? String(Number(detailData.otherExpenses))
+        : '',
+    );
     setDiscount(
       Number(detailData.discount) ? String(Number(detailData.discount)) : '',
     );
-    setOtherIncome('');
+    setOtherIncome(
+      Number(detailData.otherIncome) ? String(Number(detailData.otherIncome)) : '',
+    );
     setAccountId(detailData.accountId ?? '');
     setPaymentMethodId(detailData.paymentMethodId ?? '');
     setNotes(detailData.notes ?? '');
@@ -868,8 +874,7 @@ function PurchaseDrawer({
 
   const grandTotal = useMemo(() => {
     const itemsSum = items.reduce((acc, it) => acc + lineTotal(it), 0);
-    // Outras despesas somam / outras receitas subtraem no preview (TODO: não
-    // persistidas pela API — só entram no total exibido para paridade visual).
+    // Outras despesas somam e outras receitas subtraem do total persistido.
     return Math.max(
       0,
       itemsSum +
@@ -903,7 +908,10 @@ function PurchaseDrawer({
         discount: it.discount !== '' ? Number(it.discount) : undefined,
       })),
       freight: freight !== '' ? Number(freight) : undefined,
+      otherExpenses:
+        otherExpenses !== '' ? Number(otherExpenses) : undefined,
       discount: discount !== '' ? Number(discount) : undefined,
+      otherIncome: otherIncome !== '' ? Number(otherIncome) : undefined,
       accountId: accountId || undefined,
       paymentMethodId: paymentMethodId || undefined,
       notes: notes.trim() || undefined,

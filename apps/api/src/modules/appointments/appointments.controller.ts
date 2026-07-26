@@ -12,22 +12,42 @@ import {
 import { AppointmentsService } from './appointments.service';
 import {
   CreateAppointmentDto,
+  CreateAppointmentSeriesDto,
   UpdateAppointmentDto,
   StatusDto,
   SuggestDto,
   BlockTimeDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { AuthService } from '../auth/auth.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller()
 export class AppointmentsController {
-  constructor(private readonly service: AppointmentsService) {}
+  constructor(
+    private readonly service: AppointmentsService,
+    private readonly auth: AuthService,
+  ) {}
+
+  private async professionalScope(companyId: string, userId: string) {
+    const { permissions } = await this.auth.permissions(userId, companyId);
+    if (
+      permissions.includes('*') ||
+      permissions.includes('agenda:view_all')
+    ) {
+      return undefined;
+    }
+    return this.service.professionalForUser(companyId, userId);
+  }
 
   @Get('appointments')
-  list(
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async list(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('professionalId') professionalId?: string,
@@ -35,71 +55,133 @@ export class AppointmentsController {
     @Query('serviceId') serviceId?: string,
     @Query('q') q?: string,
   ) {
-    return this.service.list(companyId, { from, to, professionalId, status, serviceId, q });
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.list(
+      companyId,
+      { from, to, professionalId, status, serviceId, q },
+      scope,
+    );
   }
 
   @Get('appointments/calendar')
-  calendar(@CurrentUser('companyId') companyId: string, @Query('month') month?: string) {
-    return this.service.calendar(companyId, month);
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async calendar(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Query('month') month?: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.calendar(companyId, month, scope);
   }
 
   @Get('availability')
-  availability(
+  @RequirePermission('agenda:view', 'agenda:view_all', 'agenda:manage')
+  async availability(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Query('serviceId') serviceId: string,
     @Query('professionalId') professionalId?: string,
     @Query('date') date?: string,
   ) {
-    return this.service.availability(companyId, serviceId, professionalId, date);
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.availability(
+      companyId,
+      serviceId,
+      scope ?? professionalId,
+      date,
+    );
   }
 
   @Get('appointments/:id')
-  findOne(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
-    return this.service.findOne(companyId, id);
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async findOne(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.findOne(companyId, id, scope);
   }
 
   @Post('appointments')
-  create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateAppointmentDto) {
-    return this.service.create(companyId, dto);
+  @RequirePermission('agenda:manage')
+  async create(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: CreateAppointmentDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.create(companyId, dto, undefined, scope);
+  }
+
+  @Post('appointments/series')
+  @RequirePermission('agenda:manage')
+  async createSeries(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: CreateAppointmentSeriesDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.createSeries(companyId, dto, scope);
   }
 
   // "Ocupar horários": cria um bloqueio de agenda (indisponibilidade) que ocupa
   // o horário do profissional sem cliente/serviços associados.
   @Post('appointments/block')
-  block(@CurrentUser('companyId') companyId: string, @Body() dto: BlockTimeDto) {
-    return this.service.block(companyId, dto);
+  @RequirePermission('agenda:manage')
+  async block(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: BlockTimeDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.block(companyId, dto, scope);
   }
 
   @Patch('appointments/:id')
-  update(
+  @RequirePermission('agenda:manage')
+  async update(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: UpdateAppointmentDto,
   ) {
-    return this.service.update(companyId, id, dto);
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.update(companyId, id, dto, scope);
   }
 
   @Patch('appointments/:id/status')
-  setStatus(
+  @RequirePermission('agenda:manage')
+  async setStatus(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: StatusDto,
   ) {
-    return this.service.setStatus(companyId, id, dto, userId);
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.setStatus(companyId, id, dto, userId, scope);
   }
 
   @Post('appointments/:id/suggest')
-  suggest(
+  @RequirePermission('agenda:manage')
+  async suggest(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: SuggestDto,
   ) {
-    return this.service.suggestTime(companyId, id, dto.suggestion);
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.suggestTime(companyId, id, dto.suggestion, scope);
   }
 
   @Delete('appointments/:id')
-  remove(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
-    return this.service.remove(companyId, id);
+  @RequirePermission('agenda:manage')
+  async remove(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.remove(companyId, id, scope);
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Button, Chip, Input, ListBox, Select, Switch, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import type { Column } from '../../components/DataTable';
@@ -90,63 +90,6 @@ const TABS: { id: TabKey; label: string; icon: React.ReactNode }[] = [
   { id: 'contas', label: 'Contas', icon: <IconWallet size={16} /> },
   { id: 'formas', label: 'Formas de pagamento', icon: <IconDollar size={16} /> },
   { id: 'categorias', label: 'Categorias', icon: <IconLayers size={16} /> },
-];
-
-// Belasis mostra por padrão essas formas mesmo em contas novas sem dados.
-// Mock local: só aparece se o backend do SalonPass não devolver nada.
-const DEFAULT_METHODS: PaymentMethod[] = [
-  {
-    id: 'seed-dinheiro',
-    name: 'Dinheiro',
-    companyId: '',
-    feePercent: '0',
-    settlementDays: 0,
-    defaultAccountId: null,
-    goesToCash: true,
-    feeFixed: '0',
-    active: true,
-    kind: 'dinheiro',
-    favorite: false,
-  },
-  {
-    id: 'seed-pix',
-    name: 'Pix',
-    companyId: '',
-    feePercent: '0',
-    settlementDays: 0,
-    defaultAccountId: null,
-    goesToCash: true,
-    feeFixed: '0',
-    active: true,
-    kind: 'pix',
-    favorite: false,
-  },
-  {
-    id: 'seed-credito',
-    name: 'Cartão de Crédito',
-    companyId: '',
-    feePercent: '0',
-    settlementDays: 30,
-    defaultAccountId: null,
-    goesToCash: false,
-    feeFixed: '0',
-    active: true,
-    kind: 'credito',
-    favorite: false,
-  },
-  {
-    id: 'seed-debito',
-    name: 'Cartão de Débito',
-    companyId: '',
-    feePercent: '0',
-    settlementDays: 1,
-    defaultAccountId: null,
-    goesToCash: false,
-    feeFixed: '0',
-    active: true,
-    kind: 'debito',
-    favorite: false,
-  },
 ];
 
 function byName<T extends { name: string }>(a: T, b: T) {
@@ -394,10 +337,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   const categories = useFinancialCategories();
 
   const allAccounts = accounts.data ?? [];
-  const fetchedMethods = methods.data ?? [];
-  // Empresa nova sem formas cadastradas: mostrar seed default (Belasis-like).
-  const allMethods =
-    !methods.isLoading && fetchedMethods.length === 0 ? DEFAULT_METHODS : fetchedMethods;
+  const allMethods = methods.data ?? [];
   const allCategories = categories.data ?? [];
 
   const accountNameById = useMemo(() => {
@@ -1384,15 +1324,12 @@ function ContaDrawer({
   onClose: () => void;
   editing: FinancialAccount | null;
 }) {
-  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [type, setType] = useState<FinancialAccountType>('cash');
   const [initialBalance, setInitialBalance] = useState('');
   const [active, setActive] = useState(true);
   // Acesso (Belasis id="admin_only"): false = qualquer usuário, true = só admins.
   const [adminOnly, setAdminOnly] = useState(false);
-  // SalonPay: toggle exibido no drawer (sem backing no SalonPass).
-  const [belasisPay, setBelasisPay] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const create = useCreateFinancialAccount();
@@ -1407,14 +1344,12 @@ function ContaDrawer({
         setInitialBalance(String(editing.initialBalance));
         setActive(editing.active);
         setAdminOnly(editing.adminOnly);
-        setBelasisPay(false);
       } else {
         setName('');
         setType('cash');
         setInitialBalance('');
         setActive(true);
         setAdminOnly(false);
-        setBelasisPay(false);
       }
       setFormError(null);
       setSuccess(false);
@@ -1546,21 +1481,8 @@ function ContaDrawer({
             </Select>
           </Field>
 
-          {/* Switches inline: SalonPay (display) · Ativa. */}
+          {/* Somente campos persistidos pela API são exibidos aqui. */}
           <div className="flex flex-col gap-3">
-            <InlineSwitch
-              label="SalonPay"
-              isSelected={belasisPay}
-              onChange={(v) => {
-                setBelasisPay(v);
-                // Ao ativar o toggle, encaminha para o onboarding SalonPay
-                // (mesmo fluxo do Belasis: /belasis-pay/panel → cadastro).
-                if (v) {
-                  onClose();
-                  navigate('/financeiro/belasis-pay');
-                }
-              }}
-            />
             <InlineSwitch label="Ativa" isSelected={active} onChange={setActive} />
           </div>
 

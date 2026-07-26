@@ -65,7 +65,7 @@ type NavItem = {
   label: string;
   icon: IconType;
   end?: boolean;
-  badge?: 'Beta' | 'novo';
+  badge?: 'Beta' | 'novo' | 'em breve';
   action?: 'copy-booking-link';
   /**
    * FASE 2: paid feature this item belongs to. When the company's plan does not
@@ -107,6 +107,8 @@ const NAVIGATION: NavEntry[] = [
     label: 'IA',
     icon: IconSparkles,
     badge: 'Beta',
+    feature: 'whatsapp_api',
+    perm: 'marketing:view',
   },
   {
     kind: 'group',
@@ -117,8 +119,8 @@ const NAVIGATION: NavEntry[] = [
       { to: '/painel', label: 'Painel', icon: IconHome, end: true },
       { to: '/agenda', label: 'Agenda', icon: IconCalendar, perm: 'agenda:view' },
       { to: '/comandas', label: 'Comandas', icon: IconReceipt, perm: 'comandas:view' },
-      { to: '/pacotes', label: 'Pacotes', icon: IconLayers, perm: 'catalogo:view' },
-      { to: '/assinaturas', label: 'Vendas por Assinatura', icon: IconRepeat, perm: 'catalogo:view' },
+      { to: '/pacotes', label: 'Pacotes', icon: IconLayers, feature: 'packages', perm: 'catalogo:view' },
+      { to: '/assinaturas', label: 'Vendas por Assinatura', icon: IconRepeat, feature: 'memberships', perm: 'catalogo:view' },
     ],
   },
   {
@@ -133,7 +135,7 @@ const NAVIGATION: NavEntry[] = [
       // Caixa: quem só opera o próprio caixa também acessa (caixa:operate OU view_all).
       { to: '/financeiro/caixas', label: 'Caixas abertos', icon: IconCash, end: true, perm: ['caixa:operate', 'caixa:view_all'] },
       { to: '/financeiro/caixas/historico', label: 'Histórico de caixa', icon: IconClock, perm: ['caixa:operate', 'caixa:view_all'] },
-      { to: '/financeiro/belasis-pay', label: 'SalonPay', icon: IconCreditCard, badge: 'novo', perm: 'financeiro:view' },
+      { to: '/financeiro/belasis-pay', label: 'SalonPay', icon: IconCreditCard, badge: 'em breve', perm: 'financeiro:view' },
       { to: '/financeiro/notas-fiscais', label: 'Notas Fiscais', icon: IconReceipt, feature: 'nfe', perm: 'financeiro:view' },
       { to: '/financeiro/configuracoes', label: 'Configurações', icon: IconSettings, perm: 'financeiro:view' },
     ],
@@ -145,9 +147,9 @@ const NAVIGATION: NavEntry[] = [
     icon: IconPercent,
     items: [
       // Profissional vê as próprias (view_own); gestão vê todas (view_all).
-      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, perm: ['comissoes:view_own', 'comissoes:view_all'] },
-      { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash, perm: ['comissoes:view_own', 'comissoes:view_all'] },
-      { to: '/comissoes/config', label: 'Configurações', icon: IconSettings, perm: 'comissoes:config' },
+      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/config', label: 'Configurações', icon: IconSettings, feature: 'commissions', perm: 'comissoes:config' },
     ],
   },
   {
@@ -173,11 +175,11 @@ const NAVIGATION: NavEntry[] = [
     items: [
       { to: '/servicos', label: 'Serviços', icon: IconScissors, perm: 'catalogo:view' },
       { to: '/produtos', label: 'Produtos', icon: IconBox, perm: 'catalogo:view' },
-      { to: '/controle/pacotes-predefinidos', label: 'Pacotes Predefinidos', icon: IconLayers, perm: 'catalogo:view' },
+      { to: '/controle/pacotes-predefinidos', label: 'Pacotes Predefinidos', icon: IconLayers, feature: 'packages', perm: 'catalogo:view' },
       { to: '/categorias', label: 'Categorias', icon: IconFolder, perm: 'catalogo:view' },
       { to: '/marcas', label: 'Marcas', icon: IconTag, perm: 'catalogo:view' },
       { to: '/controle/compras', label: 'Compras', icon: IconBox, perm: 'estoque:manage' },
-      { to: '/controle/gerador-documento', label: 'Gerador de Documento', icon: IconCopy, perm: 'catalogo:view' },
+      { to: '/controle/gerador-documento', label: 'Gerador de Documento', icon: IconCopy, badge: 'em breve', perm: 'catalogo:view' },
     ],
   },
   {
@@ -187,15 +189,15 @@ const NAVIGATION: NavEntry[] = [
     icon: IconChart,
     items: [
       // O hub de relatórios abre tanto os operacionais quanto os financeiros.
-      { to: '/relatorios', label: 'Painel', icon: IconHome, end: true, perm: ['relatorios:operacional', 'relatorios:financeiro'] },
-      { to: '/metas', label: 'Metas', icon: IconTarget, perm: 'relatorios:operacional' },
+      { to: '/relatorios', label: 'Painel', icon: IconHome, end: true, feature: 'reports_advanced', perm: ['relatorios:operacional', 'relatorios:financeiro'] },
+      { to: '/metas', label: 'Metas', icon: IconTarget, feature: 'goals', perm: 'relatorios:operacional' },
     ],
   },
   {
     kind: 'link',
     key: 'whatsapp',
     to: '/whatsapp',
-    label: 'WhatsApp API Oficial',
+    label: 'WhatsApp integrado',
     icon: IconWhatsApp,
     badge: 'novo',
     feature: 'whatsapp_api',
@@ -207,12 +209,12 @@ const NAVIGATION: NavEntry[] = [
     title: 'Marketing',
     icon: IconMegaphone,
     items: [
-      { to: '/marketing/link', label: 'Link de Agendamento', icon: IconLink, action: 'copy-booking-link', perm: 'marketing:view' },
-      { to: '/marketing/agendamento-online', label: 'Agendamento Online', icon: IconCalendar, perm: 'marketing:view' },
-      { to: '/marketing/campanhas', label: 'Automação de Marketing', icon: IconSend, feature: 'messaging', perm: 'marketing:view' },
-      { to: '/marketing/promocoes', label: 'Promoções', icon: IconMegaphone, perm: 'marketing:view' },
+      { to: '/marketing/link', label: 'Link de Agendamento', icon: IconLink, action: 'copy-booking-link', feature: 'online_booking', perm: 'marketing:view' },
+      { to: '/marketing/agendamento-online', label: 'Agendamento Online', icon: IconCalendar, feature: 'online_booking', perm: 'marketing:view' },
+      { to: '/marketing/campanhas', label: 'Automação de Marketing', icon: IconSend, feature: 'campaigns', perm: 'marketing:view' },
+      { to: '/marketing/promocoes', label: 'Promoções', icon: IconMegaphone, feature: 'campaigns', perm: 'marketing:view' },
       { to: '/marketing/avaliacoes', label: 'Avaliações', icon: IconStar, perm: 'marketing:view' },
-      { to: '/marketing/cashback', label: 'Cashback', icon: IconGift, perm: 'marketing:view' },
+      { to: '/marketing/cashback', label: 'Cashback', icon: IconGift, feature: 'cashback', perm: 'marketing:view' },
     ],
   },
 ];
@@ -304,7 +306,11 @@ function subNavLinkClass(state: { isActive: boolean }) {
   return `${navLinkClass(state)} pl-9`;
 }
 
-function MenuBadge({ children }: { children: 'Beta' | 'novo' }) {
+function MenuBadge({
+  children,
+}: {
+  children: 'Beta' | 'novo' | 'em breve';
+}) {
   return (
     <span className="shrink-0 rounded-md bg-[#FCE4EA] px-1.5 py-0.5 text-[9px] font-bold leading-none text-[#A84065] ring-1 ring-inset ring-white/30">
       {children}

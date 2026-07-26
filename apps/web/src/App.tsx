@@ -20,11 +20,8 @@ import { AssinaturasPage } from './pages/AssinaturasPage';
 import { FinanceiroPainelPage } from './pages/financeiro/FinanceiroPainelPage';
 import { TransacoesPage } from './pages/financeiro/TransacoesPage';
 import { ContasPage } from './pages/financeiro/ContasPage';
-import { FinanceiroCategoriasPage } from './pages/financeiro/FinanceiroCategoriasPage';
-import { BelasisPayCadastroPage } from './pages/financeiro/BelasisPayCadastroPage';
 import { CaixasAbertosPage } from './pages/financeiro/CaixasAbertosPage';
 import { CaixaHistoricoPage } from './pages/financeiro/CaixaHistoricoPage';
-import { NotasFiscaisPage } from './pages/financeiro/NotasFiscaisPage';
 import { FinanceiroConfiguracoesPage } from './pages/financeiro/FinanceiroConfiguracoesPage';
 import { AnamnesesPage } from './pages/cadastros/AnamnesesPage';
 // "Convidar profissionais" e "Usuários" foram ABSORVIDOS pela página
@@ -33,7 +30,7 @@ import { AnamnesesPage } from './pages/cadastros/AnamnesesPage';
 import { ConvitePage } from './pages/ConvitePage';
 import { PacotesPredefinidosPage } from './pages/controle/PacotesPredefinidosPage';
 import { ComprasPage } from './pages/controle/ComprasPage';
-import { GeradorDocumentoPage } from './pages/controle/GeradorDocumentoPage';
+import { IntegrationUnavailablePage } from './pages/IntegrationUnavailablePage';
 import { AgendamentoOnlinePage } from './pages/marketing/AgendamentoOnlinePage';
 import { CampanhasPage } from './pages/marketing/CampanhasPage';
 import { AjudaPage } from './pages/AjudaPage';
@@ -82,7 +79,6 @@ import { IAAtendimentoPage } from './pages/ia/IAAtendimentoPage';
 import { PerfilPage } from './pages/PerfilPage';
 import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
 import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
-import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
 import { PerfilAssinaturaPage } from './pages/PerfilAssinaturaPage';
 import { FeatureGate } from './components/FeatureGate';
 import { IconLock } from './components/icons';
@@ -212,6 +208,76 @@ function ProtectedRoute({
   return <ForbiddenRoute />;
 }
 
+function PaidProtectedRoute({
+  perm,
+  feature,
+  children,
+}: {
+  perm: string | string[];
+  feature: Parameters<typeof FeatureGate>[0]['feature'];
+  children: ReactNode;
+}) {
+  return (
+    <ProtectedRoute perm={perm}>
+      <FeatureGate feature={feature}>{children}</FeatureGate>
+    </ProtectedRoute>
+  );
+}
+
+function HomeRoute() {
+  const { can, isLoading } = useCan();
+  if (isLoading) return null;
+  if (can('relatorios:operacional') || can('relatorios:financeiro')) {
+    return <PainelPage />;
+  }
+  if (can('agenda:view') || can('agenda:view_all')) {
+    return <Navigate to="/agenda" replace />;
+  }
+  if (can('comandas:view')) {
+    return <Navigate to="/comandas" replace />;
+  }
+  return <ForbiddenRoute />;
+}
+
+function RoutedFeatureGate({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const feature: Parameters<typeof FeatureGate>[0]['feature'] | null =
+    pathname === '/financeiro/notas-fiscais' ||
+    pathname === '/reports/invoices'
+      ? 'nfe'
+      : pathname.startsWith('/reports') ||
+          pathname.startsWith('/relatorios')
+        ? 'reports_advanced'
+        : pathname.startsWith('/comissoes')
+          ? 'commissions'
+          : pathname === '/pacotes' ||
+              pathname.startsWith('/controle/pacotes-predefinidos')
+            ? 'packages'
+            : pathname === '/assinaturas' ||
+                pathname === '/vendas-por-assinatura'
+              ? 'memberships'
+              : pathname === '/metas'
+                ? 'goals'
+                : pathname === '/whatsapp' ||
+                    pathname === '/ia-atendimento'
+                  ? 'whatsapp_api'
+                  : pathname === '/marketing/agendamento-online' ||
+                      pathname === '/marketing/link'
+                    ? 'online_booking'
+                    : pathname === '/marketing/cashback'
+                      ? 'cashback'
+                      : pathname === '/marketing/campanhas' ||
+                          pathname === '/marketing/promocoes'
+                        ? 'campaigns'
+                        : null;
+
+  return feature ? (
+    <FeatureGate feature={feature}>{children}</FeatureGate>
+  ) : (
+    <>{children}</>
+  );
+}
+
 function ProtectedRoutes() {
   const { data: session, isPending } = useSession();
   // Render null SOMENTE no primeiro load (sem session em cache). Better Auth
@@ -223,9 +289,10 @@ function ProtectedRoutes() {
   if (!session) return <Navigate to="/login" replace />;
   return (
     <DashboardLayout>
-      <Routes>
+      <RoutedFeatureGate>
+        <Routes>
         <Route path="/" element={<Navigate to="/painel" replace />} />
-        <Route path="/painel" element={<PainelPage />} />
+        <Route path="/painel" element={<HomeRoute />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/agendamentos" element={<AgendamentosPage />} />
         <Route path="/comandas" element={<ComandasPage />} />
@@ -241,13 +308,22 @@ function ProtectedRoutes() {
         <Route path="/produtos" element={<ProdutosPage />} />
         <Route path="/categorias" element={<CategoriasPage />} />
         <Route path="/marcas" element={<MarcasPage />} />
-        <Route path="/controle/pacotes-predefinidos" element={<PacotesPredefinidosPage />} />
+        <Route path="/controle/pacotes-predefinidos" element={<PaidProtectedRoute perm="catalogo:view" feature="packages"><PacotesPredefinidosPage /></PaidProtectedRoute>} />
         <Route path="/controle/compras" element={<ComprasPage />} />
-        <Route path="/controle/gerador-documento" element={<GeradorDocumentoPage />} />
+        <Route
+          path="/controle/gerador-documento"
+          element={
+            <IntegrationUnavailablePage
+              title="Gerador de documentos ainda não habilitado"
+              description="A API de modelos e geração de documentos ainda não está disponível. Nenhum modelo será exibido como salvo sem persistência real."
+              backTo="/painel"
+            />
+          }
+        />
         <Route path="/fornecedores" element={<FornecedoresPage />} />
-        <Route path="/pacotes" element={<PacotesPage />} />
-        <Route path="/assinaturas" element={<AssinaturasPage />} />
-        <Route path="/vendas-por-assinatura" element={<AssinaturasPage />} />
+        <Route path="/pacotes" element={<PaidProtectedRoute perm="catalogo:view" feature="packages"><PacotesPage /></PaidProtectedRoute>} />
+        <Route path="/assinaturas" element={<PaidProtectedRoute perm="catalogo:view" feature="memberships"><AssinaturasPage /></PaidProtectedRoute>} />
+        <Route path="/vendas-por-assinatura" element={<PaidProtectedRoute perm="catalogo:view" feature="memberships"><AssinaturasPage /></PaidProtectedRoute>} />
         {/* Financeiro — exige financeiro:view (profissional/recepção não veem). */}
         <Route path="/financeiro" element={<ProtectedRoute perm="financeiro:view"><FinanceiroPainelPage /></ProtectedRoute>} />
         <Route path="/financeiro/transacoes" element={<ProtectedRoute perm="financeiro:view"><TransacoesPage /></ProtectedRoute>} />
@@ -256,24 +332,46 @@ function ProtectedRoutes() {
         <Route path="/financeiro/caixas" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
         <Route path="/financeiro/caixas-abertos" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
         <Route path="/financeiro/caixas/historico" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaHistoricoPage /></ProtectedRoute>} />
-        <Route path="/financeiro/notas-fiscais" element={<ProtectedRoute perm="financeiro:view"><NotasFiscaisPage /></ProtectedRoute>} />
+        <Route
+          path="/financeiro/notas-fiscais"
+          element={
+            <ProtectedRoute perm="financeiro:view">
+              <IntegrationUnavailablePage
+                title="Emissão fiscal ainda não configurada"
+                description="É necessário integrar um provedor fiscal antes de emitir, editar ou baixar notas. A tela não simula mais emissões locais."
+                backTo="/financeiro"
+              />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/financeiro/configuracoes" element={<ProtectedRoute perm="financeiro:view"><FinanceiroConfiguracoesPage /></ProtectedRoute>} />
-        <Route path="/financeiro/cadastros/categorias" element={<ProtectedRoute perm="financeiro:view"><FinanceiroCategoriasPage /></ProtectedRoute>} />
+        <Route path="/financeiro/cadastros/categorias" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="categorias" /></ProtectedRoute>} />
         <Route path="/financeiro/cadastros/formas-pagamento" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="formas" /></ProtectedRoute>} />
         <Route path="/financeiro/cadastros/contas" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="contas" /></ProtectedRoute>} />
-        <Route path="/financeiro/belasis-pay" element={<ProtectedRoute perm="financeiro:view"><BelasisPayCadastroPage /></ProtectedRoute>} />
+        <Route
+          path="/financeiro/belasis-pay"
+          element={
+            <ProtectedRoute perm="financeiro:view">
+              <IntegrationUnavailablePage
+                title="SalonPay ainda não integrado"
+                description="O cadastro do gateway será liberado quando houver uma API de onboarding. Nenhuma solicitação é marcada como enviada sem chegar ao provedor."
+                backTo="/financeiro/contas"
+              />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/financeiro/historico-caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaHistoricoPage /></ProtectedRoute>} />
         <Route path="/financeiro/caixas-abertos/:id" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
         <Route path="/caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaPage /></ProtectedRoute>} />
         {/* Comissões — profissional vê as próprias (view_own); config é gestão. */}
-        <Route path="/comissoes" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
-        <Route path="/comissoes/resumo" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
-        <Route path="/comissoes/em-aberto" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
-        <Route path="/comissoes/pagas" element={<ProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']}><ComissoesResumoPage /></ProtectedRoute>} />
-        <Route path="/comissoes/config" element={<ProtectedRoute perm="comissoes:config"><ComissoesConfigPage /></ProtectedRoute>} />
+        <Route path="/comissoes" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/resumo" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/em-aberto" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/pagas" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/config" element={<PaidProtectedRoute perm="comissoes:config" feature="commissions"><ComissoesConfigPage /></PaidProtectedRoute>} />
         {/* Relatórios operacionais — exigem relatorios:operacional. */}
-        <Route path="/relatorios" element={<ProtectedRoute perm="relatorios:operacional"><RelatoriosPage /></ProtectedRoute>} />
-        <Route path="/relatorios/vendas" element={<ProtectedRoute perm="relatorios:operacional"><VendasPage /></ProtectedRoute>} />
+        <Route path="/relatorios" element={<PaidProtectedRoute perm="relatorios:operacional" feature="reports_advanced"><RelatoriosPage /></PaidProtectedRoute>} />
+        <Route path="/relatorios/vendas" element={<PaidProtectedRoute perm="relatorios:operacional" feature="reports_advanced"><VendasPage /></PaidProtectedRoute>} />
         {/* Relatórios financeiros — exigem relatorios:financeiro. */}
         <Route path="/relatorios/financeiro/dre" element={<ProtectedRoute perm="relatorios:financeiro"><DrePage /></ProtectedRoute>} />
         <Route path="/relatorios/agendamentos" element={<ProtectedRoute perm="relatorios:operacional"><RelAgendamentosPage /></ProtectedRoute>} />
@@ -308,18 +406,29 @@ function ProtectedRoutes() {
         <Route path="/reports/inventory/purchases" element={<ProtectedRoute perm="relatorios:operacional"><ComprasRelatorioPage /></ProtectedRoute>} />
         <Route path="/reports/inventory/suggestion" element={<ProtectedRoute perm="relatorios:operacional"><SugestaoCompraPage /></ProtectedRoute>} />
         <Route path="/reports/inventory/consumed" element={<ProtectedRoute perm="relatorios:operacional"><ProdutosConsumidosPage /></ProtectedRoute>} />
-        <Route path="/reports/invoices" element={<ProtectedRoute perm="relatorios:operacional"><NotasFiscaisPage /></ProtectedRoute>} />
-        <Route path="/metas" element={<ProtectedRoute perm="relatorios:operacional"><MetasPage /></ProtectedRoute>} />
+        <Route
+          path="/reports/invoices"
+          element={
+            <ProtectedRoute perm="relatorios:operacional">
+              <IntegrationUnavailablePage
+                title="Relatório fiscal ainda não disponível"
+                description="O relatório será habilitado junto da integração fiscal. Não há notas fictícias ou dados locais."
+                backTo="/relatorios"
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/metas" element={<PaidProtectedRoute perm="relatorios:operacional" feature="goals"><MetasPage /></PaidProtectedRoute>} />
         {/* Marketing — exige marketing:view. */}
-        <Route path="/marketing/agendamento-online" element={<ProtectedRoute perm="marketing:view"><AgendamentoOnlinePage /></ProtectedRoute>} />
-        <Route path="/marketing/link" element={<ProtectedRoute perm="marketing:view"><LinkAgendamentoPage /></ProtectedRoute>} />
-        <Route path="/marketing/promocoes" element={<ProtectedRoute perm="marketing:view"><PromocoesPage /></ProtectedRoute>} />
+        <Route path="/marketing/agendamento-online" element={<PaidProtectedRoute perm="marketing:view" feature="online_booking"><AgendamentoOnlinePage /></PaidProtectedRoute>} />
+        <Route path="/marketing/link" element={<PaidProtectedRoute perm="marketing:view" feature="online_booking"><LinkAgendamentoPage /></PaidProtectedRoute>} />
+        <Route path="/marketing/promocoes" element={<PaidProtectedRoute perm="marketing:view" feature="campaigns"><PromocoesPage /></PaidProtectedRoute>} />
         <Route
           path="/marketing/campanhas"
           element={
             <ProtectedRoute perm="marketing:view">
               <FeatureGate
-                feature="messaging"
+                feature="campaigns"
                 title="Automação de Marketing"
                 description="A automação de marketing (envio de campanhas e mensagens automáticas) faz parte de um plano superior — faça upgrade para desbloquear."
               >
@@ -329,9 +438,9 @@ function ProtectedRoutes() {
           }
         />
         <Route path="/marketing/avaliacoes" element={<ProtectedRoute perm="marketing:view"><AvaliacoesPage /></ProtectedRoute>} />
-        <Route path="/marketing/cashback" element={<ProtectedRoute perm="marketing:view"><CashbackPage /></ProtectedRoute>} />
-        <Route path="/whatsapp" element={<ProtectedRoute perm="marketing:view"><IAAtendimentoPage /></ProtectedRoute>} />
-        <Route path="/ia-atendimento" element={<ProtectedRoute perm="marketing:view"><IAAtendimentoPage /></ProtectedRoute>} />
+        <Route path="/marketing/cashback" element={<PaidProtectedRoute perm="marketing:view" feature="cashback"><CashbackPage /></PaidProtectedRoute>} />
+        <Route path="/whatsapp" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><IAAtendimentoPage /></PaidProtectedRoute>} />
+        <Route path="/ia-atendimento" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><IAAtendimentoPage /></PaidProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute perm="config:view"><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/ajuda" element={<AjudaPage />} />
         <Route path="/ajuda/suporte" element={<AjudaPage />} />
@@ -341,13 +450,23 @@ function ProtectedRoutes() {
         <Route path="/ajuda/artigo/:slug" element={<HelpArticlePage />} />
         <Route path="/indique" element={<IndiquePage />} />
         <Route path="/perfil/assinatura" element={<PerfilAssinaturaPage />} />
-        <Route path="/perfil/adicionais" element={<PerfilAdicionaisPage />} />
+        <Route
+          path="/perfil/adicionais"
+          element={
+            <IntegrationUnavailablePage
+              title="Contratação de adicionais ainda não habilitada"
+              description="A cobrança e a ativação de adicionais ainda não possuem integração com o provedor de assinatura. Nenhum recurso será marcado como contratado sem uma cobrança real."
+              backTo="/perfil/assinatura"
+            />
+          }
+        />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/notificacoes" element={<NotificacoesCategoriasPage />} />
         <Route path="/notificacoes/:tipo" element={<NotificacoesDetalhePage />} />
         <Route path="/indique-e-ganhe" element={<div className="p-6"><h1 className="text-2xl font-bold">Indique e ganhe</h1><p className="mt-2 text-muted-ink">Em breve.</p></div>} />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </RoutedFeatureGate>
     </DashboardLayout>
   );
 }

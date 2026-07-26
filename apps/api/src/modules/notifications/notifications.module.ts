@@ -8,9 +8,10 @@ import {
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { EmailModule } from '../email/email.module';
 import { WhatsappReminderPollerService } from './whatsapp-reminder-poller.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [WhatsappModule, EmailModule],
+  imports: [AuthModule, WhatsappModule, EmailModule],
   controllers: [NotificationsController, NotificationSettingsController],
   providers: [
     NotificationsService,

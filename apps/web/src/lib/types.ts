@@ -50,6 +50,7 @@ export interface CustomerFull extends Customer {
   tags?: CustomerTag[];
   dependents?: CustomerDependent[];
   socialProfiles?: CustomerSocialProfile[];
+  debtBalance?: number;
   // Endereço embutido + observações livres (Wave 2/3)
   cep?: string | null;
   street?: string | null;
@@ -183,7 +184,12 @@ export interface AppointmentRow {
   notifyCancellation?: boolean | null;
   customer?: Customer | null;
   professional?: Professional | null;
-  items?: { id: string; serviceId: string; price: string }[];
+  items?: {
+    id: string;
+    serviceId: string;
+    professionalId?: string | null;
+    price: string;
+  }[];
 }
 
 /** Order as returned by the list endpoint (includes customer). */
@@ -198,6 +204,7 @@ export interface OrderRow {
   netTotal: string;
   date: string;
   customer?: Customer | null;
+  payments?: { paymentMethodId: string }[];
 }
 
 /**
@@ -398,6 +405,11 @@ export interface CreateAppointmentBody {
   notifyCancellation?: boolean;
   items?: { serviceId: string; professionalId?: string }[];
   followUp?: AppointmentFollowUpInput;
+}
+
+export interface CreateAppointmentSeriesBody extends CreateAppointmentBody {
+  additionalStarts: string[];
+  status?: AppointmentRow['status'];
 }
 
 // =====================================================================

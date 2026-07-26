@@ -119,8 +119,8 @@ export function ClientesPage() {
   const [statusInativos, setStatusInativos] = useState(false);
   const [comCelular, setComCelular] = useState(false);
   const [semCelular, setSemCelular] = useState(false);
-  const [comDebito, setComDebito] = useState(false); // TODO: sem campo de débito no cliente
-  const [semDebito, setSemDebito] = useState(false); // TODO
+  const [comDebito, setComDebito] = useState(false);
+  const [semDebito, setSemDebito] = useState(false);
   const [tagQuery, setTagQuery] = useState('');
   const [birthdayStart, setBirthdayStart] = useState(''); // YYYY-MM-DD
   const [birthdayEnd, setBirthdayEnd] = useState('');
@@ -142,7 +142,18 @@ export function ClientesPage() {
   useAutoCreate(() => setCreateOpen(true));
   const confirm = useConfirm();
 
-  const customers = useCustomers(search, page, pageSize);
+  const activeFilter =
+    statusAtivos === statusInativos
+      ? undefined
+      : statusAtivos
+        ? true
+        : false;
+  const debtFilter =
+    comDebito === semDebito ? undefined : comDebito ? true : false;
+  const customers = useCustomers(search, page, pageSize, {
+    active: activeFilter,
+    hasDebt: debtFilter,
+  });
   const remove = useDeleteCustomer();
   const data = customers.data;
   const allRows = (data?.data ?? []) as CustomerFull[];
@@ -163,6 +174,10 @@ export function ClientesPage() {
       // Celular
       if (comCelular && !semCelular && !c.phone) return false;
       if (semCelular && !comCelular && c.phone) return false;
+      // Débito (o backend também aplica este filtro para manter paginação/total
+      // coerentes; a checagem local preserva consistência com dados em cache).
+      if (comDebito && !semDebito && !(Number(c.debtBalance) > 0)) return false;
+      if (semDebito && !comDebito && Number(c.debtBalance) > 0) return false;
       // Tags
       if (tag && !(c.tags ?? []).some((t) => t.name.toLowerCase().includes(tag)))
         return false;
@@ -189,6 +204,8 @@ export function ClientesPage() {
     statusInativos,
     comCelular,
     semCelular,
+    comDebito,
+    semDebito,
     tagQuery,
     birthdayStart,
     birthdayEnd,
@@ -458,7 +475,6 @@ export function ClientesPage() {
 
               {/* Débito */}
               <FilterSection title="Débito">
-                {/* TODO: sem campo de débito no CustomerFull — filtros visuais */}
                 <CheckRow
                   label="Com débito"
                   checked={comDebito}

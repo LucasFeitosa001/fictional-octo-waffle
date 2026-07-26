@@ -11,19 +11,23 @@ import {
 import { AnamnesisTemplatesService } from './anamnesis-templates.service';
 import { CreateAnamnesisTemplateDto, UpdateAnamnesisTemplateDto } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('anamnesis-templates')
 export class AnamnesisTemplatesController {
   constructor(private readonly service: AnamnesisTemplatesService) {}
 
   @Get()
+  @RequirePermission('anamneses:manage')
   list(@CurrentUser('companyId') companyId: string) {
     return this.service.list(companyId);
   }
 
   @Post()
+  @RequirePermission('anamneses:manage')
   create(
     @CurrentUser('companyId') companyId: string,
     @Body() dto: CreateAnamnesisTemplateDto,
@@ -32,6 +36,7 @@ export class AnamnesisTemplatesController {
   }
 
   @Patch(':id')
+  @RequirePermission('anamneses:manage')
   update(
     @CurrentUser('companyId') companyId: string,
     @Param('id') id: string,
@@ -41,6 +46,7 @@ export class AnamnesisTemplatesController {
   }
 
   @Delete(':id')
+  @RequirePermission('anamneses:manage')
   remove(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.remove(companyId, id);
   }

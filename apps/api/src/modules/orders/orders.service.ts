@@ -25,7 +25,13 @@ export class OrdersService {
     const where = { companyId, ...(status ? { status: status as never } : {}) };
     const data = await this.prisma.client.order.findMany({
       where,
-      include: { customer: true },
+      include: {
+        customer: true,
+        payments: {
+          where: { status: { not: 'reversed' } },
+          select: { paymentMethodId: true },
+        },
+      },
       orderBy: { date: 'desc' },
     });
     return { data, page: 1, pageSize: data.length, total: data.length };
@@ -177,20 +183,87 @@ export class OrdersService {
   }
 
   async create(companyId: string, dto: CreateOrderDto) {
-    const last = await this.prisma.client.order.findFirst({
-      where: { companyId },
-      orderBy: { number: 'desc' },
-      select: { number: true },
-    });
-    return this.prisma.client.order.create({
-      data: {
-        companyId,
-        number: (last?.number ?? 0) + 1,
-        customerId: dto.customerId,
-        professionalId: dto.professionalId,
-        notes: dto.notes,
-        date: dto.date ? new Date(dto.date) : new Date(),
-      },
+    const preparedItems = await Promise.all(
+      (dto.items ?? []).map(async (item) => {
+        const quantity = new Prisma.Decimal(item.quantity ?? 1);
+        const unitPrice = await this.resolveUnitPrice(companyId, item);
+        const grossValue = unitPrice.mul(quantity);
+        const discount = new Prisma.Decimal(item.discount ?? 0);
+        return { item, quantity, unitPrice, grossValue, discount };
+      }),
+    );
+    const grossTotal = preparedItems.reduce(
+      (sum, current) => sum.add(current.grossValue),
+      new Prisma.Decimal(0),
+    );
+    const discountTotal = preparedItems.reduce(
+      (sum, current) => sum.add(current.discount),
+      new Prisma.Decimal(0),
+    );
+    const netTotal = Prisma.Decimal.max(
+      grossTotal.sub(discountTotal),
+      new Prisma.Decimal(0),
+    );
+
+    return this.prisma.client.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:orders`}))
+      `;
+
+      if (dto.customerId) {
+        const customer = await tx.customer.findFirst({
+          where: { id: dto.customerId, companyId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!customer) throw new NotFoundException('Cliente não encontrado');
+      }
+
+      const professionalIds = [
+        dto.professionalId,
+        ...preparedItems.map((current) => current.item.professionalId),
+      ].filter((id): id is string => Boolean(id));
+      if (professionalIds.length) {
+        const uniqueIds = [...new Set(professionalIds)];
+        const count = await tx.professional.count({
+          where: { companyId, id: { in: uniqueIds } },
+        });
+        if (count !== uniqueIds.length) {
+          throw new NotFoundException('Profissional não encontrado');
+        }
+      }
+
+      const last = await tx.order.findFirst({
+        where: { companyId },
+        orderBy: { number: 'desc' },
+        select: { number: true },
+      });
+      return tx.order.create({
+        data: {
+          companyId,
+          number: (last?.number ?? 0) + 1,
+          customerId: dto.customerId,
+          professionalId: dto.professionalId,
+          notes: dto.notes,
+          date: dto.date ? new Date(dto.date) : new Date(),
+          grossTotal,
+          discountTotal,
+          netTotal,
+          items: preparedItems.length
+            ? {
+                create: preparedItems.map((current) => ({
+                  kind: current.item.kind,
+                  refId: current.item.refId,
+                  professionalId: current.item.professionalId,
+                  quantity: current.quantity,
+                  unitPrice: current.unitPrice,
+                  grossValue: current.grossValue,
+                  discount: current.discount,
+                })),
+              }
+            : undefined,
+        },
+        include: { items: true },
+      });
     });
   }
 
@@ -231,24 +304,22 @@ export class OrdersService {
   ): Promise<Prisma.Decimal> {
     const provided =
       dto.unitPrice != null ? new Prisma.Decimal(dto.unitPrice) : null;
-    if (provided && provided.gt(0)) return provided;
 
     if (dto.kind === 'service') {
       const service = await this.prisma.client.service.findFirst({
         where: { id: dto.refId, companyId },
         select: { price: true },
       });
-      if (service) return service.price;
+      if (!service) throw new NotFoundException('Serviço não encontrado');
+      return provided && provided.gt(0) ? provided : service.price;
     } else {
       const product = await this.prisma.client.product.findFirst({
         where: { id: dto.refId, companyId },
         select: { salePrice: true },
       });
-      if (product) return product.salePrice;
+      if (!product) throw new NotFoundException('Produto não encontrado');
+      return provided && provided.gt(0) ? provided : product.salePrice;
     }
-
-    // Sem catálogo correspondente: mantém o valor informado (0) para não quebrar.
-    return provided ?? new Prisma.Decimal(0);
   }
 
   /**
@@ -722,18 +793,35 @@ export class OrdersService {
         );
       }
 
-      // O caixa não é diário: seleciona o último que continua ABERTO, ainda que
-      // tenha sido aberto ontem ou em data anterior. FOR UPDATE serializa com o
-      // fechamento manual para ser impossível faturar no meio de um close.
-      const [openCash] = await tx.$queryRaw<{ id: string }[]>`
-        SELECT "id"
+      // O caixa não é diário: usa o caixa ABERTO do operador mesmo que tenha
+      // sido aberto em data anterior. Quando existe só um caixa na empresa,
+      // ele é o fallback (compatibilidade com operação centralizada). Com mais
+      // de um caixa, nunca joga a venda silenciosamente no caixa de outra
+      // pessoa: exige que o operador tenha o próprio caixa.
+      //
+      // FOR UPDATE usa o mesmo lock do fechamento e serializa os dois fluxos.
+      const openCashes = await tx.$queryRaw<
+        { id: string; responsibleUserId: string | null }[]
+      >`
+        SELECT "id", "responsibleUserId"
         FROM "CashRegister"
         WHERE "companyId" = ${companyId} AND "status" = 'open'
-        ORDER BY "openedAt" DESC
-        LIMIT 1
+        ORDER BY
+          CASE WHEN "responsibleUserId" = ${byUserId} THEN 0 ELSE 1 END,
+          "openedAt" DESC
         FOR UPDATE
       `;
+      const ownCash = openCashes.find(
+        (cash) => cash.responsibleUserId === byUserId,
+      );
+      const openCash =
+        ownCash ?? (openCashes.length === 1 ? openCashes[0] : undefined);
       if (netTotal.greaterThan(0) && !openCash) {
+        if (openCashes.length > 1) {
+          throw new BadRequestException(
+            'Há mais de um caixa aberto e nenhum pertence ao seu usuário. Abra o seu caixa ou peça a um gerente para faturar esta comanda.',
+          );
+        }
         throw new BadRequestException(
           'Nenhum caixa está aberto. Abra o caixa antes de faturar a comanda.',
         );
@@ -1280,11 +1368,43 @@ export class OrdersService {
    * CONSUMIDOS: a baixa deles ocorre no add e permanece válida enquanto a comanda
    * estiver ativa (open/finished).
    */
+  private async assertClosedCashAllowsOrderEdit(
+    companyId: string,
+    orderId: string,
+  ): Promise<void> {
+    const setting = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: 'finance.settings' } },
+      select: { valueJson: true },
+    });
+    const value =
+      setting?.valueJson &&
+      typeof setting.valueJson === 'object' &&
+      !Array.isArray(setting.valueJson)
+        ? (setting.valueJson as Record<string, unknown>)
+        : {};
+    // Compatibilidade: empresas sem Setting mantêm o comportamento anterior.
+    if (value.allowEditAfterCashClose !== false) return;
+    const closedMovement = await this.prisma.client.cashMovement.findFirst({
+      where: {
+        refType: 'order',
+        refId: orderId,
+        cashRegister: { companyId, status: 'closed' },
+      },
+      select: { id: true },
+    });
+    if (closedMovement) {
+      throw new BadRequestException(
+        'Esta comanda já foi conferida em um caixa fechado.',
+      );
+    }
+  }
+
   async reopen(companyId: string, id: string, byUserId?: string) {
     const order = await this.loadOrder(companyId, id);
     if (order.status !== 'finished') {
       throw new BadRequestException('Somente comandas finalizadas podem ser reabertas.');
     }
+    await this.assertClosedCashAllowsOrderEdit(companyId, id);
     return this.prisma.client.$transaction(async (tx) => {
       await this.reverseFinishReconciliation(tx, companyId, order);
       return tx.order.update({
@@ -1331,6 +1451,7 @@ export class OrdersService {
 
     // Se estava finalizada, estorna primeiro os lançamentos do finish (atômico).
     if (order.status === 'finished') {
+      await this.assertClosedCashAllowsOrderEdit(companyId, id);
       await this.prisma.client.$transaction(async (tx) => {
         await this.reverseFinishReconciliation(tx, companyId, order);
       });

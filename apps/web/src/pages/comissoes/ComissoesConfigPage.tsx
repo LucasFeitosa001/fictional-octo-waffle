@@ -49,13 +49,12 @@ const YESNO_PAYER: { value: CommissionPayer; label: string }[] = [
   { value: 'professional', label: 'Profissional arca com 100%' },
 ];
 
-// Campo sem backing no modelo atual — estado local + // TODO.
-type ConsumedPriceBy = 'i' | 'cost' | 'price' | 'pro';
+type ConsumedPriceBy = 'none' | 'cost' | 'price' | 'professional';
 const CONSUMED_PRICE_OPTS: { value: ConsumedPriceBy; label: string }[] = [
-  { value: 'i', label: 'Não descontar' },
+  { value: 'none', label: 'Não descontar' },
   { value: 'cost', label: 'Preço de custo' },
   { value: 'price', label: 'Preço de venda' },
-  { value: 'pro', label: 'Preço para profissional' },
+  { value: 'professional', label: 'Preço para profissional' },
 ];
 
 export function ComissoesConfigPage() {
@@ -119,9 +118,8 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
   const [consumedProducts, setConsumedProducts] = useState<'deduct' | 'ignore'>('deduct');
   const [receiptText, setReceiptText] = useState('');
 
-  // Campos do Belasis sem backing no modelo atual — estado local + // TODO.
-  const [consumedPriceBy, setConsumedPriceBy] = useState<ConsumedPriceBy>('i'); // TODO: persistir
-  const [showGrossValue, setShowGrossValue] = useState(false); // TODO: persistir
+  const [consumedPriceBy, setConsumedPriceBy] = useState<ConsumedPriceBy>('none');
+  const [showGrossValue, setShowGrossValue] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -136,6 +134,8 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
     setDiscountPaidBy(s?.discountPaidBy ?? 'company');
     setConsidersAdditionalCost((s?.additionalCostPaidBy ?? 'company') !== 'company');
     setConsumedProducts(s?.consumedProducts ?? 'deduct');
+    setConsumedPriceBy(s?.consumedPriceBy ?? 'none');
+    setShowGrossValue(s?.showGrossValue ?? false);
     setReceiptText(s?.receiptText ?? '');
     setSaved(false);
   }, [rule]);
@@ -158,6 +158,8 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
       // on→proportional (considera custo adicional) / off→company (ignora).
       additionalCostPaidBy: considersAdditionalCost ? 'proportional' : 'company',
       consumedProducts,
+      consumedPriceBy,
+      showGrossValue,
       receiptText: receiptText || undefined,
     };
     try {

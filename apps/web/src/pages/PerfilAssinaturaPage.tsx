@@ -3,7 +3,7 @@
 // pagamento). As faturas (parcelas) são derivadas de installments + totalMonthly
 // + startDate. Boleto/NF-e/troca de plano seguem como ações futuras.
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip } from '@heroui/react';
 import { PageHeader } from '../components/PageHeader';
@@ -20,10 +20,7 @@ import {
 } from '../components/icons';
 import { useFeatures } from '../lib/queries/features';
 import { usePlans, type Plan, type PlanName } from '../lib/queries/plans';
-import {
-  useSubscriptionSummary,
-  type SubscriptionSummary,
-} from '../lib/queries/assinaturas';
+import { useSubscriptionSummary } from '../lib/queries/assinaturas';
 import { formatMoney, formatDate } from '../lib/format';
 
 // ---------------------------------------------------------------------------
@@ -52,42 +49,6 @@ interface Invoice {
   status: InvoiceStatus;
   invoiceUrl?: string;
   boletoUrl?: string;
-}
-
-/** ISO date (YYYY-MM-DD) somando `months` meses, sem drift de fuso. */
-function addMonthsIso(iso: string, months: number): string {
-  const base = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(base.getTime())) return iso;
-  const d = new Date(base);
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
-}
-
-/**
- * Gera a lista de parcelas a partir do billing consolidado: `installments`
- * cobranças mensais de `totalMonthly`, a primeira em `startDate`. Todas
- * pendentes (pagamento ainda não processado). Vazia se faltarem dados.
- */
-function buildInvoices(summary: SubscriptionSummary | undefined): Invoice[] {
-  if (!summary) return [];
-  const start = summary.payment.startDate;
-  const count = Math.max(1, summary.installments || 1);
-  if (!start) return [];
-  const invoices: Invoice[] = [];
-  for (let i = 0; i < count; i++) {
-    const due = addMonthsIso(start, i);
-    invoices.push({
-      createdAt: due,
-      dueAt: due,
-      plan: summary.planLabel,
-      period: summary.cycle === 'annual' ? `Parcela ${i + 1}/${count}` : 'Mensal',
-      amount: summary.totalMonthly,
-      method: 'Boleto',
-      status: 'Pendente',
-      boletoUrl: '#',
-    });
-  }
-  return invoices;
 }
 
 // ---------------------------------------------------------------------------
@@ -317,9 +278,8 @@ function PaymentActionCell({ inv }: { inv: Invoice }) {
       <Button
         variant="outline"
         size="sm"
-        onPress={() => {
-          // TODO(backend): abrir boleto (GET /billing/invoices/:id/boleto)
-        }}
+        isDisabled={!inv.boletoUrl || inv.boletoUrl === '#'}
+        onPress={() => window.open(inv.boletoUrl, '_blank', 'noopener')}
       >
         Visualizar boleto
       </Button>
@@ -363,7 +323,10 @@ export function PerfilAssinaturaPage() {
   const payment = paymentChip(billing?.payment.status ?? null);
   const nextDue = billing?.payment.dueDate ?? billing?.currentPeriodEnd ?? null;
 
-  const invoices = useMemo(() => buildInvoices(billing), [billing]);
+  // O resumo de assinatura não expõe faturas individuais. Não inventamos
+  // parcelas a partir do valor mensal: a lista só será preenchida quando o
+  // provedor de cobrança disponibilizar um endpoint de invoices.
+  const invoices: Invoice[] = [];
 
   function handleChoose(plan: Plan) {
     // TODO(backend): iniciar troca de plano (POST /billing/subscription).
@@ -539,23 +502,20 @@ export function PerfilAssinaturaPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-base font-bold text-foreground">
-                Boleto
+                Não informada
               </div>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onPress={() => {
-                // TODO(backend): abrir modal de troca de forma de pagamento
-              }}
+              isDisabled
             >
-              Alterar
+              Alteração em breve
             </Button>
           </div>
-          <div className="mt-3 flex flex-col gap-1 text-xs text-muted-ink">
-            <div>*Boleto: até 3 dias úteis para a aprovação</div>
-            <div>*Cartão: aprovação instantânea</div>
-          </div>
+          <p className="mt-3 text-xs text-muted-ink">
+            O provedor de cobrança ainda não disponibiliza essa informação no SalonPass.
+          </p>
         </div>
       </section>
 
@@ -569,7 +529,7 @@ export function PerfilAssinaturaPage() {
 
         {invoices.length === 0 ? (
           <div className={CARD + ' text-sm text-muted-ink'}>
-            Nenhuma fatura disponível ainda.
+            O histórico de faturas ainda não está integrado ao provedor de cobrança.
           </div>
         ) : (
           <>
@@ -622,9 +582,7 @@ export function PerfilAssinaturaPage() {
                           variant="ghost"
                           size="sm"
                           aria-label="Baixar NF-e"
-                          onPress={() => {
-                            // TODO(backend): download NF-e
-                          }}
+                          onPress={() => window.open(inv.invoiceUrl, '_blank', 'noopener')}
                         >
                           <IconDownload size={16} />
                         </Button>
@@ -673,9 +631,8 @@ export function PerfilAssinaturaPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onPress={() => {
-                      // TODO(backend): abrir boleto
-                    }}
+                    isDisabled={!inv.boletoUrl || inv.boletoUrl === '#'}
+                    onPress={() => window.open(inv.boletoUrl, '_blank', 'noopener')}
                   >
                     <IconEye size={14} /> Boleto
                   </Button>
@@ -683,9 +640,7 @@ export function PerfilAssinaturaPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onPress={() => {
-                      // TODO(backend): download NF-e
-                    }}
+                    onPress={() => window.open(inv.invoiceUrl, '_blank', 'noopener')}
                   >
                     <IconDownload size={14} /> NF-e
                   </Button>
@@ -717,17 +672,13 @@ export function PerfilAssinaturaPage() {
             <Button
               variant="ghost"
               className="!text-rose-600 hover:!bg-rose-50"
-              onPress={() => {
-                // TODO(backend): iniciar fluxo de cancelamento
-              }}
+              isDisabled
             >
-              Cancelar assinatura
+              Cancelamento em breve
             </Button>
             <Button
               variant="primary"
-              onPress={() => {
-                // TODO(backend): abrir base de conhecimento (link externo)
-              }}
+              onPress={() => navigate('/ajuda/base-conhecimento')}
             >
               Base de conhecimento
             </Button>

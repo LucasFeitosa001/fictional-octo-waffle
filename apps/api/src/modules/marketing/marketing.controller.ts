@@ -28,22 +28,25 @@ import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { FeatureGuard, RequireFeature } from '../feature-flags';
 
 // Marketing: leitura (GET) exige marketing:view; toda mutação exige
 // marketing:manage. Owner ('*') passa em tudo.
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
 @Controller()
 export class MarketingController {
   constructor(private readonly service: MarketingService) {}
 
   // ---- booking link ----
   @RequirePermission('marketing:view')
+  @RequireFeature('online_booking')
   @Get('booking-link')
   getBookingLink(@CurrentUser('companyId') companyId: string) {
     return this.service.getBookingLink(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('online_booking')
   @Patch('booking-link')
   updateBookingLink(
     @CurrentUser('companyId') companyId: string,
@@ -54,12 +57,14 @@ export class MarketingController {
 
   // ---- business hours (salão: dias e horários de atendimento) ----
   @RequirePermission('marketing:view')
+  @RequireFeature('online_booking')
   @Get('booking-link/business-hours')
   getBusinessHours(@CurrentUser('companyId') companyId: string) {
     return this.service.getBusinessHours(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('online_booking')
   @Patch('booking-link/business-hours')
   updateBusinessHours(
     @CurrentUser('companyId') companyId: string,
@@ -70,12 +75,14 @@ export class MarketingController {
 
   // ---- web profile (perfil público do salão) ----
   @RequirePermission('marketing:view')
+  @RequireFeature('online_booking')
   @Get('booking-link/web-profile')
   getWebProfile(@CurrentUser('companyId') companyId: string) {
     return this.service.getWebProfile(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('online_booking')
   @Patch('booking-link/web-profile')
   updateWebProfile(
     @CurrentUser('companyId') companyId: string,
@@ -87,12 +94,14 @@ export class MarketingController {
   // ---- aparência do agendamento online (Setting `booking.appearance`) ----
   // Mesma dupla view/manage dos demais settings do booking-link/web-profile.
   @RequirePermission('marketing:view')
+  @RequireFeature('online_booking')
   @Get('booking-link/appearance')
   getBookingAppearance(@CurrentUser('companyId') companyId: string) {
     return this.service.getBookingAppearance(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('online_booking')
   @Put('booking-link/appearance')
   updateBookingAppearance(
     @CurrentUser('companyId') companyId: string,
@@ -103,12 +112,14 @@ export class MarketingController {
 
   // ---- gallery (galeria de fotos do perfil público) ----
   @RequirePermission('marketing:view')
+  @RequireFeature('online_booking')
   @Get('booking-link/gallery')
   listGallery(@CurrentUser('companyId') companyId: string) {
     return this.service.listGallery(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('online_booking')
   @Post('booking-link/gallery')
   addGalleryPhoto(
     @CurrentUser('companyId') companyId: string,
@@ -118,6 +129,7 @@ export class MarketingController {
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('online_booking')
   @Delete('booking-link/gallery/:id')
   removeGalleryPhoto(
     @CurrentUser('companyId') companyId: string,
@@ -128,12 +140,14 @@ export class MarketingController {
 
   // ---- promotions ----
   @RequirePermission('marketing:view')
+  @RequireFeature('campaigns')
   @Get('promotions')
   listPromotions(@CurrentUser('companyId') companyId: string) {
     return this.service.listPromotions(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('campaigns')
   @Post('promotions')
   createPromotion(
     @CurrentUser('companyId') companyId: string,
@@ -143,6 +157,7 @@ export class MarketingController {
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('campaigns')
   @Patch('promotions/:id')
   updatePromotion(
     @CurrentUser('companyId') companyId: string,
@@ -153,6 +168,7 @@ export class MarketingController {
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('campaigns')
   @Delete('promotions/:id')
   removePromotion(
     @CurrentUser('companyId') companyId: string,
@@ -199,12 +215,14 @@ export class MarketingController {
 
   // ---- cashback config (programa global) ----
   @RequirePermission('marketing:view')
+  @RequireFeature('cashback')
   @Get('cashback/config')
   getCashbackConfig(@CurrentUser('companyId') companyId: string) {
     return this.service.getCashbackConfig(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('cashback')
   @Post('cashback/config')
   updateCashbackConfig(
     @CurrentUser('companyId') companyId: string,
@@ -215,12 +233,14 @@ export class MarketingController {
 
   // ---- cashback rules ----
   @RequirePermission('marketing:view')
+  @RequireFeature('cashback')
   @Get('cashback-rules')
   listCashbackRules(@CurrentUser('companyId') companyId: string) {
     return this.service.listCashbackRules(companyId);
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('cashback')
   @Post('cashback-rules')
   createCashbackRule(
     @CurrentUser('companyId') companyId: string,
@@ -230,6 +250,7 @@ export class MarketingController {
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('cashback')
   @Patch('cashback-rules/:id')
   updateCashbackRule(
     @CurrentUser('companyId') companyId: string,
@@ -240,6 +261,7 @@ export class MarketingController {
   }
 
   @RequirePermission('marketing:manage')
+  @RequireFeature('cashback')
   @Delete('cashback-rules/:id')
   removeCashbackRule(
     @CurrentUser('companyId') companyId: string,

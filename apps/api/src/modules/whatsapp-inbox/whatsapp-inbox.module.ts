@@ -5,9 +5,16 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { WhatsappInboxController } from './whatsapp-inbox.controller';
 import { WhatsappInboxService } from './whatsapp-inbox.service';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 
 @Module({
-  imports: [AuthModule, WhatsappModule, AppointmentsModule, UploadsModule],
+  imports: [
+    AuthModule,
+    FeatureFlagsModule,
+    WhatsappModule,
+    AppointmentsModule,
+    UploadsModule,
+  ],
   controllers: [WhatsappInboxController],
   providers: [WhatsappInboxService],
   exports: [WhatsappInboxService],

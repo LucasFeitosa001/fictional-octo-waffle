@@ -4,6 +4,7 @@ import { DateField } from '../../components/DateRangeFilter';
 import { LoadingState } from '../../components/States';
 import { IconChevron, IconDownload, IconFilter, IconStar } from '../../components/icons';
 import { formatMoney, formatNumber, isoDate } from '../../lib/format';
+import { downloadCsv } from '../../lib/csv';
 import { useReportsOverview } from '../../lib/queries/relatorios';
 import { useSetPageActions } from '../../layout/PageActions';
 import { BackToReports, CARD } from './reportShared';
@@ -170,6 +171,21 @@ export function RankingPage() {
     setApplied(pending);
   }
 
+  function handleExport() {
+    const exportRows = rows.map((row, index) => ({ ...row, position: index + 1 }));
+    downloadCsv(
+      `ranking-${applied.from}-${applied.to}`,
+      [
+        { header: 'Posição', value: (row) => row.position },
+        { header: 'Nome', value: (row) => row.name },
+        { header: 'Tipo', value: (row) => row.tipo },
+        { header: 'Quantidade', value: (row) => row.count },
+        { header: 'Valor', value: (row) => row.total },
+      ],
+      exportRows,
+    );
+  }
+
   // Mobile: as ações do card (Gerar / Exportar) vivem na BottomNav (padrão
   // Belasis). No desktop os botões inline continuam visíveis (ver `hidden md:flex`).
   useSetPageActions(
@@ -184,11 +200,11 @@ export function RankingPage() {
         key: 'exportar',
         label: 'Exportar',
         icon: <IconDownload size={22} />,
-        // TODO: menu de exportação (PDF/Excel) — mesmo comportamento do botão desktop (ainda sem handler).
-        onClick: () => {},
+        onClick: handleExport,
+        disabled: rows.length === 0,
       },
     ],
-    [pending],
+    [pending, rows, applied],
   );
 
   return (
@@ -250,10 +266,11 @@ export function RankingPage() {
             </button>
             <button
               type="button"
-              // TODO: menu de exportação (PDF/Excel) — não capturado no Belasis.
+              onClick={handleExport}
+              disabled={rows.length === 0}
               aria-label="Exportar"
-              title="Exportar"
-              className="flex h-10 items-center border-l border-[color-mix(in_oklab,var(--sp-primary-fg)_25%,transparent)] bg-primary px-3 text-primary-foreground transition-colors hover:bg-primary-strong"
+              title="Exportar CSV"
+              className="flex h-10 items-center border-l border-[color-mix(in_oklab,var(--sp-primary-fg)_25%,transparent)] bg-primary px-3 text-primary-foreground transition-colors hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-50"
             >
               <IconDownload size={16} />
             </button>

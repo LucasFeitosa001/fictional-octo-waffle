@@ -22,6 +22,7 @@ import {
   UpdateFinancialCategoryDto,
   UpdatePaymentMethodDto,
   UpdateTransactionDto,
+  UpdateFinanceSettingsDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
@@ -34,6 +35,21 @@ import { CurrentUser } from '../../common/current-user.decorator';
 @Controller()
 export class FinancialController {
   constructor(private readonly service: FinancialService) {}
+
+  @Get('financial/settings')
+  @RequirePermission('financeiro:view')
+  settings(@CurrentUser('companyId') companyId: string) {
+    return this.service.getSettings(companyId);
+  }
+
+  @Patch('financial/settings')
+  @RequirePermission('financeiro:manage')
+  updateSettings(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: UpdateFinanceSettingsDto,
+  ) {
+    return this.service.updateSettings(companyId, dto);
+  }
 
   // ---- summary ----
   @Get('financial/summary')
