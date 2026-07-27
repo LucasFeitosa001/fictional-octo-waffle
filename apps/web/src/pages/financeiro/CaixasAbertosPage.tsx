@@ -12,8 +12,12 @@ import {
   useCashMovement,
   type CashRegisterDetail,
 } from '../../lib/queries/caixa';
-import { usePaymentMethods } from '../../lib/queries/financeiro';
-import { formatDateTime, formatMoney } from '../../lib/format';
+import {
+  useCreateTransfer,
+  useFinancialAccounts,
+  usePaymentMethods,
+} from '../../lib/queries/financeiro';
+import { formatDateTime, formatMoney, isoDate } from '../../lib/format';
 import { useSetPageActions } from '../../layout/PageActions';
 import { HelpTooltip } from '../../components/HelpTooltip';
 
@@ -488,6 +492,16 @@ function CashActionDrawer({
   const paymentMethods = usePaymentMethods();
   const methodItems = paymentMethods.data ?? [];
 
+  // Fechamento: data editável (costuma ser feito no dia seguinte) e
+  // transferência do dinheiro do dia para outra conta.
+  const [closeDate, setCloseDate] = useState(() => isoDate(new Date()));
+  const [transferFrom, setTransferFrom] = useState('');
+  const [transferTo, setTransferTo] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const accounts = useFinancialAccounts();
+  const accountItems = accounts.data ?? [];
+  const createTransfer = useCreateTransfer();
+
   const openCash = useOpenCashRegister();
   const closeCash = useCloseCashRegister();
   const movement = useCashMovement();
@@ -497,6 +511,10 @@ function CashActionDrawer({
     setPaymentMethodId('');
     setError(null);
     setResult(null);
+    setCloseDate(isoDate(new Date()));
+    setTransferFrom('');
+    setTransferTo('');
+    setTransferAmount('');
   }, [mode, register?.id]);
 
   const busy = openCash.isPending || closeCash.isPending || movement.isPending;
@@ -517,8 +535,38 @@ function CashActionDrawer({
           setError('Informe o valor conferido.');
           return;
         }
-        const res = await closeCash.mutateAsync({ id: register.id, countedBalance: value });
+        const res = await closeCash.mutateAsync({
+          id: register.id,
+          countedBalance: value,
+          // Data escolhida (fechamento feito no dia seguinte). Fecha ao meio-dia
+          // local para a data civil não escorregar por fuso.
+          ...(closeDate ? { closedAt: new Date(`${closeDate}T12:00:00`).toISOString() } : {}),
+        });
         setResult({ expected: res.expectedBalance, divergence: res.divergence });
+        // Transferência do dinheiro do dia para outra conta. Roda DEPOIS do
+        // fechamento (que é a operação crítica) e reusa o endpoint de
+        // transferência já existente. Se falhar, o caixa continua fechado e o
+        // erro aparece — dá para lançar a transferência à mão.
+        if (transferTo && transferFrom && transferTo !== transferFrom) {
+          const valorTransf = transferAmount ? Number(transferAmount) : value;
+          if (Number.isFinite(valorTransf) && valorTransf > 0) {
+            try {
+              await createTransfer.mutateAsync({
+                amount: valorTransf,
+                fromAccountId: transferFrom,
+                toAccountId: transferTo,
+                description: `Fechamento do caixa #${register.number}`,
+                ...(closeDate ? { date: closeDate } : {}),
+              });
+            } catch (err) {
+              setError(
+                err instanceof ApiClientError
+                  ? `Caixa fechado, mas a transferência falhou: ${err.message}`
+                  : 'Caixa fechado, mas a transferência falhou. Lance-a manualmente em Financeiro.',
+              );
+            }
+          }
+        }
         return;
       }
       // sangria / suprimento
@@ -627,6 +675,73 @@ function CashActionDrawer({
                 onChange={setAmount}
                 autoFocus
               />
+
+              {/* Data do fechamento: normalmente o caixa é fechado no dia
+                  SEGUINTE, e antes o sistema gravava sempre a data de hoje. */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-ink">Data do fechamento</span>
+                <input
+                  type="date"
+                  value={closeDate}
+                  onChange={(e) => setCloseDate(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-line bg-card px-3 text-sm text-ink outline-none focus:border-primary"
+                />
+              </div>
+
+              {/* Transferir o dinheiro do dia para outra conta (ex.: Caixa → Itaú).
+                  Opcional: só transfere se as duas contas forem escolhidas. */}
+              <div className="flex flex-col gap-2 rounded-xl border border-line bg-canvas p-3">
+                <span className="text-sm font-semibold text-ink">
+                  Transferir o dinheiro do dia (opcional)
+                </span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-ink">De (conta de origem)</span>
+                  <Select
+                    aria-label="Conta de origem"
+                    selectedKey={transferFrom || null}
+                    onSelectionChange={(k) => setTransferFrom(k ? String(k) : '')}
+                  >
+                    <Select.Trigger className="min-h-[40px]">
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {accountItems.map((a) => (
+                          <ListBox.Item key={a.id} id={a.id}>
+                            {a.name}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-ink">Para (conta de destino)</span>
+                  <Select
+                    aria-label="Conta de destino"
+                    selectedKey={transferTo || null}
+                    onSelectionChange={(k) => setTransferTo(k ? String(k) : '')}
+                  >
+                    <Select.Trigger className="min-h-[40px]">
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {accountItems.map((a) => (
+                          <ListBox.Item key={a.id} id={a.id}>
+                            {a.name}
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+                <MoneyInput
+                  label="Valor a transferir (vazio = valor conferido)"
+                  value={transferAmount}
+                  onChange={setTransferAmount}
+                />
+              </div>
             </>
           )}
 

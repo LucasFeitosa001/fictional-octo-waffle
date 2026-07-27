@@ -118,8 +118,24 @@ export function useOpenCashRegister() {
 export function useCloseCashRegister() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, countedBalance, note }: { id: string; countedBalance: number; note?: string }) =>
-      api.post<CloseCashResult>(`/cash-registers/${id}/close`, { countedBalance, note }),
+    mutationFn: ({
+      id,
+      countedBalance,
+      note,
+      // Fechamento costuma ser feito no dia seguinte — sem isso o backend grava
+      // sempre a data/hora do request.
+      closedAt,
+    }: {
+      id: string;
+      countedBalance: number;
+      note?: string;
+      closedAt?: string;
+    }) =>
+      api.post<CloseCashResult>(`/cash-registers/${id}/close`, {
+        countedBalance,
+        note,
+        ...(closedAt ? { closedAt } : {}),
+      }),
     onSuccess: () => {
       invalidateCash(qc);
       toastSuccess('Caixa fechado');

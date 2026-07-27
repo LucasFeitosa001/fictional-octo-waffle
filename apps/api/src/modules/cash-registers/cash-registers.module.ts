@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -12,7 +13,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
@@ -30,6 +31,9 @@ class CloseCashDto {
   @IsNumber() @Min(0) countedBalance: number;
   // Sem coluna própria no schema (ver camposFaltantes); aceito mas não persistido.
   @IsOptional() @IsString() note?: string;
+  // Data/hora do fechamento. O fechamento costuma ser feito no dia SEGUINTE, e
+  // gravar sempre `new Date()` registrava a data errada no relatório de caixa.
+  @IsOptional() @IsDateString() closedAt?: string;
 }
 
 class MovementDto {
@@ -303,6 +307,26 @@ export class CashRegistersService {
         throw new ConflictException('Este caixa já está fechado.');
       }
 
+      // Data do fechamento: a informada (fechamento feito no dia seguinte) ou agora.
+      // Guardas: não pode ser no futuro nem antes da abertura — senão o caixa
+      // fecharia "antes de existir" e a conferência por período ficaria furada.
+      let closedAt = new Date();
+      if (dto.closedAt) {
+        const informada = new Date(dto.closedAt);
+        if (Number.isNaN(informada.getTime())) {
+          throw new BadRequestException('Data de fechamento inválida.');
+        }
+        if (informada.getTime() > Date.now() + 60_000) {
+          throw new BadRequestException('A data de fechamento não pode estar no futuro.');
+        }
+        if (informada < reg.openedAt) {
+          throw new BadRequestException(
+            'A data de fechamento não pode ser anterior à abertura do caixa.',
+          );
+        }
+        closedAt = informada;
+      }
+
       const summary = this.summarize(reg);
       const expectedBalance = summary.saldoEmCaixa;
       const divergence = Number(dto.countedBalance) - expectedBalance;
@@ -314,7 +338,7 @@ export class CashRegistersService {
           expectedBalance,
           divergence,
           closedByUserId: userId,
-          closedAt: new Date(),
+          closedAt,
         },
       });
       return { ...updated, expectedBalance, divergence };
