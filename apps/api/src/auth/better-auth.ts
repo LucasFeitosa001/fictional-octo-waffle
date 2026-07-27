@@ -102,9 +102,31 @@ export async function ensureOwnerProfessional(
   });
 }
 
+/**
+ * Segredo de sessão. NUNCA cair num literal em produção: o valor de fallback está
+ * neste repositório, então quem o conhece consegue FORJAR sessão de qualquer
+ * usuário. Se a env sumir num deploy, é melhor o serviço não subir do que subir
+ * autenticando com um segredo público — a falha ficaria invisível.
+ * Em desenvolvimento mantemos um default para não travar o time, com aviso.
+ */
+function resolveAuthSecret(): string {
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (secret && secret.length >= 32) return secret;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'BETTER_AUTH_SECRET ausente ou curto (mínimo 32 caracteres). Defina a variável antes de subir a API — sem ela as sessões seriam assinadas com um segredo público.',
+    );
+  }
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[auth] BETTER_AUTH_SECRET não definido — usando segredo de desenvolvimento. NUNCA use isto em produção.',
+  );
+  return 'dev-better-auth-secret-change-me-32chars';
+}
+
 export const auth = betterAuth({
   appName: 'Beautypass',
-  secret: process.env.BETTER_AUTH_SECRET ?? 'dev-better-auth-secret-change-me-32chars',
+  secret: resolveAuthSecret(),
   baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3333',
   basePath: '/api/v1/auth',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),

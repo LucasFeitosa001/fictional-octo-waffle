@@ -688,9 +688,20 @@ export class CustomersService {
     // só dígitos e pode ter registros antigos sem customerId.
     const outboxRows = await this.prisma.client.whatsappOutbox.findMany({
       where: {
-        OR: [
-          { customerId: id },
-          ...(phoneTail ? [{ toPhone: { endsWith: phoneTail } }] : []),
+        // ESCOPO DE EMPRESA obrigatório: o ramo por telefone casa pelo FINAL do
+        // número, então sem este filtro dois salões com sufixo coincidente viam
+        // metadados de mensagem um do outro. `companyId` é nullable no schema —
+        // registros antigos sem empresa continuam acessíveis apenas quando já
+        // estão ligados ao cliente desta empresa (ramo customerId).
+        AND: [
+          {
+            OR: [
+              { customerId: id },
+              ...(phoneTail
+                ? [{ toPhone: { endsWith: phoneTail }, companyId }]
+                : []),
+            ],
+          },
         ],
       },
       orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
