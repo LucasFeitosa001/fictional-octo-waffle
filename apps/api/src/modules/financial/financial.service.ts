@@ -474,6 +474,10 @@ export class FinancialService {
       ...(toEnd ? { lte: toEnd } : {}),
     };
     const includeReversed = q.includeReversed === 'true';
+    // Sobre qual data o período incide: vencimento (padrão) ou pagamento.
+    const dateField = q.dateType === 'paid' ? 'paidAt' : 'dueDate';
+    // "Atrasado" é derivado: em aberto E vencido. Não existe no enum do banco.
+    const onlyOverdue = q.overdue === 'true';
     // Filtros comuns (sem status) — reaproveitados na lista e nos totais.
     const commonWhere = {
       companyId,
@@ -481,14 +485,21 @@ export class FinancialService {
       ...(q.paymentMethodId ? { paymentMethodId: q.paymentMethodId } : {}),
       ...(q.accountId ? { accountId: q.accountId } : {}),
       ...(q.categoryId ? { categoryId: q.categoryId } : {}),
-      ...(hasRange ? { dueDate: range } : {}),
+      ...(hasRange ? { [dateField]: range } : {}),
+      // Vencido: sobrepõe o recorte por dueDate quando o período já filtra por
+      // ele, então usa AND para os dois conviverem sem uma chave sobrescrever a
+      // outra.
+      ...(onlyOverdue ? { AND: [{ dueDate: { lt: new Date() } }] } : {}),
     };
     // Lista: aplica o status escolhido; sem status, oculta estornadas por padrão.
-    const listStatus = q.status
-      ? { status: q.status }
-      : includeReversed
-        ? {}
-        : { status: { not: PaymentStatusDto.reversed } };
+    // `overdue` implica em aberto — atrasada que já foi paga não é atrasada.
+    const listStatus = onlyOverdue
+      ? { status: PaymentStatusDto.pending }
+      : q.status
+        ? { status: q.status }
+        : includeReversed
+          ? {}
+          : { status: { not: PaymentStatusDto.reversed } };
     const where = { ...commonWhere, ...listStatus };
 
     const page = q.page && q.page > 0 ? q.page : 1;
@@ -519,9 +530,17 @@ export class FinancialService {
       // Totais sobre TODO o conjunto filtrado (não só a página), sempre sem estornadas.
       this.prisma.client.transaction.groupBy({
         by: ['kind'],
+        // Mesmo recorte da lista, inclusive o "atrasado" derivado — senão a
+        // faixa de totais discorda do que está na tela. Continua SEMPRE sem
+        // estornadas quando nenhum status foi escolhido (mesmo com
+        // includeReversed): estorno não soma em total financeiro.
         where: {
           ...commonWhere,
-          ...(q.status ? { status: q.status } : { status: { not: PaymentStatusDto.reversed } }),
+          ...(onlyOverdue
+            ? { status: PaymentStatusDto.pending }
+            : q.status
+              ? { status: q.status }
+              : { status: { not: PaymentStatusDto.reversed } }),
         },
         _sum: { grossAmount: true },
       }),

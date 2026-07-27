@@ -124,6 +124,10 @@ export interface TransactionFilters {
   categoryId?: string;
   from?: string;
   to?: string;
+  /** Sobre qual data o período incide. Padrão do servidor: vencimento. */
+  dateType?: 'due' | 'paid';
+  /** Só as atrasadas (em aberto e já vencidas) — status derivado no servidor. */
+  overdue?: boolean;
   page?: number;
   pageSize?: number;
   includeReversed?: boolean;
@@ -244,6 +248,8 @@ export function useTransactions(filters: TransactionFilters = {}) {
         categoryId: filters.categoryId,
         from: filters.from,
         to: filters.to,
+        dateType: filters.dateType,
+        overdue: filters.overdue ? 'true' : undefined,
         page: filters.page,
         pageSize: filters.pageSize,
         includeReversed: filters.includeReversed ? 'true' : undefined,
@@ -266,6 +272,8 @@ export async function fetchAllTransactions(
     categoryId: filters.categoryId,
     from: filters.from,
     to: filters.to,
+    dateType: filters.dateType,
+    overdue: filters.overdue ? 'true' : undefined,
     includeReversed: filters.includeReversed ? 'true' : undefined,
     pageSize: 100000,
   });

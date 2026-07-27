@@ -40,9 +40,24 @@ export enum PartyTypeDto {
 }
 
 // ---- Transactions ----
+/**
+ * Qual data o período filtra. O Belasis oferece três (Venc/Disponibilidade,
+ * Competência, Pagamento); nosso `Transaction` só tem `dueDate` e `paidAt`, então
+ * expomos as duas que existem. Competência exigiria coluna nova no schema.
+ */
+export enum TransactionDateTypeDto {
+  due = 'due',
+  paid = 'paid',
+}
+
 export class ListTransactionsQueryDto {
   @IsOptional() @IsEnum(TransactionKindDto) type?: TransactionKindDto;
   @IsOptional() @IsEnum(PaymentStatusDto) status?: PaymentStatusDto;
+  // Sobre qual data o [from, to] incide. Padrão: vencimento.
+  @IsOptional() @IsEnum(TransactionDateTypeDto) dateType?: TransactionDateTypeDto;
+  // 'true' = só as ATRASADAS: em aberto com vencimento já passado. É um status
+  // derivado (não existe no enum do banco), por isso vem em separado.
+  @IsOptional() @IsString() overdue?: string;
   @IsOptional() @IsString() paymentMethodId?: string;
   @IsOptional() @IsString() accountId?: string;
   @IsOptional() @IsString() categoryId?: string;

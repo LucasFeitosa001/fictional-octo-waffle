@@ -70,6 +70,14 @@ const CARD_CLASS =
 
 const ALL = '__all__';
 
+/**
+ * Status do filtro. 'overdue' (Atrasado) é DERIVADO — em aberto e já vencido —
+ * porque o enum do banco só tem pending/paid/reversed. Os chips "Bloqueado" e
+ * "Disponível" do Belasis descrevem liberação de dinheiro pelo gateway deles;
+ * sem gateway integrado não têm significado aqui e ficam de fora.
+ */
+type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
+
 /** Tipo de lançamento (UI). Vale = despesa p/ profissional; Transferência = par. */
 type LancamentoMode = 'recebimento' | 'despesa' | 'vale' | 'transferencia';
 
@@ -142,11 +150,17 @@ export function TransacoesPage() {
   const [searchParams] = useSearchParams();
   const initialStatus = searchParams.get('status');
   const initialKind = searchParams.get('kind');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>(
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
     initialStatus === 'paid' || initialStatus === 'pending'
       ? initialStatus
       : 'all',
   );
+  // Sobre qual data o período incide (Belasis: "Tipo de data"). Competência não
+  // entra: o model Transaction não tem essa coluna.
+  const [dateType, setDateType] = useState<'due' | 'paid'>('due');
+  // Conta e categoria: a API já aceitava os dois, faltava a UI.
+  const [accountFilter, setAccountFilter] = useState(ALL);
+  const [categoryFilter, setCategoryFilter] = useState(ALL);
   const [kindFilter, setKindFilter] = useState<'all' | TransactionKind>(
     initialKind === 'income' || initialKind === 'expense'
       ? initialKind
@@ -178,7 +192,17 @@ export function TransacoesPage() {
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, kindFilter, methodFilter, from, to, showReversed]);
+  }, [
+    statusFilter,
+    kindFilter,
+    methodFilter,
+    accountFilter,
+    categoryFilter,
+    dateType,
+    from,
+    to,
+    showReversed,
+  ]);
 
   useEffect(() => {
     const status = searchParams.get('status');
@@ -194,13 +218,48 @@ export function TransacoesPage() {
   }, [searchParams]);
 
   const paymentMethods = usePaymentMethods();
+  const accountsQuery = useFinancialAccounts();
+  const categoriesQuery = useFinancialCategories();
+
+  // Um único objeto de props alimenta o painel lateral (desktop) e o
+  // bottom-sheet (mobile) — antes as duas listas eram escritas à mão e
+  // divergiam a cada campo novo.
+  const filtrosProps: FiltrosProps = {
+    from,
+    to,
+    setFrom,
+    setTo,
+    kindFilter,
+    setKindFilter,
+    statusFilter,
+    setStatusFilter,
+    dateType,
+    setDateType,
+    methodFilter,
+    setMethodFilter,
+    paymentMethods: (paymentMethods.data ?? []).map((m) => ({ id: m.id, name: m.name })),
+    accountFilter,
+    setAccountFilter,
+    accounts: (accountsQuery.data ?? []).map((a) => ({ id: a.id, name: a.name })),
+    categoryFilter,
+    setCategoryFilter,
+    categories: (categoriesQuery.data ?? []).map((c) => ({ id: c.id, name: c.name })),
+    showReversed,
+    setShowReversed,
+  };
 
   const transactions = useTransactions({
     type: kindFilter === 'all' ? undefined : kindFilter,
-    status: statusFilter === 'all' ? undefined : statusFilter,
+    // 'overdue' não é status de banco: vai como flag e o servidor força pending.
+    status:
+      statusFilter === 'all' || statusFilter === 'overdue' ? undefined : statusFilter,
+    overdue: statusFilter === 'overdue',
     paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
+    accountId: accountFilter === ALL ? undefined : accountFilter,
+    categoryId: categoryFilter === ALL ? undefined : categoryFilter,
     from: from || undefined,
     to: to || undefined,
+    dateType,
     includeReversed: showReversed,
     page,
     pageSize: PAGE_SIZE,
@@ -273,7 +332,11 @@ export function TransacoesPage() {
     (showReversed ? 1 : 0) +
     (from ? 1 : 0) +
     (to ? 1 : 0) +
-    (methodFilter !== ALL ? 1 : 0);
+    (methodFilter !== ALL ? 1 : 0) +
+    (accountFilter !== ALL ? 1 : 0) +
+    (categoryFilter !== ALL ? 1 : 0) +
+    // 'due' é o padrão; só conta como filtro quando o usuário troca.
+    (dateType !== 'due' ? 1 : 0);
   const hasFilters = activeFilterCount > 0;
 
   function clearFilters() {
@@ -283,6 +346,9 @@ export function TransacoesPage() {
     setFrom('');
     setTo('');
     setMethodFilter(ALL);
+    setAccountFilter(ALL);
+    setCategoryFilter(ALL);
+    setDateType('due');
   }
 
   function openForm(mode: LancamentoMode) {
@@ -679,24 +745,7 @@ export function TransacoesPage() {
               </button>
             </IconTip>
           </div>
-          <FiltrosBody
-            from={from}
-            to={to}
-            setFrom={setFrom}
-            setTo={setTo}
-            kindFilter={kindFilter}
-            setKindFilter={setKindFilter}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            methodFilter={methodFilter}
-            setMethodFilter={setMethodFilter}
-            paymentMethods={(paymentMethods.data ?? []).map((m) => ({
-              id: m.id,
-              name: m.name,
-            }))}
-            showReversed={showReversed}
-            setShowReversed={setShowReversed}
-          />
+          <FiltrosBody {...filtrosProps} />
           <div className="mt-4 flex flex-col gap-2">
             {filtrosFooter(hasFilters, clearFilters, () => setFilterOpen(false))}
           </div>
@@ -890,22 +939,7 @@ export function TransacoesPage() {
         <FiltrosDrawer
           isOpen={filterOpen}
           onClose={() => setFilterOpen(false)}
-          from={from}
-          to={to}
-          setFrom={setFrom}
-          setTo={setTo}
-          kindFilter={kindFilter}
-          setKindFilter={setKindFilter}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          methodFilter={methodFilter}
-          setMethodFilter={setMethodFilter}
-          paymentMethods={(paymentMethods.data ?? []).map((m) => ({
-            id: m.id,
-            name: m.name,
-          }))}
-          showReversed={showReversed}
-          setShowReversed={setShowReversed}
+          {...filtrosProps}
           hasFilters={hasFilters}
           onClear={clearFilters}
         />
@@ -947,6 +981,44 @@ export function TransacoesPage() {
   );
 }
 
+type NamedOption = { id: string; name: string };
+
+/**
+ * Lista de seleção única do painel "Filtrar" (Formas de pagamento, Contas,
+ * Categorias): linhas empilhadas com divisória e check na ativa. Extraída para
+ * as três seções não divergirem de estilo.
+ */
+function OptionList({
+  options,
+  selected,
+  onSelect,
+}: {
+  options: NamedOption[];
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
+      {options.map((o, i) => {
+        const active = selected === o.id;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onSelect(o.id)}
+            className={`flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
+              i > 0 ? 'border-t border-[var(--color-soft-border)]' : ''
+            } ${active ? 'bg-gold/12 font-medium text-foreground' : 'bg-white text-foreground hover:bg-cream'}`}
+          >
+            <span className="truncate">{o.name}</span>
+            {active && <IconCheck size={16} className="shrink-0 text-gold-strong" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 type FiltrosProps = {
   from: string;
   to: string;
@@ -954,11 +1026,19 @@ type FiltrosProps = {
   setTo: (v: string) => void;
   kindFilter: 'all' | TransactionKind;
   setKindFilter: (v: 'all' | TransactionKind) => void;
-  statusFilter: 'all' | 'paid' | 'pending';
-  setStatusFilter: (v: 'all' | 'paid' | 'pending') => void;
+  statusFilter: StatusFilter;
+  setStatusFilter: (v: StatusFilter) => void;
+  dateType: 'due' | 'paid';
+  setDateType: (v: 'due' | 'paid') => void;
   methodFilter: string;
   setMethodFilter: (v: string) => void;
-  paymentMethods: { id: string; name: string }[];
+  paymentMethods: NamedOption[];
+  accountFilter: string;
+  setAccountFilter: (v: string) => void;
+  accounts: NamedOption[];
+  categoryFilter: string;
+  setCategoryFilter: (v: string) => void;
+  categories: NamedOption[];
   showReversed: boolean;
   setShowReversed: (v: boolean) => void;
 };
@@ -977,18 +1057,29 @@ function FiltrosBody({
   setKindFilter,
   statusFilter,
   setStatusFilter,
+  dateType,
+  setDateType,
   methodFilter,
   setMethodFilter,
   paymentMethods,
+  accountFilter,
+  setAccountFilter,
+  accounts,
+  categoryFilter,
+  setCategoryFilter,
+  categories,
   showReversed,
   setShowReversed,
 }: FiltrosProps) {
-  const statusOptions: { id: 'all' | 'paid' | 'pending'; name: string }[] = [
+  const statusOptions: { id: StatusFilter; name: string }[] = [
     { id: 'all', name: 'Todos' },
     { id: 'paid', name: 'Pago' },
     { id: 'pending', name: 'Em aberto' },
+    { id: 'overdue', name: 'Atrasado' },
   ];
   const methodOptions = [{ id: ALL, name: 'Todas as formas' }, ...paymentMethods];
+  const accountOptions = [{ id: ALL, name: 'Todas as contas' }, ...accounts];
+  const categoryOptions = [{ id: ALL, name: 'Todas as categorias' }, ...categories];
 
   return (
     <div className="flex flex-col gap-6">
@@ -1026,9 +1117,36 @@ function FiltrosBody({
         </div>
       </FilterSection>
 
-      {/* Status de pagamento (segmentado) */}
+      {/* Tipo de data — sobre qual data o período incide. */}
+      <FilterSection title="Tipo de data">
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { id: 'due' as const, name: 'Vencimento' },
+            { id: 'paid' as const, name: 'Pagamento' },
+          ].map((o) => {
+            const active = dateType === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setDateType(o.id)}
+                className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                  active
+                    ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
+                    : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
+                }`}
+              >
+                {o.name}
+              </button>
+            );
+          })}
+        </div>
+      </FilterSection>
+
+      {/* Status de pagamento (segmentado). 4 opções → 2 colunas, senão os
+          rótulos "Em aberto"/"Atrasado" quebram dentro do chip. */}
       <FilterSection title="Status de pagamento">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {statusOptions.map((o) => {
             const active = statusFilter === o.id;
             return (
@@ -1051,24 +1169,29 @@ function FiltrosBody({
 
       {/* Formas de pagamento (lista selecionável) */}
       <FilterSection title="Formas de pagamento">
-        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
-          {methodOptions.map((o, i) => {
-            const active = methodFilter === o.id;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setMethodFilter(o.id)}
-                className={`flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
-                  i > 0 ? 'border-t border-[var(--color-soft-border)]' : ''
-                } ${active ? 'bg-gold/12 font-medium text-foreground' : 'bg-white text-foreground hover:bg-cream'}`}
-              >
-                <span className="truncate">{o.name}</span>
-                {active && <IconCheck size={16} className="shrink-0 text-gold-strong" />}
-              </button>
-            );
-          })}
-        </div>
+        <OptionList
+          options={methodOptions}
+          selected={methodFilter}
+          onSelect={setMethodFilter}
+        />
+      </FilterSection>
+
+      {/* Contas — a API já aceitava accountId; faltava a lista. */}
+      <FilterSection title="Contas">
+        <OptionList
+          options={accountOptions}
+          selected={accountFilter}
+          onSelect={setAccountFilter}
+        />
+      </FilterSection>
+
+      {/* Categorias */}
+      <FilterSection title="Categorias">
+        <OptionList
+          options={categoryOptions}
+          selected={categoryFilter}
+          onSelect={setCategoryFilter}
+        />
       </FilterSection>
 
       {/* Estornadas */}
