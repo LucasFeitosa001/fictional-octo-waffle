@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button, ListBox, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../../components/Drawer';
+import { Tabs } from '../../components/Tabs';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { IconCash, IconRefresh, IconPlus } from '../../components/icons';
 import {
@@ -116,15 +117,17 @@ export function CaixasAbertosPage() {
         </div>
       </div>
 
-      {/* ── Abas (Resumo / Detalhado) — estilo ant-tabs sublinhado ────────── */}
-      <div className="mb-4 flex items-center gap-6 border-b border-line">
-        <Tab active={view === 'resumo'} onClick={() => changeView('resumo')}>
-          Resumo
-        </Tab>
-        <Tab active={view === 'detalhado'} onClick={() => changeView('detalhado')}>
-          Detalhado
-        </Tab>
-      </div>
+      {/* Abas: componente padrão (carrossel no mobile) — ver components/Tabs.tsx */}
+      <Tabs
+        className="mb-4"
+        aria-label="Visualização dos caixas"
+        value={view}
+        onChange={(v) => changeView(v as View)}
+        items={[
+          { id: 'resumo', label: 'Resumo' },
+          { id: 'detalhado', label: 'Detalhado' },
+        ]}
+      />
 
       {opened.isLoading ? (
         <div className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]">
@@ -168,31 +171,6 @@ export function CaixasAbertosPage() {
   );
 }
 
-// ── Aba sublinhada ───────────────────────────────────────────────────────────
-function Tab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        '-mb-px border-b-2 px-1 pb-2.5 pt-1 text-sm font-medium transition-colors',
-        active
-          ? 'border-primary text-primary'
-          : 'border-transparent text-muted-ink hover:text-ink',
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  );
-}
 
 // ── Avatar ───────────────────────────────────────────────────────────────────
 function Avatar({ name, url }: { name: string; url?: string | null }) {

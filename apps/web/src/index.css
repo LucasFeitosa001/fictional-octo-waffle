@@ -1121,3 +1121,15 @@ h1, h2, h3, h4, h5, h6,
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+/* Carrossel de abas (components/Tabs.tsx): esconde a barra de rolagem sem
+   perder a rolagem em si. O paliativo antigo mirava `.mobile-page-content
+   div.inline-flex`, que só pegava a variante pílula e vazava para outros
+   elementos inline-flex. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
