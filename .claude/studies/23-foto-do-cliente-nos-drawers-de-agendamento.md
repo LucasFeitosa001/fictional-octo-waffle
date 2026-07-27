@@ -76,7 +76,25 @@ Trocar os dois blocos por `<CustomerAvatar>` com o tamanho atual (96px na Agenda
 agendamento), preservando o círculo colorido por status como fundo apenas quando não houver foto —
 a cor de status é informação útil e o vídeo a mostra.
 
+## Defeito 3 (descoberto ao corrigir) — o tipo compartilhado esconde o campo
+
+`packages/shared/src/types.ts` declara `interface Customer` com id, companyId, name, nickname,
+phone, email, cpf e active — **sem `avatarUrl`**, embora a API devolva (o model `Customer` do Prisma
+tem a coluna e `appointments.service.ts:109` faz `include: { customer: true }`).
+
+Por isso `CustomerPickerDrawer.tsx:21` precisou de uma gambiarra local:
+```ts
+type CustomerListItem = Customer & { avatarUrl?: string | null };
+```
+e `apps/web/src/lib/types.ts:11`-`:14` faz o mesmo remendo para `Professional`, com o comentário
+"API returns avatarUrl + birthday on professionals; extend the shared type" — ou seja, o problema já
+era conhecido e nunca foi resolvido na raiz.
+
+Corrigir no tipo compartilhado (campo **opcional**, portanto aditivo e sem quebrar api/web/mobile) é
+melhor do que espalhar mais uma coercção `as`: sem isso, todo consumidor novo repete o remendo.
+
 ## Arquivos tocados
 
+- `packages/shared/src/types.ts` (acrescenta `avatarUrl?` em `Customer`)
 - `apps/web/src/pages/AgendaPage.tsx`
 - `apps/web/src/components/NewAppointmentModal.tsx`

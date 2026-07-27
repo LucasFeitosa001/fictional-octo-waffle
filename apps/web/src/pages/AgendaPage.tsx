@@ -1645,11 +1645,25 @@ export function AgendaPage() {
             {/* ── COLUNA DO CLIENTE (esquerda) — ocupa a coluna inteira ───── */}
             <aside className="flex shrink-0 flex-col gap-3 lg:w-[300px]">
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-5 text-center">
-                <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full text-2xl font-semibold text-white"
-                  style={{ backgroundColor: eventColor(selected) }}
-                  aria-hidden>
-                  {(selected.customer?.name ?? 'A').trim().charAt(0).toUpperCase()}
-                </div>
+                {/* FOTO do cliente quando existe; só cai na inicial colorida por
+                    status quando não há. Antes desenhava sempre a inicial e ignorava
+                    o avatarUrl — o mesmo cliente aparecia com foto no "Selecionar
+                    cliente" e virava uma bolinha com a letra aqui. O dado já vem:
+                    a lista de agendamentos traz o cliente inteiro
+                    (appointments.service.ts:109). */}
+                {selected.customer?.avatarUrl ? (
+                  <img
+                    src={selected.customer.avatarUrl}
+                    alt=""
+                    className="h-24 w-24 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full text-2xl font-semibold text-white"
+                    style={{ backgroundColor: eventColor(selected) }}
+                    aria-hidden>
+                    {(selected.customer?.name ?? 'A').trim().charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="min-w-0">
                   <div className="truncate text-lg font-semibold text-foreground">
                     {selected.customer?.name ?? 'Sem cliente'}

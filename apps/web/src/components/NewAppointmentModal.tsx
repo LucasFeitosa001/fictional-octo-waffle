@@ -388,6 +388,14 @@ export function NewAppointmentModal({
 
   const selectedCustomerName =
     selectedCustomer?.name ?? customerItems.find((c) => c.id === customerId)?.name;
+  // Foto do escolhido, pelo MESMO caminho do nome. `customerItems` é a lista do
+  // picker (useCustomers), que já carrega avatarUrl. Pode não achar depois que a
+  // busca muda — daí fica undefined e o CustomerAvatar cai nas iniciais sozinho.
+  const selectedCustomerAvatarUrl =
+    (selectedCustomer as { avatarUrl?: string | null } | null | undefined)?.avatarUrl ??
+    (customerItems.find((c) => c.id === customerId) as { avatarUrl?: string | null } | undefined)
+      ?.avatarUrl ??
+    undefined;
 
   // Create the appointment(s) and apply the chosen status. Returns the primary
   // appointment (+ resolved customer) so callers can chain a comanda, or null on
@@ -638,9 +646,22 @@ export function NewAppointmentModal({
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
           {/* ── Rail esquerdo: avatar + busca de cliente ─────────────────── */}
           <aside className="flex shrink-0 flex-col items-center gap-4 lg:w-[190px] lg:pt-1">
-            <div className="grid h-[120px] w-[120px] place-items-center rounded-full bg-cream text-primary/70">
-              <UserGlyph />
-            </div>
+            {/* Antes era um <UserGlyph /> FIXO: o boneco não mudava nem depois de
+                escolher o cliente. Agora reaproveita o mesmo CustomerAvatar do
+                picker (foto → iniciais → boneco), então o cliente com foto aparece
+                com ela aqui também. Sem cliente escolhido, o nome vazio faz o
+                próprio componente cair no boneco — mesmo visual de antes. */}
+            {selectedCustomerName ? (
+              <CustomerAvatar
+                name={selectedCustomerName}
+                avatarUrl={selectedCustomerAvatarUrl}
+                size={120}
+              />
+            ) : (
+              <div className="grid h-[120px] w-[120px] place-items-center rounded-full bg-cream text-primary/70">
+                <UserGlyph />
+              </div>
+            )}
             {/* Busca de cliente pelo rail: abre o mesmo bottom-sheet do campo
                 "Cliente" (useCustomers(customerSearch) já alimenta a lista). */}
             <button
