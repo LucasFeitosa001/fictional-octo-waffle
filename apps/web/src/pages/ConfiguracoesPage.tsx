@@ -1718,14 +1718,18 @@ export function ConfiguracoesPage() {
               >
                 Ativar integração via API
               </Link>
-              <a
-                href="https://belasis-api.readme.io"
-                target="_blank"
-                rel="noreferrer"
+              {/* Aqui havia um link para belasis-api.readme.io — a documentação do
+                  CONCORRENTE, que veio junto quando a tela foi replicada. Não temos
+                  doc de API própria (a API não expõe OpenAPI/Swagger), e apontar
+                  "Ver documentação" para a central de ajuda seria prometer o que
+                  não existe. Como a integração ainda passa por contratação, suporte
+                  é para onde essa pessoa precisa ir. */}
+              <Link
+                to="/ajuda/suporte"
                 className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-4 text-sm font-semibold text-ink transition-colors hover:border-primary/40 hover:text-primary"
               >
-                Ver documentação
-              </a>
+                Falar com o suporte
+              </Link>
             </div>
           </section>
         )}
