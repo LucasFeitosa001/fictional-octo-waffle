@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppointmentStatus, OrderStatus } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
+import { computeFunnel } from './dashboard.util';
 
 // Appointment statuses that represent an appointment which still occupies the
 // agenda (everything except an explicit cancellation).
@@ -16,13 +17,8 @@ const NON_CANCELED_STATUSES: AppointmentStatus[] = [
 
 // Statuses that count as "confirmed" for the conversion funnel (confirmed and
 // everything downstream of it).
-const CONFIRMED_ONWARDS: AppointmentStatus[] = [
-  AppointmentStatus.confirmed,
-  AppointmentStatus.waiting,
-  AppointmentStatus.in_progress,
-  AppointmentStatus.done,
-  AppointmentStatus.finished,
-];
+// (a lista de status "confirmado em diante" do funil vive em dashboard.util.ts,
+//  junto do computeFunnel que a consome)
 
 // Heat-map hour window (business hours) — rows 8h..19h inclusive.
 const HEAT_HOUR_START = 8;
@@ -90,6 +86,8 @@ export class DashboardService {
           netTotal: true,
           date: true,
           professionalId: true,
+          // customerId alimenta o funil (ver computeFunnel).
+          customerId: true,
           items: {
             select: {
               kind: true,
@@ -112,7 +110,15 @@ export class DashboardService {
       }),
       this.prisma.client.appointment.findMany({
         where: { companyId, start: { gte: startI, lt: endI } },
-        select: { id: true, status: true, start: true, end: true, professionalId: true },
+        // customerId alimenta o funil (casa agendamento ↔ comanda do mesmo cliente).
+        select: {
+          id: true,
+          status: true,
+          start: true,
+          end: true,
+          professionalId: true,
+          customerId: true,
+        },
       }),
       this.prisma.client.appointment.count({
         where: { companyId, start: { gte: prevStartI, lt: prevEndI } },
@@ -257,11 +263,12 @@ export class DashboardService {
       .sort((a, b) => b.valor - a.valor);
 
     // ---- 11. Funil de conversão -----------------------------------------------
-    const funil = {
-      todos: agendamentosCount,
-      confirmados: appointments.filter((a) => CONFIRMED_ONWARDS.includes(a.status)).length,
-      faturados: appointments.filter((a) => a.status === AppointmentStatus.finished).length,
-    };
+    // "Faturado" = o agendamento virou comanda. Contar `status === finished` no
+    // agendamento não funciona: a operação (e o import do Belasis) deixa tudo em
+    // "Confirmado", então o funil ficava sempre 0. computeFunnel casa o
+    // agendamento com uma comanda FINALIZADA do mesmo cliente no mesmo dia — a
+    // regra já existia (com testes) mas nunca tinha sido ligada aqui.
+    const funil = computeFunnel(appointments, orders, (d) => this.dayInTz(d, tz));
 
     // ---- 12. Ocupação da agenda -----------------------------------------------
     // Available minutes per weekday occurrence, summed over the window; busy

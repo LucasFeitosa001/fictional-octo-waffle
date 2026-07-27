@@ -1948,7 +1948,10 @@ export function VerComandaDrawer({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-medium text-foreground">{name}</span>
+                          {/* Destaque de clicável: cor primária + sublinhado. */}
+                          <span className="truncate text-sm font-semibold text-primary underline decoration-primary/40 underline-offset-2">
+                            {name}
+                          </span>
                           <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
                             {formatMoney(lineTotal(it))}
                           </span>

@@ -14,6 +14,7 @@ import type { PaymentStatus } from '@beautypass/shared';
 import { OrderStatusChip } from '../components/StatusChip';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { IconChevron, IconPlus, IconReceipt, IconTrash } from '../components/icons';
+import { ItemEditDrawer } from '../components/ItemEditDrawer';
 import {
   useAddOrderDiscount,
   useAddOrderItem,
@@ -313,6 +314,16 @@ function ItemsSection({ order, editable }: { order: OrderDetail; editable: boole
   const [adding, setAdding] = useState(false);
   const remove = useRemoveOrderItem(order.id);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  // Clicar no item abre o mesmo drawer de edição usado nos outros fluxos
+  // (Dados | Auxiliares | Produtos consumidos). Guardamos só o id e derivamos o
+  // objeto do `order` para refletir mudanças sem re-seed.
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const professionals = useProfessionals();
+  const professionalItems = useMemo(
+    () => professionals.data?.data ?? [],
+    [professionals.data],
+  );
+  const editingItem = order.items.find((i) => i.id === editingItemId) ?? null;
 
   async function handleRemove(item: OrderItemDetail) {
     setRemoveError(null);
@@ -325,15 +336,37 @@ function ItemsSection({ order, editable }: { order: OrderDetail; editable: boole
 
   return (
     <SectionCard title="Itens">
+      {/* Drawer de edição do item (Dados | Auxiliares | Produtos consumidos).
+          Abre também com a comanda finalizada — aí em modo leitura. */}
+      <ItemEditDrawer
+        orderId={order.id}
+        item={editingItem}
+        professionals={professionalItems}
+        editable={editable}
+        onClose={() => setEditingItemId(null)}
+      />
       {order.items.length === 0 ? (
         <p className="text-sm text-muted">Nenhum item adicionado.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-[var(--color-soft-border)]">
           {order.items.map((item) => (
             <li key={item.id} className="flex items-start justify-between gap-3 py-2.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {item.itemName ?? (item.kind === 'service' ? 'Serviço' : 'Produto')}
+              {/* Nome do item é o gatilho do drawer. Destaque explícito
+                  (cor primária + sublinhado) para deixar claro que é clicável —
+                  antes era texto morto e ninguém descobria o editor. */}
+              <button
+                type="button"
+                onClick={() => setEditingItemId(item.id)}
+                className="group min-w-0 flex-1 text-left"
+              >
+                <p className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-primary underline decoration-primary/40 underline-offset-2 group-hover:decoration-primary">
+                    {item.itemName ?? (item.kind === 'service' ? 'Serviço' : 'Produto')}
+                  </span>
+                  <IconChevron
+                    size={14}
+                    className="shrink-0 -rotate-90 text-primary/70 transition-transform group-hover:translate-x-0.5"
+                  />
                 </p>
                 <p className="text-xs text-muted">
                   {Number(item.quantity)} × {formatMoney(item.unitPrice)}
@@ -342,7 +375,7 @@ function ItemsSection({ order, editable }: { order: OrderDetail; editable: boole
                 {item.professionalName && (
                   <p className="text-xs text-muted">{item.professionalName}</p>
                 )}
-              </div>
+              </button>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className="text-sm font-semibold text-foreground">
                   {formatMoney(Number(item.grossValue) - Number(item.discount))}
