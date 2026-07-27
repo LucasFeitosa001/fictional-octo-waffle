@@ -672,6 +672,17 @@ function CashActionDrawer({
                 <span className="text-sm font-semibold text-ink">
                   Transferir o dinheiro do dia (opcional)
                 </span>
+                {accountItems.length === 0 && (
+                  // Sem conta cadastrada os selects ficariam vazios e a seção
+                  // pareceria quebrada — diga o que fazer em vez de não mostrar nada.
+                  <p className="text-xs text-muted-ink">
+                    Nenhuma conta financeira cadastrada. Cadastre suas contas (ex.: Caixa
+                    e o seu banco) em <strong>Financeiro → Cadastros → Contas</strong> para
+                    poder transferir o dinheiro do dia ao fechar o caixa.
+                  </p>
+                )}
+                {accountItems.length > 0 && (
+                <>
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-medium text-muted-ink">De (conta de origem)</span>
                   <Select
@@ -719,6 +730,8 @@ function CashActionDrawer({
                   value={transferAmount}
                   onChange={setTransferAmount}
                 />
+                </>
+                )}
               </div>
             </>
           )}
