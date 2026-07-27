@@ -1559,7 +1559,9 @@ export function LancamentoModal({
       isOpen
       onClose={onClose}
       title={title}
-      widthClass="sm:w-[520px]"
+      // Sem widthClass: no FullDrawer é justamente essa prop que troca a tela
+      // cheia por uma faixa lateral (FullDrawer.tsx:195). Com 520px as três
+      // seções do menu não cabiam e viravam uma barra de rolagem horizontal.
       sections={[
         { key: 'dados', label: 'Dados do lançamento' },
         { key: 'classificacao', label: 'Categoria & Conta' },

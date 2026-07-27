@@ -6,6 +6,7 @@ import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { ComandaDrawer } from '../components/ComandaDrawer';
+import { ClienteBlocosLaterais } from '../components/ClienteBlocosLaterais';
 import { DatePicker } from '../components/DatePicker';
 import { DropdownButton } from '../components/DropdownButton';
 import { Drawer } from '../components/Drawer';
@@ -19,7 +20,9 @@ import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGr
 import { IconCalendar, IconChevron, IconEye, IconPlus, IconScissors, IconTrash, IconUser, IconX } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
 import { useAgendaAppointments } from '../lib/queries/agenda';
+import { useCreateNote } from '../lib/queries/clientes';
 import { useNotificationSettings } from '../lib/queries/notificationSettings';
+import { useCan } from '../lib/queries/permissions';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
@@ -658,6 +661,12 @@ export function AgendaPage() {
   const [squeezeIn, setSqueezeIn] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  // Sub-drawer do "+ Adicionar" das Anotações do CLIENTE (coluna esquerda) — não
+  // confundir com o textarea "Observação", que é a nota DO AGENDAMENTO.
+  const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
+  // POST /customers/:id/notes exige `clientes:manage`; sem a permissão o link
+  // "+ Adicionar" nem aparece (o componente esconde quando não recebe callback).
+  const { can } = useCan();
   const routerNavigate = useNavigate();
   // Sincroniza campos locais quando um novo agendamento é selecionado.
   useEffect(() => {
@@ -669,6 +678,7 @@ export function AgendaPage() {
     setConfirmationTouched(false);
     setCancellationTouched(false);
     setMoreMenuOpen(false);
+    setNoteDrawerOpen(false);
   }, [
     selected?.id,
     selected?.remindClient,
@@ -777,6 +787,7 @@ export function AgendaPage() {
     setShowCancel(false);
     setShowReschedule(false);
     setMoreMenuOpen(false);
+    setNoteDrawerOpen(false);
   }
   async function confirmReschedule() {
     if (!selected || !reDate || !reTime) return;
@@ -1675,6 +1686,20 @@ export function AgendaPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Blocos do cliente — mesma coluna do Belasis em f_0062. Nesta
+                  superfície só Anotações tem "+ Adicionar": Pacotes e Assinaturas
+                  só ganham o link no drawer da COMANDA (f_0090), que é ponto de
+                  venda. O componente busca os próprios dados e some sozinho
+                  quando o agendamento não tem cliente (bloqueio de horário). */}
+              <ClienteBlocosLaterais
+                customerId={selected.customer?.id}
+                onAdicionarAnotacao={
+                  selected.customer?.id && can('clientes:manage')
+                    ? () => setNoteDrawerOpen(true)
+                    : undefined
+                }
+              />
             </aside>
 
             {/* ── COLUNA DE DETALHES (direita): data, serviços, switches ──── */}
@@ -1868,10 +1893,94 @@ export function AgendaPage() {
               </div>
             )}
             </div>
+
+            {/* Sub-drawer do "+ Adicionar" das Anotações. Fica dentro do
+                `{selected && ...}` de propósito: ao trocar de agendamento ele
+                desmonta e o rascunho não vaza para o cliente seguinte. */}
+            {selected.customer?.id && (
+              <NovaAnotacaoDrawer
+                customerId={selected.customer.id}
+                isOpen={noteDrawerOpen}
+                onClose={() => setNoteDrawerOpen(false)}
+              />
+            )}
           </div>
         )}
       </Drawer>
     </div>
+  );
+}
+
+/**
+ * "+ Adicionar" das Anotações do cliente (f_0062 mostra o link; o vídeo nunca
+ * mostra o que ele abre). Em vez de inventar um fluxo, é o mesmo par listar/criar
+ * da ficha do cliente (ClientePerfilTabs.tsx `AnotacoesTab`) no formato mínimo.
+ * z-[90] porque o drawer do agendamento já ocupa o z-[70] padrão.
+ */
+function NovaAnotacaoDrawer({
+  customerId,
+  isOpen,
+  onClose,
+}: {
+  customerId: string;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const createNote = useCreateNote(customerId);
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    const value = text.trim();
+    if (!value) {
+      setError('Digite uma anotação.');
+      return;
+    }
+    setError(null);
+    try {
+      await createNote.mutateAsync({ text: value });
+      // A mutação invalida ['customer-notes', id]: o bloco da coluna se atualiza
+      // sozinho, sem refetch manual daqui.
+      setText('');
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível salvar a anotação.',
+      );
+    }
+  }
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Nova anotação"
+      zClass="z-[90]"
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            isDisabled={createNote.isPending || !text.trim()}
+            onClick={submit}
+          >
+            {createNote.isPending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </>
+      }
+    >
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Escreva aqui"
+        rows={5}
+        className="min-h-[120px] w-full resize-y rounded-lg border border-line bg-white px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50 placeholder:text-muted-ink"
+      />
+      {error && <div className="mt-2 text-xs text-danger">{error}</div>}
+    </Drawer>
   );
 }
 

@@ -4,6 +4,7 @@ import { Button, Spinner } from '@heroui/react';
 import { ApiClientError, type Customer } from '@beautypass/shared';
 import { Drawer } from './Drawer';
 import { ErrorState } from './States';
+import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
 import { CustomerAvatar } from './CustomerPickerDrawer';
 import { ItemPickerDrawer, type PickedItem } from './ItemPickerDrawer';
 import { ItemEditDrawer } from './ItemEditDrawer';
@@ -34,6 +35,7 @@ import {
   useReverseOrderPayment,
 } from '../lib/queries';
 import { usePaymentMethods } from '../lib/queries/financeiro';
+import { useCreateNote } from '../lib/queries/clientes';
 import { formatDate, formatMoney, formatPhone } from '../lib/format';
 import type {
   OrderDetail,
@@ -194,6 +196,10 @@ export function ComandaDrawer({
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [addingDiscount, setAddingDiscount] = useState(false);
+  // "+ Adicionar" de Anotações na coluna do cliente. Fica no drawer, e não dentro de
+  // ClienteBlocosLaterais, porque o componente é compartilhado com Agenda/Pacotes e cada tela
+  // decide o que o link abre (o vídeo do Belasis nunca clica nele).
+  const [addingNote, setAddingNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const editingItem = detail?.items.find((i) => i.id === editingItemId) ?? null;
@@ -204,10 +210,14 @@ export function ComandaDrawer({
     setEditingItemId(null);
     setPaymentsOpen(Boolean(order) && initialPaymentsOpen);
     setAddingDiscount(false);
+    setAddingNote(false);
     setError(null);
   }, [order?.id, initialPaymentsOpen]);
 
   const editable = detail?.status === 'open';
+  // Cliente da comanda para a coluna lateral. Comanda avulsa → null, e aí `ClienteBlocosLaterais`
+  // não renderiza nada nem dispara request (é o comportamento do Belasis em f_0153).
+  const sidebarCustomerId = detail?.customer?.id ?? detail?.customerId ?? null;
 
   async function handleAddPicked(picked: PickedItem) {
     setError(null);
@@ -330,171 +340,196 @@ export function ComandaDrawer({
           </div>
         )
       ) : (
-        <div className="flex flex-col gap-4">
-          {/* Abas Dados | Notas Fiscais (Notas Fiscais → 2ª onda). */}
-          <div className="inline-flex gap-1 self-start rounded-lg border border-[var(--color-soft-border)] bg-canvas p-0.5 text-sm">
-            <span className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground">
-              Dados
-            </span>
-            <span
-              className="rounded-md px-3 py-1.5 font-medium text-muted opacity-60"
-              title="Em breve"
-            >
-              Notas Fiscais
-            </span>
-          </div>
+        // Duas colunas no desktop, igual ao Belasis (f_0090/f_0245: coluna do cliente ~240px à
+        // esquerda, comanda à direita). As classes são as mesmas do drawer irmão de agendamento
+        // (AgendaPage.tsx:1632) de propósito — inclusive o empilhamento aside-primeiro no mobile.
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
+          {/* ── COLUNA DO CLIENTE (esquerda) ─────────────────────────────── */}
+          <aside className="flex shrink-0 flex-col gap-4 lg:w-[300px]">
+            {/* (1) Card do cliente + ações. */}
+            <OrderCustomerCard
+              detail={detail}
+              onConversar={(phone) =>
+                window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener')
+              }
+              onVerCliente={(cid) => {
+                onClose();
+                navigate(`/clientes/${cid}`);
+              }}
+            />
 
-          {/* (1) Card do cliente + ações. */}
-          <OrderCustomerCard
-            detail={detail}
-            onConversar={(phone) =>
-              window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener')
-            }
-            onVerCliente={(cid) => {
-              onClose();
-              navigate(`/clientes/${cid}`);
-            }}
-          />
+            {/* Pacotes / Assinaturas / Anotações — some sozinho na comanda avulsa (o
+                componente devolve null sem customerId). Pacotes e Assinaturas ficam sem
+                "+ Adicionar": não temos fluxo de venda por dentro da comanda e o vídeo nunca
+                mostra o que o link abre. */}
+            <ClienteBlocosLaterais
+              customerId={sidebarCustomerId}
+              onAdicionarAnotacao={() => setAddingNote(true)}
+            />
+            {addingNote && sidebarCustomerId && (
+              // Anotações é o último bloco da ordem padrão, então a caixa nasce colada nele.
+              <AddNoteInline
+                customerId={sidebarCustomerId}
+                onDone={() => setAddingNote(false)}
+              />
+            )}
+          </aside>
 
-          {/* (2) Data por extenso. */}
-          <div className="flex items-center gap-2 text-sm text-foreground">
-            <IconCalendar size={16} className="text-muted" />
-            <span className="capitalize">
-              {weekdayLong(detail.date.slice(0, 10))}, {formatDate(detail.date)}
-            </span>
-          </div>
+          {/* ── COLUNA DA COMANDA (direita) ──────────────────────────────── */}
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+            {/* Abas Dados | Notas Fiscais (Notas Fiscais → 2ª onda). */}
+            <div className="inline-flex gap-1 self-start rounded-lg border border-[var(--color-soft-border)] bg-canvas p-0.5 text-sm">
+              <span className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground">
+                Dados
+              </span>
+              <span
+                className="rounded-md px-3 py-1.5 font-medium text-muted opacity-60"
+                title="Em breve"
+              >
+                Notas Fiscais
+              </span>
+            </div>
 
-          {/* Status + Pagamento. */}
-          <div className="flex items-center gap-2">
-            <StatusTag status={detail.status} />
-            <PaymentTag status={detail.status} />
-          </div>
+            {/* (2) Data por extenso. */}
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <IconCalendar size={16} className="text-muted" />
+              <span className="capitalize">
+                {weekdayLong(detail.date.slice(0, 10))}, {formatDate(detail.date)}
+              </span>
+            </div>
 
-          {/* (3) Itens. */}
-          <section>
-            <div className="mb-2 text-sm font-semibold text-foreground">Itens</div>
-            <div className="overflow-hidden rounded-xl border border-[var(--color-soft-border)]">
-              {detail.items.length === 0 && (
-                <div className="px-3 py-4 text-sm text-muted">Nenhum item adicionado.</div>
-              )}
-              {detail.items.map((it) => {
-                const Icon = it.kind === 'service' ? IconScissors : IconBox;
-                const name = it.itemName ?? (it.kind === 'service' ? 'Serviço' : 'Produto');
-                return (
-                  <div
-                    key={it.id}
-                    className="flex items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2.5 last:border-b-0"
-                  >
-                    {/* Item SEMPRE abre o drawer (modo leitura quando a comanda
-                        não está aberta) — antes ficava disabled e o clique não
-                        fazia nada em comanda finalizada. */}
-                    <button
-                      type="button"
-                      onClick={() => setEditingItemId(it.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+            {/* Status + Pagamento. */}
+            <div className="flex items-center gap-2">
+              <StatusTag status={detail.status} />
+              <PaymentTag status={detail.status} />
+            </div>
+
+            {/* (3) Itens. */}
+            <section>
+              <div className="mb-2 text-sm font-semibold text-foreground">Itens</div>
+              <div className="overflow-hidden rounded-xl border border-[var(--color-soft-border)]">
+                {detail.items.length === 0 && (
+                  <div className="px-3 py-4 text-sm text-muted">Nenhum item adicionado.</div>
+                )}
+                {detail.items.map((it) => {
+                  const Icon = it.kind === 'service' ? IconScissors : IconBox;
+                  const name = it.itemName ?? (it.kind === 'service' ? 'Serviço' : 'Produto');
+                  return (
+                    <div
+                      key={it.id}
+                      className="flex items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2.5 last:border-b-0"
                     >
-                      <span className="grid h-7 min-w-7 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
-                        {Number(it.quantity)}x
-                      </span>
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
-                        <Icon size={17} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-baseline justify-between gap-2">
-                          {/* Destaque de clicável: cor primária + sublinhado. */}
-                          <span className="truncate text-sm font-semibold text-primary underline decoration-primary/40 underline-offset-2">
-                            {name}
-                          </span>
-                          <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                            {formatMoney(lineTotal(it))}
-                          </span>
-                        </span>
-                        <span className="mt-0.5 flex items-center gap-1 text-xs text-muted">
-                          <IconUser size={12} />
-                          {/* Quantidade já aparece no badge "Nx" à esquerda. */}
-                          <span className="truncate">
-                            {it.professionalName || 'Sem profissional'}
-                          </span>
-                        </span>
-                      </span>
-                      <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
-                    </button>
-                    {editable && (
+                      {/* Item SEMPRE abre o drawer (modo leitura quando a comanda
+                          não está aberta) — antes ficava disabled e o clique não
+                          fazia nada em comanda finalizada. */}
                       <button
                         type="button"
-                        aria-label="Remover item"
-                        onClick={() => handleRemoveItem(it)}
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger"
+                        onClick={() => setEditingItemId(it.id)}
+                        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                       >
-                        <IconTrash size={15} />
+                        <span className="grid h-7 min-w-7 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                          {Number(it.quantity)}x
+                        </span>
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
+                          <Icon size={17} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline justify-between gap-2">
+                            {/* Destaque de clicável: cor primária + sublinhado. */}
+                            <span className="truncate text-sm font-semibold text-primary underline decoration-primary/40 underline-offset-2">
+                              {name}
+                            </span>
+                            <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                              {formatMoney(lineTotal(it))}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                            <IconUser size={12} />
+                            {/* Quantidade já aparece no badge "Nx" à esquerda. */}
+                            <span className="truncate">
+                              {it.professionalName || 'Sem profissional'}
+                            </span>
+                          </span>
+                        </span>
+                        <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
                       </button>
-                    )}
-                  </div>
-                );
-              })}
+                      {editable && (
+                        <button
+                          type="button"
+                          aria-label="Remover item"
+                          onClick={() => handleRemoveItem(it)}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger"
+                        >
+                          <IconTrash size={15} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
 
-              {editable && (
-                <button
-                  type="button"
-                  onClick={() => setItemPickerOpen(true)}
-                  className="flex w-full items-center gap-2 px-3 py-3 text-left text-sm text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
-                >
-                  <IconPlus size={15} /> Selecionar serviço ou produto
-                </button>
-              )}
-            </div>
-          </section>
+                {editable && (
+                  <button
+                    type="button"
+                    onClick={() => setItemPickerOpen(true)}
+                    className="flex w-full items-center gap-2 px-3 py-3 text-left text-sm text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                  >
+                    <IconPlus size={15} /> Selecionar serviço ou produto
+                  </button>
+                )}
+              </div>
+            </section>
 
-          {/* (4) Desconto / Crédito / Cashback. */}
-          <section className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
-            <TotalLine label="Desconto" value={formatMoney(detail.discountTotal)} />
-            {editable &&
-              (addingDiscount ? (
-                <AddDiscountInline orderId={orderId} onDone={() => setAddingDiscount(false)} />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAddingDiscount(true)}
-                  className="mb-1 inline-flex items-center gap-1 self-start text-xs font-semibold text-primary hover:underline"
-                >
-                  <IconPlus size={13} /> Adicionar desconto
-                </button>
-              ))}
+            {/* (4) Desconto / Crédito / Cashback. */}
+            <section className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
+              <TotalLine label="Desconto" value={formatMoney(detail.discountTotal)} />
+              {editable &&
+                (addingDiscount ? (
+                  <AddDiscountInline orderId={orderId} onDone={() => setAddingDiscount(false)} />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingDiscount(true)}
+                    className="mb-1 inline-flex items-center gap-1 self-start text-xs font-semibold text-primary hover:underline"
+                  >
+                    <IconPlus size={13} /> Adicionar desconto
+                  </button>
+                ))}
 
-            <div className="my-1 border-t border-[var(--color-soft-border)]" />
+              <div className="my-1 border-t border-[var(--color-soft-border)]" />
 
-            {/* Crédito e Cashback — abatem saldo do cliente (ledger). */}
-            <LedgerLine
-              label="Crédito"
-              applied={Number(detail.creditUsed)}
-              balance={Number(detail.customerBalance?.creditBalance ?? 0)}
-              maxApply={Number(detail.netTotal) + Number(detail.creditUsed)}
-              editable={editable}
-              apply={applyCredit}
-              remove={removeCredit}
-            />
-            <LedgerLine
-              label="Cashback"
-              applied={Number(detail.cashbackUsed)}
-              balance={Number(detail.customerBalance?.cashbackBalance ?? 0)}
-              maxApply={Number(detail.netTotal) + Number(detail.cashbackUsed)}
-              editable={editable}
-              apply={applyCashback}
-              remove={removeCashback}
-            />
-          </section>
+              {/* Crédito e Cashback — abatem saldo do cliente (ledger). */}
+              <LedgerLine
+                label="Crédito"
+                applied={Number(detail.creditUsed)}
+                balance={Number(detail.customerBalance?.creditBalance ?? 0)}
+                maxApply={Number(detail.netTotal) + Number(detail.creditUsed)}
+                editable={editable}
+                apply={applyCredit}
+                remove={removeCredit}
+              />
+              <LedgerLine
+                label="Cashback"
+                applied={Number(detail.cashbackUsed)}
+                balance={Number(detail.customerBalance?.cashbackBalance ?? 0)}
+                maxApply={Number(detail.netTotal) + Number(detail.cashbackUsed)}
+                editable={editable}
+                apply={applyCashback}
+                remove={removeCashback}
+              />
+            </section>
 
-          {/* Totais ao vivo. */}
-          <section className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
-            <TotalLine label="Total bruto" value={formatMoney(detail.grossTotal)} />
-            <TotalLine label="Descontos" value={`- ${formatMoney(detail.discountTotal)}`} />
-            <div className="my-1 border-t border-[var(--color-soft-border)]" />
-            <TotalLine label="Valor líquido" value={formatMoney(detail.netTotal)} strong />
-            <TotalLine label="Total pago" value={formatMoney(paidTotal)} />
-            <TotalLine label="Restante" value={formatMoney(remaining)} />
-          </section>
+            {/* Totais ao vivo. */}
+            <section className="flex flex-col gap-1.5 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3 text-sm">
+              <TotalLine label="Total bruto" value={formatMoney(detail.grossTotal)} />
+              <TotalLine label="Descontos" value={`- ${formatMoney(detail.discountTotal)}`} />
+              <div className="my-1 border-t border-[var(--color-soft-border)]" />
+              <TotalLine label="Valor líquido" value={formatMoney(detail.netTotal)} strong />
+              <TotalLine label="Total pago" value={formatMoney(paidTotal)} />
+              <TotalLine label="Restante" value={formatMoney(remaining)} />
+            </section>
 
-          {error && <FormError message={error} />}
+            {error && <FormError message={error} />}
+          </div>
         </div>
       )}
     </Drawer>
@@ -613,6 +648,79 @@ function AddDiscountInline({ orderId, onDone }: { orderId: string; onDone: () =>
         </Button>
         <Button variant="primary" size="sm" isDisabled={add.isPending} onClick={handleAdd}>
           {add.isPending ? 'Aplicando…' : 'Aplicar'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Nova anotação do cliente, inline na coluna esquerda (POST /customers/:id/notes).
+ *
+ * O vídeo do Belasis mostra o link "+ Adicionar" no bloco Anotações mas nunca o clica, então não
+ * há layout de destino para copiar. Em vez de inventar um sub-drawer, reusamos dois padrões que já
+ * existem: o formulário inline deste mesmo arquivo (`AddDiscountInline`) e o comportamento da aba
+ * de anotações do perfil (`ClientePerfilTabs.tsx:1747`). Salvar não precisa de refetch manual —
+ * `useCreateNote` invalida `['customer-notes', id]`, a mesma chave que o bloco lê.
+ */
+function AddNoteInline({
+  customerId,
+  onDone,
+}: {
+  customerId: string | null;
+  onDone: () => void;
+}) {
+  const create = useCreateNote(customerId);
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleAdd() {
+    setError(null);
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setError('Digite uma anotação.');
+      return;
+    }
+    try {
+      await create.mutateAsync({ text: trimmed });
+      setText('');
+      onDone();
+    } catch (err) {
+      // 403 é o caso real aqui: criar anotação exige `clientes:manage`, que um caixa pode não ter.
+      setError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar a anotação.');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-[var(--color-soft-border)] bg-white p-2">
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        placeholder="Escreva uma anotação…"
+        aria-label="Nova anotação"
+        className="w-full resize-y rounded-lg border border-default-200 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
+      />
+      {error && <span className="text-xs text-danger">{error}</span>}
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setText('');
+            setError(null);
+            onDone();
+          }}
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          isDisabled={create.isPending || !text.trim()}
+          onClick={handleAdd}
+        >
+          {create.isPending ? 'Salvando…' : 'Adicionar'}
         </Button>
       </div>
     </div>

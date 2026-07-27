@@ -949,6 +949,7 @@ export function ProfessionalDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={
         mode === 'edit'
           ? `Editar profissional${professional?.name ? ` — ${professional.name}` : ''}`

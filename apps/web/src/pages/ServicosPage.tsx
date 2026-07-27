@@ -1460,7 +1460,7 @@ export function ServiceDrawer({
     }
   }
 
-  // Belasis: drawer quase fullscreen (1200px) com menu vertical de seções.
+  // Belasis: drawer de registro em TELA CHEIA no desktop, com menu vertical de seções.
   // Seções sem implementação ficam desabilitadas mas visíveis (paridade visual).
   const sections = drawerTabs.map((item) => ({
     key: item.id,
@@ -1472,12 +1472,15 @@ export function ServiceDrawer({
       ? `Editando serviço${service?.name ? ` — ${service.name}` : ""}`
       : "Novo serviço";
 
+  // NÃO passar `widthClass` aqui: no FullDrawer essa prop é justamente o que
+  // transforma o painel numa faixa lateral no desktop (FullDrawer.tsx:196).
+  // Omitindo, cai em `inset-0 h-dvh` (FullDrawer.tsx:197) = tela cheia.
+  // Mobile é ramo independente (FullDrawer.tsx:193) e não muda.
   return (
     <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
       title={title}
-      widthClass="sm:w-[600px]"
       orientation="vertical"
       sidebarWidth="md:w-[180px]"
       sections={sections}

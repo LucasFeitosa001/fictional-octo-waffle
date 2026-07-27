@@ -577,6 +577,7 @@ function CashActionDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={title}
       footer={
         result ? (

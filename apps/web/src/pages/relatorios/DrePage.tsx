@@ -514,6 +514,7 @@ export function DrePage() {
       <Drawer
         isOpen={detail !== null}
         onClose={() => setDetail(null)}
+        fullscreen
         title={detail?.categoria ?? 'Detalhe da categoria'}
       >
         {detail && (

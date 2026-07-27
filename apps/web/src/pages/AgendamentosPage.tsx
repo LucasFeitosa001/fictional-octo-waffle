@@ -289,6 +289,7 @@ export function AgendamentosPage() {
         }}
         title="Detalhes do agendamento"
         widthClass="sm:w-[520px]"
+        fullscreen
         footer={<Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>}
       >
               {selected && (

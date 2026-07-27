@@ -324,6 +324,7 @@ function CategoriaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={initial ? 'Editar categoria' : 'Nova categoria'}
       widthClass="sm:w-[480px]"
       footer={

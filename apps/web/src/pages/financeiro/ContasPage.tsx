@@ -1407,6 +1407,7 @@ function ContaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={editing ? 'Editar conta' : 'Conta bancária'}
       footer={footer}
       widthClass="sm:w-[480px]"
@@ -1603,6 +1604,7 @@ function FormaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={editing ? 'Editar forma de pagamento' : 'Forma de pagamento'}
       footer={footer}
       widthClass="sm:w-[480px]"
@@ -1804,6 +1806,7 @@ function CategoriaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={editing ? 'Editar categoria' : 'Categoria'}
       footer={footer}
       widthClass="sm:w-[480px]"

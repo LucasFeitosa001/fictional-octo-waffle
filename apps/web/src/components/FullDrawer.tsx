@@ -182,7 +182,9 @@ export function FullDrawer({
         ].join(' ')}
         onClick={onClose}
       />
-      {/* panel — mobile: bottom-sheet sobe (translate-y). desktop: right-slide (translate-x, 1200px). */}
+      {/* panel — mobile: bottom-sheet sobe (translate-y). desktop: tela cheia
+          (inset-0); só vira faixa lateral deslizante quando `widthClass` é
+          passado, o que é a exceção, não a regra. */}
       <div
         ref={panelRef}
         className={[

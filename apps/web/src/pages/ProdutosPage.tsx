@@ -1424,7 +1424,10 @@ export function ProductDrawer({
           ? `Editando produto${product ? ` — ${product.name}` : ''}`
           : 'Novo produto'
       }
-      widthClass="sm:w-[600px]"
+      /* SEM `widthClass` de propósito: no FullDrawer a prop é o que transforma o
+         painel em faixa lateral (FullDrawer.tsx:195-196); sem ela ele fica
+         `inset-0` = tela inteira no desktop. Este é um drawer de REGISTRO com
+         6 seções + menu vertical de 180px, então 600px abriam "pela metade". */
       orientation="vertical"
       sidebarWidth="md:w-[180px]"
       /* Belasis pixel: abas register/settings/cashback ativas + client_return/
@@ -1830,6 +1833,10 @@ function StockMovementDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title="Movimentar estoque"
+      // Abre POR CIMA do drawer de produto, que é um FullDrawer em z-[80] e agora
+      // ocupa a tela inteira. Sem isto o painel nasce em z-[70] (default do
+      // Drawer), fica atrás do backdrop opaco e o clique parece não fazer nada.
+      zClass="z-[90]"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -2232,7 +2239,9 @@ function ProductBatchDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar lote' : 'Novo lote'}
-      widthClass="sm:w-[600px]"
+      // Sem widthClass de propósito: neste arquivo convivem Drawer e FullDrawer,
+      // e a prop tem efeito OPOSTO nos dois (no Drawer é ignorada com fullscreen;
+      // no FullDrawer é ela que transforma a tela cheia em faixa lateral).
       fullscreen
       footer={
         <>

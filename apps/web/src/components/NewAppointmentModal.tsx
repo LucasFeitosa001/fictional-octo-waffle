@@ -11,6 +11,7 @@ import { Drawer } from './Drawer';
 import { DatePicker } from './DatePicker';
 import { AppSwitch } from './SwitchRow';
 import { CustomerAvatar } from './CustomerPickerDrawer';
+import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
 import { useNavigate } from 'react-router-dom';
 import { IconChevron, IconInfo, IconSearch } from './icons';
 import {
@@ -659,6 +660,16 @@ export function NewAppointmentModal({
                 </>
               )}
             </button>
+
+            {/* Mesma coluna do cliente do drawer de visualização (f_0062). O vídeo
+                não tem nenhum quadro do "Novo agendamento" do Belasis — o que ele
+                mostra (f_0153, "Novo pacote" sem cliente) é a coluna vazia, que é
+                justamente o que o componente faz sem `customerId`. Sem cliente
+                escolhido (inclusive no modo "criar cliente novo", em que
+                `customerId` é '') ele não renderiza nem dispara request.
+                `w-full` porque a aside centraliza os filhos (`items-center`).
+                Sem "+ Adicionar": não há evidência de qual seria o fluxo aqui. */}
+            <ClienteBlocosLaterais customerId={customerId || null} className="w-full" />
           </aside>
 
           {/* ── Formulário principal ─────────────────────────────────────── */}
