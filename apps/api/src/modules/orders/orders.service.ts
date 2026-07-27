@@ -26,7 +26,10 @@ export class OrdersService {
     const data = await this.prisma.client.order.findMany({
       where,
       include: {
-        customer: true,
+        // A LISTA só usa id/name do cliente (ver ComandasPage) — o objeto
+        // completo tem 55 colunas e era devolvido para cada comanda, inflando a
+        // resposta em megabytes. Os dados ricos do cliente vêm do DETALHE.
+        customer: { select: { id: true, name: true } },
         payments: {
           where: { status: { not: 'reversed' } },
           select: { paymentMethodId: true },
