@@ -217,6 +217,10 @@ export function ComandaDrawer({
         refId: picked.refId,
         unitPrice: picked.unitPrice,
         quantity: 1,
+        // Herda o profissional do cabeçalho da comanda (continua editável item a
+        // item). Sem isso o item nascia sem profissional e NÃO gerava comissão —
+        // a criação da comanda já fazia essa herança, o "adicionar" não.
+        ...(detail?.professionalId ? { professionalId: detail.professionalId } : {}),
       });
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Não foi possível adicionar o item.');

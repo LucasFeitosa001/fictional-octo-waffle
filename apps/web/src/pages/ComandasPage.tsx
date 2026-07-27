@@ -1495,9 +1495,11 @@ function EditItemDrawer({
     }
   }, [item]);
 
-  const qtyN = Math.max(1, Math.floor(Number(quantity) || 1));
-  const priceN = Math.max(0, Number(unitPrice) || 0);
-  const discN = Math.max(0, Number(discount) || 0);
+  // parseNum (não Number): aceita "12,50" no formato brasileiro. Com Number(),
+  // "12,50" virava NaN → `|| 0` → o item entrava com preço zero.
+  const qtyN = Math.max(1, Math.floor(parseNum(quantity) || 1));
+  const priceN = Math.max(0, parseNum(unitPrice));
+  const discN = Math.max(0, parseNum(discount));
   const total = Math.max(0, qtyN * priceN - discN);
 
   return (
@@ -1724,6 +1726,9 @@ export function VerComandaDrawer({
         refId: picked.refId,
         unitPrice: picked.unitPrice,
         quantity: 1,
+        // Herda o profissional do cabeçalho (senão o item entra sem profissional
+        // e não gera comissão). Continua editável item a item.
+        ...(detail?.professionalId ? { professionalId: detail.professionalId } : {}),
       });
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Não foi possível adicionar o item.');

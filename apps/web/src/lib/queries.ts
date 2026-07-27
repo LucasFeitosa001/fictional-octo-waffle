@@ -358,7 +358,8 @@ export function useRemoveOrderItem(id: string) {
 // =====================================================================
 
 export interface UpdateOrderItemBody {
-  professionalId?: string;
+  /** null limpa o profissional do item ("Sem profissional"); undefined não mexe. */
+  professionalId?: string | null;
   unitPrice?: number;
   quantity?: number;
   discount?: number;

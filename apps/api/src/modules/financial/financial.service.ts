@@ -564,6 +564,12 @@ export class FinancialService {
         data: {
           status: 'reversed',
           reversedAt: now,
+          // Libera o legacyId (`order:<id>:pay:<pid>`): a geração de receita do
+          // faturamento só procura transações NÃO estornadas, então um legacyId
+          // preso numa estornada fazia o create violar @@unique([companyId,
+          // legacyId]) → P2002 (500) e a comanda nunca mais podia ser faturada.
+          // reverseFinishReconciliation já faz o mesmo no caminho reopen/cancel.
+          legacyId: null,
           ...(userId ? { reversedByUserId: userId } : {}),
         },
       }),

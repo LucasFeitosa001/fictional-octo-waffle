@@ -50,6 +50,24 @@ export class OrdersService {
     return order;
   }
 
+  /**
+   * Garante que o profissional é DESTA empresa antes de vincular a um item.
+   * Sem isso, `connect: { id }` com id inexistente estoura P2025 (500) e um id de
+   * outra empresa era aceito — item de um tenant atribuído a profissional de outro
+   * (e a comissão indo para a pessoa errada). O create() já fazia essa checagem.
+   */
+  private async assertProfessionalOfCompany(
+    companyId: string,
+    professionalId: string | null | undefined,
+  ) {
+    if (!professionalId) return;
+    const found = await this.prisma.client.professional.findFirst({
+      where: { id: professionalId, companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!found) throw new NotFoundException('Profissional não encontrado');
+  }
+
   private assertEditable(order: { status: string }) {
     if (order.status === 'finished') {
       throw new BadRequestException('Comanda finalizada — reabra para editar.');
@@ -195,14 +213,16 @@ export class OrdersService {
         return { item, quantity, unitPrice, grossValue, discount };
       }),
     );
+    // MESMA definição do recalculate() (a canônica do resto do ciclo de vida):
+    // o bruto já entra com o desconto DO ITEM abatido, e discountTotal guarda só
+    // os descontos DA COMANDA (que na criação ainda não existem). Antes create()
+    // usava outra definição e os campos "Total bruto"/"Descontos" mudavam de
+    // significado sozinhos no primeiro recalculate.
     const grossTotal = preparedItems.reduce(
-      (sum, current) => sum.add(current.grossValue),
+      (sum, current) => sum.add(current.grossValue).sub(current.discount),
       new Prisma.Decimal(0),
     );
-    const discountTotal = preparedItems.reduce(
-      (sum, current) => sum.add(current.discount),
-      new Prisma.Decimal(0),
-    );
+    const discountTotal = new Prisma.Decimal(0);
     const netTotal = Prisma.Decimal.max(
       grossTotal.sub(discountTotal),
       new Prisma.Decimal(0),
@@ -277,10 +297,10 @@ export class OrdersService {
   async addItem(companyId: string, id: string, dto: AddItemDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
+    await this.assertProfessionalOfCompany(companyId, dto.professionalId);
     const quantity = dto.quantity ?? 1;
-    // Preço unitário: usa o informado; se ausente/zero, cai no catálogo (preço do
-    // serviço / preço de venda do produto) para que o item nunca entre com R$0
-    // por falta de prefill na tela. O ref é validado pertencer à empresa.
+    // Preço unitário: usa o informado (inclusive 0, que é cortesia); só cai no
+    // catálogo quando o campo NÃO vem. O ref é validado pertencer à empresa.
     const unitPrice = await this.resolveUnitPrice(companyId, dto);
     const grossValue = unitPrice.mul(quantity);
     await this.prisma.client.orderItem.create({
@@ -318,14 +338,17 @@ export class OrdersService {
         select: { price: true },
       });
       if (!service) throw new NotFoundException('Serviço não encontrado');
-      return provided && provided.gt(0) ? provided : service.price;
+      // `!= null` (não `.gt(0)`): preço 0 é cortesia/brinde legítimo. Com o gt(0)
+      // o item voltava para o preço cheio do catálogo e a cortesia era cobrada.
+      return provided != null ? provided : service.price;
     } else {
       const product = await this.prisma.client.product.findFirst({
         where: { id: dto.refId, companyId },
         select: { salePrice: true },
       });
       if (!product) throw new NotFoundException('Produto não encontrado');
-      return provided && provided.gt(0) ? provided : product.salePrice;
+      // idem serviço: 0 informado é cortesia, não "usar catálogo".
+      return provided != null ? provided : product.salePrice;
     }
   }
 
@@ -336,6 +359,7 @@ export class OrdersService {
   async updateItem(companyId: string, id: string, itemId: string, dto: UpdateOrderItemDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
+    await this.assertProfessionalOfCompany(companyId, dto.professionalId);
     const item = await this.loadItem(id, itemId);
 
     const unitPrice =
@@ -663,6 +687,21 @@ export class OrdersService {
   async addDiscount(companyId: string, id: string, dto: AddDiscountDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
+    // Teto do desconto. Sem isso, 500% zerava a comanda (recalculate aplica
+    // gross*value/100) e dava para faturar R$ 0 sem pagamento nenhum.
+    const value = new Prisma.Decimal(dto.value);
+    if (value.lessThan(0)) {
+      throw new BadRequestException('Desconto não pode ser negativo.');
+    }
+    if (dto.type === 'percent') {
+      if (value.greaterThan(100)) {
+        throw new BadRequestException('Desconto em porcentagem não pode passar de 100%.');
+      }
+    } else if (value.greaterThan(order.grossTotal)) {
+      throw new BadRequestException(
+        `Desconto de R$ ${value.toFixed(2)} maior que o valor da comanda (R$ ${new Prisma.Decimal(order.grossTotal).toFixed(2)}).`,
+      );
+    }
     await this.prisma.client.orderDiscount.create({
       data: { orderId: id, type: dto.type, value: dto.value, reason: dto.reason },
     });
@@ -806,7 +845,15 @@ export class OrdersService {
       );
       const netTotal = new Prisma.Decimal(order.netTotal);
       if (!paidTotal.equals(netTotal)) {
-        const remaining = Prisma.Decimal.max(netTotal.sub(paidTotal), 0);
+        // Pago A MAIS precisa de mensagem própria: netTotal - paidTotal fica
+        // negativo, o max(...,0) zerava e a tela dizia "Restante: R$ 0.00" —
+        // contraditório, e o operador não descobria que precisa estornar.
+        if (paidTotal.greaterThan(netTotal)) {
+          throw new BadRequestException(
+            `Pagamentos registrados (R$ ${paidTotal.toFixed(2)}) excedem o valor da comanda (R$ ${netTotal.toFixed(2)}). Estorne R$ ${paidTotal.sub(netTotal).toFixed(2)} antes de faturar.`,
+          );
+        }
+        const remaining = netTotal.sub(paidTotal);
         throw new BadRequestException(
           `Registre o pagamento completo antes de faturar. Restante: R$ ${remaining.toFixed(2)}.`,
         );
