@@ -631,6 +631,21 @@ export function AgendaPage() {
 
   // ── Per-appointment: reschedule (keeps duration, moves start) ─────────────
   const [showReschedule, setShowReschedule] = useState(false);
+  // Os formulários de Reagendar/Sugerir/Cancelar são renderizados NO FIM da coluna
+  // de detalhes. Com o drawer full-screen em duas colunas, essa coluna é longa e o
+  // formulário nasce fora da área visível — o usuário clicava em "Cancelar
+  // agendamento" no menu Outros e parecia que nada acontecia. Traz o bloco para a
+  // tela assim que ele aparece.
+  const inlineFormRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!showReschedule && !showSuggest && !showCancel) return;
+    const el = inlineFormRef.current;
+    if (!el) return;
+    const frame = requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showReschedule, showSuggest, showCancel]);
   const [reDate, setReDate] = useState('');
   const [reTime, setReTime] = useState('');
   // Toggles/textarea do drawer "Visualizando agendamento" (padrão Belasis).
@@ -1795,7 +1810,10 @@ export function AgendaPage() {
               </Select>
             </section>
 
-            {/* Formulários inline expandíveis (via "Outros" no rodapé) */}
+            {/* Formulários inline expandíveis (via "Outros" no rodapé).
+                O ref é a âncora do scrollIntoView — sem ele o bloco abre fora da
+                área visível na coluna longa do drawer full-screen. */}
+            <div ref={inlineFormRef} className="scroll-mt-4" />
             {showReschedule && (
               <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
                 <span className="text-xs font-semibold text-gold-strong">Reagendar</span>

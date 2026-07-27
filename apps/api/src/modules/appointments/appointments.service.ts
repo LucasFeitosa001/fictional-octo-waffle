@@ -915,8 +915,12 @@ export class AppointmentsService {
       select: { id: true },
     });
     if (!professional) {
+      // Acontece de verdade: usuário criado com o papel "profissional" mas sem
+      // vínculo com um registro de Profissional. Como TODA rota da agenda passa
+      // por aqui, o usuário fica sem abrir a agenda e sem cancelar nada. A
+      // mensagem antiga só descrevia o sintoma; esta diz como sair.
       throw new ForbiddenException(
-        'Seu usuário não está vinculado a um profissional ativo.',
+        'Seu usuário não está vinculado a um profissional ativo. Peça a um administrador para abrir Cadastros → Profissionais, editar o seu cadastro e vincular este acesso — ou conceder a permissão "Ver agenda completa" (agenda:view_all) ao seu papel.',
       );
     }
     return professional.id;
