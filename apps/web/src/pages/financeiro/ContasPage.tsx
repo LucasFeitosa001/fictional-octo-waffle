@@ -354,8 +354,11 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
     return (active && showActive) || (!active && showInactive);
   }
 
-  // Status só se aplica onde o backend expõe `active` (contas e categorias).
-  const supportsStatus = tab !== 'formas';
+  // Status vale nas TRÊS abas: PaymentMethod também tem `active` no schema (e o
+  // front já filtra por ele em TransacoesPage). Antes a aba Formas era exceção e
+  // a ação "Filtrar" sumia da barra inferior, que encolhia de 4 para 2 botões e
+  // "pulava" ao trocar de aba. Ver .claude/studies/14.
+  const supportsStatus = true;
 
   const filteredAccounts = useMemo(() => {
     const r = allAccounts.filter((a) => matchActive(a.active) && matchSearch(a.name)).sort(byName);
@@ -706,7 +709,10 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   // sempre visível no topo (Belasis), então não há ação "Buscar". Selecionar
   // só é oferecido na aba Contas — Formas mantém ações inline e Categorias
   // hoje não usa selectMode nos cards (RowActions inline via tap no card).
-  const supportsSelectMode = tab === 'contas' || tab === 'categorias';
+  // Seleção também vale nas três abas: selectableIds já devolve os ids das
+  // formas de pagamento (ver acima), então a infra de selectMode já cobre a aba.
+  // Manter as mesmas ações em todas evita a barra inferior mudar de tamanho.
+  const supportsSelectMode = true;
   useSetPageActions(
     sel.selectMode
       ? buildSelectActions({
