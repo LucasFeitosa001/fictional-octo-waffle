@@ -707,9 +707,7 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
 
   // Mobile: BottomNav do Belasis = Filtros · Selecionar · Novo. A busca fica
   // sempre visível no topo (Belasis), então não há ação "Buscar". Selecionar
-  // só é oferecido na aba Contas — Formas mantém ações inline e Categorias
-  // hoje não usa selectMode nos cards (RowActions inline via tap no card).
-  // Seleção também vale nas três abas: selectableIds já devolve os ids das
+  // Seleção vale nas três abas: selectableIds já devolve os ids das
   // formas de pagamento (ver acima), então a infra de selectMode já cobre a aba.
   // Manter as mesmas ações em todas evita a barra inferior mudar de tamanho.
   const supportsSelectMode = true;
