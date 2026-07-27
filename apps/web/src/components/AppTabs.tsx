@@ -53,11 +53,11 @@ export function AppTabs<Key extends string>({
     >
       <Tabs.ListContainer
         ref={containerRef}
-        className="max-w-full overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-line bg-card p-1 shadow-[var(--shadow-soft)] scrollbar-none"
+        className="flex max-w-full justify-start overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-line bg-card p-1 shadow-[var(--shadow-soft)] scrollbar-none"
       >
         <Tabs.List
           aria-label={ariaLabel}
-          className={`w-max flex-nowrap gap-1 ${listClassName}`}
+          className={`w-max flex-none flex-nowrap justify-start gap-1 ${listClassName}`}
         >
           {items.map((item) => (
             <Tabs.Tab
