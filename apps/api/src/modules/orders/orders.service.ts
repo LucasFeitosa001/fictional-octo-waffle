@@ -59,13 +59,22 @@ export class OrdersService {
   private async assertProfessionalOfCompany(
     companyId: string,
     professionalId: string | null | undefined,
+    // Recusa profissional DESATIVADO ao escolher um agora. `false` quando o
+    // valor não está mudando — editar preço de um item antigo cujo profissional
+    // foi desativado depois não pode quebrar.
+    requireActive = true,
   ) {
     if (!professionalId) return;
     const found = await this.prisma.client.professional.findFirst({
       where: { id: professionalId, companyId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, active: true },
     });
     if (!found) throw new NotFoundException('Profissional não encontrado');
+    if (requireActive && !found.active) {
+      throw new BadRequestException(
+        'Profissional desativado — reative em Equipe > Profissionais para usá-lo.',
+      );
+    }
   }
 
   private assertEditable(order: { status: string }) {
@@ -251,11 +260,15 @@ export class OrdersService {
       ].filter((id): id is string => Boolean(id));
       if (professionalIds.length) {
         const uniqueIds = [...new Set(professionalIds)];
+        // Além da empresa, exige não-excluído E ativo: comanda nova não pode
+        // nascer atribuída a quem foi desativado.
         const count = await tx.professional.count({
-          where: { companyId, id: { in: uniqueIds } },
+          where: { companyId, id: { in: uniqueIds }, deletedAt: null, active: true },
         });
         if (count !== uniqueIds.length) {
-          throw new NotFoundException('Profissional não encontrado');
+          throw new BadRequestException(
+            'Profissional não encontrado ou desativado — reative em Equipe > Profissionais.',
+          );
         }
       }
 
@@ -359,8 +372,12 @@ export class OrdersService {
   async updateItem(companyId: string, id: string, itemId: string, dto: UpdateOrderItemDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
-    await this.assertProfessionalOfCompany(companyId, dto.professionalId);
     const item = await this.loadItem(id, itemId);
+    await this.assertProfessionalOfCompany(
+      companyId,
+      dto.professionalId,
+      dto.professionalId !== item.professionalId,
+    );
 
     const unitPrice =
       dto.unitPrice !== undefined ? new Prisma.Decimal(dto.unitPrice) : item.unitPrice;

@@ -93,7 +93,8 @@ const EMPTY_PROFESSIONALS: Professional[] = [];
 
 export function ProfissionaisPage() {
   const confirm = useConfirm();
-  const professionals = useProfessionals();
+  // Tela de gestão: precisa dos inativos, é ela quem tem a aba "Inativos".
+  const professionals = useProfessionals(1, 50, { status: 'all' });
   const remove = useDeleteProfessional();
   const allRows = professionals.data?.data ?? EMPTY_PROFESSIONALS;
 

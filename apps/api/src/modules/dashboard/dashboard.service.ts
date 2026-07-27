@@ -70,10 +70,14 @@ export class DashboardService {
       prevAppointmentsCount,
     ] = await Promise.all([
       this.prisma.client.professional.findMany({
+        // Traz inativos também: o mapa de nomes abaixo precisa rotular venda
+        // antiga de quem já foi desativado. Quem NÃO pode listá-los é a ocupação
+        // de agenda — filtrada por `active` no ponto de uso.
         where: { companyId, deletedAt: null },
         select: {
           id: true,
           name: true,
+          active: true,
           schedules: { select: { weekday: true, startTime: true, endTime: true } },
         },
         orderBy: { name: 'asc' },
@@ -282,6 +286,7 @@ export class DashboardService {
       busyMinutes.set(a.professionalId, (busyMinutes.get(a.professionalId) ?? 0) + min);
     }
     const ocupacaoAgenda = professionals
+      .filter((p) => p.active)
       .map((p) => {
         let availableMin = 0;
         for (const s of p.schedules) {

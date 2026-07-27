@@ -513,7 +513,16 @@ export class AppointmentsService {
 
     // Validate FK references up-front (clean 404 instead of a raw FK-violation 500).
     if (dto.customerId) await this.assertCustomerExists(companyId, dto.customerId);
-    if (dto.professionalId) await this.assertProfessionalExists(companyId, dto.professionalId);
+    // Só exige profissional ATIVO quando ele está de fato mudando: reeditar um
+    // agendamento antigo (data, notas) cujo profissional foi desativado depois
+    // continua funcionando.
+    if (dto.professionalId) {
+      await this.assertProfessionalExists(
+        companyId,
+        dto.professionalId,
+        dto.professionalId !== current.professionalId,
+      );
+    }
 
     const professionalId = dto.professionalId ?? current.professionalId ?? undefined;
     const start = dto.start ? new Date(dto.start) : current.start;
@@ -850,7 +859,8 @@ export class AppointmentsService {
     const weekday = this.weekdayOf(day, tz);
 
     const schedules = await this.prisma.client.professionalSchedule.findMany({
-      where: { professionalId, weekday, professional: { deletedAt: null } },
+      // `active: true` — profissional desativado não oferece horário nenhum.
+      where: { professionalId, weekday, professional: { deletedAt: null, active: true } },
       orderBy: { startTime: 'asc' },
     });
     if (!schedules.length) return empty;
@@ -1016,13 +1026,29 @@ export class AppointmentsService {
     if (!found) throw new NotFoundException('Cliente não encontrado');
   }
 
-  // Validate the referenced professional exists within the company.
-  private async assertProfessionalExists(companyId: string, professionalId: string) {
+  /**
+   * Valida que o profissional existe na empresa.
+   *
+   * `requireActive` (padrão true) recusa profissional DESATIVADO: esconder do
+   * `<select>` não impede uma chamada direta nem um formulário com estado velho.
+   * Passe `false` quando o profissional não está sendo escolhido agora — reeditar
+   * um agendamento antigo cujo profissional foi desativado DEPOIS não pode quebrar.
+   */
+  private async assertProfessionalExists(
+    companyId: string,
+    professionalId: string,
+    requireActive = true,
+  ) {
     const found = await this.prisma.client.professional.findFirst({
       where: { id: professionalId, companyId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, active: true },
     });
     if (!found) throw new NotFoundException('Profissional não encontrado');
+    if (requireActive && !found.active) {
+      throw new BadRequestException(
+        'Profissional desativado — reative em Equipe > Profissionais para usá-lo.',
+      );
+    }
   }
 
   private async assertNoOverlap(

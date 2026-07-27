@@ -131,11 +131,28 @@ export function useCreateCustomer() {
   });
 }
 
-export function useProfessionals(page = 1, pageSize = 50) {
+/**
+ * Lista de profissionais.
+ *
+ * O padrão é `status: 'active'` — profissional DESATIVADO não aparece em nenhum
+ * seletor (agendamento, comanda, vale, meta, despesa...). Só passa `'all'` quem
+ * precisa mesmo dos inativos: a tela de gestão (abas Ativos/Inativos) e quem
+ * resolve o NOME de um registro histórico feito por alguém já desativado.
+ */
+export function useProfessionals(
+  page = 1,
+  pageSize = 50,
+  opts?: { status?: 'active' | 'inactive' | 'all' },
+) {
+  const status = opts?.status ?? 'active';
   return useQuery({
-    queryKey: ['professionals', page, pageSize],
+    queryKey: ['professionals', page, pageSize, status],
     queryFn: () =>
-      api.get<Paginated<Professional>>('/professionals', { page, pageSize }),
+      api.get<Paginated<Professional>>('/professionals', {
+        page,
+        pageSize,
+        active: status === 'active' ? 'true' : status === 'inactive' ? 'false' : 'all',
+      }),
   });
 }
 

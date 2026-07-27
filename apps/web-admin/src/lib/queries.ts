@@ -147,11 +147,13 @@ export interface ProfessionalBody {
   active?: boolean;
 }
 
+// Tela de gestão (tem CRUD de profissional): `active: 'all'` para os desativados
+// continuarem visíveis/editáveis. A API sem esse parâmetro devolve só ativos.
 export function useProfessionals(page = 1, pageSize = 50) {
   return useQuery({
-    queryKey: ['professionals', page, pageSize],
+    queryKey: ['professionals', page, pageSize, 'all'],
     queryFn: () =>
-      api.get<Paginated<Professional>>('/professionals', { page, pageSize }),
+      api.get<Paginated<Professional>>('/professionals', { page, pageSize, active: 'all' }),
   });
 }
 
