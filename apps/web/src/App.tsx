@@ -85,6 +85,14 @@ import { IconLock } from './components/icons';
 
 type RouteErrorBoundaryProps = {
   children: ReactNode;
+  /**
+   * Rota atual. Serve só para o boundary se RECUPERAR ao navegar. Antes isso era
+   * feito com `key={location.pathname}`, que remontava a árvore INTEIRA a cada
+   * clique no menu — zerando os refs do useThemeSync (o guard "sincroniza uma vez
+   * por empresa") e fazendo o tema da empresa ser reaplicado por cima da escolha
+   * do usuário a cada navegação. Ver .claude/studies/13.
+   */
+  routeKey: string;
 };
 
 type RouteErrorBoundaryState = {
@@ -96,6 +104,14 @@ class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBo
 
   static getDerivedStateFromError(): RouteErrorBoundaryState {
     return { hasError: true };
+  }
+
+  componentDidUpdate(prev: RouteErrorBoundaryProps) {
+    // Trocou de rota depois de um erro? Limpa só o estado do boundary — sem
+    // destruir o shell (sessão, tema, caches) junto.
+    if (this.state.hasError && prev.routeKey !== this.props.routeKey) {
+      this.setState({ hasError: false });
+    }
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -518,7 +534,7 @@ export function App() {
   }, [session?.user?.id, queryClient]);
 
   return (
-    <RouteErrorBoundary key={location.pathname}>
+    <RouteErrorBoundary routeKey={location.pathname}>
       <Routes>
       {/* The customer-facing booking portal now lives in the dedicated club app
           (apps/web-club), served at its own origin. */}
