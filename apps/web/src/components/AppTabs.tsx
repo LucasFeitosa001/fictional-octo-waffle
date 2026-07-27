@@ -64,11 +64,11 @@ export function AppTabs<Key extends string>({
               key={item.id}
               id={item.id}
               isDisabled={item.disabled}
-              className="group inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-muted-ink transition-[color,background-color,box-shadow,transform] duration-200 ease-out hover:bg-[color-mix(in_oklab,var(--sp-primary)_9%,transparent)] hover:text-ink data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] data-[selected]:text-primary data-[selected]:shadow-[var(--shadow-soft)] active:scale-[0.98]"
+              className="group inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm text-muted-ink transition-[color,background-color,box-shadow,transform] duration-200 ease-out hover:bg-[color-mix(in_oklab,var(--sp-primary)_9%,transparent)] hover:text-ink data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] data-[selected]:text-primary data-[selected]:shadow-[var(--shadow-soft)] active:scale-[0.98]"
             >
               <span
                 aria-hidden
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-canvas text-muted-ink transition-colors group-data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_18%,transparent)] group-data-[selected]:text-primary"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-canvas sm:h-7 sm:w-7 text-muted-ink transition-colors group-data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_18%,transparent)] group-data-[selected]:text-primary"
               >
                 {item.icon}
               </span>
