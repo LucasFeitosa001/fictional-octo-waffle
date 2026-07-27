@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { toast, TOAST_TIMEOUT } from '../toast';
+import { useMinhasContas } from './contas';
 
 export interface NotificationItem {
   id: string;
@@ -162,7 +163,12 @@ export function useMarkAllNotificationsRead() {
 
 // ─── Toasts em tempo (quase) real ───────────────────────────────────────────
 
-const LAST_SEEN_KEY = 'salonpass:notif-last-seen-at';
+// Marca d'água dos toasts, POR EMPRESA: a chave leva o companyId ativo. Antes
+// era uma chave única global do navegador — como a troca de empresa NÃO recarrega
+// a página, a marca de uma empresa vazava e suprimia (ou estourava em rajada) os
+// toasts de outra. Agora cada tenant tem a sua marca.
+const LAST_SEEN_KEY_PREFIX = 'salonpass:notif-last-seen-at';
+const lastSeenKeyFor = (companyId: string) => `${LAST_SEEN_KEY_PREFIX}:${companyId}`;
 
 /**
  * Deep-link a partir do tipo/entidade da notificação — espelha a lógica do
@@ -211,26 +217,41 @@ export function useNotificationToasts() {
   const navigate = useNavigate();
   const { data } = useNotifications(30);
   const items = data?.data;
+  // Empresa ativa: a marca d'água é POR-EMPRESA (ver lastSeenKeyFor). Mesma
+  // fonte usada por useThemeSync; a lista de `items` já é escopada por tenant.
+  const { data: contas } = useMinhasContas();
+  const activeCompanyId = contas?.find((c) => c.active)?.companyId ?? null;
 
-  // Baseline (ms epoch) do último `createdAt` já processado. Inicializa com o
-  // que está no localStorage; se ausente, fica null até o primeiro batch chegar
-  // (aí adotamos o mais recente como baseline, sem toastar).
+  // Baseline (ms epoch) do último `createdAt` já processado, DA empresa ativa.
   const lastSeenAt = useRef<number | null>(null);
   const initialized = useRef(false);
+
+  // Chave de storage da empresa ativa, guardada em ref para o efeito de `items`
+  // (que mantém deps só `[items]`) sempre gravar/ler no tenant correto.
+  const storageKeyRef = useRef<string | null>(null);
+  storageKeyRef.current = activeCompanyId ? lastSeenKeyFor(activeCompanyId) : null;
 
   // `navigate` guardado em ref pra manter o efeito com deps estável (só `items`).
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
+  // Ao trocar de empresa ativa (troca de tenant, SEM reload da página): zera a
+  // marca em memória e re-lê a marca DAQUELA empresa. Sem isso, a marca da
+  // empresa anterior sobreviveria e suprimiria/estouraria os toasts da nova.
+  // Definido ANTES do efeito de `items` para, num mesmo commit de troca, o
+  // baseline ser restabelecido antes de processar a lista.
   useEffect(() => {
-    if (lastSeenAt.current !== null || initialized.current) return;
-    const stored = localStorage.getItem(LAST_SEEN_KEY);
+    initialized.current = false;
+    const key = activeCompanyId ? lastSeenKeyFor(activeCompanyId) : null;
+    const stored = key ? localStorage.getItem(key) : null;
     const parsed = stored ? Number(stored) : NaN;
     lastSeenAt.current = Number.isFinite(parsed) ? parsed : null;
-  }, []);
+  }, [activeCompanyId]);
 
   useEffect(() => {
     if (!items || items.length === 0) return;
+    const key = storageKeyRef.current;
+    if (!key) return; // empresa ativa ainda não resolvida → não toasta
 
     // Timestamps válidos, ordenados do mais antigo → mais novo (a lista vem
     // desc; invertemos pra toastar em ordem cronológica).
@@ -247,7 +268,7 @@ export function useNotificationToasts() {
     if (lastSeenAt.current === null) {
       lastSeenAt.current = newestTs;
       initialized.current = true;
-      localStorage.setItem(LAST_SEEN_KEY, String(newestTs));
+      localStorage.setItem(key, String(newestTs));
       return;
     }
 
@@ -272,9 +293,9 @@ export function useNotificationToasts() {
       });
     }
 
-    // Avança a marca d'água pro mais novo toastado e persiste.
+    // Avança a marca d'água pro mais novo toastado e persiste (por-empresa).
     lastSeenAt.current = newestTs;
     initialized.current = true;
-    localStorage.setItem(LAST_SEEN_KEY, String(newestTs));
+    localStorage.setItem(key, String(newestTs));
   }, [items]);
 }

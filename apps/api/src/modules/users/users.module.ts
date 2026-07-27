@@ -531,8 +531,11 @@ export class UsersController {
     return this.service.updateTheme(userId, dto);
   }
 
-  // Preferências visuais completas por usuário. Mantidas antes de `:id` para
-  // "me" nunca ser interpretado como identificador de outro usuário.
+  // LEGADO: a personalização visual migrou para a EMPRESA (compartilhada) —
+  // ver CompaniesController `current/appearance`. Estes endpoints por-usuário
+  // permanecem só para retrocompatibilidade de clientes antigos; o web atual
+  // não os chama mais. Mantidos antes de `:id` para "me" nunca ser interpretado
+  // como identificador de outro usuário.
   @Get('me/appearance')
   getMyAppearance(@CurrentUser('userId') userId: string) {
     return this.service.getAppearance(userId);

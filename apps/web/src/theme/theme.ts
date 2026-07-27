@@ -71,7 +71,7 @@ export const THEMES: ThemeMeta[] = [
 ];
 
 const STORAGE_KEY = 'sp-theme';
-const DEFAULT_THEME: ThemeId = 'belasis';
+export const DEFAULT_THEME: ThemeId = 'belasis';
 
 export function isThemeId(v: unknown): v is ThemeId {
   return typeof v === 'string' && THEMES.some((t) => t.id === v);

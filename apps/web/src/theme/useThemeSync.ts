@@ -1,28 +1,33 @@
 import { useEffect, useRef } from 'react';
 import { useSession } from '../lib/auth';
+import { useMinhasContas } from '../lib/queries/contas';
 import { api } from '../lib/api';
-import { applyTheme, isThemeId, type ThemeId } from './theme';
+import { applyTheme, isThemeId, DEFAULT_THEME, type ThemeId } from './theme';
 import {
   applyButtonRadius,
   getStoredButtonRadius,
   isButtonRadiusId,
+  DEFAULT_RADIUS,
   type ButtonRadiusId,
 } from './buttonStyle';
 import {
   getStoredSidebarStyle,
   isSidebarStyle,
   setSidebarStyle,
+  DEFAULT_SIDEBAR_STYLE,
   type SidebarStyleId,
 } from './sidebarStyle';
 import {
   getStoredCloseStyle,
   isCloseStyle,
   setCloseStyle,
+  DEFAULT_CLOSE_STYLE,
   type CloseStyleId,
 } from './closeStyle';
 import {
   getStoredCrmShortcut,
   setCrmShortcutEnabled,
+  DEFAULT_CRM_SHORTCUT,
 } from './crmShortcut';
 import { getStoredTheme } from './theme';
 
@@ -43,75 +48,88 @@ let localAppearanceRevision = 0;
 let saveQueue: Promise<unknown> = Promise.resolve();
 
 /**
- * Cloud theme persistence.
+ * Cloud theme persistence — escopo EMPRESA (compartilhado por todos os logins).
  *
  * localStorage remains the FAST pre-paint cache (see applyTheme/initTheme) so a
  * returning device shows the right palette before the first React paint — no
- * flash. The user ACCOUNT is the cross-device source of truth: this hook pulls
- * the account theme once the session is available and, if the account has a
- * valid theme that differs from what's currently applied (e.g. a fresh device
- * with an empty localStorage), applies it silently.
+ * flash. The COMPANY is the source of truth, SHARED across every staff login and
+ * device: this hook pulls the active company's appearance once it's available
+ * and, if it carries a valid setting that differs from what's currently applied
+ * (e.g. a fresh device with empty localStorage, or another staff member who set
+ * the company theme), applies it silently.
  *
  * "Silently" = no POST back — this is a load, not a user change, so we must not
  * echo it to the server (would be a redundant write and could race a genuine
- * change). Genuine changes go through saveThemeToCloud() from the UI selector.
+ * change). Genuine changes go through saveThemeToCloud() from the UI selector
+ * and are only allowed for admins (config:manage) — the server enforces it.
  *
- * Runs at most once per logged-in user id; a real account switch re-syncs.
+ * Keyed on the ACTIVE COMPANY id (not the user): switching tenant re-syncs to
+ * the new company's appearance. CompanySwitcher navigates client-side without a
+ * full reload, so keying on the user alone would leave the previous company's
+ * theme stuck.
  */
 export function useThemeSync(): void {
   const { data: session } = useSession();
   const userId = session?.user?.id;
-  // Guard so we fetch once per user, not on every Better Auth session refetch.
+  const { data: contas } = useMinhasContas();
+  const activeCompanyId = contas?.find((c) => c.active)?.companyId ?? null;
+  // Guard so we fetch once per active company, not on every session refetch.
   const syncedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!userId) return;
-    if (syncedFor.current === userId) return;
-    syncedFor.current = userId;
+    if (!userId || !activeCompanyId) return;
+    if (syncedFor.current === activeCompanyId) return;
+    syncedFor.current = activeCompanyId;
 
     let cancelled = false;
     const revisionAtRequest = localAppearanceRevision;
     api
-      .get<AppearancePreferences>('/users/me/appearance')
+      .get<AppearancePreferences>('/companies/current/appearance')
       .then((res) => {
         if (cancelled || revisionAtRequest !== localAppearanceRevision) return;
-        if (
-          isThemeId(res?.theme) &&
-          res.theme !== document.documentElement.dataset.theme
-        ) {
-          applyTheme(res.theme);
+        // A EMPRESA é autoritativa: para cada preferência, aplica o valor da
+        // empresa OU volta ao PADRÃO quando ela não tem nada salvo. Sem esse
+        // reset, trocar para uma empresa sem personalização herdaria o tema da
+        // empresa anterior (o cache localStorage é do navegador, não do tenant)
+        // — daria a impressão de que "mexer numa empresa mexe em todas".
+        const theme = isThemeId(res?.theme) ? res.theme : DEFAULT_THEME;
+        if (theme !== document.documentElement.dataset.theme) {
+          applyTheme(theme);
         }
-        if (
-          isButtonRadiusId(res?.buttonRadius) &&
-          res.buttonRadius !== document.documentElement.dataset.btnRadius
-        ) {
-          applyButtonRadius(res.buttonRadius);
+        const radius = isButtonRadiusId(res?.buttonRadius)
+          ? res.buttonRadius
+          : DEFAULT_RADIUS;
+        if (radius !== document.documentElement.dataset.btnRadius) {
+          applyButtonRadius(radius);
         }
-        if (isSidebarStyle(res?.sidebarStyle)) {
-          setSidebarStyle(res.sidebarStyle);
-        }
-        if (isCloseStyle(res?.closeStyle)) {
-          setCloseStyle(res.closeStyle);
-        }
-        if (typeof res?.crmShortcut === 'boolean') {
-          setCrmShortcutEnabled(res.crmShortcut);
-        }
+        setSidebarStyle(
+          isSidebarStyle(res?.sidebarStyle) ? res.sidebarStyle : DEFAULT_SIDEBAR_STYLE,
+        );
+        setCloseStyle(
+          isCloseStyle(res?.closeStyle) ? res.closeStyle : DEFAULT_CLOSE_STYLE,
+        );
+        setCrmShortcutEnabled(
+          typeof res?.crmShortcut === 'boolean' ? res.crmShortcut : DEFAULT_CRM_SHORTCUT,
+        );
       })
       .catch(() => {
-        /* offline / unauthenticated → mantém toda a preferência local */
+        /* offline / unauthenticated → mantém toda a preferência local
+           (não reseta: sem resposta da empresa, o cache local é o melhor palpite) */
       });
 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, activeCompanyId]);
 }
 
 /**
- * Persist a theme choice to the user account. Fire-and-forget: the local apply
- * already happened (applyTheme writes localStorage + re-skins the UI), so if the
- * network is down the change still holds locally and simply isn't mirrored to
- * the cloud. Call this only for genuine user-driven changes (the theme selector).
+ * Persist a theme choice to the COMPANY (shared with every staff login).
+ * Fire-and-forget: the local apply already happened (applyTheme writes
+ * localStorage + re-skins the UI), so if the network is down — or the caller
+ * lacks config:manage and the server answers 403 — the change still holds
+ * locally and simply isn't published to the company. Call this only for genuine
+ * admin-driven changes (the theme selector, gated in the UI).
  */
 export function saveThemeToCloud(theme: ThemeId): void {
   void saveAppearanceToCloud({ theme }).catch(() => {
@@ -120,10 +138,10 @@ export function saveThemeToCloud(theme: ThemeId): void {
 }
 
 /**
- * Persist the button-radius choice to the account. Same fire-and-forget
+ * Persist the button-radius choice to the COMPANY. Same fire-and-forget
  * semantics as saveThemeToCloud: the local apply already happened, so a network
- * failure (or a backend that doesn't implement the endpoint yet) just means the
- * cloud copy lags — the choice still holds locally via localStorage.
+ * failure (or a 403 for a non-admin) just means the company copy lags — the
+ * choice still holds locally via localStorage.
  */
 export function saveButtonRadiusToCloud(buttonRadius: ButtonRadiusId): void {
   void saveAppearanceToCloud({ buttonRadius }).catch(() => {
@@ -138,7 +156,7 @@ export function saveAppearanceToCloud(
   localAppearanceRevision += 1;
   const request = saveQueue
     .catch(() => undefined)
-    .then(() => api.post<AppearancePreferences>('/users/me/appearance', patch));
+    .then(() => api.post<AppearancePreferences>('/companies/current/appearance', patch));
   saveQueue = request.catch(() => undefined);
   return request;
 }

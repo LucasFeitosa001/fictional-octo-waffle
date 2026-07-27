@@ -17,7 +17,7 @@ function SidebarPreview({ id }: { id: SidebarStyleId }) {
   );
 }
 
-export function SidebarStyleSwitcher() {
+export function SidebarStyleSwitcher({ disabled = false }: { disabled?: boolean } = {}) {
   const current = useSidebarStyle();
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -27,6 +27,7 @@ export function SidebarStyleSwitcher() {
           <button
             key={s.id}
             type="button"
+            disabled={disabled}
             onClick={() => {
               setSidebarStyle(s.id);
               void saveAppearanceToCloud({ sidebarStyle: s.id }).catch(() => {
@@ -36,6 +37,7 @@ export function SidebarStyleSwitcher() {
             aria-pressed={active}
             className={[
               'flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors',
+              'disabled:cursor-not-allowed disabled:opacity-60',
               active
                 ? 'border-primary bg-primary/5 ring-1 ring-primary'
                 : 'border-line bg-card hover:border-primary/40',

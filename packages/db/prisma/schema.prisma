@@ -209,6 +209,13 @@ model Company {
   legalName         String?
   cnpj              String?
   logoUrl           String?
+  // Personalização visual COMPARTILHADA por toda a empresa (Configurações →
+  // Personalizar): tema de cores, formato dos botões, sidebar, botão fechar e
+  // atalho do CRM. JSON para evoluir o editor sem uma coluna por opção. É a
+  // fonte da verdade para TODOS os logins da empresa, em qualquer dispositivo;
+  // antes vivia por-usuário em User.appearancePreferences. Só quem tem
+  // config:manage altera; qualquer usuário autenticado lê para aplicar o tema.
+  appearancePreferences Json?
   timezone          String   @default("America/Sao_Paulo")
   currency          String   @default("BRL")
   addressJson       Json?

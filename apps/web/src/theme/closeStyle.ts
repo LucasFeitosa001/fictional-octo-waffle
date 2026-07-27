@@ -17,6 +17,8 @@ export const CLOSE_STYLES: { id: CloseStyleId; label: string; description: strin
 
 const KEY = 'sp-close-style';
 const DEFAULT: CloseStyleId = 'label';
+/** Padrão exportado para o reset por-empresa (useThemeSync). */
+export const DEFAULT_CLOSE_STYLE: CloseStyleId = DEFAULT;
 
 export function isCloseStyle(v: unknown): v is CloseStyleId {
   return v === 'label' || v === 'round' || v === 'icon';

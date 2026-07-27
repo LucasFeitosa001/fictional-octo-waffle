@@ -25,7 +25,7 @@ function ClosePreview({ id }: { id: CloseStyleId }) {
   );
 }
 
-export function CloseStyleSwitcher() {
+export function CloseStyleSwitcher({ disabled = false }: { disabled?: boolean } = {}) {
   const current = useCloseStyle();
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -35,6 +35,7 @@ export function CloseStyleSwitcher() {
           <button
             key={s.id}
             type="button"
+            disabled={disabled}
             onClick={() => {
               setCloseStyle(s.id);
               void saveAppearanceToCloud({ closeStyle: s.id }).catch(() => {
@@ -44,6 +45,7 @@ export function CloseStyleSwitcher() {
             aria-pressed={active}
             className={[
               'flex flex-col items-center gap-3 rounded-xl border p-4 text-center transition-colors',
+              'disabled:cursor-not-allowed disabled:opacity-60',
               active
                 ? 'border-primary bg-primary/5 ring-1 ring-primary'
                 : 'border-line bg-card hover:border-primary/40',

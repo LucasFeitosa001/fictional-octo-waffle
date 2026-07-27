@@ -18,6 +18,7 @@ import { ButtonStyleSwitcher } from '../components/ButtonStyleSwitcher';
 import { CloseStyleSwitcher } from '../components/CloseStyleSwitcher';
 import { SidebarStyleSwitcher } from '../components/SidebarStyleSwitcher';
 import { SwitchRow } from '../components/SwitchRow';
+import { useCan } from '../lib/queries/permissions';
 import { useCrmShortcutEnabled, setCrmShortcutEnabled } from '../theme/crmShortcut';
 import {
   saveAppearanceToCloud,
@@ -794,6 +795,11 @@ export function ConfiguracoesPage() {
   const updateProfessional = useUpdateProfessional();
   const profItems = (professionals.data as any)?.data ?? [];
   const confirm = useConfirm();
+  // A personalização visual agora é da EMPRESA (compartilhada). Só quem tem
+  // config:manage altera; os demais veem a aba em modo leitura. Fail-closed:
+  // enquanto as permissões carregam, `can()` retorna false (esconde o editar).
+  const { can } = useCan();
+  const canManageAppearance = can('config:manage');
 
   async function handleSignOut() {
     const ok = await confirm({
@@ -943,10 +949,10 @@ export function ConfiguracoesPage() {
     setAppearanceMessage(null);
     try {
       await saveCurrentAppearanceToCloud();
-      setAppearanceMessage('Personalização salva na sua conta.');
+      setAppearanceMessage('Personalização salva para a empresa.');
     } catch {
       setAppearanceMessage(
-        'A aparência continua aplicada neste dispositivo, mas não foi possível sincronizar a conta.',
+        'A aparência continua aplicada neste dispositivo, mas não foi possível salvar para a empresa.',
       );
     } finally {
       setAppearanceSaving(false);
@@ -1507,15 +1513,30 @@ export function ConfiguracoesPage() {
 
         {current === 'personalizar' && (
           <div className="flex flex-col gap-5">
+            {!canManageAppearance && (
+              <div
+                className="rounded-2xl border border-line bg-canvas px-4 py-3 text-sm text-muted-ink"
+                role="note"
+              >
+                A personalização visual vale para <strong>toda a empresa</strong>.
+                Só administradores podem alterá-la — abaixo é somente leitura.
+              </div>
+            )}
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Identidade visual</h2>
               <p className="mt-1 text-sm text-muted-ink">
                 Logo exibido nos materiais e no agendamento online.
               </p>
-              <div className="mt-5">
+              <div
+                className={[
+                  'mt-5',
+                  canManageAppearance ? '' : 'pointer-events-none opacity-60',
+                ].join(' ')}
+              >
                 <ImageUpload
                   value={logoUrl}
                   onChange={(url) => {
+                    if (!canManageAppearance) return; // só admin altera a empresa
                     setLogoUrl(url);
                     markDirty();
                     // Persist the logo change right away — otherwise a user
@@ -1536,21 +1557,22 @@ export function ConfiguracoesPage() {
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Tema de cores</h2>
               <p className="mt-1 text-sm text-muted-ink">
-                Muda a paleta de todo o sistema e sincroniza a escolha com sua conta.
+                Muda a paleta de todo o sistema. A escolha vale para toda a
+                empresa, em qualquer dispositivo.
               </p>
               <div className="mt-4">
-                <ThemeSwitcher />
+                <ThemeSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Estilo dos botões</h2>
               <p className="mt-1 text-sm text-muted-ink">
-                Define o arredondamento dos botões do sistema. A escolha fica salva
-                como o tema, inclusive ao trocar de página ou dispositivo.
+                Define o arredondamento dos botões do sistema. A escolha vale para
+                toda a empresa, em qualquer dispositivo.
               </p>
               <div className="mt-4">
-                <ButtonStyleSwitcher />
+                <ButtonStyleSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
@@ -1560,7 +1582,7 @@ export function ConfiguracoesPage() {
                 Como o botão de fechar aparece nos painéis e bottom-sheets do mobile.
               </p>
               <div className="mt-4">
-                <CloseStyleSwitcher />
+                <CloseStyleSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
@@ -1570,21 +1592,22 @@ export function ConfiguracoesPage() {
                 Deixe o menu lateral encostado (sólido) ou flutuante com margem.
               </p>
               <div className="mt-4">
-                <SidebarStyleSwitcher />
+                <SidebarStyleSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Atalhos</h2>
               <p className="mt-1 text-sm text-muted-ink">
-                Botões flutuantes que aparecem sobre as telas. A escolha fica salva
-                neste dispositivo.
+                Botões flutuantes que aparecem sobre as telas. A escolha vale para
+                toda a empresa.
               </p>
               <div className="mt-4">
                 <SwitchRow
                   label="Mostrar atalho do CRM"
                   description="Botão flutuante de acesso rápido ao CRM, no canto da tela."
                   checked={crmShortcutEnabled}
+                  isDisabled={!canManageAppearance}
                   onChange={(enabled) => {
                     setCrmShortcutEnabled(enabled);
                     void saveAppearanceToCloud({ crmShortcut: enabled }).catch(() => {
@@ -1617,14 +1640,16 @@ export function ConfiguracoesPage() {
                   {appearanceMessage}
                 </p>
               )}
-              <button
-                type="button"
-                onClick={handleAppearanceSave}
-                disabled={appearanceSaving}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {appearanceSaving ? 'Salvando…' : 'Salvar personalização'}
-              </button>
+              {canManageAppearance && (
+                <button
+                  type="button"
+                  onClick={handleAppearanceSave}
+                  disabled={appearanceSaving}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {appearanceSaving ? 'Salvando…' : 'Salvar personalização'}
+                </button>
+              )}
             </div>
           </div>
         )}
