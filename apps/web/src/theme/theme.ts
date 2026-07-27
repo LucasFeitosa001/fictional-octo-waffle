@@ -71,7 +71,10 @@ export const THEMES: ThemeMeta[] = [
 ];
 
 const STORAGE_KEY = 'sp-theme';
-export const DEFAULT_THEME: ThemeId = 'belasis';
+// Identidade do produto: preto/dourado/creme. Durante a clonagem do Belasis o
+// padrão tinha virado 'belasis' (o tema "Azul"), o que fazia dispositivos novos
+// — e empresas sem tema salvo — abrirem em azul sem ninguém ter escolhido.
+export const DEFAULT_THEME: ThemeId = 'salonpass';
 
 export function isThemeId(v: unknown): v is ThemeId {
   return typeof v === 'string' && THEMES.some((t) => t.id === v);
