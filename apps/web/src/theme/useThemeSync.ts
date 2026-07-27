@@ -39,6 +39,33 @@ export interface AppearancePreferences {
   crmShortcut?: boolean;
 }
 
+// A qual empresa o cache local (localStorage) se refere. O cache é do NAVEGADOR,
+// não do tenant — sem essa marca é impossível distinguir dois casos que exigem
+// respostas OPOSTAS quando a empresa não tem nada salvo:
+//   1. o cache é DESTA empresa (ou anterior à marcação) → é o visual legítimo do
+//      usuário e deve ser MANTIDO;
+//   2. o cache é de OUTRA empresa → seria vazamento entre tenants e deve voltar
+//      ao padrão.
+// Tratar os dois como "resetar ao padrão" fazia toda empresa sem preferência
+// salva cair no DEFAULT_THEME ('belasis' = Azul) a cada carregamento.
+const APPEARANCE_COMPANY_KEY = 'sp:appearance:company';
+
+function getCachedAppearanceCompany(): string | null {
+  try {
+    return localStorage.getItem(APPEARANCE_COMPANY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function markAppearanceCompany(companyId: string): void {
+  try {
+    localStorage.setItem(APPEARANCE_COMPANY_KEY, companyId);
+  } catch {
+    /* localStorage indisponível (modo privado) — segue em memória */
+  }
+}
+
 // Evita duas fontes de verdade concorrentes:
 // 1. uma leitura iniciada no mount não pode sobrescrever uma escolha feita
 //    enquanto a requisição estava em voo;
@@ -87,30 +114,49 @@ export function useThemeSync(): void {
       .get<AppearancePreferences>('/companies/current/appearance')
       .then((res) => {
         if (cancelled || revisionAtRequest !== localAppearanceRevision) return;
-        // A EMPRESA é autoritativa: para cada preferência, aplica o valor da
-        // empresa OU volta ao PADRÃO quando ela não tem nada salvo. Sem esse
-        // reset, trocar para uma empresa sem personalização herdaria o tema da
-        // empresa anterior (o cache localStorage é do navegador, não do tenant)
-        // — daria a impressão de que "mexer numa empresa mexe em todas".
-        const theme = isThemeId(res?.theme) ? res.theme : DEFAULT_THEME;
-        if (theme !== document.documentElement.dataset.theme) {
-          applyTheme(theme);
+        // A EMPRESA é autoritativa quando TEM valor salvo. Quando não tem, o
+        // cache local só é descartado se pertencer a OUTRA empresa (aí seria
+        // vazamento entre tenants); se for desta empresa — ou anterior à
+        // marcação — ele é mantido. Resetar nesse caso derrubaria o visual de
+        // toda empresa que ainda não salvou nada, jogando tudo no DEFAULT_THEME
+        // ('belasis' = Azul) a cada carregamento.
+        const cachedCompany = getCachedAppearanceCompany();
+        const cacheFromOtherCompany =
+          cachedCompany !== null && cachedCompany !== activeCompanyId;
+
+        if (isThemeId(res?.theme)) {
+          if (res.theme !== document.documentElement.dataset.theme) {
+            applyTheme(res.theme);
+          }
+        } else if (
+          cacheFromOtherCompany &&
+          DEFAULT_THEME !== document.documentElement.dataset.theme
+        ) {
+          applyTheme(DEFAULT_THEME);
         }
-        const radius = isButtonRadiusId(res?.buttonRadius)
-          ? res.buttonRadius
-          : DEFAULT_RADIUS;
-        if (radius !== document.documentElement.dataset.btnRadius) {
-          applyButtonRadius(radius);
+
+        if (isButtonRadiusId(res?.buttonRadius)) {
+          if (res.buttonRadius !== document.documentElement.dataset.btnRadius) {
+            applyButtonRadius(res.buttonRadius);
+          }
+        } else if (
+          cacheFromOtherCompany &&
+          DEFAULT_RADIUS !== document.documentElement.dataset.btnRadius
+        ) {
+          applyButtonRadius(DEFAULT_RADIUS);
         }
-        setSidebarStyle(
-          isSidebarStyle(res?.sidebarStyle) ? res.sidebarStyle : DEFAULT_SIDEBAR_STYLE,
-        );
-        setCloseStyle(
-          isCloseStyle(res?.closeStyle) ? res.closeStyle : DEFAULT_CLOSE_STYLE,
-        );
-        setCrmShortcutEnabled(
-          typeof res?.crmShortcut === 'boolean' ? res.crmShortcut : DEFAULT_CRM_SHORTCUT,
-        );
+
+        if (isSidebarStyle(res?.sidebarStyle)) setSidebarStyle(res.sidebarStyle);
+        else if (cacheFromOtherCompany) setSidebarStyle(DEFAULT_SIDEBAR_STYLE);
+
+        if (isCloseStyle(res?.closeStyle)) setCloseStyle(res.closeStyle);
+        else if (cacheFromOtherCompany) setCloseStyle(DEFAULT_CLOSE_STYLE);
+
+        if (typeof res?.crmShortcut === 'boolean') setCrmShortcutEnabled(res.crmShortcut);
+        else if (cacheFromOtherCompany) setCrmShortcutEnabled(DEFAULT_CRM_SHORTCUT);
+
+        // A partir daqui o cache local representa ESTA empresa.
+        markAppearanceCompany(activeCompanyId);
       })
       .catch(() => {
         /* offline / unauthenticated → mantém toda a preferência local
