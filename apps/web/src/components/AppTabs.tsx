@@ -57,14 +57,14 @@ export function AppTabs<Key extends string>({
       >
         <Tabs.List
           aria-label={ariaLabel}
-          className={`min-w-max gap-1 ${listClassName}`}
+          className={`w-max flex-nowrap gap-1 ${listClassName}`}
         >
           {items.map((item) => (
             <Tabs.Tab
               key={item.id}
               id={item.id}
               isDisabled={item.disabled}
-              className="group inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm text-muted-ink transition-[color,background-color,box-shadow,transform] duration-200 ease-out hover:bg-[color-mix(in_oklab,var(--sp-primary)_9%,transparent)] hover:text-ink data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] data-[selected]:text-primary data-[selected]:shadow-[var(--shadow-soft)] active:scale-[0.98]"
+              className="group inline-flex min-h-9 w-auto shrink-0 grow-0 basis-auto items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm text-muted-ink transition-[color,background-color,box-shadow,transform] duration-200 ease-out hover:bg-[color-mix(in_oklab,var(--sp-primary)_9%,transparent)] hover:text-ink data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] data-[selected]:text-primary data-[selected]:shadow-[var(--shadow-soft)] active:scale-[0.98]"
             >
               <span
                 aria-hidden
