@@ -206,7 +206,11 @@ export class OrdersService {
     );
 
     return this.prisma.client.$transaction(async (tx) => {
-      await tx.$queryRaw`
+      // $executeRaw (NÃO $queryRaw): pg_advisory_xact_lock() retorna `void` e o
+      // $queryRaw tenta desserializar a coluna → PrismaClientKnownRequestError
+      // P2010 ("Failed to deserialize column of type 'void'"), que derrubava
+      // TODA criação de comanda com 500. O $executeRaw não lê o resultado.
+      await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:orders`}))
       `;
 

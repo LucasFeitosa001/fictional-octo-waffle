@@ -135,7 +135,10 @@ export class CashRegistersService {
     return this.prisma.client.$transaction(async (tx) => {
       // Serializa abertura/numeração por empresa: evita dois operadores criarem
       // o mesmo `number` ou furarem a regra de caixa único simultaneamente.
-      await tx.$queryRaw`
+      // $executeRaw (NÃO $queryRaw): pg_advisory_xact_lock() retorna `void` e o
+      // $queryRaw falha ao desserializar (P2010), derrubando a abertura de caixa
+      // com 500 — mesmo defeito que quebrou a criação de comanda.
+      await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:cash-register`}))
       `;
 
