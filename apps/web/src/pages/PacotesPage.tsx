@@ -26,6 +26,7 @@ import {
   type PickedCustomer,
 } from '../components/CustomerPickerDrawer';
 import { ItemPickerDrawer, type PickedItem } from '../components/ItemPickerDrawer';
+import { PacoteClienteAside } from '../components/PacoteClienteAside';
 import { EmptyState, ErrorState } from '../components/States';
 import { TableSkeleton } from '../components/Skeletons';
 import {
@@ -1342,211 +1343,226 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
         onSelect={addItem}
       />
 
-      <div className="flex flex-col gap-4">
-        {section === 'cliente' && (
-          <>
-            <Field label="Cliente" required>
-              {selectedCustomer ? (
-                <div className="flex items-center gap-3 rounded-lg border border-line bg-white px-3 py-2.5">
-                  <CustomerAvatar
-                    name={selectedCustomer.name}
-                    avatarUrl={selectedCustomer.avatarUrl}
-                  />
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <span className="truncate text-sm font-semibold text-foreground">
-                      {selectedCustomer.name}
-                    </span>
-                    {selectedCustomer.phone ? (
-                      <span className="truncate text-xs text-muted">
-                        {formatPhone(selectedCustomer.phone)}
+      {/* Coluna do cliente à esquerda em TODAS as seções, como no Belasis (f_0153) — nossas abas
+          horizontais são divergência nossa, então a coluna nasce abaixo delas. Sem cliente ela
+          mostra só o avatar vazio e o mesmo seletor do campo "Cliente" abaixo. */}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
+        <PacoteClienteAside
+          customerId={selectedCustomer?.id ?? null}
+          nome={selectedCustomer?.name ?? null}
+          // O picker já devolve telefone e foto: nada a buscar para desenhar o topo.
+          telefone={selectedCustomer?.phone ?? null}
+          avatarUrl={selectedCustomer?.avatarUrl ?? null}
+          buscarContato={false}
+          onSelecionarCliente={() => setCustomerPickerOpen(true)}
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          {section === 'cliente' && (
+            <>
+              <Field label="Cliente" required>
+                {selectedCustomer ? (
+                  <div className="flex items-center gap-3 rounded-lg border border-line bg-white px-3 py-2.5">
+                    <CustomerAvatar
+                      name={selectedCustomer.name}
+                      avatarUrl={selectedCustomer.avatarUrl}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                      <span className="truncate text-sm font-semibold text-foreground">
+                        {selectedCustomer.name}
                       </span>
-                    ) : null}
+                      {selectedCustomer.phone ? (
+                        <span className="truncate text-xs text-muted">
+                          {formatPhone(selectedCustomer.phone)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCustomerPickerOpen(true)}
+                      className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                    >
+                      Trocar
+                    </button>
                   </div>
+                ) : (
                   <button
                     type="button"
                     onClick={() => setCustomerPickerOpen(true)}
-                    className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                    className="flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 text-left text-sm text-muted-ink"
                   >
-                    Trocar
+                    <span>Busque por um cliente</span>
+                    <IconChevron size={16} className="shrink-0 text-muted-ink" />
                   </button>
+                )}
+              </Field>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Data">
+                  <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
+                </Field>
+                <Field
+                  label="Validade"
+                  hint="Data limite para uso do pacote. Deixe em branco para não expirar."
+                >
+                  <DatePicker value={validUntil} onChange={setValidUntil} ariaLabel="Validade" />
+                </Field>
+              </div>
+
+              <Field label="Pacote Predefinido">
+                <Select
+                  aria-label="Pacote Predefinido"
+                  selectedKey={templateId || null}
+                  onSelectionChange={(k) => (k ? applyTemplate(String(k)) : setTemplateId(NONE))}
+                >
+                  <Select.Trigger>
+                    <Select.Value>
+                      {({ isPlaceholder, selectedText }) =>
+                        isPlaceholder ? 'Selecione um pacote predefinido' : selectedText
+                      }
+                    </Select.Value>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {templateList.map((t) => (
+                        <ListBox.Item key={t.id} id={t.id} textValue={t.name}>
+                          {t.name}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+                <p className="mt-1 text-[11px] text-muted-ink">
+                  Opcional — preenche os itens automaticamente. Você pode editá-los depois.
+                </p>
+              </Field>
+
+              <Field label="Vendedor">
+                <Select
+                  aria-label="Vendedor"
+                  selectedKey={sellerId || null}
+                  onSelectionChange={(k) => setSellerId(k ? String(k) : NONE)}
+                >
+                  <Select.Trigger>
+                    <Select.Value>
+                      {({ isPlaceholder, selectedText }) =>
+                        isPlaceholder ? 'Selecione um vendedor' : selectedText
+                      }
+                    </Select.Value>
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {professionalList.map((p) => (
+                        <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                          {p.name}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </Field>
+            </>
+          )}
+
+          {section === 'itens' && (
+            /* Itens do pacote — linhas editáveis (Belasis): serviço/produto avulso
+               com qtde, valor unitário e desconto; total calculado ao vivo. */
+            <div className="overflow-hidden rounded-lg border border-line">
+              <div className="border-b border-line bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                Itens do pacote
+              </div>
+
+              {/* Cabeçalho (desktop) */}
+              <div
+                className={`hidden md:grid ${itemGrid} items-center gap-2 border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-ink`}
+              >
+                <span>Descrição</span>
+                <span className="text-center">Qtde.</span>
+                <span className="text-right">Valor unitário</span>
+                <span className="text-right">Desconto</span>
+                <span className="text-right">Total</span>
+                <span />
+              </div>
+
+              {items.length === 0 ? (
+                <div className="px-3 py-6 text-center text-sm text-muted-ink">
+                  Nenhum item. Use “Selecionar serviço ou produto” abaixo ou escolha um Pacote
+                  Predefinido na aba “Cliente / Dados”.
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setCustomerPickerOpen(true)}
-                  className="flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 text-left text-sm text-muted-ink"
-                >
-                  <span>Busque por um cliente</span>
-                  <IconChevron size={16} className="shrink-0 text-muted-ink" />
-                </button>
+                items.map((it) => (
+                  <PkgItemRow
+                    key={it.uid}
+                    item={it}
+                    gridCls={itemGrid}
+                    onChange={(patch) => patchItem(it.uid, patch)}
+                    onRemove={() => removeItem(it.uid)}
+                  />
+                ))
               )}
-            </Field>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Data">
-                <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
-              </Field>
-              <Field
-                label="Validade"
-                hint="Data limite para uso do pacote. Deixe em branco para não expirar."
+              <button
+                type="button"
+                onClick={() => setItemPickerOpen(true)}
+                className="flex w-full items-center gap-2 border-t border-line px-3 py-3 text-left text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
               >
-                <DatePicker value={validUntil} onChange={setValidUntil} ariaLabel="Validade" />
-              </Field>
+                <IconPlus size={15} /> Selecionar serviço ou produto
+              </button>
             </div>
+          )}
 
-            <Field label="Pacote Predefinido">
-              <Select
-                aria-label="Pacote Predefinido"
-                selectedKey={templateId || null}
-                onSelectionChange={(k) => (k ? applyTemplate(String(k)) : setTemplateId(NONE))}
-              >
-                <Select.Trigger>
-                  <Select.Value>
-                    {({ isPlaceholder, selectedText }) =>
-                      isPlaceholder ? 'Selecione um pacote predefinido' : selectedText
-                    }
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {templateList.map((t) => (
-                      <ListBox.Item key={t.id} id={t.id} textValue={t.name}>
-                        {t.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-              <p className="mt-1 text-[11px] text-muted-ink">
-                Opcional — preenche os itens automaticamente. Você pode editá-los depois.
-              </p>
-            </Field>
-
-            <Field label="Vendedor">
-              <Select
-                aria-label="Vendedor"
-                selectedKey={sellerId || null}
-                onSelectionChange={(k) => setSellerId(k ? String(k) : NONE)}
-              >
-                <Select.Trigger>
-                  <Select.Value>
-                    {({ isPlaceholder, selectedText }) =>
-                      isPlaceholder ? 'Selecione um vendedor' : selectedText
-                    }
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {professionalList.map((p) => (
-                      <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
-                        {p.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-            </Field>
-          </>
-        )}
-
-        {section === 'itens' && (
-          /* Itens do pacote — linhas editáveis (Belasis): serviço/produto avulso
-             com qtde, valor unitário e desconto; total calculado ao vivo. */
-          <div className="overflow-hidden rounded-lg border border-line">
-            <div className="border-b border-line bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
-              Itens do pacote
-            </div>
-
-            {/* Cabeçalho (desktop) */}
-            <div
-              className={`hidden md:grid ${itemGrid} items-center gap-2 border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-ink`}
-            >
-              <span>Descrição</span>
-              <span className="text-center">Qtde.</span>
-              <span className="text-right">Valor unitário</span>
-              <span className="text-right">Desconto</span>
-              <span className="text-right">Total</span>
-              <span />
-            </div>
-
-            {items.length === 0 ? (
-              <div className="px-3 py-6 text-center text-sm text-muted-ink">
-                Nenhum item. Use “Selecionar serviço ou produto” abaixo ou escolha um Pacote
-                Predefinido na aba “Cliente / Dados”.
+          {section === 'pagamentos' && (
+            /* Resumo à direita (Belasis: Desconto / Crédito / Cashback / Total).
+               Total = subtotal dos itens − desconto e é o `price` enviado. Crédito
+               e Cashback são disabled (sem coluna na API atual). */
+            <div className="flex justify-end">
+              <div className="w-full sm:max-w-sm">
+                <SummaryRow label="Subtotal">
+                  <div className="px-1 text-right text-sm tabular-nums text-ink">
+                    {formatMoney(itemsSubtotal)}
+                  </div>
+                </SummaryRow>
+                <SummaryRow label="Desconto">
+                  <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
+                    <Input type="number" placeholder="R$ 0,00" className="text-right" />
+                  </TextField>
+                </SummaryRow>
+                <SummaryRow label="Crédito">
+                  {/* Belasis: crédito do cliente (disabled) — sem coluna na API atual */}
+                  <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
+                    R$ 0,00
+                  </div>
+                </SummaryRow>
+                <SummaryRow label="Cashback">
+                  {/* Belasis: cashback (disabled) — sem coluna na API atual */}
+                  <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
+                    R$ 0,00
+                  </div>
+                </SummaryRow>
+                <SummaryRow label="Total" strong>
+                  <div className="px-1 text-right text-sm font-semibold tabular-nums text-ink">
+                    {formatMoney(grandTotal)}
+                  </div>
+                </SummaryRow>
               </div>
-            ) : (
-              items.map((it) => (
-                <PkgItemRow
-                  key={it.uid}
-                  item={it}
-                  gridCls={itemGrid}
-                  onChange={(patch) => patchItem(it.uid, patch)}
-                  onRemove={() => removeItem(it.uid)}
-                />
-              ))
-            )}
-
-            <button
-              type="button"
-              onClick={() => setItemPickerOpen(true)}
-              className="flex w-full items-center gap-2 border-t border-line px-3 py-3 text-left text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
-            >
-              <IconPlus size={15} /> Selecionar serviço ou produto
-            </button>
-          </div>
-        )}
-
-        {section === 'pagamentos' && (
-          /* Resumo à direita (Belasis: Desconto / Crédito / Cashback / Total).
-             Total = subtotal dos itens − desconto e é o `price` enviado. Crédito
-             e Cashback são disabled (sem coluna na API atual). */
-          <div className="flex justify-end">
-            <div className="w-full sm:max-w-sm">
-              <SummaryRow label="Subtotal">
-                <div className="px-1 text-right text-sm tabular-nums text-ink">
-                  {formatMoney(itemsSubtotal)}
-                </div>
-              </SummaryRow>
-              <SummaryRow label="Desconto">
-                <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
-                  <Input type="number" placeholder="R$ 0,00" className="text-right" />
-                </TextField>
-              </SummaryRow>
-              <SummaryRow label="Crédito">
-                {/* Belasis: crédito do cliente (disabled) — sem coluna na API atual */}
-                <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
-                  R$ 0,00
-                </div>
-              </SummaryRow>
-              <SummaryRow label="Cashback">
-                {/* Belasis: cashback (disabled) — sem coluna na API atual */}
-                <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
-                  R$ 0,00
-                </div>
-              </SummaryRow>
-              <SummaryRow label="Total" strong>
-                <div className="px-1 text-right text-sm font-semibold tabular-nums text-ink">
-                  {formatMoney(grandTotal)}
-                </div>
-              </SummaryRow>
             </div>
-          </div>
-        )}
+          )}
 
-        {section === 'observacoes' && (
-          <Field label="Observação">
-            {/* TODO Belasis: observação não enviada pela API atual */}
-            <TextField value={observation} onChange={setObservation} aria-label="Observação">
-              <Input placeholder="Escreva aqui" />
-            </TextField>
-          </Field>
-        )}
+          {section === 'observacoes' && (
+            <Field label="Observação">
+              {/* TODO Belasis: observação não enviada pela API atual */}
+              <TextField value={observation} onChange={setObservation} aria-label="Observação">
+                <Input placeholder="Escreva aqui" />
+              </TextField>
+            </Field>
+          )}
 
-        {error && (
-          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
     </FullDrawer>
   );

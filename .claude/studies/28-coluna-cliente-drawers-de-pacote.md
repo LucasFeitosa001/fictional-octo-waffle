@@ -199,3 +199,22 @@ O bloco **Informações** NÃO entra (ver seção 4).
 
 Pertence a um componente próprio, compartilhado pelas três superfícies, com dois `count` novos
 no `Promise.all` de `apps/api/src/modules/customers/customers.service.ts:200`.
+
+---
+
+## 5. Decisões tomadas durante a escrita (registro)
+
+- **Avatar de 96 px desenhado no próprio aside** em vez de `CustomerAvatar`
+  (`apps/web/src/components/CustomerPickerDrawer.tsx:24`): as iniciais dele são fixas em 13 px
+  (`apps/web/src/components/CustomerPickerDrawer.tsx:36`) e sumiriam num círculo desse tamanho.
+  Com foto → `<img>`; sem foto → boneco genérico, que é exatamente o que `f_0148` e `f_0153`
+  mostram.
+- **Prop `buscarContato`** em vez de sempre chamar `useCustomer`: no "Novo pacote" o picker já
+  devolve telefone e foto (`apps/web/src/components/CustomerPickerDrawer.tsx:10`), então lá a
+  request não sai. No "Visualizando pacote" ela é obrigatória — sem ela não há telefone nem
+  "Conversar".
+- **Título** do drawer de visualização passou a "Visualizando pacote #N"
+  (`apps/web/src/pages/PacotePerfilModal.tsx:95`). "Itens do pacote" continua existindo, mas como
+  o nome da TABELA dentro do drawer, que é o papel dele no Belasis.
+- **Validação**: `pnpm -C apps/web exec tsc --noEmit -p tsconfig.json` sem nenhuma saída.
+  As três telas NÃO foram abertas em runtime (o Vite da 5173 estava fora do ar durante a tarefa).

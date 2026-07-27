@@ -3,8 +3,7 @@ import { Button } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 
 import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
-import { CustomerAvatar } from './CustomerPickerDrawer';
-import { IconChevron, IconWhatsApp } from './icons';
+import { IconChevron, IconUser, IconWhatsApp } from './icons';
 import { formatPhone } from '../lib/format';
 import { useCustomer, useCreateNote } from '../lib/queries/clientes';
 import { useCan } from '../lib/queries/permissions';
@@ -25,22 +24,28 @@ export function PacoteClienteAside({
   nome,
   telefone,
   avatarUrl,
+  buscarContato = true,
   onSelecionarCliente,
 }: {
   /** Cliente do pacote. Sem id o Belasis mostra só o avatar vazio (f_0153). */
   customerId: string | null | undefined;
   /** Nome já conhecido pelo chamador — evita a coluna piscar enquanto o GET do cliente sobe. */
   nome?: string | null;
-  /** Idem telefone/avatar: o "Novo pacote" já os tem do picker e não precisa esperar nada. */
+  /** Idem telefone/avatar, quando o chamador já os tem. */
   telefone?: string | null;
   avatarUrl?: string | null;
+  /**
+   * Buscar telefone/foto em `GET /customers/:id`. O detalhe do pacote não traz nenhum dos dois
+   * (packages.service.ts:117 só seleciona id+name), então lá é obrigatório; o "Novo pacote"
+   * recebe tudo do picker e passa `false` para não gastar a request.
+   */
+  buscarContato?: boolean;
   /** Sem cliente: abre o seletor. Sem callback o botão não aparece (drawer de visualização). */
   onSelecionarCliente?: () => void;
 }) {
   const id = customerId ?? null;
-  // O detalhe do pacote só traz `{ id, name }` (packages.service.ts:117), então telefone e foto
-  // vêm daqui. `enabled: Boolean(id)` no hook: sem cliente nenhuma request sai.
-  const clienteQ = useCustomer(id);
+  // `enabled: Boolean(id)` no hook: passar null aqui não dispara request nenhuma.
+  const clienteQ = useCustomer(buscarContato ? id : null);
   const { can } = useCan();
 
   const [adicionandoNota, setAdicionandoNota] = useState(false);
@@ -57,7 +62,19 @@ export function PacoteClienteAside({
     <aside className="flex shrink-0 flex-col gap-4 lg:w-[260px]">
       {/* Cabeçalho: avatar grande, nome e telefone com a pílula "Conversar" ao lado (f_0148). */}
       <div className="flex flex-col items-center gap-2 text-center">
-        <CustomerAvatar name={nomeFinal ?? ''} avatarUrl={fotoFinal} size={96} />
+        {/* Avatar de 96px desenhado aqui, e não com <CustomerAvatar>: as iniciais dele são fixas
+            em 13px e ficariam perdidas num círculo desse tamanho. O Belasis usa o boneco genérico
+            quando não há foto (f_0148 e f_0153), que é o que este ramo faz. */}
+        {fotoFinal ? (
+          <img src={fotoFinal} alt="" className="h-24 w-24 rounded-full object-cover" />
+        ) : (
+          <span
+            className="grid h-24 w-24 place-items-center rounded-full bg-cream text-primary/70"
+            aria-hidden
+          >
+            <IconUser size={44} />
+          </span>
+        )}
         {nomeFinal && (
           <div className="w-full truncate text-base font-semibold text-foreground">{nomeFinal}</div>
         )}

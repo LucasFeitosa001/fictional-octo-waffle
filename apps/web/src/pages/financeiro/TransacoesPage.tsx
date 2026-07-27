@@ -1083,8 +1083,11 @@ function FiltrosBody({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* 2 colunas, não 3: o painel tem 224px úteis (FilterAside 256px − p-4), e
+          em 3 colunas cada chip fica com ~69px — "Despesas" estourava e o
+          overflow-hidden do painel cortava a palavra. */}
       <FilterSection title="Tipo">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {[
             { id: 'all' as const, name: 'Todos' },
             { id: 'income' as const, name: 'Receitas' },
@@ -1096,7 +1099,7 @@ function FiltrosBody({
                 key={option.id}
                 type="button"
                 onClick={() => setKindFilter(option.id)}
-                className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                className={`h-9 min-w-0 truncate rounded-lg border px-2 text-sm font-medium transition-colors ${
                   active
                     ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
                     : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
@@ -1109,9 +1112,13 @@ function FiltrosBody({
         </div>
       </FilterSection>
 
-      {/* Período */}
+      {/* Período EMPILHADO, como no Belasis (03-transacoes-filtros.png). Lado a
+          lado cada campo ficava com 106px, e um input de data com máscara
+          dd/mm/aaaa mais o ícone de calendário não cabe nisso — vazava para fora
+          do painel. `min-w-0` não salvava: ele deixa o wrapper encolher, mas o
+          input tem largura mínima própria. */}
       <FilterSection title="Período">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
           <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
         </div>
@@ -1130,7 +1137,7 @@ function FiltrosBody({
                 key={o.id}
                 type="button"
                 onClick={() => setDateType(o.id)}
-                className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                className={`h-9 min-w-0 truncate rounded-lg border px-2 text-sm font-medium transition-colors ${
                   active
                     ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
                     : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
@@ -1154,7 +1161,7 @@ function FiltrosBody({
                 key={o.id}
                 type="button"
                 onClick={() => setStatusFilter(o.id)}
-                className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                className={`h-9 min-w-0 truncate rounded-lg border px-2 text-sm font-medium transition-colors ${
                   active
                     ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
                     : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
