@@ -46,6 +46,7 @@ import { FilterAside } from '../../components/FilterAside';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { useCustomers, useProfessionals } from '../../lib/queries';
+import { useSuppliers } from '../../lib/queries/catalogo';
 import {
   useCreateTransaction,
   useCreateTransfer,
@@ -1272,6 +1273,10 @@ export function LancamentoModal({
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [partyId, setPartyId] = useState('');
+  // Numa despesa o titular pode ser fornecedor (padrão) ou profissional.
+  const [despesaPartyKind, setDespesaPartyKind] = useState<'supplier' | 'professional'>(
+    'supplier',
+  );
   const [status, setStatus] = useState<PaymentStatus>('paid');
   const [dueDate, setDueDate] = useState(() => isoDate(new Date()));
   const [formError, setFormError] = useState<string | null>(null);
@@ -1286,6 +1291,7 @@ export function LancamentoModal({
   const accounts = useFinancialAccounts();
   const customers = useCustomers('', 1, 50);
   const professionals = useProfessionals(1, 50);
+  const suppliers = useSuppliers();
   const createTransaction = useCreateTransaction();
   const updateTransaction = useUpdateTransaction();
 
@@ -1363,7 +1369,12 @@ export function LancamentoModal({
       ...(partyId
         ? {
             partyId,
-            partyType: mode === 'recebimento' ? 'customer' : 'professional',
+            partyType:
+              mode === 'recebimento'
+                ? 'customer'
+                : mode === 'despesa'
+                  ? despesaPartyKind
+                  : 'professional',
           }
         : {}),
     };
@@ -1475,14 +1486,50 @@ export function LancamentoModal({
                   options={(customers.data?.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
                 />
               )}
-              {(mode === 'vale' || mode === 'despesa') && (
+              {isVale && (
                 <FieldSelect
-                  label={isVale ? 'Profissional (obrigatório)' : 'Pago para (profissional)'}
-                  placeholder={isVale ? 'Selecione' : 'Selecione (opcional)'}
+                  label="Profissional (obrigatório)"
+                  placeholder="Selecione"
                   value={partyId}
                   onChange={setPartyId}
                   options={(professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name }))}
                 />
+              )}
+              {/* Despesa: o titular natural é o FORNECEDOR (compra de produto,
+                  material, serviço de terceiro). Antes a tela só oferecia
+                  profissional, então não dava para registrar a quem se pagou.
+                  O backend já aceita partyType 'supplier'. */}
+              {mode === 'despesa' && (
+                <>
+                  <FieldSelect
+                    label="Pago para"
+                    placeholder="Selecione"
+                    value={despesaPartyKind}
+                    onChange={(v) => {
+                      setDespesaPartyKind(v as 'supplier' | 'professional');
+                      setPartyId('');
+                    }}
+                    options={[
+                      { id: 'supplier', name: 'Fornecedor' },
+                      { id: 'professional', name: 'Profissional' },
+                    ]}
+                  />
+                  <FieldSelect
+                    label={
+                      despesaPartyKind === 'supplier'
+                        ? 'Fornecedor / representante'
+                        : 'Profissional'
+                    }
+                    placeholder="Selecione (opcional)"
+                    value={partyId}
+                    onChange={setPartyId}
+                    options={
+                      despesaPartyKind === 'supplier'
+                        ? (suppliers.data?.data ?? []).map((s) => ({ id: s.id, name: s.name }))
+                        : (professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name }))
+                    }
+                  />
+                </>
               )}
 
               {/* 4. Status */}
