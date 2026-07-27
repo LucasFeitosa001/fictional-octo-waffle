@@ -58,3 +58,24 @@ subdomínio. E `online_booking` está em `STARTER_FEATURES`
   único (já é `@unique`).
 - La Belle de Jour hoje é `la-belle-de-jour`; o dono quer `labelledejour`. Fátima seria `fatimacabelos`.
   **Confirmar antes de trocar** (ver quebra de link acima).
+
+## Evidências da implementação (levantadas ao codificar)
+
+`apps/api/src/modules/public-booking/public-booking.service.ts`:
+- `apps/api/src/modules/public-booking/public-booking.service.ts:180` `getPortal(slug)` — resolve a
+  empresa pelo slug (`:181`) e já monta o payload público do portal (`:204` em diante), incluindo
+  `slug`, `name` e `plan`.
+- `apps/api/src/modules/public-booking/public-booking.service.ts:261` `planLabel(companyId)` — lê a
+  assinatura mais recente **sem filtrar status** e mapeia só `pro|premium|basic` (`:267`–`:275`);
+  **ignora `max`** e devolve rótulo de exibição, não serve como gate.
+- O módulo (`apps/api/src/modules/public-booking/public-booking.module.ts:10`) **não importa**
+  FeatureFlagsModule, então o gate é resolvido aqui com a mesma regra (assinatura ativa mais recente).
+
+Decisão: novo `hasCustomSubdomain(companyId)` — assinatura com status `active|trialing` mais recente,
+plano `pro` ou `max` → true. Exposto no payload do portal como `customSubdomain`, que é a única fonte
+para o `web-club` (público, sem sessão) decidir entre servir o subdomínio ou redirecionar.
+
+`apps/web-club/src/App.tsx:112` consome `getSubdomainSlug()`; o redirect do starter entra aí.
+
+Slugs em produção (27/07): `la-belle-de-jour`, `fatima-cabelos`, `studioborboletas`, `designmoda`.
+Dono decidiu trocar para versões SEM hífen, **sem alias** (ninguém usa o agendamento online ainda).
