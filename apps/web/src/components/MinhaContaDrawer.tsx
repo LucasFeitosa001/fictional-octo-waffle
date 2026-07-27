@@ -345,6 +345,7 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
       onClose={onClose}
       title="Minha conta"
       widthClass="sm:w-[480px]"
+      fullscreen
       footer={
         <>
           <Button

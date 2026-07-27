@@ -1826,6 +1826,7 @@ export function TransferenciaModal({
       title="Nova transferência"
       footer={footer}
       widthClass="sm:w-[520px]"
+      fullscreen
     >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">

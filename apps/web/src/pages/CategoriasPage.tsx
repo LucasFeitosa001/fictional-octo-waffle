@@ -411,6 +411,7 @@ export function CategoryModal({
       onClose={onClose}
       title={mode === 'edit' ? 'Editar categoria' : 'Nova categoria'}
       widthClass="sm:w-[480px]"
+      fullscreen
       footer={
         <>
           {mode === 'edit' && category && onDelete && (

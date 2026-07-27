@@ -1781,6 +1781,7 @@ export function VerComandaDrawer({
       onClose={onClose}
       title={order ? `Visualizando comanda #${order.number}` : 'Comanda'}
       widthClass="sm:w-[560px]"
+      fullscreen
       footer={
         <>
           {/* "Outros ▲" (Belasis): Histórico + Excluir. Abre PARA CIMA, pois o

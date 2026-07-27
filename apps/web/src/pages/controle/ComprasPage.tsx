@@ -938,6 +938,7 @@ function PurchaseDrawer({
       onClose={onClose}
       title={mode === 'edit' ? 'Editar Compra' : 'Nova Compra'}
       widthClass="sm:w-[640px]"
+      fullscreen
       footer={
         <>
           <button

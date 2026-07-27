@@ -268,6 +268,7 @@ export function ComandaDrawer({
       onClose={onClose}
       title={order ? `Visualizando comanda #${order.number}` : 'Comanda'}
       widthClass="sm:w-[560px]"
+      fullscreen
       footer={
         <>
           <Button variant="outline" className="mr-auto" onClick={onClose}>

@@ -994,6 +994,7 @@ function DetailDrawer({
       onClose={onClose}
       title={`Comissão — ${row?.professionalName ?? ''}`}
       widthClass="sm:w-[560px]"
+      fullscreen
       footer={
         <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
           Fechar

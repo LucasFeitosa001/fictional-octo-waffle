@@ -123,6 +123,7 @@ export function PagarComissaoDrawer({
       onClose={onClose}
       title={title}
       widthClass="sm:w-[560px]"
+      fullscreen
       footer={
         result ? (
           <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>

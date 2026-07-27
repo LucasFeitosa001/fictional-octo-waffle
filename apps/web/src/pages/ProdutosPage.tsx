@@ -2233,6 +2233,7 @@ function ProductBatchDrawer({
       onClose={onClose}
       title={mode === 'edit' ? 'Editar lote' : 'Novo lote'}
       widthClass="sm:w-[600px]"
+      fullscreen
       footer={
         <>
           <Button variant="outline" onClick={onClose}>

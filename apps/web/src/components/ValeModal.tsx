@@ -78,6 +78,7 @@ export function ValeModal({
       onClose={onClose}
       title="Novo vale"
       widthClass="sm:w-[440px]"
+      fullscreen
       footer={
         <>
           <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>

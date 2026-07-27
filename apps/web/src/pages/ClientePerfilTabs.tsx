@@ -2208,6 +2208,7 @@ export function CustomerCreateModal({
       onClose={onClose}
       title="Novo cliente"
       widthClass="sm:w-[760px]"
+      fullscreen
     >
       {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
     </Drawer>
@@ -2659,6 +2660,7 @@ export function ClientePerfilModal({
       onClose={onClose}
       title={customer?.name ?? 'Cliente'}
       widthClass="sm:w-[760px]"
+      fullscreen
     >
       {/* Fluxo cliente→agendamento: reaproveita o mesmo modal da Agenda, já com
           o cliente pré-selecionado. Ao criar comanda por lá, navega e fecha. */}
