@@ -46,6 +46,18 @@ está editando agora. Aplicar assim que liberar.
 - **Sub-drawer**: `ProdutosPage.tsx:1832` (Movimentar estoque) — fica estreito de propósito, mas
   precisou de `zClass="z-[90]"` para não sumir atrás do FullDrawer (ver estudo 25).
 
+## Revisão depois do feedback do dono — "Nova anotação"
+
+`apps/web/src/pages/AgendaPage.tsx` ganhou um `<Drawer title="Nova anotação">` (criado pelo agente
+do bloco Anotações). Eu o classifiquei como pop-up curto e deixei estreito. **O dono apontou que
+fica cortado** — e tem razão: virou uma faixa de 440px colada na lateral enquanto o drawer de
+agendamento atrás dela ocupa a tela toda, então ela recorta o conteúdo de baixo e parece um pedaço
+solto.
+
+Anotação **é um registro** (vai para `CustomerNote`), não um seletor auxiliar. Passa a `fullscreen`,
+como os demais. O `zClass="z-[90]"` continua necessário: sem ele nasceria em z-[70], atrás do
+`FullDrawer` do agendamento — o mesmo defeito que o verificador achou no "Movimentar estoque".
+
 ## DUVIDOSO (1) — não mexi
 
 `apps/web/src/pages/ia/IAAtendimentoPage.tsx:1488` — "Nova conversa". É uma caixa de compor mensagem

@@ -1969,6 +1969,12 @@ function NovaAnotacaoDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title="Nova anotação"
+      // Anotação é registro, não seletor auxiliar: vai a tela cheia como os
+      // demais. Estreita, virava uma faixa colada na lateral recortando o drawer
+      // de agendamento (que é tela cheia) — parecia um pedaço solto.
+      fullscreen
+      // Continua obrigatório: sem isto nasce em z-[70], ATRÁS do FullDrawer do
+      // agendamento (z-[80]) — o mesmo defeito do "Movimentar estoque".
       zClass="z-[90]"
       footer={
         <>
