@@ -74,11 +74,16 @@ import { useSetPageActions } from '../layout/PageActions';
 
 const PAGE_SIZE = 20;
 
+/**
+ * Período inicial da tela de Comandas: NENHUM — mostra todas.
+ *
+ * Antes devolvia o mês atual, e o filtro escondia todo o histórico: a Fátima tem
+ * 3212 comandas desde jul/2024 e via só as do mês corrente, parecendo que a
+ * importação não tinha trazido o resto. Quem quiser recortar por período usa o
+ * filtro normalmente. Ver .claude/studies/15.
+ */
 function monthRange() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { from: isoDate(from), to: isoDate(to) };
+  return { from: '', to: '' };
 }
 
 type PayFilter = 'all' | 'paid' | 'pending';
