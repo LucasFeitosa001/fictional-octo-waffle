@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button, ListBox, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../../components/Drawer';
-import { Tabs } from '../../components/Tabs';
+import { AppTabs } from '../../components/AppTabs';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { IconCash, IconRefresh, IconPlus } from '../../components/icons';
 import {
@@ -118,14 +118,14 @@ export function CaixasAbertosPage() {
       </div>
 
       {/* Abas: componente padrão (carrossel no mobile) — ver components/Tabs.tsx */}
-      <Tabs
+      <AppTabs<View>
         className="mb-4"
-        aria-label="Visualização dos caixas"
-        value={view}
-        onChange={(v) => changeView(v as View)}
+        ariaLabel="Visualização dos caixas"
+        selectedKey={view}
+        onSelectionChange={changeView}
         items={[
-          { id: 'resumo', label: 'Resumo' },
-          { id: 'detalhado', label: 'Detalhado' },
+          { id: 'resumo', label: 'Resumo', icon: <IconCash size={16} /> },
+          { id: 'detalhado', label: 'Detalhado', icon: <IconRefresh size={16} /> },
         ]}
       />
 
