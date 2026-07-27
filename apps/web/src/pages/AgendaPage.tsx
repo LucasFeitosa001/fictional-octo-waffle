@@ -1579,7 +1579,8 @@ export function AgendaPage() {
         isOpen={!!selected}
         onClose={() => { void closeDetail(); }}
         title="Visualizando agendamento"
-        widthClass="sm:w-[520px]"
+        widthClass="sm:w-[min(1180px,94vw)]"
+        fullscreen
         footer={selected ? (
           <div className="relative flex w-full items-center justify-between gap-2">
             <div className="relative">
@@ -1614,53 +1615,55 @@ export function AgendaPage() {
         ) : null}
       >
         {selected && (
-          <div className="flex flex-col gap-5">
-            {/* HEADER: avatar + nome + fone + [Conversar] [Ver cliente] */}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
+          <div className="flex flex-col gap-8 lg:flex-row lg:gap-10 lg:items-start">
+            {/* ── COLUNA DO CLIENTE (esquerda) — ocupa a coluna inteira ───── */}
+            <aside className="flex shrink-0 flex-col gap-3 lg:w-[300px]">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-5 text-center">
+                <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full text-2xl font-semibold text-white"
                   style={{ backgroundColor: eventColor(selected) }}
                   aria-hidden>
                   {(selected.customer?.name ?? 'A').trim().charAt(0).toUpperCase()}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-base font-semibold text-foreground">
+                <div className="min-w-0">
+                  <div className="truncate text-lg font-semibold text-foreground">
                     {selected.customer?.name ?? 'Sem cliente'}
                   </div>
                   {selected.customer?.phone && (
                     <div className="truncate text-sm text-muted-ink">{selected.customer.phone}</div>
                   )}
                 </div>
-              </div>
-              <div className="flex items-stretch gap-2">
-                {selected.customer?.phone ? (
-                  <a
-                    href={`https://wa.me/${selected.customer.phone.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                <div className="mt-1 flex w-full flex-col gap-2">
+                  {selected.customer?.phone ? (
+                    <a
+                      href={`https://wa.me/${selected.customer.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                    >
+                      <IconWhatsApp size={16} />
+                      Conversar
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm text-muted-ink opacity-60">
+                      <IconWhatsApp size={16} />
+                      Sem telefone
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!selected.customer?.id}
+                    onClick={() => { const id = selected.customer?.id; if (id) { void persistNotes().then(() => { setSelected(null); routerNavigate(`/clientes/${id}`); }); } }}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <IconWhatsApp size={16} />
-                    Conversar
-                  </a>
-                ) : (
-                  <span className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm text-muted-ink opacity-60">
-                    <IconWhatsApp size={16} />
-                    Sem telefone
-                  </span>
-                )}
-                <button
-                  type="button"
-                  disabled={!selected.customer?.id}
-                  onClick={() => { const id = selected.customer?.id; if (id) { void persistNotes().then(() => { setSelected(null); routerNavigate(`/clientes/${id}`); }); } }}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <IconUser size={16} />
-                  Ver cliente
-                </button>
+                    <IconUser size={16} />
+                    Ver cliente
+                  </button>
+                </div>
               </div>
-            </div>
+            </aside>
 
+            {/* ── COLUNA DE DETALHES (direita): data, serviços, switches ──── */}
+            <div className="flex min-w-0 flex-1 flex-col gap-5">
             {/* DATA + CHIPS: status + tipo de agendamento */}
             <div className="flex flex-col gap-2">
               <div className="text-sm capitalize text-muted-ink">
@@ -1846,6 +1849,7 @@ export function AgendaPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
       </Drawer>
