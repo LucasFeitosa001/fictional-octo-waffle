@@ -1718,18 +1718,20 @@ export function ConfiguracoesPage() {
               >
                 Ativar integração via API
               </Link>
-              {/* Aqui havia um link para belasis-api.readme.io — a documentação do
-                  CONCORRENTE, que veio junto quando a tela foi replicada. Não temos
-                  doc de API própria (a API não expõe OpenAPI/Swagger), e apontar
-                  "Ver documentação" para a central de ajuda seria prometer o que
-                  não existe. Como a integração ainda passa por contratação, suporte
-                  é para onde essa pessoa precisa ir. */}
-              <Link
-                to="/ajuda/suporte"
+              {/* Aqui apontava para belasis-api.readme.io — a doc do CONCORRENTE,
+                  que veio junto quando a tela foi replicada. Agora é a NOSSA:
+                  OpenAPI gerado dos próprios controllers pelo @nestjs/swagger, no
+                  mesmo domínio (o CloudFront roteia /api/* para a API). Como é
+                  gerada do código, não desatualiza sozinha. `target="_blank"`
+                  porque é o Swagger UI, fora do SPA. */}
+              <a
+                href="/api/v1/docs"
+                target="_blank"
+                rel="noreferrer"
                 className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-4 text-sm font-semibold text-ink transition-colors hover:border-primary/40 hover:text-primary"
               >
-                Falar com o suporte
-              </Link>
+                Ver documentação
+              </a>
             </div>
           </section>
         )}

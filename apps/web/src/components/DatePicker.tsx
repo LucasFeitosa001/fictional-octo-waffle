@@ -31,10 +31,8 @@ import { useIsMobile } from '../hooks/useIsMobile';
 // ── Utilidades de data (locais, sem fuso) ─────────────────────────────────────
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const MONTHS_SHORT = [
-  'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-  'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
-];
+// MONTHS_SHORT foi removido junto com o cabeçalho "2026 Jul": o calendário agora
+// escreve o mês por extenso, e não sobrou nenhum lugar que use a forma abreviada.
 const MONTHS_LONG = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
@@ -195,8 +193,11 @@ function Calendar({
           aria-live="polite"
           className="text-sm font-semibold text-foreground"
         >
-          <span className="tabular-nums">{viewMonth.getFullYear()}</span>{' '}
-          <span>{MONTHS_SHORT[viewMonth.getMonth()]}</span>
+          {/* "Julho de 2026", não "2026 Jul": o formato antigo era leitura de
+              máquina. A forma correta já existia no aria-label logo abaixo — só
+              não era a que aparecia na tela. */}
+          <span>{MONTHS_LONG[viewMonth.getMonth()]} de </span>
+          <span className="tabular-nums">{viewMonth.getFullYear()}</span>
         </div>
         <button
           type="button"
@@ -500,16 +501,31 @@ function Overlay({
       const panelH = panelRef.current?.offsetHeight ?? 360;
       const spaceBelow = window.innerHeight - r.bottom;
       const openUp = spaceBelow < panelH + 16 && r.top > panelH + 16;
+      // O transbordo VERTICAL já era tratado (openUp); o horizontal não era.
+      // Como o painel é `fixed` num portal, com `left: r.left` cru ele vazava do
+      // painel de filtros e, num campo perto da borda direita, saía da tela — e
+      // aí não dá nem para clicar no dia. `max-w` limitava a largura, mas não
+      // reposicionava. Prende dentro da janela, com 8px de folga.
+      const panelW = panelRef.current?.offsetWidth ?? 320;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - panelW - 8));
       setPos({
         top: openUp ? r.top - 8 : r.bottom + 8,
-        left: r.left,
+        left,
         openUp,
       });
     };
     place();
+    // Na PRIMEIRA passada o painel ainda não tem dimensão medida, então `panelW`
+    // cai no padrão e o intervalo (que é bem mais largo que o calendário simples)
+    // ficaria mal preso. O ResizeObserver refaz a conta assim que ele mede — e
+    // de novo se o conteúdo mudar de tamanho, como ao trocar de mês.
+    const panel = panelRef.current;
+    const ro = panel ? new ResizeObserver(place) : null;
+    if (panel && ro) ro.observe(panel);
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
     return () => {
+      ro?.disconnect();
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };

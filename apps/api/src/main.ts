@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as express from 'express';
 import { toNodeHandler } from 'better-auth/node';
 import { AppModule } from './app.module';
@@ -70,6 +71,34 @@ async function bootstrap() {
       forbidNonWhitelisted: false,
     }),
   );
+
+  // ── Documentação de API própria (OpenAPI) ────────────────────────────────
+  // Substitui o link que apontava para a doc do concorrente. O plugin do
+  // @nestjs/swagger (ligado em nest-cli.json) lê os tipos dos DTOs e gera os
+  // schemas sozinho — sem isso a doc desatualizaria no primeiro campo novo.
+  //
+  // A página só lista ROTAS; os dados seguem protegidos pelos guards. Ainda
+  // assim, expor o mapa completo ajuda reconhecimento, então dá para desligar
+  // sem deploy com API_DOCS_ENABLED=false.
+  if (process.env.API_DOCS_ENABLED !== 'false') {
+    const docs = new DocumentBuilder()
+      .setTitle('SalonPass API')
+      .setDescription(
+        'API do SalonPass para integração com sistemas externos. ' +
+          'A sessão pode vir por cookie (web) ou por token Bearer (mobile e integrações).',
+      )
+      .setVersion('v1')
+      .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'bearer')
+      .addCookieAuth('better-auth.session_token', { type: 'apiKey' }, 'cookie')
+      .build();
+    const document = SwaggerModule.createDocument(app, docs);
+    SwaggerModule.setup('api/v1/docs', app, document, {
+      customSiteTitle: 'SalonPass API',
+      // Mantém o token digitado ao recarregar — sem isso o integrador reautentica
+      // a cada refresh e desiste de testar pela própria página.
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3333;
   await app.listen(port);
