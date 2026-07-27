@@ -380,12 +380,17 @@ export function ComandaDrawer({
                     key={it.id}
                     className="flex items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2.5 last:border-b-0"
                   >
+                    {/* Item SEMPRE abre o drawer (modo leitura quando a comanda
+                        não está aberta) — antes ficava disabled e o clique não
+                        fazia nada em comanda finalizada. */}
                     <button
                       type="button"
-                      disabled={!editable}
                       onClick={() => setEditingItemId(it.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:cursor-default"
+                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                     >
+                      <span className="grid h-7 min-w-7 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                        {Number(it.quantity)}x
+                      </span>
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
                         <Icon size={17} />
                       </span>
@@ -398,15 +403,13 @@ export function ComandaDrawer({
                         </span>
                         <span className="mt-0.5 flex items-center gap-1 text-xs text-muted">
                           <IconUser size={12} />
+                          {/* Quantidade já aparece no badge "Nx" à esquerda. */}
                           <span className="truncate">
                             {it.professionalName || 'Sem profissional'}
-                            {Number(it.quantity) !== 1 && ` · ${Number(it.quantity)}×`}
                           </span>
                         </span>
                       </span>
-                      {editable && (
-                        <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
-                      )}
+                      <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
                     </button>
                     {editable && (
                       <button

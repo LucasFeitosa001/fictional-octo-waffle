@@ -1928,11 +1928,15 @@ export function VerComandaDrawer({
                     key={it.id}
                     className="flex items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2.5 last:border-b-0"
                   >
+                    {/* O item SEMPRE abre o drawer — inclusive em comanda
+                        finalizada/cancelada, onde ele entra em modo leitura
+                        (ItemEditDrawer recebe `editable`). Antes o botão ficava
+                        disabled quando a comanda não estava aberta e o clique
+                        simplesmente não fazia nada. */}
                     <button
                       type="button"
-                      disabled={!editable}
                       onClick={() => setEditingItemId(it.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:cursor-default"
+                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                     >
                       {/* Badge de quantidade (Belasis): pílula "1x" sempre
                           visível, na cor primária, no lugar do ícone. */}
@@ -1957,9 +1961,9 @@ export function VerComandaDrawer({
                           </span>
                         </span>
                       </span>
-                      {editable && (
-                        <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
-                      )}
+                      {/* Chevron sempre visível: sinaliza que o item abre, como
+                          na referência (mesmo em comanda já finalizada). */}
+                      <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
                     </button>
                     {editable && (
                       <button
