@@ -1105,6 +1105,7 @@ export function NovoComandaDrawer({
     professionalItems.find((p) => p.id === id)?.name ?? '';
 
   const [selectedCustomer, setSelectedCustomer] = useState<PickedCustomer | null>(null);
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState('');
   const [date, setDate] = useState(() => isoDate(new Date()));
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<StagedItem[]>([]);
@@ -1118,6 +1119,7 @@ export function NovoComandaDrawer({
   useEffect(() => {
     if (isOpen) {
       setSelectedCustomer(null);
+      setSelectedProfessionalId('');
       setDate(isoDate(new Date()));
       setNotes('');
       setItems([]);
@@ -1143,7 +1145,9 @@ export function NovoComandaDrawer({
         kind: picked.kind,
         refId: picked.refId,
         name: picked.name,
-        professionalId: '',
+        // Herda o profissional escolhido no cabeçalho da comanda (pode ser
+        // trocado item a item no editor). Sem profissional no cabeçalho → vazio.
+        professionalId: selectedProfessionalId || '',
         quantity: 1,
         unitPrice: picked.unitPrice,
         discount: 0,
@@ -1175,6 +1179,7 @@ export function NovoComandaDrawer({
       // Cabeçalho + itens são persistidos atomicamente pela API.
       const order = await create.mutateAsync({
         customerId: selectedCustomer?.id || undefined,
+        professionalId: selectedProfessionalId || undefined,
         date: new Date(`${date}T12:00:00`).toISOString(),
         notes: notes.trim() || undefined,
         items: items.map((it) => ({
@@ -1284,6 +1289,24 @@ export function NovoComandaDrawer({
                   <IconChevron size={16} className="shrink-0 text-muted" />
                 </button>
               )}
+            </Field>
+
+            {/* Profissional da comanda (Order.professionalId). Vira o padrão dos
+                itens adicionados; cada item ainda pode ser trocado no editor. */}
+            <Field label="Profissional" className="col-span-2">
+              <select
+                value={selectedProfessionalId}
+                onChange={(e) => setSelectedProfessionalId(e.target.value)}
+                aria-label="Profissional"
+                className={numInputCls}
+              >
+                <option value="">Sem profissional</option>
+                {professionalItems.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <Field label="Data">
