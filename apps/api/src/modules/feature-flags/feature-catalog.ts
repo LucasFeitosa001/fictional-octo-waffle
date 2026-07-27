@@ -13,6 +13,7 @@
 
 export const FEATURE_KEYS = [
   'online_booking', // link de agendamento + agendamento online público
+  'custom_subdomain', // subdomínio próprio <slug>.salonpass.com.br (starter usa agenda.salonpass.com.br/<slug>)
   'cashback', // programa de cashback
   'goals', // metas
   'commissions', // comissões
@@ -39,6 +40,7 @@ const STARTER_FEATURES: FeatureKey[] = ['online_booking'];
 
 const PRO_FEATURES: FeatureKey[] = [
   ...STARTER_FEATURES,
+  'custom_subdomain',
   'cashback',
   'goals',
   'commissions',
@@ -96,6 +98,11 @@ export const FEATURE_META: Record<FeatureKey, { label: string; description: stri
     label: 'Agendamento online',
     description:
       'Link público para o cliente agendar sozinho, 24h por dia, direto na sua agenda.',
+  },
+  custom_subdomain: {
+    label: 'Endereço próprio (subdomínio)',
+    description:
+      'Seu agendamento em um endereço só seu — salao.salonpass.com.br — em vez do link compartilhado.',
   },
   cashback: {
     label: 'Programa de cashback',

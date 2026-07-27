@@ -61,4 +61,9 @@ export function getSubdomainSlug(): string | null {
   return sub;
 }
 
+/** Link compartilhado (starter): agenda.salonpass.com.br/<slug>. */
+export function sharedBookingUrl(slug: string): string {
+  return `https://agenda.${ROOT_DOMAIN}/${slug}`;
+}
+
 export const APP_VERSION = 'v0.1.0';

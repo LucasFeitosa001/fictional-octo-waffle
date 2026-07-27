@@ -184,10 +184,11 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       select: { name: true, logoUrl: true, timezone: true, addressJson: true },
     });
     const tz = company?.timezone ?? 'America/Sao_Paulo';
-    const [status, rating, plan, webProfile, appearanceRow] = await Promise.all([
+    const [status, rating, plan, customSubdomain, webProfile, appearanceRow] = await Promise.all([
       this.openStatus(companyId, tz),
       this.ratingSummary(companyId),
       this.planLabel(companyId),
+      this.hasCustomSubdomain(companyId),
       this.prisma.client.salonWebProfile.findUnique({
         where: { companyId },
         select: { accentColor: true },
@@ -211,6 +212,9 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       rating,
       location: this.formatLocation(company?.addressJson ?? null),
       plan,
+      // pro/max: pode ser servido em <slug>.salonpass.com.br. Starter: o front
+      // redireciona para o link compartilhado agenda.salonpass.com.br/<slug>.
+      customSubdomain,
       whatsapp: this.formatWhatsApp(company?.addressJson ?? null),
       googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       // Cor de destaque (marca) do agendamento online, "#RRGGBB". Null → o
@@ -258,6 +262,24 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
 
   // Salon plan/subscription badge ("Profissional"/"Premium"). Null when the
   // salon has no active-ish subscription, so the badge is hidden.
+  /**
+   * O SUBDOMÍNIO PRÓPRIO (<slug>.salonpass.com.br) é exclusivo de pro/max — o
+   * starter usa o link compartilhado agenda.salonpass.com.br/<slug>. O portal é
+   * público (o app de agendamento não tem sessão nem sabe o plano), então esta
+   * resposta é a ÚNICA fonte para o front decidir entre servir o subdomínio ou
+   * redirecionar. Mesma regra do FeatureFlagsService: assinatura ATIVA mais
+   * recente; sem assinatura, sem subdomínio.
+   */
+  private async hasCustomSubdomain(companyId: string): Promise<boolean> {
+    const sub = await this.prisma.client.subscription.findFirst({
+      where: { companyId, status: { in: ['active', 'trialing'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { plan: { select: { name: true } } },
+    });
+    const plano = sub?.plan?.name;
+    return plano === 'pro' || plano === 'max';
+  }
+
   private async planLabel(companyId: string): Promise<string | null> {
     const sub = await this.prisma.client.subscription.findFirst({
       where: { companyId },

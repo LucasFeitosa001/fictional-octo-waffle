@@ -1,3 +1,4 @@
+import { getSubdomainSlug, sharedBookingUrl } from '../lib/config';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -158,6 +159,18 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const portal = usePortal(slug);
+
+  // Subdomínio próprio é exclusivo de pro/max. Se o salão for starter e alguém
+  // chegar por <slug>.salonpass.com.br, mandamos para o link compartilhado em
+  // vez de servir o portal — senão o recurso pago vazaria para o plano básico.
+  // Só age quando o portal já respondeu (customSubdomain === false explícito).
+  useEffect(() => {
+    if (!portal.data) return;
+    if (portal.data.customSubdomain !== false) return;
+    if (!getSubdomainSlug()) return; // chegou pelo link compartilhado: ok
+    window.location.replace(sharedBookingUrl(slug));
+  }, [portal.data, slug]);
+
   // Theme the whole flow with the salon's customized colors (primary/accent/
   // background), falling back to the house theme when the salon hasn't set them.
   useBookingAccent(slug);

@@ -43,7 +43,15 @@ export interface BookingAppearance {
 // The portal payload plus the appearance block. Declared locally (the shared
 // BookingPortal type doesn't yet carry `appearance`) so the app is typed even
 // though the field is optional on older API builds.
-export type Portal = BookingPortal & { appearance?: BookingAppearance };
+export type Portal = BookingPortal & {
+  appearance?: BookingAppearance;
+  /**
+   * pro/max: o salão pode ser servido em <slug>.salonpass.com.br. Starter: false
+   * — o app redireciona para o link compartilhado agenda.salonpass.com.br/<slug>.
+   * Resolvido no servidor (o portal é público e não tem sessão).
+   */
+  customSubdomain?: boolean;
+};
 
 // Defaults applied when the salon hasn't customized (or an older API omits the
 // block): navbar visible, no color overrides (house theme).
