@@ -716,9 +716,21 @@ export class OrdersService {
     });
   }
 
-  /** Estorno permanece permitido mesmo com a comanda finalizada. */
+  /**
+   * Estorno de pagamento. EXIGE a comanda aberta: numa comanda finalizada os
+   * lançamentos do faturamento (receita, caixa e comissão) já existem, e marcar
+   * o pagamento como `reversed` sozinho deixaria o dinheiro no caixa e a comissão
+   * devida sobre uma venda estornada. O caminho correto reusa a reversão completa
+   * que já existe: Reabrir (reopen → reverseFinishReconciliation) → estornar →
+   * faturar de novo.
+   */
   async reversePayment(companyId: string, id: string, pid: string) {
-    await this.loadOrder(companyId, id);
+    const order = await this.loadOrder(companyId, id);
+    if (order.status === 'finished') {
+      throw new BadRequestException(
+        'Comanda finalizada: reabra a comanda antes de estornar o pagamento, senão o valor continua lançado no caixa e na comissão.',
+      );
+    }
     const payment = await this.prisma.client.orderPayment.findFirst({
       where: { id: pid, orderId: id },
       select: { id: true },
@@ -1426,15 +1438,16 @@ export class OrdersService {
     const order = await this.loadOrder(companyId, id);
     const data: Prisma.OrderUpdateInput = {};
     if (dto.notes !== undefined) data.notes = dto.notes;
+    // Status NÃO muda por aqui. Este endpoint gravava o status direto, pulando a
+    // reconciliação inteira: open→finished marcava a comanda como faturada sem
+    // receita, caixa nem comissão; open→canceled não estornava crédito/cashback
+    // nem repunha estoque; e canceled→open ressuscitava comanda já estornada.
+    // Cada transição tem o seu método, que faz os lançamentos certos:
+    //   finalizar → finish()  ·  reabrir → reopen()  ·  cancelar → remove()
     if (dto.status && dto.status !== order.status) {
-      // Editing status of a finished order must go through reopen().
-      if (order.status === 'finished') {
-        throw new BadRequestException('Comanda finalizada — reabra para editar.');
-      }
-      data.status = dto.status as never;
-      data.statusHistory = {
-        create: { fromStatus: order.status, toStatus: dto.status as never },
-      };
+      throw new BadRequestException(
+        'Status da comanda não muda por aqui. Use faturar (/finish), reabrir (/reopen) ou cancelar (DELETE) — só esses caminhos lançam receita, caixa, comissão e estorno.',
+      );
     }
     return this.prisma.client.order.update({
       where: { id },
@@ -1499,14 +1512,65 @@ export class OrdersService {
           ? discountTotal.add(gross.mul(d.value).div(100))
           : discountTotal.add(d.value);
     }
-    const net = gross.sub(discountTotal).sub(order.creditUsed).sub(order.cashbackUsed);
-    return this.prisma.client.order.update({
-      where: { id },
-      data: {
-        grossTotal: gross,
-        discountTotal,
-        netTotal: net.lessThan(0) ? new Prisma.Decimal(0) : net,
-      },
+
+    // Valor a pagar ANTES de abater saldo do cliente.
+    const base = Prisma.Decimal.max(gross.sub(discountTotal), new Prisma.Decimal(0));
+    let creditUsed = new Prisma.Decimal(order.creditUsed);
+    let cashbackUsed = new Prisma.Decimal(order.cashbackUsed);
+    const applied = creditUsed.add(cashbackUsed);
+
+    // Se a comanda encolheu (item removido, desconto aplicado…) abaixo do que já
+    // foi abatido, o excedente PRECISA voltar para o cliente. Antes o netTotal era
+    // travado em 0 e creditUsed/cashbackUsed ficavam altos: o saldo já debitado no
+    // ledger virava dinheiro queimado, sem aviso.
+    const excedente = applied.greaterThan(base);
+    if (excedente) {
+      if (applied.isZero()) {
+        creditUsed = new Prisma.Decimal(0);
+        cashbackUsed = new Prisma.Decimal(0);
+      } else {
+        // Proporcional: não escolhe arbitrariamente de qual bolso o cliente perde.
+        creditUsed = base.mul(creditUsed).div(applied);
+        cashbackUsed = base.sub(creditUsed);
+      }
+    }
+
+    const net = Prisma.Decimal.max(
+      base.sub(creditUsed).sub(cashbackUsed),
+      new Prisma.Decimal(0),
+    );
+
+    // Order + ledgers numa transação só: não pode sobrar comanda ajustada com
+    // ledger antigo (ou vice-versa).
+    return this.prisma.client.$transaction(async (tx) => {
+      if (excedente && order.customerId) {
+        const customerId = order.customerId;
+        // O saldo do cliente é a SOMA das linhas do ledger, então reescrever a
+        // linha desta comanda já devolve a diferença.
+        await tx.customerCredit.deleteMany({ where: { customerId, reason: `order:${id}` } });
+        if (creditUsed.greaterThan(0)) {
+          await tx.customerCredit.create({
+            data: { customerId, amount: creditUsed.negated(), reason: `order:${id}` },
+          });
+        }
+        await tx.customerCashback.deleteMany({
+          where: { customerId, sourceType: 'order', sourceId: id },
+        });
+        if (cashbackUsed.greaterThan(0)) {
+          await tx.customerCashback.create({
+            data: {
+              customerId,
+              amount: cashbackUsed.negated(),
+              sourceType: 'order',
+              sourceId: id,
+            },
+          });
+        }
+      }
+      return tx.order.update({
+        where: { id },
+        data: { grossTotal: gross, discountTotal, netTotal: net, creditUsed, cashbackUsed },
+      });
     });
   }
 }

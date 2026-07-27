@@ -1,5 +1,20 @@
 {
   "enabledPlugins": {
     "codex@openai-codex": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/require-study.py\"",
+            "statusMessage": "Verificando estudo do arquivo…",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
   }
 }
