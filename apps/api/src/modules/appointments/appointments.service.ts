@@ -829,7 +829,21 @@ export class AppointmentsService {
   }
 
   // GET /availability — real free slots honoring schedule + occupation + service duration.
-  async availability(companyId: string, serviceId: string, professionalId?: string, date?: string, serviceIds?: string[]) {
+  //
+  // `includePast` (default FALSE) controla se horários já passados entram. O
+  // agendamento online precisa do default: cliente não marca no passado. Já o
+  // PAINEL passa true — o salão lança atendimento retroativo direto (esqueceram
+  // de registrar, estão migrando dados), e sem isso qualquer data anterior a
+  // hoje devolvia zero slots e a tela dizia "Nenhum horário disponível nesta
+  // data.", como se a profissional estivesse sem agenda.
+  async availability(
+    companyId: string,
+    serviceId: string,
+    professionalId?: string,
+    date?: string,
+    serviceIds?: string[],
+    opts?: { includePast?: boolean },
+  ) {
     const day = date ?? this.todayInCompanyTz(await this.companyTimezone(companyId));
     const tz = await this.companyTimezone(companyId);
 
@@ -891,8 +905,8 @@ export class AppointmentsService {
       for (let t = winStart.getTime(); t + durationMs <= winEnd.getTime(); t += stepMs) {
         const slotStart = t;
         const slotEnd = t + durationMs;
-        // Skip slots already in the past.
-        if (slotEnd <= now) continue;
+        // Skip slots already in the past — salvo lançamento retroativo do painel.
+        if (!opts?.includePast && slotEnd <= now) continue;
         // Um horário só está disponível quando não sobrepõe nenhum
         // agendamento ativo do profissional. Sem este filtro a API listava
         // janelas já ocupadas e a recepcionista virtual podia oferecer um

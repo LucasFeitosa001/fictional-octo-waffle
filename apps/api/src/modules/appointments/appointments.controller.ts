@@ -84,11 +84,15 @@ export class AppointmentsController {
     @Query('date') date?: string,
   ) {
     const scope = await this.professionalScope(companyId, userId);
+    // Painel: `includePast` para o salão conseguir lançar atendimento que já
+    // aconteceu. O agendamento online continua sem isso (não oferece passado).
     return this.service.availability(
       companyId,
       serviceId,
       scope ?? professionalId,
       date,
+      undefined,
+      { includePast: true },
     );
   }
 
