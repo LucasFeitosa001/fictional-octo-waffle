@@ -16,6 +16,7 @@ import { ClientePerfilModal } from './ClientePerfilTabs';
 import { useCustomer } from '../lib/queries/clientes';
 import { FilterCheckbox } from '../components/FilterCheckbox';
 import { useConfirm } from '../components/ConfirmDialog';
+import { useCan } from '../lib/queries/permissions';
 import {
   CustomerAvatar,
   CustomerPickerDrawer,
@@ -61,7 +62,7 @@ import {
   useReverseOrderPayment,
 } from '../lib/queries';
 import { usePaymentMethods } from '../lib/queries/financeiro';
-import { formatDate, formatMoney, formatPhone, isoDate } from '../lib/format';
+import { formatDate, formatDateTime, formatMoney, formatPhone, isoDate } from '../lib/format';
 import type {
   OrderDetail,
   OrderItemDetail,
@@ -96,6 +97,13 @@ const PAY_FILTERS: { id: PayFilter; label: string }[] = [
  * Finalizado = solid neutral gray (#777, white text); Em aberto = ant-tag-orange;
  * Cancelada = ant-tag-red. These are fixed semantic status colors.
  */
+/** Rótulos dos status usados no Histórico (mesma nomenclatura do StatusTag). */
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  open: 'Pendente',
+  finished: 'Finalizado',
+  canceled: 'Cancelado',
+};
+
 function StatusTag({ status }: { status: OrderRow['status'] }) {
   if (status === 'finished') {
     return (
@@ -1658,6 +1666,14 @@ export function VerComandaDrawer({
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [addingDiscount, setAddingDiscount] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Rodapé "Outros ▲" (Belasis): menu com Histórico e Excluir.
+  const [outrosOpen, setOutrosOpen] = useState(false);
+  const [historicoOpen, setHistoricoOpen] = useState(false);
+  const del = useDeleteOrder();
+  const confirmDialog = useConfirm();
+  // DELETE /orders/:id exige 'comandas:delete' — esconder evita um 403 confuso.
+  const { can: canDo } = useCan();
+  const canDeleteOrder = canDo('comandas:delete');
 
   const editingItem = detail?.items.find((i) => i.id === editingItemId) ?? null;
 
@@ -1668,7 +1684,35 @@ export function VerComandaDrawer({
     setPaymentsOpen(false);
     setAddingDiscount(false);
     setError(null);
+    setOutrosOpen(false);
+    setHistoricoOpen(false);
   }, [order?.id]);
+
+  /** "Excluir" do menu Outros — confirma, apaga e fecha o drawer. */
+  async function handleDeleteOrder() {
+    if (!order) return;
+    // Texto honesto: o backend CANCELA com estorno (não apaga a linha) — a
+    // comanda continua no histórico como Cancelada, e pagamentos, crédito/
+    // cashback e baixa de estoque são revertidos.
+    const ok = await confirmDialog({
+      title: `Excluir a comanda #${order.number}?`,
+      message:
+        'A comanda será cancelada e os lançamentos serão estornados (pagamentos, crédito/cashback e baixa de estoque). Ela continua visível no histórico como Cancelada.',
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Voltar',
+      danger: true,
+    });
+    if (!ok) return;
+    setError(null);
+    try {
+      await del.mutateAsync(order.id);
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível excluir a comanda.',
+      );
+    }
+  }
 
   const editable = detail?.status === 'open';
 
@@ -1729,9 +1773,50 @@ export function VerComandaDrawer({
       widthClass="sm:w-[560px]"
       footer={
         <>
-          <Button variant="outline" className="mr-auto" onClick={onClose}>
-            Fechar
-          </Button>
+          {/* "Outros ▲" (Belasis): Histórico + Excluir. Abre PARA CIMA, pois o
+              rodapé fica colado na base do drawer/bottom-sheet. */}
+          <div className="relative mr-auto">
+            <Button variant="outline" onClick={() => setOutrosOpen((v) => !v)}>
+              Outros {outrosOpen ? '▾' : '▴'}
+            </Button>
+            <div
+              role="menu"
+              aria-hidden={!outrosOpen}
+              className={[
+                'absolute bottom-full left-0 z-20 mb-2 w-48 origin-bottom overflow-hidden rounded-lg border border-[var(--color-soft-border)] bg-warm-white py-1 shadow-[var(--shadow-pop)]',
+                'transition-all duration-200 ease-out',
+                outrosOpen
+                  ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+                  : 'pointer-events-none translate-y-1 scale-[0.98] opacity-0',
+              ].join(' ')}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOutrosOpen(false);
+                  setHistoricoOpen((v) => !v);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-canvas"
+              >
+                <IconCalendar size={15} className="text-muted" /> Histórico
+              </button>
+              {canDeleteOrder && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={del.isPending}
+                  onClick={() => {
+                    setOutrosOpen(false);
+                    void handleDeleteOrder();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
+                >
+                  <IconTrash size={15} /> {del.isPending ? 'Excluindo…' : 'Excluir'}
+                </button>
+              )}
+            </div>
+          </div>
           {detail?.status === 'open' && (
             <Button
               variant="primary"
@@ -1849,6 +1934,11 @@ export function VerComandaDrawer({
                       onClick={() => setEditingItemId(it.id)}
                       className="flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:cursor-default"
                     >
+                      {/* Badge de quantidade (Belasis): pílula "1x" sempre
+                          visível, na cor primária, no lugar do ícone. */}
+                      <span className="grid h-7 min-w-7 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                        {Number(it.quantity)}x
+                      </span>
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
                         <Icon size={17} />
                       </span>
@@ -1861,9 +1951,9 @@ export function VerComandaDrawer({
                         </span>
                         <span className="mt-0.5 flex items-center gap-1 text-xs text-muted">
                           <IconUser size={12} />
+                          {/* Quantidade já aparece no badge "Nx" à esquerda. */}
                           <span className="truncate">
                             {it.professionalName || 'Sem profissional'}
-                            {Number(it.quantity) !== 1 && ` · ${Number(it.quantity)}×`}
                           </span>
                         </span>
                       </span>
@@ -1945,6 +2035,45 @@ export function VerComandaDrawer({
             <TotalLine label="Total pago" value={formatMoney(paidTotal)} />
             <TotalLine label="Restante" value={formatMoney(remaining)} />
           </section>
+
+          {/* Histórico (menu "Outros" → Histórico). Usa o statusHistory que já
+              vem no detalhe da comanda — sem request extra. */}
+          {historicoOpen && (
+            <section className="flex flex-col gap-2 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">Histórico</span>
+                <button
+                  type="button"
+                  onClick={() => setHistoricoOpen(false)}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Ocultar
+                </button>
+              </div>
+              {detail.statusHistory.length === 0 ? (
+                <p className="text-sm text-muted">Nenhuma alteração registrada.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {detail.statusHistory.map((h) => (
+                    <li key={h.id} className="flex items-start gap-2 text-sm">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-foreground">
+                          {h.fromStatus
+                            ? `${ORDER_STATUS_LABEL[h.fromStatus] ?? h.fromStatus} → ${ORDER_STATUS_LABEL[h.toStatus] ?? h.toStatus}`
+                            : (ORDER_STATUS_LABEL[h.toStatus] ?? h.toStatus)}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          {formatDateTime(h.at)}
+                          {h.byUser?.name ? ` · ${h.byUser.name}` : ''}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
 
           {error && <FormError message={error} />}
         </div>
