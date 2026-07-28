@@ -235,7 +235,6 @@ export function NewAppointmentModal({
     cancellationTouched.current = true;
     setSendCancellation(v);
   }
-  const [squeezeIn, setSqueezeIn] = useState(false);
   // Avisar o cliente (aviso personalizado agendado)
   const [warnEnabled, setWarnEnabled] = useState(false);
   const [warnTemplateId, setWarnTemplateId] = useState<string>('');
@@ -264,10 +263,6 @@ export function NewAppointmentModal({
     primary.serviceId || undefined,
     primary.professionalId || undefined,
     date || undefined,
-    // Com o encaixe ligado a grade passa a incluir os horários ocupados. Sem
-    // isto o toggle não tinha efeito nenhum na tela: o horário que a pessoa
-    // queria encaixar sequer aparecia para ser escolhido.
-    squeezeIn,
   );
   const createAppointmentSeries = useCreateAppointmentSeries();
   const createCustomer = useCreateCustomer();
@@ -329,7 +324,6 @@ export function NewAppointmentModal({
       cancellationTouched.current = false;
       setSendConfirmation(confirmationDefault);
       setSendCancellation(cancellationDefault);
-      setSqueezeIn(false);
       setWarnEnabled(false);
       setWarnTemplateId('');
       setWarnMessage('');
@@ -469,7 +463,6 @@ export function NewAppointmentModal({
         customerId: resolvedCustomerId,
         professionalId: apptProfessionalId,
         start: slot.start,
-        squeezeIn,
         end: endFor(slot.start),
         notes: combinedNotes,
         remindClient: sendReminder,
@@ -1012,7 +1005,6 @@ export function NewAppointmentModal({
                   onChange={handleSendReminderChange}
                   label="Enviar lembrete (antes do atendimento)"
                 />
-                <InlineToggle checked={squeezeIn} onChange={setSqueezeIn} label="Encaixar agendamento" />
               </div>
               <p className="text-xs text-muted">
                 Os três avisos usam o padrão de Configurações → Notificações,

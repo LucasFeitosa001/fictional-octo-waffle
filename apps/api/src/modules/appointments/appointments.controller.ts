@@ -82,22 +82,24 @@ export class AppointmentsController {
     @Query('serviceId') serviceId: string,
     @Query('professionalId') professionalId?: string,
     @Query('date') date?: string,
-    @Query('squeezeIn') squeezeIn?: string,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    // Painel: `includePast` para o salão conseguir lançar atendimento que já
-    // aconteceu. O agendamento online continua sem isso (não oferece passado).
+    // PAINEL: a recepção vê a agenda INTEIRA — inclusive horário já ocupado
+    // (marcado com `busy`) e horário passado. Quem está atrás do balcão sabe o
+    // que está fazendo; esconder o horário só impedia o encaixe, que é o caso
+    // real do salão (a mesma profissional atende duas clientes no mesmo
+    // horário, uma com a tinta agindo).
     //
-    // `squeezeIn` devolve TAMBÉM os horários ocupados (marcados com `busy`).
-    // Sem isso o encaixe não tinha como ser usado a partir da tela: o horário
-    // desejado simplesmente não aparecia na lista para ser escolhido.
+    // O agendamento ONLINE do cliente continua sem nada disso — ele chama este
+    // mesmo método sem `opts` (public-booking.service.ts:446) e por isso segue
+    // vendo só horário livre e futuro.
     return this.service.availability(
       companyId,
       serviceId,
       scope ?? professionalId,
       date,
       undefined,
-      { includePast: true, includeBusy: squeezeIn === 'true' || squeezeIn === '1' },
+      { includePast: true, includeBusy: true },
     );
   }
 
@@ -120,7 +122,10 @@ export class AppointmentsController {
     @Body() dto: CreateAppointmentDto,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    return this.service.create(companyId, dto, undefined, scope);
+    // PAINEL: a grade mostra os horários ocupados, então escolher um deles é
+    // decisão consciente da recepção — não pode voltar 409. É o pedido da
+    // Fátima: mesma profissional, mesmo horário, trocando só a cliente.
+    return this.service.create(companyId, dto, { allowOverlap: true }, scope);
   }
 
   @Post('appointments/series')
@@ -131,7 +136,7 @@ export class AppointmentsController {
     @Body() dto: CreateAppointmentSeriesDto,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    return this.service.createSeries(companyId, dto, scope);
+    return this.service.createSeries(companyId, dto, scope, { allowOverlap: true });
   }
 
   // "Ocupar horários": cria um bloqueio de agenda (indisponibilidade) que ocupa
@@ -156,7 +161,9 @@ export class AppointmentsController {
     @Body() dto: UpdateAppointmentDto,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    return this.service.update(companyId, id, dto, scope);
+    // Reagendar para um horário ocupado é o caso mais comum do encaixe: a
+    // cliente já está marcada e a recepção quer movê-la para cima de outra.
+    return this.service.update(companyId, id, dto, scope, { allowOverlap: true });
   }
 
   @Patch('appointments/:id/status')

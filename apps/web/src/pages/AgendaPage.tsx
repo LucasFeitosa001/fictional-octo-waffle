@@ -662,7 +662,6 @@ export function AgendaPage() {
   const [reminderTouched, setReminderTouched] = useState(false);
   const [confirmationTouched, setConfirmationTouched] = useState(false);
   const [cancellationTouched, setCancellationTouched] = useState(false);
-  const [squeezeIn, setSqueezeIn] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   // Sub-drawer do "+ Adicionar" das Anotações do CLIENTE (coluna esquerda) — não
@@ -807,15 +806,11 @@ export function AgendaPage() {
       remindClient?: boolean;
       notifyConfirmation?: boolean;
       notifyCancellation?: boolean;
-      squeezeIn?: boolean;
     } = { start: newStart.toISOString() };
     if (notesChanged) body.notes = notesDraft.trim();
     if (reminderTouched) body.remindClient = sendReminder;
     if (confirmationTouched) body.notifyConfirmation = sendConfirmation;
     if (cancellationTouched) body.notifyCancellation = sendCancellation;
-    // "Encaixar agendamento" também vale ao MOVER — é o caso mais comum: o
-    // horário desejado já é de outra cliente e o salão assume a sobreposição.
-    if (squeezeIn) body.squeezeIn = true;
     try {
       await api.patch(`/appointments/${selected.id}`, body);
       setShowReschedule(false);
@@ -827,14 +822,9 @@ export function AgendaPage() {
       // expediente). Engolir tudo num texto genérico deixava a recepção sem
       // saber que bastava ligar "Encaixar agendamento".
       const motivo = apiErrorMessage(err);
-      // 409 é a colisão com outro agendamento — o caso que o encaixe resolve.
-      // Casar pelo status, não pelo texto: a mensagem da API pode mudar.
-      const ocupado = err instanceof ApiClientError && err.statusCode === 409;
-      flash(
-        ocupado && !squeezeIn
-          ? `${motivo}. Ligue "Encaixar agendamento" para marcar em cima mesmo assim.`
-          : motivo || 'Não foi possível reagendar.',
-      );
+      // Mostra o motivo REAL (fora do expediente, data inválida...). O 409 por
+      // horário ocupado não acontece mais pelo painel — encaixar é o padrão.
+      flash(motivo || 'Não foi possível reagendar.');
     }
   }
 
@@ -1873,13 +1863,6 @@ export function AgendaPage() {
                     className="sr-only"
                   />
                   <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendReminder ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>Encaixar agendamento</span>
-                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', squeezeIn ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
-                  <input type="checkbox" checked={squeezeIn} onChange={(e) => setSqueezeIn(e.target.checked)} className="sr-only" />
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', squeezeIn ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
                 </span>
               </label>
             </section>

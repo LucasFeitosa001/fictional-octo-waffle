@@ -168,7 +168,17 @@ export class AppointmentsService {
   async create(
     companyId: string,
     dto: CreateAppointmentDto,
-    opts?: { source?: AppointmentSource; status?: AppointmentStatus },
+    opts?: {
+      source?: AppointmentSource;
+      status?: AppointmentStatus;
+      /**
+       * Painel: o operador escolheu o horário numa grade que MOSTRA os ocupados,
+       * então marcar em cima é decisão consciente e não pode ser recusada.
+       * O agendamento online do cliente não passa isto — lá a proteção contra
+       * dupla marcação continua valendo integralmente.
+       */
+      allowOverlap?: boolean;
+    },
     scopeProfessionalId?: string,
   ) {
     this.assertProfessionalScope(scopeProfessionalId, dto, true);
@@ -239,9 +249,11 @@ export class AppointmentsService {
     const created = await this.prisma.client.$transaction(async (tx) => {
       if (professionalId) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${professionalId}))`;
-        // Encaixe: o salão assume a sobreposição de propósito. Sem esta saída o
-        // toggle "Encaixar agendamento" é enfeite — era o caso até aqui.
-        if (!dto.squeezeIn) {
+        // Encaixe. `allowOverlap` vem do PAINEL (a recepção escolheu o horário
+        // vendo que estava ocupado); `dto.squeezeIn` é o pedido explícito de
+        // quem chama. Fora esses dois casos, a proteção contra dupla marcação
+        // acidental continua de pé — é ela que segura o agendamento online.
+        if (!dto.squeezeIn && !opts?.allowOverlap) {
           await this.assertNoOverlap(companyId, professionalId, start, end, undefined, tx);
         }
       }
@@ -290,6 +302,7 @@ export class AppointmentsService {
     companyId: string,
     dto: CreateAppointmentSeriesDto,
     scopeProfessionalId?: string,
+    opts?: { allowOverlap?: boolean },
   ) {
     this.assertProfessionalScope(scopeProfessionalId, dto, true);
     const firstStart = new Date(dto.start);
@@ -381,8 +394,8 @@ export class AppointmentsService {
         include: { items: true };
       }>[] = [];
       for (const occurrence of occurrences) {
-        // Encaixe: o salão assume a sobreposição. Mesma regra do create simples.
-        if (professionalId && !dto.squeezeIn) {
+        // Encaixe: mesma regra do create simples — painel escolhe, painel manda.
+        if (professionalId && !dto.squeezeIn && !opts?.allowOverlap) {
           await this.assertNoOverlap(
             companyId,
             professionalId,
@@ -519,6 +532,7 @@ export class AppointmentsService {
     id: string,
     dto: UpdateAppointmentDto,
     scopeProfessionalId?: string,
+    opts?: { allowOverlap?: boolean },
   ) {
     const current = await this.findOne(companyId, id, scopeProfessionalId);
     this.assertProfessionalScope(scopeProfessionalId, dto);
@@ -559,7 +573,7 @@ export class AppointmentsService {
       // Expediente vale sempre; encaixe autoriza sobrepor OUTRO agendamento, não
       // marcar fora do horário de trabalho.
       await this.assertWithinSchedule(companyId, professionalId, start, end);
-      if (!dto.squeezeIn) {
+      if (!dto.squeezeIn && !opts?.allowOverlap) {
         await this.assertNoOverlap(companyId, professionalId, start, end, id);
       }
     }

@@ -8,13 +8,15 @@
  * salão — a mesma profissional atende duas clientes no mesmo horário (uma com a
  * tinta agindo).
  *
- * O toggle "Encaixar agendamento" existia na tela desde sempre, mas era enfeite:
- * o front nunca enviava o campo e a API não conhecia o conceito. A recepção
- * ligava e tomava "horário ocupado" do mesmo jeito.
+ * Passou por um toggle "Encaixar agendamento" que ninguém achava e que precisava
+ * ser ligado ANTES de escolher o horário. Não servia: no painel, sobrepor agora é
+ * o padrão. Quem está atrás do balcão vê a agenda inteira e decide.
  *
- * Esta suíte prova as duas metades do contrato, que só valem juntas:
- *   sem encaixe → 409 (a proteção contra dupla marcação acidental continua de pé)
- *   com encaixe → 201 (o salão assume a sobreposição de propósito)
+ * O que esta suíte fixa:
+ *   - criar e REAGENDAR em cima de horário ocupado funcionam, sem ligar nada;
+ *   - a grade do painel OFERECE o horário ocupado, marcado com `busy`;
+ *   - o expediente do profissional continua valendo (encaixe ≠ vale-tudo);
+ *   - o agendamento ONLINE do cliente continua protegido contra dupla marcação.
  *
  * COMO RODA
  * ---------
@@ -175,12 +177,11 @@ async function run() {
     start.setUTCHours(12, 0, 0, 0);
     const startIso = start.toISOString();
 
-    const bodyFor = (customerId: string, squeezeIn?: boolean) => ({
+    const bodyFor = (customerId: string) => ({
       customerId,
       professionalId: pro.id,
       start: startIso,
       items: [{ serviceId: service.id }],
-      ...(squeezeIn === undefined ? {} : { squeezeIn }),
     });
 
     // ---------- 1) primeiro agendamento ocupa o horário ----------
@@ -190,26 +191,27 @@ async function run() {
     });
     check('1) primeiro agendamento → 201', first.status === 201, `status ${first.status}`);
 
-    // ---------- 2) mesmo horário SEM encaixe → tem que bloquear ----------
-    const blocked = await api('POST', '/appointments', {
+    // ---------- 2) MESMO horário, MESMA profissional, só trocando a cliente ----
+    // É literalmente o pedido da Fátima, e tem que funcionar SEM ligar nada.
+    const mesmoHorario = await api('POST', '/appointments', {
       token: salon.token,
       body: bodyFor(clienteB.id),
     });
     check(
-      '2) mesmo horário sem encaixe → 409 (a proteção continua de pé)',
-      blocked.status === 409,
-      `status ${blocked.status}`,
+      '2) mesmo horário/profissional trocando só a cliente → 201, sem toggle',
+      mesmoHorario.status === 201,
+      `status ${mesmoHorario.status} ${JSON.stringify(mesmoHorario.body?.message ?? '')}`,
     );
 
-    // ---------- 3) mesmo horário COM encaixe → o pedido da Fátima ----------
-    const squeezed = await api('POST', '/appointments', {
+    // ---------- 3) um terceiro no mesmo horário também entra ----------
+    const terceiro = await api('POST', '/appointments', {
       token: salon.token,
-      body: bodyFor(clienteB.id, true),
+      body: bodyFor(clienteA.id),
     });
     check(
-      '3) mesmo horário com encaixe → 201',
-      squeezed.status === 201,
-      `status ${squeezed.status} ${JSON.stringify(squeezed.body?.message ?? '')}`,
+      '3) um terceiro no mesmo horário também entra',
+      terceiro.status === 201,
+      `status ${terceiro.status}`,
     );
 
     // ---------- 4) os dois convivem na agenda, com clientes diferentes ----------
@@ -218,8 +220,8 @@ async function run() {
       select: { id: true, customerId: true },
     });
     check(
-      '4) dois agendamentos no mesmo horário e profissional',
-      both.length === 2,
+      '4) os três convivem no mesmo horário e profissional',
+      both.length === 3,
       `${both.length} encontrados`,
     );
     check(
@@ -241,11 +243,10 @@ async function run() {
         professionalId: semExpediente.id,
         start: startIso,
         items: [{ serviceId: service.id }],
-        squeezeIn: true,
       },
     });
     check(
-      '5) encaixe não fura o expediente → 400',
+      '5) sobrepor é livre, mas o EXPEDIENTE continua valendo → 400',
       foraDoExpediente.status === 400,
       `status ${foraDoExpediente.status}`,
     );
@@ -258,40 +259,23 @@ async function run() {
       data: { professionalId: pro.id, serviceId: service.id },
     });
     const dia = startIso.slice(0, 10);
-    const semEncaixe = await api(
+    const grade = await api(
       'GET',
       `/availability?serviceId=${service.id}&professionalId=${pro.id}&date=${dia}`,
       { token: salon.token },
     );
-    const comEncaixe = await api(
-      'GET',
-      `/availability?serviceId=${service.id}&professionalId=${pro.id}&date=${dia}&squeezeIn=true`,
-      { token: salon.token },
-    );
-    check('6) grade sem encaixe → 200', semEncaixe.status === 200, `status ${semEncaixe.status}`);
-    check('6) grade com encaixe → 200', comEncaixe.status === 200, `status ${comEncaixe.status}`);
+    check('6) grade do painel → 200', grade.status === 200, `status ${grade.status}`);
 
-    const ocupadoNaLista = (r: ApiResp) =>
-      (r.body?.slots ?? []).some((s: any) => s.start === startIso);
+    const slotOcupado = (grade.body?.slots ?? []).find((s: any) => s.start === startIso);
     check(
-      '6) sem encaixe o horário ocupado NÃO é oferecido',
-      !ocupadoNaLista(semEncaixe),
-      'a proteção normal continua escondendo horário cheio',
+      '6) o horário OCUPADO aparece na grade do painel',
+      !!slotOcupado,
+      'era isto que impedia o encaixe: o horário nem era oferecido',
     );
-    check(
-      '6) com encaixe o horário ocupado É oferecido',
-      ocupadoNaLista(comEncaixe),
-      'era o que faltava para o toggle servir para alguma coisa',
-    );
-    const slotOcupado = (comEncaixe.body?.slots ?? []).find((s: any) => s.start === startIso);
     check(
       '6) e vem MARCADO como ocupado (busy)',
       slotOcupado?.busy === true,
       'sem a marca, alguém marca em cima sem perceber',
-    );
-    check(
-      '6) com encaixe a grade só CRESCE (não esconde horário livre)',
-      (comEncaixe.body?.slots ?? []).length >= (semEncaixe.body?.slots ?? []).length,
     );
 
     // ---------- 7) REAGENDAR para um horário ocupado ----------
@@ -311,22 +295,12 @@ async function run() {
     });
     check('7) agendamento de origem criado', paraMover.status === 201, `status ${paraMover.status}`);
 
-    const moverBloqueado = await api('PATCH', `/appointments/${paraMover.body?.id}`, {
+    const moverEncaixado = await api('PATCH', `/appointments/${paraMover.body?.id}`, {
       token: salon.token,
       body: { start: startIso },
     });
     check(
-      '7) reagendar para horário ocupado SEM encaixe → 409',
-      moverBloqueado.status === 409,
-      `status ${moverBloqueado.status}`,
-    );
-
-    const moverEncaixado = await api('PATCH', `/appointments/${paraMover.body?.id}`, {
-      token: salon.token,
-      body: { start: startIso, squeezeIn: true },
-    });
-    check(
-      '7) reagendar para horário ocupado COM encaixe → 200',
+      '7) reagendar PARA horário ocupado → 200, sem toggle nenhum',
       moverEncaixado.status >= 200 && moverEncaixado.status < 300,
       `status ${moverEncaixado.status} ${JSON.stringify(moverEncaixado.body?.message ?? '')}`,
     );
@@ -343,13 +317,57 @@ async function run() {
     // ---------- 8) reagendar com encaixe ainda respeita o expediente ----------
     const foraDaJanela = await api('PATCH', `/appointments/${paraMover.body?.id}`, {
       token: salon.token,
-      body: { start: startIso, professionalId: semExpediente.id, squeezeIn: true },
+      body: { start: startIso, professionalId: semExpediente.id },
     });
     check(
-      '8) reagendar com encaixe não fura o expediente → 400',
+      '8) reagendar também não fura o expediente → 400',
       foraDaJanela.status === 400,
       `status ${foraDaJanela.status}`,
     );
+
+    // ---------- 9) o AGENDAMENTO ONLINE continua protegido ----------
+    // A liberação vale para o PAINEL, onde a recepção vê a agenda e decide.
+    // O cliente marcando sozinho no link público não pode furar horário cheio —
+    // se esta verificação cair, viramos um sistema que aceita dupla marcação
+    // silenciosa vinda de fora, e ninguém no salão fica sabendo.
+    // O link público mora no módulo de marketing, que é gated por plano
+    // (`online_booking`). Sem ligar, `GET /booking-link` volta 402 e o teste
+    // "passaria" sem provar nada.
+    await prisma.featureFlag.create({
+      data: { companyId, key: 'online_booking', enabled: true },
+    });
+    const link = await api('GET', '/booking-link', { token: salon.token });
+    const slug = link.body?.slug;
+    check('9) link público existe', typeof slug === 'string' && slug.length > 0);
+
+    if (slug) {
+      const gradePublica = await api(
+        'GET',
+        `/public/booking/${slug}/availability?serviceId=${service.id}&professionalId=${pro.id}&date=${dia}`,
+      );
+      const ofereceOcupado = (gradePublica.body?.slots ?? []).some(
+        (s: any) => s.start === startIso,
+      );
+      check(
+        '9) a grade PÚBLICA não oferece o horário ocupado',
+        !ofereceOcupado,
+        `status ${gradePublica.status}`,
+      );
+
+      const bookOnline = await api('POST', `/public/booking/${slug}/appointments`, {
+        body: {
+          serviceId: service.id,
+          professionalId: pro.id,
+          start: startIso,
+          customer: { name: 'Cliente Online', phone: '5589900000000' },
+        },
+      });
+      check(
+        '9) marcar online em horário ocupado continua sendo recusado',
+        bookOnline.status >= 400,
+        `status ${bookOnline.status}`,
+      );
+    }
   } finally {
     const { prisma } = await import('@beautypass/db');
     if (companyId) {
