@@ -1644,9 +1644,16 @@ export function AgendaPage() {
         ) : null}
       >
         {selected && (
+          // No MOBILE a ordem é invertida por `order`, igual ao drawer irmão da
+          // comanda (ComandaDrawer.tsx:360): quem abre o agendamento no celular
+          // veio da grade da agenda (já sabe de quem é) e quer DETALHES — data,
+          // status, serviços e os botões. Com o aside como primeiro filho a tela
+          // começava com 96px de avatar + "Não há pacotes disponíveis" e o que
+          // interessa só aparecia depois de rolar. O DOM mantém o aside antes
+          // (leitor de tela ouve o cliente primeiro, que é o contexto).
           <div className="flex flex-col gap-8 lg:flex-row lg:gap-10 lg:items-start">
             {/* ── COLUNA DO CLIENTE (esquerda) — ocupa a coluna inteira ───── */}
-            <aside className={`flex shrink-0 flex-col gap-3 ${COLUNA_CLIENTE_W}`}>
+            <aside className={`order-2 flex shrink-0 flex-col gap-3 lg:order-1 ${COLUNA_CLIENTE_W}`}>
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-5 text-center">
                 {/* FOTO do cliente quando existe; só cai na inicial colorida por
                     status quando não há. Antes desenhava sempre a inicial e ignorava
@@ -1717,10 +1724,25 @@ export function AgendaPage() {
                     : undefined
                 }
               />
+
+              {/* Caixa de nova anotação — DENTRO da coluna do cliente, logo abaixo
+                  do bloco "Anotações" que a abriu, igual ao ComandaDrawer.tsx:385 e
+                  ao PacoteClienteAside.tsx:117. Antes era irmã das duas colunas: no
+                  desktop nascia como uma TERCEIRA coluna à direita dos detalhes e no
+                  mobile caía no fim de todo o scroll, telas abaixo do "+ Adicionar" —
+                  sem scrollIntoView, tocar no link não parecia fazer nada.
+                  Continua dentro do `{selected && ...}` de propósito: ao trocar de
+                  agendamento desmonta e o rascunho não vaza para o cliente seguinte. */}
+              {selected.customer?.id && noteDrawerOpen && (
+                <NovaAnotacaoInline
+                  customerId={selected.customer.id}
+                  onDone={() => setNoteDrawerOpen(false)}
+                />
+              )}
             </aside>
 
             {/* ── COLUNA DE DETALHES (direita): data, serviços, switches ──── */}
-            <div className="flex min-w-0 flex-1 flex-col gap-5">
+            <div className="order-1 flex min-w-0 flex-1 flex-col gap-5 lg:order-2">
             {/* DATA + CHIPS: status + tipo de agendamento */}
             <div className="flex flex-col gap-2">
               <div className="text-sm capitalize text-muted-ink">
@@ -1910,17 +1932,6 @@ export function AgendaPage() {
               </div>
             )}
             </div>
-
-            {/* "+ Adicionar" das Anotações. Fica dentro do `{selected && ...}`
-                de propósito: ao trocar de agendamento desmonta e o rascunho não
-                vaza para o cliente seguinte. É o MESMO componente da comanda e do
-                pacote — antes eram três implementações diferentes. */}
-            {selected.customer?.id && noteDrawerOpen && (
-              <NovaAnotacaoInline
-                customerId={selected.customer.id}
-                onDone={() => setNoteDrawerOpen(false)}
-              />
-            )}
           </div>
         )}
       </Drawer>

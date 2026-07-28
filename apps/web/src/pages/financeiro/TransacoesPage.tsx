@@ -729,9 +729,15 @@ export function TransacoesPage() {
         </span>
       </div>
 
-      {/* DESKTOP: filtro lateral (desliza da esquerda) + Card/DataTable + paginação */}
-      <div className="lg:flex lg:items-start lg:gap-4">
-        <FilterAside open={filterOpen} desktopOnly breakpoint="lg">
+      {/* DESKTOP: filtro lateral (desliza da esquerda) + Card/DataTable + paginação.
+          Breakpoint `md` (não `lg`) para casar com o `useIsMobile` (<768px) que decide
+          montar o bottom-sheet: entre 768px e 1023px — celular deitado, tablet em pé —
+          o aside estava `hidden lg:block` e o sheet nem era montado, então o botão
+          "Filtros" da BottomNav (que é `lg:hidden`, logo existe nessa faixa) não abria
+          NADA. Container e prop mudam juntos: só a prop deixaria o painel empilhado em
+          cima da tabela. Mesmo par de NotasFiscaisPage.tsx:324 e ContasPage.tsx:845. */}
+      <div className="md:flex md:items-start md:gap-4">
+        <FilterAside open={filterOpen} desktopOnly breakpoint="md">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Filtros</span>
             <IconTip label="Fechar filtros">

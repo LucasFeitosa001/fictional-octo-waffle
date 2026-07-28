@@ -1357,7 +1357,11 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
           onSelecionarCliente={() => setCustomerPickerOpen(true)}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
+        {/* `order-1 lg:order-2`: par do `order-2 lg:order-1` do aside
+            (PacoteClienteAside.tsx:64). No mobile o formulário do pacote vem primeiro —
+            senão o "Novo pacote" no celular abria com um avatar vazio ocupando a
+            primeira tela. No desktop a ordem visual continua cliente | formulário. */}
+        <div className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2">
           {section === 'cliente' && (
             <>
               <Field label="Cliente" required>

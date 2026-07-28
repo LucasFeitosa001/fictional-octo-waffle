@@ -195,7 +195,9 @@ function PackageEditor({
     <>
       {/* Duas colunas no desktop, igual ao Belasis (f_0148: coluna do cliente à esquerda,
           pacote à direita). Classes iguais às dos drawers irmãos de comanda
-          (ComandaDrawer.tsx:346) e agendamento — inclusive o aside-primeiro no mobile. */}
+          (ComandaDrawer.tsx:346) e agendamento — INCLUSIVE a inversão por `order` no
+          mobile: o aside vem depois (o `order-2 lg:order-1` mora no próprio
+          PacoteClienteAside.tsx:64) para o celular abrir direto no pacote. */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
         <PacoteClienteAside
           customerId={pkg.customerId}
@@ -204,7 +206,9 @@ function PackageEditor({
           nome={pkg.customerName ?? pkg.customer?.name ?? null}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
+        {/* `order-1 lg:order-2`: par do `order-2 lg:order-1` do aside — no mobile o
+            pacote vem primeiro; no desktop a ordem visual volta a ser cliente | pacote. */}
+        <div className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2">
           {/* Header summary */}
           <div className="rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">

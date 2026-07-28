@@ -203,6 +203,8 @@ export class CustomersService {
       creditosAgg,
       cashbackAgg,
       pacotesEmAberto,
+      comandasEmAberto,
+      pagamentosEmAberto,
       appointments,
       orders,
     ] = await Promise.all([
@@ -229,6 +231,20 @@ export class CustomersService {
       // Pacotes ativos em aberto.
       this.prisma.client.customerPackage.count({
         where: { companyId, customerId: id, status: 'active' },
+      }),
+      // As duas CONTAGENS do bloco "Informações" da coluna do cliente. Ficam
+      // aqui, e não em hooks separados no front, porque a coluna já dispara
+      // packages + notes: buscar comandas e débitos à parte daria 5 requisições
+      // toda vez que alguém abre uma comanda — e listar 100 comandas inteiras só
+      // para contar as abertas é desperdício. Aqui são dois count indexados
+      // dentro do Promise.all que já existe.
+      this.prisma.client.order.count({
+        where: { companyId, customerId: id, status: 'open' },
+      }),
+      // Mesmo recorte de `debitosAbertos` acima, contando em vez de trazer as
+      // linhas (`debitosTotal` é SOMA em dinheiro, não quantidade).
+      this.prisma.client.customerDebt.count({
+        where: { companyId, customerId: id, status: 'open' },
       }),
       // Histórico recente de agendamentos.
       this.prisma.client.appointment.findMany({
@@ -301,6 +317,8 @@ export class CustomersService {
       creditosSaldo: num(creditosAgg._sum.amount),
       cashbackSaldo: num(cashbackAgg._sum.amount),
       pacotesEmAberto,
+      comandasEmAberto,
+      pagamentosEmAberto,
       ultimosServicos,
     };
   }

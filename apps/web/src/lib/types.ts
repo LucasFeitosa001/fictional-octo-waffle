@@ -84,6 +84,10 @@ export interface CustomerPanel {
   creditosSaldo: number;
   cashbackSaldo: number;
   pacotesEmAberto: number;
+  /** Quantidade de comandas em aberto — bloco "Informações" da coluna do cliente. */
+  comandasEmAberto: number;
+  /** Quantidade de débitos em aberto. `debitosTotal` é a SOMA; este é a contagem. */
+  pagamentosEmAberto: number;
   ultimosServicos: PanelServiceItem[];
 }
 

@@ -146,8 +146,17 @@ function buildPresets(): Preset[] {
 
 // ── Estilos de célula ─────────────────────────────────────────────────────────
 
+// `w-full min-w-9` e não `w-9`: item de grid com largura EXPLÍCITA não estica, cai
+// em `justify-self: start`. No popover do desktop isso nunca apareceu porque o
+// painel encolhe até o conteúdo e as 7 colunas ficam com exatos 36px; no
+// bottom-sheet do mobile a grade é de largura total (~330px), as colunas viram
+// ~45px e os números encostavam à ESQUERDA da célula enquanto os rótulos
+// Dom/Seg/… (que não têm largura, então esticam e centralizam) ficavam no meio —
+// a grade inteira parecia deslocada em relação ao cabeçalho.
+// O `min-w-9` mantém a contribuição de largura intrínseca em 36px, então o
+// dimensionamento do popover desktop continua idêntico.
 const cellBase =
-  'relative grid h-9 w-9 place-items-center rounded-lg text-sm outline-none transition-colors ' +
+  'relative grid h-9 w-full min-w-9 place-items-center rounded-lg text-sm outline-none transition-colors ' +
   'focus-visible:ring-2 focus-visible:ring-gold/40';
 
 // ── Calendário (grade) ────────────────────────────────────────────────────────
@@ -177,7 +186,7 @@ function Calendar({
 
   return (
     <div className="select-none">
-      {/* Header: "2026 Jul" + navegação */}
+      {/* Header: "Julho de 2026" + navegação */}
       <div className="mb-2 flex items-center justify-between px-1">
         <button
           type="button"

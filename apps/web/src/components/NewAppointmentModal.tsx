@@ -668,8 +668,15 @@ export function NewAppointmentModal({
         </div>
       ) : (
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
-          {/* ── Rail esquerdo: avatar + busca de cliente ─────────────────── */}
-          <aside className="flex shrink-0 flex-col items-center gap-4 lg:w-[190px] lg:pt-1">
+          {/* ── Rail esquerdo: avatar + busca de cliente ───────────────────
+              `order-2 … lg:order-1`: no MOBILE o rail vai para DEPOIS do formulário,
+              mesma inversão do ComandaDrawer.tsx:362 e do PacoteClienteAside.tsx:64.
+              O rail é ILUSTRATIVO aqui — o formulário já abre com o campo "Cliente"
+              (linha ~724), que é o mesmo picker do botão abaixo. Com o rail primeiro,
+              "Novo agendamento" no celular começava com 120px de avatar + um segundo
+              botão de busca + os blocos do cliente, e a data/serviço só apareciam
+              depois de rolar. O DOM mantém o rail antes (contexto para leitor de tela). */}
+          <aside className="order-2 flex shrink-0 flex-col items-center gap-4 lg:order-1 lg:w-[190px] lg:pt-1">
             {/* Antes era um <UserGlyph /> FIXO: o boneco não mudava nem depois de
                 escolher o cliente. Agora reaproveita o mesmo CustomerAvatar do
                 picker (foto → iniciais → boneco), então o cliente com foto aparece
@@ -717,8 +724,10 @@ export function NewAppointmentModal({
             <ClienteBlocosLaterais customerId={customerId || null} className="w-full" />
           </aside>
 
-          {/* ── Formulário principal ─────────────────────────────────────── */}
-          <div className="flex min-w-0 flex-1 flex-col gap-6">
+          {/* ── Formulário principal ───────────────────────────────────────
+              `order-1 lg:order-2`: par da inversão do rail — no mobile o formulário
+              é o primeiro da tela; no desktop volta para a direita. */}
+          <div className="order-1 flex min-w-0 flex-1 flex-col gap-6 lg:order-2">
             {/* Linha 1: Cliente | Data | Status | Cor */}
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
               <Field label="Cliente" className="lg:col-span-5">

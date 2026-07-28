@@ -61,7 +61,14 @@ export function PacoteClienteAside({
   const fotoFinal = avatarUrl ?? cliente?.avatarUrl ?? null;
 
   return (
-    <aside className={`flex shrink-0 flex-col gap-4 ${COLUNA_CLIENTE_W}`}>
+    // `order-2 … lg:order-1`: no MOBILE a coluna do cliente vai para DEPOIS do
+    // conteúdo do pacote, igual ao ComandaDrawer.tsx:362. Estes drawers abrem em
+    // FullDrawer sem `widthClass` (PacotePerfilModal.tsx:92), então no celular são
+    // bottom-sheet de tela cheia e o scroll começava por 96px de avatar + "Não há
+    // pacotes disponíveis". Os dois chamadores marcam a própria coluna de conteúdo
+    // com `order-1 lg:order-2` (PacotePerfilModal.tsx:207, PacotesPage.tsx:1360);
+    // o DOM segue com o cliente antes, que é o contexto para leitor de tela.
+    <aside className={`order-2 flex shrink-0 flex-col gap-4 lg:order-1 ${COLUNA_CLIENTE_W}`}>
       {/* Cabeçalho: avatar grande, nome e telefone com a pílula "Conversar" ao lado (f_0148). */}
       <div className="flex flex-col items-center gap-2 text-center">
         {/* Avatar de 96px desenhado aqui, e não com <CustomerAvatar>: as iniciais dele são fixas
@@ -110,7 +117,8 @@ export function PacoteClienteAside({
       {/* Pacotes / Anotações — some sozinho enquanto não há cliente (o componente devolve null). */}
       <ClienteBlocosLaterais
         customerId={id}
-        blocos={['pacotes', 'anotacoes']}
+        // f_0148: o drawer de pacote mostra Informações e Pacotes, mas NÃO Assinaturas.
+        blocos={['informacoes', 'pacotes', 'anotacoes']}
         // POST /customers/:id/notes exige `clientes:manage`; sem a permissão nem o link aparece.
         onAdicionarAnotacao={can('clientes:manage') ? () => setAdicionandoNota(true) : undefined}
       />

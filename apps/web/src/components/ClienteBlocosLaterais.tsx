@@ -2,12 +2,25 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 
-import { IconLayers, IconPlus } from './icons';
-import { formatDateTime } from '../lib/format';
+import {
+  IconAlertTriangle,
+  IconDollar,
+  IconGift,
+  IconLayers,
+  IconPlus,
+  IconReceipt,
+  IconWallet,
+} from './icons';
+import { formatDateTime, formatMoney } from '../lib/format';
 // ATENÇÃO: `useCustomerPackages` existe DUAS vezes no projeto, com o mesmo nome e queryKey
 // colidindo — o de `queries/pacotes.ts` exige `catalogo:view` e daria 403 para caixa/recepção
 // dentro da comanda. Aqui é sempre o de `queries/clientes.ts`, que pede só `clientes:view`.
-import { useCreateNote, useCustomerNotes, useCustomerPackages } from '../lib/queries/clientes';
+import {
+  useCreateNote,
+  useCustomerNotes,
+  useCustomerPackages,
+  useCustomerPanel,
+} from '../lib/queries/clientes';
 
 /**
  * Blocos laterais do cliente — Pacotes / Assinaturas / Anotações.
@@ -21,7 +34,7 @@ import { useCreateNote, useCustomerNotes, useCustomerPackages } from '../lib/que
  * ambos vêm por prop. Estudo: `.claude/studies/22-blocos-laterais-cliente.md`.
  */
 
-export type BlocoLateralId = 'pacotes' | 'assinaturas' | 'anotacoes';
+export type BlocoLateralId = 'informacoes' | 'pacotes' | 'assinaturas' | 'anotacoes';
 
 /**
  * Largura da coluna do cliente no desktop. É a MESMA coluna do Belasis nas três
@@ -31,8 +44,8 @@ export type BlocoLateralId = 'pacotes' | 'assinaturas' | 'anotacoes';
  */
 export const COLUNA_CLIENTE_W = 'lg:w-[300px]';
 
-/** Ordem do vídeo (f_0090). O drawer de pacote pede só ['pacotes','anotacoes'] (f_0148). */
-const ORDEM_PADRAO: BlocoLateralId[] = ['pacotes', 'assinaturas', 'anotacoes'];
+/** Ordem do vídeo (f_0090): Informações vem primeiro, antes de Pacotes. */
+const ORDEM_PADRAO: BlocoLateralId[] = ['informacoes', 'pacotes', 'assinaturas', 'anotacoes'];
 
 export interface ClienteBlocosLateraisProps {
   /** Cliente dono dos blocos. Sem id nada é buscado e o componente não renderiza nada. */
@@ -66,6 +79,7 @@ export function ClienteBlocosLaterais({
 
   // Os hooks têm de rodar em toda renderização (regra dos hooks), então quem desliga a request é
   // o `id`: ambos são `enabled: Boolean(id)`, logo passar null = nenhuma chamada de rede.
+  const painelQ = useCustomerPanel(blocos.includes('informacoes') ? id : null);
   const pacotesQ = useCustomerPackages(querPacotes ? id : null);
   const anotacoesQ = useCustomerNotes(querAnotacoes ? id : null);
 
@@ -101,6 +115,43 @@ export function ClienteBlocosLaterais({
   return (
     <div className={['flex flex-col gap-3', className].filter(Boolean).join(' ')}>
       {blocos.map((bloco) => {
+        if (bloco === 'informacoes') {
+          const painel = painelQ.data;
+          return (
+            <Bloco key={bloco} titulo="Informações">
+              {painelQ.isLoading ? (
+                <TextoDiscreto>Carregando…</TextoDiscreto>
+              ) : !painel ? (
+                // 403 (sem `clientes:view`) ou erro de rede: some em silêncio, como
+                // os outros blocos. Um ErrorState no meio da comanda atrapalha mais.
+                <TextoDiscreto>Informações indisponíveis</TextoDiscreto>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  <LinhaInfo icone={<IconGift size={14} />}>
+                    {aniversarioLabel(painel.customer.birthday)}
+                  </LinhaInfo>
+                  <LinhaInfo icone={<IconWallet size={14} />}>
+                    {formatMoney(painel.cashbackSaldo)} em cashback
+                  </LinhaInfo>
+                  <LinhaInfo icone={<IconDollar size={14} />}>
+                    {formatMoney(painel.creditosSaldo)} em crédito
+                  </LinhaInfo>
+                  <LinhaInfo icone={<IconReceipt size={14} />}>
+                    {plural(painel.comandasEmAberto, 'comanda em aberto', 'comandas em aberto')}
+                  </LinhaInfo>
+                  <LinhaInfo icone={<IconAlertTriangle size={14} />}>
+                    {plural(
+                      painel.pagamentosEmAberto,
+                      'pagamento em aberto',
+                      'pagamentos em aberto',
+                    )}
+                  </LinhaInfo>
+                </ul>
+              )}
+            </Bloco>
+          );
+        }
+
         if (bloco === 'pacotes') {
           return (
             <Bloco key={bloco} titulo="Pacotes" onAdicionar={onAdicionarPacote}>
@@ -203,6 +254,34 @@ function Bloco({
 
 function TextoDiscreto({ children }: { children: ReactNode }) {
   return <p className="text-xs text-muted-ink">{children}</p>;
+}
+
+/** Uma linha do bloco "Informações": ícone à esquerda, texto em cor de link. */
+function LinhaInfo({ icone, children }: { icone: ReactNode; children: ReactNode }) {
+  return (
+    <li className="flex items-center gap-2 text-xs text-primary">
+      <span className="shrink-0 text-primary/70">{icone}</span>
+      <span className="min-w-0 truncate">{children}</span>
+    </li>
+  );
+}
+
+/**
+ * "Aniversário em 11, julho" — o formato do Belasis (f_0062), dia e mês, sem ano.
+ * Sem data cadastrada vira "Aniversário não definido", como no vídeo.
+ */
+const MES_LONGO = new Intl.DateTimeFormat('pt-BR', { month: 'long' });
+function aniversarioLabel(birthday: string | null | undefined): string {
+  if (!birthday) return 'Aniversário não definido';
+  // T12:00 evita o fuso puxar a data para o dia anterior.
+  const d = new Date(`${birthday.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return 'Aniversário não definido';
+  return `Aniversário em ${d.getDate()}, ${MES_LONGO.format(d)}`;
+}
+
+/** "0 comandas em aberto" / "1 comanda em aberto" — o singular importa. */
+function plural(n: number, um: string, muitos: string): string {
+  return `${n} ${n === 1 ? um : muitos}`;
 }
 
 /**
