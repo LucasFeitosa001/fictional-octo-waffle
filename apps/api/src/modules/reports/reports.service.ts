@@ -629,6 +629,98 @@ export class ReportsService {
   }
 
   // GET /reports/birthdays?month — aniversariantes do mês (1-12).
+
+  /**
+   * Relatório de CLIENTES — a lista completa, com as colunas que a tela oferece.
+   *
+   * Existe porque a tela puxava `overview.newCustomers` (clientes NOVOS no
+   * período do dashboard) e prometia "a lista completa": num salão que não
+   * cadastrou ninguém nos dias escolhidos, a lista vinha vazia e o botão
+   * "Gerar relatório" ficava desabilitado — parecia quebrado, e estava.
+   *
+   * `from`/`to` recortam por data de CRIAÇÃO do cliente, que é o rótulo da tela
+   * ("Criado em"). Sem intervalo, traz todos.
+   *
+   * As contagens e somas saem de `_count` e das relações incluídas no mesmo
+   * `findMany` — nunca uma consulta por cliente, senão um salão com 3 mil
+   * clientes derruba o relatório.
+   */
+  async customers(
+    companyId: string,
+    opts: {
+      from?: string;
+      to?: string;
+      status?: string;
+      balance?: string;
+      tags?: string;
+    },
+  ) {
+    const from = opts.from ? new Date(opts.from) : undefined;
+    const to = opts.to ? new Date(`${opts.to.slice(0, 10)}T23:59:59.999Z`) : undefined;
+    const tags = (opts.tags ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const rows = await this.prisma.client.customer.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        ...(opts.status === 'active'
+          ? { active: true }
+          : opts.status === 'inactive'
+            ? { active: false }
+            : {}),
+        ...(from || to
+          ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+          : {}),
+        ...(tags.length ? { tags: { some: { name: { in: tags } } } } : {}),
+      },
+      orderBy: { name: 'asc' },
+      include: {
+        tags: { select: { name: true } },
+        credits: { select: { amount: true } },
+        customerPackages: { select: { price: true } },
+        orders: {
+          where: { status: 'finished' },
+          select: { netTotal: true },
+        },
+      },
+    });
+
+    const soma = (list: { [k: string]: unknown }[], campo: string) =>
+      list.reduce((acc, r) => acc + Number(r[campo] ?? 0), 0);
+
+    const data = rows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone ?? null,
+      email: c.email ?? null,
+      cpf: c.cpf ?? null,
+      rg: c.rg ?? null,
+      birthday: c.birthday ? c.birthday.toISOString() : null,
+      street: c.street ?? null,
+      number: c.number ?? null,
+      district: c.district ?? null,
+      city: c.city ?? null,
+      state: c.state ?? null,
+      active: c.active,
+      createdAt: c.createdAt.toISOString(),
+      tags: c.tags.map((t) => t.name),
+      creditBalance: soma(c.credits, 'amount'),
+      packagesCount: c.customerPackages.length,
+      packagesTotal: soma(c.customerPackages, 'price'),
+      ordersCount: c.orders.length,
+      ordersTotal: soma(c.orders, 'netTotal'),
+    }));
+
+    // "Com saldo" é filtro sobre um valor CALCULADO (soma do ledger de crédito),
+    // então não dá para expressar no `where` — fica aqui, depois do mapa.
+    return opts.balance === 'with_balance'
+      ? data.filter((c) => c.creditBalance > 0)
+      : data;
+  }
+
   async birthdays(companyId: string, month?: string) {
     const parsed = month ? Number(month) : new Date().getMonth() + 1;
     const targetMonth =

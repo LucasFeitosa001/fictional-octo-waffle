@@ -56,6 +56,56 @@ export interface ReportsOverview {
   birthdays: BirthdayItem[];
 }
 
+/** Uma linha do relatório de clientes (GET /reports/customers). */
+export interface RelatorioClienteRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  cpf: string | null;
+  rg: string | null;
+  birthday: string | null;
+  street: string | null;
+  number: string | null;
+  district: string | null;
+  city: string | null;
+  state: string | null;
+  active: boolean;
+  createdAt: string;
+  tags: string[];
+  creditBalance: number;
+  packagesCount: number;
+  packagesTotal: number;
+  ordersCount: number;
+  ordersTotal: number;
+}
+
+/**
+ * Relatório de clientes. `from`/`to` recortam por data de CRIAÇÃO (é o rótulo
+ * "Criado em" da tela). A página antes lia `overview.newCustomers`, que é outra
+ * coisa — clientes novos do dashboard — e por isso vinha vazia e o botão de
+ * gerar ficava desabilitado.
+ */
+export function useRelatorioClientes(filtros: {
+  from?: string;
+  to?: string;
+  status?: string;
+  balance?: string;
+  tags?: string;
+}) {
+  return useQuery({
+    queryKey: ['relatorio-clientes', filtros],
+    queryFn: () =>
+      api.get<RelatorioClienteRow[]>('/reports/customers', {
+        from: filtros.from || undefined,
+        to: filtros.to || undefined,
+        status: filtros.status && filtros.status !== 'all' ? filtros.status : undefined,
+        balance: filtros.balance && filtros.balance !== 'all' ? filtros.balance : undefined,
+        tags: filtros.tags || undefined,
+      }),
+  });
+}
+
 export function useReportsOverview(from: string, to: string) {
   return useQuery({
     queryKey: ['reports-overview', from, to],

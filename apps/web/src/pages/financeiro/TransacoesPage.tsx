@@ -1424,6 +1424,11 @@ export function LancamentoModal({
   );
   const [status, setStatus] = useState<PaymentStatus>('paid');
   const [dueDate, setDueDate] = useState(() => isoDate(new Date()));
+  // "Baixa" da referência (02-editando-recebimento.png) = a data em que o dinheiro
+  // efetivamente entrou. É `Transaction.paidAt`, que já existe no schema e no DTO;
+  // só não havia campo na tela, então quem lançava retroativo ficava com a baixa
+  // presa na data de criação.
+  const [paidAt, setPaidAt] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   // Menu vertical estilo Belasis: agrupa os campos por afinidade.
@@ -1452,6 +1457,9 @@ export function LancamentoModal({
       setDueDate(
         editing.dueDate ? isoDate(new Date(editing.dueDate)) : isoDate(new Date()),
       );
+      // Sem semear a baixa, reabrir um lançamento já pago mostrava o campo vazio
+      // e salvar sobrescrevia a data real pela de hoje.
+      setPaidAt(editing.paidAt ? isoDate(new Date(editing.paidAt)) : '');
     } else {
       setAmount('');
       setDescription('');
@@ -1461,6 +1469,7 @@ export function LancamentoModal({
       setPartyId('');
       setStatus('paid');
       setDueDate(isoDate(new Date()));
+      setPaidAt('');
     }
     setFormError(null);
     setSuccess(false);
@@ -1469,6 +1478,16 @@ export function LancamentoModal({
 
   const isPending = createTransaction.isPending || updateTransaction.isPending;
   const numericAmount = useMemo(() => Number(amount.replace(',', '.')), [amount]);
+  // Taxas da forma de pagamento escolhida: percentual + fixa, como o Financeiro
+  // já modela em PaymentMethod. Não é campo do Transaction — é derivado, e por
+  // isso aparece somente-leitura, igual à referência.
+  const { taxas, valorLiquido } = useMemo(() => {
+    const bruto = Number.isFinite(numericAmount) ? numericAmount : 0;
+    const forma = paymentMethods.data?.find((m) => m.id === paymentMethodId);
+    if (!forma || bruto <= 0) return { taxas: 0, valorLiquido: bruto };
+    const t = (bruto * Number(forma.feePercent ?? 0)) / 100 + Number(forma.feeFixed ?? 0);
+    return { taxas: t, valorLiquido: Math.max(0, bruto - t) };
+  }, [numericAmount, paymentMethodId, paymentMethods.data]);
   const canConfirm =
     Number.isFinite(numericAmount) &&
     numericAmount > 0 &&
@@ -1506,7 +1525,12 @@ export function LancamentoModal({
       grossAmount: numericAmount,
       status,
       dueDate,
-      ...(status === 'paid' ? { paidAt: new Date().toISOString() } : {}),
+      // Baixa: o que o usuário digitou vence a data de hoje. Sem isso um
+      // lançamento retroativo entrava com a baixa no dia da digitação, e a
+      // conferência de caixa do dia anterior nunca fechava.
+      ...(status === 'paid'
+        ? { paidAt: paidAt ? new Date(`${paidAt}T12:00:00`).toISOString() : new Date().toISOString() }
+        : {}),
       description: autoDescription(),
       categoryId: categoryId || undefined,
       paymentMethodId: paymentMethodId || undefined,
@@ -1607,21 +1631,47 @@ export function LancamentoModal({
           {/* SEÇÃO 1: Dados do lançamento — Valor, Vencimento, Titular, Status. */}
           {section === 'dados' && (
             <>
-              {/* 1. Valor */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-foreground">Valor (R$)</label>
-                <TextField value={amount} onChange={setAmount} aria-label="Valor">
-                  <Input placeholder="0,00" inputMode="decimal" />
-                </TextField>
+              {/* 1. Valor bruto · Taxas · Valor líquido — os três da referência.
+                  Taxas e líquido são CALCULADOS da forma de pagamento escolhida
+                  (feePercent + feeFixed); não são campos digitáveis nem colunas
+                  do Transaction, por isso vêm somente-leitura. Sem isto o salão
+                  não enxergava quanto a maquininha come de cada recebimento. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-foreground">Valor bruto (R$)</label>
+                  <TextField value={amount} onChange={setAmount} aria-label="Valor bruto">
+                    <Input placeholder="0,00" inputMode="decimal" />
+                  </TextField>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-muted-ink">Taxas</label>
+                  <div className="flex h-11 items-center rounded-lg border border-default-200 bg-canvas px-3 text-sm text-muted-ink">
+                    {formatMoney(taxas)}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-muted-ink">Valor líquido</label>
+                  <div className="flex h-11 items-center rounded-lg border border-default-200 bg-canvas px-3 text-sm font-medium text-foreground">
+                    {formatMoney(valorLiquido)}
+                  </div>
+                </div>
               </div>
 
-              {/* 2. Vencimento (dd/mm/aaaa) */}
-              <DateFieldBR
-                label="Vencimento"
-                value={dueDate}
-                onChange={setDueDate}
-                className="min-w-0"
-              />
+              {/* 2. Vencimento · Baixa */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <DateFieldBR
+                  label="Vencimento"
+                  value={dueDate}
+                  onChange={setDueDate}
+                  className="min-w-0"
+                />
+                <DateFieldBR
+                  label="Baixa"
+                  value={paidAt}
+                  onChange={setPaidAt}
+                  className="min-w-0"
+                />
+              </div>
 
               {/* 3. Titular: cliente (recebimento) ou profissional (vale/despesa) */}
               {mode === 'recebimento' && (

@@ -7,9 +7,9 @@ import {
   IconTag,
   IconUsers,
 } from '../../components/icons';
-import { formatDate } from '../../lib/format';
+import { formatDate, formatMoney } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
-import { useReportsOverview, type NewCustomerItem } from '../../lib/queries/relatorios';
+import { useRelatorioClientes, type RelatorioClienteRow } from '../../lib/queries/relatorios';
 import { BackToReports, CARD } from './reportShared';
 import { DateRangePicker } from '../../components/DatePicker';
 
@@ -18,34 +18,29 @@ import { DateRangePicker } from '../../components/DatePicker';
 type Balance = 'all' | 'with_balance';
 type Status = 'all' | 'active' | 'inactive';
 
-interface ColumnDef {
-  value: string;
-  label: string;
-  /** Extrai o valor da coluna do cliente para o CSV (quando temos o dado). */
-  get?: (r: NewCustomerItem) => string;
-}
 
 // Ordem/labels/values idênticos ao Belasis (checkbox group `columns`).
-const COLUMN_DEFS: ColumnDef[] = [
+const COLUMN_DEFS: { value: string; label: string; get: (r: RelatorioClienteRow) => string }[] = [
   { value: 'phone1', label: 'Telefone', get: (r) => r.phone ?? '' },
   { value: 'phone2', label: 'Celular', get: (r) => r.phone ?? '' },
   { value: 'email', label: 'E-mail', get: (r) => r.email ?? '' },
-  { value: 'cpf', label: 'CPF' }, // TODO: campo não disponível no overview
-  { value: 'rg', label: 'RG' }, // TODO
-  { value: 'birthday', label: 'Aniversário' }, // TODO
-  { value: 'address', label: 'Endereço' }, // TODO
-  { value: 'number', label: 'Número' }, // TODO
-  { value: 'district', label: 'Bairro' }, // TODO
-  { value: 'city', label: 'Cidade' }, // TODO
-  { value: 'state', label: 'Estado' }, // TODO
-  { value: 'balance_cents', label: 'Crédito' }, // TODO
+  { value: 'cpf', label: 'CPF', get: (r) => r.cpf ?? '' },
+  { value: 'rg', label: 'RG', get: (r) => r.rg ?? '' },
+  { value: 'birthday', label: 'Aniversário', get: (r) => (r.birthday ? formatDate(r.birthday) : '') },
+  { value: 'address', label: 'Endereço', get: (r) => r.street ?? '' },
+  { value: 'number', label: 'Número', get: (r) => r.number ?? '' },
+  { value: 'district', label: 'Bairro', get: (r) => r.district ?? '' },
+  { value: 'city', label: 'Cidade', get: (r) => r.city ?? '' },
+  { value: 'state', label: 'Estado', get: (r) => r.state ?? '' },
+  { value: 'balance_cents', label: 'Crédito', get: (r) => formatMoney(r.creditBalance) },
   { value: 'created_at', label: 'Data de criação', get: (r) => formatDate(r.createdAt) },
-  { value: 'customer_tags', label: 'Hashtags' }, // TODO
-  { value: 'packages_count', label: 'Qtd. de pacotes' }, // TODO
-  { value: 'sales_count', label: 'Qtd. de comandas' }, // TODO
-  { value: 'packages_total_cents', label: 'Valor total de pacotes' }, // TODO
-  { value: 'sales_total_cents', label: 'Valor total de comandas' }, // TODO
+  { value: 'customer_tags', label: 'Hashtags', get: (r) => r.tags.join(', ') },
+  { value: 'packages_count', label: 'Qtd. de pacotes', get: (r) => String(r.packagesCount) },
+  { value: 'sales_count', label: 'Qtd. de comandas', get: (r) => String(r.ordersCount) },
+  { value: 'packages_total_cents', label: 'Valor total de pacotes', get: (r) => formatMoney(r.packagesTotal) },
+  { value: 'sales_total_cents', label: 'Valor total de comandas', get: (r) => formatMoney(r.ordersTotal) },
 ];
+
 
 // Colunas pré-marcadas no Belasis.
 const DEFAULT_COLUMNS = ['phone2', 'birthday', 'balance_cents'];
@@ -148,9 +143,17 @@ export function ClientesPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Preserva o data-wiring existente: overview do período p/ montar o relatório.
-  const query = useReportsOverview(range.from, range.to);
-  const customers = query.data?.newCustomers ?? [];
+  // Endpoint próprio do relatório: a lista COMPLETA de clientes com todas as
+  // colunas. Antes lia `overview.newCustomers` — clientes NOVOS do dashboard —
+  // e num salão que não cadastrou ninguém no período a lista vinha vazia e o
+  // botão ficava desabilitado. Os três filtros vão para o servidor.
+  const query = useRelatorioClientes({
+    from: range.from,
+    to: range.to,
+    status,
+    balance,
+  });
+  const customers = query.data ?? [];
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -173,10 +176,10 @@ export function ClientesPage() {
     downloadCsv(
       `clientes-${range.from}_a_${range.to}`,
       [
-        { header: 'Cliente', value: (r: NewCustomerItem) => r.name },
+        { header: 'Cliente', value: (r: RelatorioClienteRow) => r.name },
         ...selected.map((c) => ({
           header: c.label,
-          value: (r: NewCustomerItem) => c.get?.(r) ?? '',
+          value: (r: RelatorioClienteRow) => c.get(r),
         })),
       ],
       customers,
@@ -259,7 +262,7 @@ export function ClientesPage() {
             <button
               type="button"
               onClick={gerarRelatorio}
-              disabled={customers.length === 0}
+              disabled={query.isLoading || customers.length === 0}
               className="inline-flex items-center gap-2 rounded-l-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-strong disabled:opacity-50"
             >
               <IconDownload size={16} />
