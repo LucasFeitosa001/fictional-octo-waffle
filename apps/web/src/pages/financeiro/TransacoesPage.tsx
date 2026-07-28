@@ -43,6 +43,7 @@ import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
 import { BulkActionsSheet } from '../../components/BulkActionsSheet';
 import { useSelectMode, buildSelectActions, type BulkAction } from '../../hooks/useSelectMode';
 import { FilterAside } from '../../components/FilterAside';
+import { AppSwitch } from '../../components/SwitchRow';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { useCustomers, useProfessionals } from '../../lib/queries';
@@ -159,7 +160,7 @@ export function TransacoesPage() {
   );
   // Sobre qual data o período incide (Belasis: "Tipo de data"). Competência não
   // entra: o model Transaction não tem essa coluna.
-  const [dateType, setDateType] = useState<'due' | 'paid'>('due');
+  const [dateType, setDateType] = useState<'due' | 'paid' | 'competence'>('due');
   const [accountIds, setAccountIds] = useState<Set<string>>(new Set());
   const [categoryIds, setCategoryIds] = useState<Set<string>>(new Set());
   const [kinds, setKinds] = useState<Set<TransactionKind>>(() =>
@@ -996,8 +997,8 @@ type FiltrosProps = {
   setKinds: (v: Set<TransactionKind>) => void;
   statuses: Set<StatusFilter>;
   setStatuses: (v: Set<StatusFilter>) => void;
-  dateType: 'due' | 'paid';
-  setDateType: (v: 'due' | 'paid') => void;
+  dateType: 'due' | 'paid' | 'competence';
+  setDateType: (v: 'due' | 'paid' | 'competence') => void;
   methodIds: Set<string>;
   setMethodIds: (v: Set<string>) => void;
   paymentMethods: NamedOption[];
@@ -1088,6 +1089,36 @@ function ListaCheck({
   );
 }
 
+/**
+ * Toggle inline do formulário financeiro: switch + rótulo clicável à direita.
+ * Mesma forma do `InlineToggle` do drawer de agendamento — existe aqui porque
+ * aquele é local do NewAppointmentModal e importar entre telas acoplaria as duas.
+ */
+function InlineToggleFin({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <AppSwitch checked={checked} onChange={onChange} aria-label={label || 'Alternar'} />
+      {label && (
+        <button
+          type="button"
+          onClick={() => onChange(!checked)}
+          className={'text-sm ' + (checked ? 'font-medium text-foreground' : 'text-muted-ink')}
+        >
+          {label}
+        </button>
+      )}
+    </span>
+  );
+}
+
 function FiltrosBody({
   from,
   to,
@@ -1136,10 +1167,14 @@ function FiltrosBody({
 
       {/* Tipo de data — RADIO: são mutuamente exclusivos, ao contrário do resto.
           "Competência" fica de fora até `Transaction` ter a coluna. */}
+      {/* As TRÊS opções da referência. Competência passou a existir na migração
+          20260727230000; lançamentos antigos não têm a data preenchida, então
+          filtrar por ela não traz o histórico — é o esperado, não defeito. */}
       <FilterSection title="Tipo de data">
         <div className="flex flex-col gap-1.5">
           {[
             { id: 'due' as const, name: 'Venc/Disponibilidade' },
+            { id: 'competence' as const, name: 'Competência' },
             { id: 'paid' as const, name: 'Pagamento' },
           ].map((o) => (
             <label
@@ -1429,6 +1464,9 @@ export function LancamentoModal({
   // só não havia campo na tela, então quem lançava retroativo ficava com a baixa
   // presa na data de criação.
   const [paidAt, setPaidAt] = useState('');
+  // Os dois toggles da referência. As colunas entraram na migração 20260727230000.
+  const [isOrganizational, setIsOrganizational] = useState(false);
+  const [competenceDate, setCompetenceDate] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -1456,6 +1494,10 @@ export function LancamentoModal({
       // Sem semear a baixa, reabrir um lançamento já pago mostrava o campo vazio
       // e salvar sobrescrevia a data real pela de hoje.
       setPaidAt(editing.paidAt ? isoDate(new Date(editing.paidAt)) : '');
+      setIsOrganizational(Boolean(editing.isOrganizational));
+      setCompetenceDate(
+        editing.competenceDate ? isoDate(new Date(editing.competenceDate)) : '',
+      );
     } else {
       setAmount('');
       setDescription('');
@@ -1466,6 +1508,8 @@ export function LancamentoModal({
       setStatus('paid');
       setDueDate(isoDate(new Date()));
       setPaidAt('');
+      setIsOrganizational(false);
+      setCompetenceDate('');
     }
     setFormError(null);
     setSuccess(false);
@@ -1527,6 +1571,10 @@ export function LancamentoModal({
         ? { paidAt: paidAt ? new Date(`${paidAt}T12:00:00`).toISOString() : new Date().toISOString() }
         : {}),
       description: autoDescription(),
+      isOrganizational,
+      ...(competenceDate
+        ? { competenceDate: new Date(`${competenceDate}T12:00:00`).toISOString() }
+        : {}),
       categoryId: categoryId || undefined,
       paymentMethodId: paymentMethodId || undefined,
       accountId: accountId || undefined,
@@ -1621,6 +1669,22 @@ export function LancamentoModal({
         <div className="flex flex-col gap-4">
           {/* Tudo numa página, na ordem da referência. */}
           <>
+              {/* "É uma receita organizacional?" — abre o formulário, como no
+                  Belasis. Aqui tem efeito REAL: dispensa a exigência de caixa
+                  aberto para lançamento pago (assertTransactionPolicy), que é o
+                  que o subtexto promete. */}
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-foreground">
+                  {mode === 'despesa' ? 'É uma despesa organizacional?' : 'É uma receita organizacional?'}
+                </span>
+                <InlineToggleFin
+                  checked={isOrganizational}
+                  onChange={setIsOrganizational}
+                  label=""
+                />
+                <span className="text-xs text-muted-ink">Se ativo, não vincula a nenhum caixa</span>
+              </div>
+
               {/* 1. Valor bruto · Taxas · Valor líquido — os três da referência.
                   Taxas e líquido são CALCULADOS da forma de pagamento escolhida
                   (feePercent + feeFixed); não são campos digitáveis nem colunas
@@ -1775,6 +1839,25 @@ export function LancamentoModal({
               )}
               </div>
           </>
+
+          {/* "Ajustar data de competência" — fecha o formulário, como na
+              referência. Só mostra o campo quando ligado: competência é exceção,
+              não rotina. */}
+          <div className="flex flex-col gap-2">
+            <InlineToggleFin
+              checked={Boolean(competenceDate)}
+              onChange={(v) => setCompetenceDate(v ? (dueDate || isoDate(new Date())) : '')}
+              label="Ajustar data de competência"
+            />
+            {competenceDate && (
+              <DateFieldBR
+                label="Competência"
+                value={competenceDate}
+                onChange={setCompetenceDate}
+                className="min-w-0 sm:max-w-xs"
+              />
+            )}
+          </div>
 
           {/* Descrição — textarea de largura inteira, como na referência. */}
           <div className="flex flex-col gap-1.5">

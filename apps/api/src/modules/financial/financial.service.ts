@@ -131,6 +131,7 @@ export class FinancialService {
       dueDate?: string | Date | null;
       paidAt?: string | Date | null;
       status?: string | null;
+      isOrganizational?: boolean | null;
     },
   ): Promise<FinanceSettings> {
     const settings = await this.getSettings(companyId);
@@ -142,8 +143,13 @@ export class FinancialService {
         'Lançamentos retroativos estão desativados nas configurações financeiras.',
       );
     }
+    // Receita/despesa ORGANIZACIONAL não passa pelo caixa da recepção (aluguel,
+    // imposto, aporte) — é o que o subtexto do toggle promete: "Se ativo, não
+    // vincula a nenhum caixa". Sem esta saída o lançamento seria recusado com
+    // "Abra o caixa antes de registrar uma movimentação paga".
     if (
       !settings.allowTransactionsWithClosedCash &&
+      !input.isOrganizational &&
       (input.status === 'paid' || Boolean(input.paidAt))
     ) {
       const openCash = await this.prisma.client.cashRegister.findFirst({
@@ -476,7 +482,12 @@ export class FinancialService {
     };
     const includeReversed = q.includeReversed === 'true';
     // Sobre qual data o período incide: vencimento (padrão) ou pagamento.
-    const dateField = q.dateType === 'paid' ? 'paidAt' : 'dueDate';
+    const dateField =
+      q.dateType === 'paid'
+        ? 'paidAt'
+        : q.dateType === 'competence'
+          ? 'competenceDate'
+          : 'dueDate';
     // "Atrasado" é derivado: em aberto E vencido. Não existe no enum do banco.
     const onlyOverdue = q.overdue === 'true';
     // "a,b,c" → ['a','b','c']. Lista vazia vira undefined para não virar um
@@ -722,13 +733,16 @@ export class FinancialService {
 
   async createTransaction(companyId: string, dto: CreateTransactionDto) {
     await this.assertTransactionPolicy(companyId, dto);
-    const { dueDate, paidAt, ...rest } = dto;
+    // `competenceDate` sai do spread junto das outras datas: vem como string do
+    // DTO e o Prisma espera Date.
+    const { dueDate, paidAt, competenceDate, ...rest } = dto;
     return this.prisma.client.transaction.create({
       data: {
         ...rest,
         companyId,
         ...(dueDate ? { dueDate: new Date(dueDate) } : {}),
         ...(paidAt ? { paidAt: new Date(paidAt) } : {}),
+        ...(competenceDate ? { competenceDate: new Date(competenceDate) } : {}),
       },
     });
   }
@@ -741,13 +755,16 @@ export class FinancialService {
       paidAt: dto.paidAt ?? current.paidAt,
       status: dto.status ?? current.status,
     });
-    const { dueDate, paidAt, ...rest } = dto;
+    const { dueDate, paidAt, competenceDate, ...rest } = dto;
     return this.prisma.client.transaction.update({
       where: { id },
       data: {
         ...rest,
         ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
         ...(paidAt !== undefined ? { paidAt: paidAt ? new Date(paidAt) : null } : {}),
+        ...(competenceDate !== undefined
+          ? { competenceDate: competenceDate ? new Date(competenceDate) : null }
+          : {}),
       },
     });
   }

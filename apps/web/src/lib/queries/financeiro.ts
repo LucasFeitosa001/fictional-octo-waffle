@@ -61,6 +61,8 @@ export interface TransactionRow {
   grossAmount: string;
   dueDate?: string | null;
   paidAt?: string | null;
+  competenceDate?: string | null;
+  isOrganizational?: boolean;
   status: PaymentStatus;
   createdAt: string;
   account?: { id: string; name: string } | null;
@@ -125,7 +127,7 @@ export interface TransactionFilters {
   from?: string;
   to?: string;
   /** Sobre qual data o período incide. Padrão do servidor: vencimento. */
-  dateType?: 'due' | 'paid';
+  dateType?: 'due' | 'paid' | 'competence';
   /**
    * Versões MULTI, separadas por vírgula. Quando vêm, ganham dos campos
    * singulares acima (que continuam existindo para os links já espalhados pelo
@@ -159,6 +161,10 @@ export interface CreateTransactionBody {
   description?: string;
   dueDate?: string;
   paidAt?: string;
+  /** Data de competência — coluna criada na migração 20260727230000. */
+  competenceDate?: string;
+  /** "É uma receita organizacional?": dispensa a exigência de caixa aberto. */
+  isOrganizational?: boolean;
   status?: PaymentStatus;
 }
 

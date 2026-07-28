@@ -41,13 +41,17 @@ export enum PartyTypeDto {
 
 // ---- Transactions ----
 /**
- * Qual data o período filtra. O Belasis oferece três (Venc/Disponibilidade,
- * Competência, Pagamento); nosso `Transaction` só tem `dueDate` e `paidAt`, então
- * expomos as duas que existem. Competência exigiria coluna nova no schema.
+ * Qual data o período filtra — as três do Belasis: Venc/Disponibilidade,
+ * Competência e Pagamento. A coluna de competência entrou na migração
+ * 20260727230000; antes dela só existiam `dueDate` e `paidAt`.
  */
 export enum TransactionDateTypeDto {
   due = 'due',
   paid = 'paid',
+  // Competência: o período a que o fato pertence. A coluna passou a existir na
+  // migração 20260727230000; até alguém preencher, filtrar por ela não traz o
+  // histórico — e isso é correto, não um bug.
+  competence = 'competence',
 }
 
 export class ListTransactionsQueryDto {
@@ -102,6 +106,9 @@ export class CreateTransactionDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() dueDate?: string;
   @IsOptional() @IsString() paidAt?: string;
+  @IsOptional() @IsString() competenceDate?: string;
+  // "É uma receita organizacional?": dispensa a exigência de caixa aberto.
+  @IsOptional() @IsBoolean() isOrganizational?: boolean;
   @IsOptional() @IsEnum(PaymentStatusDto) status?: PaymentStatusDto;
 }
 
@@ -116,6 +123,8 @@ export class UpdateTransactionDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() dueDate?: string;
   @IsOptional() @IsString() paidAt?: string;
+  @IsOptional() @IsString() competenceDate?: string;
+  @IsOptional() @IsBoolean() isOrganizational?: boolean;
   @IsOptional() @IsEnum(PaymentStatusDto) status?: PaymentStatusDto;
 }
 

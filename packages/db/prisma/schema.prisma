@@ -1646,6 +1646,14 @@ model Transaction {
   grossAmount      Decimal         @db.Decimal(12, 2)
   dueDate          DateTime?
   paidAt           DateTime?
+  // Data de COMPETÊNCIA: o período a que o fato econômico pertence, independente
+  // de quando vence ou é pago. Nula por padrão — não retroalimentamos o histórico
+  // com dueDate porque seria inventar um dado contábil que ninguém informou.
+  competenceDate   DateTime?
+  // "É uma receita organizacional?" — despesa/receita da própria empresa
+  // (aluguel, imposto, aporte) que NÃO passa pelo caixa da recepção. Quando true,
+  // dispensa a exigência de caixa aberto em assertTransactionPolicy.
+  isOrganizational Boolean         @default(false)
   status           PaymentStatus   @default(pending)
   recurrenceJson   Json?
   attachmentUrl    String?
