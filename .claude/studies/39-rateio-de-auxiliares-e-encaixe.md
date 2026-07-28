@@ -42,6 +42,34 @@ não permite marcar fora do expediente do profissional — isso é outra regra e
 nenhuma `ProfessionalSchedule` no dia da semana, ele derruba com 400 *"Profissional não atende
 neste dia da semana"*, e com janela que não cobre o intervalo, 400 *"Horário fora do expediente"*.
 
+### O encaixe cobriu só metade: REAGENDAR continua bloqueado
+
+Relato do dono (28/07): *"não estou consigo reagendar do Daniel para 10:30 no DesignModa"*, com o
+toggle "Encaixar agendamento" visível no drawer.
+
+Dado real da produção — `Bruna Lima` (`cmryy3o4h0008w5lj87ierjyj`), 30/07/2026:
+
+```
+10:30 → 10:45  confirmed  Paulo
+10:45 → 11:00  confirmed  Daniel
+```
+
+O expediente dela é seg–sex 09:00–18:00, então 10:30 está DENTRO da janela. O que bloqueia é o
+agendamento do Paulo. Ou seja: é exatamente o caso do encaixe — só que eu liguei `squeezeIn`
+apenas no `create()` (`:238`) e no `createSeries()` (`:379`). Faltam:
+
+- `appointments.service.ts:553` — `update()` chama `assertNoOverlap` **sem condição**; é por aqui
+  que passa o reagendamento (`PATCH /appointments/:id`).
+- `apps/web/src/pages/AgendaPage.tsx:664` — o estado `squeezeIn` existe e `:1863` desenha o toggle,
+  mas `confirmReschedule` monta o body com `start/notes/remindClient/notifyConfirmation/
+  notifyCancellation` e **não** manda o campo. Mesmo enfeite do NewAppointmentModal, outra tela.
+- `apps/web/src/pages/AgendaPage.tsx`, `confirmReschedule` — o `catch` engole a mensagem da API e
+  mostra sempre *"Não foi possível reagendar (horário indisponível)"*. Quem lê não descobre que o
+  horário é do Paulo nem que o toggle resolveria.
+
+Fora do escopo aqui: `:487` (bloqueio de horário) e `:635` (reativar status) continuam sem encaixe
+de propósito — bloqueio existe para ocupar, e reativar não é escolha de horário.
+
 ### Prova em runtime
 
 `apps/api/src/test/appointments-squeeze-in.e2e.ts` (novo), no molde de

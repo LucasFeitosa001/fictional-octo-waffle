@@ -82,17 +82,22 @@ export class AppointmentsController {
     @Query('serviceId') serviceId: string,
     @Query('professionalId') professionalId?: string,
     @Query('date') date?: string,
+    @Query('squeezeIn') squeezeIn?: string,
   ) {
     const scope = await this.professionalScope(companyId, userId);
     // Painel: `includePast` para o salão conseguir lançar atendimento que já
     // aconteceu. O agendamento online continua sem isso (não oferece passado).
+    //
+    // `squeezeIn` devolve TAMBÉM os horários ocupados (marcados com `busy`).
+    // Sem isso o encaixe não tinha como ser usado a partir da tela: o horário
+    // desejado simplesmente não aparecia na lista para ser escolhido.
     return this.service.availability(
       companyId,
       serviceId,
       scope ?? professionalId,
       date,
       undefined,
-      { includePast: true },
+      { includePast: true, includeBusy: squeezeIn === 'true' || squeezeIn === '1' },
     );
   }
 

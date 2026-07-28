@@ -98,6 +98,25 @@ export class CommissionsService {
 
     const nameById = new Map(professionals.map((p) => [p.id, p.name]));
 
+    // Vales em aberto por profissional. O Belasis mostra Comissões · Vales ·
+    // Bonificações · Líquido na tabela de Resumidas; sem isto a coluna Vales
+    // viria vazia e o Líquido seria só comissão+bônus, que é outro número.
+    // Adiantamento não tem competência: o que está `open` pesa no próximo
+    // pagamento independentemente do período filtrado — por isso não recebe o
+    // recorte de data.
+    const openAdvances = await this.prisma.client.commissionAdvance.groupBy({
+      by: ['professionalId'],
+      where: {
+        companyId,
+        status: 'open',
+        ...(filters.professionalId ? { professionalId: filters.professionalId } : {}),
+      },
+      _sum: { amount: true },
+    });
+    const valesById = new Map(
+      openAdvances.map((a) => [a.professionalId, Number(a._sum.amount ?? 0)]),
+    );
+
     interface Bucket {
       professionalId: string;
       professionalName: string;
@@ -139,12 +158,20 @@ export class CommissionsService {
       if (e.signed) b.signedCount += 1;
     }
 
-    const data = [...buckets.values()].map((b) => ({
-      ...b,
-      // status pago/aberto: pago only when every entry is paid
-      status: b.entryCount > 0 && b.openCount === 0 ? 'paid' : 'open',
-      signed: b.entryCount > 0 && b.signedCount === b.entryCount,
-    }));
+    const data = [...buckets.values()].map((b) => {
+      const vales = valesById.get(b.professionalId) ?? 0;
+      return {
+        ...b,
+        vales,
+        // Mesma fórmula do pagamento (`payOne`): comissões + bônus − vales,
+        // nunca negativo. Se divergisse daqui, a tela prometeria um valor e o
+        // botão pagaria outro.
+        liquido: Math.max(0, b.total - vales),
+        // status pago/aberto: pago only when every entry is paid
+        status: b.entryCount > 0 && b.openCount === 0 ? 'paid' : 'open',
+        signed: b.entryCount > 0 && b.signedCount === b.entryCount,
+      };
+    });
     data.sort((a, b) => b.total - a.total);
 
     const totals = data.reduce(
@@ -152,10 +179,12 @@ export class CommissionsService {
         acc.valorVendido += b.valorVendido;
         acc.comissao += b.comissao;
         acc.bonus += b.bonus;
+        acc.vales += b.vales;
         acc.total += b.total;
+        acc.liquido += b.liquido;
         return acc;
       },
-      { valorVendido: 0, comissao: 0, bonus: 0, total: 0 },
+      { valorVendido: 0, comissao: 0, bonus: 0, vales: 0, total: 0, liquido: 0 },
     );
 
     return { data, totals };

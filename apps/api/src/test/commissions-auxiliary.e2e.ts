@@ -404,6 +404,59 @@ async function run() {
           ),
       );
     }
+    // ==========================================================
+    // CASO 8 — Resumidas: Vales e Líquido no resumo por profissional
+    //   O Belasis mostra Comissões · Vales · Bonificações · Líquido nessa
+    //   tabela. Sem os vales no summary, a coluna vinha vazia e o "Líquido"
+    //   seria só comissão+bônus — número diferente do que o botão paga.
+    // ==========================================================
+    {
+      const antes = await api('GET', '/commissions/summary', { token: salon.token });
+      const linhaAntes = (antes.body?.data ?? []).find(
+        (r: any) => r.professionalId === principal.id,
+      );
+      check('caso 8: summary → 200', antes.status === 200, `status ${antes.status}`);
+      check('caso 8: vale zerado antes', Number(linhaAntes?.vales ?? -1) === 0);
+      check(
+        'caso 8: sem vale, líquido = total',
+        near(Number(linhaAntes?.liquido ?? 0), Number(linhaAntes?.total ?? 0)),
+      );
+
+      await prisma.commissionAdvance.create({
+        data: { companyId, professionalId: principal.id, amount: 25, status: 'open' },
+      });
+
+      const depois = await api('GET', '/commissions/summary', { token: salon.token });
+      const linha = (depois.body?.data ?? []).find(
+        (r: any) => r.professionalId === principal.id,
+      );
+      check('caso 8: vale de 25 aparece na coluna Vales', near(Number(linha?.vales ?? 0), 25));
+      check(
+        'caso 8: líquido desconta o vale',
+        near(Number(linha?.liquido ?? 0), Math.max(0, Number(linha?.total ?? 0) - 25)),
+        `total ${linha?.total} vales ${linha?.vales} liquido ${linha?.liquido}`,
+      );
+      check(
+        'caso 8: totals agregam vales e líquido',
+        typeof depois.body?.totals?.vales === 'number' &&
+          typeof depois.body?.totals?.liquido === 'number' &&
+          near(Number(depois.body.totals.vales), 25),
+      );
+      // Vale nunca pode deixar o líquido negativo — o salão não cobra do
+      // profissional dentro da tela de comissão.
+      await prisma.commissionAdvance.create({
+        data: { companyId, professionalId: auxB.id, amount: 100000, status: 'open' },
+      });
+      const extremo = await api('GET', '/commissions/summary', { token: salon.token });
+      const linhaB = (extremo.body?.data ?? []).find(
+        (r: any) => r.professionalId === auxB.id,
+      );
+      check(
+        'caso 8: vale gigante não torna o líquido negativo',
+        linhaB == null || Number(linhaB.liquido) >= 0,
+        `liquido ${linhaB?.liquido}`,
+      );
+    }
   } finally {
     const { prisma } = await import('@beautypass/db');
     if (companyId) {

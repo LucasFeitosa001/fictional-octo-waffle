@@ -10,6 +10,7 @@ import {
 import { Drawer } from './Drawer';
 import { DatePicker } from './DatePicker';
 import { AppSwitch } from './SwitchRow';
+import { InlineToggle } from './InlineToggle';
 import { CustomerAvatar } from './CustomerPickerDrawer';
 import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
 import { useNavigate } from 'react-router-dom';
@@ -156,28 +157,6 @@ function Field({
 }
 
 // Switch inline: HeroUI v3 Switch (AppSwitch) + rótulo clicável à direita.
-function InlineToggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-2.5">
-      <AppSwitch checked={checked} onChange={onChange} aria-label={label} />
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        className={'text-sm ' + (checked ? 'font-medium text-foreground' : 'text-muted')}
-      >
-        {label}
-      </button>
-    </span>
-  );
-}
 
 // Avatar padrão do cliente (rail esquerdo do drawer).
 function UserGlyph() {
@@ -285,6 +264,10 @@ export function NewAppointmentModal({
     primary.serviceId || undefined,
     primary.professionalId || undefined,
     date || undefined,
+    // Com o encaixe ligado a grade passa a incluir os horários ocupados. Sem
+    // isto o toggle não tinha efeito nenhum na tela: o horário que a pessoa
+    // queria encaixar sequer aparecia para ser escolhido.
+    squeezeIn,
   );
   const createAppointmentSeries = useCreateAppointmentSeries();
   const createCustomer = useCreateCustomer();
@@ -922,10 +905,25 @@ export function NewAppointmentModal({
                                   'min-h-[44px] rounded-lg border px-3 text-sm font-medium transition-colors touch-manipulation',
                                   selectedSlot
                                     ? 'border-primary bg-primary text-primary-foreground'
-                                    : 'border-default-200 bg-white text-foreground hover:border-primary/50 hover:bg-primary/5',
+                                    : slot.busy
+                                      ? // Ocupado e oferecido só porque o encaixe
+                                        // está ligado — precisa parecer diferente,
+                                        // ou alguém marca em cima sem perceber.
+                                        'border-warning/60 bg-warning/10 text-foreground hover:border-warning'
+                                      : 'border-default-200 bg-white text-foreground hover:border-primary/50 hover:bg-primary/5',
                                 ].join(' ')}
+                                title={
+                                  slot.busy
+                                    ? 'Horário já ocupado — será um encaixe'
+                                    : undefined
+                                }
                               >
                                 {formatSlotTime(slot.start)}
+                                {slot.busy && (
+                                  <span className="ml-1 text-xs font-normal opacity-80">
+                                    (ocupado)
+                                  </span>
+                                )}
                               </button>
                             );
                           })}

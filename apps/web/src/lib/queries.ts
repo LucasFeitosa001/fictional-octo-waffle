@@ -178,16 +178,23 @@ export function useAvailability(
   serviceId: string | undefined,
   professionalId: string | undefined,
   date: string | undefined,
+  /**
+   * "Encaixar agendamento": traz TAMBÉM os horários já ocupados, marcados com
+   * `busy`. Entra na queryKey de propósito — ligar o toggle tem que refazer a
+   * busca, senão a lista continua a antiga e o horário desejado nunca aparece.
+   */
+  squeezeIn?: boolean,
 ) {
   const enabled = Boolean(serviceId && professionalId && date);
   return useQuery({
-    queryKey: ['availability', serviceId, professionalId, date],
+    queryKey: ['availability', serviceId, professionalId, date, squeezeIn ?? false],
     enabled,
     queryFn: () =>
       api.get<AvailabilityResponse>('/availability', {
         serviceId: serviceId!,
         professionalId: professionalId!,
         date: date!,
+        ...(squeezeIn ? { squeezeIn: 'true' } : {}),
       }),
   });
 }

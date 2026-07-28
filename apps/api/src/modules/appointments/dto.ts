@@ -113,6 +113,13 @@ export class UpdateAppointmentDto {
   @IsOptional() @IsDateString() start?: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;
+  /**
+   * "Encaixar agendamento" ao REAGENDAR. Mesma regra do create: permite mover o
+   * agendamento para um horário já ocupado do mesmo profissional. Sem isto o
+   * encaixe cobria só metade do fluxo — dava para criar em cima, mas não para
+   * mover para cima, que é o caso mais comum na recepção.
+   */
+  @IsOptional() @IsBoolean() squeezeIn?: boolean;
   // Reconfigura o aviso personalizado ao editar o agendamento.
   @IsOptional()
   @ValidateNested()

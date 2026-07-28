@@ -29,6 +29,7 @@ import { useCan } from '../lib/queries/permissions';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
+import { apiErrorMessage } from '../lib/toast';
 import type { AppointmentRow, OrderRow } from '../lib/types';
 
 const STATUS_ORDER: AppointmentStatus[] = [
@@ -806,19 +807,34 @@ export function AgendaPage() {
       remindClient?: boolean;
       notifyConfirmation?: boolean;
       notifyCancellation?: boolean;
+      squeezeIn?: boolean;
     } = { start: newStart.toISOString() };
     if (notesChanged) body.notes = notesDraft.trim();
     if (reminderTouched) body.remindClient = sendReminder;
     if (confirmationTouched) body.notifyConfirmation = sendConfirmation;
     if (cancellationTouched) body.notifyCancellation = sendCancellation;
+    // "Encaixar agendamento" também vale ao MOVER — é o caso mais comum: o
+    // horário desejado já é de outra cliente e o salão assume a sobreposição.
+    if (squeezeIn) body.squeezeIn = true;
     try {
       await api.patch(`/appointments/${selected.id}`, body);
       setShowReschedule(false);
       setSelected(null);
       appts.refetch();
       flash('Agendamento reagendado.');
-    } catch {
-      flash('Não foi possível reagendar (horário indisponível).');
+    } catch (err) {
+      // A mensagem da API diz QUAL é o problema (horário ocupado x fora do
+      // expediente). Engolir tudo num texto genérico deixava a recepção sem
+      // saber que bastava ligar "Encaixar agendamento".
+      const motivo = apiErrorMessage(err);
+      // 409 é a colisão com outro agendamento — o caso que o encaixe resolve.
+      // Casar pelo status, não pelo texto: a mensagem da API pode mudar.
+      const ocupado = err instanceof ApiClientError && err.statusCode === 409;
+      flash(
+        ocupado && !squeezeIn
+          ? `${motivo}. Ligue "Encaixar agendamento" para marcar em cima mesmo assim.`
+          : motivo || 'Não foi possível reagendar.',
+      );
     }
   }
 

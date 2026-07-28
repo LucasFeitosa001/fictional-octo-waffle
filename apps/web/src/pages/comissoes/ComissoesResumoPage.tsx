@@ -10,6 +10,7 @@ import { PagarComissaoDrawer } from '../../components/PagarComissaoDrawer';
 import { ValeModal } from '../../components/ValeModal';
 import { JustificativaDialog } from '../../components/JustificativaDialog';
 import { AppTabs } from '../../components/AppTabs';
+import { ComissoesDetalhadasView } from './ComissoesDetalhadasView';
 import {
   IconChart,
   IconChevron,
@@ -256,6 +257,22 @@ export function ComissoesResumoPage() {
   );
   const allSelected = payableRows.length > 0 && selectedPayable.length === payableRows.length;
 
+  // Totais do rodapé: da SELEÇÃO quando há alguma, do período inteiro quando não
+  // há. O botão paga a seleção — os números acima dele têm que ser os mesmos.
+  const totaisExibidos = useMemo(() => {
+    const base = selectedPayable.length > 0 ? selectedPayable : rows;
+    return base.reduce(
+      (acc, r) => {
+        acc.comissao += r.comissao;
+        acc.vales += r.vales;
+        acc.bonus += r.bonus;
+        acc.liquido += r.liquido;
+        return acc;
+      },
+      { comissao: 0, vales: 0, bonus: 0, liquido: 0 },
+    );
+  }, [rows, selectedPayable]);
+
   function toggleRow(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -318,8 +335,66 @@ export function ComissoesResumoPage() {
       isRowHeader: true,
       render: (r) => <span className="font-medium text-foreground">{r.professionalName}</span>,
     },
+    // Ordem do Belasis: Comissões · Vales · Bonificações · Líquido.
+    {
+      key: 'comissao',
+      label: 'Comissões',
+      header: (
+        <span className="inline-flex items-center">
+          Comissões
+          <HelpTooltip>Percentual sobre o valor vendido, conforme regra configurada.</HelpTooltip>
+        </span>
+      ),
+      render: (r) => formatMoney(r.comissao),
+    },
+    {
+      key: 'vales',
+      label: 'Vales',
+      header: (
+        <span className="inline-flex items-center">
+          Vales
+          <HelpTooltip>
+            Adiantamentos em aberto do profissional. São descontados no pagamento — por isso
+            entram aqui e não só na hora de pagar.
+          </HelpTooltip>
+        </span>
+      ),
+      render: (r) =>
+        r.vales > 0 ? (
+          <span className="font-medium text-danger">−{formatMoney(r.vales)}</span>
+        ) : (
+          <span className="text-muted">{formatMoney(0)}</span>
+        ),
+    },
+    {
+      key: 'bonus',
+      label: 'Bonificações',
+      header: (
+        <span className="inline-flex items-center">
+          Bonificações
+          <HelpTooltip>Bonificações extras somadas à comissão do profissional.</HelpTooltip>
+        </span>
+      ),
+      render: (r) => formatMoney(r.bonus),
+    },
+    {
+      key: 'liquido',
+      label: 'Líquido',
+      header: (
+        <span className="inline-flex items-center">
+          Líquido
+          <HelpTooltip>
+            Comissões + bonificações − vales. É exatamente o valor que o botão “Pagar” registra.
+          </HelpTooltip>
+        </span>
+      ),
+      render: (r) => (
+        <span className="font-semibold text-data-income">{formatMoney(r.liquido)}</span>
+      ),
+    },
     {
       key: 'vendido',
+      label: 'Valor vendido',
       header: (
         <span className="inline-flex items-center">
           Valor vendido
@@ -327,36 +402,6 @@ export function ComissoesResumoPage() {
         </span>
       ),
       render: (r) => formatMoney(r.valorVendido),
-    },
-    {
-      key: 'comissao',
-      header: (
-        <span className="inline-flex items-center">
-          Comissão
-          <HelpTooltip>Percentual sobre o valor vendido, conforme regra configurada.</HelpTooltip>
-        </span>
-      ),
-      render: (r) => formatMoney(r.comissao),
-    },
-    {
-      key: 'bonus',
-      header: (
-        <span className="inline-flex items-center">
-          Bônus
-          <HelpTooltip>Bonificações extras somadas à comissão do profissional.</HelpTooltip>
-        </span>
-      ),
-      render: (r) => formatMoney(r.bonus),
-    },
-    {
-      key: 'total',
-      header: (
-        <span className="inline-flex items-center">
-          Total
-          <HelpTooltip>Comissão + bônus. Valor líquido a pagar ao profissional.</HelpTooltip>
-        </span>
-      ),
-      render: (r) => <span className="font-semibold text-foreground">{formatMoney(r.total)}</span>,
     },
     {
       key: 'status',
@@ -416,6 +461,19 @@ export function ComissoesResumoPage() {
       render: (p) => (
         <span className="font-medium text-foreground">{formatDateTime(p.paidAt)}</span>
       ),
+    },
+    {
+      // O Belasis mostra "Data" e "Pagamento" separadas: a competência do lote e
+      // o dia em que o dinheiro saiu podem não ser o mesmo, e é isso que o salão
+      // confere quando o profissional reclama.
+      key: 'pagamento',
+      header: (
+        <span className="inline-flex items-center">
+          Pagamento
+          <HelpTooltip>Dia em que o pagamento foi efetivado.</HelpTooltip>
+        </span>
+      ),
+      render: (p) => formatDate(p.paidAt),
     },
     {
       key: 'professional',
@@ -585,18 +643,24 @@ export function ComissoesResumoPage() {
         />
       </div>
 
-      {/* Barra de período (clicável — abre o drawer de filtros) */}
-      <button
-        type="button"
-        onClick={openFilters}
-        className={`mb-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-base font-medium text-foreground ${CARD_CLASS}`}
-      >
-        <span>{rangeLabel}</span>
-        <IconChevron size={16} className="text-muted" />
-      </button>
+      {/* Barra de período (clicável — abre o drawer de filtros).
+          Em "Detalhadas" ela não existe: o período mora na própria coluna de
+          filtros daquela tela, como no Belasis. Duas barras de período na mesma
+          tela é convite para o salão filtrar numa e ler a outra. */}
+      {!isDetalhadas && (
+        <button
+          type="button"
+          onClick={openFilters}
+          className={`mb-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-base font-medium text-foreground ${CARD_CLASS}`}
+        >
+          <span>{rangeLabel}</span>
+          <IconChevron size={16} className="text-muted" />
+        </button>
+      )}
 
-      {/* Cards coloridos de status (mobile-first: empilhados; desktop: 3 colunas) */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* Cards coloridos de status (mobile-first: empilhados; desktop: 3 colunas).
+          O Belasis não os tem em "Detalhadas" — lá a leitura é item a item. */}
+      <div className={`mb-4 grid-cols-1 gap-3 sm:grid-cols-3 ${isDetalhadas ? 'hidden' : 'grid'}`}>
         <KpiCard
           label="Comissões em aberto"
           value={formatMoney(ov?.emAberto.total ?? 0)}
@@ -645,7 +709,20 @@ export function ComissoesResumoPage() {
 
       {/* ABA PAGAS: primeiro os lançamentos pagos por profissional (inclusive
           histórico importado), depois os recibos/pagamentos registrados. */}
-      {isPaidTab ? (
+      {isDetalhadas ? (
+        /* Tela própria: escolha do profissional em cartões e, depois, o
+           lançamento ITEM A ITEM. Não é a tabela de "Resumidas" com outro
+           rótulo — essa era exatamente a reclamação. */
+        <ComissoesDetalhadasView
+          from={from}
+          to={to}
+          onFromChange={setFrom}
+          onToChange={setTo}
+          professionalId={professionalId}
+          onProfessionalChange={setProfessionalId}
+          onPay={(row) => setPayingRows([row])}
+        />
+      ) : isPaidTab ? (
         <div className="flex flex-col gap-4">
           <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
             <div className="mb-3 flex items-center justify-between">
@@ -761,6 +838,17 @@ export function ComissoesResumoPage() {
           </FilterAside>
           {/* Resumo por profissional (data-wiring preservado). */}
           <div className="min-w-0 flex-1 rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
+            {/* Linha de período do Belasis ("Período: 19 jun, 2026 até 19 jul, 2026").
+                Deixa explícito o recorte a que os números se referem — sem ela,
+                um total fora do esperado parece erro de conta, não de filtro. */}
+            {from && to && (
+              <p className="mb-3 text-xs text-muted">
+                Período:{' '}
+                <span className="font-medium text-foreground">
+                  {shortDate(from)} até {shortDate(to)}
+                </span>
+              </p>
+            )}
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
@@ -784,13 +872,38 @@ export function ComissoesResumoPage() {
                 description="Ajuste os filtros ou finalize comandas para gerar comissões."
               />
             ) : (
-              <DataTable
-                aria-label="Resumo de comissões"
-                columns={columns}
-                rows={rows}
-                getKey={(r) => r.professionalId}
-                onRowClick={setDetailFor}
-              />
+              <>
+                <DataTable
+                  aria-label="Resumo de comissões"
+                  columns={columns}
+                  rows={rows}
+                  getKey={(r) => r.professionalId}
+                  onRowClick={setDetailFor}
+                />
+
+                {/* Rodapé de totais do Belasis + o botão verde de pagar.
+                    Quando há seleção, os números são DA SELEÇÃO — pagar um
+                    valor diferente do que está escrito logo acima do botão é
+                    como se perde a confiança na tela. */}
+                <div className="mt-3 flex flex-col gap-3 border-t border-[var(--color-soft-border)] pt-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
+                    <TotalFooter label="Comissões" value={totaisExibidos.comissao} />
+                    <TotalFooter label="Vales" value={totaisExibidos.vales} negative />
+                    <TotalFooter label="Bonificações" value={totaisExibidos.bonus} />
+                    <TotalFooter label="Líquido" value={totaisExibidos.liquido} strong />
+                  </div>
+                  <Button
+                    variant="primary"
+                    isDisabled={selectedPayable.length === 0}
+                    onPress={paySelected}
+                  >
+                    <IconWallet size={16} />
+                    {selectedPayable.length > 0
+                      ? `Pagar comissões (${selectedPayable.length})`
+                      : 'Pagar comissões'}
+                  </Button>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -857,6 +970,36 @@ export function ComissoesResumoPage() {
           await deletePayment.mutateAsync({ id: deletingPayment.id, justification });
         }}
       />
+    </div>
+  );
+}
+
+/** Célula do rodapé de totais (Comissões · Vales · Bonificações · Líquido). */
+function TotalFooter({
+  label,
+  value,
+  strong,
+  negative,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+  negative?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs font-medium text-muted">{label}</span>
+      <span
+        className={
+          strong
+            ? 'text-lg font-bold text-data-income'
+            : negative && value > 0
+              ? 'text-base font-semibold text-danger'
+              : 'text-base font-semibold text-foreground'
+        }
+      >
+        {negative && value > 0 ? `−${formatMoney(value)}` : formatMoney(value)}
+      </span>
     </div>
   );
 }

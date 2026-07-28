@@ -372,6 +372,12 @@ export interface CompanyInfo {
 export interface AvailabilitySlot {
   start: string;
   end: string;
+  /**
+   * Horário já ocupado por outro agendamento. Só volta na lista quando a busca
+   * pediu `squeezeIn` ("Encaixar agendamento") — aí ele é oferecido, porém
+   * marcado, para quem escolhe saber que está marcando em cima de alguém.
+   */
+  busy?: boolean;
 }
 
 export interface AvailabilityResponse {

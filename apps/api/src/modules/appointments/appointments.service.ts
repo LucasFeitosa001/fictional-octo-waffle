@@ -23,6 +23,13 @@ import { QueuesService } from '../queues/queues.service';
 
 // Slot generation granularity (minutes) for the availability grid.
 const SLOT_STEP_MIN = 15;
+
+/**
+ * Um horário da grade. `busy` só vem preenchido quando o chamador pediu
+ * `includeBusy` ("Encaixar agendamento"): aí o horário OCUPADO volta na lista,
+ * mas marcado — a recepção precisa ver que está marcando em cima de alguém.
+ */
+type Slot = { start: string; end: string; busy?: boolean };
 // Default duration (minutes) when no service is provided.
 const DEFAULT_DURATION_MIN = 30;
 
@@ -549,8 +556,12 @@ export class AppointmentsService {
     // Re-validate schedule + collision when time/professional changed.
     const timeChanged = Boolean(dto.start || dto.end || dto.professionalId);
     if (professionalId && timeChanged) {
+      // Expediente vale sempre; encaixe autoriza sobrepor OUTRO agendamento, não
+      // marcar fora do horário de trabalho.
       await this.assertWithinSchedule(companyId, professionalId, start, end);
-      await this.assertNoOverlap(companyId, professionalId, start, end, id);
+      if (!dto.squeezeIn) {
+        await this.assertNoOverlap(companyId, professionalId, start, end, id);
+      }
     }
 
     const saved = await this.prisma.client.appointment.update({
@@ -847,12 +858,12 @@ export class AppointmentsService {
     professionalId?: string,
     date?: string,
     serviceIds?: string[],
-    opts?: { includePast?: boolean },
+    opts?: { includePast?: boolean; includeBusy?: boolean },
   ) {
     const day = date ?? this.todayInCompanyTz(await this.companyTimezone(companyId));
     const tz = await this.companyTimezone(companyId);
 
-    const empty = { date: day, serviceId: serviceId ?? null, professionalId: professionalId ?? null, slots: [] as { start: string; end: string }[] };
+    const empty = { date: day, serviceId: serviceId ?? null, professionalId: professionalId ?? null, slots: [] as Slot[] };
 
     // A professional is required to compute a concrete agenda.
     if (!professionalId) return empty;
@@ -898,7 +909,7 @@ export class AppointmentsService {
       select: { start: true, end: true },
     });
 
-    const slots: { start: string; end: string }[] = [];
+    const slots: Slot[] = [];
     const durationMs = durationMin * 60000;
     const stepMs = SLOT_STEP_MIN * 60000;
     const now = Date.now();
@@ -916,18 +927,20 @@ export class AppointmentsService {
         // agendamento ativo do profissional. Sem este filtro a API listava
         // janelas já ocupadas e a recepcionista virtual podia oferecer um
         // horário impossível.
-        if (
-          busy.some(
-            (appointment) =>
-              appointment.start.getTime() < slotEnd &&
-              appointment.end.getTime() > slotStart,
-          )
-        ) {
-          continue;
-        }
+        const ocupado = busy.some(
+          (appointment) =>
+            appointment.start.getTime() < slotEnd &&
+            appointment.end.getTime() > slotStart,
+        );
+        // `includeBusy` = "Encaixar agendamento" ligado. Sem esta saída o
+        // encaixe era inútil na prática: o horário ocupado nem aparecia na
+        // lista, então não havia o que encaixar. O slot volta MARCADO como
+        // ocupado — a recepção precisa ver que está marcando em cima.
+        if (ocupado && !opts?.includeBusy) continue;
         slots.push({
           start: new Date(slotStart).toISOString(),
           end: new Date(slotEnd).toISOString(),
+          ...(ocupado ? { busy: true } : {}),
         });
       }
     }

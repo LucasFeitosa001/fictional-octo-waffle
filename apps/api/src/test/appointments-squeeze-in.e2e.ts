@@ -249,6 +249,107 @@ async function run() {
       foraDoExpediente.status === 400,
       `status ${foraDoExpediente.status}`,
     );
+
+    // ---------- 6) a GRADE precisa oferecer o horário ocupado ----------
+    // Descoberta do dono: mesmo com o encaixe ligado, o seletor de horário não
+    // mostrava 10:30 porque estava ocupado — então não havia o que encaixar.
+    // O encaixe só existe de verdade se o horário aparecer para ser escolhido.
+    await prisma.professionalService.create({
+      data: { professionalId: pro.id, serviceId: service.id },
+    });
+    const dia = startIso.slice(0, 10);
+    const semEncaixe = await api(
+      'GET',
+      `/availability?serviceId=${service.id}&professionalId=${pro.id}&date=${dia}`,
+      { token: salon.token },
+    );
+    const comEncaixe = await api(
+      'GET',
+      `/availability?serviceId=${service.id}&professionalId=${pro.id}&date=${dia}&squeezeIn=true`,
+      { token: salon.token },
+    );
+    check('6) grade sem encaixe → 200', semEncaixe.status === 200, `status ${semEncaixe.status}`);
+    check('6) grade com encaixe → 200', comEncaixe.status === 200, `status ${comEncaixe.status}`);
+
+    const ocupadoNaLista = (r: ApiResp) =>
+      (r.body?.slots ?? []).some((s: any) => s.start === startIso);
+    check(
+      '6) sem encaixe o horário ocupado NÃO é oferecido',
+      !ocupadoNaLista(semEncaixe),
+      'a proteção normal continua escondendo horário cheio',
+    );
+    check(
+      '6) com encaixe o horário ocupado É oferecido',
+      ocupadoNaLista(comEncaixe),
+      'era o que faltava para o toggle servir para alguma coisa',
+    );
+    const slotOcupado = (comEncaixe.body?.slots ?? []).find((s: any) => s.start === startIso);
+    check(
+      '6) e vem MARCADO como ocupado (busy)',
+      slotOcupado?.busy === true,
+      'sem a marca, alguém marca em cima sem perceber',
+    );
+    check(
+      '6) com encaixe a grade só CRESCE (não esconde horário livre)',
+      (comEncaixe.body?.slots ?? []).length >= (semEncaixe.body?.slots ?? []).length,
+    );
+
+    // ---------- 7) REAGENDAR para um horário ocupado ----------
+    // Caso do dono: mover o Daniel para 10:30, onde já está o Paulo.
+    const clienteC = await prisma.customer.create({
+      data: { companyId, name: 'Cliente C' },
+    });
+    const outroHorario = new Date(start.getTime() + 2 * 60 * 60 * 1000).toISOString();
+    const paraMover = await api('POST', '/appointments', {
+      token: salon.token,
+      body: {
+        customerId: clienteC.id,
+        professionalId: pro.id,
+        start: outroHorario,
+        items: [{ serviceId: service.id }],
+      },
+    });
+    check('7) agendamento de origem criado', paraMover.status === 201, `status ${paraMover.status}`);
+
+    const moverBloqueado = await api('PATCH', `/appointments/${paraMover.body?.id}`, {
+      token: salon.token,
+      body: { start: startIso },
+    });
+    check(
+      '7) reagendar para horário ocupado SEM encaixe → 409',
+      moverBloqueado.status === 409,
+      `status ${moverBloqueado.status}`,
+    );
+
+    const moverEncaixado = await api('PATCH', `/appointments/${paraMover.body?.id}`, {
+      token: salon.token,
+      body: { start: startIso, squeezeIn: true },
+    });
+    check(
+      '7) reagendar para horário ocupado COM encaixe → 200',
+      moverEncaixado.status >= 200 && moverEncaixado.status < 300,
+      `status ${moverEncaixado.status} ${JSON.stringify(moverEncaixado.body?.message ?? '')}`,
+    );
+    const movido = await prisma.appointment.findUnique({
+      where: { id: paraMover.body?.id },
+      select: { start: true },
+    });
+    check(
+      '7) o agendamento realmente mudou de horário',
+      movido?.start.toISOString() === startIso,
+      `ficou em ${movido?.start.toISOString()}`,
+    );
+
+    // ---------- 8) reagendar com encaixe ainda respeita o expediente ----------
+    const foraDaJanela = await api('PATCH', `/appointments/${paraMover.body?.id}`, {
+      token: salon.token,
+      body: { start: startIso, professionalId: semExpediente.id, squeezeIn: true },
+    });
+    check(
+      '8) reagendar com encaixe não fura o expediente → 400',
+      foraDaJanela.status === 400,
+      `status ${foraDaJanela.status}`,
+    );
   } finally {
     const { prisma } = await import('@beautypass/db');
     if (companyId) {

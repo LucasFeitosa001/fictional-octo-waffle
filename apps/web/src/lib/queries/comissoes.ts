@@ -51,7 +51,11 @@ export interface CommissionSummaryRow {
   valorVendido: number;
   comissao: number;
   bonus: number;
+  /** Vales (adiantamentos) em aberto do profissional — descontados no pagamento. */
+  vales: number;
   total: number;
+  /** Comissões + bonificações − vales, nunca negativo. É o que o botão paga. */
+  liquido: number;
   entryCount: number;
   openCount: number;
   paidCount: number;
@@ -62,7 +66,14 @@ export interface CommissionSummaryRow {
 
 export interface CommissionSummary {
   data: CommissionSummaryRow[];
-  totals: { valorVendido: number; comissao: number; bonus: number; total: number };
+  totals: {
+    valorVendido: number;
+    comissao: number;
+    bonus: number;
+    vales: number;
+    total: number;
+    liquido: number;
+  };
 }
 
 export interface CommissionEntry {
