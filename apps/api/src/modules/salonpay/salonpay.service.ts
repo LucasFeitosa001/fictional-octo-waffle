@@ -108,4 +108,110 @@ export class SalonPayService {
 
     return this.get(companyId);
   }
+
+  /**
+   * Para onde o SalonPay transferiria a comissão desta profissional.
+   *
+   * `pixKey` explícita ganha do documento; CPF é chave PIX válida, então o
+   * documento serve de fallback. Sem nenhum dos dois **não há destino** — e a
+   * tela precisa dizer isso ANTES de pagar, não falhar depois de o salão achar
+   * que transferiu.
+   */
+  destinoDe(profissional: { pixKey: string | null; document: string | null }) {
+    const chave = (profissional.pixKey ?? '').trim() || (profissional.document ?? '').trim();
+    return { pixKey: chave || null, temDestino: Boolean(chave) };
+  }
+
+  /** GET /salonpay/recipients — quem pode receber e quem está sem chave. */
+  async recipients(companyId: string) {
+    const profissionais = await this.prisma.client.professional.findMany({
+      where: { companyId, active: true, deletedAt: null },
+      select: { id: true, name: true, document: true, pixKey: true },
+      orderBy: { name: 'asc' },
+    });
+    return profissionais.map((p) => ({
+      id: p.id,
+      name: p.name,
+      document: p.document,
+      ...this.destinoDe(p),
+    }));
+  }
+
+  /**
+   * Registra a transferência do repasse de comissão.
+   *
+   * Roda DENTRO da transação do pagamento: se o pagamento falhar, a
+   * transferência não fica órfã. Nasce `pending` — registrada, ainda não
+   * enviada a provedor nenhum. Só um adquirente de verdade move daqui.
+   */
+  async registrarTransferencia(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    dados: { professionalId: string; paymentId: string; amount: Prisma.Decimal },
+  ) {
+    const profissional = await tx.professional.findFirst({
+      where: { id: dados.professionalId, companyId },
+      select: { name: true, document: true, pixKey: true },
+    });
+    if (!profissional) return null;
+    const { pixKey } = this.destinoDe(profissional);
+
+    return tx.salonPayTransfer.create({
+      data: {
+        companyId,
+        professionalId: dados.professionalId,
+        paymentId: dados.paymentId,
+        operation: 'commission',
+        status: 'pending',
+        statusReason: pixKey
+          ? null
+          : 'Profissional sem chave PIX cadastrada — informe a chave para o repasse sair.',
+        recipientName: profissional.name,
+        recipientDocument: profissional.document,
+        pixKey,
+        amount: dados.amount,
+      },
+    });
+  }
+
+  /** GET /salonpay/transfers — a tela "Transferências". */
+  async transfers(
+    companyId: string,
+    filtros: { from?: string; to?: string; status?: string },
+  ) {
+    const where: Prisma.SalonPayTransferWhereInput = { companyId };
+    if (
+      filtros.status === 'pending' ||
+      filtros.status === 'processing' ||
+      filtros.status === 'paid' ||
+      filtros.status === 'failed'
+    ) {
+      where.status = filtros.status;
+    }
+    if (filtros.from || filtros.to) {
+      where.requestedAt = {
+        ...(filtros.from ? { gte: new Date(`${filtros.from}T00:00:00`) } : {}),
+        ...(filtros.to ? { lte: new Date(`${filtros.to}T23:59:59.999`) } : {}),
+      };
+    }
+
+    const linhas = await this.prisma.client.salonPayTransfer.findMany({
+      where,
+      orderBy: { requestedAt: 'desc' },
+      take: 200,
+    });
+
+    return linhas.map((t) => ({
+      id: t.id,
+      requestedAt: t.requestedAt.toISOString(),
+      settledAt: t.settledAt?.toISOString() ?? null,
+      operation: t.operation,
+      status: t.status,
+      statusReason: t.statusReason,
+      recipientName: t.recipientName,
+      recipientDocument: t.recipientDocument,
+      pixKey: t.pixKey,
+      amount: Number(t.amount),
+    }));
+  }
 }

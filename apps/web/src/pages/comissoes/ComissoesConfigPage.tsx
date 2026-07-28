@@ -6,12 +6,9 @@ import { ErrorState, LoadingState } from '../../components/States';
 import { HelpTooltip } from '../../components/HelpTooltip';
 import { AppSwitch } from '../../components/SwitchRow';
 import { AppTabs } from '../../components/AppTabs';
+import { COMMISSION_TABS, commissionTabPath } from './tabs';
 import {
-  IconChart,
-  IconCircleCheck,
-  IconHome,
   IconInfo,
-  IconSettings,
 } from '../../components/icons';
 import {
   useCommissionRules,
@@ -33,15 +30,8 @@ import {
 
 const CARD_CLASS = 'rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]';
 
-// Abas do topo do módulo Comissões (Belasis: Resumo / Em aberto / Pagas /
-// Configurações). As de relatório levam ao Resumo; "Configurações" é a atual.
-type CommissionTab = 'summary' | 'open' | 'paid' | 'settings';
-const TABS: { id: CommissionTab; label: string; icon: ReactNode }[] = [
-  { id: 'summary', label: 'Resumo', icon: <IconHome size={15} /> },
-  { id: 'open', label: 'Comissões em aberto', icon: <IconChart size={15} /> },
-  { id: 'paid', label: 'Comissões pagas', icon: <IconCircleCheck size={15} /> },
-  { id: 'settings', label: 'Configurações', icon: <IconSettings size={15} /> },
-];
+// As abas vêm de `./tabs` — a cópia local ficou para trás quando as abas
+// mudaram, e clicar aqui mostrava "Resumo / Comissões em aberto" de novo.
 
 const YESNO_PAYER: { value: CommissionPayer; label: string }[] = [
   { value: 'proportional', label: 'Proporcional ao comissionamento' },
@@ -73,13 +63,9 @@ export function ComissoesConfigPage() {
       </header>
 
       <AppTabs
-        items={TABS}
+        items={[...COMMISSION_TABS]}
         selectedKey="settings"
-        onSelectionChange={(key) => {
-          if (key === 'summary') navigate('/comissoes/resumo');
-          if (key === 'open') navigate('/comissoes/em-aberto');
-          if (key === 'paid') navigate('/comissoes/pagas');
-        }}
+        onSelectionChange={(key) => navigate(commissionTabPath(String(key)))}
         ariaLabel="Áreas de comissões"
         className="mb-5"
       />

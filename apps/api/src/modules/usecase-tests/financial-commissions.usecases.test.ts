@@ -5,10 +5,18 @@ import { CommissionsService } from '../commissions/commissions.service';
 import { OrdersService } from '../orders/orders.service';
 import { PurchasesService } from '../purchases/purchases.service';
 
+// O SalonPayService entrou como dependência (pagar com SalonPay emite uma
+// transferência). Nestes testes de unidade ele é um duble: o que está sob teste
+// é a fórmula da comissão, não o repasse.
+const salonpayDuble = {
+  registrarTransferencia: async () => null,
+} as any;
+
 function commissionService(tx: any) {
-  return new CommissionsService({
-    client: { $transaction: async (fn: any) => fn(tx) },
-  } as any);
+  return new CommissionsService(
+    { client: { $transaction: async (fn: any) => fn(tx) } } as any,
+    salonpayDuble,
+  );
 }
 
 function orderService() {
@@ -277,17 +285,20 @@ describe('GAP: UC-FIN-024/026 — quitação segura de comissões', () => {
 
   it('não permite marcar entry como paid sem criar CommissionPayment', async () => {
     let updated = false;
-    const service = new CommissionsService({
-      client: {
-        commissionEntry: {
-          findFirst: async () => ({ id: 'entry-1', status: 'open' }),
-          update: async () => {
-            updated = true;
-            return { id: 'entry-1', status: 'paid' };
+    const service = new CommissionsService(
+      {
+        client: {
+          commissionEntry: {
+            findFirst: async () => ({ id: 'entry-1', status: 'open' }),
+            update: async () => {
+              updated = true;
+              return { id: 'entry-1', status: 'paid' };
+            },
           },
         },
-      },
-    } as any);
+      } as any,
+      salonpayDuble,
+    );
 
     await assert.rejects(
       service.updateEntry('company-a', 'entry-1', { status: 'paid' }),
@@ -299,7 +310,7 @@ describe('GAP: UC-FIN-024/026 — quitação segura de comissões', () => {
 
 describe('GAP: UC-FIN-028 — período de comissão', () => {
   it('expõe operação de abertura e fechamento de período', () => {
-    const service = new CommissionsService({ client: {} } as any);
+    const service = new CommissionsService({ client: {} } as any, salonpayDuble);
 
     assert.equal(typeof (service as any).openClosingPeriod, 'function');
     assert.equal(typeof (service as any).closeClosingPeriod, 'function');

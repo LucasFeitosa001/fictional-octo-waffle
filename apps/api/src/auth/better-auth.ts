@@ -4,6 +4,7 @@ import { bearer } from 'better-auth/plugins';
 import { expo } from '@better-auth/expo';
 import { prisma } from '@beautypass/db';
 import { seedCompanyRoles } from '@beautypass/db/rbac';
+import { provisionFinanceiroPadrao } from './provision-financeiro';
 
 /**
  * Better Auth server instance for the Beautypass API.
@@ -210,6 +211,10 @@ export const auth = betterAuth({
           // O DONO do salão também é um Professional (aparece na agenda como
           // profissional sem precisar cadastrar à parte). Vincula pelo userId.
           await ensureOwnerProfessional(company.id, user.id, user.name);
+          // Conta, formas de pagamento e categorias padrão. Sem isto o salão
+          // nascia sem conseguir registrar recebimento nem pagar comissão: os
+          // selects de "Forma de pagamento" e "Conta" abriam vazios.
+          await provisionFinanceiroPadrao(prisma, company.id);
         },
       },
     },

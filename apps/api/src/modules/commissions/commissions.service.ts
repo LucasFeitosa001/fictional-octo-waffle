@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SalonPayService } from '../salonpay/salonpay.service';
 import {
   BulkCommissionPaymentDto,
   CreateCommissionAdvanceDto,
@@ -67,7 +68,10 @@ function inclusiveDateRange(
 
 @Injectable()
 export class CommissionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly salonpay: SalonPayService,
+  ) {}
 
   /**
    * Cadastro profissional ligado ao usuário autenticado. O controller usa este
@@ -554,7 +558,25 @@ export class CommissionsService {
       });
     }
 
-    return { ...payment, transactionId: transacao?.id ?? null, entriesCount: entries.length };
+    // 7. SALONPAY. Pagar por ele não é escolher uma forma de pagamento — é
+    //    emitir uma TRANSFERÊNCIA para a profissional (é conta digital, como
+    //    mostram as rotas /belasis-pay/transfers da referência). Nasce
+    //    `pending`: registrada, ainda não enviada a provedor nenhum.
+    const transferencia =
+      opts.rail === 'salonpay' && amount.greaterThan(0)
+        ? await this.salonpay.registrarTransferencia(tx, companyId, {
+            professionalId: item.professionalId,
+            paymentId: payment.id,
+            amount,
+          })
+        : null;
+
+    return {
+      ...payment,
+      transactionId: transacao?.id ?? null,
+      transferId: transferencia?.id ?? null,
+      entriesCount: entries.length,
+    };
   }
 
   /**
@@ -783,6 +805,20 @@ export class CommissionsService {
       }
       await tx.cashMovement.deleteMany({
         where: { refType: 'commission-payment', refId: id },
+      });
+
+      // Transferência do SalonPay: só pode sumir enquanto NÃO tiver saído. Se
+      // já foi enviada/liquidada, apagar o registro esconderia dinheiro que
+      // saiu de verdade — marca como falha com o motivo e mantém o rastro.
+      await tx.salonPayTransfer.deleteMany({
+        where: { companyId, paymentId: id, status: 'pending' },
+      });
+      await tx.salonPayTransfer.updateMany({
+        where: { companyId, paymentId: id, status: { in: ['processing', 'paid'] } },
+        data: {
+          status: 'failed',
+          statusReason: 'Pagamento de comissão estornado no SalonPass.',
+        },
       });
 
       // Auditoria (Belasis exige justificativa; registramos usuário, valor e

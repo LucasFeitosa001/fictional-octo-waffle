@@ -7,7 +7,7 @@ import { DateField } from './DateRangeFilter';
 import { IconGift, IconInfo, IconReceipt, IconWallet } from './icons';
 import { formatDate, formatMoney, isoDate } from '../lib/format';
 import { useFinancialAccounts, usePaymentMethods } from '../lib/queries/financeiro';
-import { useSalonPay } from '../lib/queries/salonpay';
+import { useSalonPay, useSalonPayRecipients } from '../lib/queries/salonpay';
 import { apiErrorMessage } from '../lib/toast';
 import {
   useCommissionAdvances,
@@ -57,6 +57,16 @@ export function PagarComissaoDrawer({
   const methods = usePaymentMethods();
   const accounts = useFinancialAccounts();
   const salonpay = useSalonPay();
+  // Quem tem chave PIX. Sem destino não há transferência — precisa aparecer
+  // ANTES de pagar, por profissional, e não falhar depois.
+  const recipients = useSalonPayRecipients();
+  const salonPay = rail === 'salonpay';
+  const semDestino = salonPay
+    ? rows.filter((r) => {
+        const dest = (recipients.data ?? []).find((d) => d.id === r.professionalId);
+        return dest && !dest.temDestino;
+      })
+    : [];
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [paidAt, setPaidAt] = useState(() => isoDate(new Date()));
@@ -131,8 +141,14 @@ export function PagarComissaoDrawer({
 
   async function handleConfirm() {
     setError(null);
-    if (!paymentMethodId || !accountId) {
-      setError('Escolha a forma de pagamento e a conta — são elas que lançam a despesa no Financeiro.');
+    if (!accountId) {
+      setError('Escolha a conta — é ela que lança a despesa no Financeiro.');
+      return;
+    }
+    // No trilho manual a forma de pagamento é obrigatória; no SalonPay a forma
+    // É o SalonPay, então perguntar seria pedir uma informação que não existe.
+    if (!salonPay && !paymentMethodId) {
+      setError('Escolha a forma de pagamento — é ela que classifica a saída no Financeiro.');
       return;
     }
     try {
@@ -235,8 +251,48 @@ export function PagarComissaoDrawer({
             </div>
           )}
 
+          {/* Destino do repasse — só no SalonPay, que é conta digital: o dinheiro
+              vai por PIX para a profissional, não por uma "forma de pagamento". */}
+          {salonPay && (
+            <div className="rounded-xl border border-[var(--color-soft-border)] bg-white p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                Destino do repasse
+              </div>
+              <ul className="flex flex-col gap-1.5">
+                {rows.map((r) => {
+                  const dest = (recipients.data ?? []).find((d) => d.id === r.professionalId);
+                  return (
+                    <li
+                      key={r.professionalId}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="min-w-0 truncate text-foreground">{r.professionalName}</span>
+                      {dest?.temDestino ? (
+                        <span className="shrink-0 font-medium text-muted">
+                          PIX {mascararChave(dest.pixKey)}
+                        </span>
+                      ) : (
+                        <span className="shrink-0 font-medium text-danger">
+                          sem chave PIX cadastrada
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {semDestino.length > 0 && (
+                <p className="mt-2 text-xs text-danger">
+                  {semDestino.length === 1
+                    ? `${semDestino[0].professionalName} está sem chave PIX. O repasse fica registrado como pendente de destino até a chave ser cadastrada em Cadastros → Profissionais.`
+                    : `${semDestino.length} profissionais estão sem chave PIX. Os repasses ficam pendentes de destino até as chaves serem cadastradas.`}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Forma de pagamento · Conta · Data — obrigatórios como na referência */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className={`grid grid-cols-1 gap-3 ${salonPay ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+            {salonPay ? null : (
             <CampoPg label="Forma de pagamento" obrigatorio>
               <Select
                 aria-label="Forma de pagamento"
@@ -259,8 +315,9 @@ export function PagarComissaoDrawer({
                 </Select.Popover>
               </Select>
             </CampoPg>
+            )}
 
-            <CampoPg label="Conta" obrigatorio>
+            <CampoPg label={salonPay ? 'Conta de origem' : 'Conta'} obrigatorio>
               <Select
                 aria-label="Conta"
                 selectedKey={accountId || null}
@@ -374,6 +431,18 @@ export function PagarComissaoDrawer({
       )}
     </Drawer>
   );
+}
+
+/**
+ * Chave PIX parcialmente escondida. CPF e telefone completos numa tela que
+ * qualquer pessoa da recepção abre é exposição desnecessária — o que importa
+ * aqui é confirmar que EXISTE destino, não ler a chave inteira.
+ */
+function mascararChave(chave: string | null): string {
+  if (!chave) return '—';
+  const limpa = chave.trim();
+  if (limpa.length <= 4) return limpa;
+  return `••••${limpa.slice(-4)}`;
 }
 
 function CardTotal({

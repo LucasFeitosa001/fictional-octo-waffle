@@ -162,8 +162,13 @@ async function run() {
       data: { companyId, name: 'Caixa', type: 'cash' },
     });
     // Income category (kind=credit) — finish must attach it to the Transaction.
-    const incomeCat = await prisma.financialCategory.create({
-      data: { companyId, name: 'Serviços', kind: 'credit' },
+    // O salão já NASCE com categorias padrão (provisionamento no cadastro), e
+    // `finish()` usa a PRIMEIRA categoria de receita ativa da empresa. Resolver
+    // aqui em vez de criar outra: fabricar uma segunda faria o teste afirmar
+    // algo que o código não promete.
+    const incomeCat = await prisma.financialCategory.findFirstOrThrow({
+      where: { companyId, kind: 'credit', active: true },
+      orderBy: { createdAt: 'asc' },
     });
     // Payment methods with different financial-auto flags. Both must still
     // appear in the open cash register's payment reconciliation.

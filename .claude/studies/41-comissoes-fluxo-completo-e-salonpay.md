@@ -91,6 +91,69 @@ abre o formulário.
 (nem Sidebar nem Financeiro), então só se chega por URL direta ou favorito. Trocar por uma página
 de verdade, mantendo o caminho antigo vivo para não virar 404.
 
+## Sobra 2: as abas estavam DUPLICADAS
+
+Relatado pelo dono: clicar em "Configurações" troca as abas de cima para
+*"Resumo · Comissões em aberto · Comissões pagas · Configurações"* — os nomes antigos, incluindo a
+aba que foi removida por não existir no Belasis.
+
+Causa: a lista vive em DOIS arquivos.
+
+- `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx:82` — a versão nova
+  (`Detalhadas · Resumidas · Pagas · Configurações`), corrigida no estudo 38.
+- `apps/web/src/pages/comissoes/ComissoesConfigPage.tsx:39`-`:44` — a cópia ANTIGA, com
+  `summary/open/paid/settings`, que ninguém tocou. O `onSelectionChange` (`:78`-`:82`) ainda navega
+  para `/comissoes/resumo` e `/comissoes/em-aberto`.
+
+Não basta corrigir a segunda cópia: duas listas da mesma navegação divergem de novo na próxima
+mudança — foi exatamente o que aconteceu aqui. Extrair para um módulo único
+(`pages/comissoes/tabs.tsx`) e fazer as duas páginas importarem.
+
+## Sobra 3: salão novo nasce sem forma de pagamento nenhuma
+
+Relatado: *"em Forma de pagamento está faltando cartão de crédito e débito"*. No DesignModa só
+havia Dinheiro e PIX porque **fui eu** que criei os dois ao semear as comissões — a empresa não
+tinha nenhuma. Não é caso isolado.
+
+`apps/api/src/auth/better-auth.ts:197`-`:212` provisiona a empresa no cadastro: cria a Company,
+`seedCompanyRoles`, vincula o usuário e chama `ensureOwnerProfessional`. **Não cria
+FinancialAccount, PaymentMethod nem FinancialCategory.** Ou seja, todo salão que se cadastra
+sozinho começa sem conseguir registrar um pagamento — e agora que o drawer de comissões exige
+forma + conta, os dois selects abrem vazios e não há como concluir.
+
+O conjunto certo já existe escrito em `apps/api/src/auth/seed-samya.ts:294`-`:310` (Caixa + Banco;
+Dinheiro `goesToCash`, Pix, Cartão de Crédito 3,5%/30d, Cartão de Débito 1,5%/1d), mas aquele
+arquivo é seed de demonstração e nunca roda no cadastro real.
+
+## Como o "Pagar com SalonPay" deve funcionar (o vídeo não mostra)
+
+O vídeo só cobre o onboarding. O desenho vem do que já foi minerado do Belasis:
+
+- Rotas do JS: `/belasis-pay/panel`, `/belasis-pay/transactions`, **`/belasis-pay/transfers`**
+  (`belasis-reference/`, rotas mineradas).
+- `belasis-reference/GAP-EXTRA-ESCAPOU.md:53` descreve a tela Transferências com as colunas
+  exatas: **Solicitação · Transferência · Operação · Status · Nome · CPF/CNPJ · Valor**, filtro por
+  período e paginação. E `:20` diz o que é por baixo: *"infra de conta digital/gateway (saldo,
+  KYC, PIX, saques)"*.
+
+Conclusão: **SalonPay não é forma de pagamento — é conta digital.** Pagar comissão por ele não é
+escolher "Dinheiro/PIX", é emitir uma **transferência** para a profissional, com ciclo de status.
+Por isso o drawer atual está errado ao pedir "Forma de pagamento" quando o trilho é SalonPay.
+
+Desenho:
+
+1. `SalonPayTransfer` com as colunas do Belasis (`requestedAt`, `settledAt`, `operation`,
+   `status`, nome/documento snapshot, `amount`).
+2. Destino do PIX: `Professional.document` já existe (`schema.prisma`, model Professional,
+   linha ~16) e CPF é chave PIX válida; falta `pixKey` para quem usa e-mail/telefone/aleatória.
+   **Sem chave não há para onde transferir** — a tela precisa dizer isso ANTES de pagar, por
+   profissional, e não falhar depois.
+3. Pagar com SalonPay: cria o `CommissionPayment` (rail=salonpay) + a transferência em `pending`,
+   e lança a despesa como qualquer pagamento.
+4. Status honesto: `pending` = registrada, ainda não enviada a provedor nenhum. `processing`,
+   `paid` e `failed` existem no enum para quando houver adquirente, e só ele os move.
+5. A página do SalonPay ganha a aba **Transferências** com aquelas colunas.
+
 ## Arquivos tocados
 
 - `packages/db/prisma/schema.prisma` (+ migração)
@@ -109,3 +172,8 @@ de verdade, mantendo o caminho antigo vivo para não virar 404.
 - `apps/api/src/test/commissions-fluxo.e2e.ts` (novo)
 - `apps/web/src/App.tsx` (rota `/financeiro/belasis-pay`, linha 374)
 - `apps/web/src/pages/financeiro/SalonPayPage.tsx` (novo)
+- `apps/web/src/pages/comissoes/ComissoesConfigPage.tsx` (abas antigas, linha 39)
+- `apps/web/src/pages/comissoes/tabs.tsx` (novo — fonte única das abas)
+- `apps/web/src/layout/Sidebar.tsx` (item SalonPay, linha 138)
+- `apps/api/src/auth/better-auth.ts` (provisionamento, linha 197)
+- `apps/api/src/auth/provision-financeiro.ts` (novo — config financeira padrão)

@@ -293,6 +293,7 @@ model Company {
   whatsappInboxMessages WhatsappInboxMessage[]
   aiAttendantConfig     AiAttendantConfig?
   salonPayAccount       SalonPayAccount?
+  salonPayTransfers     SalonPayTransfer[]
 }
 
 model Branch {
@@ -840,6 +841,10 @@ model Professional {
   commissionAdvances   CommissionAdvance[]
   reviews              Review[]
   goals                Goal[]
+  /// Chave PIX para receber pelo SalonPay. Vazia = usa o `document` (CPF é
+  /// chave válida); sem nenhum dos dois não há para onde transferir.
+  pixKey               String?
+  salonPayTransfers    SalonPayTransfer[]
 
   @@unique([companyId, legacyId])
   @@index([companyId])
@@ -1811,14 +1816,15 @@ model CommissionPayment {
   // Trilho usado: 'manual' (dinheiro/PIX do próprio salão) ou 'salonpay'.
   rail            CommissionPaymentRail @default(manual)
 
-  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  professional  Professional        @relation(fields: [professionalId], references: [id])
-  closing       CommissionClosing?  @relation(fields: [closingId], references: [id])
-  paidByUser    User?               @relation("CommissionPaymentPaidBy", fields: [paidByUserId], references: [id])
-  paymentMethod PaymentMethod?      @relation(fields: [paymentMethodId], references: [id])
-  account       FinancialAccount?   @relation(fields: [accountId], references: [id])
-  entries       CommissionEntry[]
-  advances      CommissionAdvance[]
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  professional      Professional        @relation(fields: [professionalId], references: [id])
+  closing           CommissionClosing?  @relation(fields: [closingId], references: [id])
+  paidByUser        User?               @relation("CommissionPaymentPaidBy", fields: [paidByUserId], references: [id])
+  paymentMethod     PaymentMethod?      @relation(fields: [paymentMethodId], references: [id])
+  account           FinancialAccount?   @relation(fields: [accountId], references: [id])
+  entries           CommissionEntry[]
+  advances          CommissionAdvance[]
+  salonPayTransfers SalonPayTransfer[]
 
   @@index([companyId])
   @@index([professionalId])
@@ -2484,4 +2490,68 @@ enum SalonPayStatus {
   active
   /// Recusado — `statusReason` explica.
   rejected
+}
+
+/// Transferência do SalonPay para uma profissional (pagamento de comissão).
+///
+/// Colunas espelhadas da tela "Transferências" do Belasis: Solicitação,
+/// Transferência, Operação, Status, Nome, CPF/CNPJ, Valor.
+///
+/// `nome` e `documento` são SNAPSHOT de propósito: se a profissional trocar de
+/// CPF ou for renomeada depois, o extrato tem que continuar mostrando para quem
+/// o dinheiro foi enviado na época.
+model SalonPayTransfer {
+  id             String  @id @default(cuid())
+  companyId      String
+  professionalId String
+  /// Pagamento de comissão que originou a transferência.
+  paymentId      String?
+
+  /// "Solicitação" — quando a transferência foi pedida.
+  requestedAt DateTime  @default(now())
+  /// "Transferência" — quando foi efetivada. Null enquanto não liquidar.
+  settledAt   DateTime?
+
+  operation    SalonPayOperation      @default(commission)
+  status       SalonPayTransferStatus @default(pending)
+  /// Motivo da falha devolvido pelo provedor, para a tela explicar.
+  statusReason String?
+
+  /// Snapshot de quem recebeu.
+  recipientName     String
+  recipientDocument String?
+  /// Chave PIX usada. Null quando a profissional não tinha nenhuma cadastrada —
+  /// a transferência fica pendente de destino em vez de sumir.
+  pixKey            String?
+
+  amount Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  professional Professional       @relation(fields: [professionalId], references: [id])
+  payment      CommissionPayment? @relation(fields: [paymentId], references: [id])
+
+  @@index([companyId])
+  @@index([professionalId])
+  @@index([paymentId])
+}
+
+enum SalonPayOperation {
+  /// Repasse de comissão a uma profissional.
+  commission
+  /// Saque do saldo para a conta do salão.
+  withdrawal
+}
+
+enum SalonPayTransferStatus {
+  /// Registrada, ainda NÃO enviada a provedor nenhum.
+  pending
+  /// Enviada, aguardando confirmação do provedor.
+  processing
+  /// Confirmada pelo provedor.
+  paid
+  /// Recusada — `statusReason` explica.
+  failed
 }

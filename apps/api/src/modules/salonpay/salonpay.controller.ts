@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
@@ -21,6 +21,25 @@ export class SalonPayController {
   @RequirePermission('financeiro:view', 'financeiro:manage')
   get(@CurrentUser('companyId') companyId: string) {
     return this.service.get(companyId);
+  }
+
+  /** Quem pode receber pelo SalonPay — e quem está sem chave PIX. */
+  @Get('recipients')
+  @RequirePermission('comissoes:view_all', 'financeiro:view', 'financeiro:manage')
+  recipients(@CurrentUser('companyId') companyId: string) {
+    return this.service.recipients(companyId);
+  }
+
+  /** A tela "Transferências" do SalonPay. */
+  @Get('transfers')
+  @RequirePermission('financeiro:view', 'financeiro:manage')
+  transfers(
+    @CurrentUser('companyId') companyId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.service.transfers(companyId, { from, to, status });
   }
 
   @Put('account')

@@ -81,3 +81,53 @@ export function useSaveSalonPay() {
     },
   });
 }
+
+// =====================================================================
+// Transferências — a tela "Transferências" do SalonPay.
+// SalonPay é CONTA DIGITAL: pagar comissão por ele emite um repasse, não
+// escolhe uma forma de pagamento.
+// =====================================================================
+export type SalonPayTransferStatus = 'pending' | 'processing' | 'paid' | 'failed';
+
+export interface SalonPayTransfer {
+  id: string;
+  /** "Solicitação" — quando foi pedida. */
+  requestedAt: string;
+  /** "Transferência" — quando liquidou. Null enquanto não sair. */
+  settledAt: string | null;
+  operation: 'commission' | 'withdrawal';
+  status: SalonPayTransferStatus;
+  statusReason: string | null;
+  recipientName: string;
+  recipientDocument: string | null;
+  pixKey: string | null;
+  amount: number;
+}
+
+export interface SalonPayRecipient {
+  id: string;
+  name: string;
+  document: string | null;
+  pixKey: string | null;
+  /** Sem chave não há para onde transferir — a tela avisa ANTES de pagar. */
+  temDestino: boolean;
+}
+
+export function useSalonPayTransfers(filtros: { from?: string; to?: string; status?: string } = {}) {
+  return useQuery({
+    queryKey: ['salonpay-transfers', filtros],
+    queryFn: () =>
+      api.get<SalonPayTransfer[]>('/salonpay/transfers', {
+        from: filtros.from,
+        to: filtros.to,
+        status: filtros.status || undefined,
+      }),
+  });
+}
+
+export function useSalonPayRecipients() {
+  return useQuery({
+    queryKey: ['salonpay-recipients'],
+    queryFn: () => api.get<SalonPayRecipient[]>('/salonpay/recipients'),
+  });
+}

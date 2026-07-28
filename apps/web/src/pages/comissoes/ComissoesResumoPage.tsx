@@ -11,21 +11,19 @@ import { ValeModal } from '../../components/ValeModal';
 import { JustificativaDialog } from '../../components/JustificativaDialog';
 import { AppTabs } from '../../components/AppTabs';
 import { ComissoesDetalhadasView } from './ComissoesDetalhadasView';
+import { COMMISSION_TABS, commissionTabPath } from './tabs';
 import { SalonPayDrawer } from '../../components/SalonPayDrawer';
 import { PagarComissoesMenu } from '../../components/PagarComissoesMenu';
 import { useSalonPay } from '../../lib/queries/salonpay';
 import {
-  IconChart,
   IconChevron,
   IconCircleCheck,
   IconDownload,
   IconFilter,
-  IconHome,
   IconPercent,
   IconPlus,
   IconReceipt,
   IconSearch,
-  IconSettings,
   IconTrash,
   IconWallet,
   IconX,
@@ -68,23 +66,8 @@ const STATUS_OPTIONS = [
   { id: 'paid', name: 'Pago' },
 ];
 
-/**
- * Abas do topo — as MESMAS quatro do Belasis, nesta ordem.
- *
- * "Comissões em aberto" foi REMOVIDA: não existe lá, e aqui nem tela própria
- * tinha — `/comissoes/em-aberto` e `/comissoes/pagas` renderizavam a mesma
- * página, mudando só um filtro de status. Em aberto é ESTADO da linha, não tela.
- * Quem quiser ver só as abertas filtra dentro de "Resumidas".
- *
- * "Detalhadas" é a primeira, como no Belasis: escolhe-se o profissional e vê-se
- * o lançamento item a item. Antes isso só existia como drawer lateral.
- */
-const TABS = [
-  { id: 'detalhadas', label: 'Detalhadas', icon: <IconChart size={15} /> },
-  { id: '', label: 'Resumidas', icon: <IconHome size={15} /> },
-  { id: 'paid', label: 'Pagas', icon: <IconCircleCheck size={15} /> },
-  { id: 'settings', label: 'Configurações', icon: <IconSettings size={15} /> },
-] as const;
+// As abas vivem em `./tabs` — fonte única compartilhada com a página de
+// Configurações, que antes tinha a própria cópia e ficou com os nomes antigos.
 
 const ENTRY_STATUS_LABEL: Record<CommissionEntry['status'], string> = {
   open: 'Em aberto',
@@ -652,14 +635,9 @@ export function ComissoesResumoPage() {
         </div>
 
         <AppTabs
-          items={[...TABS]}
+          items={[...COMMISSION_TABS]}
           selectedKey={status}
-          onSelectionChange={(key) => {
-            if (key === 'settings') navigate('/comissoes/config');
-            else if (key === 'paid') navigate('/comissoes/pagas');
-            else if (key === 'detalhadas') navigate('/comissoes/detalhadas');
-            else navigate('/comissoes/resumidas');
-          }}
+          onSelectionChange={(key) => navigate(commissionTabPath(String(key)))}
           ariaLabel="Áreas de comissões"
           className="mt-3"
         />

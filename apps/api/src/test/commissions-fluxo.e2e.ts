@@ -159,15 +159,36 @@ async function run() {
       data: { companyId, key: 'commissions', enabled: true },
     });
 
+    // ==========================================================
+    // 0) O SALÃO JÁ NASCE PODENDO PAGAR
+    //    O drawer exige forma de pagamento + conta. Antes o provisionamento não
+    //    criava nenhuma das duas, então todo salão recém-cadastrado abria os
+    //    dois selects vazios e não conseguia concluir pagamento nenhum.
+    // ==========================================================
+    {
+      const formas = await api('GET', '/payment-methods', { token: salon.token });
+      const nomes = (formas.body ?? []).map((f: any) => f.name);
+      check('0) salão novo já vem com formas de pagamento', nomes.length >= 4, nomes.join(', '));
+      for (const esperada of ['Dinheiro', 'Pix', 'Cartão de Crédito', 'Cartão de Débito']) {
+        check(`0) tem "${esperada}"`, nomes.includes(esperada), nomes.join(', '));
+      }
+      const contas = await api('GET', '/financial-accounts', { token: salon.token });
+      check('0) e já vem com conta', (contas.body ?? []).length >= 1,
+        (contas.body ?? []).map((c: any) => c.name).join(', '));
+      const soCaixa = (formas.body ?? []).filter((f: any) => f.goesToCash);
+      check('0) só Dinheiro entra no caixa da recepção',
+        soCaixa.length === 1 && soCaixa[0].name === 'Dinheiro',
+        soCaixa.map((f: any) => f.name).join(', '));
+    }
+
     // ---------------- catálogo mínimo ----------------
-    const conta = await prisma.financialAccount.create({
-      data: { companyId, name: 'Caixa', type: 'cash' },
+    // Usa a config que o próprio provisionamento criou — se o teste fabricasse
+    // a sua, deixaria de exercitar o caminho real.
+    const conta = await prisma.financialAccount.findFirstOrThrow({
+      where: { companyId, name: 'Caixa' },
     });
-    await prisma.financialCategory.create({
-      data: { companyId, name: 'Despesas', kind: 'debit' },
-    });
-    const formaCaixa = await prisma.paymentMethod.create({
-      data: { companyId, name: 'Dinheiro', goesToCash: true, defaultAccountId: conta.id },
+    const formaCaixa = await prisma.paymentMethod.findFirstOrThrow({
+      where: { companyId, name: 'Dinheiro' },
     });
     const pro = await prisma.professional.create({
       data: { companyId, name: 'Paula Comissão', receivesCommission: true },
@@ -405,6 +426,79 @@ async function run() {
       String(regSalonPay?.rail));
     check('6) e também lança a despesa',
       (await prisma.transaction.count({ where: { companyId, kind: 'expense' } })) === 1);
+
+    // ==========================================================
+    // 7) SALONPAY é CONTA DIGITAL: pagar por ele emite TRANSFERÊNCIA
+    //    Desenho tirado das rotas mineradas do Belasis
+    //    (/belasis-pay/transfers) e das colunas da tela Transferências.
+    // ==========================================================
+    {
+      const transfers = await api('GET', '/salonpay/transfers', { token: salon.token });
+      check('7) GET /salonpay/transfers → 200', transfers.status === 200, `status ${transfers.status}`);
+      const t = (transfers.body ?? [])[0];
+      check('7) o pagamento SalonPay gerou UMA transferência',
+        (transfers.body ?? []).length === 1, `${(transfers.body ?? []).length}`);
+      check('7) operação = comissão', t?.operation === 'commission', String(t?.operation));
+      check('7) nasce "pending" — registrada, não enviada a provedor nenhum',
+        t?.status === 'pending', String(t?.status));
+      check('7) guarda o nome de quem recebe (snapshot)',
+        t?.recipientName === 'Paula Comissão', String(t?.recipientName));
+      check('7) e o valor do pagamento', near(Number(t?.amount ?? 0), 100), String(t?.amount));
+      check('7) sem chave PIX, avisa o motivo em vez de sumir',
+        t?.pixKey === null && /chave PIX/i.test(t?.statusReason ?? ''),
+        String(t?.statusReason));
+
+      // Pagamento MANUAL não pode gerar transferência — o dinheiro saiu por fora.
+      const soDoSalonPay = (transfers.body ?? []).every((x: any) => x.operation === 'commission');
+      check('7) pagamento manual não gera transferência', soDoSalonPay);
+    }
+
+    // ==========================================================
+    // 8) Destinatários: a tela precisa saber quem NÃO tem chave antes de pagar
+    // ==========================================================
+    {
+      const antes = await api('GET', '/salonpay/recipients', { token: salon.token });
+      check('8) GET /salonpay/recipients → 200', antes.status === 200);
+      const paula = (antes.body ?? []).find((r: any) => r.name === 'Paula Comissão');
+      check('8) sem chave nem documento → sem destino', paula?.temDestino === false,
+        JSON.stringify(paula));
+
+      // CPF serve de chave PIX.
+      await prisma.professional.update({
+        where: { id: pro.id },
+        data: { document: '12345678901' },
+      });
+      const comCpf = await api('GET', '/salonpay/recipients', { token: salon.token });
+      const comDoc = (comCpf.body ?? []).find((r: any) => r.name === 'Paula Comissão');
+      check('8) CPF vale como chave PIX',
+        comDoc?.temDestino === true && comDoc?.pixKey === '12345678901',
+        JSON.stringify(comDoc));
+
+      // pixKey explícita ganha do documento.
+      await prisma.professional.update({
+        where: { id: pro.id },
+        data: { pixKey: 'paula@salao.com.br' },
+      });
+      const comChave = await api('GET', '/salonpay/recipients', { token: salon.token });
+      const comPix = (comChave.body ?? []).find((r: any) => r.name === 'Paula Comissão');
+      check('8) chave explícita ganha do documento',
+        comPix?.pixKey === 'paula@salao.com.br', JSON.stringify(comPix?.pixKey));
+    }
+
+    // ==========================================================
+    // 9) Estornar o pagamento cancela a transferência ainda não enviada
+    // ==========================================================
+    {
+      const pagamentoSP = pagaSalonPay.body?.payments?.[0]?.id;
+      const estorna = await api('DELETE', `/commission-payments/${pagamentoSP}`, {
+        token: salon.token,
+        body: { justification: 'teste de estorno do salonpay' },
+      });
+      check('9) estornar pagamento SalonPay → 2xx',
+        estorna.status >= 200 && estorna.status < 300, `status ${estorna.status}`);
+      const restou = await prisma.salonPayTransfer.count({ where: { companyId } });
+      check('9) a transferência pendente é cancelada junto', restou === 0, `${restou} restante(s)`);
+    }
   } finally {
     const { prisma } = await import('@beautypass/db');
     if (companyId) {

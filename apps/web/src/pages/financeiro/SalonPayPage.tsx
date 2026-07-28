@@ -1,9 +1,16 @@
 import { useState } from 'react';
 import { Button, Chip } from '@heroui/react';
 import { SalonPayDrawer } from '../../components/SalonPayDrawer';
-import { LoadingState } from '../../components/States';
-import { IconCreditCard, IconInfo } from '../../components/icons';
-import { useSalonPay } from '../../lib/queries/salonpay';
+import { DataTable, type Column } from '../../components/DataTable';
+import { EmptyState, ErrorState, LoadingState } from '../../components/States';
+import { AppTabs } from '../../components/AppTabs';
+import { IconCreditCard, IconInfo, IconWallet } from '../../components/icons';
+import { formatDate, formatMoney } from '../../lib/format';
+import {
+  useSalonPay,
+  useSalonPayTransfers,
+  type SalonPayTransfer,
+} from '../../lib/queries/salonpay';
 
 /**
  * SalonPay — página do cadastro de recebimento, dentro de Financeiro.
@@ -31,9 +38,79 @@ const ROTULO: Record<string, string> = {
   district: 'Bairro',
 };
 
+/**
+ * Abas do SalonPay — as mesmas do Belasis (`/belasis-pay/panel`,
+ * `/belasis-pay/transactions`, `/belasis-pay/transfers`). "Transações" ainda não
+ * existe do nosso lado (depende do extrato do adquirente), então ficam duas:
+ * o cadastro e as transferências, que é o que temos dado real para mostrar.
+ */
+const ABAS = [
+  { id: 'cadastro', label: 'Cadastro', icon: <IconCreditCard size={15} /> },
+  { id: 'transferencias', label: 'Transferências', icon: <IconWallet size={15} /> },
+];
+
+/** Colunas da tela Transferências do Belasis, nesta ordem. */
+const COLUNAS: Column<SalonPayTransfer>[] = [
+  {
+    key: 'solicitacao',
+    header: 'Solicitação',
+    isRowHeader: true,
+    render: (t) => <span className="font-medium text-foreground">{formatDate(t.requestedAt)}</span>,
+  },
+  {
+    key: 'transferencia',
+    header: 'Transferência',
+    render: (t) => (t.settledAt ? formatDate(t.settledAt) : <span className="text-muted">—</span>),
+  },
+  {
+    key: 'operacao',
+    header: 'Operação',
+    render: (t) => (t.operation === 'commission' ? 'Comissão' : 'Saque'),
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (t) => {
+      const rotulo: Record<string, string> = {
+        pending: 'Aguardando envio',
+        processing: 'Processando',
+        paid: 'Transferido',
+        failed: 'Falhou',
+      };
+      const cor: Record<string, 'warning' | 'default' | 'success' | 'danger'> = {
+        pending: 'warning',
+        processing: 'default',
+        paid: 'success',
+        failed: 'danger',
+      };
+      return (
+        <span className="inline-flex flex-col gap-0.5">
+          <Chip color={cor[t.status]} variant="soft" size="sm">
+            {rotulo[t.status]}
+          </Chip>
+          {t.statusReason && <span className="text-xs text-muted">{t.statusReason}</span>}
+        </span>
+      );
+    },
+  },
+  { key: 'nome', header: 'Nome', render: (t) => t.recipientName },
+  {
+    key: 'documento',
+    header: 'CPF/CNPJ',
+    render: (t) => t.recipientDocument || <span className="text-muted">—</span>,
+  },
+  {
+    key: 'valor',
+    header: 'Valor',
+    render: (t) => <span className="font-semibold text-foreground">{formatMoney(t.amount)}</span>,
+  },
+];
+
 export function SalonPayPage() {
   const state = useSalonPay();
   const [open, setOpen] = useState(false);
+  const [aba, setAba] = useState('cadastro');
+  const transfers = useSalonPayTransfers();
   const conta = state.data?.account;
   const completo = state.data?.complete ?? false;
   const podeLiquidar = state.data?.canSettle ?? false;
@@ -56,7 +133,41 @@ export function SalonPayPage() {
         </Button>
       </div>
 
-      {state.isLoading ? (
+      <AppTabs
+        items={ABAS}
+        selectedKey={aba}
+        onSelectionChange={(k) => setAba(String(k))}
+        ariaLabel="Áreas do SalonPay"
+        className="mb-4"
+      />
+
+      {aba === 'transferencias' ? (
+        <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
+          <p className="mb-3 text-xs text-muted">
+            Repasses de comissão emitidos pelo SalonPay. Enquanto o provedor não estiver
+            conectado, ficam em <strong>Aguardando envio</strong> — registrados, sem dinheiro
+            transferido.
+          </p>
+          {transfers.isLoading ? (
+            <LoadingState />
+          ) : transfers.isError ? (
+            <ErrorState onRetry={() => transfers.refetch()} />
+          ) : (transfers.data ?? []).length === 0 ? (
+            <EmptyState
+              icon={<IconWallet size={32} />}
+              title="Nenhuma transferência"
+              description="Pagar uma comissão com SalonPay cria o repasse e ele aparece aqui."
+            />
+          ) : (
+            <DataTable
+              aria-label="Transferências do SalonPay"
+              columns={COLUNAS}
+              rows={transfers.data ?? []}
+              getKey={(t) => t.id}
+            />
+          )}
+        </div>
+      ) : state.isLoading ? (
         <LoadingState />
       ) : (
         <div className="flex flex-col gap-4">
