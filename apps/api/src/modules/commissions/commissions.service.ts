@@ -167,6 +167,27 @@ export class CommissionsService {
       if (e.signed) b.signedCount += 1;
     }
 
+    // Profissional que tem VALE em aberto mas nenhuma comissão no período
+    // também precisa de linha. Sem isto o vale sumia da tela justamente no
+    // salão que ainda não gerou comissão nenhuma — que foi como o defeito
+    // apareceu: "criei o vale e não vi nada". A linha vem zerada de comissão,
+    // mostrando o que o salão já adiantou.
+    for (const [professionalId] of valesById) {
+      if (buckets.has(professionalId)) continue;
+      buckets.set(professionalId, {
+        professionalId,
+        professionalName: nameById.get(professionalId) ?? '—',
+        valorVendido: 0,
+        comissao: 0,
+        bonus: 0,
+        total: 0,
+        entryCount: 0,
+        openCount: 0,
+        paidCount: 0,
+        signedCount: 0,
+      });
+    }
+
     const data = [...buckets.values()].map((b) => {
       const vales = valesById.get(b.professionalId) ?? 0;
       return {

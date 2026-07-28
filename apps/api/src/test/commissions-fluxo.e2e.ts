@@ -225,6 +225,34 @@ async function run() {
     check('1) some da listagem depois de excluir', (depoisDeExcluir.body ?? []).length === 0);
 
     // ==========================================================
+    // 1b) Vale de quem NÃO tem comissão no período ainda aparece
+    //     Foi assim que o defeito apareceu na produção do dono: salão com zero
+    //     comissão gerada, dois vales criados, e a tela Resumidas vazia.
+    // ==========================================================
+    {
+      const semComissao = await prisma.professional.create({
+        data: { companyId, name: 'Sem Comissão', receivesCommission: true },
+      });
+      await api('POST', '/commission-advances', {
+        token: salon.token,
+        body: { professionalId: semComissao.id, amount: 40 },
+      });
+      const resumo = await api('GET', '/commissions/summary', { token: salon.token });
+      const linhaSem = (resumo.body?.data ?? []).find(
+        (r: any) => r.professionalId === semComissao.id,
+      );
+      check('1b) profissional só com vale APARECE no resumo', !!linhaSem,
+        'sem linha, o vale fica invisível na tela principal');
+      check('1b) com comissão zerada e o vale visível',
+        near(Number(linhaSem?.comissao ?? -1), 0) && near(Number(linhaSem?.vales ?? 0), 40),
+        `comissao ${linhaSem?.comissao} vales ${linhaSem?.vales}`);
+      check('1b) líquido não fica negativo', Number(linhaSem?.liquido ?? -1) === 0,
+        `liquido ${linhaSem?.liquido}`);
+      // limpa para não interferir nos casos seguintes
+      await prisma.commissionAdvance.deleteMany({ where: { professionalId: semComissao.id } });
+    }
+
+    // ==========================================================
     // 2) BONIFICAÇÃO: coluna que era zero por construção
     // ==========================================================
     const poeBonus = await api('PATCH', `/commissions/${entry.id}`, {
