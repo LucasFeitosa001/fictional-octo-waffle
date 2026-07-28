@@ -973,24 +973,63 @@ export function ProfessionalDrawer({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
-        <AppTabs
-          items={tabs.map((item) => ({
-            ...item,
-            badge:
-              item.id === 'acesso' ? (
-                <span
-                  aria-hidden
-                  className={`h-2 w-2 shrink-0 rounded-full ${
-                    hasAccess ? 'bg-success' : 'bg-muted-ink/40'
-                  }`}
-                />
-              ) : undefined,
-          }))}
-          selectedKey={tab}
-          onSelectionChange={setTab}
-          ariaLabel="Seções do profissional"
-        />
+      {/* Menu VERTICAL no desktop, como no drawer de Serviços e no do cliente —
+          o drawer é tela cheia e a coluna à esquerda deixa as 6 seções visíveis
+          de uma vez. No celular continua o carrossel do AppTabs. */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+        <nav
+          aria-label="Seções do profissional"
+          className="hidden shrink-0 flex-col gap-0.5 border-r border-line pr-3 md:flex md:w-[210px]"
+        >
+          {tabs.map((item) => {
+            const ativo = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                aria-current={ativo ? 'page' : undefined}
+                className={[
+                  'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                  ativo
+                    ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] font-medium text-primary'
+                    : 'text-muted-ink hover:bg-canvas hover:text-ink',
+                ].join(' ')}
+              >
+                <span className={ativo ? 'text-primary' : 'text-muted-ink'}>{item.icon}</span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.id === 'acesso' && (
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      hasAccess ? 'bg-success' : 'bg-muted-ink/40'
+                    }`}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="md:hidden">
+          <AppTabs
+            items={tabs.map((item) => ({
+              ...item,
+              badge:
+                item.id === 'acesso' ? (
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      hasAccess ? 'bg-success' : 'bg-muted-ink/40'
+                    }`}
+                  />
+                ) : undefined,
+            }))}
+            selectedKey={tab}
+            onSelectionChange={setTab}
+            ariaLabel="Seções do profissional"
+          />
+        </div>
 
         {/* Painel */}
         <div className="min-w-0 flex-1">
