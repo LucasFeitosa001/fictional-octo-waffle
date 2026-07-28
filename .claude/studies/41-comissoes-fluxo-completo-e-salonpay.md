@@ -199,6 +199,58 @@ O erro está no RÓTULO, e é meu — apareceu quando fiz a linha "só vale" exi
 apresentação: com zero lançamentos, o status vira "Sem comissão" (explicando que o vale será
 abatido do próximo) e a assinatura vira travessão.
 
+## Sobra 6: todo pagamento aparece às 12:00, e as duas colunas de data são a mesma
+
+Pergunta do dono: os três pagamentos listados aparecem todos com `28/07/2026, 12:00`.
+
+Duas causas, ambas minhas:
+
+1. **O 12:00 é meu.** `PagarComissaoDrawer.tsx:159` monta
+   `new Date(\`${paidAt}T12:00:00\`)`. Escolhi meio-dia para o fuso não jogar a data para o dia
+   anterior/seguinte — o campo da tela é só DATA, sem hora. O efeito colateral é que todo
+   pagamento fica com hora fixa.
+2. **As colunas "Data" e "Pagamento" mostram o MESMO campo.** `ComissoesResumoPage.tsx:485`
+   (`formatDateTime(p.paidAt)`) e `:493` (`formatDate(p.paidAt)`). Eu criei a coluna "Pagamento"
+   dizendo que competência e saída podem divergir, e então liguei as duas em `paidAt`.
+
+O HTML capturado desfaz a dúvida — `belasis-reference/commissions-batch/desktop.html`:
+
+```
+colunas: Data · Pagamento · Profissional · Usuário · Comissões · Vales · Bonificações · Valor pago · Ações
+células:  18/07/2026 | 18/07/2026 | LARISSA SOUZA | ...
+          18/07/2026 | 17/07/2026 | LARISSA SOUZA | ...
+```
+
+Duas conclusões: as datas **diferem** entre si (logo são campos distintos — registro x pagamento),
+e **nenhuma das duas mostra hora**. Então `formatDateTime` ali está errado por definição.
+
+Correção: `listPayments` passa a devolver `createdAt`; "Data" usa `createdAt` (quando foi
+registrado) e "Pagamento" usa `paidAt` (a data escolhida pelo operador), ambas só com data. E o
+drawer grava o INSTANTE REAL quando a data escolhida é hoje — meio-dia só faz sentido para
+lançamento retroativo, onde não existe hora conhecida.
+
+## Sobra 7: a sidebar de Comissões tem item demais
+
+Instrução do dono: no menu lateral, **desktop** mostra `Detalhadas · Pagas · Configurações`;
+**mobile** mostra `Resumidas · Pagas · Configurações`. As abas DENTRO da página seguem com as
+quatro, que é como se alterna entre elas.
+
+Hoje `apps/web/src/layout/Sidebar.tsx:153`-`:156` lista as quatro nos dois — Detalhadas,
+Resumidas, Pagas, Configurações.
+
+Faz sentido: a tela de entrada difere por plataforma. No celular, a tabela item a item de
+Detalhadas é ruim de ler; o resumo por profissional é o destino útil. No desktop vale o contrário.
+
+A captura `belasis-reference/commissions/desktop.html` não decide isto — o menu está RECOLHIDO ali
+(`grep '<a href=".*commission"'` não devolve nada), e o que aparece perto de "Comissões" é a barra
+de ABAS (`Ações Detalhadas Resumidas Pagas Configurações Período Profissional`), não o submenu.
+A evidência é a captura de tela que o dono mandou antes, com `Comissões ▸ Detalhadas · Pagas ·
+Configurações`.
+
+`Sidebar` é o MESMO componente nas duas plataformas, recebendo `mobile`
+(`DashboardLayout.tsx:37` e `:70`) — então dá para marcar o item por plataforma em vez de duplicar
+a lista.
+
 ## Arquivos tocados
 
 - `packages/db/prisma/schema.prisma` (+ migração)

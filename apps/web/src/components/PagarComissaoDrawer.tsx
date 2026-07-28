@@ -156,7 +156,10 @@ export function PagarComissaoDrawer({
         closingId,
         paymentMethodId,
         accountId,
-        paidAt: paidAt ? new Date(`${paidAt}T12:00:00`).toISOString() : undefined,
+        // Data de HOJE guarda o instante real (auditoria sabe a hora do
+        // pagamento). Retroativo guarda meio-dia: não existe hora conhecida, e
+        // meio-dia impede o fuso de jogar o lançamento para o dia vizinho.
+        paidAt: paidAt ? instanteDoPagamento(paidAt) : undefined,
         rail,
         items: rows.map((row) => ({
           professionalId: row.professionalId,
@@ -431,6 +434,20 @@ export function PagarComissaoDrawer({
       )}
     </Drawer>
   );
+}
+
+/**
+ * Instante a gravar para a data escolhida no drawer.
+ *
+ * Se a pessoa manteve HOJE, o pagamento está acontecendo agora — grava o
+ * momento real. Se escolheu outro dia (lançamento retroativo), não há hora
+ * conhecida: meio-dia é o ponto do dia que nenhum fuso empurra para a data
+ * vizinha.
+ */
+function instanteDoPagamento(dataEscolhida: string): string {
+  const hoje = isoDate(new Date());
+  if (dataEscolhida === hoje) return new Date().toISOString();
+  return new Date(`${dataEscolhida}T12:00:00`).toISOString();
 }
 
 /**

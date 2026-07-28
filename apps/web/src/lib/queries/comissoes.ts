@@ -259,6 +259,7 @@ export interface BulkPaymentResult {
 // ---- Histórico de pagamentos ----
 export interface CommissionPayment {
   id: string;
+  /** Data em que o dinheiro saiu (escolhida pelo operador). */
   paidAt: string;
   professional: { id: string; name: string };
   paidByUser: { id: string; name: string } | null;

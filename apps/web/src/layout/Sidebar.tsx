@@ -74,6 +74,13 @@ type NavItem = {
    */
   feature?: FeatureKey;
   /**
+   * Item que só existe numa das plataformas. A tela de ENTRADA de um módulo
+   * pode diferir: no celular a tabela item a item de Comissões → Detalhadas é
+   * ruim de ler, e o resumo por profissional é o destino útil; no desktop vale
+   * o contrário. As abas dentro da página continuam levando às duas.
+   */
+  only?: 'desktop' | 'mobile';
+  /**
    * FASE RBAC: permissão (ou lista, OR) que o papel precisa ter para VER o item.
    * Sem `perm` → todo mundo vê. Com `perm` → some da navegação de quem não pode.
    * Diferente de `feature` (que só cadeia): sem permissão o item não aparece.
@@ -150,8 +157,10 @@ const NAVIGATION: NavEntry[] = [
     icon: IconPercent,
     items: [
       // Profissional vê as próprias (view_own); gestão vê todas (view_all).
-      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
-      { to: '/comissoes/resumidas', label: 'Resumidas', icon: IconChart, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      // Desktop entra pelo detalhamento; celular entra pelo resumo. Quem quiser
+      // o outro alterna pelas abas do topo, que seguem com os quatro.
+      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, only: 'desktop', feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/resumidas', label: 'Resumidas', icon: IconChart, only: 'mobile', feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/config', label: 'Configurações', icon: IconSettings, feature: 'commissions', perm: 'comissoes:config' },
     ],
@@ -392,16 +401,22 @@ export function Sidebar({
     return perms.some((p) => can(p));
   }
 
-  // Filtra grupos/links pelo papel. Grupo cujos itens somem por completo também
-  // some. Links diretos são avaliados pelo próprio `perm`.
+  /** Item marcado para a OUTRA plataforma não entra neste menu. */
+  function daPlataforma(item: NavItem): boolean {
+    if (!item.only) return true;
+    return item.only === (mobile ? 'mobile' : 'desktop');
+  }
+
+  // Filtra grupos/links pelo papel e pela plataforma. Grupo cujos itens somem
+  // por completo também some. Links diretos são avaliados pelo próprio `perm`.
   function filterEntries(entries: NavEntry[]): NavEntry[] {
     const out: NavEntry[] = [];
     for (const entry of entries) {
       if (entry.kind === 'link') {
-        if (canSee(entry.perm)) out.push(entry);
+        if (canSee(entry.perm) && daPlataforma(entry)) out.push(entry);
         continue;
       }
-      const items = entry.items.filter((item) => canSee(item.perm));
+      const items = entry.items.filter((item) => canSee(item.perm) && daPlataforma(item));
       if (items.length > 0) out.push({ ...entry, items });
     }
     return out;

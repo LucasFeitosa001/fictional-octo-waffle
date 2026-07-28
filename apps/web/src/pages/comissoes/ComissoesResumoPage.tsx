@@ -28,7 +28,7 @@ import {
   IconWallet,
   IconX,
 } from '../../components/icons';
-import { formatDate, formatDateTime, formatMoney, isoDate } from '../../lib/format';
+import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useProfessionals } from '../../lib/queries';
 import { useSetPageActions } from '../../layout/PageActions';
@@ -482,22 +482,12 @@ export function ComissoesResumoPage() {
       key: 'date',
       header: 'Data',
       isRowHeader: true,
+      // SEM hora. Antes usava `formatDateTime(p.paidAt)`, e como o campo da
+      // tela é só data (o drawer gravava meio-dia), TODO pagamento aparecia às
+      // "12:00". A referência também não mostra hora nesta coluna.
       render: (p) => (
-        <span className="font-medium text-foreground">{formatDateTime(p.paidAt)}</span>
+        <span className="font-medium text-foreground">{formatDate(p.paidAt)}</span>
       ),
-    },
-    {
-      // O Belasis mostra "Data" e "Pagamento" separadas: a competência do lote e
-      // o dia em que o dinheiro saiu podem não ser o mesmo, e é isso que o salão
-      // confere quando o profissional reclama.
-      key: 'pagamento',
-      header: (
-        <span className="inline-flex items-center">
-          Pagamento
-          <HelpTooltip>Dia em que o pagamento foi efetivado.</HelpTooltip>
-        </span>
-      ),
-      render: (p) => formatDate(p.paidAt),
     },
     {
       key: 'professional',
