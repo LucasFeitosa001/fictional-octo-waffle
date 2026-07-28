@@ -79,6 +79,18 @@ fica gravado e pronto para plugar o adquirente quando o dono tiver a conta.
 4. SalonPay: modelo, endpoints e o drawer de cadastro do vídeo.
 5. Bonificação editável (senão a coluna nunca sai de zero).
 
+## Sobra: a página "SalonPay ainda não integrado"
+
+Relatado pelo dono depois do deploy. O texto **não** é do drawer novo — vem de
+`apps/web/src/App.tsx:374`-`:383`, na rota `/financeiro/belasis-pay`, que renderiza
+`IntegrationUnavailablePage` com *"O cadastro do gateway será liberado quando houver uma API de
+onboarding"*. Era verdade até o cadastro existir; agora contradiz a própria tela de Comissões, que
+abre o formulário.
+
+`grep` por `belasis-pay` fora do `App.tsx` não acha nada: a rota **não é linkada de lugar nenhum**
+(nem Sidebar nem Financeiro), então só se chega por URL direta ou favorito. Trocar por uma página
+de verdade, mantendo o caminho antigo vivo para não virar 404.
+
 ## Arquivos tocados
 
 - `packages/db/prisma/schema.prisma` (+ migração)
@@ -95,3 +107,5 @@ fica gravado e pronto para plugar o adquirente quando o dono tiver a conta.
 - `apps/web/src/lib/queries/comissoes.ts`
 - `apps/web/src/lib/queries/salonpay.ts` (novo)
 - `apps/api/src/test/commissions-fluxo.e2e.ts` (novo)
+- `apps/web/src/App.tsx` (rota `/financeiro/belasis-pay`, linha 374)
+- `apps/web/src/pages/financeiro/SalonPayPage.tsx` (novo)

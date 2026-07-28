@@ -135,7 +135,10 @@ const NAVIGATION: NavEntry[] = [
       // Caixa: quem só opera o próprio caixa também acessa (caixa:operate OU view_all).
       { to: '/financeiro/caixas', label: 'Caixas abertos', icon: IconCash, end: true, perm: ['caixa:operate', 'caixa:view_all'] },
       { to: '/financeiro/caixas/historico', label: 'Histórico de caixa', icon: IconClock, perm: ['caixa:operate', 'caixa:view_all'] },
-      { to: '/financeiro/belasis-pay', label: 'SalonPay', icon: IconCreditCard, badge: 'em breve', perm: 'financeiro:view' },
+      // Deixou de ser "em breve": o cadastro de recebimento existe e abre aqui.
+      // A rota antiga (`belasis-pay`) segue viva redirecionando, para favorito
+      // não virar 404.
+      { to: '/financeiro/salonpay', label: 'SalonPay', icon: IconCreditCard, perm: 'financeiro:view' },
       { to: '/financeiro/notas-fiscais', label: 'Notas Fiscais', icon: IconReceipt, feature: 'nfe', perm: 'financeiro:view' },
       { to: '/financeiro/configuracoes', label: 'Configurações', icon: IconSettings, perm: 'financeiro:view' },
     ],

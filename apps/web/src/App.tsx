@@ -20,6 +20,7 @@ import { AssinaturasPage } from './pages/AssinaturasPage';
 import { FinanceiroPainelPage } from './pages/financeiro/FinanceiroPainelPage';
 import { TransacoesPage } from './pages/financeiro/TransacoesPage';
 import { ContasPage } from './pages/financeiro/ContasPage';
+import { SalonPayPage } from './pages/financeiro/SalonPayPage';
 import { CaixasAbertosPage } from './pages/financeiro/CaixasAbertosPage';
 import { CaixaHistoricoPage } from './pages/financeiro/CaixaHistoricoPage';
 import { FinanceiroConfiguracoesPage } from './pages/financeiro/FinanceiroConfiguracoesPage';
@@ -370,18 +371,20 @@ function ProtectedRoutes() {
         <Route path="/financeiro/cadastros/categorias" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="categorias" /></ProtectedRoute>} />
         <Route path="/financeiro/cadastros/formas-pagamento" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="formas" /></ProtectedRoute>} />
         <Route path="/financeiro/cadastros/contas" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="contas" /></ProtectedRoute>} />
+        {/* SalonPay — cadastro de recebimento. Antes esta rota mostrava
+            "ainda não integrado", o que deixou de ser verdade quando o
+            formulário passou a existir (e passou a contradizer a tela de
+            Comissões, que abre o cadastro). `belasis-pay` continua respondendo:
+            é URL antiga que pode estar em favorito. */}
         <Route
-          path="/financeiro/belasis-pay"
+          path="/financeiro/salonpay"
           element={
             <ProtectedRoute perm="financeiro:view">
-              <IntegrationUnavailablePage
-                title="SalonPay ainda não integrado"
-                description="O cadastro do gateway será liberado quando houver uma API de onboarding. Nenhuma solicitação é marcada como enviada sem chegar ao provedor."
-                backTo="/financeiro/contas"
-              />
+              <SalonPayPage />
             </ProtectedRoute>
           }
         />
+        <Route path="/financeiro/belasis-pay" element={<Navigate to="/financeiro/salonpay" replace />} />
         <Route path="/financeiro/historico-caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaHistoricoPage /></ProtectedRoute>} />
         <Route path="/financeiro/caixas-abertos/:id" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
         <Route path="/caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaPage /></ProtectedRoute>} />
