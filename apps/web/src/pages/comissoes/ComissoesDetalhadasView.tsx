@@ -17,7 +17,7 @@
  * escondido num drawer lateral que só abria pelo botão "Detalhes" da linha.
  */
 import { useMemo, useState } from 'react';
-import { Button, ListBox, Select } from '@heroui/react';
+import { Button, Chip, ListBox, Select } from '@heroui/react';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateField } from '../../components/DateRangeFilter';
@@ -119,6 +119,21 @@ const COLUMNS: Column<CommissionDetailItem>[] = [
     header: 'Disponível',
     render: (it) => (it.availableDate ? formatDate(it.availableDate) : 'Imediatamente'),
   },
+  {
+    // Sem esta coluna a tabela ficava igual antes e depois de pagar, e não havia
+    // como saber que aquele lançamento já tinha sido quitado.
+    key: 'situacao',
+    header: 'Situação',
+    render: (it) => (
+      <Chip
+        color={it.status === 'paid' ? 'success' : it.status === 'open' ? 'warning' : 'default'}
+        variant="soft"
+        size="sm"
+      >
+        {it.status === 'paid' ? 'Pago' : it.status === 'open' ? 'Em aberto' : 'Estornado'}
+      </Chip>
+    ),
+  },
 ];
 
 export function ComissoesDetalhadasView({
@@ -161,9 +176,17 @@ export function ComissoesDetalhadasView({
 
   const d = detail.data;
   const vales = (advances.data ?? []).reduce((s, a) => s + a.amount, 0);
-  const comissoes = d?.totals.comissao ?? 0;
-  const bonificacoes = d?.totals.bonus ?? 0;
+  // O rodapé soma só o que está EM ABERTO. Antes somava tudo, inclusive o que
+  // já tinha sido pago: depois de pagar, a tela continuava mostrando o mesmo
+  // "Líquido" com o botão ativo, e clicar de novo criava pagamento de R$ 0,00.
+  const emAberto = (d?.items ?? []).filter((it) => it.status === 'open');
+  const comissoes = emAberto.reduce((s, it) => s + it.commissionAmount, 0);
+  const bonificacoes = emAberto.reduce((s, it) => s + it.bonusAmount, 0);
+  const jaPago = (d?.items ?? [])
+    .filter((it) => it.status === 'paid')
+    .reduce((s, it) => s + it.commissionAmount + it.bonusAmount, 0);
   const liquido = Math.max(0, comissoes + bonificacoes - vales);
+  const podePagar = emAberto.length > 0 && liquido > 0;
 
   const escolhido = lista.find((p) => p.id === professionalId);
 
@@ -176,14 +199,14 @@ export function ComissoesDetalhadasView({
     return {
       professionalId: id,
       professionalName: nome,
-      valorVendido: d?.totals.base ?? 0,
+      valorVendido: emAberto.reduce((s, it) => s + it.baseAmount, 0),
       comissao: comissoes,
       bonus: bonificacoes,
       vales,
       total: comissoes + bonificacoes,
       liquido,
-      entryCount: d?.count ?? 0,
-      openCount: d?.count ?? 0,
+      entryCount: emAberto.length,
+      openCount: emAberto.length,
       paidCount: 0,
       signedCount: 0,
       status: 'open',
@@ -409,9 +432,18 @@ export function ComissoesDetalhadasView({
             />
             <Total label="Bonificações" value={bonificacoes} />
             <Total label="Líquido" value={liquido} strong />
+            {/* O que já foi quitado no período. Sem isto, ver "Líquido R$ 0,00"
+                logo depois de pagar parece que o dinheiro sumiu. */}
+            {jaPago > 0 && (
+              <Total
+                label="Já pago no período"
+                value={jaPago}
+                help="Comissões deste período que já foram quitadas. Não entram no líquido a pagar."
+              />
+            )}
           </div>
           <PagarComissoesMenu
-            disabled={liquido <= 0}
+            disabled={!podePagar}
             label="Pagar comissões"
             onPagar={() => escolhido && onPay(linhaParaPagar(escolhido.id, escolhido.name), 'manual')}
             onSalonPay={() => escolhido && onPay(linhaParaPagar(escolhido.id, escolhido.name), 'salonpay')}

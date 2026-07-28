@@ -154,6 +154,30 @@ Desenho:
    `paid` e `failed` existem no enum para quando houver adquirente, e só ele os move.
 5. A página do SalonPay ganha a aba **Transferências** com aquelas colunas.
 
+## Sobra 4: pagamento de R$ 0,00 aceito, e Detalhadas convidando a repetir
+
+Vídeo do dono (28/07 19:11) + estado da produção. Ele pagou a Amanda uma vez (R$ 134, correto) e
+a conta ficou com **quatro** pagamentos dela: um de 134 e **três de R$ 0,00**. A tela chegou a
+mostrar *"Pagamento concluído — 1 pagamento registrado · total de R$ 0,00"*.
+
+Dois defeitos que se somam, ambos meus:
+
+1. **`ComissoesDetalhadasView` não sabe o que já foi pago.** `useCommissionDetail` é chamado sem
+   `status`, então devolve os lançamentos **pagos também**; o rodapé soma
+   `d.totals.comissao`/`bonus` de TODOS. Depois de pagar, a tela seguia mostrando "Líquido
+   R$ 134,00" com o botão ativo — ou seja, convidando a clicar de novo.
+
+2. **`payItem` (`commissions.service.ts`) aceita pagar nada.** Sem lançamento `open`,
+   `commissionTotal`/`bonusTotal` somam zero, `amount` vira 0 e mesmo assim cria um
+   `CommissionPayment`. Nenhum `BadRequest`. É o que gerou os três registros-fantasma.
+
+Resumidas não tinha o problema: `payableRows` filtra `status !== 'paid' && total > 0`, e o
+`summary` marca a linha como `paid` quando todos os lançamentos estão pagos.
+
+Correção: a API recusa pagamento sem lançamento em aberto (é o que define um pagamento de
+comissão — quitar pelo menos um lançamento), e a Detalhadas passa a somar só o que está em aberto,
+marcando os já pagos na tabela.
+
 ## Arquivos tocados
 
 - `packages/db/prisma/schema.prisma` (+ migração)

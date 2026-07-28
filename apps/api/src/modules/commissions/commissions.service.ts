@@ -486,6 +486,16 @@ export class CommissionsService {
       select: { id: true, amount: true },
     });
 
+    // Pagamento SEM lançamento em aberto não é pagamento — é registro-fantasma.
+    // Sem esta recusa, clicar "Pagar" de novo numa profissional já quitada
+    // criava um CommissionPayment de R$ 0,00 e a tela comemorava "Pagamento
+    // concluído". Aconteceu três vezes na conta do dono.
+    if (entries.length === 0) {
+      throw new BadRequestException(
+        'Não há comissão em aberto para pagar deste profissional no filtro atual.',
+      );
+    }
+
     // 2 + 4. Somatórios e fórmula.
     const zero = new Prisma.Decimal(0);
     const commissionTotal = entries.reduce(

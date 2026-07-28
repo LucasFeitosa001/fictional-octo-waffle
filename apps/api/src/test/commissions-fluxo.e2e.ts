@@ -333,6 +333,33 @@ async function run() {
     check('3) e aponta para a despesa gerada', registro?.transactionId === despesas[0]?.id);
 
     // ==========================================================
+    // 3b) PAGAR DE NOVO quem já está quitado tem que ser RECUSADO
+    //     Aconteceu na conta do dono: ele clicou "Pagar" mais de uma vez e a
+    //     API criou TRÊS pagamentos de R$ 0,00, com a tela comemorando
+    //     "Pagamento concluído · total de R$ 0,00".
+    // ==========================================================
+    {
+      const denovo = await api('POST', '/commission-payments/bulk', {
+        token: salon.token,
+        body: {
+          paymentMethodId: formaCaixa.id,
+          accountId: conta.id,
+          items: [{ professionalId: pro.id }],
+        },
+      });
+      check('3b) pagar quem não tem comissão em aberto → 400',
+        denovo.status === 400, `status ${denovo.status}`);
+      check('3b) e a mensagem explica o motivo',
+        /em aberto/i.test(JSON.stringify(denovo.body?.message ?? '')),
+        JSON.stringify(denovo.body?.message));
+      check('3b) nenhum pagamento fantasma foi criado',
+        (await prisma.commissionPayment.count({ where: { companyId } })) === 1,
+        `${await prisma.commissionPayment.count({ where: { companyId } })} pagamento(s)`);
+      check('3b) nem despesa a mais',
+        (await prisma.transaction.count({ where: { companyId, kind: 'expense' } })) === 1);
+    }
+
+    // ==========================================================
     // 4) ESTORNAR o pagamento desfaz a despesa e o caixa
     //    Sem isto, excluir o pagamento reabria a comissão mas deixava a saída
     //    no Financeiro — o salão pagaria duas vezes no relatório.
