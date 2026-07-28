@@ -378,6 +378,8 @@ export function ComandaDrawer({
                 mostra o que o link abre. */}
             <ClienteBlocosLaterais
               customerId={sidebarCustomerId}
+              // Não contar a comanda que está aberta nesta própria tela.
+              descontarComandaAtual={detail?.status === 'open'}
               onAdicionarAnotacao={
                 can('clientes:manage') ? () => setAddingNote(true) : undefined
               }

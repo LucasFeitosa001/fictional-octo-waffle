@@ -1653,8 +1653,16 @@ export function AgendaPage() {
           // (leitor de tela ouve o cliente primeiro, que é o contexto).
           <div className="flex flex-col gap-8 lg:flex-row lg:gap-10 lg:items-start">
             {/* ── COLUNA DO CLIENTE (esquerda) — ocupa a coluna inteira ───── */}
-            <aside className={`order-2 flex shrink-0 flex-col gap-3 lg:order-1 ${COLUNA_CLIENTE_W}`}>
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-5 text-center">
+            {/* `max-lg:contents`: no CELULAR o aside deixa de ser caixa e seus
+                filhos entram direto no flex do pai, cada um com seu `order`. Isso
+                dá a ordem certa — cartão do cliente, DETALHES, blocos — sem
+                duplicar markup. Mandar o aside inteiro para o fim (order-2)
+                empurrava foto, nome e os botões Conversar/Ver cliente para depois
+                de tudo, e o título deste drawer é só "Visualizando agendamento":
+                a pessoa não saberia de quem é o agendamento sem rolar até o fim.
+                No desktop volta a ser a coluna normal da esquerda. */}
+            <aside className={`max-lg:contents lg:flex lg:shrink-0 lg:flex-col lg:gap-3 ${COLUNA_CLIENTE_W}`}>
+              <div className="order-1 flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-5 text-center lg:order-none">
                 {/* FOTO do cliente quando existe; só cai na inicial colorida por
                     status quando não há. Antes desenhava sempre a inicial e ignorava
                     o avatarUrl — o mesmo cliente aparecia com foto no "Selecionar
@@ -1716,6 +1724,7 @@ export function AgendaPage() {
                   só ganham o link no drawer da COMANDA (f_0090), que é ponto de
                   venda. O componente busca os próprios dados e some sozinho
                   quando o agendamento não tem cliente (bloqueio de horário). */}
+              <div className="order-3 flex flex-col gap-3 lg:order-none lg:contents">
               <ClienteBlocosLaterais
                 customerId={selected.customer?.id}
                 onAdicionarAnotacao={
@@ -1739,10 +1748,11 @@ export function AgendaPage() {
                   onDone={() => setNoteDrawerOpen(false)}
                 />
               )}
+              </div>
             </aside>
 
             {/* ── COLUNA DE DETALHES (direita): data, serviços, switches ──── */}
-            <div className="order-1 flex min-w-0 flex-1 flex-col gap-5 lg:order-2">
+            <div className="order-2 flex min-w-0 flex-1 flex-col gap-5 lg:order-none">
             {/* DATA + CHIPS: status + tipo de agendamento */}
             <div className="flex flex-col gap-2">
               <div className="text-sm capitalize text-muted-ink">

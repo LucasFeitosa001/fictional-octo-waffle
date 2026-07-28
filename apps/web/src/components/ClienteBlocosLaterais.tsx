@@ -50,6 +50,13 @@ const ORDEM_PADRAO: BlocoLateralId[] = ['informacoes', 'pacotes', 'assinaturas',
 export interface ClienteBlocosLateraisProps {
   /** Cliente dono dos blocos. Sem id nada é buscado e o componente não renderiza nada. */
   customerId: string | null | undefined;
+  /**
+   * Desconta 1 de "comandas em aberto". O drawer da comanda passa `true`: sem
+   * isso a linha conta a PRÓPRIA comanda que está aberta na frente da pessoa, e
+   * "1 comanda em aberto" numa tela onde ela vê exatamente essa comanda é ruído,
+   * não informação. Nas outras superfícies (agendamento, pacote) fica falso.
+   */
+  descontarComandaAtual?: boolean;
   /** Quais blocos aparecem, na ordem dada. Padrão: Pacotes, Assinaturas, Anotações. */
   blocos?: BlocoLateralId[];
   /** "+ Adicionar" de Pacotes. Sem callback o link não aparece. */
@@ -66,6 +73,7 @@ export interface ClienteBlocosLateraisProps {
 
 export function ClienteBlocosLaterais({
   customerId,
+  descontarComandaAtual = false,
   blocos = ORDEM_PADRAO,
   onAdicionarPacote,
   onAdicionarAssinatura,
@@ -122,8 +130,11 @@ export function ClienteBlocosLaterais({
               {painelQ.isLoading ? (
                 <TextoDiscreto>Carregando…</TextoDiscreto>
               ) : !painel ? (
-                // 403 (sem `clientes:view`) ou erro de rede: some em silêncio, como
-                // os outros blocos. Um ErrorState no meio da comanda atrapalha mais.
+                // 403 (sem `clientes:view`) ou erro de rede. Diferente dos blocos
+                // irmãos, que caem no estado vazio normal ("Não há pacotes
+                // disponíveis"), aqui um vazio seria MENTIRA: zerar cashback e
+                // crédito na tela faria o salão acreditar que o cliente não tem
+                // saldo. Por isso o texto é explícito de que o dado não veio.
                 <TextoDiscreto>Informações indisponíveis</TextoDiscreto>
               ) : (
                 <ul className="flex flex-col gap-1.5">
@@ -137,7 +148,14 @@ export function ClienteBlocosLaterais({
                     {formatMoney(painel.creditosSaldo)} em crédito
                   </LinhaInfo>
                   <LinhaInfo icone={<IconReceipt size={14} />}>
-                    {plural(painel.comandasEmAberto, 'comanda em aberto', 'comandas em aberto')}
+                    {plural(
+                      Math.max(
+                        0,
+                        painel.comandasEmAberto - (descontarComandaAtual ? 1 : 0),
+                      ),
+                      'comanda em aberto',
+                      'comandas em aberto',
+                    )}
                   </LinhaInfo>
                   <LinhaInfo icone={<IconAlertTriangle size={14} />}>
                     {plural(

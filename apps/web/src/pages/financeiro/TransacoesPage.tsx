@@ -1004,7 +1004,10 @@ function OptionList({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
+    // `max-h` + rolagem própria: um salão com 30 categorias faria a lista empurrar
+    // as seções seguintes para fora do painel, que é overflow-hidden e CORTA
+    // (FilterAside.tsx:49) — o mesmo defeito que os chips já causaram.
+    <div className="flex max-h-56 flex-col overflow-y-auto overscroll-contain rounded-lg border border-[var(--color-soft-border)]">
       {options.map((o, i) => {
         const active = selected === o.id;
         return (

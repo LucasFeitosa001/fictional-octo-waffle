@@ -597,8 +597,12 @@ function Overlay({
       }}
       className={[
         'z-[80] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-black/[0.08] bg-warm-white p-3 shadow-[var(--shadow-pop)] outline-none',
-        'transition-all duration-150 ease-out',
-        show ? 'opacity-100 translate-y-0' : 'pointer-events-none translate-y-1 opacity-0',
+        // Animação padrão do projeto para dropdown/popover: 200ms ease-out com
+        // opacity + translate-y + scale, e pointer-events-none quando fechado.
+        'origin-top transition-all duration-200 ease-out',
+        show
+          ? 'translate-y-0 scale-100 opacity-100'
+          : 'pointer-events-none translate-y-1 scale-95 opacity-0',
       ].join(' ')}
     >
       {children}
