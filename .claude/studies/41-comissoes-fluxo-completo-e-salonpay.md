@@ -178,6 +178,27 @@ Correção: a API recusa pagamento sem lançamento em aberto (é o que define um
 comissão — quitar pelo menos um lançamento), e a Detalhadas passa a somar só o que está em aberto,
 marcando os já pagos na tabela.
 
+## Sobra 5: a linha "só vale" mente nos rótulos
+
+Perguntado pelo dono: `Lucas Feitosa · R$ 0,00 · −R$ 25,00 · R$ 0,00 · R$ 0,00 · Em aberto · Não
+assinado` — *"está em aberto mas não consigo pagar"*.
+
+Na produção o Lucas tem **0 lançamentos de comissão** e **1 vale aberto de R$ 25**. O cálculo está
+certo: `líquido = max(0, 0 + 0 − 25) = 0`, não há o que pagar, e `payableRows` (que exige
+`total > 0`) corretamente não o torna pagável.
+
+O erro está no RÓTULO, e é meu — apareceu quando fiz a linha "só vale" existir no resumo
+(`commissions.service.ts`, laço sobre `valesById`). Como o bucket nasce com `entryCount = 0`:
+
+- `:205` → `status: b.entryCount > 0 && b.openCount === 0 ? 'paid' : 'open'` cai em **`'open'`**,
+  e a tela escreve "Em aberto" numa linha que não tem nada em aberto;
+- `:206` → `signed: b.entryCount > 0 && ...` vira **false**, e a tela escreve "Não assinado" para
+  algo que não existe para assinar.
+
+`entryCount` já viaja em `CommissionSummaryRow` (`queries/comissoes.ts`), então a correção é só de
+apresentação: com zero lançamentos, o status vira "Sem comissão" (explicando que o vale será
+abatido do próximo) e a assinatura vira travessão.
+
 ## Arquivos tocados
 
 - `packages/db/prisma/schema.prisma` (+ migração)

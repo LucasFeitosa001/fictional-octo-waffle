@@ -416,11 +416,26 @@ export function ComissoesResumoPage() {
           <HelpTooltip>Situação da comissão: em aberto (a pagar) ou já paga.</HelpTooltip>
         </span>
       ),
-      render: (r) => (
-        <Chip color={r.status === 'paid' ? 'success' : 'warning'} variant="soft" size="sm">
-          {r.status === 'paid' ? 'Pago' : 'Em aberto'}
-        </Chip>
-      ),
+      render: (r) =>
+        // Linha SEM lançamento de comissão (existe só por causa de um vale em
+        // aberto): dizer "Em aberto" ali é mentira — não há comissão nenhuma, e
+        // foi exatamente o que confundiu o dono ("está em aberto mas não
+        // consigo pagar").
+        r.entryCount === 0 ? (
+          <span className="inline-flex items-center">
+            <Chip color="default" variant="soft" size="sm">
+              Sem comissão
+            </Chip>
+            <HelpTooltip>
+              Este profissional não tem comissão no período — a linha aparece por causa do vale em
+              aberto, que será descontado da próxima comissão dele.
+            </HelpTooltip>
+          </span>
+        ) : (
+          <Chip color={r.status === 'paid' ? 'success' : 'warning'} variant="soft" size="sm">
+            {r.status === 'paid' ? 'Pago' : 'Em aberto'}
+          </Chip>
+        ),
     },
     {
       key: 'signed',
@@ -430,11 +445,15 @@ export function ComissoesResumoPage() {
           <HelpTooltip>Indica se o profissional assinou digitalmente o recibo da comissão.</HelpTooltip>
         </span>
       ),
-      render: (r) => (
-        <Chip color={r.signed ? 'success' : 'default'} variant="soft" size="sm">
-          {r.signed ? 'Assinado' : 'Não assinado'}
-        </Chip>
-      ),
+      render: (r) =>
+        // Sem lançamento não há recibo para assinar; "Não assinado" seria ruído.
+        r.entryCount === 0 ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <Chip color={r.signed ? 'success' : 'default'} variant="soft" size="sm">
+            {r.signed ? 'Assinado' : 'Não assinado'}
+          </Chip>
+        ),
     },
     {
       key: 'actions',
@@ -447,7 +466,7 @@ export function ComissoesResumoPage() {
           <Button
             variant="primary"
             size="sm"
-            isDisabled={r.status === 'paid' || r.total <= 0}
+            isDisabled={r.status === 'paid' || r.total <= 0 || r.entryCount === 0}
             onClick={() => payOne(r)}
           >
             <IconWallet size={15} /> Pagar

@@ -269,6 +269,11 @@ async function run() {
         `comissao ${linhaSem?.comissao} vales ${linhaSem?.vales}`);
       check('1b) líquido não fica negativo', Number(linhaSem?.liquido ?? -1) === 0,
         `liquido ${linhaSem?.liquido}`);
+      // A tela precisa saber que NÃO há lançamento — é o que a faz escrever
+      // "Sem comissão" em vez de "Em aberto" numa linha que não tem nada aberto.
+      check('1b) a linha declara zero lançamentos', Number(linhaSem?.entryCount ?? -1) === 0,
+        `entryCount ${linhaSem?.entryCount}`);
+      check('1b) e não entra como pagável (total = 0)', Number(linhaSem?.total ?? -1) === 0);
       // limpa para não interferir nos casos seguintes
       await prisma.commissionAdvance.deleteMany({ where: { professionalId: semComissao.id } });
     }
