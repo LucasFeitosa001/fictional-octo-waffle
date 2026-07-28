@@ -442,36 +442,32 @@ function FiltrosBody({
 
       {/* Data abertura */}
       <FilterSection title="Data abertura">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-3">
           <DateFieldBR
             label="De"
             value={openedFrom}
             onChange={setOpenedFrom}
-            className="min-w-0"
           />
           <DateFieldBR
             label="Até"
             value={openedTo}
             onChange={setOpenedTo}
-            className="min-w-0"
           />
         </div>
       </FilterSection>
 
       {/* Data fechamento */}
       <FilterSection title="Data fechamento">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-3">
           <DateFieldBR
             label="De"
             value={closedFrom}
             onChange={setClosedFrom}
-            className="min-w-0"
           />
           <DateFieldBR
             label="Até"
             value={closedTo}
             onChange={setClosedTo}
-            className="min-w-0"
           />
         </div>
       </FilterSection>

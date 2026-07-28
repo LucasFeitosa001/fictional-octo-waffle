@@ -540,9 +540,12 @@ function NotaFiltroBody({
   return (
     <div className="flex flex-col gap-6">
       <FilterSection title="Período">
-        <div className="grid grid-cols-2 gap-3">
-          <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
-          <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
+        {/* Empilhado: o painel de filtros tem ~224px úteis e cada campo de data
+            carrega `sm:min-w-[10.5rem]` por dentro — dois na mesma linha pedem
+            348px e vazavam para fora da borda. */}
+        <div className="flex flex-col gap-3">
+          <DateFieldBR label="De" value={from} onChange={setFrom} />
+          <DateFieldBR label="Até" value={to} onChange={setTo} />
         </div>
       </FilterSection>
 

@@ -551,12 +551,17 @@ export function ComissoesResumoPage() {
     <>
       <div className="mb-4 text-sm text-muted">Selecione um período e escolha o profissional</div>
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
+        {/* EMPILHADO, não lado a lado. O painel de filtros tem 256px (`md:w-64`)
+            menos o padding → ~224px úteis, e cada campo de data tem
+            `sm:min-w-[10.5rem]` (168px) por dentro. Dois na mesma linha pedem
+            348px e vazavam para fora do painel. Em 106px cada, "28/06/2026" +
+            o ícone do calendário não caberiam de qualquer forma. */}
+        <div className="flex flex-col gap-3">
           <Field label="Data inicial">
-            <DateField value={from} max={to || undefined} onChange={setFrom} className="min-w-0" />
+            <DateField value={from} max={to || undefined} onChange={setFrom} />
           </Field>
           <Field label="Data final">
-            <DateField value={to} min={from || undefined} onChange={setTo} className="min-w-0" />
+            <DateField value={to} min={from || undefined} onChange={setTo} />
           </Field>
         </div>
 
