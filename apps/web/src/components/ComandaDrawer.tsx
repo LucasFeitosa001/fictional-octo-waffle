@@ -380,6 +380,16 @@ export function ComandaDrawer({
               customerId={sidebarCustomerId}
               // Não contar a comanda que está aberta nesta própria tela.
               descontarComandaAtual={detail?.status === 'open'}
+              onAbrirFicha={
+                sidebarCustomerId
+                  ? (aba) => {
+                      // Fecha o drawer ANTES de navegar: sem isso a ficha abre
+                      // por baixo e o drawer fica órfão em cima dela.
+                      onClose();
+                      navigate(`/clientes/${sidebarCustomerId}?tab=${aba}`);
+                    }
+                  : undefined
+              }
               onAdicionarAnotacao={
                 can('clientes:manage') ? () => setAddingNote(true) : undefined
               }
@@ -585,32 +595,39 @@ function OrderCustomerCard({
 
   const phone = cust.phone ?? null;
 
+  // Layout medido na referência do dono (01-visualizando-comanda.png):
+  // avatar grande (~98px) CENTRALIZADO, nome logo abaixo, e o telefone na MESMA
+  // linha da pílula verde "Conversar". Nada de card em volta — a coluna é flat
+  // sobre o branco. O que existia aqui era o oposto: avatar de 44px em linha com
+  // o nome ao lado, dentro de uma caixa com borda, e dois botões grandes lado a
+  // lado. Era isso que fazia a foto "parecer menor" e a informação "posicionada
+  // de outra forma".
   return (
-    <div className="rounded-xl border border-[var(--color-soft-border)] bg-white px-3 py-3">
-      <div className="flex items-center gap-3">
-        <CustomerAvatar name={cust.name} avatarUrl={cust.avatarUrl} size={44} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-foreground">{cust.name}</div>
-          {phone && <div className="truncate text-xs text-muted">{formatPhone(phone)}</div>}
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+    <div className="flex flex-col items-center gap-2 text-center">
+      <CustomerAvatar name={cust.name} avatarUrl={cust.avatarUrl} size={98} />
+      <div className="mt-1 w-full truncate text-[15px] font-semibold text-ink">{cust.name}</div>
+      <div className="flex w-full flex-wrap items-center justify-center gap-2">
+        {phone && (
+          <span className="truncate text-xs text-muted-ink">{formatPhone(phone)}</span>
+        )}
         <button
           type="button"
           disabled={!phone}
           onClick={() => phone && onConversar(phone)}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--color-soft-border)] py-2 text-sm font-medium text-foreground transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#25a244] px-2.5 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <IconWhatsApp size={16} /> Conversar
-        </button>
-        <button
-          type="button"
-          onClick={() => onVerCliente(cust.id)}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--color-soft-border)] py-2 text-sm font-medium text-foreground transition-colors hover:bg-cream"
-        >
-          <IconUser size={16} /> Ver cliente
+          <IconWhatsApp size={12} /> Conversar
         </button>
       </div>
+      {/* "Ver cliente" não aparece na referência, mas é a única porta para a ficha
+          a partir daqui — vira link discreto em vez de sumir. */}
+      <button
+        type="button"
+        onClick={() => onVerCliente(cust.id)}
+        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+      >
+        <IconUser size={12} /> Ver cliente
+      </button>
     </div>
   );
 }

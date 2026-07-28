@@ -61,6 +61,16 @@ export class ListTransactionsQueryDto {
   @IsOptional() @IsString() paymentMethodId?: string;
   @IsOptional() @IsString() accountId?: string;
   @IsOptional() @IsString() categoryId?: string;
+  // Versões MULTI dos filtros acima, separadas por vírgula ("a,b,c"). O painel
+  // de filtros do Belasis marca várias contas e vários status ao mesmo tempo.
+  // Os campos singulares continuam existindo porque links antigos ainda os usam
+  // (o Painel financeiro navega para /financeiro/transacoes?status=paid).
+  // Quando a lista vem, ela ganha do singular.
+  @IsOptional() @IsString() accountIds?: string;
+  @IsOptional() @IsString() categoryIds?: string;
+  @IsOptional() @IsString() paymentMethodIds?: string;
+  @IsOptional() @IsString() statuses?: string;
+  @IsOptional() @IsString() types?: string;
   @IsOptional() @IsString() from?: string;
   @IsOptional() @IsString() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;

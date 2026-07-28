@@ -1727,6 +1727,19 @@ export function AgendaPage() {
               <div className="order-3 flex flex-col gap-3 lg:order-none lg:contents">
               <ClienteBlocosLaterais
                 customerId={selected.customer?.id}
+                onAbrirFicha={
+                  selected.customer?.id
+                    ? (aba) => {
+                        const cid = selected.customer!.id;
+                        // Salva a observação antes de sair, como o "Ver cliente"
+                        // logo abaixo já faz — senão o rascunho se perde.
+                        void persistNotes().then(() => {
+                          setSelected(null);
+                          routerNavigate(`/clientes/${cid}?tab=${aba}`);
+                        });
+                      }
+                    : undefined
+                }
                 onAdicionarAnotacao={
                   selected.customer?.id && can('clientes:manage')
                     ? () => setNoteDrawerOpen(true)

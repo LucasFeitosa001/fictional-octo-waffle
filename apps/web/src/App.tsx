@@ -314,6 +314,12 @@ function ProtectedRoutes() {
         <Route path="/comandas" element={<ComandasPage />} />
         <Route path="/comandas/:id" element={<ComandaDetalhePage />} />
         <Route path="/clientes" element={<ClientesPage />} />
+        {/* Três telas já navegavam para /clientes/<id> (ComandaDrawer.tsx:371,
+            ComandasPage.tsx:1909, AgendaPage.tsx:1713), mas a rota NÃO existia:
+            caía no catch-all lá embaixo e o "Ver cliente" jogava a pessoa no
+            Painel, sem erro nenhum na tela. O `?tab=` escolhe a seção inicial —
+            é o que faz as linhas de "Informações" levarem cada uma ao seu lugar. */}
+        <Route path="/clientes/:id" element={<ClientesPage />} />
         <Route path="/profissionais" element={<ProfissionaisPage />} />
         <Route path="/cadastros/anamneses" element={<AnamnesesPage />} />
         {/* Rotas antigas de equipe → redirecionam para a página consolidada

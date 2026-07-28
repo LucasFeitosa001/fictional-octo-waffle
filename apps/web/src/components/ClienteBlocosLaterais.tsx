@@ -65,6 +65,14 @@ export interface ClienteBlocosLateraisProps {
   onAdicionarAssinatura?: () => void;
   /** "+ Adicionar" de Anotações. Sem callback o link não aparece. */
   onAdicionarAnotacao?: () => void;
+  /**
+   * Torna as linhas de "Informações" clicáveis, levando cada uma à sua seção da
+   * ficha do cliente. Recebe o id da aba (PERFIL_MENU de ClientePerfilTabs).
+   * Quem navega é a TELA, não o bloco: o drawer precisa se fechar antes, senão
+   * fica um drawer órfão por cima da ficha.
+   * Sem callback as linhas ficam como texto — nada de link morto.
+   */
+  onAbrirFicha?: (aba: string) => void;
   /** Quantas anotações mostrar antes de resumir o resto numa linha. Padrão 3. */
   maxAnotacoes?: number;
   /** Classe extra na raiz. O espaçamento entre blocos já vem do `gap-3` interno. */
@@ -78,6 +86,7 @@ export function ClienteBlocosLaterais({
   onAdicionarPacote,
   onAdicionarAssinatura,
   onAdicionarAnotacao,
+  onAbrirFicha,
   maxAnotacoes = 3,
   className,
 }: ClienteBlocosLateraisProps) {
@@ -115,6 +124,10 @@ export function ClienteBlocosLaterais({
     [pacotes],
   );
 
+  // Cada linha de Informações leva à sua seção da ficha. Sem `onAbrirFicha` a
+  // linha continua texto puro.
+  const ir = (aba: string) => (onAbrirFicha ? () => onAbrirFicha(aba) : undefined);
+
   // Sem cliente vinculado o Belasis não mostra bloco nenhum (f_0153, drawer "Novo pacote").
   if (!id) return null;
 
@@ -138,16 +151,16 @@ export function ClienteBlocosLaterais({
                 <TextoDiscreto>Informações indisponíveis</TextoDiscreto>
               ) : (
                 <ul className="flex flex-col gap-1.5">
-                  <LinhaInfo icone={<IconGift size={14} />}>
+                  <LinhaInfo icone={<IconGift size={14} />} onClick={ir('cadastro')}>
                     {aniversarioLabel(painel.customer.birthday)}
                   </LinhaInfo>
-                  <LinhaInfo icone={<IconWallet size={14} />}>
+                  <LinhaInfo icone={<IconWallet size={14} />} onClick={ir('cashback')}>
                     {formatMoney(painel.cashbackSaldo)} em cashback
                   </LinhaInfo>
-                  <LinhaInfo icone={<IconDollar size={14} />}>
+                  <LinhaInfo icone={<IconDollar size={14} />} onClick={ir('creditos')}>
                     {formatMoney(painel.creditosSaldo)} em crédito
                   </LinhaInfo>
-                  <LinhaInfo icone={<IconReceipt size={14} />}>
+                  <LinhaInfo icone={<IconReceipt size={14} />} onClick={ir('vendas')}>
                     {plural(
                       Math.max(
                         0,
@@ -157,7 +170,7 @@ export function ClienteBlocosLaterais({
                       'comandas em aberto',
                     )}
                   </LinhaInfo>
-                  <LinhaInfo icone={<IconAlertTriangle size={14} />}>
+                  <LinhaInfo icone={<IconAlertTriangle size={14} />} onClick={ir('debitos')}>
                     {plural(
                       painel.pagamentosEmAberto,
                       'pagamento em aberto',
@@ -275,11 +288,34 @@ function TextoDiscreto({ children }: { children: ReactNode }) {
 }
 
 /** Uma linha do bloco "Informações": ícone à esquerda, texto em cor de link. */
-function LinhaInfo({ icone, children }: { icone: ReactNode; children: ReactNode }) {
-  return (
-    <li className="flex items-center gap-2 text-xs text-primary">
+function LinhaInfo({
+  icone,
+  children,
+  onClick,
+}: {
+  icone: ReactNode;
+  children: ReactNode;
+  onClick?: () => void;
+}) {
+  const conteudo = (
+    <>
       <span className="shrink-0 text-primary/70">{icone}</span>
       <span className="min-w-0 truncate">{children}</span>
+    </>
+  );
+  return (
+    <li>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex w-full items-center gap-2 text-left text-xs text-primary hover:underline"
+        >
+          {conteudo}
+        </button>
+      ) : (
+        <span className="flex items-center gap-2 text-xs text-primary">{conteudo}</span>
+      )}
     </li>
   );
 }

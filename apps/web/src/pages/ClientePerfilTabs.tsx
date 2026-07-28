@@ -2606,13 +2606,22 @@ export function ClientePerfilModal({
   customer,
   isOpen,
   onClose,
+  initialTab,
 }: {
   customer: CustomerFull | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Seção onde o perfil abre. Um dos ids de PERFIL_MENU. Padrão: 'cadastro'. */
+  initialTab?: string;
 }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('cadastro');
+  const [tab, setTab] = useState(initialTab ?? 'cadastro');
+  // Reposiciona quando o perfil é REABERTO por outro link (ex.: "R$ 0,00 em
+  // cashback" depois de já ter aberto em "crédito"). Sem isto o useState inicial
+  // congela na primeira aba e o segundo clique parece não fazer nada.
+  useEffect(() => {
+    if (isOpen && initialTab) setTab(initialTab);
+  }, [isOpen, initialTab, customer?.id]);
   const [apptOpen, setApptOpen] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const createOrder = useCreateOrder();

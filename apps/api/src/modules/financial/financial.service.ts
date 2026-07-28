@@ -12,6 +12,7 @@ import {
   CreateTransferDto,
   ListTransactionsQueryDto,
   PaymentStatusDto,
+  TransactionKindDto,
   UpdateFinancialAccountDto,
   UpdateFinancialCategoryDto,
   UpdatePaymentMethodDto,
@@ -478,13 +479,42 @@ export class FinancialService {
     const dateField = q.dateType === 'paid' ? 'paidAt' : 'dueDate';
     // "Atrasado" é derivado: em aberto E vencido. Não existe no enum do banco.
     const onlyOverdue = q.overdue === 'true';
+    // "a,b,c" → ['a','b','c']. Lista vazia vira undefined para não virar um
+    // `in: []`, que casaria com NADA e esvaziaria a tela sem o usuário entender.
+    const lista = (v?: string): string[] | undefined => {
+      const arr = (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      return arr.length ? arr : undefined;
+    };
+    const accountIds = lista(q.accountIds);
+    const categoryIds = lista(q.categoryIds);
+    const paymentMethodIds = lista(q.paymentMethodIds);
+    // `kind` e `status` são ENUMS no Prisma: filtro por lista precisa do tipo do
+    // enum, não de string[]. Só aceito valores que existem no DTO — assim um
+    // '?types=lixo' vira lista vazia e é ignorado, em vez de estourar no banco.
+    const kinds = lista(q.types)?.filter(
+      (k): k is TransactionKindDto => k in TransactionKindDto,
+    );
+
     // Filtros comuns (sem status) — reaproveitados na lista e nos totais.
+    // A versão MULTI ganha do campo singular quando as duas vêm.
     const commonWhere = {
       companyId,
-      ...(q.type ? { kind: q.type } : {}),
-      ...(q.paymentMethodId ? { paymentMethodId: q.paymentMethodId } : {}),
-      ...(q.accountId ? { accountId: q.accountId } : {}),
-      ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+      ...(kinds?.length ? { kind: { in: kinds } } : q.type ? { kind: q.type } : {}),
+      ...(paymentMethodIds
+        ? { paymentMethodId: { in: paymentMethodIds } }
+        : q.paymentMethodId
+          ? { paymentMethodId: q.paymentMethodId }
+          : {}),
+      ...(accountIds
+        ? { accountId: { in: accountIds } }
+        : q.accountId
+          ? { accountId: q.accountId }
+          : {}),
+      ...(categoryIds
+        ? { categoryId: { in: categoryIds } }
+        : q.categoryId
+          ? { categoryId: q.categoryId }
+          : {}),
       ...(hasRange ? { [dateField]: range } : {}),
       // Vencido: sobrepõe o recorte por dueDate quando o período já filtra por
       // ele, então usa AND para os dois conviverem sem uma chave sobrescrever a
@@ -493,13 +523,20 @@ export class FinancialService {
     };
     // Lista: aplica o status escolhido; sem status, oculta estornadas por padrão.
     // `overdue` implica em aberto — atrasada que já foi paga não é atrasada.
+    // `overdue` implica em aberto e ganha de tudo. Depois vem a lista MULTI, e só
+    // então o campo singular (mantido para os links antigos).
+    const statuses = lista(q.statuses)?.filter(
+      (v): v is PaymentStatusDto => v in PaymentStatusDto,
+    );
     const listStatus = onlyOverdue
       ? { status: PaymentStatusDto.pending }
-      : q.status
-        ? { status: q.status }
-        : includeReversed
-          ? {}
-          : { status: { not: PaymentStatusDto.reversed } };
+      : statuses?.length
+        ? { status: { in: statuses } }
+        : q.status
+          ? { status: q.status }
+          : includeReversed
+            ? {}
+            : { status: { not: PaymentStatusDto.reversed } };
     const where = { ...commonWhere, ...listStatus };
 
     const page = q.page && q.page > 0 ? q.page : 1;
@@ -538,9 +575,11 @@ export class FinancialService {
           ...commonWhere,
           ...(onlyOverdue
             ? { status: PaymentStatusDto.pending }
-            : q.status
-              ? { status: q.status }
-              : { status: { not: PaymentStatusDto.reversed } }),
+            : statuses?.length
+              ? { status: { in: statuses } }
+              : q.status
+                ? { status: q.status }
+                : { status: { not: PaymentStatusDto.reversed } }),
         },
         _sum: { grossAmount: true },
       }),

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import {
   ClienteBlocosLaterais,
@@ -50,6 +51,7 @@ export function PacoteClienteAside({
   const clienteQ = useCustomer(buscarContato ? id : null);
   const { can } = useCan();
 
+  const navigate = useNavigate();
   const [adicionandoNota, setAdicionandoNota] = useState(false);
   // Trocar de pacote/cliente com a caixa aberta deixaria um rascunho apontando para o cliente
   // errado — fecha na troca.
@@ -119,6 +121,7 @@ export function PacoteClienteAside({
         customerId={id}
         // f_0148: o drawer de pacote mostra Informações e Pacotes, mas NÃO Assinaturas.
         blocos={['informacoes', 'pacotes', 'anotacoes']}
+        onAbrirFicha={(aba) => navigate(`/clientes/${id}?tab=${aba}`)}
         // POST /customers/:id/notes exige `clientes:manage`; sem a permissão nem o link aparece.
         onAdicionarAnotacao={can('clientes:manage') ? () => setAdicionandoNota(true) : undefined}
       />
