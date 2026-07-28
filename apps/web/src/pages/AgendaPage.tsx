@@ -6,7 +6,11 @@ import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { ComandaDrawer } from '../components/ComandaDrawer';
-import { ClienteBlocosLaterais } from '../components/ClienteBlocosLaterais';
+import {
+  ClienteBlocosLaterais,
+  COLUNA_CLIENTE_W,
+  NovaAnotacaoInline,
+} from '../components/ClienteBlocosLaterais';
 import { DatePicker } from '../components/DatePicker';
 import { DropdownButton } from '../components/DropdownButton';
 import { Drawer } from '../components/Drawer';
@@ -20,7 +24,6 @@ import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGr
 import { IconCalendar, IconChevron, IconEye, IconPlus, IconScissors, IconTrash, IconUser, IconX } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
 import { useAgendaAppointments } from '../lib/queries/agenda';
-import { useCreateNote } from '../lib/queries/clientes';
 import { useNotificationSettings } from '../lib/queries/notificationSettings';
 import { useCan } from '../lib/queries/permissions';
 import { useAutoCreate } from '../lib/useAutoCreate';
@@ -1643,7 +1646,7 @@ export function AgendaPage() {
         {selected && (
           <div className="flex flex-col gap-8 lg:flex-row lg:gap-10 lg:items-start">
             {/* ── COLUNA DO CLIENTE (esquerda) — ocupa a coluna inteira ───── */}
-            <aside className="flex shrink-0 flex-col gap-3 lg:w-[300px]">
+            <aside className={`flex shrink-0 flex-col gap-3 ${COLUNA_CLIENTE_W}`}>
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-5 text-center">
                 {/* FOTO do cliente quando existe; só cai na inicial colorida por
                     status quando não há. Antes desenhava sempre a inicial e ignorava
@@ -1908,14 +1911,14 @@ export function AgendaPage() {
             )}
             </div>
 
-            {/* Sub-drawer do "+ Adicionar" das Anotações. Fica dentro do
-                `{selected && ...}` de propósito: ao trocar de agendamento ele
-                desmonta e o rascunho não vaza para o cliente seguinte. */}
-            {selected.customer?.id && (
-              <NovaAnotacaoDrawer
+            {/* "+ Adicionar" das Anotações. Fica dentro do `{selected && ...}`
+                de propósito: ao trocar de agendamento desmonta e o rascunho não
+                vaza para o cliente seguinte. É o MESMO componente da comanda e do
+                pacote — antes eram três implementações diferentes. */}
+            {selected.customer?.id && noteDrawerOpen && (
+              <NovaAnotacaoInline
                 customerId={selected.customer.id}
-                isOpen={noteDrawerOpen}
-                onClose={() => setNoteDrawerOpen(false)}
+                onDone={() => setNoteDrawerOpen(false)}
               />
             )}
           </div>
@@ -1925,84 +1928,6 @@ export function AgendaPage() {
   );
 }
 
-/**
- * "+ Adicionar" das Anotações do cliente (f_0062 mostra o link; o vídeo nunca
- * mostra o que ele abre). Em vez de inventar um fluxo, é o mesmo par listar/criar
- * da ficha do cliente (ClientePerfilTabs.tsx `AnotacoesTab`) no formato mínimo.
- * z-[90] porque o drawer do agendamento já ocupa o z-[70] padrão.
- */
-function NovaAnotacaoDrawer({
-  customerId,
-  isOpen,
-  onClose,
-}: {
-  customerId: string;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const createNote = useCreateNote(customerId);
-  const [text, setText] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit() {
-    const value = text.trim();
-    if (!value) {
-      setError('Digite uma anotação.');
-      return;
-    }
-    setError(null);
-    try {
-      await createNote.mutateAsync({ text: value });
-      // A mutação invalida ['customer-notes', id]: o bloco da coluna se atualiza
-      // sozinho, sem refetch manual daqui.
-      setText('');
-      onClose();
-    } catch (err) {
-      setError(
-        err instanceof ApiClientError ? err.message : 'Não foi possível salvar a anotação.',
-      );
-    }
-  }
-
-  return (
-    <Drawer
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Nova anotação"
-      // Anotação é registro, não seletor auxiliar: vai a tela cheia como os
-      // demais. Estreita, virava uma faixa colada na lateral recortando o drawer
-      // de agendamento (que é tela cheia) — parecia um pedaço solto.
-      fullscreen
-      // Continua obrigatório: sem isto nasce em z-[70], ATRÁS do FullDrawer do
-      // agendamento (z-[80]) — o mesmo defeito do "Movimentar estoque".
-      zClass="z-[90]"
-      footer={
-        <>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            isDisabled={createNote.isPending || !text.trim()}
-            onClick={submit}
-          >
-            {createNote.isPending ? 'Salvando…' : 'Salvar'}
-          </Button>
-        </>
-      }
-    >
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Escreva aqui"
-        rows={5}
-        className="min-h-[120px] w-full resize-y rounded-lg border border-line bg-white px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50 placeholder:text-muted-ink"
-      />
-      {error && <div className="mt-2 text-xs text-danger">{error}</div>}
-    </Drawer>
-  );
-}
 
 /** Belasis month view: days are the columns/cells and events stay visible as cards. */
 function MonthView({

@@ -1,11 +1,13 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Button } from '@heroui/react';
+import { ApiClientError } from '@beautypass/shared';
 
 import { IconLayers, IconPlus } from './icons';
 import { formatDateTime } from '../lib/format';
 // ATENÇÃO: `useCustomerPackages` existe DUAS vezes no projeto, com o mesmo nome e queryKey
 // colidindo — o de `queries/pacotes.ts` exige `catalogo:view` e daria 403 para caixa/recepção
 // dentro da comanda. Aqui é sempre o de `queries/clientes.ts`, que pede só `clientes:view`.
-import { useCustomerNotes, useCustomerPackages } from '../lib/queries/clientes';
+import { useCreateNote, useCustomerNotes, useCustomerPackages } from '../lib/queries/clientes';
 
 /**
  * Blocos laterais do cliente — Pacotes / Assinaturas / Anotações.
@@ -20,6 +22,14 @@ import { useCustomerNotes, useCustomerPackages } from '../lib/queries/clientes';
  */
 
 export type BlocoLateralId = 'pacotes' | 'assinaturas' | 'anotacoes';
+
+/**
+ * Largura da coluna do cliente no desktop. É a MESMA coluna do Belasis nas três
+ * superfícies (agendamento, comanda e pacote), então a medida mora aqui em vez de
+ * ser redigitada em cada `<aside>` — três agentes trabalhando em paralelo já a
+ * escreveram com três valores diferentes (260, 300 e 190px).
+ */
+export const COLUNA_CLIENTE_W = 'lg:w-[300px]';
 
 /** Ordem do vídeo (f_0090). O drawer de pacote pede só ['pacotes','anotacoes'] (f_0148). */
 const ORDEM_PADRAO: BlocoLateralId[] = ['pacotes', 'assinaturas', 'anotacoes'];
@@ -66,9 +76,20 @@ export function ClienteBlocosLaterais({
 
   // "Não consumido" no Belasis é pacote com sessão sobrando (f_0148: o pacote da BRUNA está em
   // 1 de 3 e ainda conta), não pacote intocado.
+  //
+  // O filtro por `status === 'active'` é obrigatório: `GET /customers/:id/packages`
+  // devolve TODOS os pacotes do cliente sem recorte
+  // (customers.service.ts:527-528, `where: { companyId, customerId }`), e o enum
+  // PackageStatus tem `active | expired | finished`. Um pacote EXPIRADO quase
+  // sempre morre com sessão sobrando — sem este filtro ele contaria como
+  // disponível e o salão ofereceria ao cliente uma sessão que não existe mais.
   const pacotesNaoConsumidos = useMemo(
     () =>
-      pacotes.filter((p) => p.items.some((it) => it.sessionsUsed < it.sessionsTotal)).length,
+      pacotes.filter(
+        (p) =>
+          p.status === 'active' &&
+          p.items.some((it) => it.sessionsUsed < it.sessionsTotal),
+      ).length,
     [pacotes],
   );
 
@@ -182,4 +203,86 @@ function Bloco({
 
 function TextoDiscreto({ children }: { children: ReactNode }) {
   return <p className="text-xs text-muted-ink">{children}</p>;
+}
+
+/**
+ * Formulário de nova anotação do cliente (POST /customers/:id/notes).
+ *
+ * Existe AQUI, e não em cada tela, porque três agentes trabalhando em paralelo
+ * escreveram três versões dele — duas inline quase idênticas (comanda e pacote)
+ * e um drawer em tela cheia (agenda). Uma só evita que divirjam no primeiro
+ * ajuste de texto.
+ *
+ * É INLINE de propósito: como abre logo abaixo do bloco Anotações, não há
+ * overlay para recortar a tela atrás — foi justamente o que o dono reclamou na
+ * versão em drawer. O vídeo do Belasis mostra o "+ Adicionar" mas nunca o clica,
+ * então não há layout de destino para copiar; o padrão inline é o do próprio
+ * repositório (`AddDiscountInline` na comanda).
+ *
+ * Não precisa de refetch manual: `useCreateNote` invalida `['customer-notes', id]`,
+ * a mesma chave que o bloco acima lê.
+ */
+export function NovaAnotacaoInline({
+  customerId,
+  onDone,
+}: {
+  customerId: string;
+  onDone: () => void;
+}) {
+  const create = useCreateNote(customerId);
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleAdd() {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setError('Digite uma anotação.');
+      return;
+    }
+    setError(null);
+    try {
+      await create.mutateAsync({ text: trimmed });
+      setText('');
+      onDone();
+    } catch (err) {
+      // 403 é o caso real: criar anotação exige `clientes:manage`, que um caixa
+      // pode não ter. Quem chama já esconde o link, isto aqui é a segunda linha.
+      setError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar a anotação.');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-[var(--color-soft-border)] bg-white p-2">
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        placeholder="Escreva uma anotação…"
+        aria-label="Nova anotação"
+        className="w-full resize-y rounded-lg border border-line bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-ink focus:border-primary"
+      />
+      {error && <span className="text-xs text-danger">{error}</span>}
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setText('');
+            setError(null);
+            onDone();
+          }}
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          isDisabled={create.isPending || !text.trim()}
+          onClick={handleAdd}
+        >
+          {create.isPending ? 'Salvando…' : 'Adicionar'}
+        </Button>
+      </div>
+    </div>
+  );
 }

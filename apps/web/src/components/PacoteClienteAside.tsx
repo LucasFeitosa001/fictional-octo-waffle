@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Button } from '@heroui/react';
-import { ApiClientError } from '@beautypass/shared';
 
-import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
+import {
+  ClienteBlocosLaterais,
+  COLUNA_CLIENTE_W,
+  NovaAnotacaoInline,
+} from './ClienteBlocosLaterais';
 import { IconChevron, IconUser, IconWhatsApp } from './icons';
 import { formatPhone } from '../lib/format';
-import { useCustomer, useCreateNote } from '../lib/queries/clientes';
+import { useCustomer } from '../lib/queries/clientes';
 import { useCan } from '../lib/queries/permissions';
 
 /**
@@ -59,7 +61,7 @@ export function PacoteClienteAside({
   const fotoFinal = avatarUrl ?? cliente?.avatarUrl ?? null;
 
   return (
-    <aside className="flex shrink-0 flex-col gap-4 lg:w-[260px]">
+    <aside className={`flex shrink-0 flex-col gap-4 ${COLUNA_CLIENTE_W}`}>
       {/* Cabeçalho: avatar grande, nome e telefone com a pílula "Conversar" ao lado (f_0148). */}
       <div className="flex flex-col items-center gap-2 text-center">
         {/* Avatar de 96px desenhado aqui, e não com <CustomerAvatar>: as iniciais dele são fixas
@@ -120,71 +122,3 @@ export function PacoteClienteAside({
   );
 }
 
-/**
- * "+ Adicionar" das Anotações. O vídeo mostra o link mas nunca o clica, então em vez de inventar
- * um fluxo é o mínimo do par listar/criar da ficha do cliente — mesma caixa inline do drawer de
- * comanda (ComandaDrawer.tsx:666), e não um sub-drawer, para não empilhar portal sobre portal.
- */
-function NovaAnotacaoInline({
-  customerId,
-  onDone,
-}: {
-  customerId: string;
-  onDone: () => void;
-}) {
-  const create = useCreateNote(customerId);
-  const [text, setText] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleAdd() {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      setError('Digite uma anotação.');
-      return;
-    }
-    setError(null);
-    try {
-      await create.mutateAsync({ text: trimmed });
-      // A mutação invalida ['customer-notes', id]: o bloco acima se atualiza sozinho.
-      setText('');
-      onDone();
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar a anotação.');
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-[var(--color-soft-border)] bg-white p-2">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={3}
-        placeholder="Escreva uma anotação…"
-        aria-label="Nova anotação"
-        className="w-full resize-y rounded-lg border border-line bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-ink focus:border-primary"
-      />
-      {error && <span className="text-xs text-danger">{error}</span>}
-      <div className="flex justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setText('');
-            setError(null);
-            onDone();
-          }}
-        >
-          Cancelar
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          isDisabled={create.isPending || !text.trim()}
-          onClick={handleAdd}
-        >
-          {create.isPending ? 'Salvando…' : 'Adicionar'}
-        </Button>
-      </div>
-    </div>
-  );
-}

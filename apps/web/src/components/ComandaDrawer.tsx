@@ -4,10 +4,15 @@ import { Button, Spinner } from '@heroui/react';
 import { ApiClientError, type Customer } from '@beautypass/shared';
 import { Drawer } from './Drawer';
 import { ErrorState } from './States';
-import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
+import {
+  ClienteBlocosLaterais,
+  COLUNA_CLIENTE_W,
+  NovaAnotacaoInline,
+} from './ClienteBlocosLaterais';
 import { CustomerAvatar } from './CustomerPickerDrawer';
 import { ItemPickerDrawer, type PickedItem } from './ItemPickerDrawer';
 import { ItemEditDrawer } from './ItemEditDrawer';
+import { useCan } from '../lib/queries/permissions';
 import {
   IconBox,
   IconCalendar,
@@ -35,7 +40,6 @@ import {
   useReverseOrderPayment,
 } from '../lib/queries';
 import { usePaymentMethods } from '../lib/queries/financeiro';
-import { useCreateNote } from '../lib/queries/clientes';
 import { formatDate, formatMoney, formatPhone } from '../lib/format';
 import type {
   OrderDetail,
@@ -218,6 +222,11 @@ export function ComandaDrawer({
   // Cliente da comanda para a coluna lateral. Comanda avulsa → null, e aí `ClienteBlocosLaterais`
   // não renderiza nada nem dispara request (é o comportamento do Belasis em f_0153).
   const sidebarCustomerId = detail?.customer?.id ?? detail?.customerId ?? null;
+  // POST /customers/:id/notes exige `clientes:manage` (customers.controller.ts:189).
+  // Sem o gate, caixa e recepção veem o "+ Adicionar", escrevem a anotação e
+  // tomam 403 na hora de salvar. As outras duas superfícies já checavam; esta
+  // era a única sem.
+  const { can } = useCan();
 
   async function handleAddPicked(picked: PickedItem) {
     setError(null);
@@ -340,12 +349,17 @@ export function ComandaDrawer({
           </div>
         )
       ) : (
-        // Duas colunas no desktop, igual ao Belasis (f_0090/f_0245: coluna do cliente ~240px à
-        // esquerda, comanda à direita). As classes são as mesmas do drawer irmão de agendamento
-        // (AgendaPage.tsx:1632) de propósito — inclusive o empilhamento aside-primeiro no mobile.
+        // Duas colunas no desktop, igual ao Belasis (f_0090/f_0245: coluna do cliente
+        // à esquerda, comanda à direita).
+        //
+        // No MOBILE a ordem é invertida por `order`: isto é um PDV, e quem abre a
+        // comanda no celular precisa dos ITENS primeiro. Com o aside como primeiro
+        // filho, a tela começava com "Não há pacotes disponíveis / Não há assinaturas
+        // disponíveis" e os itens só apareciam depois de rolar. O DOM mantém o aside
+        // antes (leitor de tela ouve o cliente primeiro, que é o contexto).
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
           {/* ── COLUNA DO CLIENTE (esquerda) ─────────────────────────────── */}
-          <aside className="flex shrink-0 flex-col gap-4 lg:w-[300px]">
+          <aside className={`order-2 flex shrink-0 flex-col gap-4 lg:order-1 ${COLUNA_CLIENTE_W}`}>
             {/* (1) Card do cliente + ações. */}
             <OrderCustomerCard
               detail={detail}
@@ -364,11 +378,13 @@ export function ComandaDrawer({
                 mostra o que o link abre. */}
             <ClienteBlocosLaterais
               customerId={sidebarCustomerId}
-              onAdicionarAnotacao={() => setAddingNote(true)}
+              onAdicionarAnotacao={
+                can('clientes:manage') ? () => setAddingNote(true) : undefined
+              }
             />
             {addingNote && sidebarCustomerId && (
               // Anotações é o último bloco da ordem padrão, então a caixa nasce colada nele.
-              <AddNoteInline
+              <NovaAnotacaoInline
                 customerId={sidebarCustomerId}
                 onDone={() => setAddingNote(false)}
               />
@@ -376,7 +392,7 @@ export function ComandaDrawer({
           </aside>
 
           {/* ── COLUNA DA COMANDA (direita) ──────────────────────────────── */}
-          <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <div className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2">
             {/* Abas Dados | Notas Fiscais (Notas Fiscais → 2ª onda). */}
             <div className="inline-flex gap-1 self-start rounded-lg border border-[var(--color-soft-border)] bg-canvas p-0.5 text-sm">
               <span className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground">
@@ -654,78 +670,6 @@ function AddDiscountInline({ orderId, onDone }: { orderId: string; onDone: () =>
   );
 }
 
-/**
- * Nova anotação do cliente, inline na coluna esquerda (POST /customers/:id/notes).
- *
- * O vídeo do Belasis mostra o link "+ Adicionar" no bloco Anotações mas nunca o clica, então não
- * há layout de destino para copiar. Em vez de inventar um sub-drawer, reusamos dois padrões que já
- * existem: o formulário inline deste mesmo arquivo (`AddDiscountInline`) e o comportamento da aba
- * de anotações do perfil (`ClientePerfilTabs.tsx:1747`). Salvar não precisa de refetch manual —
- * `useCreateNote` invalida `['customer-notes', id]`, a mesma chave que o bloco lê.
- */
-function AddNoteInline({
-  customerId,
-  onDone,
-}: {
-  customerId: string | null;
-  onDone: () => void;
-}) {
-  const create = useCreateNote(customerId);
-  const [text, setText] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleAdd() {
-    setError(null);
-    const trimmed = text.trim();
-    if (!trimmed) {
-      setError('Digite uma anotação.');
-      return;
-    }
-    try {
-      await create.mutateAsync({ text: trimmed });
-      setText('');
-      onDone();
-    } catch (err) {
-      // 403 é o caso real aqui: criar anotação exige `clientes:manage`, que um caixa pode não ter.
-      setError(err instanceof ApiClientError ? err.message : 'Não foi possível salvar a anotação.');
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-[var(--color-soft-border)] bg-white p-2">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={3}
-        placeholder="Escreva uma anotação…"
-        aria-label="Nova anotação"
-        className="w-full resize-y rounded-lg border border-default-200 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
-      />
-      {error && <span className="text-xs text-danger">{error}</span>}
-      <div className="flex justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setText('');
-            setError(null);
-            onDone();
-          }}
-        >
-          Cancelar
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          isDisabled={create.isPending || !text.trim()}
-          onClick={handleAdd}
-        >
-          {create.isPending ? 'Salvando…' : 'Adicionar'}
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Linha de Crédito / Cashback (ledger CustomerCredit/CustomerCashback). Mostra o

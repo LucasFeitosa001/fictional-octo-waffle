@@ -51,7 +51,12 @@ interface NewAppointmentModalProps {
    * Pre-select this customer when the modal opens (fluxo cliente→agendamento a
    * partir do perfil). Evita re-buscar o cliente: usamos os dados já em mãos.
    */
-  initialCustomer?: { id: string; name: string; phone?: string | null } | null;
+  initialCustomer?: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+  } | null;
 }
 
 const NONE = '';
@@ -209,7 +214,15 @@ export function NewAppointmentModal({
   const [slotStart, setSlotStart] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string; phone?: string | null } | null>(null);
+  // `avatarUrl` faz parte do estado, não é opcional por acaso: sem ele os
+  // setters abaixo descartavam a foto e o rail esquerdo caía nas iniciais mesmo
+  // com o cliente tendo foto — foi exatamente o defeito relatado.
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: string;
+    name: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+  } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newName, setNewName] = useState('');
@@ -312,7 +325,12 @@ export function NewAppointmentModal({
       setCustomerId(initialCustomer?.id ?? '');
       setSelectedCustomer(
         initialCustomer
-          ? { id: initialCustomer.id, name: initialCustomer.name, phone: initialCustomer.phone ?? null }
+          ? {
+              id: initialCustomer.id,
+              name: initialCustomer.name,
+              phone: initialCustomer.phone ?? null,
+              avatarUrl: initialCustomer.avatarUrl ?? null,
+            }
           : null,
       );
       setPickerOpen(false);
@@ -388,13 +406,14 @@ export function NewAppointmentModal({
 
   const selectedCustomerName =
     selectedCustomer?.name ?? customerItems.find((c) => c.id === customerId)?.name;
-  // Foto do escolhido, pelo MESMO caminho do nome. `customerItems` é a lista do
-  // picker (useCustomers), que já carrega avatarUrl. Pode não achar depois que a
-  // busca muda — daí fica undefined e o CustomerAvatar cai nas iniciais sozinho.
+  // Foto do escolhido, pelo MESMO caminho do nome. Sem cast: `selectedCustomer`
+  // agora carrega avatarUrl e o tipo `Customer` compartilhado também o declara.
+  // O fallback pela lista cobre o caso de o estado ainda não ter sido preenchido;
+  // se a busca mudou e o cliente saiu da lista, fica undefined e o CustomerAvatar
+  // cai nas iniciais sozinho.
   const selectedCustomerAvatarUrl =
-    (selectedCustomer as { avatarUrl?: string | null } | null | undefined)?.avatarUrl ??
-    (customerItems.find((c) => c.id === customerId) as { avatarUrl?: string | null } | undefined)
-      ?.avatarUrl ??
+    selectedCustomer?.avatarUrl ??
+    customerItems.find((c) => c.id === customerId)?.avatarUrl ??
     undefined;
 
   // Create the appointment(s) and apply the chosen status. Returns the primary
@@ -617,7 +636,12 @@ export function NewAppointmentModal({
         selectedId={customerId}
         onPick={(c) => {
           setCustomerId(c.id);
-          setSelectedCustomer({ id: c.id, name: c.name, phone: c.phone });
+          setSelectedCustomer({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            avatarUrl: c.avatarUrl ?? null,
+          });
           setPickerOpen(false);
         }}
       />
@@ -1282,7 +1306,8 @@ function CustomerPickerDrawer({
           <ul className="flex flex-col divide-y divide-default-200 rounded-lg border border-default-200 bg-white">
             {items.map((c) => {
               const isSelected = c.id === selectedId;
-              const avatarUrl = (c as Customer & { avatarUrl?: string | null }).avatarUrl;
+              // Sem cast: `Customer` já declara avatarUrl no pacote compartilhado.
+              const avatarUrl = c.avatarUrl;
               return (
                 <li key={c.id}>
                   <button

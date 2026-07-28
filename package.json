@@ -22,20 +22,5 @@
     "turbo": "^2.5.4",
     "typescript": "^5.7.3"
   },
-  "description": "SaaS de gestão para salão / estética / barbearia (mobile admin + web booking público + API).",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/p-lacerda/salonpass.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/p-lacerda/salonpass/issues"
-  },
-  "homepage": "https://github.com/p-lacerda/salonpass#readme"
+  "description": "SaaS de gestão para salão / estética / barbearia (mobile admin + web booking público + API)."
 }
