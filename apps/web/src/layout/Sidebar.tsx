@@ -148,6 +148,7 @@ const NAVIGATION: NavEntry[] = [
     items: [
       // Profissional vê as próprias (view_own); gestão vê todas (view_all).
       { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/resumidas', label: 'Resumidas', icon: IconChart, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/config', label: 'Configurações', icon: IconSettings, feature: 'commissions', perm: 'comissoes:config' },
     ],

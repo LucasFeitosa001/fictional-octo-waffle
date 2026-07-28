@@ -387,7 +387,12 @@ function ProtectedRoutes() {
         <Route path="/caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaPage /></ProtectedRoute>} />
         {/* Comissões — profissional vê as próprias (view_own); config é gestão. */}
         <Route path="/comissoes" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        {/* `resumo` e `em-aberto` seguem valendo: a aba "Comissões em aberto" foi
+            removida (não existe no Belasis), mas link antigo não pode virar 404 —
+            os dois caem em "Resumidas". */}
         <Route path="/comissoes/resumo" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/resumidas" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/detalhadas" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
         <Route path="/comissoes/em-aberto" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
         <Route path="/comissoes/pagas" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
         <Route path="/comissoes/config" element={<PaidProtectedRoute perm="comissoes:config" feature="commissions"><ComissoesConfigPage /></PaidProtectedRoute>} />
