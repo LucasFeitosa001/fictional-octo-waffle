@@ -232,6 +232,13 @@ export interface BulkPaymentItem {
 export interface BulkPaymentBody {
   items: BulkPaymentItem[];
   closingId?: string;
+  /** Obrigatórios na tela: sem eles o pagamento não vira despesa no Financeiro. */
+  paymentMethodId?: string;
+  accountId?: string;
+  /** Data do pagamento (ISO). Default do backend = agora. */
+  paidAt?: string;
+  /** Trilho usado: manual (padrão) ou SalonPay. */
+  rail?: 'manual' | 'salonpay';
 }
 
 export interface CommissionPaymentRecord {

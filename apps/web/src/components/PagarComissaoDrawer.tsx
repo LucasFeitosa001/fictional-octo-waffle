@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Checkbox, Chip } from '@heroui/react';
+import { Button, Checkbox, Chip, ListBox, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from './Drawer';
 import { LoadingState } from './States';
-import { IconGift, IconReceipt, IconWallet } from './icons';
-import { formatDate, formatMoney } from '../lib/format';
+import { DateField } from './DateRangeFilter';
+import { IconGift, IconInfo, IconReceipt, IconWallet } from './icons';
+import { formatDate, formatMoney, isoDate } from '../lib/format';
+import { useFinancialAccounts, usePaymentMethods } from '../lib/queries/financeiro';
+import { useSalonPay } from '../lib/queries/salonpay';
 import { apiErrorMessage } from '../lib/toast';
 import {
   useCommissionAdvances,
@@ -27,12 +30,18 @@ export function PagarComissaoDrawer({
   open,
   rows,
   closingId,
+  rail = 'manual',
   onClose,
   onPaid,
 }: {
   open: boolean;
   rows: CommissionSummaryRow[];
   closingId?: string;
+  /**
+   * Trilho escolhido no menu "Pagar comissões": `manual` (o salão pagou por
+   * fora e está registrando) ou `salonpay`.
+   */
+  rail?: 'manual' | 'salonpay';
   onClose: () => void;
   /** Chamado após o pagamento em lote ser registrado com sucesso. */
   onPaid?: () => void;
@@ -42,6 +51,15 @@ export function PagarComissaoDrawer({
   const advancesQuery = useCommissionAdvances({ status: 'open' });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ count: number; total: number } | null>(null);
+  // Forma de pagamento, conta e data — os três campos que o Belasis marca como
+  // obrigatórios. São eles que permitem gerar a despesa no Financeiro; sem
+  // conta, o pagamento some do fechamento do mês.
+  const methods = usePaymentMethods();
+  const accounts = useFinancialAccounts();
+  const salonpay = useSalonPay();
+  const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [paidAt, setPaidAt] = useState(() => isoDate(new Date()));
 
   // advanceIds marcados por profissional (default: todos marcados).
   const [checkedByProf, setCheckedByProf] = useState<Record<string, Set<string>>>({});
@@ -67,6 +85,7 @@ export function PagarComissaoDrawer({
     setCheckedByProf(next);
     setError(null);
     setResult(null);
+    setPaidAt(isoDate(new Date()));
     // rows é estável por abertura; advancesByProf muda quando a query resolve.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, advancesByProf]);
@@ -94,11 +113,35 @@ export function PagarComissaoDrawer({
   const grandTotal = rows.reduce((s, r) => s + amountFor(r), 0);
   const loadingAdvances = advancesQuery.isLoading;
 
+  // Quebra do LOTE para os cards de topo. Os vales contados são só os
+  // MARCADOS — o card tem que bater com o Líquido logo abaixo dele.
+  const totais = useMemo(() => {
+    let comissoes = 0;
+    let bonus = 0;
+    let vales = 0;
+    for (const row of rows) {
+      comissoes += row.comissao;
+      bonus += row.bonus;
+      const list = advancesByProf.get(row.professionalId) ?? [];
+      const checked = checkedByProf[row.professionalId];
+      vales += list.filter((a) => checked?.has(a.id)).reduce((s, a) => s + a.amount, 0);
+    }
+    return { comissoes, bonus, vales };
+  }, [rows, advancesByProf, checkedByProf]);
+
   async function handleConfirm() {
     setError(null);
+    if (!paymentMethodId || !accountId) {
+      setError('Escolha a forma de pagamento e a conta — são elas que lançam a despesa no Financeiro.');
+      return;
+    }
     try {
       const res = await bulk.mutateAsync({
         closingId,
+        paymentMethodId,
+        accountId,
+        paidAt: paidAt ? new Date(`${paidAt}T12:00:00`).toISOString() : undefined,
+        rail,
         items: rows.map((row) => ({
           professionalId: row.professionalId,
           advanceIds: [...(checkedByProf[row.professionalId] ?? [])],
@@ -113,9 +156,11 @@ export function PagarComissaoDrawer({
   }
 
   const title =
-    rows.length === 1
-      ? `Pagar — ${rows[0]?.professionalName ?? ''}`
-      : `Pagar ${rows.length} profissionais`;
+    rail === 'salonpay'
+      ? 'Pagamento de comissões — SalonPay'
+      : rows.length === 1
+        ? `Pagar — ${rows[0]?.professionalName ?? ''}`
+        : `Pagar ${rows.length} profissionais`;
 
   return (
     <Drawer
@@ -165,6 +210,81 @@ export function PagarComissaoDrawer({
               {error}
             </div>
           )}
+
+          {/* Cards de topo do Belasis: Comissões · Vales · Bonificações e o
+              Líquido em destaque. É o resumo do LOTE inteiro. */}
+          <div className="grid grid-cols-3 gap-3">
+            <CardTotal label="Comissões" value={totais.comissoes} />
+            <CardTotal label="Vales" value={totais.vales} negativo />
+            <CardTotal label="Bonificações" value={totais.bonus} />
+          </div>
+          <div className="rounded-xl border border-[var(--color-soft-border)] bg-white py-4 text-center">
+            <div className="text-sm font-medium text-muted">Líquido</div>
+            <div className="text-2xl font-bold text-data-income">{formatMoney(grandTotal)}</div>
+          </div>
+
+          {/* SalonPay ainda não liquida sozinho — dizer isso aqui, e não depois. */}
+          {rail === 'salonpay' && !salonpay.data?.canSettle && (
+            <div className="flex gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2.5 text-xs text-foreground">
+              <IconInfo size={16} className="mt-0.5 shrink-0 text-warning" />
+              <span>
+                A conexão do SalonPay com o adquirente ainda não está ativa. O pagamento será
+                REGISTRADO (comissões quitadas e despesa lançada no Financeiro), mas a
+                transferência para a profissional não sai automaticamente.
+              </span>
+            </div>
+          )}
+
+          {/* Forma de pagamento · Conta · Data — obrigatórios como na referência */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <CampoPg label="Forma de pagamento" obrigatorio>
+              <Select
+                aria-label="Forma de pagamento"
+                selectedKey={paymentMethodId || null}
+                onSelectionChange={(k) => setPaymentMethodId(k ? String(k) : '')}
+              >
+                <Select.Trigger>
+                  <Select.Value>
+                    {({ selectedText }) => selectedText || 'Forma de pagamento'}
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {(methods.data ?? []).map((m) => (
+                      <ListBox.Item key={m.id} id={m.id} textValue={m.name}>
+                        {m.name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </CampoPg>
+
+            <CampoPg label="Conta" obrigatorio>
+              <Select
+                aria-label="Conta"
+                selectedKey={accountId || null}
+                onSelectionChange={(k) => setAccountId(k ? String(k) : '')}
+              >
+                <Select.Trigger>
+                  <Select.Value>{({ selectedText }) => selectedText || 'Conta'}</Select.Value>
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {(accounts.data ?? []).map((c) => (
+                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                        {c.name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </CampoPg>
+
+            <CampoPg label="Data">
+              <DateField value={paidAt} onChange={setPaidAt} />
+            </CampoPg>
+          </div>
 
           {loadingAdvances ? (
             <LoadingState label="Carregando vales…" />
@@ -253,6 +373,51 @@ export function PagarComissaoDrawer({
         </div>
       )}
     </Drawer>
+  );
+}
+
+function CardTotal({
+  label,
+  value,
+  negativo,
+}: {
+  label: string;
+  value: number;
+  negativo?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--color-soft-border)] bg-white py-3 text-center">
+      <div className="text-xs font-medium text-muted">{label}</div>
+      <div
+        className={
+          negativo && value > 0
+            ? 'text-base font-bold text-danger'
+            : 'text-base font-bold text-foreground'
+        }
+      >
+        {negativo && value > 0 ? `−${formatMoney(value)}` : formatMoney(value)}
+      </div>
+    </div>
+  );
+}
+
+function CampoPg({
+  label,
+  obrigatorio,
+  children,
+}: {
+  label: string;
+  obrigatorio?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label className="text-[13px] font-semibold text-foreground">
+        {obrigatorio && <span className="mr-1 text-danger">*</span>}
+        {label}
+      </label>
+      {children}
+    </div>
   );
 }
 

@@ -18,6 +18,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
+import { SalonPayModule } from './modules/salonpay/salonpay.module';
 import { PackagesModule } from './modules/packages/packages.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -55,6 +56,7 @@ import { InvitesModule } from './modules/invites/invites.module';
     SuppliersModule,
     PurchasesModule,
     CommissionsModule,
+    SalonPayModule,
     PackagesModule,
     MembershipsModule,
     ReportsModule,

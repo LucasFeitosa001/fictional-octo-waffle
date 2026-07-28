@@ -2,6 +2,8 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDateString,
+  IsIn,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -68,6 +70,12 @@ export class UpdateCommissionRuleDto {
 export class UpdateCommissionEntryDto {
   @IsOptional() @IsString() status?: 'open' | 'paid' | 'reversed';
   @IsOptional() @IsBoolean() signed?: boolean;
+  /**
+   * Bonificação do lançamento. `bonusAmount` já existia no modelo e era somado
+   * em toda a tela, mas NADA o escrevia — a coluna "Bonificações" era zero por
+   * construção. Este campo é o que faltava para ela existir de verdade.
+   */
+  @IsOptional() @IsNumber() @Min(0) bonusAmount?: number;
 }
 
 export class CreateCommissionPaymentDto {
@@ -84,6 +92,18 @@ export class CreateCommissionPaymentDto {
   @IsOptional() @IsArray() @IsString({ each: true }) advanceIds?: string[];
   @IsOptional() @IsString() closingId?: string;
   @IsOptional() @IsString() note?: string;
+  /**
+   * COMO e DE ONDE o dinheiro saiu — os dois campos que o Belasis marca como
+   * obrigatórios no drawer de pagamento. Sem eles não dá para gerar a despesa
+   * no Financeiro, e o pagamento fica invisível para o fechamento do mês.
+   * Opcionais no DTO por compatibilidade com integrações já existentes.
+   */
+  @IsOptional() @IsString() paymentMethodId?: string;
+  @IsOptional() @IsString() accountId?: string;
+  /** Data do pagamento (default = agora). */
+  @IsOptional() @IsDateString() paidAt?: string;
+  /** Trilho: 'manual' (padrão) ou 'salonpay'. */
+  @IsOptional() @IsIn(['manual', 'salonpay']) rail?: 'manual' | 'salonpay';
 }
 
 /** Um item do pagamento em lote (um por profissional). */
@@ -102,6 +122,12 @@ export class BulkCommissionPaymentDto {
   items: BulkPaymentItemDto[];
 
   @IsOptional() @IsString() closingId?: string;
+  // Liquidação do LOTE inteiro: no Belasis o drawer pede uma forma, uma conta e
+  // uma data para todos os selecionados de uma vez.
+  @IsOptional() @IsString() paymentMethodId?: string;
+  @IsOptional() @IsString() accountId?: string;
+  @IsOptional() @IsDateString() paidAt?: string;
+  @IsOptional() @IsIn(['manual', 'salonpay']) rail?: 'manual' | 'salonpay';
 }
 
 // ---- Vales (adiantamentos) ----

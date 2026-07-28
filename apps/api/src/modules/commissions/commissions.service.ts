@@ -23,6 +23,15 @@ interface PaymentItemInput {
   note?: string;
 }
 
+/** Como e de onde o dinheiro saiu — comum a `createPayment` e `payBulk`. */
+interface PaymentSettlement {
+  paymentMethodId?: string;
+  accountId?: string;
+  /** Data do pagamento (o Belasis deixa escolher; default = agora). */
+  paidAt?: string;
+  rail?: 'manual' | 'salonpay';
+}
+
 interface SummaryFilters {
   from?: string;
   to?: string;
@@ -397,6 +406,9 @@ export class CommissionsService {
       data: {
         ...(dto.status ? { status: dto.status } : {}),
         ...(dto.signed !== undefined ? { signed: dto.signed } : {}),
+        ...(dto.bonusAmount !== undefined
+          ? { bonusAmount: new Prisma.Decimal(dto.bonusAmount) }
+          : {}),
       },
     });
   }
@@ -419,7 +431,7 @@ export class CommissionsService {
     tx: Prisma.TransactionClient,
     companyId: string,
     item: PaymentItemInput,
-    opts: { closingId?: string; paidByUserId?: string },
+    opts: { closingId?: string; paidByUserId?: string } & PaymentSettlement,
   ) {
     // 1. Entries a quitar (apenas `open`).
     const entryWhere: Prisma.CommissionEntryWhereInput = {
@@ -461,6 +473,10 @@ export class CommissionsService {
     const amount = gross.isNegative() ? zero : gross; // nunca negativo
 
     // 5. Cria o pagamento com a quebra.
+    const paidAt = opts.paidAt ? new Date(opts.paidAt) : new Date();
+    if (Number.isNaN(paidAt.getTime())) {
+      throw new BadRequestException('Data de pagamento inválida');
+    }
     const payment = await tx.commissionPayment.create({
       data: {
         companyId,
@@ -469,6 +485,10 @@ export class CommissionsService {
         bonusTotal,
         advancesTotal,
         amount,
+        paidAt,
+        rail: opts.rail === 'salonpay' ? 'salonpay' : 'manual',
+        ...(opts.paymentMethodId ? { paymentMethodId: opts.paymentMethodId } : {}),
+        ...(opts.accountId ? { accountId: opts.accountId } : {}),
         ...(opts.closingId ? { closingId: opts.closingId } : {}),
         ...(opts.paidByUserId ? { paidByUserId: opts.paidByUserId } : {}),
         ...(item.note ? { note: item.note } : {}),
@@ -490,7 +510,111 @@ export class CommissionsService {
       });
     }
 
-    return { ...payment, entriesCount: entries.length };
+    // 6. FINANCEIRO. Pagar comissão é dinheiro saindo do salão; antes disto o
+    //    módulo financeiro nunca ficava sabendo, e o mês fechava errado. Só gera
+    //    despesa quando há valor E conta de saída — sem conta não há de onde
+    //    debitar, e uma despesa órfã é pior que nenhuma.
+    const transacao =
+      amount.greaterThan(0) && opts.accountId
+        ? await this.registrarDespesa(tx, companyId, {
+            professionalId: item.professionalId,
+            amount,
+            paidAt,
+            accountId: opts.accountId,
+            paymentMethodId: opts.paymentMethodId,
+            paymentId: payment.id,
+          })
+        : null;
+
+    if (transacao) {
+      await tx.commissionPayment.update({
+        where: { id: payment.id },
+        data: { transactionId: transacao.id },
+      });
+    }
+
+    return { ...payment, transactionId: transacao?.id ?? null, entriesCount: entries.length };
+  }
+
+  /**
+   * Despesa (+ movimento de caixa) do pagamento de comissão.
+   *
+   * Espelha o que `OrdersService.finish()` faz para a receita, com o sinal
+   * invertido: uma `Transaction` de despesa já paga e, se a forma de pagamento
+   * for de caixa e houver caixa aberto, o `CashMovement` de saída. Se não
+   * houver caixa aberto NÃO derruba o pagamento — a comissão já foi paga na
+   * vida real; travar o registro por causa do caixa só produziria dado faltando.
+   */
+  private async registrarDespesa(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    dados: {
+      professionalId: string;
+      amount: Prisma.Decimal;
+      paidAt: Date;
+      accountId: string;
+      paymentMethodId?: string;
+      paymentId: string;
+    },
+  ) {
+    const profissional = await tx.professional.findFirst({
+      where: { id: dados.professionalId, companyId },
+      select: { name: true },
+    });
+
+    // Categoria de despesa: reaproveita a primeira ativa do salão, como o
+    // finish() faz com a de receita.
+    const categoria = await tx.financialCategory.findFirst({
+      where: { companyId, kind: 'debit', active: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    const transacao = await tx.transaction.create({
+      data: {
+        companyId,
+        kind: 'expense',
+        status: 'paid',
+        description: `Comissão — ${profissional?.name ?? 'profissional'}`,
+        grossAmount: dados.amount,
+        dueDate: dados.paidAt,
+        paidAt: dados.paidAt,
+        competenceDate: dados.paidAt,
+        accountId: dados.accountId,
+        ...(dados.paymentMethodId ? { paymentMethodId: dados.paymentMethodId } : {}),
+        ...(categoria ? { categoryId: categoria.id } : {}),
+      },
+    });
+
+    // Caixa: só quando a forma de pagamento é de caixa e existe caixa aberto.
+    if (dados.paymentMethodId) {
+      const forma = await tx.paymentMethod.findFirst({
+        where: { id: dados.paymentMethodId, companyId },
+        select: { goesToCash: true },
+      });
+      if (forma?.goesToCash) {
+        const caixa = await tx.cashRegister.findFirst({
+          where: { companyId, status: 'open' },
+          orderBy: { openedAt: 'desc' },
+          select: { id: true },
+        });
+        if (caixa) {
+          await tx.cashMovement.create({
+            data: {
+              cashRegisterId: caixa.id,
+              type: 'out',
+              amount: dados.amount,
+              description: `Comissão — ${profissional?.name ?? 'profissional'}`,
+              refType: 'commission-payment',
+              refId: dados.paymentId,
+              paymentMethodId: dados.paymentMethodId,
+            },
+          });
+        }
+      }
+    }
+
+    return transacao;
   }
 
   /** POST /commission-payments — pagamento de um único profissional. */
@@ -509,7 +633,14 @@ export class CommissionsService {
           advanceIds: dto.advanceIds,
           note: dto.note,
         },
-        { closingId: dto.closingId, paidByUserId },
+        {
+          closingId: dto.closingId,
+          paidByUserId,
+          paymentMethodId: dto.paymentMethodId,
+          accountId: dto.accountId,
+          paidAt: dto.paidAt,
+          rail: dto.rail,
+        },
       ),
     );
   }
@@ -533,7 +664,14 @@ export class CommissionsService {
               advanceIds: item.advanceIds,
               note: item.note,
             },
-            { closingId: dto.closingId, paidByUserId },
+            {
+              closingId: dto.closingId,
+              paidByUserId,
+              paymentMethodId: dto.paymentMethodId,
+              accountId: dto.accountId,
+              paidAt: dto.paidAt,
+              rail: dto.rail,
+            },
           ),
         );
       }
@@ -612,6 +750,18 @@ export class CommissionsService {
       await tx.commissionAdvance.updateMany({
         where: { paymentId: id, companyId },
         data: { status: 'open', paymentId: null },
+      });
+
+      // Estorna a despesa e o movimento de caixa. Sem isto, excluir o pagamento
+      // reabria a comissão mas deixava a saída no Financeiro — o salão pagaria
+      // duas vezes no relatório.
+      if (payment.transactionId) {
+        await tx.transaction
+          .delete({ where: { id: payment.transactionId } })
+          .catch(() => undefined);
+      }
+      await tx.cashMovement.deleteMany({
+        where: { refType: 'commission-payment', refId: id },
       });
 
       // Auditoria (Belasis exige justificativa; registramos usuário, valor e

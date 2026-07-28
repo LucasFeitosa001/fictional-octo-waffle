@@ -11,6 +11,9 @@ import { ValeModal } from '../../components/ValeModal';
 import { JustificativaDialog } from '../../components/JustificativaDialog';
 import { AppTabs } from '../../components/AppTabs';
 import { ComissoesDetalhadasView } from './ComissoesDetalhadasView';
+import { SalonPayDrawer } from '../../components/SalonPayDrawer';
+import { PagarComissoesMenu } from '../../components/PagarComissoesMenu';
+import { useSalonPay } from '../../lib/queries/salonpay';
 import {
   IconChart,
   IconChevron,
@@ -141,6 +144,10 @@ export function ComissoesResumoPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Linhas enviadas ao drawer de pagamento (lote ou 1 profissional).
   const [payingRows, setPayingRows] = useState<CommissionSummaryRow[] | null>(null);
+  // Trilho escolhido no menu "Pagar comissões" (Pagar x Pagar com SalonPay).
+  const [payRail, setPayRail] = useState<'manual' | 'salonpay'>('manual');
+  const [salonPayOpen, setSalonPayOpen] = useState(false);
+  const salonpay = useSalonPay();
   const [valeOpen, setValeOpen] = useState(false);
   // Pagamento cuja exclusão (com justificativa) está em andamento.
   const [deletingPayment, setDeletingPayment] = useState<CommissionPayment | null>(null);
@@ -286,12 +293,27 @@ export function ComissoesResumoPage() {
     setSelected(() => (allSelected ? new Set() : new Set(payableIds)));
   }
 
+  /**
+   * Abre o pagamento no trilho escolhido. Com SalonPay, se o cadastro de
+   * recebimento não estiver completo, manda para o cadastro em vez de abrir um
+   * pagamento que não teria como ser liquidado.
+   */
+  function abrirPagamento(linhas: CommissionSummaryRow[], rail: 'manual' | 'salonpay') {
+    if (linhas.length === 0) return;
+    if (rail === 'salonpay' && !salonpay.data?.complete) {
+      setSalonPayOpen(true);
+      return;
+    }
+    setPayRail(rail);
+    setPayingRows(linhas);
+  }
+
   function payOne(row: CommissionSummaryRow) {
-    setPayingRows([row]);
+    abrirPagamento([row], 'manual');
   }
 
   function paySelected() {
-    if (selectedPayable.length > 0) setPayingRows(selectedPayable);
+    abrirPagamento(selectedPayable, 'manual');
   }
 
   const columns: Column<CommissionSummaryRow>[] = [
@@ -720,7 +742,7 @@ export function ComissoesResumoPage() {
           onToChange={setTo}
           professionalId={professionalId}
           onProfessionalChange={setProfessionalId}
-          onPay={(row) => setPayingRows([row])}
+          onPay={(row, rail) => abrirPagamento([row], rail)}
         />
       ) : isPaidTab ? (
         <div className="flex flex-col gap-4">
@@ -892,16 +914,16 @@ export function ComissoesResumoPage() {
                     <TotalFooter label="Bonificações" value={totaisExibidos.bonus} />
                     <TotalFooter label="Líquido" value={totaisExibidos.liquido} strong />
                   </div>
-                  <Button
-                    variant="primary"
-                    isDisabled={selectedPayable.length === 0}
-                    onPress={paySelected}
-                  >
-                    <IconWallet size={16} />
-                    {selectedPayable.length > 0
-                      ? `Pagar comissões (${selectedPayable.length})`
-                      : 'Pagar comissões'}
-                  </Button>
+                  <PagarComissoesMenu
+                    disabled={selectedPayable.length === 0}
+                    label={
+                      selectedPayable.length > 0
+                        ? `Pagar comissões (${selectedPayable.length})`
+                        : 'Pagar comissões'
+                    }
+                    onPagar={() => abrirPagamento(selectedPayable, 'manual')}
+                    onSalonPay={() => abrirPagamento(selectedPayable, 'salonpay')}
+                  />
                 </div>
               </>
             )}
@@ -937,9 +959,13 @@ export function ComissoesResumoPage() {
       <PagarComissaoDrawer
         open={payingRows != null}
         rows={payingRows ?? []}
+        rail={payRail}
         onClose={() => setPayingRows(null)}
         onPaid={() => setSelected(new Set())}
       />
+
+      {/* Cadastro de recebimento do SalonPay */}
+      <SalonPayDrawer open={salonPayOpen} onClose={() => setSalonPayOpen(false)} />
 
       {/* Modal de novo vale (adiantamento) */}
       <ValeModal
