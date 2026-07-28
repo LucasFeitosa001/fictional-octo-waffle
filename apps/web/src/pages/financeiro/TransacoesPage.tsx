@@ -1431,10 +1431,6 @@ export function LancamentoModal({
   const [paidAt, setPaidAt] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  // Menu vertical estilo Belasis: agrupa os campos por afinidade.
-  const [section, setSection] = useState<'dados' | 'classificacao' | 'observacoes'>(
-    'dados',
-  );
 
   const categories = useFinancialCategories();
   const paymentMethods = usePaymentMethods();
@@ -1473,7 +1469,6 @@ export function LancamentoModal({
     }
     setFormError(null);
     setSuccess(false);
-    setSection('dados');
   }, [editing, mode]);
 
   const isPending = createTransaction.isPending || updateTransaction.isPending;
@@ -1608,13 +1603,9 @@ export function LancamentoModal({
       // Sem widthClass: no FullDrawer é justamente essa prop que troca a tela
       // cheia por uma faixa lateral (FullDrawer.tsx:195). Com 520px as três
       // seções do menu não cabiam e viravam uma barra de rolagem horizontal.
-      sections={[
-        { key: 'dados', label: 'Dados do lançamento' },
-        { key: 'classificacao', label: 'Categoria & Conta' },
-        { key: 'observacoes', label: 'Observações' },
-      ]}
-      activeSection={section}
-      onSectionChange={(k) => setSection(k as 'dados' | 'classificacao' | 'observacoes')}
+      // SEM `sections`: a referência (02-editando-recebimento.png) é uma página
+      // só, chapada em linhas de 3 colunas. O menu lateral obrigava a caçar
+      // "Conta" e "Categoria" em outra aba para lançar uma única despesa.
       footer={footer}
     >
       {success ? (
@@ -1627,10 +1618,9 @@ export function LancamentoModal({
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4 max-w-3xl">
-          {/* SEÇÃO 1: Dados do lançamento — Valor, Vencimento, Titular, Status. */}
-          {section === 'dados' && (
-            <>
+        <div className="flex flex-col gap-4">
+          {/* Tudo numa página, na ordem da referência. */}
+          <>
               {/* 1. Valor bruto · Taxas · Valor líquido — os três da referência.
                   Taxas e líquido são CALCULADOS da forma de pagamento escolhida
                   (feePercent + feeFixed); não são campos digitáveis nem colunas
@@ -1752,12 +1742,11 @@ export function LancamentoModal({
                   </Select.Popover>
                 </Select>
               </div>
-            </>
-          )}
+          </>
 
-          {/* SEÇÃO 2: Categoria & Conta — Forma de pagamento, Conta, Categoria. */}
-          {section === 'classificacao' && (
-            <>
+          {/* Forma de pagamento · Conta · Categoria — a linha 4 da referência. */}
+          <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <FieldSelect
                 label="Forma de pagamento"
                 placeholder="Selecione (opcional)"
@@ -1784,22 +1773,20 @@ export function LancamentoModal({
                   options={(categories.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
                 />
               )}
-            </>
-          )}
+              </div>
+          </>
 
-          {/* SEÇÃO 3: Observações — Descrição do lançamento. */}
-          {section === 'observacoes' && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">Descrição</label>
-              <TextField value={description} onChange={setDescription} aria-label="Descrição">
-                <Input placeholder="Gerada automaticamente se vazio" />
-              </TextField>
-              <p className="text-xs text-muted">
-                Se em branco, será preenchida automaticamente com base no tipo de
-                lançamento e no titular selecionado.
-              </p>
-            </div>
-          )}
+          {/* Descrição — textarea de largura inteira, como na referência. */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">Descrição</label>
+            <TextField value={description} onChange={setDescription} aria-label="Descrição">
+              <Input placeholder="Gerada automaticamente se vazio" />
+            </TextField>
+            <p className="text-xs text-muted">
+              Se em branco, será preenchida automaticamente com base no tipo de
+              lançamento e no titular selecionado.
+            </p>
+          </div>
 
           {formError && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">

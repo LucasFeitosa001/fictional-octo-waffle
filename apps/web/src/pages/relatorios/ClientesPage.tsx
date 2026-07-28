@@ -45,12 +45,16 @@ const COLUMN_DEFS: { value: string; label: string; get: (r: RelatorioClienteRow)
 // Colunas pré-marcadas no Belasis.
 const DEFAULT_COLUMNS = ['phone2', 'birthday', 'balance_cents'];
 
+/**
+ * Período começa VAZIO = todos os clientes.
+ *
+ * Antes vinha com os últimos 30 dias, e "Criado em" recorta a data de CADASTRO —
+ * num salão que migrou a base, todo mundo tem a data da importação, então
+ * qualquer período fora dela devolvia zero e o botão morria sem explicar. A tela
+ * promete "a lista completa"; é isso que ela deve trazer por padrão.
+ */
 function defaultRange() {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - 30);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: iso(from), to: iso(to) };
+  return { from: '', to: '' };
 }
 
 /* --------------------------------------------------------- form primitives -- */
@@ -257,7 +261,20 @@ export function ClientesPage() {
         </div>
 
         {/* Gerar relatório + dropdown (ant-space-compact) */}
-        <div className="mt-6 flex justify-end border-t border-line pt-5">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+          {/* Quantas linhas o CSV vai ter, ANTES de clicar. Sem isto o botão
+              desabilitado não dizia se o filtro zerou ou se algo quebrou. */}
+          <p className="text-sm text-muted-ink">
+            {query.isLoading
+              ? 'Carregando clientes…'
+              : query.isError
+                ? 'Não foi possível carregar os clientes.'
+                : customers.length === 0
+                  ? range.from || range.to
+                    ? 'Nenhum cliente cadastrado nesse período. Limpe as datas para trazer todos.'
+                    : 'Nenhum cliente encontrado com esses filtros.'
+                  : `${customers.length} cliente(s) no relatório`}
+          </p>
           <div ref={menuRef} className="relative inline-flex">
             <button
               type="button"
