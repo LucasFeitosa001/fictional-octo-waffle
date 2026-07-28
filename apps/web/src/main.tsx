@@ -8,6 +8,7 @@ import './index.css';
 import { initTheme } from './theme/theme';
 import { initButtonRadius } from './theme/buttonStyle';
 import { initZoom } from './theme/zoom';
+import { toast } from '@heroui/react';
 import { toastMutationError } from './lib/toast';
 
 // Restore the saved color theme + button style + zoom before the first React
@@ -16,6 +17,51 @@ import { toastMutationError } from './lib/toast';
 initTheme();
 initButtonRadius();
 initZoom();
+
+/**
+ * Recarrega quando o service worker novo assume o controle.
+ *
+ * O `sw.js` é gerado com `skipWaiting` + `clientsClaim` (VitePWA `autoUpdate`),
+ * então a versão nova toma conta assim que instala — mas a ABA ABERTA continua
+ * executando o JS antigo, porque nada reagia ao evento. Era isso que fazia o
+ * dono ver a tela anterior depois de todo deploy: abre, está velho; recarrega,
+ * aparece o novo.
+ *
+ * Não é cosmético. Front antigo contra API nova manda requisição fora do
+ * contrato — foi assim que nasceram os pagamentos de comissão de R$ 0,00, com o
+ * bundle velho sem `accountId` e sem conhecer a recusa nova.
+ */
+function recarregarQuandoAtualizar() {
+  const sw = navigator.serviceWorker;
+  if (!sw) return;
+  // Com `clientsClaim`, `controllerchange` também dispara na PRIMEIRA visita
+  // (não havia controlador). Recarregar ali seria um reload gratuito em todo
+  // primeiro acesso.
+  const jaTinhaControlador = Boolean(sw.controller);
+  let recarregando = false;
+
+  sw.addEventListener('controllerchange', () => {
+    if (!jaTinhaControlador || recarregando) return;
+
+    // Recarregar por cima de um formulário preenchido perde o trabalho da
+    // pessoa. Nesse caso avisa e deixa ela escolher a hora.
+    const foco = document.activeElement;
+    const digitando =
+      foco instanceof HTMLElement &&
+      (['INPUT', 'TEXTAREA', 'SELECT'].includes(foco.tagName) || foco.isContentEditable);
+    const modalAberto = document.querySelector('[role="dialog"],[aria-modal="true"]');
+    if (digitando || modalAberto) {
+      toast.info('Nova versão disponível. Recarregue a página para atualizar.', {
+        timeout: 10_000,
+      });
+      return;
+    }
+
+    recarregando = true;
+    window.location.reload();
+  });
+}
+recarregarQuandoAtualizar();
 
 const queryClient = new QueryClient({
   // Handler GLOBAL de erro de mutation: qualquer create/update/delete que falhe

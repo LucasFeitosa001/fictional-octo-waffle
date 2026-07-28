@@ -96,7 +96,8 @@ const COLUNAS: Column<SalonPayTransfer>[] = [
   { key: 'nome', header: 'Nome', render: (t) => t.recipientName },
   {
     key: 'documento',
-    header: 'CPF/CNPJ',
+    // Rótulo exato da captura (belasis-reference/belasis-pay-transfers/desktop.html).
+    header: 'CPF ou CNPJ',
     render: (t) => t.recipientDocument || <span className="text-muted">—</span>,
   },
   {
