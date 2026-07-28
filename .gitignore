@@ -38,3 +38,9 @@ belasis-reference/.auth-profile*
 
 # local uploads (dev fallback when S3 is not configured)
 apps/api/uploads/
+
+# Artefatos de raspagem do Belasis (399 MB): HTML capturado, frames de vídeo e
+# estado de navegador. Ficam no disco para consulta, mas NUNCA no repositório —
+# `_out/agenda-belasis-scrape/belasis-auth.json` guarda cookies de sessão do
+# belasis.app, e credencial em git é permanente mesmo depois de apagada.
+belasis-reference/_out/
