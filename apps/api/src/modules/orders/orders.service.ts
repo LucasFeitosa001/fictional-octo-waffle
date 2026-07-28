@@ -927,6 +927,7 @@ export class OrdersService {
         await this.generateCashMovements(tx, order, openCash.id);
       }
       await this.generateCommissionEntries(tx, companyId, order);
+      await this.generateCashbackEarnings(tx, companyId, order);
       await this.decrementSoldStock(tx, order);
 
       return tx.order.update({
@@ -1153,6 +1154,194 @@ export class OrdersService {
     }
   }
 
+
+  /**
+   * Resolve o percentual de cashback aplicável a um item.
+   *
+   * Gêmeo de `resolveCommissionPercent` de propósito: mesma precedência, mesma
+   * conversão de valor fixo em percentual. Se as duas divergirem, o salão passa a
+   * ter duas mentalidades diferentes para "regra por escopo" na mesma tela.
+   *
+   * Precedência (mais específico → mais genérico):
+   *   1. CashbackRule scope=service|product por scopeId (o item)
+   *   2. CashbackRule scope=category (categoria do item)
+   *   3. CashbackRule scope=all
+   *   4. Catálogo: Service.cashbackPercent | Product.cashback*
+   *   5. Padrão da empresa: Company.cashbackValueType + cashbackValue
+   *
+   * Devolve também a validade em dias da regra que venceu — cada lote de ganho
+   * carrega o próprio vencimento, que é como um ledger de fidelidade funciona.
+   */
+  private async resolveCashbackPercent(
+    tx: Prisma.TransactionClient,
+    company: {
+      cashbackValueType: string | null;
+      cashbackValue: Prisma.Decimal | null;
+    },
+    companyId: string,
+    item: { kind: string; refId: string; grossValue: Prisma.Decimal; discount: Prisma.Decimal },
+  ): Promise<{ percent: Prisma.Decimal; validityDays: number }> {
+    const base = new Prisma.Decimal(item.grossValue).sub(item.discount);
+    const zero = { percent: new Prisma.Decimal(0), validityDays: 0 };
+    if (base.lessThanOrEqualTo(0)) return zero;
+
+    const scopeType = item.kind === 'service' ? 'service' : 'product';
+
+    const rules = await tx.cashbackRule.findMany({
+      where: {
+        companyId,
+        active: true,
+        OR: [
+          { scopeType, scopeId: item.refId },
+          { scopeType: 'category' },
+          { scopeType: 'all' },
+        ],
+      },
+    });
+
+    // Categoria do item, para casar regras scope=category.
+    let categoryId: string | null = null;
+    if (item.kind === 'service') {
+      const svc = await tx.service.findUnique({
+        where: { id: item.refId },
+        select: { categoryId: true },
+      });
+      categoryId = svc?.categoryId ?? null;
+    } else {
+      const prod = await tx.product.findUnique({
+        where: { id: item.refId },
+        select: { categoryId: true },
+      });
+      categoryId = prod?.categoryId ?? null;
+    }
+
+    const daRegra = (r: { percent: Prisma.Decimal; validityDays: number }) => ({
+      percent: new Prisma.Decimal(r.percent),
+      validityDays: r.validityDays,
+    });
+
+    const especifica = rules.find((r) => r.scopeType === scopeType && r.scopeId === item.refId);
+    if (especifica) return daRegra(especifica);
+    if (categoryId) {
+      const porCategoria = rules.find(
+        (r) => r.scopeType === 'category' && r.scopeId === categoryId,
+      );
+      if (porCategoria) return daRegra(porCategoria);
+    }
+    const todas = rules.find((r) => r.scopeType === 'all');
+    if (todas) return daRegra(todas);
+
+    // 4. Catálogo. Serviço só tem percentual; produto tem percent|value próprio.
+    if (item.kind === 'service') {
+      const svc = await tx.service.findUnique({
+        where: { id: item.refId },
+        select: { cashbackPercent: true },
+      });
+      const p = new Prisma.Decimal(svc?.cashbackPercent ?? 0);
+      if (p.greaterThan(0)) return { percent: p, validityDays: 0 };
+    } else {
+      const prod = await tx.product.findUnique({
+        where: { id: item.refId },
+        select: { cashbackActive: true, cashbackType: true, cashbackValue: true },
+      });
+      if (prod?.cashbackActive && prod.cashbackValue) {
+        const v = new Prisma.Decimal(prod.cashbackValue);
+        const p = prod.cashbackType === 'value' ? v.div(base).mul(100) : v;
+        if (p.greaterThan(0)) return { percent: p, validityDays: 0 };
+      }
+    }
+
+    // 5. Padrão da empresa.
+    if (company.cashbackValue) {
+      const v = new Prisma.Decimal(company.cashbackValue);
+      // 'value' é um valor em reais POR ITEM; vira percentual efetivo sobre a
+      // base, como o `toPercent` da comissão faz — assim o ledger guarda sempre
+      // dinheiro e o "quanto rendeu" não distorce com desconto.
+      const p = company.cashbackValueType === 'value' ? v.div(base).mul(100) : v;
+      if (p.greaterThan(0)) return { percent: p, validityDays: 0 };
+    }
+
+    return zero;
+  }
+
+  /**
+   * Credita o cashback ganho na comanda faturada.
+   *
+   * Roda DENTRO da transação do `finish()`, ao lado de `generateCommissionEntries`:
+   * se algo falhar depois, o crédito volta atrás junto. Antes disto o programa de
+   * cashback era decorativo — havia configuração, regra, resgate e ajuste manual,
+   * mas nada que fizesse o cliente ganhar.
+   */
+  private async generateCashbackEarnings(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    order: {
+      id: string;
+      customerId: string | null;
+      netTotal: Prisma.Decimal;
+      items: { kind: string; refId: string; grossValue: Prisma.Decimal; discount: Prisma.Decimal }[];
+    },
+  ): Promise<void> {
+    if (!order.customerId) return;
+
+    const company = await tx.company.findUnique({
+      where: { id: companyId },
+      select: {
+        cashbackActive: true,
+        cashbackValueType: true,
+        cashbackValue: true,
+        cashbackMinimum: true,
+      },
+    });
+    if (!company?.cashbackActive) return;
+
+    // Piso do programa: é para isso que `cashbackMinimum` existe.
+    const netTotal = new Prisma.Decimal(order.netTotal);
+    if (netTotal.lessThan(new Prisma.Decimal(company.cashbackMinimum ?? 0))) return;
+
+    // Idempotência: reabrir e refaturar não pode creditar duas vezes.
+    // `sourceType` é 'order-earn', NUNCA 'order' — applyCashback apaga
+    // { sourceType: 'order', sourceId } antes de gravar o débito, e o ganho
+    // sumiria junto.
+    await tx.customerCashback.deleteMany({
+      where: { customerId: order.customerId, sourceType: 'order-earn', sourceId: order.id },
+    });
+
+    let total = new Prisma.Decimal(0);
+    let validityDays = 0;
+    for (const item of order.items) {
+      const { percent, validityDays: dias } = await this.resolveCashbackPercent(
+        tx,
+        company,
+        companyId,
+        item,
+      );
+      if (percent.lessThanOrEqualTo(0)) continue;
+      const base = new Prisma.Decimal(item.grossValue).sub(item.discount);
+      total = total.add(base.mul(percent).div(100));
+      // Um lote por comanda, com a MAIOR validade entre os itens: gravar uma
+      // linha por item encheria o extrato do cliente de centavos soltos.
+      if (dias > validityDays) validityDays = dias;
+    }
+
+    // Arredonda em 2 casas só no fim, para não perder centavo item a item.
+    total = total.toDecimalPlaces(2);
+    if (total.lessThanOrEqualTo(0)) return;
+
+    await tx.customerCashback.create({
+      data: {
+        customerId: order.customerId,
+        amount: total,
+        sourceType: 'order-earn',
+        sourceId: order.id,
+        expiresAt:
+          validityDays > 0
+            ? new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000)
+            : null,
+      },
+    });
+  }
+
   /**
    * Resolve o percentual de comissão aplicável a um item.
    * Precedência (mais específico → mais genérico):
@@ -1317,7 +1506,9 @@ export class OrdersService {
   private async reverseFinishReconciliation(
     tx: Prisma.TransactionClient,
     companyId: string,
-    order: { id: string; number: number },
+    // `customerId` entrou para o estorno do cashback ganho: sem ele, reabrir uma
+    // comanda deixaria o cliente com saldo de uma venda que voltou a ficar aberta.
+    order: { id: string; number: number; customerId: string | null },
   ) {
     const now = new Date();
 
@@ -1349,6 +1540,16 @@ export class OrdersService {
           paidAt: now,
           status: 'reversed',
         },
+      });
+    }
+
+    // 1b. Cashback GANHO — apaga o lote desta comanda. Não vira "reversed" como
+    //     a comissão porque o ledger de cashback não tem status: a linha some e o
+    //     saldo do cliente volta ao que era. Se a comanda for faturada de novo,
+    //     `generateCashbackEarnings` recria com o valor recalculado.
+    if (order.customerId) {
+      await tx.customerCashback.deleteMany({
+        where: { customerId: order.customerId, sourceType: 'order-earn', sourceId: order.id },
       });
     }
 
@@ -1554,6 +1755,11 @@ export class OrdersService {
       });
       await this.prisma.client.customerCashback.deleteMany({
         where: { customerId: order.customerId, sourceType: 'order', sourceId: id },
+      });
+      // ...e retira o cashback GANHO nela. Cancelar uma comanda faturada sem
+      // isto deixaria o cliente com saldo de uma venda que não existe mais.
+      await this.prisma.client.customerCashback.deleteMany({
+        where: { customerId: order.customerId, sourceType: 'order-earn', sourceId: id },
       });
     }
 

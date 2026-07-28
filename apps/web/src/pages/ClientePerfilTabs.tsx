@@ -2733,13 +2733,45 @@ export function ClientePerfilModal({
             </div>
           )}
 
-          <div className="flex flex-col gap-4">
-            <AppTabs
-              items={PERFIL_MENU}
-              selectedKey={tab}
-              onSelectionChange={setTab}
-              ariaLabel="Seções do cliente"
-            />
+          {/* Menu VERTICAL à esquerda no desktop, como no Belasis — são 13 seções,
+              que em fileira horizontal viram um carrossel impossível de varrer.
+              No celular continua o carrossel do AppTabs: uma coluna de 13 itens
+              comeria a tela inteira antes do conteúdo. */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+            <nav
+              aria-label="Seções do cliente"
+              className="hidden shrink-0 flex-col gap-0.5 border-r border-line pr-3 md:flex md:w-[210px]"
+            >
+              {PERFIL_MENU.map((secao) => {
+                const ativo = tab === secao.id;
+                return (
+                  <button
+                    key={secao.id}
+                    type="button"
+                    onClick={() => setTab(secao.id)}
+                    aria-current={ativo ? 'page' : undefined}
+                    className={[
+                      'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                      ativo
+                        ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] font-medium text-primary'
+                        : 'text-muted-ink hover:bg-canvas hover:text-ink',
+                    ].join(' ')}
+                  >
+                    <span className={ativo ? 'text-primary' : 'text-muted-ink'}>{secao.icon}</span>
+                    <span className="min-w-0 truncate">{secao.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="md:hidden">
+              <AppTabs
+                items={PERFIL_MENU}
+                selectedKey={tab}
+                onSelectionChange={setTab}
+                ariaLabel="Seções do cliente"
+              />
+            </div>
 
             {/* Conteúdo da seção ativa */}
             <div className="min-w-0 flex-1">

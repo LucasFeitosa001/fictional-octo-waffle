@@ -68,7 +68,6 @@ const PAGE_SIZE = 30;
 const CARD_CLASS =
   'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
 
-const ALL = '__all__';
 
 /**
  * Status do filtro. 'overdue' (Atrasado) é DERIVADO — em aberto e já vencido —
@@ -150,26 +149,28 @@ export function TransacoesPage() {
   const [searchParams] = useSearchParams();
   const initialStatus = searchParams.get('status');
   const initialKind = searchParams.get('kind');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+  // MULTI-seleção, como no Belasis (03-transacoes-filtros.png): cada seção é uma
+  // lista de checkbox, não um botão de escolha única. Conjunto VAZIO = "todos" —
+  // é o que evita a tela nascer sem nenhum lançamento.
+  const [statuses, setStatuses] = useState<Set<StatusFilter>>(() =>
     initialStatus === 'paid' || initialStatus === 'pending'
-      ? initialStatus
-      : 'all',
+      ? new Set<StatusFilter>([initialStatus])
+      : new Set<StatusFilter>(),
   );
   // Sobre qual data o período incide (Belasis: "Tipo de data"). Competência não
   // entra: o model Transaction não tem essa coluna.
   const [dateType, setDateType] = useState<'due' | 'paid'>('due');
-  // Conta e categoria: a API já aceitava os dois, faltava a UI.
-  const [accountFilter, setAccountFilter] = useState(ALL);
-  const [categoryFilter, setCategoryFilter] = useState(ALL);
-  const [kindFilter, setKindFilter] = useState<'all' | TransactionKind>(
+  const [accountIds, setAccountIds] = useState<Set<string>>(new Set());
+  const [categoryIds, setCategoryIds] = useState<Set<string>>(new Set());
+  const [kinds, setKinds] = useState<Set<TransactionKind>>(() =>
     initialKind === 'income' || initialKind === 'expense'
-      ? initialKind
-      : 'all',
+      ? new Set<TransactionKind>([initialKind])
+      : new Set<TransactionKind>(),
   );
   const [showReversed, setShowReversed] = useState(false);
   const [from, setFrom] = useState(searchParams.get('from') ?? '');
   const [to, setTo] = useState(searchParams.get('to') ?? '');
-  const [methodFilter, setMethodFilter] = useState(ALL);
+  const [methodIds, setMethodIds] = useState<Set<string>>(new Set());
   const [formMode, setFormMode] = useState<LancamentoMode | null>(null);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [page, setPage] = useState(1);
@@ -192,26 +193,20 @@ export function TransacoesPage() {
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
     setPage(1);
-  }, [
-    statusFilter,
-    kindFilter,
-    methodFilter,
-    accountFilter,
-    categoryFilter,
-    dateType,
-    from,
-    to,
-    showReversed,
-  ]);
+  }, [statuses, kinds, methodIds, accountIds, categoryIds, dateType, from, to, showReversed]);
 
   useEffect(() => {
     const status = searchParams.get('status');
     const kind = searchParams.get('kind');
-    setStatusFilter(
-      status === 'paid' || status === 'pending' ? status : 'all',
+    setStatuses(
+      status === 'paid' || status === 'pending'
+        ? new Set<StatusFilter>([status])
+        : new Set<StatusFilter>(),
     );
-    setKindFilter(
-      kind === 'income' || kind === 'expense' ? kind : 'all',
+    setKinds(
+      kind === 'income' || kind === 'expense'
+        ? new Set<TransactionKind>([kind])
+        : new Set<TransactionKind>(),
     );
     setFrom(searchParams.get('from') ?? '');
     setTo(searchParams.get('to') ?? '');
@@ -229,34 +224,34 @@ export function TransacoesPage() {
     to,
     setFrom,
     setTo,
-    kindFilter,
-    setKindFilter,
-    statusFilter,
-    setStatusFilter,
+    kinds,
+    setKinds,
+    statuses,
+    setStatuses,
     dateType,
     setDateType,
-    methodFilter,
-    setMethodFilter,
+    methodIds,
+    setMethodIds,
     paymentMethods: (paymentMethods.data ?? []).map((m) => ({ id: m.id, name: m.name })),
-    accountFilter,
-    setAccountFilter,
+    accountIds,
+    setAccountIds,
     accounts: (accountsQuery.data ?? []).map((a) => ({ id: a.id, name: a.name })),
-    categoryFilter,
-    setCategoryFilter,
+    categoryIds,
+    setCategoryIds,
     categories: (categoriesQuery.data ?? []).map((c) => ({ id: c.id, name: c.name })),
     showReversed,
     setShowReversed,
   };
 
+  // Conjunto vazio = sem filtro. `statuses` inclui 'overdue', que o servidor
+  // resolve como ramo OR (em aberto + vencido) e sabe combinar com os outros.
+  const csv = (set: Set<string>) => (set.size ? [...set].join(',') : undefined);
   const transactions = useTransactions({
-    type: kindFilter === 'all' ? undefined : kindFilter,
-    // 'overdue' não é status de banco: vai como flag e o servidor força pending.
-    status:
-      statusFilter === 'all' || statusFilter === 'overdue' ? undefined : statusFilter,
-    overdue: statusFilter === 'overdue',
-    paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
-    accountId: accountFilter === ALL ? undefined : accountFilter,
-    categoryId: categoryFilter === ALL ? undefined : categoryFilter,
+    types: csv(kinds),
+    statuses: csv(statuses),
+    paymentMethodIds: csv(methodIds),
+    accountIds: csv(accountIds),
+    categoryIds: csv(categoryIds),
     from: from || undefined,
     to: to || undefined,
     dateType,
@@ -327,27 +322,27 @@ export function TransacoesPage() {
   };
 
   const activeFilterCount =
-    (kindFilter !== 'all' ? 1 : 0) +
-    (statusFilter !== 'all' ? 1 : 0) +
+    (kinds.size ? 1 : 0) +
+    (statuses.size ? 1 : 0) +
     (showReversed ? 1 : 0) +
     (from ? 1 : 0) +
     (to ? 1 : 0) +
-    (methodFilter !== ALL ? 1 : 0) +
-    (accountFilter !== ALL ? 1 : 0) +
-    (categoryFilter !== ALL ? 1 : 0) +
+    (methodIds.size ? 1 : 0) +
+    (accountIds.size ? 1 : 0) +
+    (categoryIds.size ? 1 : 0) +
     // 'due' é o padrão; só conta como filtro quando o usuário troca.
     (dateType !== 'due' ? 1 : 0);
   const hasFilters = activeFilterCount > 0;
 
   function clearFilters() {
-    setKindFilter('all');
-    setStatusFilter('all');
+    setKinds(new Set());
+    setStatuses(new Set());
     setShowReversed(false);
     setFrom('');
     setTo('');
-    setMethodFilter(ALL);
-    setAccountFilter(ALL);
-    setCategoryFilter(ALL);
+    setMethodIds(new Set());
+    setAccountIds(new Set());
+    setCategoryIds(new Set());
     setDateType('due');
   }
 
@@ -989,64 +984,28 @@ export function TransacoesPage() {
 
 type NamedOption = { id: string; name: string };
 
-/**
- * Lista de seleção única do painel "Filtrar" (Formas de pagamento, Contas,
- * Categorias): linhas empilhadas com divisória e check na ativa. Extraída para
- * as três seções não divergirem de estilo.
- */
-function OptionList({
-  options,
-  selected,
-  onSelect,
-}: {
-  options: NamedOption[];
-  selected: string;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    // `max-h` + rolagem própria: um salão com 30 categorias faria a lista empurrar
-    // as seções seguintes para fora do painel, que é overflow-hidden e CORTA
-    // (FilterAside.tsx:49) — o mesmo defeito que os chips já causaram.
-    <div className="flex max-h-56 flex-col overflow-y-auto overscroll-contain rounded-lg border border-[var(--color-soft-border)]">
-      {options.map((o, i) => {
-        const active = selected === o.id;
-        return (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => onSelect(o.id)}
-            className={`flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
-              i > 0 ? 'border-t border-[var(--color-soft-border)]' : ''
-            } ${active ? 'bg-gold/12 font-medium text-foreground' : 'bg-white text-foreground hover:bg-cream'}`}
-          >
-            <span className="truncate">{o.name}</span>
-            {active && <IconCheck size={16} className="shrink-0 text-gold-strong" />}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+
 
 type FiltrosProps = {
   from: string;
   to: string;
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
-  kindFilter: 'all' | TransactionKind;
-  setKindFilter: (v: 'all' | TransactionKind) => void;
-  statusFilter: StatusFilter;
-  setStatusFilter: (v: StatusFilter) => void;
+  // Conjuntos, não valores únicos: o painel do Belasis é multi-seleção.
+  kinds: Set<TransactionKind>;
+  setKinds: (v: Set<TransactionKind>) => void;
+  statuses: Set<StatusFilter>;
+  setStatuses: (v: Set<StatusFilter>) => void;
   dateType: 'due' | 'paid';
   setDateType: (v: 'due' | 'paid') => void;
-  methodFilter: string;
-  setMethodFilter: (v: string) => void;
+  methodIds: Set<string>;
+  setMethodIds: (v: Set<string>) => void;
   paymentMethods: NamedOption[];
-  accountFilter: string;
-  setAccountFilter: (v: string) => void;
+  accountIds: Set<string>;
+  setAccountIds: (v: Set<string>) => void;
   accounts: NamedOption[];
-  categoryFilter: string;
-  setCategoryFilter: (v: string) => void;
+  categoryIds: Set<string>;
+  setCategoryIds: (v: Set<string>) => void;
   categories: NamedOption[];
   showReversed: boolean;
   setShowReversed: (v: boolean) => void;
@@ -1057,75 +1016,105 @@ type FiltrosProps = {
  * pagamento, Formas de pagamento e Estornadas. Compartilhado entre o painel
  * lateral desktop (FilterAside) e o bottom-sheet mobile (Drawer).
  */
+/** Liga/desliga um id num conjunto, devolvendo um NOVO Set (React precisa disso). */
+function alterna<T>(set: Set<T>, id: T): Set<T> {
+  const proximo = new Set(set);
+  if (proximo.has(id)) proximo.delete(id);
+  else proximo.add(id);
+  return proximo;
+}
+
+/**
+ * Chips de status do painel de filtros. Só os três que existem no nosso dado —
+ * "Bloqueado" e "Disponível" do Belasis descrevem liberação de dinheiro pelo
+ * gateway deles; sem gateway não teriam nenhum lançamento para mostrar.
+ * "Atrasado" é derivado (em aberto + vencido) e o servidor sabe combiná-lo com
+ * os outros num ramo OR.
+ */
+const STATUS_CHIPS: { id: StatusFilter; rotulo: string; classe: string }[] = [
+  { id: 'pending', rotulo: 'Em aberto', classe: 'border-[#ffd591] bg-[#fff7e6] text-[#d46b08]' },
+  { id: 'overdue', rotulo: 'Atrasado', classe: 'border-[#ffa39e] bg-[#fff1f0] text-[#cf1322]' },
+  { id: 'paid', rotulo: 'Pago', classe: 'border-[#b7eb8f] bg-[#f6ffed] text-[#389e0d]' },
+];
+
+/**
+ * Lista de CHECKBOX do painel (Contas, Categorias, Formas, Tipo de transação).
+ * Nenhum marcado significa "todos" — é o que impede a tela nascer vazia.
+ * `max-h` com rolagem própria: o FilterAside é overflow-hidden e CORTA, então
+ * um salão com 30 categorias empurraria as seções seguintes para fora.
+ */
+function ListaCheck({
+  opcoes,
+  marcados,
+  onToggle,
+  onLimpar,
+}: {
+  opcoes: NamedOption[];
+  marcados: Set<string>;
+  onToggle: (id: string) => void;
+  onLimpar?: () => void;
+}) {
+  if (!opcoes.length) {
+    return <p className="text-xs text-muted-ink">Nada cadastrado.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      {onLimpar && (
+        <button
+          type="button"
+          onClick={onLimpar}
+          className="self-start text-xs font-medium text-primary hover:underline"
+        >
+          Desmarcar tudo
+        </button>
+      )}
+      <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto overscroll-contain">
+        {opcoes.map((o) => (
+          <label
+            key={o.id}
+            className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+          >
+            <input
+              type="checkbox"
+              checked={marcados.has(o.id)}
+              onChange={() => onToggle(o.id)}
+              className="h-4 w-4 shrink-0 accent-[var(--sp-primary)]"
+            />
+            <span className="min-w-0 truncate">{o.name}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FiltrosBody({
   from,
   to,
   setFrom,
   setTo,
-  kindFilter,
-  setKindFilter,
-  statusFilter,
-  setStatusFilter,
+  kinds,
+  setKinds,
+  statuses,
+  setStatuses,
   dateType,
   setDateType,
-  methodFilter,
-  setMethodFilter,
+  methodIds,
+  setMethodIds,
   paymentMethods,
-  accountFilter,
-  setAccountFilter,
+  accountIds,
+  setAccountIds,
   accounts,
-  categoryFilter,
-  setCategoryFilter,
+  categoryIds,
+  setCategoryIds,
   categories,
   showReversed,
   setShowReversed,
 }: FiltrosProps) {
-  const statusOptions: { id: StatusFilter; name: string }[] = [
-    { id: 'all', name: 'Todos' },
-    { id: 'paid', name: 'Pago' },
-    { id: 'pending', name: 'Em aberto' },
-    { id: 'overdue', name: 'Atrasado' },
-  ];
-  const methodOptions = [{ id: ALL, name: 'Todas as formas' }, ...paymentMethods];
-  const accountOptions = [{ id: ALL, name: 'Todas as contas' }, ...accounts];
-  const categoryOptions = [{ id: ALL, name: 'Todas as categorias' }, ...categories];
-
   return (
     <div className="flex flex-col gap-6">
-      {/* 2 colunas, não 3: o painel tem 224px úteis (FilterAside 256px − p-4), e
-          em 3 colunas cada chip fica com ~69px — "Despesas" estourava e o
-          overflow-hidden do painel cortava a palavra. */}
-      <FilterSection title="Tipo">
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { id: 'all' as const, name: 'Todos' },
-            { id: 'income' as const, name: 'Receitas' },
-            { id: 'expense' as const, name: 'Despesas' },
-          ].map((option) => {
-            const active = kindFilter === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setKindFilter(option.id)}
-                className={`h-9 min-w-0 truncate rounded-lg border px-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                    : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-                }`}
-              >
-                {option.name}
-              </button>
-            );
-          })}
-        </div>
-      </FilterSection>
-
-      {/* Período EMPILHADO, como no Belasis (03-transacoes-filtros.png). Lado a
-          lado cada campo ficava com 106px, e um input de data com máscara
-          dd/mm/aaaa mais o ícone de calendário não cabe nisso — vazava para fora
-          do painel. `min-w-0` não salvava: ele deixa o wrapper encolher, mas o
-          input tem largura mínima própria. */}
+      {/* Período EMPILHADO, como no Belasis: lado a lado cada campo ficava com
+          106px e um input de data com máscara não cabe — vazava do painel. */}
       <FilterSection title="Período">
         <div className="grid grid-cols-1 gap-3">
           <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
@@ -1133,84 +1122,101 @@ function FiltrosBody({
         </div>
       </FilterSection>
 
-      {/* Tipo de data — sobre qual data o período incide. */}
+      {/* Tipo de transação — checkbox, multi. Nenhum marcado = todos. */}
+      <FilterSection title="Tipo de transação">
+        <ListaCheck
+          opcoes={[
+            { id: 'income', name: 'Contas a receber' },
+            { id: 'expense', name: 'Contas a pagar' },
+          ]}
+          marcados={kinds as Set<string>}
+          onToggle={(id) => setKinds(alterna(kinds, id as TransactionKind))}
+        />
+      </FilterSection>
+
+      {/* Tipo de data — RADIO: são mutuamente exclusivos, ao contrário do resto.
+          "Competência" fica de fora até `Transaction` ter a coluna. */}
       <FilterSection title="Tipo de data">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1.5">
           {[
-            { id: 'due' as const, name: 'Vencimento' },
+            { id: 'due' as const, name: 'Venc/Disponibilidade' },
             { id: 'paid' as const, name: 'Pagamento' },
-          ].map((o) => {
-            const active = dateType === o.id;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setDateType(o.id)}
-                className={`h-9 min-w-0 truncate rounded-lg border px-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                    : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-                }`}
-              >
-                {o.name}
-              </button>
-            );
-          })}
+          ].map((o) => (
+            <label
+              key={o.id}
+              className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+            >
+              <input
+                type="radio"
+                name="tipo-de-data"
+                checked={dateType === o.id}
+                onChange={() => setDateType(o.id)}
+                className="h-4 w-4 accent-[var(--sp-primary)]"
+              />
+              {o.name}
+            </label>
+          ))}
         </div>
       </FilterSection>
 
-      {/* Status de pagamento (segmentado). 4 opções → 2 colunas, senão os
-          rótulos "Em aberto"/"Atrasado" quebram dentro do chip. */}
-      <FilterSection title="Status de pagamento">
-        <div className="grid grid-cols-2 gap-2">
-          {statusOptions.map((o) => {
-            const active = statusFilter === o.id;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setStatusFilter(o.id)}
-                className={`h-9 min-w-0 truncate rounded-lg border px-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                    : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-                }`}
-              >
-                {o.name}
-              </button>
-            );
-          })}
-        </div>
-      </FilterSection>
-
-      {/* Formas de pagamento (lista selecionável) */}
-      <FilterSection title="Formas de pagamento">
-        <OptionList
-          options={methodOptions}
-          selected={methodFilter}
-          onSelect={setMethodFilter}
-        />
-      </FilterSection>
-
-      {/* Contas — a API já aceitava accountId; faltava a lista. */}
+      {/* Contas — multi, com "Desmarcar tudo" como no Belasis. */}
       <FilterSection title="Contas">
-        <OptionList
-          options={accountOptions}
-          selected={accountFilter}
-          onSelect={setAccountFilter}
+        <ListaCheck
+          opcoes={accounts}
+          marcados={accountIds}
+          onToggle={(id) => setAccountIds(alterna(accountIds, id))}
+          onLimpar={accountIds.size ? () => setAccountIds(new Set()) : undefined}
         />
       </FilterSection>
 
-      {/* Categorias */}
+      {/* Status — chips COLORIDOS marcáveis. Só os 3 que têm significado no nosso
+          dado: "Bloqueado" e "Disponível" do Belasis descrevem liberação pelo
+          gateway de pagamento deles, que não temos. */}
+      <FilterSection title="Status">
+        <div className="flex flex-col gap-1.5">
+          {STATUS_CHIPS.map((c) => {
+            const marcado = statuses.has(c.id);
+            return (
+              <label
+                key={c.id}
+                className="flex cursor-pointer items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={marcado}
+                  onChange={() => setStatuses(alterna(statuses, c.id))}
+                  className="h-4 w-4 accent-[var(--sp-primary)]"
+                />
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${c.classe}`}
+                >
+                  {c.rotulo}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </FilterSection>
+
+      <FilterSection title="Formas de pagamento">
+        <ListaCheck
+          opcoes={paymentMethods}
+          marcados={methodIds}
+          onToggle={(id) => setMethodIds(alterna(methodIds, id))}
+          onLimpar={methodIds.size ? () => setMethodIds(new Set()) : undefined}
+        />
+      </FilterSection>
+
       <FilterSection title="Categorias">
-        <OptionList
-          options={categoryOptions}
-          selected={categoryFilter}
-          onSelect={setCategoryFilter}
+        <ListaCheck
+          opcoes={categories}
+          marcados={categoryIds}
+          onToggle={(id) => setCategoryIds(alterna(categoryIds, id))}
+          onLimpar={categoryIds.size ? () => setCategoryIds(new Set()) : undefined}
         />
       </FilterSection>
 
-      {/* Estornadas */}
+      {/* Estornadas — nosso, não existe no Belasis. */}
       <FilterSection title="Estornadas">
         <Switch
           isSelected={showReversed}

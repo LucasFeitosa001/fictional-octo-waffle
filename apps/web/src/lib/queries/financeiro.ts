@@ -126,6 +126,17 @@ export interface TransactionFilters {
   to?: string;
   /** Sobre qual data o período incide. Padrão do servidor: vencimento. */
   dateType?: 'due' | 'paid';
+  /**
+   * Versões MULTI, separadas por vírgula. Quando vêm, ganham dos campos
+   * singulares acima (que continuam existindo para os links já espalhados pelo
+   * app, como o Painel que navega com ?status=paid).
+   * `statuses` aceita 'overdue' junto dos outros — o servidor resolve como ramo OR.
+   */
+  types?: string;
+  statuses?: string;
+  accountIds?: string;
+  categoryIds?: string;
+  paymentMethodIds?: string;
   /** Só as atrasadas (em aberto e já vencidas) — status derivado no servidor. */
   overdue?: boolean;
   page?: number;
@@ -250,6 +261,11 @@ export function useTransactions(filters: TransactionFilters = {}) {
         to: filters.to,
         dateType: filters.dateType,
         overdue: filters.overdue ? 'true' : undefined,
+        types: filters.types,
+        statuses: filters.statuses,
+        accountIds: filters.accountIds,
+        categoryIds: filters.categoryIds,
+        paymentMethodIds: filters.paymentMethodIds,
         page: filters.page,
         pageSize: filters.pageSize,
         includeReversed: filters.includeReversed ? 'true' : undefined,
@@ -274,6 +290,11 @@ export async function fetchAllTransactions(
     to: filters.to,
     dateType: filters.dateType,
     overdue: filters.overdue ? 'true' : undefined,
+    types: filters.types,
+    statuses: filters.statuses,
+    accountIds: filters.accountIds,
+    categoryIds: filters.categoryIds,
+    paymentMethodIds: filters.paymentMethodIds,
     includeReversed: filters.includeReversed ? 'true' : undefined,
     pageSize: 100000,
   });

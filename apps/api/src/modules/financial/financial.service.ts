@@ -519,24 +519,36 @@ export class FinancialService {
       // Vencido: sobrepõe o recorte por dueDate quando o período já filtra por
       // ele, então usa AND para os dois conviverem sem uma chave sobrescrever a
       // outra.
+      // Flag legada `overdue=true`: mantida para links já existentes.
       ...(onlyOverdue ? { AND: [{ dueDate: { lt: new Date() } }] } : {}),
     };
     // Lista: aplica o status escolhido; sem status, oculta estornadas por padrão.
     // `overdue` implica em aberto — atrasada que já foi paga não é atrasada.
     // `overdue` implica em aberto e ganha de tudo. Depois vem a lista MULTI, e só
     // então o campo singular (mantido para os links antigos).
-    const statuses = lista(q.statuses)?.filter(
+    // "Atrasado" é um status DERIVADO (em aberto + vencido) e o Belasis o mostra
+    // como mais um chip marcável junto de "Em aberto" e "Pago". Para combinar os
+    // três num filtro só, ele sai da lista de status do banco e vira um ramo OR.
+    const statusBruto = lista(q.statuses) ?? [];
+    const querAtrasado = statusBruto.includes('overdue');
+    const statuses = statusBruto.filter(
       (v): v is PaymentStatusDto => v in PaymentStatusDto,
     );
+    // Vencido = em aberto com vencimento no passado.
+    const ramoAtrasado = { status: PaymentStatusDto.pending, dueDate: { lt: new Date() } };
     const listStatus = onlyOverdue
-      ? { status: PaymentStatusDto.pending }
-      : statuses?.length
-        ? { status: { in: statuses } }
-        : q.status
-          ? { status: q.status }
-          : includeReversed
-            ? {}
-            : { status: { not: PaymentStatusDto.reversed } };
+      ? ramoAtrasado
+      : querAtrasado && statuses.length
+        ? { OR: [{ status: { in: statuses } }, ramoAtrasado] }
+        : querAtrasado
+          ? ramoAtrasado
+          : statuses.length
+            ? { status: { in: statuses } }
+            : q.status
+              ? { status: q.status }
+              : includeReversed
+                ? {}
+                : { status: { not: PaymentStatusDto.reversed } };
     const where = { ...commonWhere, ...listStatus };
 
     const page = q.page && q.page > 0 ? q.page : 1;
@@ -573,13 +585,8 @@ export class FinancialService {
         // includeReversed): estorno não soma em total financeiro.
         where: {
           ...commonWhere,
-          ...(onlyOverdue
-            ? { status: PaymentStatusDto.pending }
-            : statuses?.length
-              ? { status: { in: statuses } }
-              : q.status
-                ? { status: q.status }
-                : { status: { not: PaymentStatusDto.reversed } }),
+          // Mesmo recorte da lista — senão a faixa de totais discorda da tela.
+          ...listStatus,
         },
         _sum: { grossAmount: true },
       }),

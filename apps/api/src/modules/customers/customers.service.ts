@@ -224,9 +224,16 @@ export class CustomersService {
         where: { customerId: id, customer: { companyId } },
       }),
       // Saldo de cashback (escopado pela empresa via relação do cliente).
+      // Exclui os lotes VENCIDOS: sem isto a ficha mostrava um saldo maior do que
+      // o resgate aceita (orders.service.ts:663 já filtra por validade), e o
+      // cliente ouvia "Saldo de cashback insuficiente" olhando para o número.
       this.prisma.client.customerCashback.aggregate({
         _sum: { amount: true },
-        where: { customerId: id, customer: { companyId } },
+        where: {
+          customerId: id,
+          customer: { companyId },
+          OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+        },
       }),
       // Pacotes ativos em aberto.
       this.prisma.client.customerPackage.count({
