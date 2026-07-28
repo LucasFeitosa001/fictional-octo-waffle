@@ -1757,6 +1757,11 @@ model CommissionEntry {
   baseAmount       Decimal               @db.Decimal(12, 2)
   commissionAmount Decimal               @db.Decimal(12, 2)
   bonusAmount      Decimal               @default(0) @db.Decimal(12, 2)
+  // Quanto desta comissão foi repassado a AUXILIARES do item (coluna "Desconto
+  // de Auxiliares"). Só é maior que zero quando o auxiliar foi cadastrado com
+  // discountFrom = 'professional' — se sai do estabelecimento, o principal não
+  // é afetado e este campo fica 0.
+  auxiliaryDiscount Decimal              @default(0) @db.Decimal(12, 2)
   status           CommissionEntryStatus @default(open)
   competenceDate   DateTime?
   availableDate    DateTime?

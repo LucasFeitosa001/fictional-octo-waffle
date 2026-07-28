@@ -843,7 +843,10 @@ export class OrdersService {
       const order = await tx.order.findFirstOrThrow({
         where: { id, companyId },
         include: {
-          items: { include: { professional: true } },
+          // `auxiliaries` entra aqui porque o rateio da comissão é calculado no
+          // finish: sem este include o campo chega `undefined` em
+          // generateCommissionEntries e o auxiliar volta a não receber nada.
+          items: { include: { professional: true, auxiliaries: true } },
           payments: true,
         },
       });
@@ -1110,6 +1113,12 @@ export class OrdersService {
         grossValue: Prisma.Decimal;
         discount: Prisma.Decimal;
         professional: { id: string; receivesCommission: boolean } | null;
+        auxiliaries?: {
+          professionalId: string;
+          discountFrom: string;
+          valueType: string;
+          value: Prisma.Decimal;
+        }[];
       }[];
     },
   ) {
@@ -1125,17 +1134,63 @@ export class OrdersService {
     const now = new Date();
 
     for (const item of order.items) {
+      const baseAmount = new Prisma.Decimal(item.grossValue).sub(item.discount);
+      if (baseAmount.lessThanOrEqualTo(0)) continue;
+
+      // ---------------------- Rateio de auxiliares ----------------------
+      // O auxiliar foi cadastrado À MÃO naquele item, com valor à mão — isso já
+      // É a decisão de pagar. Por isso não filtro por `receivesCommission` aqui:
+      // esse flag é a regra-padrão do profissional DO ITEM, e aplicá-lo ao
+      // auxiliar faria a tela aceitar um rateio que o cálculo depois descarta em
+      // silêncio (o pior tipo de erro: ninguém vê até o fim do mês).
+      let auxFromProfessional = new Prisma.Decimal(0);
+      let remaining = baseAmount;
+
+      for (const aux of item.auxiliaries ?? []) {
+        if (remaining.lessThanOrEqualTo(0)) break;
+        const raw =
+          aux.valueType === 'percent'
+            ? baseAmount.mul(aux.value).div(100)
+            : new Prisma.Decimal(aux.value);
+        if (raw.lessThanOrEqualTo(0)) continue;
+        // Teto acumulado: dois auxiliares de 80% não podem virar 160% do serviço.
+        const auxAmount = Prisma.Decimal.min(raw, remaining);
+        remaining = remaining.sub(auxAmount);
+
+        await tx.commissionEntry.create({
+          data: {
+            companyId,
+            professionalId: aux.professionalId,
+            orderId: order.id,
+            baseAmount,
+            commissionAmount: auxAmount,
+            status: 'open',
+            competenceDate: order.date,
+            availableDate: now,
+          },
+        });
+
+        // "Desconto do": establishment → o salão paga e o principal não é
+        // tocado; professional → sai da comissão do principal, logo abaixo.
+        if (aux.discountFrom === 'professional') {
+          auxFromProfessional = auxFromProfessional.add(auxAmount);
+        }
+      }
+
+      // ---------------------- Comissão do principal ----------------------
       const professionalId = item.professionalId;
       if (!professionalId) continue;
       if (!item.professional?.receivesCommission) continue;
 
-      const baseAmount = new Prisma.Decimal(item.grossValue).sub(item.discount);
-      if (baseAmount.lessThanOrEqualTo(0)) continue;
-
       const percent = await this.resolveCommissionPercent(tx, professionalId, item);
       if (percent.lessThanOrEqualTo(0)) continue;
 
-      const commissionAmount = baseAmount.mul(percent).div(100);
+      const gross = baseAmount.mul(percent).div(100);
+      // Nunca negativo: grava-se o que DE FATO foi descontado, não o pretendido.
+      // Se o principal não tinha comissão suficiente, o salão acaba bancando a
+      // diferença — e a coluna "Desconto de Auxiliares" diz a verdade sobre isso.
+      const auxiliaryDiscount = Prisma.Decimal.min(auxFromProfessional, gross);
+      const commissionAmount = gross.sub(auxiliaryDiscount);
 
       await tx.commissionEntry.create({
         data: {
@@ -1144,6 +1199,7 @@ export class OrdersService {
           orderId: order.id,
           baseAmount,
           commissionAmount,
+          auxiliaryDiscount,
           status: 'open',
           // Competência é a data da venda/comanda, não o instante em que alguém
           // clicou em "Finalizar". Isso mantém os filtros e backfills corretos.

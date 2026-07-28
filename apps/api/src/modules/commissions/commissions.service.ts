@@ -304,6 +304,10 @@ export class CommissionsService {
         baseAmount: Number(e.baseAmount),
         commissionAmount: Number(e.commissionAmount),
         bonusAmount: Number(e.bonusAmount),
+        // Quanto desta comissão foi para auxiliares do item ("Desconto de
+        // Auxiliares" do Belasis). Só é > 0 quando o auxiliar foi cadastrado com
+        // "Desconto do: profissional" — se sai do estabelecimento, fica zero.
+        auxiliaryDiscount: Number(e.auxiliaryDiscount),
         status: e.status,
         signed: e.signed,
         availableDate: e.availableDate?.toISOString() ?? null,
@@ -322,11 +326,12 @@ export class CommissionsService {
         acc.base += it.baseAmount;
         acc.comissao += it.commissionAmount;
         acc.bonus += it.bonusAmount;
+        acc.auxiliares += it.auxiliaryDiscount;
         acc.total += it.commissionAmount + it.bonusAmount;
         if (it.status === 'paid') acc.pago += it.commissionAmount + it.bonusAmount;
         return acc;
       },
-      { base: 0, comissao: 0, bonus: 0, total: 0, pago: 0 },
+      { base: 0, comissao: 0, bonus: 0, auxiliares: 0, total: 0, pago: 0 },
     );
 
     const signed = entries.length > 0 && entries.every((e) => e.signed);

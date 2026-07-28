@@ -15,7 +15,9 @@
     "test:whatsapp-inbox": "nest build && node dist/test/whatsapp-inbox.e2e.js",
     "test:orders-finish": "nest build && node dist/test/orders-finish.e2e.js",
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:squeeze-in": "nest build && node dist/test/appointments-squeeze-in.e2e.js",
+    "test:commissions-aux": "nest build && node dist/test/commissions-auxiliary.e2e.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.700.0",

@@ -486,6 +486,7 @@ export function NewAppointmentModal({
         customerId: resolvedCustomerId,
         professionalId: apptProfessionalId,
         start: slot.start,
+        squeezeIn,
         end: endFor(slot.start),
         notes: combinedNotes,
         remindClient: sendReminder,

@@ -69,6 +69,14 @@ export class CreateAppointmentDto {
   @IsDateString() start: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;
+  /**
+   * "Encaixar agendamento": permite marcar em cima de um horário JÁ ocupado do
+   * mesmo profissional. Pedido do salão — a mesma profissional atende duas
+   * clientes no mesmo horário (ex.: uma com a tinta agindo).
+   * O toggle já existia na tela mas nunca era enviado, então ligá-lo não fazia
+   * nada e a pessoa tomava "horário ocupado" mesmo assim.
+   */
+  @IsOptional() @IsBoolean() squeezeIn?: boolean;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

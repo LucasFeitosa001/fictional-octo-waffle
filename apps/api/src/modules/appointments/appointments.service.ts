@@ -232,7 +232,11 @@ export class AppointmentsService {
     const created = await this.prisma.client.$transaction(async (tx) => {
       if (professionalId) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${professionalId}))`;
-        await this.assertNoOverlap(companyId, professionalId, start, end, undefined, tx);
+        // Encaixe: o salão assume a sobreposição de propósito. Sem esta saída o
+        // toggle "Encaixar agendamento" é enfeite — era o caso até aqui.
+        if (!dto.squeezeIn) {
+          await this.assertNoOverlap(companyId, professionalId, start, end, undefined, tx);
+        }
       }
       return tx.appointment.create({
         data: {
@@ -370,7 +374,8 @@ export class AppointmentsService {
         include: { items: true };
       }>[] = [];
       for (const occurrence of occurrences) {
-        if (professionalId) {
+        // Encaixe: o salão assume a sobreposição. Mesma regra do create simples.
+        if (professionalId && !dto.squeezeIn) {
           await this.assertNoOverlap(
             companyId,
             professionalId,

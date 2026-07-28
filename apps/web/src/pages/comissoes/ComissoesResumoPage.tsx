@@ -951,7 +951,16 @@ const DETAIL_COLUMNS: Column<CommissionDetailItem>[] = [
   },
   {
     key: 'percentual',
-    header: 'Percentual',
+    label: 'Taxa acumulada',
+    header: (
+      <span className="inline-flex items-center">
+        Taxa acumulada
+        <HelpTooltip>
+          Taxa que de fato incidiu sobre o valor base deste item, já com o rateio de auxiliares
+          descontado. É a comissão dividida pelo valor base.
+        </HelpTooltip>
+      </span>
+    ),
     render: (it) =>
       it.baseAmount > 0
         ? `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(
@@ -967,6 +976,26 @@ const DETAIL_COLUMNS: Column<CommissionDetailItem>[] = [
         {formatMoney(it.commissionAmount + it.bonusAmount)}
       </span>
     ),
+  },
+  {
+    key: 'auxiliares',
+    label: 'Desconto de Auxiliares',
+    header: (
+      <span className="inline-flex items-center">
+        Desconto de Auxiliares
+        <HelpTooltip>
+          Parte desta comissão repassada aos auxiliares do item. Só aparece quando o auxiliar foi
+          cadastrado com “Desconto do: profissional”; se o desconto sai do estabelecimento, o salão
+          paga e este valor fica zerado.
+        </HelpTooltip>
+      </span>
+    ),
+    render: (it) =>
+      it.auxiliaryDiscount > 0 ? (
+        <span className="font-medium text-data-payable">−{formatMoney(it.auxiliaryDiscount)}</span>
+      ) : (
+        <span className="text-muted">—</span>
+      ),
   },
   {
     key: 'status',
@@ -1040,6 +1069,15 @@ function DetailDrawer({
               value={formatMoney(d?.totals.comissao ?? 0)}
               help="Comissão calculada sobre o serviço/produto vendido."
             />
+            {/* Só aparece para quem usa auxiliares — salão sem rateio não ganha
+                um card zerado no meio do resumo. */}
+            {(d?.totals.auxiliares ?? 0) > 0 && (
+              <Metric
+                label="Auxiliares"
+                value={`−${formatMoney(d?.totals.auxiliares ?? 0)}`}
+                help="Total já descontado desta comissão e repassado aos auxiliares dos itens."
+              />
+            )}
             <Metric
               label="Total"
               value={formatMoney(d?.totals.total ?? 0)}

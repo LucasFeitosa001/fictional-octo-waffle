@@ -124,6 +124,8 @@ export interface CommissionDetailItem {
   baseAmount: number;
   commissionAmount: number;
   bonusAmount: number;
+  /** Parcela desta comissão repassada a auxiliares do item (0 quando o desconto sai do salão). */
+  auxiliaryDiscount: number;
   status: CommissionEntryStatus;
   signed: boolean;
   availableDate: string | null;
@@ -133,7 +135,14 @@ export interface CommissionDetailItem {
 export interface CommissionDetail {
   professional: { id: string; name: string };
   period: { from: string | null; to: string | null };
-  totals: { base: number; comissao: number; bonus: number; total: number; pago: number };
+  totals: {
+    base: number;
+    comissao: number;
+    bonus: number;
+    auxiliares: number;
+    total: number;
+    pago: number;
+  };
   signed: boolean;
   count: number;
   items: CommissionDetailItem[];

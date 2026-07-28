@@ -399,6 +399,8 @@ export interface AppointmentFollowUpInput {
 
 /** Body for POST /appointments. The backend computes end + pricing. */
 export interface CreateAppointmentBody {
+  /** Encaixe: permite marcar em cima de horário já ocupado do mesmo profissional. */
+  squeezeIn?: boolean;
   customerId?: string;
   professionalId?: string;
   start: string;
