@@ -38,7 +38,7 @@ export const BUILTIN_CANCELLATION_TEMPLATES: readonly CancellationTemplate[] = [
     label: 'Cancelamento',
     message: [
       'Olá, {cliente}!',
-      'Seu horário de {servico} em {quando} às {hora} foi cancelado.',
+      'Seu horário de {servico} {quando} às {hora} foi cancelado.',
       'Motivo: {motivo}',
       '',
       'Se quiser remarcar, é só responder esta mensagem — vamos encontrar o melhor dia para você. 💗',
@@ -51,7 +51,7 @@ export const BUILTIN_CANCELLATION_TEMPLATES: readonly CancellationTemplate[] = [
     id: 'cancelamento-curto',
     label: 'Cancelamento curto',
     message:
-      'Olá, {cliente}! Seu horário de {servico} em {quando} às {hora} foi cancelado. Qualquer coisa, chame por aqui. — {estabelecimento}',
+      'Olá, {cliente}! Seu horário de {servico} {quando} às {hora} foi cancelado. Qualquer coisa, chame por aqui. — {estabelecimento}',
     builtIn: true,
   },
 ] as const;
