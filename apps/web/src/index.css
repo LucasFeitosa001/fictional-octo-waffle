@@ -1133,3 +1133,137 @@ h1, h2, h3, h4, h5, h6,
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* =====================================================================
+   IMPRESSÃO — "Imprimir" (A4) e "Impressão térmica" (bobina 80 mm) da comanda.
+
+   O recibo é montado por `components/ComandaImpressao.tsx` num nó IRMÃO do
+   `#root` (`#sp-print-root`). Na tela ele fica escondido; no papel, é o único
+   conteúdo. Assim não é preciso abrir janela nova — que o bloqueador de pop-up
+   e o PWA do iOS derrubam. Ver estudo 49.
+   ===================================================================== */
+#sp-print-root {
+  display: none;
+}
+
+@media print {
+  /* Só o recibo vai para o papel. */
+  body > #root {
+    display: none !important;
+  }
+  #sp-print-root {
+    display: block !important;
+  }
+  body {
+    background: #fff;
+  }
+}
+
+.sp-print {
+  color: #000;
+  background: #fff;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.sp-print--a4 {
+  font-size: 12pt;
+  line-height: 1.35;
+}
+/* Bobina: coluna estreita e fonte monoespaçada, como o cupom de balcão. */
+.sp-print--termica {
+  width: 74mm;
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 9pt;
+  line-height: 1.25;
+}
+
+.sp-print__topo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #000;
+  padding-bottom: 6px;
+}
+.sp-print--termica .sp-print__topo {
+  display: block;
+  text-align: center;
+}
+.sp-print__logo {
+  max-height: 56px;
+  max-width: 140px;
+  object-fit: contain;
+}
+.sp-print__empresa {
+  font-size: 1.15em;
+}
+.sp-print__linha-fraca {
+  font-size: 0.85em;
+  color: #444;
+}
+.sp-print__titulo {
+  margin: 10px 0 4px;
+  font-size: 1.25em;
+  font-weight: 700;
+}
+.sp-print--termica .sp-print__titulo {
+  text-align: center;
+}
+.sp-print__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 0.9em;
+}
+.sp-print--termica .sp-print__meta {
+  display: block;
+}
+/* Na bobina cada dado fica na própria linha: como `span` inline eles saíam
+   colados ("Data: 28/07/2026Cliente: Avulso"). */
+.sp-print--termica .sp-print__meta > span {
+  display: block;
+}
+
+.sp-print__itens {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+.sp-print__itens th,
+.sp-print__itens td {
+  border-bottom: 1px solid #ddd;
+  padding: 4px 2px;
+  text-align: left;
+  vertical-align: top;
+}
+.sp-print__itens th {
+  border-bottom: 1px solid #000;
+  font-size: 0.85em;
+  text-transform: uppercase;
+}
+.sp-print__num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sp-print__totais,
+.sp-print__pagamentos,
+.sp-print__obs {
+  margin-top: 10px;
+}
+.sp-print__linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sp-print__linha--forte {
+  font-weight: 700;
+  border-top: 1px solid #000;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.sp-print__rodape {
+  margin-top: 14px;
+  border-top: 1px dashed #999;
+  padding-top: 6px;
+  font-size: 0.8em;
+  color: #444;
+}

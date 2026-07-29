@@ -203,3 +203,16 @@ export const IconCalendarPlus = (p: IconProps) => (
     <path d="M3 9h18M8 2.5v4M16 2.5v4M12 13v4M10 15h4" />
   </Base>
 );
+export const IconPrinter = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M6 9V3.5h12V9" />
+    <path d="M6 18H4.5A1.5 1.5 0 0 1 3 16.5v-5A2.5 2.5 0 0 1 5.5 9h13A2.5 2.5 0 0 1 21 11.5v5a1.5 1.5 0 0 1-1.5 1.5H18" />
+    <rect x="6" y="14" width="12" height="6.5" rx="1" />
+  </Base>
+);
+export const IconFileText = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M14 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8Z" />
+    <path d="M14 3.5V8h4.5M8.5 12.5h7M8.5 16h7M8.5 9h2" />
+  </Base>
+);

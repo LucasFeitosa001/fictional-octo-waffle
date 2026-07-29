@@ -33,16 +33,20 @@ import {
   IconCalendar,
   IconCheck,
   IconChevron,
+  IconEye,
+  IconFileText,
   IconFilter,
   IconInfo,
   IconPencil,
   IconPlus,
+  IconPrinter,
   IconReceipt,
   IconScissors,
   IconTrash,
   IconUser,
   IconWhatsApp,
 } from '../components/icons';
+import { ComandaImpressao, type ModoImpressao } from '../components/ComandaImpressao';
 import {
   useAddOrderDiscount,
   useAddOrderItem,
@@ -177,15 +181,23 @@ function MenuIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-/** Per-row action dropdown (Belasis hamburger → Ver / Editar / Excluir). */
+/**
+ * Menu de ações da linha, igual ao do Belasis:
+ * Ver comanda · Imprimir · Impressão térmica · Excluir.
+ *
+ * "Editar" saiu porque era duplicata: chamava o MESMO `setViewing(o)` de "Ver
+ * comanda" e abria o mesmo drawer. Ver estudo 49.
+ */
 function RowMenu({
   onView,
-  onEdit,
+  onPrint,
+  onThermal,
   onRemove,
   disableRemove,
 }: {
   onView: () => void;
-  onEdit: () => void;
+  onPrint: () => void;
+  onThermal: () => void;
   onRemove: () => void;
   disableRemove: boolean;
 }) {
@@ -224,10 +236,18 @@ function RowMenu({
             : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
         ].join(' ')}
       >
-        <MenuItem onClick={() => { setOpen(false); onView(); }}>Ver comanda</MenuItem>
-        <MenuItem onClick={() => { setOpen(false); onEdit(); }}>Editar</MenuItem>
+        <MenuItem icon={<IconEye size={15} />} onClick={() => { setOpen(false); onView(); }}>
+          Ver comanda
+        </MenuItem>
+        <MenuItem icon={<IconFileText size={15} />} onClick={() => { setOpen(false); onPrint(); }}>
+          Imprimir
+        </MenuItem>
+        <MenuItem icon={<IconPrinter size={15} />} onClick={() => { setOpen(false); onThermal(); }}>
+          Impressão térmica
+        </MenuItem>
         <MenuItem
           danger
+          icon={<IconTrash size={15} />}
           disabled={disableRemove}
           onClick={() => { setOpen(false); onRemove(); }}
         >
@@ -238,13 +258,16 @@ function RowMenu({
   );
 }
 
-function MenuItem({
-  children,
+/** Item do bottom-sheet de ações do celular — mesma lista do menu do desktop. */
+function AcaoMobile({
+  icon,
+  label,
   onClick,
   danger,
   disabled,
 }: {
-  children: React.ReactNode;
+  icon: React.ReactNode;
+  label: string;
   onClick: () => void;
   danger?: boolean;
   disabled?: boolean;
@@ -255,13 +278,48 @@ function MenuItem({
       disabled={disabled}
       onClick={onClick}
       className={[
-        'block w-full px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        'flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left text-[15px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        danger
+          ? 'text-danger active:bg-danger/10'
+          : 'text-foreground active:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
+      ].join(' ')}
+    >
+      <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function MenuItem({
+  children,
+  onClick,
+  danger,
+  disabled,
+  icon,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  /** Ícone à esquerda, como na referência (olho · documento · impressora · lixeira). */
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
         danger
           ? 'text-danger hover:bg-danger/10'
           : 'text-foreground hover:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
       ].join(' ')}
     >
-      {children}
+      {/* Ícone herda a cor do item: no "Excluir" ele tem que ficar vermelho
+          junto com o texto, e `text-muted-ink` fixo o deixava cinza. */}
+      {icon && <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>}
+      <span className="min-w-0 flex-1">{children}</span>
     </button>
   );
 }
@@ -381,6 +439,14 @@ export function ComandasPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [viewing, setViewing] = useState<OrderRow | null>(null);
   const [openPaymentsOnView, setOpenPaymentsOnView] = useState(false);
+  /**
+   * Comanda a imprimir e em que papel. Guarda o ID (não a linha) porque o
+   * recibo precisa do pedido COMPLETO — a linha da lista não traz itens nem
+   * pagamentos. `ComandaImpressao` busca por `useOrder`.
+   */
+  const [imprimindo, setImprimindo] = useState<{ id: string; modo: ModoImpressao } | null>(null);
+  /** Ações do celular para a comanda tocada no "⋮" (bottom-sheet). */
+  const [acoesMobile, setAcoesMobile] = useState<OrderRow | null>(null);
   // Clique no NOME do cliente abre o drawer do cliente (não a comanda).
   const [clienteId, setClienteId] = useState<string | null>(null);
   const cliente = useCustomer(clienteId);
@@ -871,7 +937,8 @@ export function ComandasPage() {
                         <td className={`${td} text-center`} onClick={(e) => e.stopPropagation()}>
                           <RowMenu
                             onView={() => setViewing(o)}
-                            onEdit={() => setViewing(o)}
+                            onPrint={() => setImprimindo({ id: o.id, modo: 'a4' })}
+                            onThermal={() => setImprimindo({ id: o.id, modo: 'termica' })}
                             onRemove={() => handleRemove(o)}
                             disableRemove={o.status === 'canceled' || del.isPending}
                           />
@@ -928,12 +995,28 @@ export function ComandasPage() {
                   else setViewing(o);
                 };
                 return (
-                  <li key={o.id}>
+                  <li key={o.id} className="relative">
+                    {/* Mesmas ações do desktop no celular (Ver · Imprimir ·
+                        Impressão térmica · Excluir). O Belasis mobile esconde
+                        isso atrás de um swipe; aqui é um "⋮" visível, que não
+                        depende de descobrir o gesto. Fora do <button> do cartão
+                        porque botão dentro de botão é HTML inválido. */}
+                    {!sel.selectMode && (
+                      <button
+                        type="button"
+                        aria-label={`Ações da comanda #${o.number}`}
+                        onClick={() => setAcoesMobile(o)}
+                        className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-lg p-2 text-muted-ink active:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)]"
+                      >
+                        <MenuIcon />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={onCardClick}
                       className={[
                         'flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        sel.selectMode ? '' : 'pr-10',
                         isSelected
                           ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
                           : 'border-[var(--color-soft-border)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]',
@@ -997,6 +1080,62 @@ export function ComandasPage() {
           setViewing(null);
           setOpenPaymentsOnView(false);
         }}
+      />
+
+      {/* Ações da comanda no celular — o mesmo menu do desktop, em bottom-sheet. */}
+      <Drawer
+        isOpen={acoesMobile !== null}
+        onClose={() => setAcoesMobile(null)}
+        title={acoesMobile ? `Comanda #${acoesMobile.number}` : 'Comanda'}
+        placement="bottom"
+      >
+        <div className="flex flex-col">
+          <AcaoMobile
+            icon={<IconEye size={18} />}
+            label="Ver comanda"
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) setViewing(o);
+            }}
+          />
+          <AcaoMobile
+            icon={<IconFileText size={18} />}
+            label="Imprimir"
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) setImprimindo({ id: o.id, modo: 'a4' });
+            }}
+          />
+          <AcaoMobile
+            icon={<IconPrinter size={18} />}
+            label="Impressão térmica"
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) setImprimindo({ id: o.id, modo: 'termica' });
+            }}
+          />
+          <AcaoMobile
+            danger
+            icon={<IconTrash size={18} />}
+            label="Excluir"
+            disabled={acoesMobile?.status === 'canceled' || del.isPending}
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) handleRemove(o);
+            }}
+          />
+        </div>
+      </Drawer>
+
+      {/* Recibo da comanda (A4 ou bobina). Só existe na árvore enquanto imprime. */}
+      <ComandaImpressao
+        orderId={imprimindo?.id ?? null}
+        modo={imprimindo?.modo ?? 'a4'}
+        onDone={() => setImprimindo(null)}
       />
 
       {/* Perfil do cliente — aberto ao clicar no NOME do cliente numa linha. */}
