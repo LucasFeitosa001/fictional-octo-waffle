@@ -239,6 +239,9 @@ export interface BulkPaymentBody {
   paidAt?: string;
   /** Trilho usado: manual (padrão) ou SalonPay. */
   rail?: 'manual' | 'salonpay';
+  /** Período da tela — o backend quita só os lançamentos desse recorte. */
+  from?: string;
+  to?: string;
 }
 
 export interface CommissionPaymentRecord {

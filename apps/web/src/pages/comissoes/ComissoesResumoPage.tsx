@@ -151,11 +151,14 @@ export function ComissoesResumoPage() {
     to: to || undefined,
     professionalId: professionalId || undefined,
   });
+  // Resumidas é uma tela de PAGAMENTO: mostra o que há a pagar. Sem pedir
+  // `open` a linha somava comissão já paga (e estornada), divergindo do card no
+  // topo da mesma tela e do valor que o botão realmente registra.
   const summary = useCommissionSummary({
     from: from || undefined,
     to: to || undefined,
     professionalId: professionalId || undefined,
-    status: statusFiltro || undefined,
+    status: statusFiltro || (isPaidTab ? undefined : 'open'),
   });
   // Entries power the CSV export. The endpoint supports status + professionalId
   // (no date range), so the export covers the selected professional/status.
@@ -967,6 +970,8 @@ export function ComissoesResumoPage() {
         open={payingRows != null}
         rows={payingRows ?? []}
         rail={payRail}
+        from={from}
+        to={to}
         onClose={() => setPayingRows(null)}
         onPaid={() => setSelected(new Set())}
       />

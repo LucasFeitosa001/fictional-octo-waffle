@@ -31,6 +31,8 @@ function paymentTx(input: {
   advances?: any[];
   onEntryWhere?: (where: any) => void;
   onAdvanceUpdate?: () => void;
+  /** Vale consumido em PARTE: recebe o valor debitado e o saldo recriado. */
+  onAdvanceSplit?: (consumido: unknown, residual: unknown) => void;
 }) {
   return {
     commissionEntry: {
@@ -46,9 +48,43 @@ function paymentTx(input: {
         input.onAdvanceUpdate?.();
         return { count: input.advances?.length ?? 0 };
       },
+      // O pagamento parcial de vale usa estes três: lê o original, reduz a
+      // linha ao que foi debitado e cria o saldo restante em aberto.
+      findUnique: async () => ({
+        professionalId: 'pro-1',
+        date: new Date('2026-07-01T00:00:00.000Z'),
+        note: null,
+      }),
+      update: async ({ data }: any) => {
+        input.onAdvanceSplit?.(data.amount, undefined);
+        return { id: 'advance-1', ...data };
+      },
+      create: async ({ data }: any) => {
+        input.onAdvanceSplit?.(undefined, data.amount);
+        return { id: 'advance-saldo', ...data };
+      },
     },
     commissionPayment: {
       create: async ({ data }: any) => ({ id: 'payment-1', ...data }),
+      update: async ({ data }: any) => ({ id: 'payment-1', ...data }),
+    },
+    professional: {
+      findFirst: async () => ({ name: 'Pro Um' }),
+    },
+    financialCategory: {
+      findFirst: async () => null,
+    },
+    transaction: {
+      create: async ({ data }: any) => ({ id: 'tx-1', ...data }),
+    },
+    paymentMethod: {
+      findFirst: async () => null,
+    },
+    cashRegister: {
+      findFirst: async () => null,
+    },
+    cashMovement: {
+      create: async ({ data }: any) => ({ id: 'cm-1', ...data }),
     },
   };
 }
@@ -256,6 +292,8 @@ describe('GAP: UC-FIN-024/026 — quitação segura de comissões', () => {
 
   it('não consome integralmente vale maior que comissão disponível', async () => {
     let advanceUpdated = false;
+    let debitado: unknown;
+    let saldo: unknown;
     const tx = paymentTx({
       entries: [
         {
@@ -268,10 +306,14 @@ describe('GAP: UC-FIN-024/026 — quitação segura de comissões', () => {
       onAdvanceUpdate: () => {
         advanceUpdated = true;
       },
+      onAdvanceSplit: (consumido, residual) => {
+        if (consumido !== undefined) debitado = consumido;
+        if (residual !== undefined) saldo = residual;
+      },
     });
     const service = commissionService(tx);
 
-    await service.createPayment('company-a', {
+    const pagamento = await service.createPayment('company-a', {
       professionalId: 'pro-1',
       advanceIds: ['advance-1'],
     });
@@ -279,7 +321,14 @@ describe('GAP: UC-FIN-024/026 — quitação segura de comissões', () => {
     assert.equal(
       advanceUpdated,
       false,
-      'R$ 50 remanescentes do vale precisam continuar abertos ou ser representados em saldo',
+      'quitar o vale inteiro (updateMany) apagaria os R$ 50 que continuam devidos',
+    );
+    assert.equal(Number(debitado), 50, 'só os R$ 50 que cabiam podem ser debitados');
+    assert.equal(Number(saldo), 50, 'os R$ 50 restantes viram saldo em aberto');
+    assert.equal(
+      Number((pagamento as any).advancesTotal),
+      50,
+      'o pagamento registra o que foi RECUPERADO, não o valor cheio do vale',
     );
   });
 

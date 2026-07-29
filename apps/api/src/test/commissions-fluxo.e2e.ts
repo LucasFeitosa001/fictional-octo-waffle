@@ -443,6 +443,153 @@ async function run() {
       (await prisma.commissionAdvance.count({ where: { companyId, status: 'open' } })) === 1);
 
     // ==========================================================
+    // 4b) OS QUATRO DEFEITOS DE DINHEIRO DA VARREDURA
+    // ==========================================================
+    {
+      const pro2 = await prisma.professional.create({
+        data: { companyId, name: 'Rita Auditoria', receivesCommission: true },
+      });
+      const hojeIso = new Date().toISOString().slice(0, 10);
+      const antigo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+      // (8.1) uma comissão ANTIGA (fora do período) e uma de hoje.
+      await prisma.commissionEntry.create({
+        data: {
+          companyId, professionalId: pro2.id, baseAmount: 1000, commissionAmount: 500,
+          status: 'open', competenceDate: antigo, availableDate: antigo,
+        },
+      });
+      await prisma.commissionEntry.create({
+        data: {
+          companyId, professionalId: pro2.id, baseAmount: 600, commissionAmount: 300,
+          status: 'open', competenceDate: new Date(), availableDate: new Date(),
+        },
+      });
+
+      const soHoje = await api('POST', '/commission-payments/bulk', {
+        token: salon.token,
+        body: {
+          paymentMethodId: formaCaixa.id, accountId: conta.id,
+          from: hojeIso, to: hojeIso,
+          items: [{ professionalId: pro2.id, advanceIds: [] }],
+        },
+      });
+      check('8.1) pagar com período → 2xx', soHoje.status >= 200 && soHoje.status < 300,
+        `status ${soHoje.status}`);
+      check('8.1) paga SÓ o do período (300), não os 800',
+        near(Number(soHoje.body?.payments?.[0]?.amount ?? 0), 300),
+        `pagou ${soHoje.body?.payments?.[0]?.amount}`);
+      check('8.1) a comissão antiga continua em aberto',
+        (await prisma.commissionEntry.count({
+          where: { companyId, professionalId: pro2.id, status: 'open' },
+        })) === 1);
+
+      // (8.2) vale desmarcado NÃO pode ser descontado.
+      const pro3 = await prisma.professional.create({
+        data: { companyId, name: 'Sonia Auditoria', receivesCommission: true },
+      });
+      await prisma.commissionEntry.create({
+        data: {
+          companyId, professionalId: pro3.id, baseAmount: 600, commissionAmount: 300,
+          status: 'open', competenceDate: new Date(), availableDate: new Date(),
+        },
+      });
+      await prisma.commissionAdvance.create({
+        data: { companyId, professionalId: pro3.id, amount: 200, status: 'open' },
+      });
+      const semVale = await api('POST', '/commission-payments/bulk', {
+        token: salon.token,
+        body: {
+          paymentMethodId: formaCaixa.id, accountId: conta.id,
+          from: hojeIso, to: hojeIso,
+          items: [{ professionalId: pro3.id, advanceIds: [] }],
+        },
+      });
+      check('8.2) desmarcar todos os vales paga o valor CHEIO (300)',
+        near(Number(semVale.body?.payments?.[0]?.amount ?? 0), 300),
+        `pagou ${semVale.body?.payments?.[0]?.amount}`);
+      check('8.2) e o vale continua em aberto',
+        (await prisma.commissionAdvance.count({
+          where: { companyId, professionalId: pro3.id, status: 'open' },
+        })) === 1);
+
+      // (8.3) vale MAIOR que a comissão: consome só o que cabe.
+      const pro4 = await prisma.professional.create({
+        data: { companyId, name: 'Tania Auditoria', receivesCommission: true },
+      });
+      await prisma.commissionEntry.create({
+        data: {
+          companyId, professionalId: pro4.id, baseAmount: 200, commissionAmount: 100,
+          status: 'open', competenceDate: new Date(), availableDate: new Date(),
+        },
+      });
+      await prisma.commissionAdvance.create({
+        data: { companyId, professionalId: pro4.id, amount: 500, status: 'open', note: 'adiantamento grande' },
+      });
+      const grande = await api('POST', '/commission-payments/bulk', {
+        token: salon.token,
+        body: {
+          paymentMethodId: formaCaixa.id, accountId: conta.id,
+          from: hojeIso, to: hojeIso,
+          items: [{ professionalId: pro4.id }],
+        },
+      });
+      check('8.3) pagamento sai zerado (vale cobre tudo)',
+        near(Number(grande.body?.payments?.[0]?.amount ?? -1), 0),
+        `pagou ${grande.body?.payments?.[0]?.amount}`);
+      check('8.3) registra só o que FOI recuperado (100), não os 500',
+        near(Number(grande.body?.payments?.[0]?.advancesTotal ?? 0), 100),
+        `advancesTotal ${grande.body?.payments?.[0]?.advancesTotal}`);
+      const saldo = await prisma.commissionAdvance.findMany({
+        where: { companyId, professionalId: pro4.id, status: 'open' },
+      });
+      check('8.3) sobra um vale ABERTO com o residual de 400',
+        saldo.length === 1 && near(Number(saldo[0].amount), 400),
+        saldo.map((v) => `${v.amount}/${v.status}`).join(', '));
+      const soma = (
+        await prisma.commissionAdvance.findMany({
+          where: { companyId, professionalId: pro4.id },
+        })
+      ).reduce((t, v) => t + Number(v.amount), 0);
+      check('8.3) as partes somadas continuam valendo o original (500)', near(soma, 500),
+        `soma ${soma}`);
+
+      // Estornar devolve o vale inteiro.
+      await api('DELETE', `/commission-payments/${grande.body?.payments?.[0]?.id}`, {
+        token: salon.token,
+        body: { justification: 'teste 8.3' },
+      });
+      const depoisEstorno = (
+        await prisma.commissionAdvance.findMany({
+          where: { companyId, professionalId: pro4.id, status: 'open' },
+        })
+      ).reduce((t, v) => t + Number(v.amount), 0);
+      check('8.3) estorno devolve os 500 em aberto', near(depoisEstorno, 500),
+        `em aberto ${depoisEstorno}`);
+
+      // (8.4) resumo não soma estornado quando não há status explícito.
+      const pro5 = await prisma.professional.create({
+        data: { companyId, name: 'Vera Auditoria', receivesCommission: true },
+      });
+      await prisma.commissionEntry.createMany({
+        data: [
+          { companyId, professionalId: pro5.id, baseAmount: 200, commissionAmount: 100,
+            status: 'open', competenceDate: new Date(), availableDate: new Date() },
+          { companyId, professionalId: pro5.id, baseAmount: 100, commissionAmount: 50,
+            status: 'reversed', competenceDate: new Date(), availableDate: new Date() },
+        ],
+      });
+      const resumo = await api('GET', '/commissions/summary', { token: salon.token });
+      const vera = (resumo.body?.data ?? []).find((r: any) => r.professionalName === 'Vera Auditoria');
+      check('8.4) estornado NÃO entra na soma do resumo', near(Number(vera?.comissao ?? 0), 100),
+        `comissao ${vera?.comissao}`);
+
+      const soAberto = await api('GET', '/commissions/summary?status=open', { token: salon.token });
+      const vera2 = (soAberto.body?.data ?? []).find((r: any) => r.professionalName === 'Vera Auditoria');
+      check('8.4) com status=open a conta bate também', near(Number(vera2?.comissao ?? 0), 100));
+    }
+
+    // ==========================================================
     // 5) SALONPAY: cadastro, o que falta, e o limite honesto
     // ==========================================================
     const vazio = await api('GET', '/salonpay/account', { token: salon.token });
@@ -514,8 +661,14 @@ async function run() {
     });
     check('6) o pagamento fica marcado como salonpay', regSalonPay?.rail === 'salonpay',
       String(regSalonPay?.rail));
+    // Escopado ao PRÓPRIO pagamento: contar despesas da empresa inteira quebra
+    // sempre que um caso novo é inserido antes deste.
     check('6) e também lança a despesa',
-      (await prisma.transaction.count({ where: { companyId, kind: 'expense' } })) === 1);
+      regSalonPay?.transactionId != null &&
+        (await prisma.transaction.count({
+          where: { companyId, kind: 'expense', id: regSalonPay.transactionId },
+        })) === 1,
+      `transactionId ${regSalonPay?.transactionId}`);
 
     // ==========================================================
     // 7) SALONPAY é CONTA DIGITAL: pagar por ele emite TRANSFERÊNCIA

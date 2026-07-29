@@ -26,6 +26,13 @@ interface PaymentItemInput {
 
 /** Como e de onde o dinheiro saiu — comum a `createPayment` e `payBulk`. */
 interface PaymentSettlement {
+  /**
+   * Recorte de competência da TELA. Sem ele o pagamento quitava todas as
+   * comissões em aberto do profissional, inclusive de meses anteriores que a
+   * tela não mostrava: o botão dizia R$ 300 e o sistema debitava R$ 800.
+   */
+  from?: string;
+  to?: string;
   paymentMethodId?: string;
   accountId?: string;
   /** Data do pagamento (o Belasis deixa escolher; default = agora). */
@@ -97,6 +104,12 @@ export class CommissionsService {
     if (filters.professionalId) where.professionalId = filters.professionalId;
     if (filters.status === 'open' || filters.status === 'paid' || filters.status === 'reversed') {
       where.status = filters.status;
+    } else {
+      // Sem status explícito, ESTORNADO nunca entra na conta. Antes a linha
+      // somava open + paid + reversed enquanto o card no topo da mesma tela
+      // (que vem do overview) excluía os estornados — dois números diferentes
+      // para a mesma coisa, na mesma tela.
+      where.status = { not: 'reversed' };
     }
     const dateRange = inclusiveDateRange(filters.from, filters.to);
     if (dateRange) where.competenceDate = dateRange;
@@ -464,6 +477,12 @@ export class CommissionsService {
       professionalId: item.professionalId,
       status: 'open',
     };
+    // MESMO recorte que o `summary()` usa para montar a linha da tela. Sem isto
+    // a tela somava um conjunto e o pagamento quitava outro — inclusive
+    // lançamentos de meses anteriores, e entries com `competenceDate` nula, que
+    // não aparecem em período nenhum.
+    const periodo = inclusiveDateRange(opts.from, opts.to);
+    if (periodo) entryWhere.competenceDate = periodo;
     if (item.entryIds && item.entryIds.length > 0) {
       entryWhere.id = { in: item.entryIds };
     }
@@ -478,7 +497,10 @@ export class CommissionsService {
       professionalId: item.professionalId,
       status: 'open',
     };
-    if (item.advanceIds && item.advanceIds.length > 0) {
+    // `undefined` = não informado → desconta todos os vales abertos (contrato do
+    // DTO). Array VAZIO = o operador desmarcou todos → nenhum vale. Antes os
+    // dois casos caíam no mesmo ramo e desmarcar não desmarcava nada.
+    if (item.advanceIds !== undefined) {
       advanceWhere.id = { in: item.advanceIds };
     }
     const advances = await tx.commissionAdvance.findMany({
@@ -503,9 +525,33 @@ export class CommissionsService {
       zero,
     );
     const bonusTotal = entries.reduce((acc, e) => acc.add(e.bonusAmount), zero);
-    const advancesTotal = advances.reduce((acc, a) => acc.add(a.amount), zero);
-    const gross = commissionTotal.add(bonusTotal).sub(advancesTotal);
-    const amount = gross.isNegative() ? zero : gross; // nunca negativo
+
+    // Vale é consumido ATÉ o limite da comissão + bônus. O que passar disso
+    // continua devido: antes o excedente simplesmente sumia — vale de R$ 500
+    // contra R$ 100 de comissão recuperava R$ 100 e dava o vale por quitado,
+    // prejuízo silencioso de R$ 400. O vale que cabe só em parte é PARTIDO:
+    // a fatia consumida fica ligada ao pagamento e o residual vira uma linha
+    // nova em aberto, para o estorno devolver exatamente o que foi tirado.
+    const disponivel = commissionTotal.add(bonusTotal);
+    const consumidos: { id: string; valor: Prisma.Decimal }[] = [];
+    let parcial: { id: string; consumido: Prisma.Decimal; residual: Prisma.Decimal } | null = null;
+    let restante = disponivel;
+    for (const vale of advances) {
+      if (restante.lessThanOrEqualTo(0)) break;
+      const valor = new Prisma.Decimal(vale.amount);
+      if (valor.lessThanOrEqualTo(restante)) {
+        consumidos.push({ id: vale.id, valor });
+        restante = restante.sub(valor);
+      } else {
+        parcial = { id: vale.id, consumido: restante, residual: valor.sub(restante) };
+        restante = zero;
+        break;
+      }
+    }
+    const advancesTotal = consumidos
+      .reduce((acc, v) => acc.add(v.valor), zero)
+      .add(parcial ? parcial.consumido : zero);
+    const amount = disponivel.sub(advancesTotal); // ≥ 0 por construção
 
     // 5. Cria o pagamento com a quebra.
     const paidAt = opts.paidAt ? new Date(opts.paidAt) : new Date();
@@ -537,12 +583,44 @@ export class CommissionsService {
         data: { status: 'paid', paymentId: payment.id },
       });
     }
-    // Marca vales deduzidos e vinculados ao pagamento.
-    if (advances.length > 0) {
+    // Vales consumidos por INTEIRO: quitados e ligados ao pagamento.
+    if (consumidos.length > 0) {
       await tx.commissionAdvance.updateMany({
-        where: { id: { in: advances.map((a) => a.id) } },
+        where: { id: { in: consumidos.map((v) => v.id) } },
         data: { status: 'deducted', paymentId: payment.id },
       });
+    }
+    // Vale consumido em PARTE: a linha original passa a valer só a fatia
+    // descontada (quitada, ligada ao pagamento) e o saldo vira uma linha nova
+    // em aberto. Somadas, continuam valendo o original — e estornar o pagamento
+    // reabre a fatia, devolvendo o valor cheio.
+    if (parcial) {
+      const original = await tx.commissionAdvance.findUnique({
+        where: { id: parcial.id },
+        select: { professionalId: true, date: true, note: true },
+      });
+      await tx.commissionAdvance.update({
+        where: { id: parcial.id },
+        data: {
+          amount: parcial.consumido,
+          status: 'deducted',
+          paymentId: payment.id,
+        },
+      });
+      if (original && parcial.residual.greaterThan(0)) {
+        await tx.commissionAdvance.create({
+          data: {
+            companyId,
+            professionalId: original.professionalId,
+            amount: parcial.residual,
+            date: original.date,
+            status: 'open',
+            note: original.note
+              ? `${original.note} (saldo restante)`
+              : 'Saldo restante de vale descontado parcialmente',
+          },
+        });
+      }
     }
 
     // 6. FINANCEIRO. Pagar comissão é dinheiro saindo do salão; antes disto o
@@ -693,6 +771,8 @@ export class CommissionsService {
           accountId: dto.accountId,
           paidAt: dto.paidAt,
           rail: dto.rail,
+          from: dto.from,
+          to: dto.to,
         },
       ),
     );
@@ -724,6 +804,8 @@ export class CommissionsService {
               accountId: dto.accountId,
               paidAt: dto.paidAt,
               rail: dto.rail,
+              from: dto.from,
+              to: dto.to,
             },
           ),
         );

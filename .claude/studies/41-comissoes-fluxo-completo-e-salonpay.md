@@ -251,6 +251,39 @@ Configurações`.
 (`DashboardLayout.tsx:37` e `:70`) — então dá para marcar o item por plataforma em vez de duplicar
 a lista.
 
+## Sobra 8: quatro defeitos de dinheiro (varredura adversarial, conferidos no código)
+
+Todos verificados lendo o arquivo, não aceitos do relatório.
+
+**8.1 — Pagar quita TODAS as comissões em aberto, ignorando o período da tela.**
+`commissions.service.ts`, `payItem`: `entryWhere = { companyId, professionalId, status: 'open' }`
+— sem recorte de data. E `PagarComissaoDrawer.tsx:164`-`:167` envia só `professionalId` e
+`advanceIds`. Então a tela mostra "Pagar R$ 300" (período de 30 dias) e o backend soma também os
+R$ 500 de maio que nunca foram pagos: debita R$ 800 e lança R$ 800 de despesa.
+
+**8.2 — Desmarcar vale no drawer não desmarca nada.**
+`if (item.advanceIds && item.advanceIds.length > 0)` — array VAZIO cai fora do `if`, o `where`
+fica sem filtro de id e pega **todos** os vales `open`. O drawer sempre envia o array
+(`:166`), então desmarcar todos manda `[]` e o backend desconta tudo assim mesmo. O botão promete
+o valor cheio e o profissional recebe menos.
+
+**8.3 — Vale maior que a comissão é quitado por inteiro; o saldo evapora.**
+`const amount = gross.isNegative() ? zero : gross` e, logo abaixo, `updateMany` marcando **todos**
+os vales como `deducted`. Vale de R$ 500 contra R$ 100 de comissão: recupera R$ 100 e o vale some
+inteiro. Já existe teste vermelho cobrando isto:
+`usecase-tests/financial-commissions.usecases.test.ts` — *"não consome integralmente vale maior
+que comissão disponível"*.
+Correção sem coluna nova: **partir o vale**. A parte que cabe fica com `amount` reduzido,
+`deducted` e ligada ao pagamento; o residual vira uma NOVA linha `open`. Somando as duas o total
+continua o original, e o estorno (que reabre por `paymentId`) devolve exatamente o que tirou.
+
+**8.4 — Resumidas soma comissão já paga e estornada.**
+`summary()` só aplica `where.status` quando o filtro é explícito. A aba Resumidas manda vazio,
+então a linha soma `open + paid + reversed`, enquanto o card no topo da MESMA tela (do `overview`,
+que exclui `reversed`) mostra outro número. Correção: a aba Resumidas passa a pedir `status:
+'open'` (é uma tela de pagamento — mostra o que há a pagar), e o `summary` nunca acumula
+`reversed` quando não há status explícito.
+
 ## Arquivos tocados
 
 - `packages/db/prisma/schema.prisma` (+ migração)

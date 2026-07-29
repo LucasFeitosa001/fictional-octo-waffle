@@ -104,6 +104,13 @@ export class CreateCommissionPaymentDto {
   @IsOptional() @IsDateString() paidAt?: string;
   /** Trilho: 'manual' (padrão) ou 'salonpay'. */
   @IsOptional() @IsIn(['manual', 'salonpay']) rail?: 'manual' | 'salonpay';
+  /**
+   * Recorte de competência da TELA. Sem ele o pagamento quitava TODAS as
+   * comissões em aberto do profissional, inclusive de períodos que a tela não
+   * mostrava — o botão dizia um valor e o sistema debitava outro.
+   */
+  @IsOptional() @IsString() from?: string;
+  @IsOptional() @IsString() to?: string;
 }
 
 /** Um item do pagamento em lote (um por profissional). */
@@ -128,6 +135,13 @@ export class BulkCommissionPaymentDto {
   @IsOptional() @IsString() accountId?: string;
   @IsOptional() @IsDateString() paidAt?: string;
   @IsOptional() @IsIn(['manual', 'salonpay']) rail?: 'manual' | 'salonpay';
+  /**
+   * Recorte de competência da TELA. Sem ele o pagamento quitava TODAS as
+   * comissões em aberto do profissional, inclusive de períodos que a tela não
+   * mostrava — o botão dizia um valor e o sistema debitava outro.
+   */
+  @IsOptional() @IsString() from?: string;
+  @IsOptional() @IsString() to?: string;
 }
 
 // ---- Vales (adiantamentos) ----

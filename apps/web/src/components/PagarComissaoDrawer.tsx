@@ -31,12 +31,21 @@ export function PagarComissaoDrawer({
   rows,
   closingId,
   rail = 'manual',
+  from,
+  to,
   onClose,
   onPaid,
 }: {
   open: boolean;
   rows: CommissionSummaryRow[];
   closingId?: string;
+  /**
+   * Período que a TELA está mostrando. Vai junto no pagamento para o backend
+   * quitar exatamente os lançamentos que foram somados aqui — sem isto ele
+   * quitava todas as comissões em aberto do profissional, de qualquer mês.
+   */
+  from?: string;
+  to?: string;
   /**
    * Trilho escolhido no menu "Pagar comissões": `manual` (o salão pagou por
    * fora e está registrando) ou `salonpay`.
@@ -161,6 +170,8 @@ export function PagarComissaoDrawer({
         // meio-dia impede o fuso de jogar o lançamento para o dia vizinho.
         paidAt: paidAt ? instanteDoPagamento(paidAt) : undefined,
         rail,
+        from,
+        to,
         items: rows.map((row) => ({
           professionalId: row.professionalId,
           advanceIds: [...(checkedByProf[row.professionalId] ?? [])],
