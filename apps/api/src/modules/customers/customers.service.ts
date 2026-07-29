@@ -596,7 +596,7 @@ export class CustomersService {
 
   async listOrders(companyId: string, id: string) {
     await this.findOne(companyId, id);
-    return this.prisma.client.order.findMany({
+    const orders = await this.prisma.client.order.findMany({
       where: { companyId, customerId: id },
       orderBy: { date: 'desc' },
       take: 100,
@@ -605,6 +605,41 @@ export class CustomersService {
         professional: { select: { id: true, name: true } },
       },
     });
+
+    // NOME de cada item. O `OrderItem` guarda `kind` + `refId`, e a aba Vendas
+    // imprimia a palavra "Serviço" para todos — cinco itens viravam
+    // "Serviço · Serviço · Serviço". Duas consultas em lote resolvem a lista
+    // inteira. Ver estudo 54.
+    const porTipo = (kind: string) => [
+      ...new Set(
+        orders.flatMap((o) => o.items.filter((i) => i.kind === kind).map((i) => i.refId)),
+      ),
+    ];
+    const idsServico = porTipo('service');
+    const idsProduto = porTipo('product');
+    const [servicos, produtos] = await Promise.all([
+      idsServico.length
+        ? this.prisma.client.service.findMany({
+            where: { companyId, id: { in: idsServico } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+      idsProduto.length
+        ? this.prisma.client.product.findMany({
+            where: { companyId, id: { in: idsProduto } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const nomePorRef = new Map<string, string>([
+      ...servicos.map((x) => [x.id, x.name] as const),
+      ...produtos.map((x) => [x.id, x.name] as const),
+    ]);
+
+    return orders.map((o) => ({
+      ...o,
+      items: o.items.map((it) => ({ ...it, itemName: nomePorRef.get(it.refId) ?? null })),
+    }));
   }
 
   // ===== Pacotes =====

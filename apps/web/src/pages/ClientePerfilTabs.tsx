@@ -1642,8 +1642,12 @@ function VendasTab({ customerId }: { customerId: string }) {
                           key={it.id}
                           className="flex items-center justify-between text-sm text-foreground"
                         >
+                          {/* Nome real do serviço/produto. Antes imprimia só a
+                              PALAVRA "Serviço", então uma comanda com cinco
+                              itens virava "Serviço · Serviço · Serviço". O
+                              backend passou a resolver `itemName`. Estudo 54. */}
                           <span className="min-w-0 truncate">
-                            {it.kind === 'product' ? 'Produto' : 'Serviço'}
+                            {it.itemName ?? (it.kind === 'product' ? 'Produto' : 'Serviço')}
                             {Number(it.quantity) > 1 ? ` ×${Number(it.quantity)}` : ''}
                           </span>
                           <span className="font-medium">{formatMoney(it.grossValue)}</span>
@@ -2629,11 +2633,14 @@ export function ClientePerfilModal({
 
   useEffect(() => {
     if (isOpen) {
-      setTab('cadastro');
+      // `initialTab` MANDA: este efeito roda depois do de cima e voltava tudo
+      // para "Cadastro", então `?tab=vendas` (e o link "Ver vendas" do painel
+      // lateral da comanda) sempre caía na ficha. Ver estudo 54.
+      setTab(initialTab ?? 'cadastro');
       setApptOpen(false);
       setOrderError(null);
     }
-  }, [isOpen, customer?.id]);
+  }, [isOpen, customer?.id, initialTab]);
 
   // Prefere o customer com relações (tags/dependentes) vindo do /panel.
   const full = panel.data?.customer ?? customer;

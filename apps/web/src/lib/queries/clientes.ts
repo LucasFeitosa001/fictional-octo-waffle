@@ -97,6 +97,8 @@ export interface CustomerOrderView {
     unitPrice: string;
     grossValue: string;
     discount: string;
+    /** Nome do serviço/produto resolvido pelo backend (estudo 54). */
+    itemName?: string | null;
   }>;
 }
 
