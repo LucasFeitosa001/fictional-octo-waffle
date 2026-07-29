@@ -13,6 +13,7 @@ import { AppSwitch } from './SwitchRow';
 import { InlineToggle } from './InlineToggle';
 import { CustomerAvatar } from './CustomerPickerDrawer';
 import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
+import { useConfirm } from './ConfirmDialog';
 import { useNavigate } from 'react-router-dom';
 import { IconChevron, IconInfo, IconSearch } from './icons';
 import {
@@ -267,6 +268,7 @@ export function NewAppointmentModal({
   const createAppointmentSeries = useCreateAppointmentSeries();
   const createCustomer = useCreateCustomer();
   const createOrder = useCreateOrder();
+  const confirm = useConfirm();
 
   const serviceItems = services.data?.data ?? [];
   const professionalItems = professionals.data?.data ?? [];
@@ -498,15 +500,42 @@ export function NewAppointmentModal({
     }
   }
 
+  /**
+   * Salvar → pergunta se quer a comanda agora.
+   *
+   * O Belasis não pergunta: ele põe "Salvar" e "Criar comanda" lado a lado no
+   * rodapé (captura em `belasis-reference/_structure/drawers/calendar--drawer-1.txt`,
+   * linhas 237-246), e nós temos os dois. O dono pediu a pergunta mesmo assim —
+   * e ela resolve um buraco real: no CELULAR o botão "Criar comanda" fica
+   * escondido, então quem agenda pelo telefone não tinha caminho nenhum para a
+   * comanda. Ver estudo 56.
+   */
   async function handleConfirm() {
     const result = await submit();
-    if (result) setSuccess(true);
+    if (!result) return;
+    const querComanda = await confirm({
+      title: 'Criar comanda agora?',
+      message:
+        'O agendamento foi salvo. A comanda registra o atendimento e recebe os pagamentos — dá para criar agora ou depois, pelo próprio agendamento.',
+      confirmLabel: 'Criar comanda',
+      cancelLabel: 'Agora não',
+    });
+    if (!querComanda) {
+      setSuccess(true);
+      return;
+    }
+    await criarComandaPara(result);
   }
 
   // Cria a comanda e todos os serviços em uma única transação da API.
   async function handleComanda() {
     const result = await submit();
     if (!result) return;
+    await criarComandaPara(result);
+  }
+
+  /** Cria a comanda do agendamento recém-salvo (usada pelos dois caminhos). */
+  async function criarComandaPara(result: { id: string; customerId?: string }) {
     let orderId: string | null = null;
     try {
       const validItems = items.filter((item) => item.serviceId);
