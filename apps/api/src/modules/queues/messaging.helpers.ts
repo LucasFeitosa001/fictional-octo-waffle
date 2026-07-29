@@ -54,7 +54,14 @@ export async function dispatchWhatsapp(
   text: string,
   // Contexto da interação (opcional, retrocompatível): repassado ao enqueueText
   // para vincular a mensagem à empresa/cliente/tipo no histórico "Interações".
-  ctx?: { companyId?: string; customerId?: string; kind?: string },
+  // `appointmentId` importa: é o que permite a trava de entrega conferir se o
+  // horário já passou / foi cancelado antes de mandar o aviso (estudo 60).
+  ctx?: {
+    companyId?: string;
+    customerId?: string;
+    appointmentId?: string;
+    kind?: string;
+  },
 ): Promise<boolean> {
   const oneLine = text.replace(/\n/g, ' ⏎ ');
   logger.log(`${tag} WhatsApp -> ${to}: ${oneLine}`);

@@ -211,6 +211,9 @@ export class WhatsappReminderPollerService
       {
         companyId: appointment.companyId,
         customerId: appointment.customerId ?? undefined,
+        // Sem isto a trava de entrega não teria como saber que o horário já
+        // passou — foi exatamente o lembrete atrasado que chegou ao cliente.
+        appointmentId: appointment.id,
         kind: 'reminder',
       },
     );

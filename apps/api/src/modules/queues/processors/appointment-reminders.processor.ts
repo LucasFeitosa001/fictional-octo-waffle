@@ -128,7 +128,14 @@ export class AppointmentRemindersProcessor extends WorkerHost {
         msg.to,
         msg.text,
         // Interações: lembrete de agendamento ao cliente.
-        { companyId, customerId: appt.customerId ?? undefined, kind: 'reminder' },
+        {
+          companyId,
+          customerId: appt.customerId ?? undefined,
+          // A trava de entrega precisa do agendamento para conferir horário e
+          // status na hora de enviar (estudo 60).
+          appointmentId: appt.id,
+          kind: 'reminder',
+        },
       );
     } else {
       const why = !msg ? 'sem telefone' : 'opt-out';
