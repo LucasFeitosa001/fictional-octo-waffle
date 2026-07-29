@@ -528,6 +528,13 @@ export function NewAppointmentModal({
     await criarComandaPara(result);
   }
 
+  /** Botão "Criar comanda": salva e vai direto, sem a pergunta. */
+  async function handleComanda() {
+    const result = await submit();
+    if (!result) return;
+    await criarComandaPara(result);
+  }
+
   /** Cria a comanda do agendamento recém-salvo (usada pelos dois caminhos). */
   async function criarComandaPara(result: { id: string; customerId?: string }) {
     let orderId: string | null = null;
@@ -583,14 +590,14 @@ export function NewAppointmentModal({
     </Button>
   ) : (
     <>
-      {/* UM botão de ação, igual no desktop e no celular: "Criar" salva o
-          agendamento e PERGUNTA se a comanda sai agora ou depois.
+      {/* Rodapé da referência: Ajuda · Cancelar · Salvar · Criar comanda
+          (`belasis-reference/_structure/drawers/calendar--drawer-1.txt:237`-`:246`).
 
-          A referência tem dois botões lado a lado (Salvar · Criar comanda —
-          `belasis-reference/_structure/drawers/calendar--drawer-1.txt:243`), e era
-          assim que estava aqui. O dono decidiu pelo fluxo de uma decisão só: o
-          segundo botão vivia escondido no celular, então quem agendava pelo
-          telefone não tinha caminho nenhum para a comanda. Ver estudo 56. */}
+          Os DOIS botões de ação, agora também no celular — antes o verde era
+          `hidden md:inline-flex` e quem agendava pelo telefone não tinha caminho
+          para a comanda. `flex-wrap` no contêiner do rodapé impede que os quatro
+          se atropelem em 390px. "Salvar" ainda pergunta se a comanda sai agora;
+          "Criar comanda" vai direto. Ver estudo 56. */}
       {/* Ajuda abre a Central de Ajuda numa nova aba — não fecha o drawer, pra
           não perder o agendamento em andamento. */}
       <Button
@@ -610,7 +617,15 @@ export function NewAppointmentModal({
         Cancelar
       </Button>
       <Button variant="primary" className="flex-1 md:flex-none" isDisabled={!canConfirm} onClick={handleConfirm}>
-        {isBusy ? 'Criando…' : 'Criar'}
+        {isBusy ? 'Salvando…' : 'Salvar'}
+      </Button>
+      <Button
+        variant="primary"
+        className="w-full bg-success text-white hover:bg-success/90 md:w-auto"
+        isDisabled={!canConfirm}
+        onClick={handleComanda}
+      >
+        Criar comanda
       </Button>
     </>
   );
