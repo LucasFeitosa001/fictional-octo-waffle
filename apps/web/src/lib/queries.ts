@@ -289,11 +289,21 @@ export interface UpdateOrderBody {
 export function useCreateOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreateOrderBody) => api.post<OrderRow>('/orders', body),
-    onSuccess: () => {
+    mutationFn: (body: CreateOrderBody) =>
+      api.post<OrderRow & { reused?: boolean }>('/orders', body),
+    onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toastSuccess('Comanda aberta');
+      // A agenda precisa saber que aquele agendamento passou a ter comanda —
+      // senão o botão continua dizendo "Abrir comanda" para algo que já tem, e
+      // o próximo clique parece criar outra. Ver estudo 52.
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      // Só anuncia criação quando criou. Quando o agendamento já tinha comanda,
+      // o backend devolve a MESMA (`reused`) e dizer "Comanda aberta" fazia
+      // parecer que tinha nascido outra.
+      toastSuccess(
+        order?.reused ? `Abrindo a comanda #${order.number} deste agendamento` : 'Comanda aberta',
+      );
     },
   });
 }

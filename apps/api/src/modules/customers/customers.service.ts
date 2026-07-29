@@ -253,16 +253,24 @@ export class CustomersService {
       this.prisma.client.customerDebt.count({
         where: { companyId, customerId: id, status: 'open' },
       }),
-      // Histórico recente de agendamentos.
+      // Histórico recente de agendamentos — só o que JÁ ACONTECEU e não foi
+      // desmarcado. Sem o corte de data, o que está agendado para semana que
+      // vem entrava em "últimos serviços" e deixava `diasSemVir` NEGATIVO.
+      // Ver estudo 54.
       this.prisma.client.appointment.findMany({
-        where: { companyId, customerId: id },
+        where: {
+          companyId,
+          customerId: id,
+          status: { not: 'canceled' },
+          start: { lte: new Date() },
+        },
         orderBy: { start: 'desc' },
         take: 10,
         include: { items: { include: { service: true } } },
       }),
-      // Histórico recente de comandas.
+      // Histórico recente de comandas — cancelada não é visita nem venda.
       this.prisma.client.order.findMany({
-        where: { companyId, customerId: id },
+        where: { companyId, customerId: id, status: { not: 'canceled' } },
         orderBy: { date: 'desc' },
         take: 10,
         include: { items: true },
@@ -281,10 +289,73 @@ export class CustomersService {
         ? Math.floor((Date.now() - lastVisitAt.getTime()) / 86_400_000)
         : null;
 
-    // Últimos serviços/itens (comanda + agendamento), máx 10.
-    const ultimosServicos = [
-      ...appointments.flatMap((a) =>
-        a.items.map((it) => ({
+    // NOME dos itens de comanda: o item guarda `kind` + `refId`, e sem resolver
+    // isso o histórico do cliente virava "Serviço · Serviço · Produto".
+    // Duas consultas em lote, não uma por item. Ver estudo 54.
+    const refsServico = [
+      ...new Set(
+        orders.flatMap((o) => o.items.filter((i) => i.kind === 'service').map((i) => i.refId)),
+      ),
+    ];
+    const refsProduto = [
+      ...new Set(
+        orders.flatMap((o) => o.items.filter((i) => i.kind === 'product').map((i) => i.refId)),
+      ),
+    ];
+    const [servicosDosItens, produtosDosItens] = await Promise.all([
+      refsServico.length
+        ? this.prisma.client.service.findMany({
+            where: { companyId, id: { in: refsServico } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+      refsProduto.length
+        ? this.prisma.client.product.findMany({
+            where: { companyId, id: { in: refsProduto } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const nomePorRef = new Map<string, string>([
+      ...servicosDosItens.map((x) => [x.id, x.name] as const),
+      ...produtosDosItens.map((x) => [x.id, x.name] as const),
+    ]);
+
+    const itensDeComanda = orders.flatMap((o) =>
+      o.items.map((it) => ({
+        source: 'order' as const,
+        date: o.date,
+        status: o.status as string,
+        name: nomePorRef.get(it.refId) ?? null,
+        kind: it.kind as string,
+        refId: it.refId,
+        price: num(it.grossValue),
+      })),
+    );
+
+    /**
+     * A MESMA visita não pode aparecer duas vezes.
+     *
+     * O agendamento que virou comanda é um atendimento só. Com o vínculo novo
+     * (`Order.appointmentId`, estudo 52) dá para descartar com certeza; no
+     * histórico importado, que não tem o vínculo, cai na regra do par
+     * "mesmo dia + mesmo nome de item" — que é como o salão de fato opera.
+     */
+    const agendamentosComComanda = new Set(
+      orders.map((o) => o.appointmentId).filter((x): x is string => Boolean(x)),
+    );
+    const diaENome = new Set(
+      itensDeComanda.map((i) => `${i.date.toISOString().slice(0, 10)}|${(i.name ?? '').toLowerCase()}`),
+    );
+
+    const itensDeAgendamento = appointments.flatMap((a) =>
+      a.items
+        .filter((it) => {
+          if (agendamentosComComanda.has(a.id)) return false;
+          const chave = `${a.start.toISOString().slice(0, 10)}|${(it.service?.name ?? '').toLowerCase()}`;
+          return !diaENome.has(chave);
+        })
+        .map((it) => ({
           source: 'appointment' as const,
           date: a.start,
           status: a.status as string,
@@ -292,19 +363,10 @@ export class CustomersService {
           serviceId: it.serviceId,
           price: num(it.price),
         })),
-      ),
-      ...orders.flatMap((o) =>
-        o.items.map((it) => ({
-          source: 'order' as const,
-          date: o.date,
-          status: o.status as string,
-          name: null as string | null,
-          kind: it.kind as string,
-          refId: it.refId,
-          price: num(it.grossValue),
-        })),
-      ),
-    ]
+    );
+
+    // Últimos serviços/itens (comanda + agendamento sem comanda), máx 10.
+    const ultimosServicos = [...itensDeAgendamento, ...itensDeComanda]
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, 10);
 

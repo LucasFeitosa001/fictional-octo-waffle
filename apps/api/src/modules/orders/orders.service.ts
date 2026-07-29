@@ -267,7 +267,12 @@ export class OrdersService {
         // Comanda cancelada não serve de "existente": o agendamento precisa
         // poder gerar outra. Nesse caso soltamos o vínculo da cancelada para o
         // índice único não barrar a nova.
-        if (existing && existing.status !== 'canceled') return existing;
+        //
+        // `reused` diz à tela que NADA foi criado — sem isso o front mostrava
+        // "Comanda aberta" toda vez e o dono lia como "criou outra". Ver estudo 52.
+        if (existing && existing.status !== 'canceled') {
+          return { ...existing, reused: true };
+        }
         if (existing) {
           await tx.order.update({
             where: { id: existing.id },
