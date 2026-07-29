@@ -17,6 +17,7 @@ import {
   StatusDto,
   SuggestDto,
   BlockTimeDto,
+  SendAppointmentConfirmationDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
@@ -112,6 +113,29 @@ export class AppointmentsController {
   ) {
     const scope = await this.professionalScope(companyId, userId);
     return this.service.findOne(companyId, id, scope);
+  }
+
+  @Get('appointments/:id/confirmation')
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async confirmationSetup(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.confirmationSetup(companyId, id, scope);
+  }
+
+  @Post('appointments/:id/confirmation')
+  @RequirePermission('agenda:manage')
+  async sendConfirmation(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentConfirmationDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.sendConfirmation(companyId, id, dto, scope);
   }
 
   @Post('appointments')

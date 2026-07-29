@@ -107,6 +107,7 @@ export class NotificationsService {
         await this.dispatchClient(
           event,
           companyId,
+          appointmentId,
           messages,
           appt.customer
             ? {
@@ -290,6 +291,7 @@ export class NotificationsService {
   private async dispatchClient(
     event: AppointmentEvent,
     companyId: string,
+    appointmentId: string,
     messages: ReturnType<typeof composeAppointmentMessages>,
     customer?: {
       id: string;
@@ -309,6 +311,7 @@ export class NotificationsService {
         await this.whatsapp.enqueueText(messages.clientWhatsapp.to, messages.clientWhatsapp.text, {
           companyId,
           customerId: customer?.id,
+          appointmentId,
           kind,
         });
       }

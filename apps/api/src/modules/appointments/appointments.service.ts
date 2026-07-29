@@ -13,6 +13,7 @@ import {
   CreateAppointmentSeriesDto,
   UpdateAppointmentDto,
   StatusDto,
+  SendAppointmentConfirmationDto,
 } from './dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationSettingsService } from '../notifications/notification-settings.service';
@@ -20,6 +21,12 @@ import { AppointmentEvent } from '../notifications/notifications.templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
 import { QueuesService } from '../queues/queues.service';
+import {
+  CONFIRMATION_TEMPLATE_VARIABLES,
+  confirmationTemplateVariables,
+  renderConfirmationTemplate,
+  unresolvedConfirmationVariables,
+} from '../notifications/confirmation.templates';
 
 // Slot generation granularity (minutes) for the availability grid.
 const SLOT_STEP_MIN = 15;
@@ -175,6 +182,286 @@ export class AppointmentsService {
     });
     if (!found) throw new NotFoundException('Agendamento não encontrado');
     return found;
+  }
+
+  /**
+   * Dados do drawer de confirmação: autorização efetiva, modelos, preview e
+   * histórico com ACK real do WhatsApp. Tudo escopado por company/profissional.
+   */
+  async confirmationSetup(
+    companyId: string,
+    id: string,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      id,
+      scopeProfessionalId,
+    );
+    const [automation, templateSettings, logs] = await Promise.all([
+      this.settings.get(companyId),
+      this.settings.getConfirmationTemplates(companyId),
+      this.confirmationLogs(companyId, id),
+    ]);
+    const variables = confirmationTemplateVariables({
+      companyName: appointment.company.name,
+      timezone: appointment.company.timezone,
+      customerName: appointment.customer?.name ?? null,
+      serviceNames: appointment.items.map((item) => item.service.name),
+      start: appointment.start,
+    });
+    const selectedTemplate =
+      templateSettings.templates.find(
+        (template) => template.id === templateSettings.defaultTemplateId,
+      ) ?? templateSettings.templates[0];
+    return {
+      authorization: {
+        companyDefault: automation.confirmation,
+        appointment: appointment.notifyConfirmation,
+        allowed:
+          appointment.notifyConfirmation ?? automation.confirmation,
+      },
+      recipient: {
+        customerId: appointment.customerId,
+        name: appointment.customer?.name ?? null,
+        phone: appointment.customer?.phone ?? null,
+        notificationsEnabled:
+          appointment.customer?.notificationsEnabled ?? null,
+        whatsappOptIn: appointment.customer?.whatsappOptIn ?? null,
+      },
+      variables,
+      ...templateSettings,
+      preview: selectedTemplate
+        ? renderConfirmationTemplate(selectedTemplate.message, variables)
+        : '',
+      logs,
+    };
+  }
+
+  /**
+   * Enfileira UMA confirmação explicitamente autorizada. O requestKey torna
+   * retries idempotentes; uma confirmação anterior exige confirmação adicional
+   * de reenvio e uma linha ainda pendente nunca é duplicada.
+   */
+  async sendConfirmation(
+    companyId: string,
+    id: string,
+    dto: SendAppointmentConfirmationDto,
+    scopeProfessionalId?: string,
+  ) {
+    // Valida tenant e escopo profissional antes até mesmo de responder a um
+    // retry idempotente. A requestKey é opaca, mas nunca deve contornar acesso.
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      id,
+      scopeProfessionalId,
+    );
+    const priorRequest =
+      await this.prisma.client.whatsappOutbox.findUnique({
+        where: {
+          companyId_requestKey: {
+            companyId,
+            requestKey: dto.requestKey,
+          },
+        },
+        select: { id: true, appointmentId: true, status: true },
+      });
+    if (priorRequest) {
+      if (priorRequest.appointmentId !== id) {
+        throw new ConflictException(
+          'Esta chave de envio já foi usada em outro agendamento.',
+        );
+      }
+      return {
+        id: priorRequest.id,
+        status: priorRequest.status,
+        deduplicated: true,
+      };
+    }
+
+    const customer = appointment.customer;
+    if (!customer?.phone?.trim()) {
+      throw new BadRequestException(
+        'Cadastre um telefone para a cliente antes de enviar a confirmação.',
+      );
+    }
+    if (
+      customer.notificationsEnabled === false ||
+      customer.whatsappOptIn === false
+    ) {
+      throw new BadRequestException(
+        'A cliente optou por não receber mensagens no WhatsApp.',
+      );
+    }
+
+    const templateSettings =
+      await this.settings.getConfirmationTemplates(companyId);
+    const templateId =
+      dto.templateId?.trim() || templateSettings.defaultTemplateId;
+    const selectedTemplate = templateSettings.templates.find(
+      (template) => template.id === templateId,
+    );
+    if (!selectedTemplate && !dto.message?.trim()) {
+      throw new BadRequestException('Selecione um modelo de confirmação válido.');
+    }
+    const source = dto.message?.trim() || selectedTemplate?.message || '';
+    if (!source) {
+      throw new BadRequestException('Escreva a mensagem de confirmação.');
+    }
+    const allowedVariables = new Set<string>(CONFIRMATION_TEMPLATE_VARIABLES);
+    const unknownVariables = unresolvedConfirmationVariables(source).filter(
+      (variable) => !allowedVariables.has(variable),
+    );
+    if (unknownVariables.length > 0) {
+      throw new BadRequestException(
+        `Variável não reconhecida na mensagem: {${unknownVariables[0]}}.`,
+      );
+    }
+    const variables = confirmationTemplateVariables({
+      companyName: appointment.company.name,
+      timezone: appointment.company.timezone,
+      customerName: customer.name,
+      serviceNames: appointment.items.map((item) => item.service.name),
+      start: appointment.start,
+    });
+    const message = renderConfirmationTemplate(source, variables);
+    if (!message || message.length > 2_000) {
+      throw new BadRequestException(
+        'A mensagem final deve ter entre 1 e 2000 caracteres.',
+      );
+    }
+
+    const previous =
+      await this.prisma.client.whatsappOutbox.findFirst({
+        where: {
+          companyId,
+          appointmentId: id,
+          kind: 'confirmation',
+          text: message,
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          inboxMessage: { select: { status: true } },
+        },
+      });
+    const previousStatus =
+      previous?.inboxMessage?.status ?? previous?.status ?? null;
+    if (previousStatus === 'pending') {
+      throw new ConflictException(
+        'Esta confirmação já está na fila. Aguarde o envio antes de tentar novamente.',
+      );
+    }
+    if (
+      previous &&
+      ['sent', 'delivered', 'read'].includes(previousStatus ?? '') &&
+      dto.allowResend !== true
+    ) {
+      throw new ConflictException(
+        'Esta confirmação já foi enviada. Confirme o reenvio somente se a cliente solicitar.',
+      );
+    }
+
+    // A ação autenticada + authorize=true fixa a autorização específica do
+    // agendamento. Isso não altera o default da empresa nem outras mensagens.
+    if (appointment.notifyConfirmation !== true) {
+      await this.prisma.client.appointment.update({
+        where: { id },
+        data: { notifyConfirmation: true },
+      });
+    }
+
+    const queued = await this.whatsapp.enqueueText(customer.phone, message, {
+      companyId,
+      customerId: appointment.customerId ?? undefined,
+      appointmentId: id,
+      kind: 'confirmation',
+      requestKey: dto.requestKey,
+    });
+    if (!queued) {
+      throw new BadRequestException(
+        'O telefone da cliente é inválido para envio no WhatsApp.',
+      );
+    }
+    return queued;
+  }
+
+  private async loadConfirmationAppointment(
+    companyId: string,
+    id: string,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment =
+      await this.prisma.client.appointment.findFirst({
+        where: {
+          id,
+          companyId,
+          ...(scopeProfessionalId
+            ? { professionalId: scopeProfessionalId }
+            : {}),
+        },
+        select: {
+          id: true,
+          companyId: true,
+          customerId: true,
+          professionalId: true,
+          start: true,
+          notifyConfirmation: true,
+          company: { select: { name: true, timezone: true } },
+          customer: {
+            select: {
+              name: true,
+              phone: true,
+              notificationsEnabled: true,
+              whatsappOptIn: true,
+            },
+          },
+          items: { select: { service: { select: { name: true } } } },
+        },
+      });
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado');
+    }
+    return appointment;
+  }
+
+  private async confirmationLogs(companyId: string, appointmentId: string) {
+    const rows = await this.prisma.client.whatsappOutbox.findMany({
+      where: { companyId, appointmentId, kind: 'confirmation' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        toPhone: true,
+        text: true,
+        status: true,
+        attempts: true,
+        lastError: true,
+        createdAt: true,
+        sentAt: true,
+        inboxMessage: {
+          select: {
+            status: true,
+            sentAt: true,
+            deliveredAt: true,
+            readAt: true,
+          },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      phone: row.toPhone,
+      text: row.text,
+      status: row.inboxMessage?.status ?? row.status,
+      attempts: row.attempts,
+      error: row.lastError,
+      createdAt: row.createdAt,
+      sentAt: row.inboxMessage?.sentAt ?? row.sentAt,
+      deliveredAt: row.inboxMessage?.deliveredAt ?? null,
+      readAt: row.inboxMessage?.readAt ?? null,
+    }));
   }
 
   async create(

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import {
   NotificationSettingsService,
@@ -9,6 +20,10 @@ import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
+import {
+  CONFIRMATION_TEMPLATE_VARIABLES,
+  unresolvedConfirmationVariables,
+} from './confirmation.templates';
 
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
@@ -72,7 +87,7 @@ function parseTypes(type?: string): string[] | undefined {
  * Per-company toggles for the AUTOMATIC client-facing messages (confirmation,
  * cancellation, reminder, follow-up). Separate route so the salon owner can
  * silence a whole class of automatic client messages. Default (when never set):
- * only follow-up on.
+ * everything off until the owner explicitly opts in.
  */
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('notification-settings')
@@ -91,7 +106,7 @@ export class NotificationSettingsController {
     @CurrentUser('companyId') companyId: string,
     @Body() body: Partial<NotificationAutomationSettings>,
   ) {
-    // Only accept the four known booleans; ignore anything else in the body.
+    // Only accept the five known booleans; ignore anything else in the body.
     const patch: Partial<NotificationAutomationSettings> = {};
     if (typeof body?.confirmation === 'boolean') patch.confirmation = body.confirmation;
     if (typeof body?.cancellation === 'boolean') patch.cancellation = body.cancellation;
@@ -100,6 +115,70 @@ export class NotificationSettingsController {
     if (typeof body?.notifyProfessional === 'boolean')
       patch.notifyProfessional = body.notifyProfessional;
     return this.settings.update(companyId, patch);
+  }
+
+  // ------------------------------------------ confirmation message templates
+
+  @Get('confirmation-templates')
+  @RequirePermission('config:view', 'config:manage')
+  getConfirmationTemplates(
+    @CurrentUser('companyId') companyId: string,
+  ) {
+    return this.settings.getConfirmationTemplates(companyId);
+  }
+
+  @Put('confirmation-templates')
+  @RequirePermission('config:manage')
+  updateConfirmationTemplates(
+    @CurrentUser('companyId') companyId: string,
+    @Body()
+    body: {
+      defaultTemplateId?: unknown;
+      templates?: unknown;
+    },
+  ) {
+    if (!Array.isArray(body?.templates)) {
+      throw new BadRequestException('Informe a lista de modelos de confirmação.');
+    }
+    if (body.templates.length > 20) {
+      throw new BadRequestException(
+        'É possível salvar no máximo 20 modelos de confirmação.',
+      );
+    }
+    const allowedVariables = new Set<string>(CONFIRMATION_TEMPLATE_VARIABLES);
+    for (const raw of body.templates) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new BadRequestException('Modelo de confirmação inválido.');
+      }
+      const template = raw as Record<string, unknown>;
+      const id = typeof template.id === 'string' ? template.id.trim() : '';
+      const label =
+        typeof template.label === 'string' ? template.label.trim() : '';
+      const message =
+        typeof template.message === 'string' ? template.message.trim() : '';
+      if (!/^custom-[a-z0-9-]{1,80}$/i.test(id)) {
+        throw new BadRequestException('Identificador do modelo inválido.');
+      }
+      if (!label || label.length > 80) {
+        throw new BadRequestException(
+          'O nome do modelo deve ter entre 1 e 80 caracteres.',
+        );
+      }
+      if (!message || message.length > 2_000) {
+        throw new BadRequestException(
+          'A mensagem do modelo deve ter entre 1 e 2000 caracteres.',
+        );
+      }
+      const unknown = unresolvedConfirmationVariables(message).filter(
+        (variable) => !allowedVariables.has(variable),
+      );
+      if (unknown.length > 0) {
+        throw new BadRequestException(
+          `Variável não reconhecida no modelo: {${unknown[0]}}.`,
+        );
+      }
+    }
+    return this.settings.updateConfirmationTemplates(companyId, body);
   }
 
   // ------------------------------------------------ rich follow-up config

@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  Equals,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -7,6 +8,8 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -125,6 +128,41 @@ export class UpdateAppointmentDto {
   @ValidateNested()
   @Type(() => AppointmentFollowUpDto)
   followUp?: AppointmentFollowUpDto;
+}
+
+/**
+ * Disparo manual e auditável da confirmação. `authorize=true` é deliberadamente
+ * obrigatório: autenticação/permissão identificam QUEM pode agir, mas este campo
+ * registra que aquela chamada autorizou especificamente este agendamento.
+ */
+export class SendAppointmentConfirmationDto {
+  @Equals(true, {
+    message:
+      'Confirme explicitamente a autorização deste agendamento antes de enviar.',
+  })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  templateId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000, {
+    message: 'A mensagem deve ter no máximo 2000 caracteres.',
+  })
+  message?: string;
+
+  /** Reenvio intencional após o backend detectar uma confirmação anterior. */
+  @IsOptional()
+  @IsBoolean()
+  allowResend?: boolean;
 }
 
 /**

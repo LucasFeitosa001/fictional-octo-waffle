@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  BUILTIN_CONFIRMATION_TEMPLATES,
+  DEFAULT_CONFIRMATION_TEMPLATE_ID,
+  NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
+  type ConfirmationTemplate,
+  type ConfirmationTemplateSettings,
+} from './confirmation.templates';
 
 /**
  * Per-company toggles for the AUTOMATIC client-facing WhatsApp/email messages.
@@ -286,6 +293,132 @@ export class NotificationSettingsService {
       create: { companyId, key: NOTIFICATION_FOLLOWUP_KEY, valueJson },
       update: { valueJson },
     });
+  }
+
+  // ------------------------------------------- confirmation message templates
+
+  /**
+   * Company-owned confirmation models. Built-ins live in code and are merged
+   * over the custom rows stored in Setting, so a malformed/old JSON value can
+   * never remove the safe default.
+   */
+  async getConfirmationTemplates(
+    companyId: string,
+  ): Promise<ConfirmationTemplateSettings> {
+    const row = await this.prisma.client.setting.findUnique({
+      where: {
+        companyId_key: {
+          companyId,
+          key: NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
+        },
+      },
+    });
+    const stored =
+      (row?.valueJson as {
+        defaultTemplateId?: unknown;
+        templates?: unknown;
+      } | null) ?? {};
+    const custom = this.normalizeConfirmationTemplates(stored.templates);
+    const templates = [
+      ...BUILTIN_CONFIRMATION_TEMPLATES.map((template) => ({ ...template })),
+      ...custom,
+    ];
+    const requestedDefault =
+      typeof stored.defaultTemplateId === 'string'
+        ? stored.defaultTemplateId
+        : DEFAULT_CONFIRMATION_TEMPLATE_ID;
+    return {
+      defaultTemplateId: templates.some(
+        (template) => template.id === requestedDefault,
+      )
+        ? requestedDefault
+        : DEFAULT_CONFIRMATION_TEMPLATE_ID,
+      templates,
+    };
+  }
+
+  /**
+   * Replaces the company's custom model collection in one idempotent write.
+   * Native models are never persisted/overwritten. Limits keep this Setting from
+   * becoming an unbounded message store.
+   */
+  async updateConfirmationTemplates(
+    companyId: string,
+    input: {
+      defaultTemplateId?: unknown;
+      templates?: unknown;
+    },
+  ): Promise<ConfirmationTemplateSettings> {
+    const custom = this.normalizeConfirmationTemplates(input.templates);
+    const allIds = new Set([
+      ...BUILTIN_CONFIRMATION_TEMPLATES.map((template) => template.id),
+      ...custom.map((template) => template.id),
+    ]);
+    const defaultTemplateId =
+      typeof input.defaultTemplateId === 'string' &&
+      allIds.has(input.defaultTemplateId)
+        ? input.defaultTemplateId
+        : DEFAULT_CONFIRMATION_TEMPLATE_ID;
+    const valueJson = {
+      defaultTemplateId,
+      templates: custom.map(({ id, label, message }) => ({
+        id,
+        label,
+        message,
+      })),
+    };
+    await this.prisma.client.setting.upsert({
+      where: {
+        companyId_key: {
+          companyId,
+          key: NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
+        },
+      },
+      create: {
+        companyId,
+        key: NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
+        valueJson,
+      },
+      update: { valueJson },
+    });
+    return {
+      defaultTemplateId,
+      templates: [
+        ...BUILTIN_CONFIRMATION_TEMPLATES.map((template) => ({ ...template })),
+        ...custom,
+      ],
+    };
+  }
+
+  private normalizeConfirmationTemplates(value: unknown): ConfirmationTemplate[] {
+    if (!Array.isArray(value)) return [];
+    const custom: ConfirmationTemplate[] = [];
+    const seen = new Set<string>();
+    for (const raw of value.slice(0, 20)) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+      const record = raw as Record<string, unknown>;
+      const id = typeof record.id === 'string' ? record.id.trim() : '';
+      const label =
+        typeof record.label === 'string' ? record.label.trim().slice(0, 80) : '';
+      const message =
+        typeof record.message === 'string'
+          ? record.message.trim().slice(0, 2_000)
+          : '';
+      if (
+        !/^custom-[a-z0-9-]{1,80}$/i.test(id) ||
+        seen.has(id) ||
+        BUILTIN_CONFIRMATION_TEMPLATES.some(
+          (template) => template.id === id,
+        ) ||
+        !label ||
+        !message
+      ) {
+        continue;
+      }
+      seen.add(id);
+      custom.push({ id, label, message, builtIn: false });
+    }
+    return custom;
   }
 
   /** Coerces an arbitrary partial into a full, typed follow-up config. */

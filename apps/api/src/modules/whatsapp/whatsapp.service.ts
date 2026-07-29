@@ -105,6 +105,12 @@ export type WhatsappOutboundHandler = (
   msg: WhatsappOutboundQueued,
 ) => void | Promise<void>;
 
+export interface WhatsappEnqueueResult {
+  id: string;
+  status: string;
+  deduplicated: boolean;
+}
+
 export interface WhatsappDeliveryUpdate {
   companyId: string;
   whatsappMessageId: string;
@@ -762,7 +768,10 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     ctx?: {
       companyId?: string;
       customerId?: string;
+      appointmentId?: string;
       kind?: string;
+      /** UUID estável da ação HTTP; retry devolve a linha já criada. */
+      requestKey?: string;
       inboxMessageId?: string;
       /** JID já observado no inbox (`@s.whatsapp.net` ou `@lid`). */
       recipientJid?: string;
@@ -774,20 +783,40 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         ptt?: boolean;
       };
     },
-  ): Promise<void> {
+  ): Promise<WhatsappEnqueueResult | null> {
     const recipientJid = this.normalizeRecipientJid(ctx?.recipientJid);
     const normalized = this.normalizeOutgoingPhone(phone);
     if (!normalized && !recipientJid) {
       this.logger.warn(`Outbox: número inválido ignorado (${phone}).`);
-      return;
+      return null;
     }
     const toPhone =
       normalized?.value ?? this.jidUserDigits(recipientJid ?? '');
     if (!toPhone) {
       this.logger.warn('Outbox: destinatário sem número ou JID válido.');
-      return;
+      return null;
     }
     const companyId = ctx?.companyId ?? null;
+    if (companyId && ctx?.requestKey) {
+      const sameRequest =
+        await this.prisma.client.whatsappOutbox.findUnique({
+          where: {
+            companyId_requestKey: {
+              companyId,
+              requestKey: ctx.requestKey,
+            },
+          },
+          select: { id: true, status: true },
+        });
+      if (sameRequest) {
+        void this.drainOutbox();
+        return {
+          id: sameRequest.id,
+          status: sameRequest.status,
+          deduplicated: true,
+        };
+      }
+    }
     const dedupRecipient = recipientJid ?? toPhone;
     const dedupKey = `${companyId ?? '-'}\u0000${dedupRecipient}\u0000${text}\u0000${ctx?.media?.url ?? ''}`;
     // Mensagens nascidas no inbox têm identidade própria e precisam sempre
@@ -804,7 +833,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(
         `Outbox: duplicata concorrente ignorada (company=${companyId ?? 'sem-company'}).`,
       );
-      return;
+      return null;
     }
     this.enqueueInFlight.add(dedupKey);
     try {
@@ -812,6 +841,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         const duplicate = await this.prisma.client.whatsappOutbox.findFirst({
           where: {
             companyId,
+            appointmentId: ctx?.appointmentId,
             toPhone,
             toJid: recipientJid,
             text,
@@ -832,43 +862,80 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               },
             ],
           },
-          select: { id: true },
+          select: { id: true, status: true },
         });
         if (duplicate) {
           this.logger.warn(
             `Outbox: mensagem duplicada ignorada (company=${companyId ?? 'sem-company'}, original=${duplicate.id}).`,
           );
-          return;
+          return {
+            id: duplicate.id,
+            status: duplicate.status,
+            deduplicated: true,
+          };
         }
       }
-      const queued = await this.prisma.client.whatsappOutbox.create({
-        data: {
-          // Preserve an explicit E.164 country code. The leading + is the signal
-          // that this is not a Brazilian local number, and is needed later when
-          // resolving the WhatsApp JID.
-          toPhone,
-          toJid: recipientJid,
-          text,
-          // Só grava o que veio — undefined vira NULL na coluna (retrocompatível).
-          companyId,
-          customerId: ctx?.customerId ?? null,
-          kind: ctx?.kind ?? null,
-          inboxMessageId: ctx?.inboxMessageId ?? null,
-        },
-        select: {
-          id: true,
-          companyId: true,
-          customerId: true,
-          toPhone: true,
-          toJid: true,
-          text: true,
-          kind: true,
-          status: true,
-          createdAt: true,
-          sentAt: true,
-          inboxMessageId: true,
-        },
-      });
+      let queued;
+      try {
+        queued = await this.prisma.client.whatsappOutbox.create({
+          data: {
+            // Preserve an explicit E.164 country code. The leading + is the signal
+            // that this is not a Brazilian local number, and is needed later when
+            // resolving the WhatsApp JID.
+            toPhone,
+            toJid: recipientJid,
+            text,
+            // Só grava o que veio — undefined vira NULL na coluna (retrocompatível).
+            companyId,
+            customerId: ctx?.customerId ?? null,
+            appointmentId: ctx?.appointmentId ?? null,
+            kind: ctx?.kind ?? null,
+            requestKey: ctx?.requestKey ?? null,
+            inboxMessageId: ctx?.inboxMessageId ?? null,
+          },
+          select: {
+            id: true,
+            companyId: true,
+            customerId: true,
+            toPhone: true,
+            toJid: true,
+            text: true,
+            kind: true,
+            status: true,
+            createdAt: true,
+            sentAt: true,
+            inboxMessageId: true,
+          },
+        });
+      } catch (error) {
+        if (
+          companyId &&
+          ctx?.requestKey &&
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'P2002'
+        ) {
+          const sameRequest =
+            await this.prisma.client.whatsappOutbox.findUnique({
+              where: {
+                companyId_requestKey: {
+                  companyId,
+                  requestKey: ctx.requestKey,
+                },
+              },
+              select: { id: true, status: true },
+            });
+          if (sameRequest) {
+            return {
+              id: sameRequest.id,
+              status: sameRequest.status,
+              deduplicated: true,
+            };
+          }
+        }
+        throw error;
+      }
       // Mensagens já criadas dentro do inbox (IA/atendente) só precisam que a
       // outbox atualize o status. As demais — confirmação, cancelamento,
       // lembrete, follow-up e campanha — ganham o balão por este evento.
@@ -886,12 +953,15 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           sentAt: queued.sentAt,
         });
       }
+      void this.drainOutbox();
+      return {
+        id: queued.id,
+        status: queued.status,
+        deduplicated: false,
+      };
     } finally {
       this.enqueueInFlight.delete(dedupKey);
     }
-    // Try to deliver immediately; if no socket is open yet the timer drains it
-    // later. drainOutbox guards itself, so this is safe to call any time.
-    void this.drainOutbox();
   }
 
   /**

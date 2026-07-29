@@ -2329,7 +2329,14 @@ model WhatsappOutbox {
   // manager | manual — texto livre p/ não travar em enum e permitir novos tipos.
   companyId      String?
   customerId     String?
+  // Confirmações manuais/automáticas ficam vinculadas ao horário que as originou.
+  // Isso permite histórico por agendamento e bloqueio de duplicidade sem tentar
+  // inferir o vínculo pelo telefone/texto.
+  appointmentId  String?
   kind           String?
+  // Identidade da ação no cliente. Retry HTTP com a mesma chave devolve a mesma
+  // linha em vez de criar outra mensagem; nullable mantém envios legados válidos.
+  requestKey     String?
   // Quando o envio nasceu no inbox (atendente ou IA), permite refletir
   // pending/sent/failed e o id definitivo do WhatsApp na conversa.
   inboxMessageId String?   @unique
@@ -2342,6 +2349,8 @@ model WhatsappOutbox {
   @@index([companyId])
   @@index([companyId, toJid])
   @@index([customerId])
+  @@index([appointmentId])
+  @@unique([companyId, requestKey])
 }
 
 // =====================================================================

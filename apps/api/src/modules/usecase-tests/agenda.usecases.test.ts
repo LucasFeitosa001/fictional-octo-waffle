@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { AppointmentsService } from '../appointments/appointments.service';
+import {
+  BUILTIN_CONFIRMATION_TEMPLATES,
+  confirmationTemplateVariables,
+  renderConfirmationTemplate,
+} from '../notifications/confirmation.templates';
+import {
+  NotificationSettingsService,
+} from '../notifications/notification-settings.service';
 
 type Call = { model: string; method: string; args: any };
 
@@ -164,5 +172,234 @@ describe('GAP: UC-AGD-002 — isolamento e flags do profissional', () => {
       [],
       'active=false/generateSchedule=false precisa impedir a oferta de horários',
     );
+  });
+});
+
+describe('UC-AGD-WA — confirmação manual com opt-in e idempotência', () => {
+  const requestKey = '67df2ac6-fb04-4dd4-9712-1c02e7506848';
+
+  function appointment(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'appt-1',
+      companyId: 'company-a',
+      customerId: 'customer-1',
+      professionalId: 'pro-1',
+      start: new Date('2026-07-30T19:00:00.000Z'),
+      notifyConfirmation: false,
+      company: { name: 'La Belle de Jour', timezone: 'America/Sao_Paulo' },
+      customer: {
+        name: 'Tais Silva',
+        phone: '5585999999999',
+        notificationsEnabled: true,
+        whatsappOptIn: true,
+      },
+      items: [{ service: { name: 'cabelo' } }],
+      ...overrides,
+    };
+  }
+
+  function confirmationService(options: {
+    appt?: ReturnType<typeof appointment>;
+    previous?: {
+      id: string;
+      status: string;
+      inboxMessage: { status: string } | null;
+    } | null;
+    priorRequest?: {
+      id: string;
+      appointmentId: string | null;
+      status: string;
+    } | null;
+  } = {}) {
+    const enqueued: unknown[] = [];
+    const updates: unknown[] = [];
+    const calls: string[] = [];
+    const client = {
+      whatsappOutbox: {
+        findUnique: async () => {
+          calls.push('request-key');
+          return options.priorRequest ?? null;
+        },
+        findFirst: async () => options.previous ?? null,
+      },
+      appointment: {
+        findFirst: async () => {
+          calls.push('appointment-scope');
+          return options.appt ?? appointment();
+        },
+        update: async (args: unknown) => {
+          updates.push(args);
+          return options.appt ?? appointment();
+        },
+      },
+    };
+    const whatsapp = {
+      enqueueText: async (...args: unknown[]) => {
+        enqueued.push(args);
+        return { id: 'outbox-1', status: 'pending', deduplicated: false };
+      },
+    };
+    const settings = {
+      getConfirmationTemplates: async () => ({
+        defaultTemplateId: BUILTIN_CONFIRMATION_TEMPLATES[0].id,
+        templates: BUILTIN_CONFIRMATION_TEMPLATES.map((template) => ({
+          ...template,
+        })),
+      }),
+    };
+    const service = new AppointmentsService(
+      { client } as any,
+      undefined as any,
+      whatsapp as any,
+      undefined as any,
+      undefined as any,
+      settings as any,
+    );
+    return { service, enqueued, updates, calls };
+  }
+
+  it('mantém toda automação desligada quando a empresa nunca autorizou', async () => {
+    const settings = new NotificationSettingsService({
+      client: {
+        setting: {
+          findUnique: async () => null,
+        },
+      },
+    } as any);
+
+    assert.deepEqual(await settings.get('company-a'), {
+      confirmation: false,
+      cancellation: false,
+      reminder: false,
+      followUp: false,
+      notifyProfessional: false,
+    });
+  });
+
+  it('renderiza exatamente o padrão carinhoso com amanhã e hora local', () => {
+    const variables = confirmationTemplateVariables(
+      {
+        companyName: 'La Belle de Jour',
+        timezone: 'America/Sao_Paulo',
+        customerName: 'Tais Silva',
+        serviceNames: ['cabelo'],
+        start: new Date('2026-07-30T19:00:00.000Z'),
+      },
+      new Date('2026-07-29T12:00:00.000Z'),
+    );
+    const message = renderConfirmationTemplate(
+      BUILTIN_CONFIRMATION_TEMPLATES[0].message,
+      variables,
+    );
+
+    assert.equal(
+      message,
+      [
+        'Olá, Tais! 💕',
+        'Seu horário foi marcado com sucesso para amanhã às 16 horas, para o serviço de cabelo.',
+        '',
+        'Agradecemos a preferência, é sempre um prazer tê-la conosco e cuidar da sua beleza. ✨',
+        '',
+        'Nos vemos amanhã às 16hrs ✨🌸💖',
+      ].join('\n'),
+    );
+  });
+
+  it('bloqueia o envio quando a cliente retirou o opt-in', async () => {
+    const { service, enqueued, updates } = confirmationService({
+      appt: appointment({
+        customer: {
+          name: 'Tais',
+          phone: '5585999999999',
+          notificationsEnabled: true,
+          whatsappOptIn: false,
+        },
+      }),
+    });
+
+    await assert.rejects(
+      service.sendConfirmation('company-a', 'appt-1', {
+        authorize: true,
+        requestKey,
+      }),
+      /optou por não receber/,
+    );
+    assert.equal(enqueued.length, 0);
+    assert.equal(updates.length, 0);
+  });
+
+  it('grava a autorização específica e enfileira uma única confirmação', async () => {
+    const { service, enqueued, updates } = confirmationService();
+
+    const result = await service.sendConfirmation('company-a', 'appt-1', {
+      authorize: true,
+      requestKey,
+    });
+
+    assert.deepEqual(result, {
+      id: 'outbox-1',
+      status: 'pending',
+      deduplicated: false,
+    });
+    assert.equal(updates.length, 1);
+    assert.deepEqual(updates[0], {
+      where: { id: 'appt-1' },
+      data: { notifyConfirmation: true },
+    });
+    assert.equal(enqueued.length, 1);
+    assert.deepEqual((enqueued[0] as unknown[])[2], {
+      companyId: 'company-a',
+      customerId: 'customer-1',
+      appointmentId: 'appt-1',
+      kind: 'confirmation',
+      requestKey,
+    });
+  });
+
+  it('não duplica uma confirmação que ainda está na fila', async () => {
+    const { service, enqueued } = confirmationService({
+      previous: {
+        id: 'outbox-old',
+        status: 'pending',
+        inboxMessage: { status: 'pending' },
+      },
+    });
+
+    await assert.rejects(
+      service.sendConfirmation('company-a', 'appt-1', {
+        authorize: true,
+        requestKey,
+      }),
+      /já está na fila/,
+    );
+    assert.equal(enqueued.length, 0);
+  });
+
+  it('retry com a mesma requestKey devolve a linha existente sem novo envio', async () => {
+    const { service, enqueued, updates, calls } = confirmationService({
+      priorRequest: {
+        id: 'outbox-existing',
+        appointmentId: 'appt-1',
+        status: 'pending',
+      },
+    });
+
+    assert.deepEqual(
+      await service.sendConfirmation('company-a', 'appt-1', {
+        authorize: true,
+        requestKey,
+      }),
+      {
+        id: 'outbox-existing',
+        status: 'pending',
+        deduplicated: true,
+      },
+    );
+    assert.deepEqual(calls.slice(0, 2), [
+      'appointment-scope',
+      'request-key',
+    ]);
+    assert.equal(enqueued.length, 0);
+    assert.equal(updates.length, 0);
   });
 });

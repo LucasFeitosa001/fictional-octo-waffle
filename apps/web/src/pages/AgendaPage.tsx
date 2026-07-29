@@ -6,6 +6,7 @@ import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { ComandaDrawer } from '../components/ComandaDrawer';
+import { AppointmentConfirmationDrawer } from '../components/AppointmentConfirmationDrawer';
 import {
   ClienteBlocosLaterais,
   COLUNA_CLIENTE_W,
@@ -252,6 +253,9 @@ export function AgendaPage() {
     setIsNewOpen(true);
   }
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
+  const [confirmationDrawerTab, setConfirmationDrawerTab] = useState<
+    'message' | 'logs' | null
+  >(null);
   const [comandaOrder, setComandaOrder] = useState<OrderRow | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestion, setSuggestion] = useState('');
@@ -835,6 +839,7 @@ export function AgendaPage() {
   // Usado por TODOS os caminhos de fechamento (X, backdrop, Esc, "Ver cliente").
   async function closeDetail() {
     await persistNotes();
+    setConfirmationDrawerTab(null);
     setSelected(null);
     setShowSuggest(false);
     setShowCancel(false);
@@ -1938,6 +1943,29 @@ export function AgendaPage() {
                   <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendReminder ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
                 </span>
               </label>
+              <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+                {can('agenda:manage') && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setConfirmationDrawerTab('message')}
+                  >
+                    Enviar confirmação agora
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={can('agenda:manage') ? undefined : 'sm:col-span-2'}
+                  onClick={() => setConfirmationDrawerTab('logs')}
+                >
+                  Ver logs de envio
+                </Button>
+              </div>
+              <p className="text-xs text-muted-ink">
+                O envio manual exige autorização explícita e não cria cópia se a
+                mesma solicitação for repetida.
+              </p>
             </section>
 
             {/* OBSERVAÇÃO */}
@@ -2030,6 +2058,22 @@ export function AgendaPage() {
           </div>
         )}
       </Drawer>
+      <AppointmentConfirmationDrawer
+        appointmentId={selected?.id ?? null}
+        isOpen={confirmationDrawerTab !== null}
+        initialTab={confirmationDrawerTab ?? 'message'}
+        canSendConfirmation={can('agenda:manage')}
+        canManageTemplates={can('config:manage')}
+        onClose={() => setConfirmationDrawerTab(null)}
+        onAuthorized={() => {
+          setSendConfirmation(true);
+          setConfirmationTouched(false);
+          setSelected((current) =>
+            current ? { ...current, notifyConfirmation: true } : current,
+          );
+          void appts.refetch();
+        }}
+      />
     </div>
   );
 }
