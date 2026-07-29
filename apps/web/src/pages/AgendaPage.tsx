@@ -639,6 +639,41 @@ export function AgendaPage() {
     }
   }
 
+  /**
+   * Salva UM aviso na hora, com retorno na tela.
+   *
+   * Antes os três toggles só eram gravados quando o drawer fechava, e em
+   * silêncio: quem ligava "avisar ao marcar" não tinha como saber se pegou —
+   * daí o "não tá dando de salvar". Agora cada clique vai para a API, avisa, e
+   * volta ao estado anterior se falhar. Ver estudo 59.
+   */
+  async function salvarAviso(
+    campo: 'remindClient' | 'notifyConfirmation' | 'notifyCancellation',
+    valor: boolean,
+  ) {
+    if (!selected) return;
+    const anterior = selected[campo] ?? null;
+    // Otimista: o toggle já mostra o novo estado.
+    setSelected((s) => (s && s.id === selected.id ? { ...s, [campo]: valor } : s));
+    try {
+      const salvo = await api.patch<AppointmentRow>(`/appointments/${selected.id}`, {
+        [campo]: valor,
+      });
+      setSelected((s) => (s && s.id === salvo.id ? { ...s, [campo]: salvo[campo] } : s));
+      appts.refetch();
+      const nome =
+        campo === 'remindClient'
+          ? 'Lembrete'
+          : campo === 'notifyConfirmation'
+            ? 'Aviso de agendamento'
+            : 'Aviso de cancelamento';
+      flash(`${nome} ${valor ? 'ligado' : 'desligado'} para este agendamento.`);
+    } catch (err) {
+      setSelected((s) => (s && s.id === selected.id ? { ...s, [campo]: anterior } : s));
+      flash(err instanceof ApiClientError ? err.message : 'Não foi possível salvar o aviso.');
+    }
+  }
+
   /** Carrega a comanda existente para o drawer (sem criar nada). */
   async function buscarComanda(id: string): Promise<OrderRow | null> {
     try {
@@ -1899,7 +1934,11 @@ export function AgendaPage() {
             <section className="flex flex-col gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Ações</h3>
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>Avisar ao marcar/confirmar</span>
+                {/* O canal no rótulo: os TRÊS vão por WhatsApp, e como só o
+                    lembrete parecia ser do WhatsApp, o dono concluiu que
+                    confirmação e cancelamento iam por outro caminho. Ver
+                    estudo 59. */}
+                <span>Avisar ao marcar/confirmar <span className="text-muted-ink">· WhatsApp</span></span>
                 <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendConfirmation ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
                   <input
                     type="checkbox"
@@ -1907,6 +1946,7 @@ export function AgendaPage() {
                     onChange={(e) => {
                       setSendConfirmation(e.target.checked);
                       setConfirmationTouched(true);
+                      void salvarAviso('notifyConfirmation', e.target.checked);
                     }}
                     className="sr-only"
                   />
@@ -1914,7 +1954,7 @@ export function AgendaPage() {
                 </span>
               </label>
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>Avisar se cancelar</span>
+                <span>Avisar se cancelar <span className="text-muted-ink">· WhatsApp</span></span>
                 <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendCancellation ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
                   <input
                     type="checkbox"
@@ -1922,6 +1962,7 @@ export function AgendaPage() {
                     onChange={(e) => {
                       setSendCancellation(e.target.checked);
                       setCancellationTouched(true);
+                      void salvarAviso('notifyCancellation', e.target.checked);
                     }}
                     className="sr-only"
                   />
@@ -1929,7 +1970,10 @@ export function AgendaPage() {
                 </span>
               </label>
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>Enviar lembrete</span>
+                <span>
+                  Enviar lembrete 24h/2h antes{' '}
+                  <span className="text-muted-ink">· WhatsApp</span>
+                </span>
                 <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendReminder ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
                   <input
                     type="checkbox"
@@ -1937,6 +1981,7 @@ export function AgendaPage() {
                     onChange={(e) => {
                       setSendReminder(e.target.checked);
                       setReminderTouched(true);
+                      void salvarAviso('remindClient', e.target.checked);
                     }}
                     className="sr-only"
                   />

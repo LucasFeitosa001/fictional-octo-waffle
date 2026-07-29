@@ -178,6 +178,11 @@ export class AppointmentsService {
         items: true,
         statusHistory: true,
         order: { select: { id: true, number: true, status: true } },
+        // Cliente e profissional: sem eles o deep-link do sino
+        // (/agenda?appointmentId=…) abria o drawer com "Sem cliente" e "Sem
+        // telefone" num agendamento que TEM cliente. Ver estudo 59.
+        customer: true,
+        professional: true,
       },
     });
     if (!found) throw new NotFoundException('Agendamento não encontrado');

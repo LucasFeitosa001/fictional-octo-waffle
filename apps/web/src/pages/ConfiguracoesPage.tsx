@@ -263,28 +263,33 @@ const AUTOMATION_OPTIONS: {
   label: string;
   description: string;
 }[] = [
+  // Os quatro avisos ao cliente saem TODOS por WhatsApp. Os rótulos antigos só
+  // diziam o canal no lembrete, e o dono concluiu que confirmação e cancelamento
+  // iam por outro meio. Também deixa explícito que LEMBRETE é antes e FOLLOW-UP é
+  // depois — são coisas diferentes pelo mesmo canal. Ver estudo 59.
   {
     id: 'confirmation',
-    label: 'Confirmação de agendamento',
+    label: 'Agendamento marcado/confirmado · WhatsApp',
     description:
-      'Padrão para novos agendamentos. Pode ser ligado ou desligado em cada agendamento.',
+      'Mensagem ao cliente quando o agendamento é criado e quando é confirmado. Padrão para novos agendamentos; pode ser ligado ou desligado em cada um.',
   },
   {
     id: 'cancellation',
-    label: 'Cancelamento',
+    label: 'Agendamento cancelado · WhatsApp',
     description:
-      'Padrão para novos agendamentos. Pode ser ligado ou desligado em cada agendamento.',
+      'Mensagem ao cliente quando o agendamento é cancelado. Padrão para novos agendamentos; pode ser ligado ou desligado em cada um.',
   },
   {
     id: 'reminder',
-    label: 'Lembrete (24h/2h antes)',
-    description: 'Lembrete automático ao cliente antes do atendimento.',
+    label: 'Lembrete ANTES do atendimento (24h/2h) · WhatsApp',
+    description:
+      'Avisa o cliente na véspera e duas horas antes. Não confundir com o follow-up, que é depois.',
   },
   {
     id: 'followUp',
-    label: 'Follow-up pós-atendimento',
+    label: 'Follow-up DEPOIS do atendimento · WhatsApp',
     description:
-      'Lembrete de retorno após o atendimento. Personalize a mensagem, o tempo e a recorrência na seção abaixo.',
+      'Convite de retorno enviado dias depois do atendimento. O prazo, a recorrência e o texto ficam na seção abaixo.',
   },
   {
     id: 'notifyProfessional',
