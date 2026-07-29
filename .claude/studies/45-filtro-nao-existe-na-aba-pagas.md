@@ -36,6 +36,19 @@ Tirar o `FilterAside` de dentro do ramo e montá-lo para Pagas e Resumidas (Deta
 coluna de filtros, `ComissoesDetalhadasView.tsx`). Estrutura: um contêiner `md:flex` comum,
 com o painel à esquerda e o conteúdo da aba à direita.
 
+## Onde ficou depois da correção (caminhos completos, conferidos)
+
+Os números acima são de ANTES do conserto. Depois dele:
+
+- `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx:118` — `const [filterOpen, setFilterOpen]`
+- `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx:149` — `openFilters()`
+- `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx:682` — `painelFiltros`, agora numa
+  variável fora dos ramos, com `<FilterAside open={filterOpen} desktopOnly breakpoint="md">`
+- `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx:797` / `:810` / `:878` — os três ramos
+  (Detalhadas · Pagas · Resumidas); o painel é montado em `:815` e `:881`
+- `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx:985` — o bottom-sheet do celular, fora dos
+  ramos (era por isso que no celular já funcionava)
+
 ## Arquivos tocados
 
 - `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx`

@@ -11,6 +11,7 @@ import { ValeModal } from '../../components/ValeModal';
 import { JustificativaDialog } from '../../components/JustificativaDialog';
 import { AppTabs } from '../../components/AppTabs';
 import { ComissoesDetalhadasView } from './ComissoesDetalhadasView';
+import { ComissoesListaMobile } from './ComissoesListaMobile';
 import { COMMISSION_TABS, COMMISSION_TABS_MOBILE, commissionTabPath } from './tabs';
 import { SalonPayDrawer } from '../../components/SalonPayDrawer';
 import { PagarComissoesMenu } from '../../components/PagarComissoesMenu';
@@ -252,6 +253,13 @@ export function ComissoesResumoPage() {
     () => new Set(payableRows.map((r) => r.professionalId)),
     [payableRows],
   );
+  /**
+   * Linhas da aba "Comissões em aberto" no celular. Recorte por `openCount`, e
+   * não por `liquido > 0`: quem tem comissão em aberto inteiramente consumida
+   * por vales fica com líquido zero e MESMO ASSIM precisa aparecer — some da
+   * lista e o salão não entende para onde foi a comissão daquela pessoa.
+   */
+  const linhasEmAberto = useMemo(() => rows.filter((r) => r.openCount > 0), [rows]);
   // Mantém só seleções ainda pagáveis (evita "fantasmas" após refetch).
   const selectedPayable = useMemo(
     () => payableRows.filter((r) => selected.has(r.professionalId)),
@@ -626,7 +634,12 @@ export function ComissoesResumoPage() {
           </Select>
         </Field>
 
-        <Field label="Status">
+        {/* Status só no DESKTOP. No celular a aba já É o status ("Comissões em
+            aberto" / "Comissões pagas"), então este campo ou contradiz a aba ou
+            aparece vazio: na aba de em aberto o valor de `status` é
+            'detalhadas', que não está em STATUS_OPTIONS, e o select vinha em
+            branco. Ver estudo 47. */}
+        <Field label="Status" className={isMobile ? 'hidden' : undefined}>
           <Select
             aria-label="Status"
             selectedKey={status || ''}
@@ -729,10 +742,12 @@ export function ComissoesResumoPage() {
       </div>
 
       {/* Barra de período (clicável — abre o drawer de filtros).
-          Em "Detalhadas" ela não existe: o período mora na própria coluna de
-          filtros daquela tela, como no Belasis. Duas barras de período na mesma
-          tela é convite para o salão filtrar numa e ler a outra. */}
-      {!isDetalhadas && (
+          Em "Detalhadas" ela não existe NO DESKTOP: lá o período mora na coluna
+          de filtros da própria tela, como no Belasis, e duas barras na mesma
+          tela é convite para o salão filtrar numa e ler a outra. No celular
+          aquela coluna não é montada (a aba lista direto), então sem esta barra
+          não sobraria nenhum controle de período visível. */}
+      {(!isDetalhadas || isMobile) && (
         <button
           type="button"
           onClick={openFilters}
@@ -744,7 +759,13 @@ export function ComissoesResumoPage() {
       )}
 
       {/* Cards coloridos de status (mobile-first: empilhados; desktop: 3 colunas).
-          O Belasis não os tem em "Detalhadas" — lá a leitura é item a item. */}
+          O Belasis não os tem em "Detalhadas" — lá a leitura é item a item.
+
+          NO CELULAR eles não são clicáveis, e sem `onClick` o rodapé "Ver
+          detalhes" nem é desenhado (`KpiCard`). O link levava de volta para a
+          mesma tela — "Comissões em aberto" apontava para Resumidas, que é onde
+          o card já está —, e quem quer a lista tem as abas logo acima, com nome.
+          A referência (`commissions-summary/mobile.html`) também é só card. */}
       <div className={`mb-4 grid-cols-1 gap-3 sm:grid-cols-3 ${isDetalhadas ? 'hidden' : 'grid'}`}>
         <KpiCard
           label="Comissões em aberto"
@@ -752,7 +773,7 @@ export function ComissoesResumoPage() {
           color={CARD_COLORS.open}
           tooltip="Comissões geradas e ainda não pagas ao profissional."
           loading={overview.isLoading}
-          onClick={() => navigate('/comissoes/em-aberto')}
+          onClick={isMobile ? undefined : () => navigate('/comissoes/em-aberto')}
         />
         <KpiCard
           label="Comissões pagas"
@@ -760,7 +781,7 @@ export function ComissoesResumoPage() {
           color={CARD_COLORS.paid}
           tooltip="Comissões já quitadas no período filtrado."
           loading={overview.isLoading}
-          onClick={() => navigate('/comissoes/pagas')}
+          onClick={isMobile ? undefined : () => navigate('/comissoes/pagas')}
         />
         <KpiCard
           label="Comissões a liberar"
@@ -768,9 +789,30 @@ export function ComissoesResumoPage() {
           color={CARD_COLORS.release}
           tooltip={TO_RELEASE_TOOLTIP}
           loading={overview.isLoading}
-          onClick={() => navigate('/comissoes/em-aberto')}
+          onClick={isMobile ? undefined : () => navigate('/comissoes/em-aberto')}
         />
       </div>
+
+      {/* Tarja do filtro ativo (celular). Sem ela, escolher alguém no drawer de
+          Filtros fazia a lista encolher sem dizer por quê — e "de padrão não vem
+          filtrado ninguém" só se sustenta se dá para ver quando ALGUÉM está. */}
+      {isMobile && professionalId && (
+        <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2">
+          <span className="min-w-0 truncate text-sm text-foreground">
+            Filtrando por{' '}
+            <span className="font-semibold">
+              {profOptions.find((o) => o.id === professionalId)?.name ?? 'profissional'}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setProfessionalId('')}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+          >
+            <IconX size={14} /> Limpar
+          </button>
+        </div>
+      )}
 
       {/* Barra de ação de pagamento em lote — aparece quando há seleção. */}
       {!isPaidTab && selectedPayable.length > 0 && (
@@ -795,18 +837,45 @@ export function ComissoesResumoPage() {
       {/* ABA PAGAS: primeiro os lançamentos pagos por profissional (inclusive
           histórico importado), depois os recibos/pagamentos registrados. */}
       {isDetalhadas ? (
-        /* Tela própria: escolha do profissional em cartões e, depois, o
-           lançamento ITEM A ITEM. Não é a tabela de "Resumidas" com outro
-           rótulo — essa era exatamente a reclamação. */
-        <ComissoesDetalhadasView
-          from={from}
-          to={to}
-          onFromChange={setFrom}
-          onToChange={setTo}
-          professionalId={professionalId}
-          onProfessionalChange={setProfessionalId}
-          onPay={(row, rail) => abrirPagamento([row], rail)}
-        />
+        isMobile ? (
+          /* CELULAR: a aba se chama "Comissões em aberto" e mostra as em aberto.
+             Antes montava a tela do desktop, cujo primeiro estado é um porteiro
+             ("escolha o profissional") — abrir a aba e não ver comissão nenhuma
+             era o defeito. Escolher alguém virou filtro opcional, no drawer. */
+          <div className="min-w-0">
+            {summary.isLoading ? (
+              <LoadingState />
+            ) : summary.isError ? (
+              <ErrorState onRetry={() => summary.refetch()} />
+            ) : linhasEmAberto.length === 0 ? (
+              <EmptyState
+                icon={<IconPercent size={32} />}
+                title="Nenhuma comissão em aberto"
+                description="Ajuste o período nos filtros ou finalize comandas para gerar comissões."
+              />
+            ) : (
+              <ComissoesListaMobile
+                rows={linhasEmAberto}
+                variante="aberto"
+                onAbrir={setDetailFor}
+                onPagar={payOne}
+              />
+            )}
+          </div>
+        ) : (
+          /* Tela própria: escolha do profissional em cartões e, depois, o
+             lançamento ITEM A ITEM. Não é a tabela de "Resumidas" com outro
+             rótulo — essa era exatamente a reclamação. */
+          <ComissoesDetalhadasView
+            from={from}
+            to={to}
+            onFromChange={setFrom}
+            onToChange={setTo}
+            professionalId={professionalId}
+            onProfessionalChange={setProfessionalId}
+            onPay={(row, rail) => abrirPagamento([row], rail)}
+          />
+        )
       ) : isPaidTab ? (
         /* Mesmo contêiner da Resumidas: painel à esquerda, conteúdo à direita.
            Antes o painel não existia neste ramo e o clique no período não fazia
@@ -815,16 +884,19 @@ export function ComissoesResumoPage() {
           {painelFiltros}
           <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
+            {/* Título e contagem na MESMA linha, legenda embaixo: com a legenda
+                dentro do bloco da esquerda ela quebrava em duas linhas no
+                celular e passava por baixo do "1 resultado(s)". */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-foreground">
                   Comissões pagas por profissional
                 </h3>
-                <span className="text-xs text-muted">
-                  Toque em uma profissional para ver cada lançamento
-                </span>
+                <span className="shrink-0 text-xs text-muted">{rows.length} resultado(s)</span>
               </div>
-              <span className="text-xs text-muted">{rows.length} resultado(s)</span>
+              <span className="text-xs text-muted">
+                Toque em uma profissional para ver cada lançamento
+              </span>
             </div>
 
             {summary.isLoading ? (
@@ -837,6 +909,11 @@ export function ComissoesResumoPage() {
                 title="Nenhuma comissão paga no período"
                 description="Ajuste os filtros para consultar outro período."
               />
+            ) : isMobile ? (
+              /* Cartão compacto: o `DataTable` no celular vira uma linha por
+                 COLUNA, e com as nove colunas do resumo cada profissional virava
+                 um bloco de nove linhas. */
+              <ComissoesListaMobile rows={rows} variante="pagas" onAbrir={setDetailFor} />
             ) : (
               <DataTable
                 aria-label="Comissões pagas por profissional"
@@ -864,6 +941,8 @@ export function ComissoesResumoPage() {
                 title="Nenhum recibo de pagamento no período"
                 description="As comissões importadas aparecem acima. Novos pagamentos gerarão recibos aqui."
               />
+            ) : isMobile ? (
+              <PagamentosListaMobile rows={paymentRows} onExcluir={setDeletingPayment} />
             ) : (
               <DataTable
                 aria-label="Histórico de pagamentos de comissão"
@@ -881,30 +960,14 @@ export function ComissoesResumoPage() {
           {painelFiltros}
           {/* Resumo por profissional (data-wiring preservado). */}
           {/* NO CELULAR a página é só os cards de destaque: a referência não tem
-              tabela nenhuma no mobile (`grep -c '<table'` = 0 nas três capturas).
+              tabela nenhuma no mobile (`grep -c '<table'` = 0 nas três capturas)
+              e `commissions-summary/mobile.html` termina no terceiro card.
               Aqui a lista por profissional virava um cartão de nove linhas por
-              pessoa, e quatro profissionais já enchiam a tela de rolagem. A
-              escolha do profissional passa a acontecer no drawer de Filtros, e o
-              detalhe abre em drawer. */}
-          {isMobile ? (
-            <div className="min-w-0 flex-1">
-              <button
-                type="button"
-                onClick={openFilters}
-                className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-foreground ${CARD_CLASS}`}
-              >
-                <IconFilter size={16} />
-                {professionalId
-                  ? 'Trocar profissional'
-                  : 'Escolher profissional para ver as comissões'}
-              </button>
-              {professionalId && (
-                <p className="mt-2 text-center text-xs text-muted">
-                  Toque de novo em Filtros para escolher outra.
-                </p>
-              )}
-            </div>
-          ) : (
+              pessoa. O botão "Escolher profissional para ver as comissões" que
+              ficava neste lugar saiu: era o mesmo porteiro da aba "em aberto", e
+              o filtro já está na barra de período acima e na ação Filtros da
+              barra de baixo. As comissões em si estão nas outras duas abas. */}
+          {isMobile ? null : (
           <div className="min-w-0 flex-1 rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
             {/* Linha de período do Belasis ("Período: 19 jun, 2026 até 19 jul, 2026").
                 Deixa explícito o recorte a que os números se referem — sem ela,
@@ -1021,12 +1084,12 @@ export function ComissoesResumoPage() {
                       avatarUrl={p.avatarUrl}
                       selecionado={professionalId === p.id}
                       onClick={() => {
+                        // SÓ FILTRA. Antes daqui saía também um
+                        // `setDetailFor(...)`, e quem queria apenas restringir a
+                        // lista caía direto numa terceira tela. O detalhe abre
+                        // pelo toque no cartão da lista, que é o lugar dele.
                         setProfessionalId(p.id);
                         setFilterOpen(false);
-                        // Abre o detalhamento da profissional escolhida — é o
-                        // "vai abrindo os drawers" do fluxo no celular.
-                        const linha = rows.find((r) => r.professionalId === p.id);
-                        if (linha) setDetailFor(linha);
                       }}
                     />
                   </li>
@@ -1091,6 +1154,51 @@ export function ComissoesResumoPage() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * "Pagamentos realizados" no celular — recibo em cartão compacto.
+ *
+ * Pelo `DataTable`, cada recibo virava nove linhas (Data · Pagamento ·
+ * Profissional · Usuário · Comissões · Vales · Bonificações · Valor pago ·
+ * Excluir). O que se lê num recibo de relance é quem, quando e quanto.
+ */
+function PagamentosListaMobile({
+  rows,
+  onExcluir,
+}: {
+  rows: CommissionPayment[];
+  onExcluir: (p: CommissionPayment) => void;
+}) {
+  return (
+    <ul className="flex flex-col gap-2" aria-label="Histórico de pagamentos de comissão">
+      {rows.map((p) => (
+        <li
+          key={p.id}
+          className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-3"
+        >
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-medium text-foreground">{p.professional.name}</span>
+            <span className="truncate text-xs text-muted">
+              {formatDate(p.paidAt)} · {p.entriesCount} lançamento(s)
+              {p.advancesTotal > 0 && ` · vales −${formatMoney(p.advancesTotal)}`}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="font-semibold text-foreground">{formatMoney(p.amount)}</span>
+            <button
+              type="button"
+              onClick={() => onExcluir(p)}
+              aria-label={`Excluir pagamento de ${p.professional.name}`}
+              className="rounded-lg p-2 text-danger transition-colors hover:bg-danger/10"
+            >
+              <IconTrash size={16} />
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1414,9 +1522,18 @@ function Metric({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  /** Usado para esconder um campo numa das plataformas (ex.: Status no celular). */
+  className?: string;
+}) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className={`flex flex-col gap-1 ${className ?? ''}`}>
       <label className="text-xs font-medium text-muted">{label}</label>
       {children}
     </div>
