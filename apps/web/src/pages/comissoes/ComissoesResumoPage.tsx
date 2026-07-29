@@ -14,6 +14,8 @@ import { ComissoesDetalhadasView } from './ComissoesDetalhadasView';
 import { COMMISSION_TABS, commissionTabPath } from './tabs';
 import { SalonPayDrawer } from '../../components/SalonPayDrawer';
 import { PagarComissoesMenu } from '../../components/PagarComissoesMenu';
+import { ProfissionalCard } from '../../components/ProfissionalCard';
+import { InlineToggle } from '../../components/InlineToggle';
 import { useSalonPay } from '../../lib/queries/salonpay';
 import {
   IconChevron,
@@ -114,6 +116,9 @@ export function ComissoesResumoPage() {
   const [status, setStatus] = useState(routeStatus);
   const [detailFor, setDetailFor] = useState<CommissionSummaryRow | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  // "Mostrar comissões anteriores": solta o limite INICIAL do período, para a
+  // comissão antiga ainda em aberto não sumir da tela e ser esquecida.
+  const [mostrarAnteriores, setMostrarAnteriores] = useState(false);
   const isMobile = useIsMobile();
 
   // Mantém as URLs diretas/abas sincronizadas. Antes, abrir
@@ -157,7 +162,7 @@ export function ComissoesResumoPage() {
   // que o botão não pague comissão já quitada são os campos `*Aberta` da linha,
   // não o recorte da consulta.
   const summary = useCommissionSummary({
-    from: from || undefined,
+    from: mostrarAnteriores ? undefined : from || undefined,
     to: to || undefined,
     professionalId: professionalId || undefined,
     status: statusFiltro || undefined,
@@ -877,6 +882,31 @@ export function ComissoesResumoPage() {
             <div className="mt-4 flex flex-col gap-2">{filterFooter}</div>
           </FilterAside>
           {/* Resumo por profissional (data-wiring preservado). */}
+          {/* NO CELULAR a página é só os cards de destaque: a referência não tem
+              tabela nenhuma no mobile (`grep -c '<table'` = 0 nas três capturas).
+              Aqui a lista por profissional virava um cartão de nove linhas por
+              pessoa, e quatro profissionais já enchiam a tela de rolagem. A
+              escolha do profissional passa a acontecer no drawer de Filtros, e o
+              detalhe abre em drawer. */}
+          {isMobile ? (
+            <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={openFilters}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-foreground ${CARD_CLASS}`}
+              >
+                <IconFilter size={16} />
+                {professionalId
+                  ? 'Trocar profissional'
+                  : 'Escolher profissional para ver as comissões'}
+              </button>
+              {professionalId && (
+                <p className="mt-2 text-center text-xs text-muted">
+                  Toque de novo em Filtros para escolher outra.
+                </p>
+              )}
+            </div>
+          ) : (
           <div className="min-w-0 flex-1 rounded-2xl p-0 md:p-4 !border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
             {/* Linha de período do Belasis ("Período: 19 jun, 2026 até 19 jul, 2026").
                 Deixa explícito o recorte a que os números se referem — sem ela,
@@ -946,10 +976,14 @@ export function ComissoesResumoPage() {
               </>
             )}
           </div>
+          )}
         </div>
       )}
 
-      {/* Filtrar mobile: bottom-sheet (no desktop é o FilterAside acima). */}
+      {/* Filtrar mobile: bottom-sheet (no desktop é o FilterAside acima).
+          No celular ele carrega TAMBÉM a escolha do profissional em cartões —
+          é assim que a referência resolve, já que a tabela por profissional não
+          existe no mobile (as capturas não têm tabela nenhuma). */}
       {isMobile && (
         <Drawer
           isOpen={filterOpen}
@@ -959,6 +993,48 @@ export function ComissoesResumoPage() {
           placement="bottom"
         >
           {filterBody}
+
+          <div className="mt-4 flex flex-col gap-3">
+            <InlineToggle
+              checked={mostrarAnteriores}
+              onChange={setMostrarAnteriores}
+              label="Mostrar comissões anteriores"
+            />
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">Profissional</span>
+              <button
+                type="button"
+                onClick={() => setProfessionalId('')}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Selecionar tudo
+              </button>
+            </div>
+
+            <ul className="flex flex-col gap-2">
+              {(professionals.data?.data ?? [])
+                .filter((p) => p.active !== false)
+                .map((p) => (
+                  <li key={p.id}>
+                    <ProfissionalCard
+                      nome={p.name}
+                      telefone={p.phone}
+                      avatarUrl={p.avatarUrl}
+                      selecionado={professionalId === p.id}
+                      onClick={() => {
+                        setProfessionalId(p.id);
+                        setFilterOpen(false);
+                        // Abre o detalhamento da profissional escolhida — é o
+                        // "vai abrindo os drawers" do fluxo no celular.
+                        const linha = rows.find((r) => r.professionalId === p.id);
+                        if (linha) setDetailFor(linha);
+                      }}
+                    />
+                  </li>
+                ))}
+            </ul>
+          </div>
         </Drawer>
       )}
 

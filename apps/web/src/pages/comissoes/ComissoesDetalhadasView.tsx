@@ -25,7 +25,8 @@ import { HelpTooltip } from '../../components/HelpTooltip';
 import { InlineToggle } from '../../components/InlineToggle';
 import { IconReceipt, IconTrash, IconUser } from '../../components/icons';
 import { PagarComissoesMenu } from '../../components/PagarComissoesMenu';
-import { formatDate, formatMoney, formatPhone } from '../../lib/format';
+import { ProfissionalCard } from '../../components/ProfissionalCard';
+import { formatDate, formatMoney } from '../../lib/format';
 import { useProfessionals } from '../../lib/queries';
 import {
   useCommissionAdvances,
@@ -270,21 +271,12 @@ export function ComissoesDetalhadasView({
           <ul className="flex flex-col gap-2">
             {lista.map((p) => (
               <li key={p.id}>
-                <button
-                  type="button"
+                <ProfissionalCard
+                  nome={p.name}
+                  telefone={p.phone}
+                  avatarUrl={p.avatarUrl}
                   onClick={() => onProfessionalChange(p.id)}
-                  className={`flex w-full items-center gap-3 text-left transition-colors hover:border-primary/40 hover:bg-cream ${CARD_CLASS}`}
-                >
-                  <Avatar name={p.name} url={p.avatarUrl} />
-                  <div className="flex min-w-0 flex-col">
-                    <span className="truncate font-medium uppercase text-foreground">
-                      {p.name}
-                    </span>
-                    <span className="truncate text-xs text-muted">
-                      {p.phone ? formatPhone(p.phone) : 'Sem telefone'}
-                    </span>
-                  </div>
-                </button>
+                />
               </li>
             ))}
           </ul>
@@ -460,27 +452,6 @@ export function ComissoesDetalhadasView({
   );
 }
 
-function Avatar({ name, url }: { name: string; url?: string | null }) {
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt=""
-        className="h-10 w-10 shrink-0 rounded-full object-cover"
-        loading="lazy"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cream text-muted"
-      title={name}
-    >
-      <IconUser size={20} />
-    </span>
-  );
-}
 
 function Total({
   label,
