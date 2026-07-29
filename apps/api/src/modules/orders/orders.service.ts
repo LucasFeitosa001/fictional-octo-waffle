@@ -145,6 +145,10 @@ export class OrdersService {
         customer: true,
         professional: true,
         statusHistory: { orderBy: { at: 'asc' }, include: { byUser: true } },
+        // Agendamento de origem: o vínculo só funcionava num sentido — da
+        // agenda dava para chegar na comanda, da comanda não se voltava.
+        // Ver estudo 56.
+        appointment: { select: { id: true, start: true, status: true } },
       },
     });
     if (!found) throw new NotFoundException('Comanda não encontrada');
@@ -271,7 +275,61 @@ export class OrdersService {
         // `reused` diz à tela que NADA foi criado — sem isso o front mostrava
         // "Comanda aberta" toda vez e o dono lia como "criou outra". Ver estudo 52.
         if (existing && existing.status !== 'canceled') {
-          return { ...existing, reused: true };
+          // O agendamento pode ter mudado depois (trocou serviço/profissional).
+          // Enquanto a comanda está ABERTA e SEM PAGAMENTO, ela é só o reflexo
+          // do agendamento: os itens de agora substituem os dela. Com pagamento
+          // ou finalizada, não se toca — devolve marcando `divergente` para a
+          // tela avisar em vez de mostrar o serviço velho calada. Ver estudo 56.
+          const itensPedidos = preparedItems.map((c) => ({
+            kind: c.item.kind,
+            refId: c.item.refId,
+            professionalId: c.item.professionalId ?? null,
+            quantity: c.quantity.toString(),
+            unitPrice: c.unitPrice.toString(),
+          }));
+          const itensAtuais = existing.items.map((i) => ({
+            kind: i.kind,
+            refId: i.refId,
+            professionalId: i.professionalId ?? null,
+            quantity: i.quantity.toString(),
+            unitPrice: i.unitPrice.toString(),
+          }));
+          const mudou =
+            itensPedidos.length > 0 &&
+            JSON.stringify(itensPedidos) !== JSON.stringify(itensAtuais);
+          if (!mudou) return { ...existing, reused: true };
+
+          const pagamentos = await tx.orderPayment.count({
+            where: { orderId: existing.id, status: { not: 'reversed' } },
+          });
+          if (existing.status !== 'open' || pagamentos > 0) {
+            return { ...existing, reused: true, divergente: true };
+          }
+
+          await tx.orderItem.deleteMany({ where: { orderId: existing.id } });
+          await tx.orderItem.createMany({
+            data: preparedItems.map((c) => ({
+              orderId: existing.id,
+              kind: c.item.kind,
+              refId: c.item.refId,
+              professionalId: c.item.professionalId,
+              quantity: c.quantity,
+              unitPrice: c.unitPrice,
+              grossValue: c.grossValue,
+              discount: c.discount,
+            })),
+          });
+          const atualizada = await tx.order.update({
+            where: { id: existing.id },
+            data: {
+              grossTotal,
+              discountTotal,
+              netTotal,
+              notes: dto.notes ?? existing.notes,
+            },
+            include: { items: true },
+          });
+          return { ...atualizada, reused: true, sincronizada: true };
         }
         if (existing) {
           await tx.order.update({
@@ -1004,6 +1062,23 @@ export class OrdersService {
         },
         include: { items: true, payments: true },
       });
+
+      // Faturou a comanda = o atendimento aconteceu: o agendamento de origem
+      // sai de "Confirmado". Sem isto a grade acumulava agendamentos pagos como
+      // se ainda fossem acontecer — foi o que o estudo 55 teve de limpar em
+      // 1.266 registros. Escrita DIRETA de propósito: pelo `setStatus` da API
+      // dispararia `enqueueFollowUp` e o cliente receberia a mensagem de
+      // pós-atendimento duas vezes (o finish já agenda a dele). Ver estudo 56.
+      if (atualizada.appointmentId) {
+        await tx.appointment.updateMany({
+          where: {
+            id: atualizada.appointmentId,
+            companyId,
+            status: { notIn: ['canceled', 'finished'] },
+          },
+          data: { status: 'finished' },
+        });
+      }
       // Vai junto na resposta para a tela AVISAR. Antes o item sem percentual
       // era pulado em silêncio e o salão faturava esperando comissão.
       return Object.assign(atualizada, { commissionSkipped: comissoes.semPercentual });

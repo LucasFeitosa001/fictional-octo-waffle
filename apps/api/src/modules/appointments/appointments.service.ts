@@ -659,6 +659,12 @@ export class AppointmentsService {
     const current = await this.findOne(companyId, id, scopeProfessionalId);
     const statusChanged = dto.status !== current.status;
 
+    // Cancelar o agendamento com comanda viva deixaria receita presa num
+    // atendimento que "não aconteceu". Mesma recusa do excluir. Ver estudo 56.
+    if (statusChanged && dto.status === AppointmentStatus.canceled) {
+      await this.assertSemComandaViva(companyId, id, 'cancelar');
+    }
+
     // Re-entering an ACTIVE status (e.g. reactivating a canceled appointment) makes
     // it occupy the agenda again — re-check for overlaps to prevent double-booking
     // by way of a status flip.
@@ -858,12 +864,38 @@ export class AppointmentsService {
     }
   }
 
+  /**
+   * Recusa a operação quando o agendamento tem comanda NÃO cancelada.
+   * Usado por excluir e por cancelar — ver estudo 56.
+   */
+  private async assertSemComandaViva(
+    companyId: string,
+    id: string,
+    acao: 'excluir' | 'cancelar',
+  ) {
+    const comanda = await this.prisma.client.order.findFirst({
+      where: { companyId, appointmentId: id, status: { not: 'canceled' } },
+      select: { number: true, status: true },
+    });
+    if (!comanda) return;
+    const situacao = comanda.status === 'finished' ? 'já foi faturada' : 'está aberta';
+    throw new ConflictException(
+      `Este agendamento tem a comanda #${comanda.number}, que ${situacao}. ` +
+        `Cancele ou exclua a comanda antes de ${acao} o agendamento.`,
+    );
+  }
+
   async remove(
     companyId: string,
     id: string,
     scopeProfessionalId?: string,
   ) {
     await this.findOne(companyId, id, scopeProfessionalId);
+    // Comanda é documento com dinheiro: apagar o agendamento dela desligaria o
+    // vínculo em silêncio (FK onDelete: SetNull) e a comanda ficaria órfã — o
+    // histórico do cliente volta a duplicar a visita e ninguém fica sabendo.
+    // Quem quer apagar, cancela a comanda antes. Ver estudo 56.
+    await this.assertSemComandaViva(companyId, id, 'excluir');
     // Cancel any pending reminders + custom warning before the appt is gone.
     void this.queues.cancelAppointmentReminders(id);
     void this.queues.cancelAppointmentCustomFollowUp(id);

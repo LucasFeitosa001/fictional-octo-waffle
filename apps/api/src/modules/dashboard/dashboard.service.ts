@@ -90,8 +90,10 @@ export class DashboardService {
           netTotal: true,
           date: true,
           professionalId: true,
-          // customerId alimenta o funil (ver computeFunnel).
+          // customerId + appointmentId alimentam o funil (ver computeFunnel):
+          // o vínculo manda, cliente+dia é reserva para o histórico importado.
           customerId: true,
+          appointmentId: true,
           items: {
             select: {
               kind: true,

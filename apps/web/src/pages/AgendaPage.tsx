@@ -611,7 +611,27 @@ export function AgendaPage() {
 
   // ── Per-appointment: create a comanda (order) from the appointment ────────
   // Cria order + serviços atomicamente antes de abrir a comanda para faturar.
+  /** Carrega a comanda existente para o drawer (sem criar nada). */
+  async function buscarComanda(id: string): Promise<OrderRow | null> {
+    try {
+      return await api.get<OrderRow>(`/orders/${id}`);
+    } catch {
+      return null;
+    }
+  }
+
   async function createComanda(a: AppointmentRow) {
+    // Comanda que já existe: ABRE, sem POST. Antes toda visita passava pela
+    // criação — o que exigia `comandas:create` só para consultar e ainda
+    // reenviava os itens. Ver estudo 56.
+    if (a.order && a.order.status !== 'canceled') {
+      const existente = await buscarComanda(a.order.id);
+      if (existente) {
+        setSelected(null);
+        setComandaOrder(existente);
+        return;
+      }
+    }
     try {
       // Salva a observação editada no drawer antes de gerar a comanda, e usa o
       // texto já persistido como notes da order (senão a edição se perderia).
@@ -635,8 +655,10 @@ export function AgendaPage() {
       });
       setSelected(null);
       setComandaOrder(order);
-    } catch {
-      flash('Erro ao criar comanda.');
+    } catch (err) {
+      // A mensagem da API dizia o motivo (403 de permissão, 409 de caixa
+      // fechado) e era trocada por um genérico. Ver estudo 56.
+      flash(err instanceof ApiClientError ? err.message : 'Erro ao criar comanda.');
     }
   }
 
@@ -1650,15 +1672,22 @@ export function AgendaPage() {
                 acessar, e o clique criava uma (outra a cada vez). Depois de
                 criada, o mesmo botão abre a MESMA comanda, com o número à
                 vista. Ver estudo 52. */}
-            <Button variant="primary" isDisabled={createOrder.isPending}
-              className="bg-[#25a244] hover:!bg-[#1e8438]"
-              onClick={() => createComanda(selected)}>
-              {selected.order && selected.order.status !== 'canceled'
-                ? `Acessar comanda #${selected.order.number}`
-                : createOrder.isPending
-                  ? 'Abrindo comanda…'
-                  : 'Abrir comanda'}
-            </Button>
+            {/* Sem `comandas:create` o botão de ABRIR some (criar é o que ele
+                faz). ACESSAR uma comanda que já existe continua para todo mundo
+                que enxerga a agenda — é leitura. Ver estudo 56. */}
+            {selected.order && selected.order.status !== 'canceled' ? (
+              <Button variant="primary" isDisabled={createOrder.isPending}
+                className="bg-[#25a244] hover:!bg-[#1e8438]"
+                onClick={() => createComanda(selected)}>
+                {`Acessar comanda #${selected.order.number}`}
+              </Button>
+            ) : can('comandas:create') ? (
+              <Button variant="primary" isDisabled={createOrder.isPending}
+                className="bg-[#25a244] hover:!bg-[#1e8438]"
+                onClick={() => createComanda(selected)}>
+                {createOrder.isPending ? 'Abrindo comanda…' : 'Abrir comanda'}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       >
