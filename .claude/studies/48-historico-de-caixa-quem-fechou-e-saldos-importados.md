@@ -137,7 +137,46 @@ Outras duas divergências do mesmo import:
 - O Belasis mantém caixas que **atravessam dias** (23→24/06, 03→04/07, 16→17/07); o import quebrou
   um caixa por dia. Por isso a numeração não bate (590 aqui × 573 lá).
 
-### Correção proposta (NÃO aplicada — mexe em dinheiro de cliente em produção)
+### 48.6 — Por que os nomes não vieram: NENHUM relatório exportado tem essa coluna
+
+Conferido nos 32 `.xls` que o dono baixou do Belasis (`/mnt/c/Users/Usuario/Downloads`, 18–19/07),
+lendo o cabeçalho de cada um. Os financeiros:
+
+```
+Fluxo de Caixa            Baixa · Descrição · Conta · Forma de pagamento · Taxa · Movimentação
+Extrato de Movimentações  Movimentação · Descrição · Histórico · Data vencimento · Data movimentação ·
+                          Forma de pagamento · Conta · Categoria · Valor
+Extrato de Contas         Data competência · Histórico · Vencimento · Pagamento/Baixa · Forma ·
+                          Conta · Categoria · Saldo anterior · Bruto · Taxa · Líquido · Saldo
+Recebimentos / Despesas   Histórico · Cliente|Fornecedor · Competência · Valor · Pago · Restante ·
+                          Forma · Conta · Categoria · Vencimento · Baixa/Pagamento
+```
+
+Nenhum tem usuário/responsável — e **não existe relatório de CAIXA** no pacote. Os caixas foram
+reconstruídos agrupando movimentos por dia; daí também vem "um caixa por dia" e "saldo inicial
+R$ 0,00" em todos.
+
+Que o Belasis sabe exportar "quem fez" está provado em outros relatórios do mesmo pacote:
+`Agendamentos excluídos` traz **"Excluído por"** e `Criação de Agendamento` traz **"Criado por"**.
+É o relatório de caixa que não existe na exportação.
+
+### Correção aplicada em 29/07/2026: os nomes
+
+Autorizado pelo dono (*"faça os nomes do historico de caixa ter o nome da Fatima"*). A empresa tem
+**um único usuário** (`Fátima Cabelos`, `contato@fatimacabelos.com.br`), e a captura do Belasis
+mostra `FATIMA LACERDA` nas duas colunas em todas as linhas — atribuir a ela é restaurar a origem,
+não inventar.
+
+```
+responsibleUserId preenchido em 588 caixas
+closedByUserId    preenchido em 587 caixas (só os fechados; o #590 está aberto e segue sem quem fechou)
+restaram sem: 0 e 0
+```
+
+O nome exibido é **"Fátima Cabelos"** (nome da CONTA), não "FATIMA LACERDA" (nome do profissional):
+o caixa aponta para `User`, e a `Professional` homônima é outro registro.
+
+### Correção NÃO aplicada — os saldos (mexe em dinheiro de cliente em produção)
 
 1. Apagar os 527 movimentos `description = 'Fechamento de caixa'` (eles não são despesa: são a
    contrapartida da própria conferência).
