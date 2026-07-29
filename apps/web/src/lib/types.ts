@@ -194,6 +194,11 @@ export interface AppointmentRow {
     professionalId?: string | null;
     price: string;
   }[];
+  /**
+   * Comanda já gerada por este agendamento (um por um). Quando existe, o botão
+   * do drawer ACESSA; quando não, ele ABRE. Ver estudo 52.
+   */
+  order?: { id: string; number: number; status: OrderStatus } | null;
 }
 
 /** Order as returned by the list endpoint (includes customer). */

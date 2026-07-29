@@ -15,6 +15,13 @@ export class CreateOrderDto {
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsDateString() date?: string;
+  /**
+   * Agendamento de origem. Com ele a criação vira IDEMPOTENTE: se aquele
+   * agendamento já tem comanda, o endpoint devolve a existente em vez de abrir
+   * outra — era assim que "Acessar comanda" criava uma comanda por clique.
+   * Ver estudo 52.
+   */
+  @IsOptional() @IsString() appointmentId?: string;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

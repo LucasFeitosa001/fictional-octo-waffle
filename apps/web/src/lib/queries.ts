@@ -262,6 +262,12 @@ export function useOrders(status?: string) {
 export interface CreateOrderBody {
   customerId?: string;
   professionalId?: string;
+  /**
+   * Agendamento de origem. Com ele o POST é idempotente: se o agendamento já
+   * tem comanda, o backend devolve a existente em vez de abrir outra — é o que
+   * faz "Acessar comanda" acessar de verdade. Ver estudo 52.
+   */
+  appointmentId?: string;
   /** ISO date/datetime for the comanda. Defaults to "today" server-side. */
   date?: string;
   notes?: string;

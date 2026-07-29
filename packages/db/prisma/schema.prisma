@@ -1193,6 +1193,7 @@ model Appointment {
   statusHistory AppointmentStatusHistory[]
   notifications AppointmentNotification[]
   review        Review?
+  order         Order?
 
   @@unique([companyId, legacyId])
   @@index([companyId])
@@ -1262,6 +1263,11 @@ model Order {
   netTotal       Decimal     @default(0) @db.Decimal(12, 2)
   notes          String?
   date           DateTime    @default(now())
+  // Agendamento que originou esta comanda. UNIQUE: é o que garante, no banco,
+  // uma comanda por agendamento — o botão "Acessar comanda" criava uma nova a
+  // cada clique porque não havia esse vínculo. SetNull: apagar o agendamento
+  // não pode levar a comanda junto. Ver estudo 52.
+  appointmentId  String?     @unique
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
   legacyId       String?
   legacySource   String?
@@ -1271,6 +1277,7 @@ model Order {
   company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer      Customer?            @relation(fields: [customerId], references: [id])
   professional  Professional?        @relation(fields: [professionalId], references: [id])
+  appointment   Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   items         OrderItem[]
   discounts     OrderDiscount[]
   payments      OrderPayment[]

@@ -618,6 +618,10 @@ export function AgendaPage() {
       const savedNotes = await persistNotes();
       const professionalId = a.professionalId ?? a.professional?.id ?? undefined;
       const order = await createOrder.mutateAsync({
+        // Vínculo com o agendamento: se já existe comanda dele, a API devolve
+        // a MESMA em vez de criar outra. Sem isto, cada clique em "Acessar
+        // comanda" abria uma comanda nova. Ver estudo 52.
+        appointmentId: a.id,
         customerId: a.customer?.id ?? a.customerId ?? undefined,
         professionalId,
         notes: savedNotes ?? a.notes ?? undefined,
@@ -1641,10 +1645,19 @@ export function AgendaPage() {
                 </div>
               )}
             </div>
+            {/* O rótulo diz o que o clique FAZ. Enquanto o agendamento não tem
+                comanda, "Acessar comanda" era promessa falsa — não havia o que
+                acessar, e o clique criava uma (outra a cada vez). Depois de
+                criada, o mesmo botão abre a MESMA comanda, com o número à
+                vista. Ver estudo 52. */}
             <Button variant="primary" isDisabled={createOrder.isPending}
               className="bg-[#25a244] hover:!bg-[#1e8438]"
               onClick={() => createComanda(selected)}>
-              Acessar comanda
+              {selected.order
+                ? `Acessar comanda #${selected.order.number}`
+                : createOrder.isPending
+                  ? 'Abrindo comanda…'
+                  : 'Abrir comanda'}
             </Button>
           </div>
         ) : null}

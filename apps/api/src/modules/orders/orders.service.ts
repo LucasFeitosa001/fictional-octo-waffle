@@ -246,6 +246,36 @@ export class OrdersService {
         SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:orders`}))
       `;
 
+      // Agendamento de origem: se ele JÁ tem comanda, devolve a existente. É o
+      // que faz "Acessar comanda" acessar em vez de criar mais uma a cada
+      // clique. Fica dentro do mesmo advisory lock por empresa, então dois
+      // cliques simultâneos não passam os dois — e o índice único da coluna é a
+      // rede de segurança no banco. Ver estudo 52.
+      if (dto.appointmentId) {
+        const appointment = await tx.appointment.findFirst({
+          where: { id: dto.appointmentId, companyId },
+          select: { id: true },
+        });
+        if (!appointment) throw new NotFoundException('Agendamento não encontrado');
+
+        const existing = await tx.order.findFirst({
+          where: { companyId, appointmentId: dto.appointmentId },
+          // Mesmo formato do retorno normal do create (abaixo), senão a tela
+          // receberia uma comanda sem itens ao "acessar" a existente.
+          include: { items: true },
+        });
+        // Comanda cancelada não serve de "existente": o agendamento precisa
+        // poder gerar outra. Nesse caso soltamos o vínculo da cancelada para o
+        // índice único não barrar a nova.
+        if (existing && existing.status !== 'canceled') return existing;
+        if (existing) {
+          await tx.order.update({
+            where: { id: existing.id },
+            data: { appointmentId: null },
+          });
+        }
+      }
+
       if (dto.customerId) {
         const customer = await tx.customer.findFirst({
           where: { id: dto.customerId, companyId, deletedAt: null },
@@ -283,6 +313,7 @@ export class OrdersService {
           number: (last?.number ?? 0) + 1,
           customerId: dto.customerId,
           professionalId: dto.professionalId,
+          appointmentId: dto.appointmentId,
           notes: dto.notes,
           date: dto.date ? new Date(dto.date) : new Date(),
           grossTotal,

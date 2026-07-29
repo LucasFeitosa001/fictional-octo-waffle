@@ -113,7 +113,15 @@ export class AppointmentsService {
 
     const data = await this.prisma.client.appointment.findMany({
       where,
-      include: { customer: true, professional: true, items: true },
+      include: {
+        customer: true,
+        professional: true,
+        items: true,
+        // Comanda já gerada por este agendamento. É o que permite a tela
+        // dizer "Acessar comanda #N" em vez de oferecer "acessar" o que não
+        // existe. Ver estudo 52.
+        order: { select: { id: true, number: true, status: true } },
+      },
       orderBy: { start: 'asc' },
     });
     return { data, page: 1, pageSize: data.length, total: data.length };
@@ -159,7 +167,11 @@ export class AppointmentsService {
           ? { professionalId: scopeProfessionalId }
           : {}),
       },
-      include: { items: true, statusHistory: true },
+      include: {
+        items: true,
+        statusHistory: true,
+        order: { select: { id: true, number: true, status: true } },
+      },
     });
     if (!found) throw new NotFoundException('Agendamento não encontrado');
     return found;

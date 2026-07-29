@@ -118,14 +118,23 @@ export function PagarComissaoDrawer({
     });
   }
 
-  // Valor a pagar por profissional (sempre ≥ 0), refletindo a fórmula Belasis.
+  /**
+   * Valor a pagar por profissional (sempre ≥ 0), pela fórmula do Belasis.
+   *
+   * Usa `comissaoAberta`/`bonusAberto`, NÃO `comissao`/`bonus`: estes últimos
+   * são o total do período e incluem o que já foi pago. Com eles, a Fátima
+   * aparecia com R$ 528,07 quando o backend quitaria R$ 462,00 — os R$ 66,07 de
+   * três lançamentos já pagos entravam de novo na conta. O `payItem` só toca em
+   * `status = 'open'`, então a tela prometia mais do que o pagamento registra.
+   * Ver estudo 51.
+   */
   function amountFor(row: CommissionSummaryRow): number {
     const list = advancesByProf.get(row.professionalId) ?? [];
     const checked = checkedByProf[row.professionalId];
     const advancesTotal = list
       .filter((a) => checked?.has(a.id))
       .reduce((s, a) => s + a.amount, 0);
-    const gross = row.comissao + row.bonus - advancesTotal;
+    const gross = row.comissaoAberta + row.bonusAberto - advancesTotal;
     return gross > 0 ? gross : 0;
   }
 
@@ -133,19 +142,23 @@ export function PagarComissaoDrawer({
   const loadingAdvances = advancesQuery.isLoading;
 
   // Quebra do LOTE para os cards de topo. Os vales contados são só os
-  // MARCADOS — o card tem que bater com o Líquido logo abaixo dele.
+  // MARCADOS — o card tem que bater com o Líquido logo abaixo dele. E as
+  // comissões são as EM ABERTO, pelo mesmo motivo de `amountFor`.
   const totais = useMemo(() => {
     let comissoes = 0;
     let bonus = 0;
     let vales = 0;
+    // Quanto do período já estava quitado — vira a nota explicativa.
+    let jaPago = 0;
     for (const row of rows) {
-      comissoes += row.comissao;
-      bonus += row.bonus;
+      comissoes += row.comissaoAberta;
+      bonus += row.bonusAberto;
+      jaPago += Math.max(0, row.comissao - row.comissaoAberta) + Math.max(0, row.bonus - row.bonusAberto);
       const list = advancesByProf.get(row.professionalId) ?? [];
       const checked = checkedByProf[row.professionalId];
       vales += list.filter((a) => checked?.has(a.id)).reduce((s, a) => s + a.amount, 0);
     }
-    return { comissoes, bonus, vales };
+    return { comissoes, bonus, vales, jaPago };
   }, [rows, advancesByProf, checkedByProf]);
 
   async function handleConfirm() {
@@ -251,6 +264,14 @@ export function PagarComissaoDrawer({
           <div className="rounded-xl border border-[var(--color-soft-border)] bg-white py-4 text-center">
             <div className="text-sm font-medium text-muted">Líquido</div>
             <div className="text-2xl font-bold text-data-income">{formatMoney(grandTotal)}</div>
+            {/* A lista mostra o período INTEIRO; aqui só o que ainda está em
+                aberto. Sem esta linha, ver 462,00 depois de ler 528,07 na
+                tabela parece erro de conta. */}
+            {totais.jaPago > 0.004 && (
+              <div className="mt-1 px-3 text-xs text-muted">
+                {formatMoney(totais.jaPago)} do período já foram pagos e não entram aqui.
+              </div>
+            )}
           </div>
 
           {/* SalonPay ainda não liquida sozinho — dizer isso aqui, e não depois. */}
@@ -379,14 +400,22 @@ export function PagarComissaoDrawer({
 
                   {/* Fórmula: Comissões − Vales + Bonificações = Valor a pagar */}
                   <div className="flex flex-col gap-1.5 rounded-lg bg-cream/60 p-3 text-sm">
-                    <FormulaLine label="Comissões" value={formatMoney(row.comissao)} icon={<IconReceipt size={14} />} />
+                    <FormulaLine
+                      label="Comissões"
+                      value={formatMoney(row.comissaoAberta)}
+                      icon={<IconReceipt size={14} />}
+                    />
                     <FormulaLine
                       label="Vales (deduzidos)"
                       value={`− ${formatMoney(deduzido)}`}
                       negative
                       icon={<IconWallet size={14} />}
                     />
-                    <FormulaLine label="Bonificações" value={`+ ${formatMoney(row.bonus)}`} icon={<IconGift size={14} />} />
+                    <FormulaLine
+                      label="Bonificações"
+                      value={`+ ${formatMoney(row.bonusAberto)}`}
+                      icon={<IconGift size={14} />}
+                    />
                     <div className="mt-1 flex items-center justify-between border-t border-[var(--color-soft-border)] pt-2">
                       <span className="text-sm font-semibold text-foreground">Valor a pagar</span>
                       <span className="text-base font-bold text-foreground">{formatMoney(valor)}</span>
