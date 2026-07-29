@@ -511,6 +511,11 @@ export function NewAppointmentModal({
     try {
       const validItems = items.filter((item) => item.serviceId);
       const order = await createOrder.mutateAsync({
+        // Amarra a comanda AO agendamento que acabou de nascer. Sem isto, criar
+        // "agendamento + comanda" de uma vez deixava os dois soltos: o drawer do
+        // agendamento voltava a oferecer "Abrir comanda" para algo que já tinha
+        // uma, e o próximo clique gerava a segunda. Ver estudo 52.
+        appointmentId: result.id,
         customerId: result.customerId,
         professionalId: primary.professionalId || undefined,
         notes: notes.trim() || undefined,
