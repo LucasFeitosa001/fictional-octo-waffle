@@ -4,7 +4,7 @@ import { Button, Chip, ListBox, Select } from '@heroui/react';
 import { DataTable, type Column } from '../../components/DataTable';
 import { Drawer } from '../../components/Drawer';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
-import { DateField, DateRangeFilter } from '../../components/DateRangeFilter';
+import { DateField } from '../../components/DateRangeFilter';
 import { HelpTooltip } from '../../components/HelpTooltip';
 import { PagarComissaoDrawer } from '../../components/PagarComissaoDrawer';
 import { ValeModal } from '../../components/ValeModal';
@@ -650,6 +650,15 @@ export function ComissoesResumoPage() {
     </>
   );
 
+  /**
+   * Painel lateral de filtros (desktop).
+   *
+   * Vive numa variável e não inline porque precisa valer em MAIS DE UMA aba:
+   * estava escrito dentro do ramo da Resumidas, então na aba "Pagas" clicar na
+   * barra de período ligava `filterOpen` e nada aparecia — o componente não
+   * estava na árvore. No celular o bottom-sheet é montado fora dos ramos, por
+   * isso lá funcionava e o defeito passou despercebido.
+   */
   const filterFooter = (
     <>
       <Button variant="outline" className="w-full sm:w-auto" onClick={() => setFilterOpen(false)}>
@@ -659,6 +668,33 @@ export function ComissoesResumoPage() {
         <IconSearch size={16} /> Buscar comissões
       </Button>
     </>
+  );
+
+  /**
+   * Painel lateral de filtros (desktop).
+   *
+   * Fica numa variável e não inline porque precisa valer em MAIS DE UMA aba:
+   * estava escrito dentro do ramo da Resumidas, então na aba "Pagas" clicar na
+   * barra de período ligava `filterOpen` e nada aparecia — o componente não
+   * estava na árvore. No celular o bottom-sheet é montado fora dos ramos, por
+   * isso lá funcionava e o defeito passou despercebido.
+   */
+  const painelFiltros = (
+    <FilterAside open={filterOpen} desktopOnly breakpoint="md">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-sm font-semibold text-foreground">Filtros</span>
+        <button
+          type="button"
+          onClick={() => setFilterOpen(false)}
+          aria-label="Fechar filtros"
+          className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
+        >
+          <IconX size={16} />
+        </button>
+      </div>
+      {filterBody}
+      <div className="mt-4 flex flex-col gap-2">{filterFooter}</div>
+    </FilterAside>
   );
 
   return (
@@ -768,7 +804,12 @@ export function ComissoesResumoPage() {
           onPay={(row, rail) => abrirPagamento([row], rail)}
         />
       ) : isPaidTab ? (
-        <div className="flex flex-col gap-4">
+        /* Mesmo contêiner da Resumidas: painel à esquerda, conteúdo à direita.
+           Antes o painel não existia neste ramo e o clique no período não fazia
+           nada no desktop. */
+        <div className="md:flex md:items-start md:gap-4">
+          {painelFiltros}
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -804,43 +845,9 @@ export function ComissoesResumoPage() {
           </div>
 
           <div className="rounded-2xl p-0 md:border md:border-[var(--color-soft-border)] md:bg-warm-white md:p-4 md:shadow-[var(--shadow-card)]">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Pagamentos realizados</h3>
-                <span className="text-xs text-muted">{paymentRows.length} pagamento(s)</span>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <DateRangeFilter
-                  from={from}
-                  to={to}
-                  onChange={({ from: f, to: t }) => {
-                    setFrom(f);
-                    setTo(t);
-                  }}
-                  fromLabel="Período"
-                />
-                <div className="flex w-full flex-col gap-1 sm:w-auto sm:min-w-[12rem]">
-                  <label className="text-xs font-medium text-muted">Profissional</label>
-                  <Select
-                    aria-label="Profissional"
-                    selectedKey={professionalId || ''}
-                    onSelectionChange={(k) => setProfessionalId(k ? String(k) : '')}
-                  >
-                    <Select.Trigger>
-                      <Select.Value>{({ selectedText }) => selectedText}</Select.Value>
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {profOptions.map((o) => (
-                          <ListBox.Item key={o.id || 'all'} id={o.id} textValue={o.name}>
-                            {o.name}
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-              </div>
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-foreground">Pagamentos realizados</h3>
+              <span className="text-xs text-muted">{paymentRows.length} pagamento(s)</span>
             </div>
 
             {payments.isLoading ? (
@@ -862,25 +869,12 @@ export function ComissoesResumoPage() {
               />
             )}
           </div>
+          </div>
         </div>
       ) : (
         /* Desktop: filtro lateral. Mobile: cards clicáveis por profissional. */
         <div className="md:flex md:items-start md:gap-4">
-          <FilterAside open={filterOpen} desktopOnly breakpoint="md">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold text-foreground">Filtros</span>
-              <button
-                type="button"
-                onClick={() => setFilterOpen(false)}
-                aria-label="Fechar filtros"
-                className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
-              >
-                <IconX size={16} />
-              </button>
-            </div>
-            {filterBody}
-            <div className="mt-4 flex flex-col gap-2">{filterFooter}</div>
-          </FilterAside>
+          {painelFiltros}
           {/* Resumo por profissional (data-wiring preservado). */}
           {/* NO CELULAR a página é só os cards de destaque: a referência não tem
               tabela nenhuma no mobile (`grep -c '<table'` = 0 nas três capturas).
