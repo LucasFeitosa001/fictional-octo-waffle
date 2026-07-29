@@ -1,12 +1,16 @@
 export const NOTIFICATION_CONFIRMATION_TEMPLATES_KEY =
   'notifications.confirmationTemplates';
 
+// `profissional` entrou depois (estudo 61): os lembretes citam quem atende, e
+// sem essa variável o texto fixo de hoje não seria reproduzível como modelo.
+// Variável nova é retrocompatível — modelo antigo simplesmente não a usa.
 export const CONFIRMATION_TEMPLATE_VARIABLES = [
   'cliente',
   'quando',
   'hora',
   'hora_curta',
   'servico',
+  'profissional',
   'estabelecimento',
 ] as const;
 
@@ -28,6 +32,7 @@ export interface ConfirmationTemplateVariables {
   hora: string;
   hora_curta: string;
   servico: string;
+  profissional: string;
   estabelecimento: string;
 }
 
@@ -35,6 +40,7 @@ export interface ConfirmationTemplateData {
   companyName: string;
   timezone: string;
   customerName: string | null;
+  professionalName: string | null;
   serviceNames: string[];
   start: Date;
 }
@@ -42,7 +48,10 @@ export interface ConfirmationTemplateData {
 export const BUILTIN_CONFIRMATION_TEMPLATES: readonly ConfirmationTemplate[] = [
   {
     id: 'carinhoso-la-belle',
-    label: 'Carinhoso (La Belle de Jour)',
+    // O rótulo não cita o nome de nenhum salão — o dono pediu para tirar
+    // "La Belle de Jour" da lista de modelos. O id fica igual para não perder o
+    // padrão já gravado nas empresas.
+    label: 'Carinhoso',
     message: [
       'Olá, {cliente}! 💕',
       'Seu horário foi marcado com sucesso para {quando} às {hora}, para o serviço de {servico}.',
@@ -137,6 +146,9 @@ export function confirmationTemplateVariables(
     hora: time.hora,
     hora_curta: time.horaCurta,
     servico: serviceList(data.serviceNames),
+    // Mesmo fallback do texto fixo de hoje (notifications.templates.ts) para o
+    // modelo nunca renderizar um buraco quando o agendamento não tem profissional.
+    profissional: data.professionalName?.trim() || 'nossa equipe',
     estabelecimento: data.companyName.trim() || 'salão',
   };
 }

@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  BUILTIN_CONFIRMATION_TEMPLATES,
-  DEFAULT_CONFIRMATION_TEMPLATE_ID,
-  NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
   type ConfirmationTemplate,
   type ConfirmationTemplateSettings,
 } from './confirmation.templates';
+import { type CancellationTemplateSettings } from './cancellation.templates';
+import {
+  MESSAGE_TEMPLATE_SPECS,
+  type MessageTemplateKind,
+  type MessageTemplateSpec,
+} from './message-templates';
 
 /**
  * Per-company toggles for the AUTOMATIC client-facing WhatsApp/email messages.
@@ -295,70 +298,65 @@ export class NotificationSettingsService {
     });
   }
 
-  // ------------------------------------------- confirmation message templates
+  // ------------------------------------------------------ modelos de mensagem
+  //
+  // UM mecanismo para os quatro tipos (confirmação, cancelamento, lembrete de
+  // véspera, lembrete de poucas horas). Os embutidos do código são mesclados POR
+  // CIMA dos customizados gravados, então JSON velho/corrompido nunca apaga o
+  // padrão seguro. Modelo de texto NÃO liga automação — a autorização de envio
+  // continua sendo o padrão da conta ou o toggle do agendamento. Ver estudo 61.
 
-  /**
-   * Company-owned confirmation models. Built-ins live in code and are merged
-   * over the custom rows stored in Setting, so a malformed/old JSON value can
-   * never remove the safe default.
-   */
-  async getConfirmationTemplates(
+  async getTemplates(
     companyId: string,
+    kind: MessageTemplateKind,
   ): Promise<ConfirmationTemplateSettings> {
+    const spec = MESSAGE_TEMPLATE_SPECS[kind];
     const row = await this.prisma.client.setting.findUnique({
-      where: {
-        companyId_key: {
-          companyId,
-          key: NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
-        },
-      },
+      where: { companyId_key: { companyId, key: spec.settingKey } },
     });
     const stored =
       (row?.valueJson as {
         defaultTemplateId?: unknown;
         templates?: unknown;
       } | null) ?? {};
-    const custom = this.normalizeConfirmationTemplates(stored.templates);
+    const custom = this.normalizeCustomTemplates(stored.templates, spec);
     const templates = [
-      ...BUILTIN_CONFIRMATION_TEMPLATES.map((template) => ({ ...template })),
+      ...spec.builtIns.map((template) => ({ ...template })),
       ...custom,
     ];
-    const requestedDefault =
+    const requested =
       typeof stored.defaultTemplateId === 'string'
         ? stored.defaultTemplateId
-        : DEFAULT_CONFIRMATION_TEMPLATE_ID;
+        : spec.defaultTemplateId;
     return {
-      defaultTemplateId: templates.some(
-        (template) => template.id === requestedDefault,
-      )
-        ? requestedDefault
-        : DEFAULT_CONFIRMATION_TEMPLATE_ID,
+      defaultTemplateId: templates.some((template) => template.id === requested)
+        ? requested
+        : spec.defaultTemplateId,
       templates,
     };
   }
 
   /**
-   * Replaces the company's custom model collection in one idempotent write.
-   * Native models are never persisted/overwritten. Limits keep this Setting from
-   * becoming an unbounded message store.
+   * Substitui a coleção de modelos customizados da empresa numa escrita
+   * idempotente. Os embutidos nunca são gravados/sobrescritos, e o limite de 20
+   * impede esse Setting de virar um depósito de mensagens.
    */
-  async updateConfirmationTemplates(
+  async updateTemplates(
     companyId: string,
-    input: {
-      defaultTemplateId?: unknown;
-      templates?: unknown;
-    },
+    kind: MessageTemplateKind,
+    input: { defaultTemplateId?: unknown; templates?: unknown },
   ): Promise<ConfirmationTemplateSettings> {
-    const custom = this.normalizeConfirmationTemplates(input.templates);
-    const allIds = new Set([
-      ...BUILTIN_CONFIRMATION_TEMPLATES.map((template) => template.id),
+    const spec = MESSAGE_TEMPLATE_SPECS[kind];
+    const custom = this.normalizeCustomTemplates(input.templates, spec);
+    const ids = new Set([
+      ...spec.builtIns.map((template) => template.id),
       ...custom.map((template) => template.id),
     ]);
     const defaultTemplateId =
       typeof input.defaultTemplateId === 'string' &&
-      allIds.has(input.defaultTemplateId)
+      ids.has(input.defaultTemplateId)
         ? input.defaultTemplateId
-        : DEFAULT_CONFIRMATION_TEMPLATE_ID;
+        : spec.defaultTemplateId;
     const valueJson = {
       defaultTemplateId,
       templates: custom.map(({ id, label, message }) => ({
@@ -368,29 +366,74 @@ export class NotificationSettingsService {
       })),
     };
     await this.prisma.client.setting.upsert({
-      where: {
-        companyId_key: {
-          companyId,
-          key: NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
-        },
-      },
-      create: {
-        companyId,
-        key: NOTIFICATION_CONFIRMATION_TEMPLATES_KEY,
-        valueJson,
-      },
+      where: { companyId_key: { companyId, key: spec.settingKey } },
+      create: { companyId, key: spec.settingKey, valueJson },
       update: { valueJson },
     });
     return {
       defaultTemplateId,
       templates: [
-        ...BUILTIN_CONFIRMATION_TEMPLATES.map((template) => ({ ...template })),
+        ...spec.builtIns.map((template) => ({ ...template })),
         ...custom,
       ],
     };
   }
 
-  private normalizeConfirmationTemplates(value: unknown): ConfirmationTemplate[] {
+  /**
+   * Texto do modelo PADRÃO da empresa para aquele tipo, ou `null` quando não há
+   * nada utilizável. Quem envia usa isto e, no `null`, mantém o texto fixo do
+   * código — personalizar nunca pode deixar a cliente sem mensagem.
+   */
+  async activeTemplateMessage(
+    companyId: string,
+    kind: MessageTemplateKind,
+  ): Promise<string | null> {
+    try {
+      const settings = await this.getTemplates(companyId, kind);
+      const chosen =
+        settings.templates.find(
+          (template) => template.id === settings.defaultTemplateId,
+        ) ?? settings.templates[0];
+      const message = chosen?.message?.trim();
+      return message ? message : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Compat: rotas e telas que já falavam em "confirmação"/"cancelamento"
+  // continuam funcionando, agora só delegando.
+
+  getConfirmationTemplates(
+    companyId: string,
+  ): Promise<ConfirmationTemplateSettings> {
+    return this.getTemplates(companyId, 'confirmation');
+  }
+
+  updateConfirmationTemplates(
+    companyId: string,
+    input: { defaultTemplateId?: unknown; templates?: unknown },
+  ): Promise<ConfirmationTemplateSettings> {
+    return this.updateTemplates(companyId, 'confirmation', input);
+  }
+
+  getCancellationTemplates(
+    companyId: string,
+  ): Promise<CancellationTemplateSettings> {
+    return this.getTemplates(companyId, 'cancellation');
+  }
+
+  updateCancellationTemplates(
+    companyId: string,
+    input: { defaultTemplateId?: unknown; templates?: unknown },
+  ): Promise<CancellationTemplateSettings> {
+    return this.updateTemplates(companyId, 'cancellation', input);
+  }
+
+  private normalizeCustomTemplates(
+    value: unknown,
+    spec: MessageTemplateSpec,
+  ): ConfirmationTemplate[] {
     if (!Array.isArray(value)) return [];
     const custom: ConfirmationTemplate[] = [];
     const seen = new Set<string>();
@@ -407,9 +450,7 @@ export class NotificationSettingsService {
       if (
         !/^custom-[a-z0-9-]{1,80}$/i.test(id) ||
         seen.has(id) ||
-        BUILTIN_CONFIRMATION_TEMPLATES.some(
-          (template) => template.id === id,
-        ) ||
+        spec.builtIns.some((template) => template.id === id) ||
         !label ||
         !message
       ) {

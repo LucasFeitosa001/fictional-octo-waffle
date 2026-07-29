@@ -4,5 +4,6 @@ import './catalog-stock.usecases.test';
 import './commissions-pagamento.usecases.test';
 import './customers-crm.usecases.test';
 import './financial-commissions.usecases.test';
+import './message-templates.usecases.test';
 import './orders-cash.usecases.test';
 import './platform-access.usecases.test';

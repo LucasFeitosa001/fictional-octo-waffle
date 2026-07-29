@@ -1,0 +1,159 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../api';
+import { toastSuccess } from '../toast';
+
+/**
+ * Modelos de mensagem por tipo (estudo 61).
+ *
+ * Antes só a confirmação tinha texto editável — e o aviso AUTOMÁTICO ignorava o
+ * modelo, mandando uma linha fixa do código. Agora os quatro tipos têm modelo,
+ * e é o modelo padrão da empresa que o automático usa.
+ *
+ * IMPORTANTE: modelo é TEXTO, não autorização. Ligar/desligar envio continua em
+ * "Notificações automáticas" (padrão da conta) ou no toggle do agendamento.
+ */
+export const MESSAGE_TEMPLATE_KINDS = [
+  'confirmation',
+  'cancellation',
+  'reminder24h',
+  'reminder2h',
+] as const;
+
+export type MessageTemplateKind = (typeof MESSAGE_TEMPLATE_KINDS)[number];
+
+export interface MessageTemplate {
+  id: string;
+  label: string;
+  message: string;
+  builtIn: boolean;
+}
+
+export interface MessageTemplateSettings {
+  defaultTemplateId: string;
+  templates: MessageTemplate[];
+}
+
+export interface TemplateVariable {
+  token: string;
+  label: string;
+  sample: string;
+}
+
+/** Variáveis comuns a todos os tipos, com exemplo para o preview. */
+const BASE_VARIABLES: TemplateVariable[] = [
+  { token: '{cliente}', label: 'primeiro nome da cliente', sample: 'Maria' },
+  { token: '{quando}', label: 'hoje / amanhã / dia da semana', sample: 'amanhã' },
+  { token: '{hora}', label: 'horário por extenso', sample: '14h30' },
+  { token: '{hora_curta}', label: 'horário curto', sample: '14h30' },
+  { token: '{servico}', label: 'serviços do agendamento', sample: 'Corte, Escova' },
+  { token: '{profissional}', label: 'quem vai atender', sample: 'Vitória' },
+  { token: '{estabelecimento}', label: 'nome do salão', sample: 'Studio Bela' },
+];
+
+const MOTIVO_VARIABLE: TemplateVariable = {
+  token: '{motivo}',
+  label: 'motivo do cancelamento (a linha desaparece se não houver)',
+  sample: 'imprevisto da profissional',
+};
+
+export interface MessageTemplateKindMeta {
+  kind: MessageTemplateKind;
+  title: string;
+  short: string;
+  description: string;
+  variables: TemplateVariable[];
+}
+
+export const MESSAGE_TEMPLATE_META: Record<
+  MessageTemplateKind,
+  MessageTemplateKindMeta
+> = {
+  confirmation: {
+    kind: 'confirmation',
+    title: 'Agendamento marcado/confirmado',
+    short: 'Confirmação',
+    description:
+      'Texto enviado à cliente quando o agendamento é criado ou confirmado — inclusive no botão "Enviar confirmação" dentro do agendamento.',
+    variables: BASE_VARIABLES,
+  },
+  cancellation: {
+    kind: 'cancellation',
+    title: 'Agendamento cancelado',
+    short: 'Cancelamento',
+    description:
+      'Texto enviado à cliente quando o agendamento é cancelado. Use {motivo} para citar o motivo — sem motivo, a linha inteira desaparece.',
+    variables: [...BASE_VARIABLES, MOTIVO_VARIABLE],
+  },
+  reminder24h: {
+    kind: 'reminder24h',
+    title: 'Lembrete da véspera (24h antes)',
+    short: 'Lembrete 24h',
+    description:
+      'Texto do lembrete enviado no dia anterior ao atendimento. Lembrete é ANTES; follow-up é depois.',
+    variables: BASE_VARIABLES,
+  },
+  reminder2h: {
+    kind: 'reminder2h',
+    title: 'Lembrete de poucas horas (2h antes)',
+    short: 'Lembrete 2h',
+    description:
+      'Texto do lembrete enviado poucas horas antes do atendimento, no mesmo dia.',
+    variables: BASE_VARIABLES,
+  },
+};
+
+const templatesKey = (kind: MessageTemplateKind) =>
+  ['notification-settings', 'message-templates', kind] as const;
+
+export function useMessageTemplates(kind: MessageTemplateKind) {
+  return useQuery({
+    queryKey: templatesKey(kind),
+    queryFn: () =>
+      api.get<MessageTemplateSettings>(
+        `/notification-settings/message-templates/${kind}`,
+      ),
+  });
+}
+
+export function useSaveMessageTemplates(kind: MessageTemplateKind) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      defaultTemplateId: string;
+      templates: Array<{ id: string; label: string; message: string }>;
+    }) =>
+      api.put<MessageTemplateSettings>(
+        `/notification-settings/message-templates/${kind}`,
+        body,
+      ),
+    onSuccess: (data) => {
+      queryClient.setQueryData(templatesKey(kind), data);
+      // O drawer de confirmação do agendamento lê a mesma coleção.
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      toastSuccess('Modelo salvo');
+    },
+  });
+}
+
+/** Preview local com os exemplos — o texto real é renderizado no servidor. */
+export function renderTemplateSample(
+  kind: MessageTemplateKind,
+  template: string,
+): string {
+  const linhas = template.split('\n');
+  const mantidas: string[] = [];
+  for (const linha of linhas) {
+    let saida = linha;
+    let apagar = false;
+    for (const variable of MESSAGE_TEMPLATE_META[kind].variables) {
+      if (!saida.includes(variable.token)) continue;
+      if (!variable.sample.trim()) {
+        apagar = true;
+        break;
+      }
+      saida = saida.split(variable.token).join(variable.sample);
+    }
+    if (!apagar) mantidas.push(saida);
+  }
+  return mantidas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}

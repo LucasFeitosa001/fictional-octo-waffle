@@ -282,6 +282,7 @@ describe('UC-AGD-WA — confirmação manual com opt-in e idempotência', () => 
         companyName: 'La Belle de Jour',
         timezone: 'America/Sao_Paulo',
         customerName: 'Tais Silva',
+        professionalName: 'Vitória',
         serviceNames: ['cabelo'],
         start: new Date('2026-07-30T19:00:00.000Z'),
       },

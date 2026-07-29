@@ -212,6 +212,7 @@ export class AppointmentsService {
       companyName: appointment.company.name,
       timezone: appointment.company.timezone,
       customerName: appointment.customer?.name ?? null,
+      professionalName: appointment.professional?.name ?? null,
       serviceNames: appointment.items.map((item) => item.service.name),
       start: appointment.start,
     });
@@ -326,6 +327,7 @@ export class AppointmentsService {
       companyName: appointment.company.name,
       timezone: appointment.company.timezone,
       customerName: customer.name,
+      professionalName: appointment.professional?.name ?? null,
       serviceNames: appointment.items.map((item) => item.service.name),
       start: appointment.start,
     });
@@ -422,6 +424,8 @@ export class AppointmentsService {
               whatsappOptIn: true,
             },
           },
+          // {profissional} é variável de modelo desde o estudo 61.
+          professional: { select: { name: true } },
           items: { select: { service: { select: { name: true } } } },
         },
       });

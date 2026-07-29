@@ -20,10 +20,12 @@ import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
+import { unresolvedConfirmationVariables } from './confirmation.templates';
 import {
-  CONFIRMATION_TEMPLATE_VARIABLES,
-  unresolvedConfirmationVariables,
-} from './confirmation.templates';
+  MESSAGE_TEMPLATE_SPECS,
+  messageTemplateKind,
+  type MessageTemplateSpec,
+} from './message-templates';
 
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
@@ -137,48 +139,46 @@ export class NotificationSettingsController {
       templates?: unknown;
     },
   ) {
-    if (!Array.isArray(body?.templates)) {
-      throw new BadRequestException('Informe a lista de modelos de confirmação.');
-    }
-    if (body.templates.length > 20) {
-      throw new BadRequestException(
-        'É possível salvar no máximo 20 modelos de confirmação.',
-      );
-    }
-    const allowedVariables = new Set<string>(CONFIRMATION_TEMPLATE_VARIABLES);
-    for (const raw of body.templates) {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        throw new BadRequestException('Modelo de confirmação inválido.');
-      }
-      const template = raw as Record<string, unknown>;
-      const id = typeof template.id === 'string' ? template.id.trim() : '';
-      const label =
-        typeof template.label === 'string' ? template.label.trim() : '';
-      const message =
-        typeof template.message === 'string' ? template.message.trim() : '';
-      if (!/^custom-[a-z0-9-]{1,80}$/i.test(id)) {
-        throw new BadRequestException('Identificador do modelo inválido.');
-      }
-      if (!label || label.length > 80) {
-        throw new BadRequestException(
-          'O nome do modelo deve ter entre 1 e 80 caracteres.',
-        );
-      }
-      if (!message || message.length > 2_000) {
-        throw new BadRequestException(
-          'A mensagem do modelo deve ter entre 1 e 2000 caracteres.',
-        );
-      }
-      const unknown = unresolvedConfirmationVariables(message).filter(
-        (variable) => !allowedVariables.has(variable),
-      );
-      if (unknown.length > 0) {
-        throw new BadRequestException(
-          `Variável não reconhecida no modelo: {${unknown[0]}}.`,
-        );
-      }
-    }
+    validarModelos(MESSAGE_TEMPLATE_SPECS.confirmation, body);
     return this.settings.updateConfirmationTemplates(companyId, body);
+  }
+
+  // ------------------------------------- modelos de mensagem, por tipo
+  //
+  // Rota genérica: confirmation | cancellation | reminder24h | reminder2h.
+  // As duas rotas de confirmação acima continuam por compatibilidade (o drawer
+  // do agendamento usa), delegando para a mesma validação. Ver estudo 61.
+
+  @Get('message-templates/:kind')
+  @RequirePermission('config:view', 'config:manage')
+  getMessageTemplates(
+    @CurrentUser('companyId') companyId: string,
+    @Param('kind') kindParam: string,
+  ) {
+    const kind = messageTemplateKind(kindParam);
+    if (!kind) {
+      throw new BadRequestException('Tipo de mensagem desconhecido.');
+    }
+    return this.settings.getTemplates(companyId, kind);
+  }
+
+  @Put('message-templates/:kind')
+  @RequirePermission('config:manage')
+  updateMessageTemplates(
+    @CurrentUser('companyId') companyId: string,
+    @Param('kind') kindParam: string,
+    @Body()
+    body: {
+      defaultTemplateId?: unknown;
+      templates?: unknown;
+    },
+  ) {
+    const kind = messageTemplateKind(kindParam);
+    if (!kind) {
+      throw new BadRequestException('Tipo de mensagem desconhecido.');
+    }
+    validarModelos(MESSAGE_TEMPLATE_SPECS[kind], body);
+    return this.settings.updateTemplates(companyId, kind, body);
   }
 
   // ------------------------------------------------ rich follow-up config
@@ -217,5 +217,59 @@ export class NotificationSettingsController {
     if (typeof body?.includeBookingLink === 'boolean')
       patch.includeBookingLink = body.includeBookingLink;
     return this.settings.updateFollowUp(companyId, patch);
+  }
+}
+
+/**
+ * Valida o payload de modelos de mensagem. Mesmas regras que já valiam para a
+ * confirmação, agora por tipo — o allowlist de variáveis vem do spec, então o
+ * cancelamento aceita `{motivo}` e a confirmação não. Ver estudo 61.
+ */
+function validarModelos(
+  spec: MessageTemplateSpec,
+  body: { defaultTemplateId?: unknown; templates?: unknown },
+): void {
+  if (!Array.isArray(body?.templates)) {
+    throw new BadRequestException(
+      `Informe a lista de modelos de ${spec.label}.`,
+    );
+  }
+  if (body.templates.length > 20) {
+    throw new BadRequestException(
+      `É possível salvar no máximo 20 modelos de ${spec.label}.`,
+    );
+  }
+  const allowedVariables = new Set<string>(spec.variables);
+  for (const raw of body.templates) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new BadRequestException(`Modelo de ${spec.label} inválido.`);
+    }
+    const template = raw as Record<string, unknown>;
+    const id = typeof template.id === 'string' ? template.id.trim() : '';
+    const label =
+      typeof template.label === 'string' ? template.label.trim() : '';
+    const message =
+      typeof template.message === 'string' ? template.message.trim() : '';
+    if (!/^custom-[a-z0-9-]{1,80}$/i.test(id)) {
+      throw new BadRequestException('Identificador do modelo inválido.');
+    }
+    if (!label || label.length > 80) {
+      throw new BadRequestException(
+        'O nome do modelo deve ter entre 1 e 80 caracteres.',
+      );
+    }
+    if (!message || message.length > 2_000) {
+      throw new BadRequestException(
+        'A mensagem do modelo deve ter entre 1 e 2000 caracteres.',
+      );
+    }
+    const unknown = unresolvedConfirmationVariables(message).filter(
+      (variable) => !allowedVariables.has(variable),
+    );
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        `Variável não reconhecida no modelo: {${unknown[0]}}.`,
+      );
+    }
   }
 }

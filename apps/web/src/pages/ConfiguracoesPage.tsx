@@ -28,6 +28,7 @@ import { MobileBackHeader } from '../components/MobileBackHeader';
 import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
 import { APP_VERSION } from '../lib/config';
 import { WhatsappConnectionCard } from '../components/WhatsappConnectionCard';
+import { MessageTemplatesCard } from '../components/MessageTemplatesCard';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconHome,
@@ -1393,6 +1394,9 @@ export function ConfiguracoesPage() {
         {current === 'notificacoes' && (
           <div className="flex flex-col gap-5">
           <AutomaticNotificationsCard />
+          {/* Texto de cada aviso (confirmação, cancelamento, lembretes). O dono
+              cobrou "tem que ter personalização" — estudo 61. */}
+          <MessageTemplatesCard />
           <FollowUpConfigCard />
           <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
             <div className="flex flex-col gap-1">

@@ -85,6 +85,13 @@ export class AppointmentRemindersProcessor extends WorkerHost {
       return;
     }
 
+    // Modelo personalizado da empresa para este lembrete (estudo 61); null
+    // mantém o texto fixo.
+    const modelo = await this.settings.activeTemplateMessage(
+      companyId,
+      kind === 'reminder_24h' ? 'reminder24h' : 'reminder2h',
+    );
+
     const msg = composeReminderMessage(kind, {
       companyName: appt.company.name,
       timezone: appt.company.timezone,
@@ -95,7 +102,7 @@ export class AppointmentRemindersProcessor extends WorkerHost {
         .map((it) => it.service?.name)
         .filter((n): n is string => !!n),
       start: appt.start,
-    });
+    }, modelo);
 
     const optedOut = appt.customer ? isOptedOut(appt.customer) : true;
 

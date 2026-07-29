@@ -14,6 +14,8 @@ export interface ConfirmationVariables {
   hora: string;
   hora_curta: string;
   servico: string;
+  /** Quem atende — variável nova (estudo 61). */
+  profissional: string;
   estabelecimento: string;
 }
 

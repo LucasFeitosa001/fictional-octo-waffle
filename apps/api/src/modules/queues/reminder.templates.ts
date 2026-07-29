@@ -6,6 +6,12 @@
  * ("faltam ~24h / ~2h"), fired by the appointment-reminders queue.
  */
 
+import { confirmationTemplateVariables } from '../notifications/confirmation.templates';
+import {
+  renderMessageTemplate,
+  type MessageTemplateKind,
+} from '../notifications/message-templates';
+
 export type ReminderKind = 'reminder_24h' | 'reminder_2h';
 
 export interface ReminderData {
@@ -40,12 +46,37 @@ function fmtTime(d: Date, timezone: string): string {
 /**
  * Builds the client-facing reminder text. Returns `null` when there is no phone
  * on file (nothing to enqueue).
+ *
+ * `template` (estudo 61): quando a empresa tem um modelo personalizado para
+ * aquele lembrete, o texto vem dele. Sem modelo — ou se o modelo renderizar
+ * vazio —, mantém o texto fixo abaixo, que é o que já saía antes.
  */
 export function composeReminderMessage(
   kind: ReminderKind,
   data: ReminderData,
+  template?: string | null,
 ): { to: string; text: string } | null {
   if (!data.customerPhone) return null;
+
+  if (template?.trim()) {
+    const modelKind: MessageTemplateKind =
+      kind === 'reminder_24h' ? 'reminder24h' : 'reminder2h';
+    const personalizado = renderMessageTemplate(
+      modelKind,
+      template,
+      confirmationTemplateVariables({
+        companyName: data.companyName,
+        timezone: data.timezone,
+        customerName: data.customerName,
+        professionalName: data.professionalName,
+        serviceNames: data.serviceNames,
+        start: data.start,
+      }) as unknown as Record<string, string>,
+    );
+    if (personalizado && personalizado.length <= 2_000) {
+      return { to: data.customerPhone, text: personalizado };
+    }
+  }
 
   const services = data.serviceNames.length
     ? data.serviceNames.join(', ')

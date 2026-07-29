@@ -178,6 +178,12 @@ export class WhatsappReminderPollerService
       return true;
     }
 
+    // Modelo personalizado da empresa (estudo 61); null mantém o texto fixo.
+    const modelo = await this.settings.activeTemplateMessage(
+      appointment.companyId,
+      kind === 'reminder_24h' ? 'reminder24h' : 'reminder2h',
+    );
+
     const message = composeReminderMessage(kind, {
       companyName: appointment.company.name,
       timezone: appointment.company.timezone,
@@ -188,7 +194,7 @@ export class WhatsappReminderPollerService
         .map((item) => item.service?.name)
         .filter((name): name is string => !!name),
       start: appointment.start,
-    });
+    }, modelo);
 
     if (!message || !appointment.customer || isOptedOut(appointment.customer)) {
       this.logger.debug(`${tag} sem telefone ou opt-out; marcado sem envio.`);
