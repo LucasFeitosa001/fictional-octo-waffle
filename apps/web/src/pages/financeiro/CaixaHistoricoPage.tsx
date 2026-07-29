@@ -7,7 +7,6 @@ import { Drawer } from '../../components/Drawer';
 import { IconTip } from '../../components/IconTip';
 import { IconCash, IconChevron, IconFilter, IconX } from '../../components/icons';
 import { useCashRegisters, type CashHistoryRow } from '../../lib/queries/caixa';
-import { useProfessionals } from '../../lib/queries';
 import { formatDate, formatMoney } from '../../lib/format';
 import { useSetPageActions } from '../../layout/PageActions';
 import { FilterAside } from '../../components/FilterAside';
@@ -19,11 +18,25 @@ const NONE = '';
 export function CaixaHistoricoPage() {
   const history = useCashRegisters();
   const allRows = history.data?.data ?? [];
-  const professionals = useProfessionals(1, 100);
-  const professionalOptions = useMemo(
-    () => (professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name })),
-    [professionals.data],
-  );
+  /**
+   * Opções dos filtros de responsável: os USUÁRIOS que aparecem no próprio
+   * histórico.
+   *
+   * Vinha de `useProfessionals`, e `Professional.id` não é `User.id` (são
+   * colunas diferentes: `Professional.userId` liga as duas). Escolher a Fátima
+   * comparava o id do profissional com o id do usuário do caixa e devolvia
+   * ZERO linhas, sempre — filtro que nunca casa é pior que filtro nenhum.
+   * Tirar da lista quem nunca abriu nem fechou caixa também evita oferecer
+   * uma opção que só pode dar vazio. Ver estudo 48.
+   */
+  const userOptions = useMemo(() => {
+    const porId = new Map<string, string>();
+    for (const c of allRows) {
+      if (c.responsibleUser?.id) porId.set(c.responsibleUser.id, c.responsibleUser.name);
+      if (c.closedByUser?.id) porId.set(c.closedByUser.id, c.closedByUser.name);
+    }
+    return [...porId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [allRows]);
 
   // Toolbar do Belasis: só "Filtrar" (drawer lateral). A tela é read-only —
   // caixas são histórico imutável (sem Novo/Editar), então não há drawer de edição.
@@ -38,8 +51,6 @@ export function CaixaHistoricoPage() {
   const [closedFrom, setClosedFrom] = useState('');
   const [closedTo, setClosedTo] = useState('');
   const [openerId, setOpenerId] = useState(NONE);
-  // TODO: o backend de /cash-registers não retorna o responsável pelo FECHAMENTO;
-  // o campo existe para paridade visual com o Belasis, mas ainda não filtra.
   const [closerId, setCloserId] = useState(NONE);
 
   const [page, setPage] = useState(1);
@@ -57,9 +68,10 @@ export function CaixaHistoricoPage() {
       if (closedFrom && (!closedDay || closedDay < closedFrom)) return false;
       if (closedTo && (!closedDay || closedDay > closedTo)) return false;
       if (openerId && c.responsibleUser?.id !== openerId) return false;
+      if (closerId && c.closedByUser?.id !== closerId) return false;
       return true;
     });
-  }, [allRows, numero, openedFrom, openedTo, closedFrom, closedTo, openerId]);
+  }, [allRows, numero, openedFrom, openedTo, closedFrom, closedTo, openerId, closerId]);
 
   const total = filtered.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -139,9 +151,11 @@ export function CaixaHistoricoPage() {
       key: 'closedBy',
       header: 'Fechou o caixa',
       className: 'whitespace-nowrap text-sm',
-      // TODO: sem responsável de fechamento no payload; usamos o de abertura
-      // quando o caixa está fechado, senão "—".
-      render: (c) => (c.status === 'closed' ? c.responsibleUser?.name ?? '—' : '—'),
+      // Quem fechou de verdade (`closedByUser`), não o responsável pela
+      // abertura. Mostrar o de abertura acertava só quando as duas pessoas
+      // coincidiam e escondia o fechamento de um caixa importado sem dono —
+      // era o caso do #588 da Fátima. Ver estudo 48.
+      render: (c) => c.closedByUser?.name ?? '—',
     },
     {
       key: 'openedAt',
@@ -169,11 +183,17 @@ export function CaixaHistoricoPage() {
       key: 'counted',
       header: 'Saldo conferido',
       className: 'whitespace-nowrap text-right',
-      render: (c) => (
-        <span className="text-sm font-semibold text-foreground">
-          {formatMoney(c.countedBalance)}
-        </span>
-      ),
+      // Caixa ainda ABERTO não foi conferido: `countedBalance` é nulo e
+      // `formatMoney(null)` devolvia "R$ 0,00" — a tela afirmava que a
+      // conferência deu zero. Traço é a verdade: ainda não houve conferência.
+      render: (c) =>
+        c.countedBalance == null ? (
+          <span className="text-sm text-muted">—</span>
+        ) : (
+          <span className="text-sm font-semibold text-foreground">
+            {formatMoney(c.countedBalance)}
+          </span>
+        ),
     },
     {
       key: 'note',
@@ -250,7 +270,7 @@ export function CaixaHistoricoPage() {
             setOpenerId={setOpenerId}
             closerId={closerId}
             setCloserId={setCloserId}
-            professionals={professionalOptions}
+            professionals={userOptions}
           />
           <div className="mt-4 flex flex-col gap-2">
             {filtrosFooter(hasFilters, clearFilters, () => setFilterOpen(false))}
@@ -385,7 +405,7 @@ export function CaixaHistoricoPage() {
           setOpenerId={setOpenerId}
           closerId={closerId}
           setCloserId={setCloserId}
-          professionals={professionalOptions}
+          professionals={userOptions}
           hasFilters={hasFilters}
           onClear={clearFilters}
         />
@@ -476,6 +496,7 @@ function FiltrosBody({
       <FilterSection title="Responsável pela abertura">
         <FieldSelect
           placeholder="Selecionar profissional"
+          ariaLabel="Responsável pela abertura"
           value={openerId}
           onChange={setOpenerId}
           options={professionals}
@@ -486,6 +507,7 @@ function FiltrosBody({
       <FilterSection title="Responsável pelo fechamento">
         <FieldSelect
           placeholder="Selecionar profissional"
+          ariaLabel="Responsável pelo fechamento"
           value={closerId}
           onChange={setCloserId}
           options={professionals}
@@ -564,18 +586,25 @@ function FilterSection({
 /** Select simples (profissionais) usado nas seções do drawer de filtros. */
 function FieldSelect({
   placeholder,
+  ariaLabel,
   value,
   onChange,
   options,
 }: {
   placeholder: string;
+  /**
+   * Nome do campo para leitor de tela. Sem ele os dois selects do painel
+   * ficavam com o MESMO rótulo ("Selecionar profissional", que é o texto do
+   * placeholder no Belasis) e não havia como distinguir abertura de fechamento.
+   */
+  ariaLabel?: string;
   value: string;
   onChange: (v: string) => void;
   options: { id: string; name: string }[];
 }) {
   return (
     <Select
-      aria-label={placeholder}
+      aria-label={ariaLabel ?? placeholder}
       selectedKey={value || null}
       onSelectionChange={(k) => onChange(k ? String(k) : NONE)}
     >

@@ -48,6 +48,8 @@ export interface CashRegisterDetail extends CashRegisterRow {
 
 export interface CashHistoryRow extends CashRegisterRow {
   responsibleUser?: CashUser | null;
+  /** Quem FECHOU o caixa. Pode ser diferente de quem abriu. */
+  closedByUser?: CashUser | null;
 }
 
 export interface OpenCashBody {

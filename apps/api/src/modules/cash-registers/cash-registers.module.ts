@@ -376,7 +376,13 @@ export class CashRegistersService {
           : {}),
       },
       orderBy: { number: 'desc' },
-      include: { responsibleUser: { select: USER_SELECT } },
+      // `closedByUser` também: sem ele a tela de Histórico não tinha como saber
+      // quem fechou e mostrava o responsável pela ABERTURA na coluna "Fechou o
+      // caixa" — errado sempre que quem abriu não foi quem fechou (ver estudo 48).
+      include: {
+        responsibleUser: { select: USER_SELECT },
+        closedByUser: { select: USER_SELECT },
+      },
     });
     return { data, page: 1, pageSize: data.length, total: data.length };
   }
