@@ -64,3 +64,13 @@ A migração é aditiva (coluna nova nullable). Não altera nada do que já est�
 - `apps/api/src/modules/orders/orders.service.ts`
 - `apps/web/src/lib/types.ts` (`CreateOrderBody.appointmentId`)
 - `apps/web/src/pages/AgendaPage.tsx`
+
+## 52.1 — Comanda CANCELADA não é "comanda para acessar"
+
+Verificado em produção: um agendamento cujo vínculo apontava para uma comanda **cancelada** exibia
+"Acessar comanda #20" e, ao clicar, criava a #23 — porque o backend solta o vínculo da cancelada de
+propósito (o agendamento precisa poder gerar outra). O rótulo é que mentia.
+
+`apps/web/src/pages/AgendaPage.tsx` passa a tratar comanda cancelada como "não tem comanda": o
+botão volta a ser "Abrir comanda", que é o que o clique de fato faz. O payload já traz o status
+(`appointments.service.ts`, include `order: { select: { id, number, status } }`).

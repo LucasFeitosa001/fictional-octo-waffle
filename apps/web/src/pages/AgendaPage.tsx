@@ -1653,7 +1653,7 @@ export function AgendaPage() {
             <Button variant="primary" isDisabled={createOrder.isPending}
               className="bg-[#25a244] hover:!bg-[#1e8438]"
               onClick={() => createComanda(selected)}>
-              {selected.order
+              {selected.order && selected.order.status !== 'canceled'
                 ? `Acessar comanda #${selected.order.number}`
                 : createOrder.isPending
                   ? 'Abrindo comanda…'
