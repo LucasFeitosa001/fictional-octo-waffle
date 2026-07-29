@@ -27,7 +27,7 @@ import {
 } from '../components/CustomerPickerDrawer';
 import { ItemPickerDrawer, type PickedItem } from '../components/ItemPickerDrawer';
 import { PacoteClienteAside } from '../components/PacoteClienteAside';
-import { EmptyState, ErrorState } from '../components/States';
+import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { TableSkeleton } from '../components/Skeletons';
 import {
   IconBox,
@@ -46,9 +46,11 @@ import {
 } from '../components/icons';
 import { useSetPageActions } from '../layout/PageActions';
 import { formatDate, formatMoney, formatNumber, formatPhone } from '../lib/format';
-import { useProfessionals, useServices } from '../lib/queries';
+// `useCustomerPackage` daqui (não o de queries/pacotes): este é tipado como
+// CustomerPackageDetail, com itens, saldo e usos — é o que a folha de
+// visualização precisa. Ver estudo 50.
+import { useCustomerPackage, useProfessionals, useServices } from '../lib/queries';
 import { useAutoCreate } from '../lib/useAutoCreate';
-import { PacotePerfilModal } from './PacotePerfilModal';
 import { ClientePerfilModal } from './ClientePerfilTabs';
 import { useCustomer } from '../lib/queries/clientes';
 import {
@@ -59,6 +61,7 @@ import {
   type CustomerPackage,
   type PackageStatus,
 } from '../lib/queries/pacotes';
+import type { CustomerPackageDetailItem } from '../lib/types';
 
 const NONE = '';
 const PAGE_SIZE = 20;
@@ -623,9 +626,26 @@ export function PacotesPage() {
                       const av = availability(p);
                       const cs = consumption(p);
                       return (
+                        /* A LINHA INTEIRA abre o pacote. Antes só o "#N" abria,
+                           e quem clicava no nome, no valor ou no espaço vazio
+                           concluía que não dava para visualizar — foi a
+                           reclamação do dono. Cliques em botões/links de dentro
+                           (selecionar, nome do cliente, menu) não sobem: cada um
+                           faz stopPropagation ou é filtrado aqui. Ver estudo 50. */
                         <tr
                           key={p.id}
-                          className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                          onClick={(e) => {
+                            const alvo = e.target;
+                            if (
+                              alvo instanceof Element &&
+                              alvo.closest('button, a, input, [role="menu"], [role="button"]')
+                            ) {
+                              return;
+                            }
+                            if (sel.selectMode) sel.toggle(p.id);
+                            else setDetailId(p.id);
+                          }}
+                          className="cursor-pointer border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                         >
                           <AnimatedSelectionCell active={sel.selectMode} className="px-4 py-2.5">
                             <SelectBox
@@ -830,13 +850,12 @@ export function PacotesPage() {
         <IconPlus size={22} />
       </button>
 
-      {/* Drawer lateral de novo pacote (desliza da direita) */}
-      <NovoPacoteDrawer isOpen={createOpen} onClose={() => setCreateOpen(false)} />
-
-      {/* Detalhe / perfil do pacote */}
-      <PacotePerfilModal
-        packageId={detailId ?? undefined}
+      {/* MESMA folha para os dois casos, como no Belasis: sem id = "Novo
+          pacote"; com id = "Visualizando pacote #N". */}
+      <PacoteDrawer isOpen={createOpen} onClose={() => setCreateOpen(false)} />
+      <PacoteDrawer
         isOpen={detailId !== null}
+        packageId={detailId}
         onClose={() => setDetailId(null)}
       />
 
@@ -1169,8 +1188,32 @@ const nextPkgUid = () => `pkg-${++pkgUidSeq}`;
 const pkgItemTotal = (it: PkgItem) => Math.max(0, it.quantity * it.unitPrice - it.discount);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+/**
+ * Pacote — MESMA folha para criar e para visualizar, como no Belasis.
+ *
+ * `packageId` nulo → "Novo pacote"; com id → "Visualizando pacote #N".
+ * As duas capturas do dono mostram o mesmo formulário: Cliente · Data ·
+ * Validade / Pacote Predefinido · Vendedor / tabela de itens / totais à direita
+ * / Observação. Só o cabeçalho, duas colunas da tabela (Saldo e Utilizados) e o
+ * rodapé mudam. Antes eram TRÊS desenhos: este drawer com quatro abas, o
+ * `PacotePerfilModal` com cartão de resumo, e nenhum igual à referência.
+ * Ver estudo 50.
+ */
+function PacoteDrawer({
+  isOpen,
+  onClose,
+  packageId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  /** Sem id = criar. Com id = visualizar o pacote existente. */
+  packageId?: string | null;
+}) {
+  const ver = Boolean(packageId);
+  const detalhe = useCustomerPackage(packageId ?? undefined);
   const sell = useSellPackage();
+  const remove = useDeleteCustomerPackage();
+  const confirm = useConfirm();
   const templates = usePackageTemplates();
   const services = useServices();
   const professionals = useProfessionals();
@@ -1187,9 +1230,6 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   const [discount, setDiscount] = useState('');
   const [observation, setObservation] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [section, setSection] = useState<'cliente' | 'itens' | 'pagamentos' | 'observacoes'>(
-    'cliente',
-  );
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
 
@@ -1208,7 +1248,7 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   }, [services.data]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !ver) {
       setSelectedCustomer(null);
       setDate(todayIso());
       setValidUntil('');
@@ -1219,11 +1259,12 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
       setDiscount('');
       setObservation('');
       setError(null);
-      setSection('cliente');
       setCustomerPickerOpen(false);
       setItemPickerOpen(false);
     }
-  }, [isOpen]);
+  }, [isOpen, ver]);
+
+  const pacote = ver ? detalhe.data ?? null : null;
 
   // Pacote Predefinido = ATALHO: preenche as linhas de itens a partir do modelo.
   // Não é obrigatório — o usuário pode montar itens do zero (Belasis permite).
@@ -1276,7 +1317,9 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
 
   const itemsSubtotal = items.reduce((s, it) => s + pkgItemTotal(it), 0);
   const pkgDiscount = discount !== '' ? Number(discount) || 0 : 0;
-  const grandTotal = Math.max(0, itemsSubtotal - pkgDiscount);
+  const grandTotal = ver
+    ? Number(pacote?.price ?? 0)
+    : Math.max(0, itemsSubtotal - pkgDiscount);
 
   const canSave = selectedCustomer !== null && items.length > 0 && !sell.isPending;
 
@@ -1303,272 +1346,451 @@ function NovoPacoteDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
     }
   }
 
+  async function handleDeletePackage() {
+    if (!pacote) return;
+    const ok = await confirm({
+      title: `Excluir pacote #${pacote.number}?`,
+      message: 'O pacote sai da lista do cliente. As sessões já consumidas continuam nas comandas.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    await remove.mutateAsync(pacote.id);
+    onClose();
+  }
+
+  /**
+   * Valor unitário no modo VER.
+   *
+   * O schema guarda só o TOTAL do pacote (`CustomerPackage.price`) — não há
+   * valor por item. Com um único item dá para dividir pelas sessões e chegar ao
+   * mesmo número da referência (279,03 ÷ 3 = 93,01 no pacote #9 da Fátima). Com
+   * mais de um item qualquer divisão seria chute, então mostra "—" em vez de
+   * inventar. Ver estudo 50.
+   */
+  const unitarioVer = (sessoes: number): string => {
+    if (!pacote || (pacote.items?.length ?? 0) !== 1 || sessoes <= 0) return '—';
+    return formatMoney(Number(pacote.price ?? 0) / sessoes);
+  };
+
   const itemGrid = 'grid-cols-[minmax(0,1.6fr)_72px_1fr_1fr_1fr_40px]';
+  const itemGridVer = 'grid-cols-[minmax(0,1.4fr)_64px_64px_1fr_1fr_1fr_minmax(0,1fr)]';
+
+  const titulo = ver
+    ? `Visualizando pacote #${pacote?.number ?? ''}`
+    : 'Novo pacote';
 
   return (
     <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
-      title="Novo pacote"
-      sections={[
-        { key: 'cliente', label: 'Cliente / Dados' },
-        { key: 'itens', label: 'Itens do pacote' },
-        { key: 'pagamentos', label: 'Pagamentos' },
-        { key: 'observacoes', label: 'Observações' },
-      ]}
-      activeSection={section}
-      onSectionChange={(k) =>
-        setSection(k as 'cliente' | 'itens' | 'pagamentos' | 'observacoes')
-      }
+      title={titulo}
       footer={
-        <>
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button variant="primary" isDisabled={!canSave} onClick={handleSave}>
-            {sell.isPending ? 'Salvando…' : 'Salvar'}
-          </Button>
-        </>
+        ver ? (
+          <>
+            {/* "Salvar" e "Ver pagamentos" existem no Belasis e ficam de fora
+                aqui: não há PATCH /customer-packages/:id nem pagamento de
+                pacote na API — botão que não salva engana mais do que ajuda. */}
+            <Button
+              variant="outline"
+              className="text-danger"
+              isDisabled={remove.isPending}
+              onClick={handleDeletePackage}
+            >
+              <IconTrash size={16} /> Excluir
+            </Button>
+            <Button variant="primary" onClick={onClose}>
+              Fechar
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button variant="primary" isDisabled={!canSave} onClick={handleSave}>
+              {sell.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </>
+        )
       }
     >
       {/* Sub-drawers (portam para z-[90], sobem por cima deste FullDrawer z-[80]). */}
-      <CustomerPickerDrawer
-        isOpen={customerPickerOpen}
-        onClose={() => setCustomerPickerOpen(false)}
-        onSelect={setSelectedCustomer}
-      />
-      <ItemPickerDrawer
-        isOpen={itemPickerOpen}
-        onClose={() => setItemPickerOpen(false)}
-        onSelect={addItem}
-      />
+      {!ver && (
+        <>
+          <CustomerPickerDrawer
+            isOpen={customerPickerOpen}
+            onClose={() => setCustomerPickerOpen(false)}
+            onSelect={setSelectedCustomer}
+          />
+          <ItemPickerDrawer
+            isOpen={itemPickerOpen}
+            onClose={() => setItemPickerOpen(false)}
+            onSelect={addItem}
+          />
+        </>
+      )}
 
-      {/* Coluna do cliente à esquerda em TODAS as seções, como no Belasis (f_0153) — nossas abas
-          horizontais são divergência nossa, então a coluna nasce abaixo delas. Sem cliente ela
-          mostra só o avatar vazio e o mesmo seletor do campo "Cliente" abaixo. */}
+      {/* Coluna do cliente à esquerda, como no Belasis (f_0153). */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
         <PacoteClienteAside
-          customerId={selectedCustomer?.id ?? null}
-          nome={selectedCustomer?.name ?? null}
-          // O picker já devolve telefone e foto: nada a buscar para desenhar o topo.
-          telefone={selectedCustomer?.phone ?? null}
-          avatarUrl={selectedCustomer?.avatarUrl ?? null}
-          buscarContato={false}
-          onSelecionarCliente={() => setCustomerPickerOpen(true)}
+          customerId={ver ? pacote?.customerId ?? null : selectedCustomer?.id ?? null}
+          nome={ver ? pacote?.customerName ?? null : selectedCustomer?.name ?? null}
+          telefone={ver ? null : selectedCustomer?.phone ?? null}
+          avatarUrl={ver ? null : selectedCustomer?.avatarUrl ?? null}
+          // No modo VER o payload não traz telefone/foto: busca pelo cliente.
+          buscarContato={ver}
+          onSelecionarCliente={ver ? undefined : () => setCustomerPickerOpen(true)}
         />
 
-        {/* `order-1 lg:order-2`: par do `order-2 lg:order-1` do aside
-            (PacoteClienteAside.tsx:64). No mobile o formulário do pacote vem primeiro —
-            senão o "Novo pacote" no celular abria com um avatar vazio ocupando a
-            primeira tela. No desktop a ordem visual continua cliente | formulário. */}
+        {/* `order-1 lg:order-2`: no mobile o formulário vem primeiro — senão a
+            tela abre com um avatar ocupando tudo. */}
         <div className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2">
-          {section === 'cliente' && (
+          {ver && detalhe.isLoading ? (
+            <LoadingState />
+          ) : ver && detalhe.isError ? (
+            <ErrorState onRetry={() => detalhe.refetch()} />
+          ) : (
             <>
-              <Field label="Cliente" required>
-                {selectedCustomer ? (
-                  <div className="flex items-center gap-3 rounded-lg border border-line bg-white px-3 py-2.5">
-                    <CustomerAvatar
-                      name={selectedCustomer.name}
-                      avatarUrl={selectedCustomer.avatarUrl}
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                      <span className="truncate text-sm font-semibold text-foreground">
-                        {selectedCustomer.name}
-                      </span>
-                      {selectedCustomer.phone ? (
-                        <span className="truncate text-xs text-muted">
-                          {formatPhone(selectedCustomer.phone)}
+              {/* Linha 1 do Belasis: Cliente* · Data · Validade */}
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                <Field label="Cliente" required>
+                  {ver ? (
+                    <ReadonlyBox>{pacote?.customerName ?? '—'}</ReadonlyBox>
+                  ) : selectedCustomer ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-line bg-white px-3 py-2.5">
+                      <CustomerAvatar
+                        name={selectedCustomer.name}
+                        avatarUrl={selectedCustomer.avatarUrl}
+                      />
+                      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                        <span className="truncate text-sm font-semibold text-foreground">
+                          {selectedCustomer.name}
                         </span>
-                      ) : null}
+                        {selectedCustomer.phone ? (
+                          <span className="truncate text-xs text-muted">
+                            {formatPhone(selectedCustomer.phone)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCustomerPickerOpen(true)}
+                        className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                      >
+                        Trocar
+                      </button>
                     </div>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => setCustomerPickerOpen(true)}
-                      className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                      className="flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 text-left text-sm text-muted-ink"
                     >
-                      Trocar
+                      <span>Busque por um cliente</span>
+                      <IconChevron size={16} className="shrink-0 text-muted-ink" />
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setCustomerPickerOpen(true)}
-                    className="flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 text-left text-sm text-muted-ink"
-                  >
-                    <span>Busque por um cliente</span>
-                    <IconChevron size={16} className="shrink-0 text-muted-ink" />
-                  </button>
-                )}
-              </Field>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Data">
-                  <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
+                  )}
                 </Field>
+
+                <Field label="Data">
+                  {ver ? (
+                    // `createdAt` é o que existe: não há coluna de "data da
+                    // venda". Nos pacotes importados isso é a data do import.
+                    <ReadonlyBox>{formatDate(pacote?.createdAt)}</ReadonlyBox>
+                  ) : (
+                    <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
+                  )}
+                </Field>
+
                 <Field
                   label="Validade"
                   hint="Data limite para uso do pacote. Deixe em branco para não expirar."
                 >
-                  <DatePicker value={validUntil} onChange={setValidUntil} ariaLabel="Validade" />
+                  {ver ? (
+                    <ReadonlyBox>
+                      {pacote?.expiresAt ? formatDate(pacote.expiresAt) : 'Não expira'}
+                    </ReadonlyBox>
+                  ) : (
+                    <DatePicker value={validUntil} onChange={setValidUntil} ariaLabel="Validade" />
+                  )}
                 </Field>
               </div>
 
-              <Field label="Pacote Predefinido">
-                <Select
-                  aria-label="Pacote Predefinido"
-                  selectedKey={templateId || null}
-                  onSelectionChange={(k) => (k ? applyTemplate(String(k)) : setTemplateId(NONE))}
-                >
-                  <Select.Trigger>
-                    <Select.Value>
-                      {({ isPlaceholder, selectedText }) =>
-                        isPlaceholder ? 'Selecione um pacote predefinido' : selectedText
-                      }
-                    </Select.Value>
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {templateList.map((t) => (
-                        <ListBox.Item key={t.id} id={t.id} textValue={t.name}>
-                          {t.name}
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-                <p className="mt-1 text-[11px] text-muted-ink">
-                  Opcional — preenche os itens automaticamente. Você pode editá-los depois.
-                </p>
-              </Field>
+              {/* Linha 2: Pacote Predefinido · Vendedor */}
+              <div className="grid gap-3 lg:grid-cols-2">
+                <Field label="Pacote Predefinido">
+                  {ver ? (
+                    <ReadonlyBox>{pacote?.template?.name ?? '—'}</ReadonlyBox>
+                  ) : (
+                    <>
+                      <Select
+                        aria-label="Pacote Predefinido"
+                        selectedKey={templateId || null}
+                        onSelectionChange={(k) => (k ? applyTemplate(String(k)) : setTemplateId(NONE))}
+                      >
+                        <Select.Trigger>
+                          <Select.Value>
+                            {({ isPlaceholder, selectedText }) =>
+                              isPlaceholder ? 'Selecione um pacote predefinido' : selectedText
+                            }
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {templateList.map((t) => (
+                              <ListBox.Item key={t.id} id={t.id} textValue={t.name}>
+                                {t.name}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                      <p className="mt-1 text-[11px] text-muted-ink">
+                        Opcional — preenche os itens automaticamente. Você pode editá-los depois.
+                      </p>
+                    </>
+                  )}
+                </Field>
 
-              <Field label="Vendedor">
-                <Select
-                  aria-label="Vendedor"
-                  selectedKey={sellerId || null}
-                  onSelectionChange={(k) => setSellerId(k ? String(k) : NONE)}
-                >
-                  <Select.Trigger>
-                    <Select.Value>
-                      {({ isPlaceholder, selectedText }) =>
-                        isPlaceholder ? 'Selecione um vendedor' : selectedText
-                      }
-                    </Select.Value>
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {professionalList.map((p) => (
-                        <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
-                          {p.name}
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              </Field>
-            </>
-          )}
-
-          {section === 'itens' && (
-            /* Itens do pacote — linhas editáveis (Belasis): serviço/produto avulso
-               com qtde, valor unitário e desconto; total calculado ao vivo. */
-            <div className="overflow-hidden rounded-lg border border-line">
-              <div className="border-b border-line bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                Itens do pacote
+                <Field label="Vendedor">
+                  {ver ? (
+                    // Sem coluna de vendedor no schema — desabilitado, como na
+                    // referência quando não há valor.
+                    <ReadonlyBox>—</ReadonlyBox>
+                  ) : (
+                    <Select
+                      aria-label="Vendedor"
+                      selectedKey={sellerId || null}
+                      onSelectionChange={(k) => setSellerId(k ? String(k) : NONE)}
+                    >
+                      <Select.Trigger>
+                        <Select.Value>
+                          {({ isPlaceholder, selectedText }) =>
+                            isPlaceholder ? 'Selecione um vendedor' : selectedText
+                          }
+                        </Select.Value>
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {professionalList.map((p) => (
+                            <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                              {p.name}
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  )}
+                </Field>
               </div>
 
-              {/* Cabeçalho (desktop) */}
-              <div
-                className={`hidden md:grid ${itemGrid} items-center gap-2 border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-ink`}
-              >
-                <span>Descrição</span>
-                <span className="text-center">Qtde.</span>
-                <span className="text-right">Valor unitário</span>
-                <span className="text-right">Desconto</span>
-                <span className="text-right">Total</span>
-                <span />
-              </div>
-
-              {items.length === 0 ? (
-                <div className="px-3 py-6 text-center text-sm text-muted-ink">
-                  Nenhum item. Use “Selecionar serviço ou produto” abaixo ou escolha um Pacote
-                  Predefinido na aba “Cliente / Dados”.
+              {/* Itens do pacote */}
+              <div className="overflow-hidden rounded-lg border border-line">
+                <div className="border-b border-line bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  Itens do pacote
                 </div>
-              ) : (
-                items.map((it) => (
-                  <PkgItemRow
-                    key={it.uid}
-                    item={it}
-                    gridCls={itemGrid}
-                    onChange={(patch) => patchItem(it.uid, patch)}
-                    onRemove={() => removeItem(it.uid)}
-                  />
-                ))
-              )}
 
-              <button
-                type="button"
-                onClick={() => setItemPickerOpen(true)}
-                className="flex w-full items-center gap-2 border-t border-line px-3 py-3 text-left text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
-              >
-                <IconPlus size={15} /> Selecionar serviço ou produto
-              </button>
-            </div>
-          )}
+                <div
+                  className={`hidden md:grid ${ver ? itemGridVer : itemGrid} items-center gap-2 border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-ink`}
+                >
+                  <span>Descrição</span>
+                  {ver && <span className="text-center">Saldo</span>}
+                  <span className="text-center">Qtde.</span>
+                  <span className="text-right">Valor unitário</span>
+                  <span className="text-right">Desconto</span>
+                  <span className="text-right">Total</span>
+                  {/* pl-4: sem folga, "TOTAL" e "UTILIZADOS" encostavam. */}
+                  {ver ? <span className="pl-4">Utilizados</span> : <span />}
+                </div>
 
-          {section === 'pagamentos' && (
-            /* Resumo à direita (Belasis: Desconto / Crédito / Cashback / Total).
-               Total = subtotal dos itens − desconto e é o `price` enviado. Crédito
-               e Cashback são disabled (sem coluna na API atual). */
-            <div className="flex justify-end">
-              <div className="w-full sm:max-w-sm">
-                <SummaryRow label="Subtotal">
-                  <div className="px-1 text-right text-sm tabular-nums text-ink">
-                    {formatMoney(itemsSubtotal)}
+                {ver ? (
+                  (pacote?.items ?? []).length === 0 ? (
+                    <div className="px-3 py-6 text-center text-sm text-muted-ink">
+                      Este pacote não tem itens cadastrados.
+                    </div>
+                  ) : (
+                    (pacote?.items ?? []).map((it) => (
+                      <PkgItemRowVer
+                        key={it.id}
+                        item={it}
+                        gridCls={itemGridVer}
+                        unitario={unitarioVer(it.sessionsTotal)}
+                        total={
+                          (pacote?.items?.length ?? 0) === 1
+                            ? formatMoney(Number(pacote?.price ?? 0))
+                            : '—'
+                        }
+                      />
+                    ))
+                  )
+                ) : items.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-muted-ink">
+                    Nenhum item. Use “Selecionar serviço ou produto” abaixo ou escolha um Pacote
+                    Predefinido acima.
                   </div>
-                </SummaryRow>
-                <SummaryRow label="Desconto">
-                  <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
-                    <Input type="number" placeholder="R$ 0,00" className="text-right" />
-                  </TextField>
-                </SummaryRow>
-                <SummaryRow label="Crédito">
-                  {/* Belasis: crédito do cliente (disabled) — sem coluna na API atual */}
-                  <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
-                    R$ 0,00
-                  </div>
-                </SummaryRow>
-                <SummaryRow label="Cashback">
-                  {/* Belasis: cashback (disabled) — sem coluna na API atual */}
-                  <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
-                    R$ 0,00
-                  </div>
-                </SummaryRow>
-                <SummaryRow label="Total" strong>
-                  <div className="px-1 text-right text-sm font-semibold tabular-nums text-ink">
-                    {formatMoney(grandTotal)}
-                  </div>
-                </SummaryRow>
+                ) : (
+                  items.map((it) => (
+                    <PkgItemRow
+                      key={it.uid}
+                      item={it}
+                      gridCls={itemGrid}
+                      onChange={(patch) => patchItem(it.uid, patch)}
+                      onRemove={() => removeItem(it.uid)}
+                    />
+                  ))
+                )}
+
+                {!ver && (
+                  <button
+                    type="button"
+                    onClick={() => setItemPickerOpen(true)}
+                    className="flex w-full items-center gap-2 border-t border-line px-3 py-3 text-left text-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
+                  >
+                    <IconPlus size={15} /> Selecionar serviço ou produto
+                  </button>
+                )}
               </div>
-            </div>
-          )}
 
-          {section === 'observacoes' && (
-            <Field label="Observação">
-              {/* TODO Belasis: observação não enviada pela API atual */}
-              <TextField value={observation} onChange={setObservation} aria-label="Observação">
-                <Input placeholder="Escreva aqui" />
-              </TextField>
-            </Field>
-          )}
+              {/* Totais à direita: Desconto / Crédito / Cashback / Total */}
+              <div className="flex justify-end">
+                <div className="w-full sm:max-w-sm">
+                  <SummaryRow label="Desconto">
+                    {ver ? (
+                      <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
+                        R$ 0,00
+                      </div>
+                    ) : (
+                      <TextField value={discount} onChange={setDiscount} aria-label="Desconto">
+                        <Input type="number" placeholder="R$ 0,00" className="text-right" />
+                      </TextField>
+                    )}
+                  </SummaryRow>
+                  {/* Crédito e Cashback: sem coluna na API — desabilitados,
+                      como aparecem na captura da referência. */}
+                  <SummaryRow label="Crédito">
+                    <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
+                      R$ 0,00
+                    </div>
+                  </SummaryRow>
+                  <SummaryRow label="Cashback">
+                    <div className="rounded-md border border-line bg-canvas px-2 py-1.5 text-right text-sm tabular-nums text-muted-ink">
+                      R$ 0,00
+                    </div>
+                  </SummaryRow>
+                  <SummaryRow label="Total" strong>
+                    <div className="px-1 text-right text-sm font-semibold tabular-nums text-ink">
+                      {formatMoney(grandTotal)}
+                    </div>
+                  </SummaryRow>
+                </div>
+              </div>
 
-          {error && (
-            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {error}
-            </div>
+              <Field label="Observação">
+                {/* TODO backend: pacote não tem coluna de observação. */}
+                <TextField
+                  value={observation}
+                  onChange={setObservation}
+                  aria-label="Observação"
+                  isDisabled={ver}
+                >
+                  <Input placeholder="Escreva aqui" />
+                </TextField>
+              </Field>
+
+              {error && (
+                <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {error}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
     </FullDrawer>
+  );
+}
+
+/** Campo somente-leitura com a mesma altura/borda dos inputs (modo "ver"). */
+function ReadonlyBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-11 items-center rounded-lg border border-line bg-canvas px-3 text-sm text-muted-ink">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Linha de item no modo VER — inclui "Saldo" e "Utilizados", as duas colunas
+ * que só existem ao visualizar (na referência, "Comanda #2951").
+ */
+function PkgItemRowVer({
+  item,
+  gridCls,
+  unitario,
+  total,
+}: {
+  item: CustomerPackageDetailItem;
+  gridCls: string;
+  unitario: string;
+  total: string;
+}) {
+  const usos = item.usages ?? [];
+  return (
+    <div className="border-b border-line/60 last:border-0">
+      {/* Desktop */}
+      <div className={`hidden md:grid ${gridCls} items-center gap-2 px-3 py-2 text-sm`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
+            <IconScissors size={15} />
+          </span>
+          <span className="truncate font-medium text-ink">{item.serviceName ?? '—'}</span>
+        </div>
+        <span className="text-center tabular-nums text-ink">{item.saldo}</span>
+        <span className="text-center tabular-nums text-ink">{item.sessionsTotal}</span>
+        <span className="text-right tabular-nums text-ink">{unitario}</span>
+        <span className="text-right tabular-nums text-muted-ink">R$ 0,00</span>
+        <span className="text-right font-semibold tabular-nums text-ink">{total}</span>
+        <div className="flex flex-col pl-4 text-xs text-primary">
+          {usos.length === 0 ? (
+            <span className="text-muted-ink">—</span>
+          ) : (
+            usos.map((u) => (
+              <span key={u.id}>
+                {u.orderNumber != null ? `Comanda #${u.orderNumber}` : formatDate(u.usedAt)}
+              </span>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Mobile: cartão empilhado (a tabela não cabe em 390px) */}
+      <div className="flex flex-col gap-1 px-3 py-3 md:hidden">
+        <div className="flex items-center gap-2">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
+            <IconScissors size={15} />
+          </span>
+          <span className="min-w-0 flex-1 truncate font-medium text-ink">
+            {item.serviceName ?? '—'}
+          </span>
+          <span className="shrink-0 font-semibold tabular-nums text-ink">{total}</span>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5 pl-9 text-xs text-muted-ink">
+          <span>Saldo {item.saldo}</span>
+          <span>Qtde. {item.sessionsTotal}</span>
+          <span>Unit. {unitario}</span>
+        </div>
+        {usos.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 pl-9 text-xs text-primary">
+            {usos.map((u) => (
+              <span key={u.id}>
+                {u.orderNumber != null ? `Comanda #${u.orderNumber}` : formatDate(u.usedAt)}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

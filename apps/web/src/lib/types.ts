@@ -437,6 +437,8 @@ export interface PackageUsage {
   id: string;
   usedAt: string;
   orderId: string | null;
+  /** Número da comanda que consumiu a sessão — vira "Comanda #2951" na coluna "Utilizados". */
+  orderNumber?: number | null;
 }
 
 /** One item of the package detail, with computed saldo + usages. */
