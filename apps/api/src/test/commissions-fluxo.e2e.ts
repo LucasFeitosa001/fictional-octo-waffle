@@ -767,6 +767,89 @@ async function run() {
       const restou = await prisma.salonPayTransfer.count({ where: { companyId } });
       check('9) a transferência pendente é cancelada junto', restou === 0, `${restou} restante(s)`);
     }
+    // ==========================================================
+    // 10) TAXA DO CARTÃO, PRAZO DE LIQUIDAÇÃO E O AVISO DE COMISSÃO
+    //     Os três nasciam do mesmo silêncio: o salão configurava e o sistema
+    //     ignorava, ou pulava o item sem contar.
+    // ==========================================================
+    {
+      const cartao = await prisma.paymentMethod.create({
+        data: {
+          companyId,
+          name: 'Cartão de Crédito (teste)',
+          goesToCash: false,
+          feePercent: 10,
+          settlementDays: 30,
+        },
+      });
+      const svc = await prisma.service.create({
+        data: { companyId, name: 'Corte Teste', price: 100, defaultCommissionPercent: 20 },
+      });
+      const semPct = await prisma.service.create({
+        data: { companyId, name: 'Servico Sem Percentual', price: 50, defaultCommissionPercent: 0 },
+      });
+      const prof = await prisma.professional.create({
+        data: { companyId, name: 'Nina Cartao', receivesCommission: true },
+      });
+
+      const comanda = await prisma.order.create({
+        data: {
+          companyId, number: 900, status: 'open', professionalId: prof.id,
+          items: {
+            create: [
+              { kind: 'service', refId: svc.id, professionalId: prof.id, quantity: 1, unitPrice: 100, grossValue: 100 },
+              { kind: 'service', refId: semPct.id, professionalId: prof.id, quantity: 1, unitPrice: 50, grossValue: 50 },
+            ],
+          },
+        },
+      });
+      await prisma.orderPayment.create({
+        data: { orderId: comanda.id, paymentMethodId: cartao.id, amount: 150, status: 'pending' },
+      });
+
+      const fat = await api('POST', `/orders/${comanda.id}/finish`, { token: salon.token });
+      check('10) faturar → 2xx', fat.status >= 200 && fat.status < 300, `status ${fat.status}`);
+
+      // Taxa: 150 − 10% = 135, e a receita fica A RECEBER, não paga.
+      const receita = await prisma.transaction.findFirst({
+        where: { companyId, orderId: comanda.id, kind: 'income' },
+      });
+      check('10) receita entra LÍQUIDA da taxa (150 − 10% = 135)',
+        near(Number(receita?.grossAmount ?? 0), 135), `grossAmount ${receita?.grossAmount}`);
+      check('10) e fica A RECEBER, não paga na hora', receita?.status === 'pending',
+        String(receita?.status));
+      const dias = receita?.dueDate
+        ? Math.round((receita.dueDate.getTime() - Date.now()) / 86400000)
+        : -1;
+      check('10) com vencimento no prazo de liquidação (30 dias)', dias >= 29 && dias <= 30,
+        `${dias} dia(s)`);
+
+      // Comissão: 20% de 100 = 20, liberando junto com o dinheiro.
+      const ce = await prisma.commissionEntry.findMany({
+        where: { companyId, orderId: comanda.id },
+      });
+      check('10) gerou comissão só do item COM percentual', ce.length === 1, `${ce.length}`);
+      check('10) valor 20% de 100', near(Number(ce[0]?.commissionAmount ?? 0), 20));
+      const libera = ce[0]?.availableDate
+        ? Math.round((ce[0].availableDate.getTime() - Date.now()) / 86400000)
+        : -1;
+      check('10) comissão LIBERA junto com o dinheiro (30 dias)', libera >= 29 && libera <= 30,
+        `${libera} dia(s)`);
+
+      // O card "a liberar" deixa de ser zero por construção.
+      const ov = await api('GET', '/commissions/overview', { token: salon.token });
+      check('10) "Comissões a liberar" passa a existir',
+        Number(ov.body?.aLiberar?.total ?? 0) >= 20, JSON.stringify(ov.body?.aLiberar));
+
+      // O item sem percentual é REPORTADO em vez de sumir calado.
+      const pulados = fat.body?.commissionSkipped ?? [];
+      check('10) o item sem percentual é reportado', pulados.length === 1,
+        JSON.stringify(pulados));
+      check('10) com o nome do serviço e do profissional',
+        pulados[0]?.item === 'Servico Sem Percentual' && pulados[0]?.profissional === 'Nina Cartao',
+        JSON.stringify(pulados[0]));
+    }
+
   } finally {
     const { prisma } = await import('@beautypass/db');
     if (companyId) {

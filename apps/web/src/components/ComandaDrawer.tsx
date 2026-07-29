@@ -874,18 +874,37 @@ function PagamentosDrawer({
   const typed = parseNum(amount);
   const troco = Math.max(0, typed - remaining);
   const quicks = ['Dinheiro', 'Cartão', 'Outros'];
+  /**
+   * Atalho → forma CADASTRADA.
+   *
+   * Antes só "Dinheiro" resolvia; "Cartão" e "Outros" gravavam pagamento com
+   * `paymentMethodId` nulo, e no faturamento a receita entrava no Financeiro
+   * SEM CONTA (`accountId` sai nulo quando não há forma). Os três botões
+   * pareciam equivalentes e dois produziam um lançamento pior.
+   *
+   * "Cartão" casa com débito/crédito — prefere débito, que é o uso mais comum
+   * no balcão; o salão troca pelo seletor quando for crédito.
+   */
+  const normalizar = (t: string) =>
+    t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
   const selectedQuickMethod = useMemo(() => {
-    if (quickMethod !== 'Dinheiro') return null;
-    return (
-      methodList.find(
-        (method) =>
-          method.name
-            .normalize('NFD')
-            .replace(/\p{Diacritic}/gu, '')
-            .toLowerCase() === 'dinheiro',
-      ) ?? null
-    );
+    const acha = (teste: (nome: string) => boolean) =>
+      methodList.find((m) => teste(normalizar(m.name))) ?? null;
+    if (quickMethod === 'Dinheiro') return acha((n) => n === 'dinheiro');
+    if (quickMethod === 'Cartão') {
+      return (
+        acha((n) => n.includes('debito')) ??
+        acha((n) => n.includes('credito')) ??
+        acha((n) => n.includes('cartao'))
+      );
+    }
+    // "Outros": qualquer forma que não seja dinheiro nem cartão (Pix, etc.).
+    return acha((n) => !n.includes('dinheiro') && !n.includes('cartao'));
   }, [methodList, quickMethod]);
+
+  /** Sem forma correspondente cadastrada, avisar em vez de gravar órfão. */
+  const semFormaCadastrada = !methodId && !selectedQuickMethod && methodList.length > 0;
 
   function paymentBody(value: number) {
     const resolvedMethodId = methodId || selectedQuickMethod?.id;
@@ -905,6 +924,15 @@ function PagamentosDrawer({
     }
     if (value <= 0) {
       setError('Informe um valor válido.');
+      return;
+    }
+    // Sem forma cadastrada correspondente, o pagamento entraria sem conta no
+    // Financeiro. Melhor recusar e mandar cadastrar do que gravar órfão.
+    if (semFormaCadastrada) {
+      setError(
+        `Nenhuma forma de pagamento cadastrada corresponde a "${quickMethod}". ` +
+          'Escolha uma no seletor abaixo ou cadastre em Financeiro → Cadastros.',
+      );
       return;
     }
     try {
@@ -931,6 +959,13 @@ function PagamentosDrawer({
         }
         if (value <= 0) {
           setError('Informe o valor e a forma de pagamento antes de faturar.');
+          return;
+        }
+        if (semFormaCadastrada) {
+          setError(
+            `Nenhuma forma de pagamento cadastrada corresponde a "${quickMethod}". ` +
+              'Escolha uma no seletor abaixo ou cadastre em Financeiro → Cadastros.',
+          );
           return;
         }
         await add.mutateAsync(paymentBody(value));

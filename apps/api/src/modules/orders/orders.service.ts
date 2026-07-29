@@ -929,11 +929,36 @@ export class OrdersService {
       if (openCash) {
         await this.generateCashMovements(tx, order, openCash.id);
       }
-      await this.generateCommissionEntries(tx, companyId, order);
+      // A comissão libera quando o dinheiro entra. Usa o MAIOR prazo entre as
+      // formas de pagamento da comanda: se metade foi no crédito de 30 dias, a
+      // comissão inteira só está disponível quando aquela parcela cair.
+      const formasUsadas = await tx.paymentMethod.findMany({
+        where: {
+          companyId,
+          id: {
+            in: [
+              ...new Set(
+                order.payments
+                  .filter((pg) => pg.status !== 'reversed' && pg.paymentMethodId)
+                  .map((pg) => pg.paymentMethodId as string),
+              ),
+            ],
+          },
+        },
+        select: { settlementDays: true },
+      });
+      const maiorPrazo = formasUsadas.reduce(
+        (maior, f) => Math.max(maior, Number(f.settlementDays ?? 0)),
+        0,
+      );
+      const liberaEm =
+        maiorPrazo > 0 ? new Date(Date.now() + maiorPrazo * 24 * 60 * 60 * 1000) : undefined;
+
+      const comissoes = await this.generateCommissionEntries(tx, companyId, order, liberaEm);
       await this.generateCashbackEarnings(tx, companyId, order);
       await this.decrementSoldStock(tx, order);
 
-      return tx.order.update({
+      const atualizada = await tx.order.update({
         where: { id },
         data: {
           status: 'finished',
@@ -943,6 +968,9 @@ export class OrdersService {
         },
         include: { items: true, payments: true },
       });
+      // Vai junto na resposta para a tela AVISAR. Antes o item sem percentual
+      // era pulado em silêncio e o salão faturava esperando comissão.
+      return Object.assign(atualizada, { commissionSkipped: comissoes.semPercentual });
     });
 
     // Event-driven: closing the comanda schedules the post-service follow-up
@@ -978,23 +1006,32 @@ export class OrdersService {
     },
     categoryId: string | null,
   ) {
-    // Resolve contas-default dos métodos de pagamento sem accountId explícito.
+    // Resolve conta-default, TAXA e PRAZO das formas de pagamento usadas.
+    // `feePercent` e `settlementDays` eram cadastrados e nunca lidos: o salão
+    // configurava "Cartão 3,5%, liquida em 30 dias", vendia R$ 100 e o sistema
+    // registrava R$ 100 disponíveis HOJE.
     const methodIds = [
       ...new Set(
         order.payments
-          .filter((p) => !p.accountId && p.paymentMethodId)
+          .filter((p) => p.paymentMethodId)
           .map((p) => p.paymentMethodId as string),
       ),
     ];
     const methods = methodIds.length
       ? await tx.paymentMethod.findMany({
           where: { id: { in: methodIds }, companyId },
-          select: { id: true, defaultAccountId: true },
+          select: {
+            id: true,
+            defaultAccountId: true,
+            feePercent: true,
+            settlementDays: true,
+          },
         })
       : [];
     const defaultAccountByMethod = new Map(
       methods.map((m) => [m.id, m.defaultAccountId] as const),
     );
+    const methodById = new Map(methods.map((m) => [m.id, m] as const));
 
     for (const p of order.payments) {
       if (p.status === 'reversed') continue; // pagamento estornado não vira receita
@@ -1014,21 +1051,38 @@ export class OrdersService {
         (p.paymentMethodId ? defaultAccountByMethod.get(p.paymentMethodId) ?? null : null);
       const now = new Date();
 
+      // TAXA e PRAZO da forma de pagamento. A taxa do cartão é custo da venda:
+      // o salão recebe o líquido. E recebe no dia da LIQUIDAÇÃO, não hoje —
+      // registrar como disponível na hora inflava o caixa do dia.
+      const forma = p.paymentMethodId ? methodById.get(p.paymentMethodId) : undefined;
+      const taxa = Number(forma?.feePercent ?? 0);
+      const prazo = Number(forma?.settlementDays ?? 0);
+      const bruto = new Prisma.Decimal(p.amount);
+      const liquido = taxa > 0 ? bruto.sub(bruto.mul(taxa).div(100)) : bruto;
+      const liquidacao =
+        prazo > 0 ? new Date(now.getTime() + prazo * 24 * 60 * 60 * 1000) : now;
+      // Só é "pago" quando o dinheiro entrou de fato. Com prazo, fica a receber.
+      const jaCaiu = prazo <= 0;
+
       await tx.transaction.create({
         data: {
           companyId,
           kind: 'income',
-          grossAmount: p.amount,
+          grossAmount: liquido,
           accountId,
           categoryId,
           paymentMethodId: p.paymentMethodId,
           partyType: order.customerId ? 'customer' : null,
           partyId: order.customerId,
           orderId: order.id,
-          description: 'Recebimento de comanda',
-          dueDate: now,
-          paidAt: now,
-          status: 'paid',
+          description:
+            taxa > 0
+              ? `Recebimento de comanda (líquido de ${taxa}% de taxa)`
+              : 'Recebimento de comanda',
+          dueDate: liquidacao,
+          competenceDate: now,
+          ...(jaCaiu ? { paidAt: now } : {}),
+          status: jaCaiu ? 'paid' : 'pending',
           legacyId,
           legacySource: 'order_finish',
         },
@@ -1112,7 +1166,7 @@ export class OrdersService {
         professionalId: string | null;
         grossValue: Prisma.Decimal;
         discount: Prisma.Decimal;
-        professional: { id: string; receivesCommission: boolean } | null;
+        professional: { id: string; name?: string; receivesCommission: boolean } | null;
         auxiliaries?: {
           professionalId: string;
           discountFrom: string;
@@ -1121,7 +1175,14 @@ export class OrdersService {
         }[];
       }[];
     },
-  ) {
+    /**
+     * Quando o dinheiro da venda fica disponível (maior prazo de liquidação
+     * entre as formas usadas). A comissão libera junto: antes nascia sempre
+     * como "agora", e por isso o card "Comissões a liberar" era R$ 0,00 por
+     * construção.
+     */
+    disponivelEm?: Date,
+  ): Promise<{ semPercentual: { profissional: string; item: string }[] }> {
     // Idempotência por ESTADO ATIVO: só não recria se já houver lançamentos ativos
     // (open/paid) para esta comanda. Entries `reversed` de um reopen anterior são
     // ignoradas, permitindo gerar novas comissões neste re-finish.
@@ -1129,9 +1190,14 @@ export class OrdersService {
       where: { companyId, orderId: order.id, status: { not: 'reversed' } },
       select: { id: true },
     });
-    if (activeEntry) return;
+    if (activeEntry) return { semPercentual: [] };
 
     const now = new Date();
+    const liberaEm = disponivelEm ?? now;
+    // Itens que TINHAM profissional comissionado mas ficaram sem percentual.
+    // Sem isto o item era pulado em silêncio e o salão faturava esperando
+    // comissão que nunca apareceu.
+    const semPercentual: { profissional: string; item: string }[] = [];
 
     for (const item of order.items) {
       const baseAmount = new Prisma.Decimal(item.grossValue).sub(item.discount);
@@ -1166,7 +1232,7 @@ export class OrdersService {
             commissionAmount: auxAmount,
             status: 'open',
             competenceDate: order.date,
-            availableDate: now,
+            availableDate: liberaEm,
           },
         });
 
@@ -1183,7 +1249,19 @@ export class OrdersService {
       if (!item.professional?.receivesCommission) continue;
 
       const percent = await this.resolveCommissionPercent(tx, professionalId, item);
-      if (percent.lessThanOrEqualTo(0)) continue;
+      if (percent.lessThanOrEqualTo(0)) {
+        const nome =
+          item.kind === 'service'
+            ? (await tx.service.findUnique({ where: { id: item.refId }, select: { name: true } }))
+                ?.name
+            : (await tx.product.findUnique({ where: { id: item.refId }, select: { name: true } }))
+                ?.name;
+        semPercentual.push({
+          profissional: item.professional?.name ?? 'profissional',
+          item: nome ?? (item.kind === 'service' ? 'serviço' : 'produto'),
+        });
+        continue;
+      }
 
       const gross = baseAmount.mul(percent).div(100);
       // Nunca negativo: grava-se o que DE FATO foi descontado, não o pretendido.
@@ -1204,10 +1282,12 @@ export class OrdersService {
           // Competência é a data da venda/comanda, não o instante em que alguém
           // clicou em "Finalizar". Isso mantém os filtros e backfills corretos.
           competenceDate: order.date,
-          availableDate: now,
+          availableDate: liberaEm,
         },
       });
     }
+
+    return { semPercentual };
   }
 
 

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
+import { toast } from '@heroui/react';
 import { toastSuccess } from './toast';
 import type {
   AppointmentRow,
@@ -534,11 +535,38 @@ export function useReverseOrderPayment(id: string) {
   });
 }
 
+/** Item que ficou SEM comissão por falta de percentual configurado. */
+export interface ComissaoPulada {
+  profissional: string;
+  item: string;
+}
+
 export function useFinishOrder(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<OrderRow>(`/orders/${id}/finish`, {}),
-    onSuccess: () => invalidateOrder(queryClient, id),
+    mutationFn: () =>
+      api.post<OrderRow & { commissionSkipped?: ComissaoPulada[] }>(`/orders/${id}/finish`, {}),
+    onSuccess: (order) => {
+      invalidateOrder(queryClient, id);
+      // Comissões mudam quando uma comanda fecha.
+      queryClient.invalidateQueries({ queryKey: ['commission-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['commission-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['commission-detail'] });
+
+      // AVISO: item com profissional comissionado que ficou sem comissão por
+      // não haver percentual. Antes isso era silencioso — o salão faturava,
+      // esperava a comissão e não tinha como descobrir que faltou configurar.
+      const pulados = order.commissionSkipped ?? [];
+      if (pulados.length > 0) {
+        const quem = [...new Set(pulados.map((x) => x.profissional))].join(', ');
+        const oque = [...new Set(pulados.map((x) => x.item))].join(', ');
+        toast.warning(
+          `Sem comissão para ${quem}: ${oque} está sem percentual. ` +
+            'Defina em Comissões → Configurações ou no cadastro do serviço.',
+          { timeout: 12_000 },
+        );
+      }
+    },
   });
 }
 
