@@ -853,10 +853,13 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           `Pode responder por aqui para combinar o melhor horário. 💖`,
         ];
         // Interações: sugestão de novo horário ao cliente (fluxo de confirmação).
+        // O salão respondeu "3 <horário>" no WhatsApp — é ação humana explícita,
+        // então a linha nasce autorizada (estudo 60).
         await this.whatsapp.enqueueText(v.customerPhone, lines.join('\n'), {
           companyId,
           customerId: v.customerId ?? undefined,
           kind: 'confirmation',
+          authorized: true,
         });
         sent = true;
       }

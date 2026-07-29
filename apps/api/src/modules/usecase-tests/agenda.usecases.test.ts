@@ -354,6 +354,11 @@ describe('UC-AGD-WA — confirmação manual com opt-in e idempotência', () => 
       appointmentId: 'appt-1',
       kind: 'confirmation',
       requestKey,
+      // Estudo 60: envio que uma PESSOA autorizou. É o que permite enfileirar
+      // com o canal fechado e o que isenta a linha da revalidação de automação
+      // na entrega — sem isso, o botão "Enviar confirmação" seria descartado
+      // justamente quando o padrão da conta está desligado.
+      authorized: true,
     });
   });
 

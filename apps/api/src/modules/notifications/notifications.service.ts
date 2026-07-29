@@ -12,6 +12,7 @@ import {
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
 import { NotificationSettingsService } from './notification-settings.service';
+import { readMessagingMode } from '../queues/messaging.helpers';
 
 /**
  * Appointment notifications.
@@ -49,6 +50,16 @@ export class NotificationsService {
 
   get isLive(): boolean {
     return this.mode === 'live';
+  }
+
+  /**
+   * WhatsApp exige as DUAS chaves de ambiente: modo live E o canal habilitado.
+   * Antes esse caminho usava só `isLive`, então com `WHATSAPP_ENABLED=false` a
+   * mensagem ainda era enfileirada e ficava pendente esperando um socket que
+   * nunca subiria — fila parada é bomba armada. Ver estudo 60.
+   */
+  private get canSendWhatsapp(): boolean {
+    return readMessagingMode().canSendWhatsapp;
   }
 
   /**
@@ -374,7 +385,7 @@ export class NotificationsService {
     const whatsappAllowed = notificationsAllowed && customer?.whatsappOptIn !== false;
     if (messages.clientWhatsapp && whatsappAllowed) {
       this.logger.log(`${tag} WhatsApp -> ${messages.clientWhatsapp.to}: ${messages.clientWhatsapp.text}`);
-      if (this.isLive) {
+      if (this.canSendWhatsapp) {
         await this.whatsapp.enqueueText(messages.clientWhatsapp.to, messages.clientWhatsapp.text, {
           companyId,
           customerId: customer?.id,

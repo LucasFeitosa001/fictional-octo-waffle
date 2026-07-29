@@ -86,3 +86,43 @@ tem cliente.
 2. Criar modelos de CANCELAMENTO (Setting + endpoints + editor nas Configurações).
 3. As travas de envio do estudo 60 (não enfileirar desconectado, TTL, revalidar autorização na
    entrega) — é o que evita a fila explodir no reconnect.
+
+---
+
+# 59.5 — Personalização (segunda rodada)
+
+Depois do primeiro conserto o dono foi direto: *"Tem que ter personalização"*. O que falta é
+exatamente o que ficou registrado como aberto acima.
+
+## O que existe hoje
+
+`apps/api/src/modules/notifications/confirmation.templates.ts` é um módulo completo e bem-feito:
+chave `notifications.confirmationTemplates` (`:1`-`:2`), variáveis
+`{cliente} {quando} {hora} {hora_curta} {servico} {estabelecimento}` (`:4`-`:11`), o modelo embutido
+da La Belle (`:41`-`:55`), e os utilitários puros `confirmationTemplateVariables` (`:126`),
+`renderConfirmationTemplate` (`:143`) e `unresolvedConfirmationVariables` (`:157`).
+
+Os acessores ficam em `notification-settings.service.ts`: `getConfirmationTemplates` (`:305`) e
+`updateConfirmationTemplates` (`:341`), que mesclam os embutidos por cima do que está gravado — JSON
+velho ou corrompido nunca apaga o padrão seguro.
+
+## Os dois furos
+
+1. **O aviso AUTOMÁTICO ignora o modelo.** `notifications.service.ts:71` monta o texto com
+   `composeAppointmentMessages`, cujo corpo é a linha fixa de `notifications.templates.ts:75`. O
+   modelo editável só é usado no envio manual (`appointments.service.ts`, rota
+   `POST /appointments/:id/confirmation`). Ou seja: o dono edita e o automático continua igual.
+2. **Cancelamento não tem modelo nenhum** — nenhuma chave de Setting, nenhum endpoint, nenhuma tela.
+   O texto é a linha fixa de `notifications.templates.ts:74`.
+
+## Correção
+
+- `apps/api/src/modules/notifications/cancellation.templates.ts` (novo): espelha a confirmação —
+  mesma lista de variáveis e mesmo renderizador (importados, não copiados), chave
+  `notifications.cancellationTemplates`, dois textos embutidos.
+- `notification-settings.service.ts`: `getCancellationTemplates` / `updateCancellationTemplates`
+  no mesmo formato dos de confirmação.
+- `notifications.controller.ts`: `GET/PUT /notification-settings/cancellation-templates`.
+- `notifications.service.ts`: antes de despachar, o texto do WhatsApp do cliente passa a ser o
+  modelo padrão da empresa renderizado — confirmação para `created`/`confirmed`, cancelamento para
+  `canceled`. Se não houver modelo utilizável, mantém o texto fixo (nunca fica sem mensagem).

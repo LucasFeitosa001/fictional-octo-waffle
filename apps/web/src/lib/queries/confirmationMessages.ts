@@ -24,7 +24,9 @@ export type ConfirmationLogStatus =
   | 'sent'
   | 'delivered'
   | 'read'
-  | 'failed';
+  | 'failed'
+  /** Descartada pelas travas de envio (fila velha, aviso desligado). Estudo 60. */
+  | 'expired';
 
 export interface ConfirmationLog {
   id: string;

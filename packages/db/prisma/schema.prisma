@@ -2316,7 +2316,7 @@ model WhatsappOutbox {
   mediaMimeType  String?
   mediaFileName  String?
   mediaPtt       Boolean   @default(false)
-  status         String    @default("pending") // pending | sent | failed
+  status         String    @default("pending") // pending | sent | delivered | read | failed | expired
   attempts       Int       @default(0)
   lastError      String?
   nextAttemptAt  DateTime  @default(now())
@@ -2340,6 +2340,11 @@ model WhatsappOutbox {
   // Quando o envio nasceu no inbox (atendente ou IA), permite refletir
   // pending/sent/failed e o id definitivo do WhatsApp na conversa.
   inboxMessageId String?   @unique
+  // Uma PESSOA autorizou este envio específico (botão "Enviar confirmação",
+  // sugestão de horário). É o que isenta a linha da revalidação de automação na
+  // entrega e permite enfileirar com o canal fechado. NULL = automação, que é
+  // revalidada na hora de entregar. Ver estudo 60.
+  authorizedAt   DateTime?
 
   company      Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   customer     Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)

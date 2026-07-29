@@ -63,7 +63,10 @@ function notificationsService(options: {
   modeloThrows?: boolean;
   automacao?: Partial<Record<string, boolean>>;
 } = {}) {
+  // O despacho de WhatsApp agora exige as DUAS chaves (estudo 60):
+  // NOTIFICATIONS_MODE=live E WHATSAPP_ENABLED=true.
   process.env.NOTIFICATIONS_MODE = 'live';
+  process.env.WHATSAPP_ENABLED = 'true';
   const enfileirados: { to: string; text: string; meta: unknown }[] = [];
   const sinos: unknown[] = [];
   const consultasDeModelo: string[] = [];

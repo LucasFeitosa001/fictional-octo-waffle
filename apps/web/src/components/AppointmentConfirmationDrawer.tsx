@@ -58,6 +58,15 @@ const STATUS_META: Record<
     description: 'A mensagem não foi entregue. Veja o motivo abaixo.',
     className: 'bg-danger/10 text-danger',
   },
+  // Travas de envio (estudo 60): a mensagem foi DESCARTADA de propósito, não
+  // falhou no caminho. Ex.: ficou velha na fila, o aviso foi desligado, o
+  // horário já passou. O motivo exato vem em `error`.
+  expired: {
+    label: 'Não enviada',
+    description:
+      'O sistema descartou esta mensagem antes de enviar — veja o motivo abaixo.',
+    className: 'bg-canvas text-muted-ink',
+  },
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {

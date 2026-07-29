@@ -13,6 +13,14 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { useDbAuthState } from './whatsapp-auth';
+import {
+  autorizacaoAindaVale,
+  expirouNaFila,
+  isAutomationKind,
+  podeEnfileirar,
+  type AutomacaoDaConta,
+} from './outbox-policy';
+
 
 type WaStatus = 'disabled' | 'connecting' | 'qr' | 'open' | 'closed';
 
@@ -156,9 +164,12 @@ const BULK_DELAY_MAX_MS = envInt(
   BULK_DELAY_MIN_MS,
   600000,
 );
+// 5 minutos, não 60 segundos: com 60s o mesmo cliente recebeu três mensagens em
+// três minutos quando a fila drenou de uma vez (estudo 60). Cooldown só ADIA,
+// nunca descarta — atrasar um aviso é melhor que parecer spam.
 const RECIPIENT_COOLDOWN_MS = envInt(
   'WHATSAPP_RECIPIENT_COOLDOWN_MS',
-  60000,
+  300000,
   0,
   3600000,
 );
@@ -772,6 +783,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       kind?: string;
       /** UUID estável da ação HTTP; retry devolve a linha já criada. */
       requestKey?: string;
+      /**
+       * Uma PESSOA autorizou este envio específico (botão "Enviar confirmação",
+       * sugestão de horário). Isenta a linha da revalidação de automação na
+       * entrega e permite enfileirar com o canal fechado — quem clicou está
+       * olhando a tela e vê "na fila". Ver estudo 60.
+       */
+      authorized?: boolean;
       inboxMessageId?: string;
       /** JID já observado no inbox (`@s.whatsapp.net` ou `@lid`). */
       recipientJid?: string;
@@ -797,6 +815,22 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
     const companyId = ctx?.companyId ?? null;
+
+    // TRAVA 1 (estudo 60): automação com o canal FECHADO não entra na fila. Era
+    // isso que armava a bomba — a fila enchia parada e drenava tudo de uma vez
+    // no reconnect, com texto velho e horário já passado.
+    const canalAberto = companyId ? this.isSessionOpen(companyId) : false;
+    const entrada = podeEnfileirar(ctx?.kind, canalAberto, {
+      autorizadaPorPessoa: ctx?.authorized === true,
+      doInbox: Boolean(ctx?.inboxMessageId),
+    });
+    if (!entrada.ok) {
+      this.logger.warn(
+        `Outbox: ${ctx?.kind} para ${toPhone} NÃO enfileirada (company=${companyId ?? 'sem-company'}) — ${entrada.motivo}.`,
+      );
+      return null;
+    }
+
     if (companyId && ctx?.requestKey) {
       const sameRequest =
         await this.prisma.client.whatsappOutbox.findUnique({
@@ -892,6 +926,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
             kind: ctx?.kind ?? null,
             requestKey: ctx?.requestKey ?? null,
             inboxMessageId: ctx?.inboxMessageId ?? null,
+            authorizedAt: ctx?.authorized === true ? new Date() : null,
           },
           select: {
             id: true,
@@ -1073,6 +1108,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Empresas com socket aberto agora — usado para filtrar o outbox no drain. */
+  /** A company tem socket aberto AGORA? (usado pela trava de enfileiramento) */
+  private isSessionOpen(companyId: string): boolean {
+    const session = this.sessions.get(companyId);
+    return Boolean(session && session.status === 'open' && session.sock);
+  }
+
   private openCompanyIds(readyAt = Number.POSITIVE_INFINITY): string[] {
     const ids: string[] = [];
     for (const session of this.sessions.values()) {
@@ -1147,14 +1188,52 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     mediaPtt: boolean;
     attempts: number;
     companyId: string | null;
+    customerId: string | null;
+    appointmentId: string | null;
     kind: string | null;
     inboxMessageId: string | null;
+    createdAt: Date;
+    authorizedAt: Date | null;
   }): Promise<void> {
     const db = this.prisma.client;
     const session = msg.companyId ? this.sessions.get(msg.companyId) : undefined;
     // Sem company ou sem socket aberto → não há por onde enviar; deixa pendente.
     if (!session || session.status !== 'open' || !session.sock) return;
     try {
+      // TRAVA 2 (estudo 60): o que envelheceu na fila não sai. Lembrete de 1h
+      // atrás ainda faz sentido; de ontem, não — e foi exatamente isso que
+      // chegou ao cliente quando a fila drenou.
+      const validade = expirouNaFila(msg.kind, msg.createdAt);
+      if (!validade.ok) {
+        await this.descartarOutbox(msg, validade.motivo ?? 'Expirada na fila');
+        return;
+      }
+
+      // TRAVA 3 (estudo 60): a autorização é revalidada AGORA. A decisão não
+      // pode ficar congelada do momento em que a linha nasceu — o dono pode ter
+      // desligado o aviso, o agendamento pode ter sido cancelado ou já ter
+      // passado. Envio que uma pessoa autorizou (authorizedAt) não passa por
+      // aqui: ela clicou sabendo o que estava mandando.
+      if (isAutomationKind(msg.kind) && !msg.authorizedAt && msg.companyId) {
+        const ainda = autorizacaoAindaVale({
+          kind: msg.kind,
+          agendamento: msg.appointmentId
+            ? await this.agendamentoDaLinha(msg.companyId, msg.appointmentId)
+            : undefined,
+          automacao: await this.automacaoDaConta(msg.companyId),
+          cliente: msg.customerId
+            ? await this.prisma.client.customer.findFirst({
+                where: { id: msg.customerId, companyId: msg.companyId },
+                select: { notificationsEnabled: true, whatsappOptIn: true },
+              })
+            : undefined,
+        });
+        if (!ainda.ok) {
+          await this.descartarOutbox(msg, ainda.motivo ?? 'Sem autorização');
+          return;
+        }
+      }
+
       if (await this.deferIfRateLimited(msg)) return;
       const jid =
         this.normalizeRecipientJid(msg.toJid ?? undefined) ??
@@ -1246,6 +1325,86 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(
         `Outbox ${msg.id}: falha (tentativa ${attempts}/${OUTBOX_MAX_ATTEMPTS}) — ${(err as Error).message}`,
       );
+    }
+  }
+
+  /**
+   * Descarta uma linha sem enviar: status `expired` (não `sent`, não `failed` —
+   * não foi erro de entrega, foi decisão de política) com o motivo em texto para
+   * o dono entender no histórico. Ver estudo 60.
+   */
+  private async descartarOutbox(
+    msg: { id: string; kind: string | null; toPhone: string; companyId: string | null; inboxMessageId: string | null; attempts: number },
+    motivo: string,
+  ): Promise<void> {
+    await this.prisma.client.whatsappOutbox.update({
+      where: { id: msg.id },
+      data: {
+        status: 'expired',
+        attempts: msg.attempts + 1,
+        lastError: motivo.slice(0, 500),
+      },
+    });
+    if (msg.inboxMessageId) {
+      await this.prisma.client.whatsappInboxMessage.updateMany({
+        where: { id: msg.inboxMessageId },
+        data: { status: 'failed' },
+      });
+    }
+    this.logger.warn(
+      `Outbox ${msg.id}: descartada sem enviar (${msg.kind} → ${msg.toPhone}, company=${msg.companyId ?? 'sem-company'}) — ${motivo}.`,
+    );
+  }
+
+  /** Agendamento da linha, ou null quando não existe mais. */
+  private async agendamentoDaLinha(companyId: string, appointmentId: string) {
+    return this.prisma.client.appointment.findFirst({
+      where: { id: appointmentId, companyId },
+      select: {
+        status: true,
+        start: true,
+        remindClient: true,
+        notifyConfirmation: true,
+        notifyCancellation: true,
+      },
+    });
+  }
+
+  /**
+   * Padrão de automação da empresa, lido direto do Setting.
+   *
+   * Não injeto o NotificationSettingsService aqui de propósito: o módulo de
+   * notificações já depende do WhatsappService, e injetar de volta fecharia um
+   * ciclo. O default é o mesmo do serviço: TUDO DESLIGADO quando não há linha.
+   */
+  private async automacaoDaConta(companyId: string): Promise<AutomacaoDaConta> {
+    const desligado: AutomacaoDaConta = {
+      confirmation: false,
+      cancellation: false,
+      reminder: false,
+      followUp: false,
+    };
+    try {
+      const row = await this.prisma.client.setting.findUnique({
+        where: {
+          companyId_key: { companyId, key: 'notifications.automation' },
+        },
+        select: { valueJson: true },
+      });
+      const value = (row?.valueJson ?? null) as Record<string, unknown> | null;
+      if (!value) return desligado;
+      const ler = (chave: string) => value[chave] === true;
+      return {
+        confirmation: ler('confirmation'),
+        cancellation: ler('cancellation'),
+        reminder: ler('reminder'),
+        followUp: ler('followUp'),
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Outbox: não deu para ler o padrão de automação de ${companyId} (${(err as Error).message}) — tratando como desligado.`,
+      );
+      return desligado;
     }
   }
 

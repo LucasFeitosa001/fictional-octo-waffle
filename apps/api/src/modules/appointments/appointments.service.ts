@@ -385,6 +385,10 @@ export class AppointmentsService {
       appointmentId: id,
       kind: 'confirmation',
       requestKey: dto.requestKey,
+      // Uma PESSOA clicou "Enviar confirmação" para ESTE agendamento: a linha
+      // nasce autorizada e não passa pela revalidação de automação na entrega
+      // (estudo 60).
+      authorized: true,
     });
     if (!queued) {
       throw new BadRequestException(
@@ -1121,8 +1125,9 @@ export class AppointmentsService {
           ``,
           `Pode responder por aqui para combinar o melhor horário. 💖`,
         ].join('\n'),
-        // Interações: sugestão de novo horário ao cliente (parte do fluxo de confirmação).
-        { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation' });
+        // Interações: sugestão de novo horário ao cliente (parte do fluxo de
+        // confirmação). Ação humana explícita do painel → autorizada (estudo 60).
+        { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation', authorized: true });
       }
       if (v.customerEmail && notificationsAllowed) {
         await this.email.send({
