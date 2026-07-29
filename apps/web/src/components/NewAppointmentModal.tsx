@@ -14,6 +14,7 @@ import { InlineToggle } from './InlineToggle';
 import { CustomerAvatar } from './CustomerPickerDrawer';
 import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
 import { useConfirm } from './ConfirmDialog';
+import { PhoneField } from './PhoneField';
 import { useNavigate } from 'react-router-dom';
 import { IconChevron, IconInfo, IconSearch } from './icons';
 import {
@@ -736,13 +737,9 @@ export function NewAppointmentModal({
                     <TextField value={newName} onChange={setNewName} aria-label="Nome do cliente">
                       <Input className={triggerCls} placeholder="Nome do cliente" />
                     </TextField>
-                    <TextField value={newPhone} onChange={setNewPhone} aria-label="Telefone">
-                      <Input
-                        className={triggerCls}
-                        type="tel"
-                        placeholder="Telefone (WhatsApp): +1 (918) 238-4714"
-                      />
-                    </TextField>
+                    {/* País + número: é o telefone que o WhatsApp vai usar, e o
+                        placeholder antigo sugeria +1. Ver estudo 57. */}
+                    <PhoneField value={newPhone} onChange={setNewPhone} ariaLabel="Telefone (WhatsApp)" />
                   </div>
                 ) : (
                   <button

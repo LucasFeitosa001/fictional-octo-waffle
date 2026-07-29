@@ -13,6 +13,7 @@ import {
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { DatePicker } from '../components/DatePicker';
+import { PhoneField } from '../components/PhoneField';
 import { Drawer } from '../components/Drawer';
 import { SwitchRow } from '../components/SwitchRow';
 import { HelpTooltip } from '../components/HelpTooltip';
@@ -459,19 +460,18 @@ function CustomerForm({
               <Input placeholder="Como é chamado(a)" />
             </TextField>
           </Field>
+          {/* País + número nos dois. Os placeholders antigos pediam formatos
+              DIFERENTES em cada campo (+1 num, +55 no outro), e o cadastro saía
+              metade com DDI e metade sem. Ver estudo 57. */}
           <Field label="Celular">
-            <TextField value={phone} onChange={setPhone} aria-label="Celular">
-              <Input type="tel" placeholder="+1 (918) 238-4714" />
-            </TextField>
+            <PhoneField value={phone} onChange={setPhone} ariaLabel="Celular" />
           </Field>
           <Field label="Telefone">
-            <TextField
+            <PhoneField
               value={secondaryPhone}
               onChange={setSecondaryPhone}
-              aria-label="Telefone"
-            >
-              <Input type="tel" placeholder="+55 (11) 99999-9999" />
-            </TextField>
+              ariaLabel="Telefone"
+            />
           </Field>
           <Field label="E-mail">
             <TextField value={email} onChange={setEmail} aria-label="E-mail">

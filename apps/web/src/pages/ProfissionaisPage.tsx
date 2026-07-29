@@ -3,6 +3,7 @@ import { Avatar, Button, Checkbox, Chip, Input, ListBox, Select, Spinner, TextFi
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { useConfirm } from '../components/ConfirmDialog';
+import { PhoneField } from '../components/PhoneField';
 import { DatePicker } from '../components/DatePicker';
 import { Drawer } from '../components/Drawer';
 import { TemporaryAccessCard } from '../components/TemporaryAccessCard';
@@ -1071,9 +1072,9 @@ export function ProfessionalDrawer({
                   </TextField>
                 </Field>
                 <Field label="Celular" required>
-                  <TextField value={phone} onChange={setPhone} aria-label="Celular">
-                    <Input placeholder="(00) 00000-0000" />
-                  </TextField>
+                  {/* País + número: o DDI era digitado na unha e metade da base
+                      ficou sem ele — e o WhatsApp precisa. Ver estudo 57. */}
+                  <PhoneField value={phone} onChange={setPhone} ariaLabel="Celular" />
                 </Field>
                 <Field label="Profissão">
                   <TextField value={profession} onChange={setProfession} aria-label="Profissão">

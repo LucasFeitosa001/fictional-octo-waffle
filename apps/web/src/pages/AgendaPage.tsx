@@ -611,6 +611,30 @@ export function AgendaPage() {
 
   // ── Per-appointment: create a comanda (order) from the appointment ────────
   // Cria order + serviços atomicamente antes de abrir a comanda para faturar.
+  /**
+   * Exclui o agendamento (definitivo). Diferente de cancelar, que mantém o
+   * registro na agenda. A API recusa com 409 quando existe comanda viva — a
+   * mensagem dela é mostrada como está, porque explica o que fazer.
+   */
+  async function excluirAgendamento(a: AppointmentRow) {
+    const ok = await confirm({
+      title: `Excluir o agendamento de ${a.customer?.name ?? 'sem cliente'}?`,
+      message:
+        'O agendamento some da agenda e do histórico do cliente. Para manter o registro do que foi desmarcado, use "Cancelar agendamento".',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/appointments/${a.id}`);
+      setSelected(null);
+      appts.refetch();
+      flash('Agendamento excluído.');
+    } catch (err) {
+      flash(err instanceof ApiClientError ? err.message : 'Não foi possível excluir o agendamento.');
+    }
+  }
+
   /** Carrega a comanda existente para o drawer (sem criar nada). */
   async function buscarComanda(id: string): Promise<OrderRow | null> {
     try {
@@ -1663,6 +1687,13 @@ export function AgendaPage() {
                   <button type="button" onClick={() => { setMoreMenuOpen(false); setShowCancel(true); setShowSuggest(false); }}
                     className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-canvas">
                     Cancelar agendamento
+                  </button>
+                  {/* Excluir só existia na seleção múltipla da agenda — para um
+                      agendamento só ninguém achava. Cancelar mantém o registro;
+                      excluir apaga. Ver estudo 57. */}
+                  <button type="button" onClick={() => { setMoreMenuOpen(false); void excluirAgendamento(selected); }}
+                    className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-canvas">
+                    Excluir agendamento
                   </button>
                 </div>
               )}
