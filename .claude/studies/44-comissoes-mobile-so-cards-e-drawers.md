@@ -95,6 +95,30 @@ Na página de Configurações, no celular, a régua **não é renderizada**: che
 lateral, e manter uma barra de três abas com nenhuma ativa (ou pior, com a errada acesa) seria
 mentira de estado.
 
+## Terceira rodada: o MENU LATERAL do celular também dizia "Resumidas"
+
+*"mais ainda a sidebar estar como resumidas em vez de Resumo no mobile"*.
+
+As abas passaram a dizer `Resumo`, mas o item do menu lateral que leva à MESMA tela continuou
+`Resumidas` — `apps/web/src/layout/Sidebar.tsx:163`:
+
+```ts
+{ to: '/comissoes/resumidas', label: 'Resumidas', icon: IconChart, only: 'mobile', ... }
+```
+
+Dois nomes para o mesmo destino: o menu manda para "Resumidas" e a tela que abre tem "Resumo"
+aceso. Só o rótulo muda; a rota (`/comissoes/resumidas`) fica como está, senão favorito e link
+antigo quebram.
+
+O item é `only: 'mobile'` (`Sidebar.tsx:82` documenta o campo), então o desktop — que entra por
+`{ to: '/comissoes', label: 'Detalhadas', only: 'desktop' }`, `Sidebar.tsx:162` — não é tocado.
+O comentário de `Sidebar.tsx:160`-`:161` ainda fala em "quatro" abas e precisa acompanhar: no
+celular são três desde a rodada anterior.
+
+`Pagas` (`Sidebar.tsx:164`) fica como está: o dono apontou um rótulo, não a lista. As capturas
+mobile do Belasis não trazem o menu lateral aberto (`commissions-summary/mobile.html` mostra só o
+botão `Menu`), então não há evidência para mexer no resto.
+
 ## Extra observado no vídeo (não pedido, fica anotado)
 
 O drawer de Filtros do Belasis no celular tem **atalhos de período**: `Hoje`, `Semana passada`,
@@ -105,3 +129,4 @@ O drawer de Filtros do Belasis no celular tem **atalhos de período**: `Hoje`, `
 - `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx`
 - `apps/web/src/components/ProfissionalCard.tsx` (novo — cartão compartilhado)
 - `apps/web/src/pages/comissoes/ComissoesDetalhadasView.tsx` (passa a usar o cartão compartilhado)
+- `apps/web/src/layout/Sidebar.tsx` (rótulo do item mobile: "Resumidas" → "Resumo")

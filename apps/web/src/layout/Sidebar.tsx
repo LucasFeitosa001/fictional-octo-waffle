@@ -158,9 +158,15 @@ const NAVIGATION: NavEntry[] = [
     items: [
       // Profissional vê as próprias (view_own); gestão vê todas (view_all).
       // Desktop entra pelo detalhamento; celular entra pelo resumo. Quem quiser
-      // o outro alterna pelas abas do topo, que seguem com os quatro.
+      // o outro alterna pelas abas do topo (quatro no desktop, três no celular).
+      //
+      // O rótulo do item do celular é "Resumo", não "Resumidas": é o mesmo nome
+      // que a aba correspondente usa lá (COMMISSION_TABS_MOBILE, em
+      // pages/comissoes/tabs.tsx). Menu e aba apontando pro mesmo destino com
+      // nomes diferentes foi reclamação do dono. A ROTA segue /comissoes/resumidas
+      // — só o texto muda, pra não quebrar favorito nem link antigo.
       { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, only: 'desktop', feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
-      { to: '/comissoes/resumidas', label: 'Resumidas', icon: IconChart, only: 'mobile', feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/resumidas', label: 'Resumo', icon: IconChart, only: 'mobile', feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/config', label: 'Configurações', icon: IconSettings, feature: 'commissions', perm: 'comissoes:config' },
     ],
