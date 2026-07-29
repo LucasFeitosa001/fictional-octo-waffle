@@ -151,14 +151,16 @@ export function ComissoesResumoPage() {
     to: to || undefined,
     professionalId: professionalId || undefined,
   });
-  // Resumidas é uma tela de PAGAMENTO: mostra o que há a pagar. Sem pedir
-  // `open` a linha somava comissão já paga (e estornada), divergindo do card no
-  // topo da mesma tela e do valor que o botão realmente registra.
+  // O status vem do FILTRO da tela e nada mais. Forçar `open` aqui escondia da
+  // Resumidas tudo que já tinha sido pago e fazia "Todos os status" não
+  // obedecer — filtro que não obedece é pior que filtro nenhum. O que garante
+  // que o botão não pague comissão já quitada são os campos `*Aberta` da linha,
+  // não o recorte da consulta.
   const summary = useCommissionSummary({
     from: from || undefined,
     to: to || undefined,
     professionalId: professionalId || undefined,
-    status: statusFiltro || (isPaidTab ? undefined : 'open'),
+    status: statusFiltro || undefined,
   });
   // Entries power the CSV export. The endpoint supports status + professionalId
   // (no date range), so the export covers the selected professional/status.
@@ -235,8 +237,10 @@ export function ComissoesResumoPage() {
     from && to ? `${shortDate(from)} → ${shortDate(to)}` : 'Selecionar período';
 
   // Linhas que podem ser pagas (têm comissão em aberto).
+  // Pagável é quem tem líquido EM ABERTO. Antes usava `total` do período, que
+  // inclui o já pago — a linha de quem foi pago continuava oferecendo pagamento.
   const payableRows = useMemo(
-    () => rows.filter((r) => r.status !== 'paid' && r.total > 0),
+    () => rows.filter((r) => r.liquido > 0 && r.openCount > 0),
     [rows],
   );
   const payableIds = useMemo(
@@ -256,9 +260,11 @@ export function ComissoesResumoPage() {
     const base = selectedPayable.length > 0 ? selectedPayable : rows;
     return base.reduce(
       (acc, r) => {
-        acc.comissao += r.comissao;
+        // Em ABERTO: o rodapé fica em cima do botão que paga, então tem que
+        // mostrar o mesmo número que ele vai registrar.
+        acc.comissao += r.comissaoAberta;
         acc.vales += r.vales;
-        acc.bonus += r.bonus;
+        acc.bonus += r.bonusAberto;
         acc.liquido += r.liquido;
         return acc;
       },
@@ -392,7 +398,9 @@ export function ComissoesResumoPage() {
         <span className="inline-flex items-center">
           Líquido
           <HelpTooltip>
-            Comissões + bonificações − vales. É exatamente o valor que o botão “Pagar” registra.
+            O que ainda há a pagar: comissões EM ABERTO + bonificações − vales. É exatamente o
+            valor que o botão “Pagar” registra. As colunas anteriores mostram o período inteiro,
+            incluindo o que já foi pago.
           </HelpTooltip>
         </span>
       ),
@@ -469,7 +477,7 @@ export function ComissoesResumoPage() {
           <Button
             variant="primary"
             size="sm"
-            isDisabled={r.status === 'paid' || r.total <= 0 || r.entryCount === 0}
+            isDisabled={r.liquido <= 0 || r.openCount === 0}
             onClick={() => payOne(r)}
           >
             <IconWallet size={15} /> Pagar

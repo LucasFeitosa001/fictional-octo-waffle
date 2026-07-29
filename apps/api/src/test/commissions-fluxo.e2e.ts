@@ -587,6 +587,31 @@ async function run() {
       const soAberto = await api('GET', '/commissions/summary?status=open', { token: salon.token });
       const vera2 = (soAberto.body?.data ?? []).find((r: any) => r.professionalName === 'Vera Auditoria');
       check('8.4) com status=open a conta bate também', near(Number(vera2?.comissao ?? 0), 100));
+
+      // (9) Mostrar tudo, pagar só o aberto. Quem já foi pago CONTINUA na tela
+      //     — esconder o histórico foi o defeito que a primeira correção criou.
+      // Sonia foi paga por inteiro no caso 8.2 (e o vale dela ficou aberto de
+      // propósito). A Paula não serve aqui: o estorno do caso 4 reabriu a
+      // comissão dela.
+      const paga = (resumo.body?.data ?? []).find(
+        (r: any) => r.professionalName === 'Sonia Auditoria',
+      );
+      check('9) profissional já pago CONTINUA aparecendo no resumo', !!paga,
+        'sem a linha, não dá para conferir o que foi pago no período');
+      if (paga) {
+        check('9) a linha mostra o período (comissão > 0)', Number(paga.comissao) > 0,
+          `comissao ${paga.comissao}`);
+        check('9) mas o líquido PAGÁVEL é zero', near(Number(paga.liquido), 0),
+          `liquido ${paga.liquido}`);
+        check('9) e não há lançamento em aberto', Number(paga.openCount) === 0,
+          `openCount ${paga.openCount}`);
+      }
+      // Vera tem 100 em aberto → líquido pagável = 100.
+      check('9) quem tem aberto mantém líquido pagável', near(Number(vera?.liquido ?? 0), 100),
+        `liquido ${vera?.liquido}`);
+      check('9) e os campos "em aberto" vêm separados do período',
+        near(Number(vera?.comissaoAberta ?? 0), 100) && near(Number(vera?.comissao ?? 0), 100),
+        `aberta ${vera?.comissaoAberta} periodo ${vera?.comissao}`);
     }
 
     // ==========================================================

@@ -54,8 +54,14 @@ export interface CommissionSummaryRow {
   /** Vales (adiantamentos) em aberto do profissional — descontados no pagamento. */
   vales: number;
   total: number;
-  /** Comissões + bonificações − vales, nunca negativo. É o que o botão paga. */
+  /** Só o que está EM ABERTO — é o subconjunto que o botão "Pagar" registra. */
+  comissaoAberta: number;
+  bonusAberto: number;
+  totalAberto: number;
+  /** Em aberto + bônus − vales, nunca negativo. É o que o botão paga. */
   liquido: number;
+  /** Líquido do PERÍODO inteiro (inclui o já pago) — só para leitura. */
+  liquidoPeriodo: number;
   entryCount: number;
   openCount: number;
   paidCount: number;
@@ -72,6 +78,9 @@ export interface CommissionSummary {
     bonus: number;
     vales: number;
     total: number;
+    comissaoAberta: number;
+    bonusAberto: number;
+    totalAberto: number;
     liquido: number;
   };
 }

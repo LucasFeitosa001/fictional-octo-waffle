@@ -150,6 +150,12 @@ export class CommissionsService {
       comissao: number;
       bonus: number;
       total: number;
+      // Só o que está EM ABERTO — é o que o botão "Pagar" realmente registra.
+      // A tela mostra o período inteiro (para o salão conferir o que já pagou),
+      // mas quem paga é este subconjunto.
+      comissaoAberta: number;
+      bonusAberto: number;
+      totalAberto: number;
       entryCount: number;
       openCount: number;
       paidCount: number;
@@ -167,6 +173,9 @@ export class CommissionsService {
           comissao: 0,
           bonus: 0,
           total: 0,
+          comissaoAberta: 0,
+          bonusAberto: 0,
+          totalAberto: 0,
           entryCount: 0,
           openCount: 0,
           paidCount: 0,
@@ -180,7 +189,12 @@ export class CommissionsService {
       b.total += Number(e.commissionAmount) + Number(e.bonusAmount);
       b.entryCount += 1;
       if (e.status === 'paid') b.paidCount += 1;
-      if (e.status === 'open') b.openCount += 1;
+      if (e.status === 'open') {
+        b.openCount += 1;
+        b.comissaoAberta += Number(e.commissionAmount);
+        b.bonusAberto += Number(e.bonusAmount);
+        b.totalAberto += Number(e.commissionAmount) + Number(e.bonusAmount);
+      }
       if (e.signed) b.signedCount += 1;
     }
 
@@ -198,6 +212,9 @@ export class CommissionsService {
         comissao: 0,
         bonus: 0,
         total: 0,
+        comissaoAberta: 0,
+        bonusAberto: 0,
+        totalAberto: 0,
         entryCount: 0,
         openCount: 0,
         paidCount: 0,
@@ -210,10 +227,12 @@ export class CommissionsService {
       return {
         ...b,
         vales,
-        // Mesma fórmula do pagamento (`payOne`): comissões + bônus − vales,
-        // nunca negativo. Se divergisse daqui, a tela prometeria um valor e o
-        // botão pagaria outro.
-        liquido: Math.max(0, b.total - vales),
+        // `liquido` é o PAGÁVEL: sai do que está em aberto, não do período
+        // inteiro. Se saísse do período, uma comissão já paga voltaria a
+        // aparecer como valor a pagar. Mesma fórmula do `payItem`.
+        liquido: Math.max(0, b.totalAberto - vales),
+        // O total do período, para a tela mostrar o que houve no recorte.
+        liquidoPeriodo: Math.max(0, b.total - vales),
         // status pago/aberto: pago only when every entry is paid
         status: b.entryCount > 0 && b.openCount === 0 ? 'paid' : 'open',
         signed: b.entryCount > 0 && b.signedCount === b.entryCount,
@@ -228,10 +247,23 @@ export class CommissionsService {
         acc.bonus += b.bonus;
         acc.vales += b.vales;
         acc.total += b.total;
+        acc.comissaoAberta += b.comissaoAberta;
+        acc.bonusAberto += b.bonusAberto;
+        acc.totalAberto += b.totalAberto;
         acc.liquido += b.liquido;
         return acc;
       },
-      { valorVendido: 0, comissao: 0, bonus: 0, vales: 0, total: 0, liquido: 0 },
+      {
+        valorVendido: 0,
+        comissao: 0,
+        bonus: 0,
+        vales: 0,
+        total: 0,
+        comissaoAberta: 0,
+        bonusAberto: 0,
+        totalAberto: 0,
+        liquido: 0,
+      },
     );
 
     return { data, totals };

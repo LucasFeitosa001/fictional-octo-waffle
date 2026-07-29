@@ -204,7 +204,13 @@ export function ComissoesDetalhadasView({
       bonus: bonificacoes,
       vales,
       total: comissoes + bonificacoes,
+      // Aqui `comissoes`/`bonificacoes` JÁ são só o que está em aberto (o
+      // rodapé desta tela filtra por status), então período e aberto coincidem.
+      comissaoAberta: comissoes,
+      bonusAberto: bonificacoes,
+      totalAberto: comissoes + bonificacoes,
       liquido,
+      liquidoPeriodo: liquido,
       entryCount: emAberto.length,
       openCount: emAberto.length,
       paidCount: 0,

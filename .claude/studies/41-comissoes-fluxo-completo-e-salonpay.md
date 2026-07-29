@@ -284,6 +284,31 @@ que exclui `reversed`) mostra outro número. Correção: a aba Resumidas passa a
 'open'` (é uma tela de pagamento — mostra o que há a pagar), e o `summary` nunca acumula
 `reversed` quando não há status explícito.
 
+## Sobra 9: forçar `status=open` na Resumidas escondeu o histórico e quebrou o filtro
+
+Relato do dono: *"o local de filtro de pagar não funciona"*, com o período 29/06 → 29/07.
+
+Conferido na produção dele (tudo já pago):
+
+```
+?from=…&to=…&status=open  → 1 linha  (só o Lucas, que tem apenas vale)
+?from=…&to=…              → 4 linhas (Bruna 135, Amanda 114, Carla 75, Lucas)
+```
+
+Ou seja, a tela ficou praticamente vazia depois de ele pagar. Foi a correção 8.4: para impedir que
+a linha somasse comissão paga/estornada, eu fiz a Resumidas pedir `status: 'open'`
+(`ComissoesResumoPage.tsx`). Duas consequências que eu não pesei:
+
+1. **profissional pago SOME da tela** — não dá para conferir o que foi pago no período;
+2. **o filtro "Status" do painel virou enfeite** — escolher "Todos os status" manda `''`, e o
+   código forçava `'open'` por cima. Um filtro que não obedece é pior que filtro nenhum.
+
+A saída certa é a que já está na Detalhadas: **mostrar tudo, pagar só o que está aberto.** O
+`summary` passa a devolver, por linha, os valores EM ABERTO (`comissaoAberta`, `bonusAberto`,
+`totalAberto`, `liquidoAberto`) ao lado dos totais do período. A tabela e o histórico continuam
+mostrando o período; o rodapé, o botão e `payableRows` usam os valores em aberto. Estornado
+continua fora, como em 8.4.
+
 ## Arquivos tocados
 
 - `packages/db/prisma/schema.prisma` (+ migração)
