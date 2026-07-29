@@ -64,3 +64,27 @@ por fora o valor que leu ali.
 ## Arquivos tocados
 
 - `apps/web/src/components/PagarComissaoDrawer.tsx`
+
+## 51.4 — Certificação por teste (pedido do dono)
+
+*"faça uns 10 testes unitários, pra poder certificar"*. O arquivo novo é
+`apps/api/src/modules/usecase-tests/commissions-pagamento.usecases.test.ts`, no mesmo formato dos
+que já rodam por `pnpm --filter @beautypass/api test`
+(`modules/usecase-tests/run-usecases.ts` carrega todos os `*.usecases.test.ts`).
+
+O alvo é `CommissionsService.payItem` (`modules/commissions/commissions.service.ts:500`), que é
+onde a regra mora de verdade — `createPayment` (`:784`) e `payBulk` (`:814`) só o chamam dentro de
+uma transação. Cada teste trava uma linha do método:
+
+- `:507`-`:511` — recorte por `status: 'open'`, empresa e profissional;
+- `:516`-`:517` — `competenceDate` só quando a tela mandou `from`/`to` (`inclusiveDateRange`);
+- `:518`-`:520` — `entryIds` restringe aos escolhidos;
+- `:533`-`:536` — `advanceIds` ausente × vazio (desconta todos × nenhum);
+- `:545`-`:550` — recusa quando não há entry em aberto (o recibo fantasma de R$ 0,00);
+- `:566`-`:584` — vale consumido até o limite, com o residual recriado em aberto;
+- `:588`-`:591` — `paidAt` inválido;
+- e o `updateMany` que marca as entradas como `paid` amarradas ao `paymentId`.
+
+O duble de transação é o mesmo padrão do `financial-commissions.usecases.test.ts:33` (`paymentTx`),
+com um espião no `where` para provar o recorte — não dá para afirmar "paga só o que está em aberto"
+olhando só o total devolvido.

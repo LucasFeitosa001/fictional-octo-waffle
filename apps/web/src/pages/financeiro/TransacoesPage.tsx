@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSetPageActions } from '../../layout/PageActions';
 import {
@@ -190,6 +190,8 @@ export function TransacoesPage() {
   // ids/allSelected vêm de `visibleRows`, montado logo abaixo.
   const deleteTransaction = useDeleteTransaction();
   const [actionsOpen, setActionsOpen] = useState(false);
+  /** Transação tocada no "⋮" do cartão (celular) — abre o mesmo menu do desktop. */
+  const [acoesLinha, setAcoesLinha] = useState<TransactionRow | null>(null);
 
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
@@ -410,6 +412,25 @@ export function TransacoesPage() {
     }
   }
 
+  /** Excluir UMA transação (o lote já existia; a linha não tinha como). */
+  async function handleDeleteOne(t: TransactionRow) {
+    const ok = await confirm({
+      title: 'Excluir transação?',
+      message:
+        'O lançamento sai do Financeiro. Para manter o histórico e anular o valor, use Estornar.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteTransaction.mutateAsync(t.id);
+    } catch (err) {
+      window.alert(
+        err instanceof ApiClientError ? err.message : 'Não foi possível excluir a transação.',
+      );
+    }
+  }
+
   // Tabela (desktop) / cards (mobile) com paridade da tela de transações do Belasis.
   const columns: Column<TransactionRow>[] = [
     {
@@ -540,32 +561,18 @@ export function TransacoesPage() {
     {
       key: 'actions',
       header: '',
+      // Menu por linha (padrão do produto e pedido do dono), no lugar dos dois
+      // ícones soltos de Editar/Estornar. "Excluir" existia só na ação em lote
+      // — por linha não havia como. Ver estudo 53.
       render: (t) =>
         t.status === 'reversed' ? null : (
-          <div className="flex items-center justify-end gap-1">
-            <IconTip label="Editar">
-              <Button
-                variant="ghost"
-                size="sm"
-                isIconOnly
-                aria-label="Editar"
-                onClick={() => openEdit(t)}
-              >
-                <IconPencil size={16} />
-              </Button>
-            </IconTip>
-            <IconTip label="Estornar">
-              <Button
-                variant="ghost"
-                size="sm"
-                isIconOnly
-                aria-label="Estornar"
-                isDisabled={reverse.isPending}
-                onClick={() => handleReverse(t)}
-              >
-                <IconRepeat size={16} />
-              </Button>
-            </IconTip>
+          <div className="flex justify-end">
+            <LinhaMenu
+              onEdit={() => openEdit(t)}
+              onReverse={() => handleReverse(t)}
+              onDelete={() => handleDeleteOne(t)}
+              busy={reverse.isPending || deleteTransaction.isPending}
+            />
           </div>
         ),
     },
@@ -857,7 +864,23 @@ export function TransacoesPage() {
                 // direita. Método/descrição vão pro drawer de edição.
                 // Toggle Pago/Pendente removido do card — mover pra menu/detalhe.
                 return (
-                  <li key={t.id}>
+                  <li key={t.id} className="relative">
+                    {/* Mesmas ações do desktop (Editar · Estornar · Excluir).
+                        Fora do cartão porque ele já é um role="button". */}
+                    {!reversed && !sel.selectMode && (
+                      <button
+                        type="button"
+                        aria-label={`Ações de ${holder || method}`}
+                        onClick={() => setAcoesLinha(t)}
+                        className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-lg p-2 text-muted-ink active:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)]"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                          <rect x="2" y="3.2" width="12" height="1.6" rx="0.8" />
+                          <rect x="2" y="7.2" width="12" height="1.6" rx="0.8" />
+                          <rect x="2" y="11.2" width="12" height="1.6" rx="0.8" />
+                        </svg>
+                      </button>
+                    )}
                     <div
                       role="button"
                       tabIndex={reversed ? -1 : 0}
@@ -873,6 +896,7 @@ export function TransacoesPage() {
                       }}
                       className={[
                         'flex w-full items-stretch gap-2 rounded-xl border px-2.5 py-2 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        !reversed && !sel.selectMode ? 'pr-10' : '',
                         tint,
                         reversed ? 'opacity-60' : 'cursor-pointer',
                         sel.selectMode && isChecked ? 'ring-2 ring-primary/60' : '',
@@ -946,6 +970,47 @@ export function TransacoesPage() {
           onClear={clearFilters}
         />
       )}
+
+      {/* Ações da transação no celular — o mesmo trio do menu do desktop. */}
+      <Drawer
+        isOpen={acoesLinha !== null}
+        onClose={() => setAcoesLinha(null)}
+        title={acoesLinha ? titular(acoesLinha) || 'Transação' : 'Transação'}
+        placement="bottom"
+      >
+        <div className="flex flex-col">
+          <AcaoLinhaMobile
+            icon={<IconPencil size={18} />}
+            label="Editar"
+            onClick={() => {
+              const t = acoesLinha;
+              setAcoesLinha(null);
+              if (t) openEdit(t);
+            }}
+          />
+          <AcaoLinhaMobile
+            icon={<IconRepeat size={18} />}
+            label="Estornar"
+            disabled={reverse.isPending}
+            onClick={() => {
+              const t = acoesLinha;
+              setAcoesLinha(null);
+              if (t) void handleReverse(t);
+            }}
+          />
+          <AcaoLinhaMobile
+            danger
+            icon={<IconTrash size={18} />}
+            label="Excluir"
+            disabled={deleteTransaction.isPending}
+            onClick={() => {
+              const t = acoesLinha;
+              setAcoesLinha(null);
+              if (t) void handleDeleteOne(t);
+            }}
+          />
+        </div>
+      </Drawer>
 
       {/* Bottom-sheet das ações em lote do modo de seleção (mobile + desktop). */}
       <BulkActionsSheet
@@ -1607,9 +1672,16 @@ export function LancamentoModal({
     }
   }
 
+  // "Novo/Nova" concordando com o gênero — o título saía "Novo despesa".
+  const FEMININO: Record<LancamentoMode, boolean> = {
+    recebimento: false,
+    despesa: true,
+    vale: false,
+    transferencia: true,
+  };
   const title = editing
     ? `Editar ${mode === 'recebimento' ? 'recebimento' : 'despesa'}`
-    : `Novo ${MODE_LABEL[mode].toLowerCase()}`;
+    : `${FEMININO[mode] ? 'Nova' : 'Novo'} ${MODE_LABEL[mode].toLowerCase()}`;
 
   const footer = success ? (
     <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
@@ -1648,12 +1720,11 @@ export function LancamentoModal({
       isOpen
       onClose={onClose}
       title={title}
-      // Sem widthClass: no FullDrawer é justamente essa prop que troca a tela
-      // cheia por uma faixa lateral (FullDrawer.tsx:195). Com 520px as três
-      // seções do menu não cabiam e viravam uma barra de rolagem horizontal.
-      // SEM `sections`: a referência (02-editando-recebimento.png) é uma página
-      // só, chapada em linhas de 3 colunas. O menu lateral obrigava a caçar
-      // "Conta" e "Categoria" em outra aba para lançar uma única despesa.
+      // Faixa lateral: `widthClass` é o que tira o FullDrawer da tela cheia
+      // (FullDrawer.tsx:195). 760px porque o formulário é uma página só, em
+      // linhas de 3 colunas — os 520px de antes é que espremiam o menu de
+      // seções, que nem existe mais aqui. Ver estudo 53.
+      widthClass="sm:w-[min(760px,94vw)]"
       footer={footer}
     >
       {success ? (
@@ -1969,8 +2040,8 @@ export function TransferenciaModal({
       onClose={onClose}
       title="Nova transferência"
       footer={footer}
+      // Lateral de 520px (ver estudo 53): `fullscreen` ignorava esta largura.
       widthClass="sm:w-[520px]"
-      fullscreen
     >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -2022,5 +2093,151 @@ export function TransferenciaModal({
         </div>
       )}
     </Drawer>
+  );
+}
+
+/**
+ * Menu de ações da linha de Transações — Editar · Estornar · Excluir.
+ *
+ * Substitui os dois ícones soltos que ficavam na coluna. Mesmo comportamento do
+ * menu de Comandas (`pages/ComandasPage.tsx`): hambúrguer, dropdown com
+ * animação de entrada/saída e clique fora fechando. Ver estudo 53.
+ */
+function LinhaMenu({
+  onEdit,
+  onReverse,
+  onDelete,
+  busy,
+}: {
+  onEdit: () => void;
+  onReverse: () => void;
+  onDelete: () => void;
+  busy?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <IconTip label="Ações">
+        <button
+          type="button"
+          aria-label="Ações"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-ink transition-colors hover:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)] hover:text-foreground"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <rect x="2" y="3.2" width="12" height="1.6" rx="0.8" />
+            <rect x="2" y="7.2" width="12" height="1.6" rx="0.8" />
+            <rect x="2" y="11.2" width="12" height="1.6" rx="0.8" />
+          </svg>
+        </button>
+      </IconTip>
+      <div
+        role="menu"
+        aria-hidden={!open}
+        className={[
+          'absolute right-0 z-30 mt-1 w-44 origin-top overflow-hidden rounded-lg border border-line bg-warm-white py-1 shadow-[var(--shadow-pop)]',
+          'transition-all duration-200 ease-out',
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+        ].join(' ')}
+      >
+        <ItemMenu icon={<IconPencil size={15} />} onClick={() => { setOpen(false); onEdit(); }}>
+          Editar
+        </ItemMenu>
+        <ItemMenu
+          icon={<IconRepeat size={15} />}
+          disabled={busy}
+          onClick={() => { setOpen(false); onReverse(); }}
+        >
+          Estornar
+        </ItemMenu>
+        <ItemMenu
+          danger
+          icon={<IconTrash size={15} />}
+          disabled={busy}
+          onClick={() => { setOpen(false); onDelete(); }}
+        >
+          Excluir
+        </ItemMenu>
+      </div>
+    </div>
+  );
+}
+
+function ItemMenu({
+  children,
+  onClick,
+  icon,
+  danger,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        danger
+          ? 'text-danger hover:bg-danger/10'
+          : 'text-foreground hover:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
+      ].join(' ')}
+    >
+      {icon && <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>}
+      {children}
+    </button>
+  );
+}
+
+/** Item do bottom-sheet de ações da transação (celular). */
+function AcaoLinhaMobile({
+  icon,
+  label,
+  onClick,
+  danger,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left text-[15px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        danger
+          ? 'text-danger active:bg-danger/10'
+          : 'text-foreground active:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
+      ].join(' ')}
+    >
+      <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>
+      {label}
+    </button>
   );
 }
