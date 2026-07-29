@@ -329,6 +329,64 @@ async function run() {
     check('3) gerou saída no caixa (forma vai pro caixa)', saidas.length === 1,
       `${saidas.length} movimento(s)`);
 
+    // As duas datas da referência: "Data" (registro) e "Pagamento" (saída).
+    // Antes as duas colunas liam o MESMO campo e mostravam o mesmo valor.
+    {
+      const lista = await api('GET', '/commission-payments', { token: salon.token });
+      const linha = (lista.body ?? [])[0];
+      check('3c) o histórico devolve createdAt (registro)',
+        typeof linha?.createdAt === 'string' && !Number.isNaN(Date.parse(linha.createdAt)),
+        String(linha?.createdAt));
+      check('3c) e paidAt (saída do dinheiro)',
+        typeof linha?.paidAt === 'string' && !Number.isNaN(Date.parse(linha.paidAt)),
+        String(linha?.paidAt));
+
+      // Retroativo: pagar com data anterior mantém as duas datas DIFERENTES —
+      // é o caso que a captura do Belasis mostra (18/07 registrado, 17/07 pago).
+      const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const outra = await prisma.commissionEntry.create({
+        data: {
+          companyId,
+          professionalId: pro.id,
+          baseAmount: 100,
+          commissionAmount: 30,
+          status: 'open',
+          competenceDate: new Date(),
+          availableDate: new Date(),
+        },
+      });
+      const retro = await api('POST', '/commission-payments/bulk', {
+        token: salon.token,
+        body: {
+          paymentMethodId: formaCaixa.id,
+          accountId: conta.id,
+          paidAt: ontem,
+          items: [{ professionalId: pro.id, entryIds: [outra.id] }],
+        },
+      });
+      check('3c) pagamento retroativo → 2xx', retro.status >= 200 && retro.status < 300,
+        `status ${retro.status}`);
+      const reg = await prisma.commissionPayment.findUnique({
+        where: { id: retro.body?.payments?.[0]?.id },
+      });
+      check('3c) paidAt guarda a data escolhida (ontem)',
+        reg != null && reg.paidAt.toISOString().slice(0, 10) === ontem.slice(0, 10),
+        String(reg?.paidAt?.toISOString()));
+      check('3c) createdAt guarda HOJE — as duas datas divergem',
+        reg != null &&
+          reg.createdAt.toISOString().slice(0, 10) ===
+            new Date().toISOString().slice(0, 10) &&
+          reg.createdAt.toISOString().slice(0, 10) !== reg.paidAt.toISOString().slice(0, 10),
+        `createdAt ${reg?.createdAt?.toISOString()} paidAt ${reg?.paidAt?.toISOString()}`);
+
+      // Deixa o cenário como estava para os casos seguintes.
+      await api('DELETE', `/commission-payments/${retro.body?.payments?.[0]?.id}`, {
+        token: salon.token,
+        body: { justification: 'limpeza do caso 3c' },
+      });
+      await prisma.commissionEntry.delete({ where: { id: outra.id } }).catch(() => undefined);
+    }
+
     const pagamentoId = pagar.body?.payments?.[0]?.id;
     const registro = await prisma.commissionPayment.findUnique({ where: { id: pagamentoId } });
     check('3) pagamento guarda forma, conta e trilho',

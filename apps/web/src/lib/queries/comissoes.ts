@@ -261,6 +261,8 @@ export interface CommissionPayment {
   id: string;
   /** Data em que o dinheiro saiu (escolhida pelo operador). */
   paidAt: string;
+  /** Quando o pagamento foi registrado no sistema. */
+  createdAt: string;
   professional: { id: string; name: string };
   paidByUser: { id: string; name: string } | null;
   commissionTotal: number;

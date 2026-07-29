@@ -755,6 +755,9 @@ export class CommissionsService {
     return payments.map((p) => ({
       id: p.id,
       paidAt: p.paidAt.toISOString(),
+      // "Data" da referência: quando o pagamento foi REGISTRADO. Difere de
+      // `paidAt` quando o operador lança retroativo.
+      createdAt: p.createdAt.toISOString(),
       professional: { id: p.professional.id, name: p.professional.name },
       paidByUser: p.paidByUser
         ? { id: p.paidByUser.id, name: p.paidByUser.name }

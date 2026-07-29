@@ -482,12 +482,27 @@ export function ComissoesResumoPage() {
       key: 'date',
       header: 'Data',
       isRowHeader: true,
-      // SEM hora. Antes usava `formatDateTime(p.paidAt)`, e como o campo da
-      // tela é só data (o drawer gravava meio-dia), TODO pagamento aparecia às
-      // "12:00". A referência também não mostra hora nesta coluna.
+      // Quando o pagamento foi REGISTRADO. Sem hora: a referência não mostra
+      // hora em nenhuma das duas colunas de data.
       render: (p) => (
-        <span className="font-medium text-foreground">{formatDate(p.paidAt)}</span>
+        <span className="font-medium text-foreground">{formatDate(p.createdAt)}</span>
       ),
+    },
+    {
+      // Segunda data da referência, e um CAMPO DIFERENTE do primeiro: na
+      // captura do Belasis a mesma linha traz 18/07 e 17/07. Antes as duas
+      // colunas liam `paidAt` e mostravam o mesmo valor.
+      key: 'pagamento',
+      header: (
+        <span className="inline-flex items-center">
+          Pagamento
+          <HelpTooltip>
+            Dia em que o dinheiro saiu — pode ser anterior ao registro, quando o pagamento é
+            lançado depois de ter acontecido.
+          </HelpTooltip>
+        </span>
+      ),
+      render: (p) => formatDate(p.paidAt),
     },
     {
       key: 'professional',

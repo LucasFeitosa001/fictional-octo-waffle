@@ -1815,6 +1815,11 @@ model CommissionPayment {
   transactionId   String?
   // Trilho usado: 'manual' (dinheiro/PIX do próprio salão) ou 'salonpay'.
   rail            CommissionPaymentRail @default(manual)
+  // Quando o pagamento foi REGISTRADO no sistema — a coluna "Data" da
+  // referência. Diferente de `paidAt`, que é o dia em que o dinheiro saiu e
+  // pode ser retroativo; na captura do Belasis as duas aparecem com valores
+  // distintos na mesma linha (18/07 e 17/07).
+  createdAt       DateTime              @default(now())
 
   company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   professional      Professional        @relation(fields: [professionalId], references: [id])
