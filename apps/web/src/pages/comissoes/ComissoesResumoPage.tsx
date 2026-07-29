@@ -11,7 +11,7 @@ import { ValeModal } from '../../components/ValeModal';
 import { JustificativaDialog } from '../../components/JustificativaDialog';
 import { AppTabs } from '../../components/AppTabs';
 import { ComissoesDetalhadasView } from './ComissoesDetalhadasView';
-import { COMMISSION_TABS, commissionTabPath } from './tabs';
+import { COMMISSION_TABS, COMMISSION_TABS_MOBILE, commissionTabPath } from './tabs';
 import { SalonPayDrawer } from '../../components/SalonPayDrawer';
 import { PagarComissoesMenu } from '../../components/PagarComissoesMenu';
 import { ProfissionalCard } from '../../components/ProfissionalCard';
@@ -715,8 +715,12 @@ export function ComissoesResumoPage() {
           </div>
         </div>
 
+        {/* No celular: três abas com rótulo longo, ícone em cima e sublinhado,
+            como na referência. "Configurações" sai da régua e fica só no menu
+            lateral, que já tem o item. */}
         <AppTabs
-          items={[...COMMISSION_TABS]}
+          items={isMobile ? [...COMMISSION_TABS_MOBILE] : [...COMMISSION_TABS]}
+          stacked={isMobile}
           selectedKey={status}
           onSelectionChange={(key) => navigate(commissionTabPath(String(key)))}
           ariaLabel="Áreas de comissões"

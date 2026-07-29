@@ -16,6 +16,7 @@ export function AppTabs<Key extends string>({
   ariaLabel,
   className = '',
   listClassName = '',
+  stacked = false,
 }: {
   items: AppTabItem<Key>[];
   selectedKey: Key;
@@ -23,6 +24,13 @@ export function AppTabs<Key extends string>({
   ariaLabel: string;
   className?: string;
   listClassName?: string;
+  /**
+   * Modo do celular na referência: ícone ACIMA do rótulo, abas dividindo a
+   * largura em partes iguais e a ativa marcada por sublinhado — sem cartão em
+   * volta. É opcional porque `AppTabs` é usado por Notas Fiscais, SalonPay e
+   * Caixas abertos, e mudar o visual direto respingaria em todas.
+   */
+  stacked?: boolean;
 }) {
   // No mobile a régua de abas é um CARROSSEL. Ela já tinha overflow-x, mas
   // faltavam duas coisas que faziam o rótulo aparecer cortado (ex.: "Formas de
@@ -53,26 +61,51 @@ export function AppTabs<Key extends string>({
     >
       <Tabs.ListContainer
         ref={containerRef}
-        className="flex max-w-full justify-start overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-line bg-card p-1 shadow-[var(--shadow-soft)] scrollbar-none"
+        className={
+          stacked
+            ? // `overflow-visible` e nada de altura fixa: "Comissões em aberto"
+              // quebra em duas linhas e estava sendo cortado no meio.
+              'flex w-full max-w-full justify-stretch overflow-visible'
+            : 'flex max-w-full justify-start overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-line bg-card p-1 shadow-[var(--shadow-soft)] scrollbar-none'
+        }
       >
         <Tabs.List
           aria-label={ariaLabel}
-          className={`w-max flex-none flex-nowrap justify-start gap-1 ${listClassName}`}
+          className={
+            stacked
+              ? `grid w-full flex-none gap-0 ${listClassName}`
+              : `w-max flex-none flex-nowrap justify-start gap-1 ${listClassName}`
+          }
+          style={stacked ? { gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` } : undefined}
         >
           {items.map((item) => (
             <Tabs.Tab
               key={item.id}
               id={item.id}
               isDisabled={item.disabled}
-              className="group inline-flex min-h-9 w-auto shrink-0 grow-0 basis-auto items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm text-muted-ink transition-[color,background-color,box-shadow,transform] duration-200 ease-out hover:bg-[color-mix(in_oklab,var(--sp-primary)_9%,transparent)] hover:text-ink data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] data-[selected]:text-primary data-[selected]:shadow-[var(--shadow-soft)] active:scale-[0.98]"
+              className={
+                stacked
+                  ? // Ícone em cima, rótulo embaixo, sublinhado na ativa.
+                    // `h-auto` + `items-start` no texto: rótulo de duas linhas
+                    // precisa caber inteiro, senão "Comissões em aberto" some
+                    // pela metade.
+                    'group flex h-auto min-h-[3.25rem] min-w-0 flex-col items-center justify-start gap-1 border-b-2 border-transparent px-1 pb-2 pt-1 text-[11px] font-medium leading-tight text-muted-ink transition-colors data-[selected]:border-primary data-[selected]:text-primary'
+                  : "group inline-flex min-h-9 w-auto shrink-0 grow-0 basis-auto items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm text-muted-ink transition-[color,background-color,box-shadow,transform] duration-200 ease-out hover:bg-[color-mix(in_oklab,var(--sp-primary)_9%,transparent)] hover:text-ink data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] data-[selected]:text-primary data-[selected]:shadow-[var(--shadow-soft)] active:scale-[0.98]"
+              }
             >
               <span
                 aria-hidden
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-canvas sm:h-7 sm:w-7 text-muted-ink transition-colors group-data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_18%,transparent)] group-data-[selected]:text-primary"
+                className={
+                  stacked
+                    ? 'grid h-6 w-6 shrink-0 place-items-center text-muted-ink transition-colors group-data-[selected]:text-primary'
+                    : 'grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-canvas sm:h-7 sm:w-7 text-muted-ink transition-colors group-data-[selected]:bg-[color-mix(in_oklab,var(--sp-primary)_18%,transparent)] group-data-[selected]:text-primary'
+                }
               >
                 {item.icon}
               </span>
-              <span className="whitespace-nowrap">{item.label}</span>
+              <span className={stacked ? 'text-center leading-tight' : 'whitespace-nowrap'}>
+                {item.label}
+              </span>
               {item.badge}
             </Tabs.Tab>
           ))}

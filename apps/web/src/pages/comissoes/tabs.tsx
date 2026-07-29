@@ -15,6 +15,18 @@ import { IconChart, IconCircleCheck, IconHome, IconSettings } from '../../compon
  */
 export type CommissionTabId = 'detalhadas' | '' | 'paid' | 'settings';
 
+/**
+ * Abas do CELULAR — outra lista, não outro estilo.
+ *
+ * A referência usa rótulos longos e só TRÊS abas no mobile; "Configurações"
+ * fica no menu lateral (que já tem o item). Ver estudo 44.
+ */
+export const COMMISSION_TABS_MOBILE: { id: CommissionTabId; label: string; icon: ReactNode }[] = [
+  { id: '', label: 'Resumo', icon: <IconHome size={18} /> },
+  { id: 'detalhadas', label: 'Comissões em aberto', icon: <IconChart size={18} /> },
+  { id: 'paid', label: 'Comissões pagas', icon: <IconCircleCheck size={18} /> },
+];
+
 export const COMMISSION_TABS: { id: CommissionTabId; label: string; icon: ReactNode }[] = [
   { id: 'detalhadas', label: 'Detalhadas', icon: <IconChart size={15} /> },
   { id: '', label: 'Resumidas', icon: <IconHome size={15} /> },

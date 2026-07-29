@@ -7,6 +7,7 @@ import { HelpTooltip } from '../../components/HelpTooltip';
 import { AppSwitch } from '../../components/SwitchRow';
 import { AppTabs } from '../../components/AppTabs';
 import { COMMISSION_TABS, commissionTabPath } from './tabs';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import {
   IconInfo,
 } from '../../components/icons';
@@ -48,6 +49,7 @@ const CONSUMED_PRICE_OPTS: { value: ConsumedPriceBy; label: string }[] = [
 ];
 
 export function ComissoesConfigPage() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const rules = useCommissionRules();
   const allRules = rules.data ?? [];
@@ -62,13 +64,18 @@ export function ComissoesConfigPage() {
         </h1>
       </header>
 
-      <AppTabs
-        items={[...COMMISSION_TABS]}
-        selectedKey="settings"
-        onSelectionChange={(key) => navigate(commissionTabPath(String(key)))}
-        ariaLabel="Áreas de comissões"
-        className="mb-5"
-      />
+      {/* No celular a régua NÃO aparece aqui: "Configurações" não faz parte das
+          abas do mobile (chega-se pelo menu lateral), e mostrar três abas com
+          nenhuma ativa — ou com a errada acesa — seria mentira de estado. */}
+      {!isMobile && (
+        <AppTabs
+          items={[...COMMISSION_TABS]}
+          selectedKey="settings"
+          onSelectionChange={(key) => navigate(commissionTabPath(String(key)))}
+          ariaLabel="Áreas de comissões"
+          className="mb-5"
+        />
+      )}
 
       {rules.isLoading ? (
         <LoadingState />

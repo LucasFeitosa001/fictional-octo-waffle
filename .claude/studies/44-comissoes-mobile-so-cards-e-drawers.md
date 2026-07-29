@@ -62,6 +62,44 @@ duas cópias da mesma lista foi como as abas divergiram (estudo 41, "Sobra 2").
 - `ComissoesResumoPage.tsx:813`-`:821` — o `DetailDrawer`, que já é o destino do toque num
   profissional.
 
+## As abas do celular: nomes longos, ícone em cima, e sem "Configurações"
+
+Segunda rodada, com duas capturas lado a lado do dono (nossa x Belasis) e vídeo.
+
+**Nosso mobile hoje:** `Detalhadas · Resumidas · Pagas · Configurações` — quatro abas numa régua
+que rola horizontalmente, ícone à ESQUERDA do texto, ativa com fundo preenchido.
+
+**Belasis mobile:** `Resumo · Comissões em aberto · Comissões pagas` — TRÊS abas dividindo a
+largura, **ícone ACIMA** do rótulo, ativa com texto azul e **sublinhado**. Sem "Configurações" na
+régua; ele fica no menu lateral.
+
+O HTML capturado lista quatro botões nessa barra —
+`belasis-reference/commissions/mobile.html`, botões com a classe `wb__sc-1d9hylv-0`:
+
+```
+ícone=home          rótulo=Resumo
+ícone=pie-chart     rótulo=Comissões em aberto
+ícone=check-circle  rótulo=Comissões pagas
+ícone=setting       rótulo=Configurações
+```
+
+Mas no aparelho do dono aparecem três, e ele foi explícito: *"não tem configurações nele lá em
+cima, somente no sidebar do local"*. Vale o que está na tela dele. Na nossa sidebar mobile,
+"Configurações" já existe (estudo 41, "Sobra 7"), então tirar da régua não deixa a tela órfã.
+
+`AppTabs` (`apps/web/src/components/AppTabs.tsx`) é compartilhado por Notas Fiscais, SalonPay,
+Caixas abertos e Comissões — mudar o visual dele direto respingaria em todas. Ganha um modo
+opcional `stacked` em vez disso.
+
+Na página de Configurações, no celular, a régua **não é renderizada**: chegou-se ali pelo menu
+lateral, e manter uma barra de três abas com nenhuma ativa (ou pior, com a errada acesa) seria
+mentira de estado.
+
+## Extra observado no vídeo (não pedido, fica anotado)
+
+O drawer de Filtros do Belasis no celular tem **atalhos de período**: `Hoje`, `Semana passada`,
+`Mês passado`, `Esse mês`, `6 meses atrás`, `1 ano atrás`. O nosso só tem os dois campos de data.
+
 ## Arquivos tocados
 
 - `apps/web/src/pages/comissoes/ComissoesResumoPage.tsx`
