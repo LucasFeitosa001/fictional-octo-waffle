@@ -138,7 +138,14 @@ function montarLeituras(d: Dashboard): Leitura[] {
   // "caiu -27%" tem sinal duplicado; a direção já está na palavra.
   const pct = (v: number) => `${Math.abs(v).toFixed(0)}%`;
 
-  if (Math.abs(d.vendasTotais.deltaPct) >= 5) {
+  // Período anterior zerado: "subiu 100%" é a convenção do painel, mas lida
+  // como comparação — e não há com o que comparar. Diz o que de fato houve.
+  if (d.comparacaoPeriodos.anterior <= 0 && d.vendasTotais.valor > 0) {
+    l.push({
+      tom: 'neutra',
+      texto: `Não houve faturamento no período anterior — agora são ${formatMoney(d.vendasTotais.valor)}.`,
+    });
+  } else if (Math.abs(d.vendasTotais.deltaPct) >= 5) {
     const caiu = d.vendasTotais.deltaPct < 0;
     l.push({
       tom: caiu ? 'atencao' : 'boa',
