@@ -185,6 +185,23 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     }
   }, [portal.data?.name]);
 
+  // Ícone da aba = logo do salão. A aba mostrava o ícone do Salonpass para
+  // todos; com o logo, a cliente reconhece o salão entre 15 abas abertas.
+  // Ver estudo 67.
+  useEffect(() => {
+    const logo = portal.data?.logoUrl;
+    if (!logo) return;
+    const anterior = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const href = anterior?.href ?? null;
+    const link = anterior ?? document.createElement('link');
+    link.rel = 'icon';
+    link.href = logo;
+    if (!anterior) document.head.appendChild(link);
+    return () => {
+      if (href) link.href = href;
+    };
+  }, [portal.data?.logoUrl]);
+
   const [step, setStep] = useState<Step>('service');
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   // Convenience aliases for the primary (first) service — used by downstream
@@ -376,6 +393,9 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
           id="inicio"
           className="scroll-mt-20 border-b border-[var(--color-soft-border)] bg-[var(--booking-surface)]/95 shadow-[var(--shadow-soft)] backdrop-blur-xl"
         >
+          {/* Capa do salão (estudo 67): imagem do topo com véu ajustável, para o
+              nome e o status continuarem legíveis sobre qualquer foto. */}
+          <SalonCover url={appearance.coverUrl} overlay={appearance.coverOverlay} />
           <SalonHero
             portal={portal.data}
             isLoading={portal.isLoading}
@@ -560,6 +580,16 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                     ))}
                   </div>
                 ))}
+
+              {/* Galeria e "sobre" só na primeira etapa: é onde a cliente decide
+                  se o salão tem a cara dela. Ambos vinham do painel e não
+                  apareciam para ninguém (estudo 67). */}
+              {step === 'service' && (
+                <>
+                  <SalonGallery fotos={portal.data?.gallery ?? []} />
+                  <SalonAbout about={portal.data?.about} />
+                </>
+              )}
 
               {step === 'professional' &&
                 (professionals.isLoading ? (
@@ -1042,6 +1072,102 @@ function SalonHero({
 
 // Compact open/closed indicator for the salon header meta line. Hours unknown
 // (no schedules) → renders nothing so the line omits the status.
+/** Capa do topo da página pública. Sem imagem, não ocupa espaço. Estudo 67. */
+function SalonCover({ url, overlay }: { url: string | null; overlay: number }) {
+  if (!url) return null;
+  const veu = Math.min(80, Math.max(0, overlay)) / 100;
+  return (
+    <div className="relative h-32 w-full overflow-hidden sm:h-44">
+      <img src={url} alt="" className="h-full w-full object-cover" aria-hidden />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, rgba(0,0,0,${veu * 0.4}) 0%, rgba(0,0,0,${veu}) 100%)`,
+        }}
+        aria-hidden
+      />
+    </div>
+  );
+}
+
+/**
+ * Galeria do salão — as fotos que o dono já subia no painel e que NUNCA
+ * apareciam para o cliente (estudo 67). Faixa rolável, sem cortar no celular.
+ */
+function SalonGallery({ fotos }: { fotos: { url: string; caption: string | null }[] }) {
+  if (!fotos.length) return null;
+  return (
+    <section className="mt-4">
+      <h2 className="px-1 font-brand text-[15px] text-foreground">O salão por dentro</h2>
+      <div className="hide-scrollbar mt-2 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+        {fotos.map((f) => (
+          <figure
+            key={f.url}
+            className="relative h-36 w-56 shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)] sm:h-44 sm:w-64"
+          >
+            <img
+              src={f.url}
+              alt={f.caption ?? ''}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+            {f.caption && (
+              <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-1.5 text-[11px] text-white">
+                {f.caption}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Descrição + redes do salão. Também só existiam no painel. Estudo 67. */
+function SalonAbout({
+  about,
+}: {
+  about?: {
+    description: string | null;
+    website: string | null;
+    instagram: string | null;
+    facebook: string | null;
+  };
+}) {
+  if (!about) return null;
+  const redes = [
+    { rotulo: 'Instagram', url: about.instagram },
+    { rotulo: 'Facebook', url: about.facebook },
+    { rotulo: 'Site', url: about.website },
+  ].filter((r): r is { rotulo: string; url: string } => Boolean(r.url));
+  if (!about.description && redes.length === 0) return null;
+  const comProtocolo = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+  return (
+    <section className="mt-4 rounded-2xl bg-white p-4 shadow-[var(--shadow-card)]">
+      {about.description && (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+          {about.description}
+        </p>
+      )}
+      {redes.length > 0 && (
+        <div className={about.description ? 'mt-3 flex flex-wrap gap-2' : 'flex flex-wrap gap-2'}>
+          {redes.map((r) => (
+            <a
+              key={r.rotulo}
+              href={comProtocolo(r.url)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border border-[var(--color-soft-border)] px-3 py-1.5 text-xs font-semibold text-[var(--booking-accent-ink)] transition-colors hover:bg-[var(--booking-accent-soft)]"
+            >
+              {r.rotulo}
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function OpenStatus({
   open,
   hours,
@@ -1231,13 +1357,19 @@ function ServicePhoto({ service }: { service: Service }) {
     return (
       <div
         className="relative min-h-28 w-24 shrink-0 self-stretch sm:w-32"
+        // O fundo da foto era rosa cravado em três lugares; agora deriva da cor
+        // escolhida pelo salão (--booking-photo, padrão = o rosa da casa), com
+        // o ícone num tom mais forte da MESMA cor. Ver estudo 66.
         style={{
           backgroundImage:
-            'radial-gradient(120px 120px at 30% 20%, rgba(240,140,165,0.22), transparent 70%), linear-gradient(160deg, #fbe2e8 0%, #f4cdd6 100%)',
+            'radial-gradient(120px 120px at 30% 20%, color-mix(in oklab, var(--booking-photo, #f08ca5) 30%, transparent), transparent 70%), linear-gradient(160deg, color-mix(in oklab, var(--booking-photo, #f08ca5) 22%, #fff) 0%, color-mix(in oklab, var(--booking-photo, #f08ca5) 46%, #fff) 100%)',
         }}
         aria-hidden
       >
-        <span className="absolute inset-0 grid place-items-center text-[#d79bab]">
+        <span
+          className="absolute inset-0 grid place-items-center"
+          style={{ color: 'color-mix(in oklab, var(--booking-photo, #f08ca5) 72%, #000)' }}
+        >
           <Camera width={30} height={30} />
         </span>
       </div>

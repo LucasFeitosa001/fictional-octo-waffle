@@ -243,7 +243,24 @@ type AppearanceDraft = {
   primaryColor: string;
   accentColor: string;
   backgroundColor: string;
+  photoColor: string;
+  coverUrl: string;
+  coverOverlay: number;
 };
+
+// Sugestões para o fundo da FOTO do serviço. "" = o rosa da casa (o que existe
+// hoje). Ver estudo 66.
+const PHOTO_PRESETS: { value: string; label: string }[] = [
+  { value: '', label: 'Padrão (rosa)' },
+  { value: '#F08CA5', label: 'Rosa' },
+  { value: '#C084FC', label: 'Lilás' },
+  { value: '#4F9DDE', label: 'Azul' },
+  { value: '#2FAA6A', label: 'Verde' },
+  { value: '#F2B33D', label: 'Dourado' },
+  { value: '#E9D9C3', label: 'Bege' },
+  { value: '#C9CBD1', label: 'Cinza' },
+  { value: '#2B2733', label: 'Grafite' },
+];
 
 // Campo de cor reutilizável: paleta de sugestões + seletor nativo + hex livre
 // (com prévia). "" limpa a cor (volta ao padrão). `fallbackPreview` é a cor
@@ -397,6 +414,9 @@ export function AgendamentoOnlinePage() {
         primaryColor: appearance.data.primaryColor ?? '',
         accentColor: appearance.data.accentColor ?? '',
         backgroundColor: appearance.data.backgroundColor ?? '',
+        photoColor: appearance.data.photoColor ?? '',
+        coverUrl: appearance.data.coverUrl ?? '',
+        coverOverlay: appearance.data.coverOverlay ?? 35,
       });
     }
   }, [appearance.data]);
@@ -418,6 +438,12 @@ export function AgendamentoOnlinePage() {
     url.searchParams.set(
       'backgroundColor',
       appearanceDraft?.backgroundColor ?? '',
+    );
+    url.searchParams.set('photoColor', appearanceDraft?.photoColor ?? '');
+    url.searchParams.set('coverUrl', appearanceDraft?.coverUrl ?? '');
+    url.searchParams.set(
+      'coverOverlay',
+      String(appearanceDraft?.coverOverlay ?? 35),
     );
     return url.toString();
   }, [appearanceDraft, liveUrl]);
@@ -563,6 +589,9 @@ export function AgendamentoOnlinePage() {
       primaryColor: appearance.data.primaryColor ?? '',
       accentColor: appearance.data.accentColor ?? '',
       backgroundColor: appearance.data.backgroundColor ?? '',
+      photoColor: appearance.data.photoColor ?? '',
+      coverUrl: appearance.data.coverUrl ?? '',
+      coverOverlay: appearance.data.coverOverlay ?? 35,
     };
   }
   function setAppearanceField<K extends keyof AppearanceDraft>(key: K, value: AppearanceDraft[K]) {
@@ -898,6 +927,43 @@ export function AgendamentoOnlinePage() {
               description="Remove a barra escura do topo da página pública. Um acesso compacto (entrar / conta) continua disponível."
               className="rounded-xl border border-line bg-card px-4 py-3"
             />
+            {/* CAPA — a página pública não tinha banner nenhum. O upload já
+                existia (módulo de uploads); faltava o campo e o lugar de
+                mostrar. Ver estudo 67. */}
+            <Field
+              label="Capa da página"
+              hint="Imagem do topo da página pública. Recomendado 1600×600. Sem capa, a página começa direto pelo nome do salão."
+            >
+              <div className="flex flex-col gap-3">
+                <ImageUpload
+                  value={appearanceDraft.coverUrl || null}
+                  onChange={(url) => setAppearanceField('coverUrl', url ?? '')}
+                  kind="logo"
+                  shape="square"
+                  size={132}
+                  placeholder="Enviar capa"
+                />
+                {appearanceDraft.coverUrl && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-ink">
+                      Escurecer a capa ({appearanceDraft.coverOverlay}%) — deixa o
+                      nome do salão legível sobre a foto
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={80}
+                      step={5}
+                      value={appearanceDraft.coverOverlay}
+                      onChange={(e) =>
+                        setAppearanceField('coverOverlay', Number(e.target.value))
+                      }
+                      className="w-full accent-[var(--sp-primary)]"
+                    />
+                  </label>
+                )}
+              </div>
+            </Field>
             <ColorField
               label="Cor principal"
               hint="Cor da marca aplicada nos botões, passos e destaques da página."
@@ -916,11 +982,19 @@ export function AgendamentoOnlinePage() {
             />
             <ColorField
               label="Cor de fundo"
-              hint="Cor de fundo da página pública de agendamento."
+              hint="Cor de fundo da página pública de agendamento. Com um fundo escuro, os textos e cartões da página se ajustam automaticamente."
               value={appearanceDraft.backgroundColor}
               onChange={(hex) => setAppearanceField('backgroundColor', hex)}
               presets={BG_PRESETS}
               fallbackPreview="#F7F3EA"
+            />
+            <ColorField
+              label="Cor de fundo das fotos"
+              hint="Fundo do espaço da foto quando o serviço ainda não tem imagem."
+              value={appearanceDraft.photoColor}
+              onChange={(hex) => setAppearanceField('photoColor', hex)}
+              presets={PHOTO_PRESETS}
+              fallbackPreview="#F4CDD6"
             />
             <Feedback error={personMsg.error} ok={personMsg.ok} />
           </div>

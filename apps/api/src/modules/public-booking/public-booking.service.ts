@@ -184,17 +184,32 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       select: { name: true, logoUrl: true, timezone: true, addressJson: true },
     });
     const tz = company?.timezone ?? 'America/Sao_Paulo';
-    const [status, rating, plan, customSubdomain, webProfile, appearanceRow] = await Promise.all([
+    const [status, rating, plan, customSubdomain, webProfile, appearanceRow, gallery] =
+      await Promise.all([
       this.openStatus(companyId, tz),
       this.ratingSummary(companyId),
       this.planLabel(companyId),
       this.hasCustomSubdomain(companyId),
+      // O portal só devolvia a cor daqui. Descrição e redes eram preenchidas no
+      // painel e NUNCA apareciam para o cliente — estudo 67.
       this.prisma.client.salonWebProfile.findUnique({
         where: { companyId },
-        select: { accentColor: true },
+        select: {
+          accentColor: true,
+          description: true,
+          website: true,
+          instagram: true,
+          facebook: true,
+        },
       }),
       this.prisma.client.setting.findUnique({
         where: { companyId_key: { companyId, key: BOOKING_APPEARANCE_KEY } },
+      }),
+      this.prisma.client.galleryPhoto.findMany({
+        where: { companyId },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        select: { url: true, caption: true },
+        take: 24,
       }),
     ]);
     // Aparência da página pública. Defaults sensatos quando não há Setting, para
@@ -225,6 +240,17 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       // Aparência personalizável da página pública (por empresa). Sempre presente
       // com defaults, então o web-club nunca precisa lidar com ausência.
       appearance,
+      // "Sobre o salão": o que o dono escreve na aba Detalhes da empresa. Sem
+      // isto a página pública não tinha como mostrar (estudo 67).
+      about: {
+        description: webProfile?.description?.trim() || null,
+        website: webProfile?.website?.trim() || null,
+        instagram: webProfile?.instagram?.trim() || null,
+        facebook: webProfile?.facebook?.trim() || null,
+      },
+      // Galeria de fotos do salão — havia upload no painel e nenhuma saída
+      // pública. Ordem igual à do painel.
+      gallery: gallery.map((g) => ({ url: g.url, caption: g.caption ?? null })),
     };
   }
 

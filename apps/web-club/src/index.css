@@ -215,7 +215,9 @@ h1, h2, h3, h4, h5, h6,
 
 /* Mobile booking steps: warm translucent dock with safe-area support. */
 .club-bottomnav {
-  background: rgba(255, 253, 248, 0.96);
+  /* Seguia um creme fixo: com fundo escuro virava uma faixa clara estranha
+     embaixo do "Continuar". Agora acompanha o fundo da página. Estudo 66. */
+  background: color-mix(in srgb, var(--booking-page-bg) 96%, transparent);
   box-shadow: 0 -12px 30px rgba(26, 26, 26, 0.08);
   backdrop-filter: blur(18px);
   padding-bottom: env(safe-area-inset-bottom);
@@ -226,7 +228,11 @@ h1, h2, h3, h4, h5, h6,
 }
 
 .club-action-dock {
-  background: linear-gradient(180deg, rgba(247, 243, 234, 0), rgba(247, 243, 234, 0.96) 26%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--booking-page-bg) 0%, transparent),
+    color-mix(in srgb, var(--booking-page-bg) 96%, transparent) 26%
+  );
 }
 
 /* Swipeable photo carousel track: keep the native scroll-snap behavior but hide
@@ -265,4 +271,36 @@ h1, h2, h3, h4, h5, h6,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── Fundo escuro escolhido pelo salão ───────────────────────────────────────
+   Quando o salão põe um fundo escuro (Personalização → Cor de fundo), o texto
+   da casa é preto e some, e as superfícies brancas ficam berrantes: o dono viu
+   "Selecione os serviços" e "Filtros" desaparecerem. `useBookingAccent` marca
+   `data-club-dark` no <html> e aqui os tokens invertem. Ver estudo 66.
+
+   `.bg-white` é sobrescrito por SELETOR (não trocando --color-white), senão
+   `text-white` dos botões viraria texto escuro. */
+:root[data-club-dark] {
+  --foreground: #f6f2ec;
+  --color-ink: #f6f2ec;
+  --color-ink-soft: #ffffff;
+  --color-muted-ink: rgba(246, 242, 236, 0.68);
+  --color-soft-border: rgba(255, 255, 255, 0.14);
+  --color-cream: color-mix(in oklab, var(--booking-page-bg) 88%, #fff);
+  --color-warm-white: color-mix(in oklab, var(--booking-page-bg) 82%, #fff);
+  --booking-surface: color-mix(in oklab, var(--booking-page-bg) 86%, #fff);
+  --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-club-dark] .bg-white,
+:root[data-club-dark] .bg-warm-white,
+:root[data-club-dark] .bg-cream {
+  background-color: color-mix(in oklab, var(--booking-page-bg) 84%, #fff);
+}
+
+:root[data-club-dark] .text-muted {
+  color: rgba(246, 242, 236, 0.68);
 }

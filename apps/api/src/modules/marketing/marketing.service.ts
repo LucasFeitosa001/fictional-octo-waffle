@@ -38,6 +38,16 @@ export interface BookingAppearance {
   primaryColor: string | null;
   accentColor: string | null;
   backgroundColor: string | null;
+  /**
+   * Fundo do espaço da FOTO do serviço quando ele não tem imagem. Era rosa
+   * fixo no web-club, sem passar por nenhuma variável — o dono pediu para
+   * poder trocar. `null` = o rosa da casa. Ver estudo 66.
+   */
+  photoColor: string | null;
+  /** Capa (banner) do topo da página pública. URL do upload ou null. Estudo 67. */
+  coverUrl: string | null;
+  /** Véu escuro sobre a capa, 0–80 (%), para o texto continuar legível. */
+  coverOverlay: number;
 }
 
 export const BOOKING_APPEARANCE_DEFAULTS: BookingAppearance = {
@@ -45,6 +55,9 @@ export const BOOKING_APPEARANCE_DEFAULTS: BookingAppearance = {
   primaryColor: null,
   accentColor: null,
   backgroundColor: null,
+  photoColor: null,
+  coverUrl: null,
+  coverOverlay: 35,
 };
 
 // Coerce whatever is stored in the Setting JSON into a well-formed appearance,
@@ -59,6 +72,13 @@ export function coerceBookingAppearance(raw: unknown): BookingAppearance {
     primaryColor: hex(v.primaryColor),
     accentColor: hex(v.accentColor),
     backgroundColor: hex(v.backgroundColor),
+    photoColor: hex(v.photoColor),
+    coverUrl:
+      typeof v.coverUrl === 'string' && v.coverUrl.trim() ? v.coverUrl.trim() : null,
+    coverOverlay:
+      typeof v.coverOverlay === 'number' && Number.isFinite(v.coverOverlay)
+        ? Math.min(80, Math.max(0, Math.round(v.coverOverlay)))
+        : 35,
   };
 }
 
@@ -508,6 +528,17 @@ export class MarketingService {
       primaryColor: hex(dto.primaryColor, current.primaryColor),
       accentColor: hex(dto.accentColor, current.accentColor),
       backgroundColor: hex(dto.backgroundColor, current.backgroundColor),
+      photoColor: hex(dto.photoColor, current.photoColor),
+      coverUrl:
+        dto.coverUrl === undefined
+          ? current.coverUrl
+          : dto.coverUrl.trim()
+            ? dto.coverUrl.trim()
+            : null,
+      coverOverlay:
+        dto.coverOverlay === undefined
+          ? current.coverOverlay
+          : Math.min(80, Math.max(0, Math.round(dto.coverOverlay))),
     };
     const valueJson = merged as unknown as Prisma.InputJsonValue;
     await this.prisma.client.setting.upsert({
