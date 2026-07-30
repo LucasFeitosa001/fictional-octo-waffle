@@ -45,6 +45,7 @@ import { useSession, signOut } from '../lib/auth';
 import { useFeatures, type FeatureKey } from '../lib/queries/features';
 import { useCan } from '../lib/queries/permissions';
 import { CompanySwitcher } from '../components/CompanySwitcher';
+import { urlDaAreaDeIa } from '../lib/aiHost';
 import { useMinhasContas } from '../lib/queries/contas';
 import { useBookingLink } from '../lib/queries/marketing';
 import { APP_VERSION, CLUB_ORIGIN } from '../lib/config';
@@ -86,6 +87,12 @@ type NavItem = {
    * Diferente de `feature` (que só cadeia): sem permissão o item não aparece.
    */
   perm?: string | string[];
+  /**
+   * Item que sai do painel e abre em OUTRA janela (a área de IA vive em
+   * `ai.salonpass.com.br`). O login é o mesmo cookie do domínio-base, então a
+   * janela nova já abre logada. Ver estudo 62.
+   */
+  externo?: 'ia';
 };
 
 type NavGroup = {
@@ -110,12 +117,15 @@ const NAVIGATION: NavEntry[] = [
   {
     kind: 'link',
     key: 'ia',
+    // A área de IA agora é um produto separado (ai.salonpass.com.br) que abre em
+    // outra janela. `to` fica como destino de fallback para quem não tem o
+    // subdomínio disponível.
     to: '/ia-atendimento',
+    externo: 'ia',
     label: 'IA',
     icon: IconSparkles,
     badge: 'Beta',
-    feature: 'whatsapp_api',
-    perm: 'marketing:view',
+    perm: 'config:manage',
   },
   {
     kind: 'group',
@@ -597,7 +607,18 @@ export function Sidebar({
       active ? 'db-nav-active' : 'text-white/70 hover:bg-white/[0.08] hover:text-white',
     ].join(' ');
 
-    const control = entry.kind === 'link' ? (
+    const control = entry.kind === 'link' && entry.externo === 'ia' ? (
+      <a
+        href={urlDaAreaDeIa('/')}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={onNavigate}
+        className={className}
+        aria-label={`${label} (abre em outra janela)`}
+      >
+        <EntryIcon size={19} />
+      </a>
+    ) : entry.kind === 'link' ? (
       <NavLink to={entry.to} onClick={onNavigate} className={className} aria-label={label}>
         <EntryIcon size={19} />
       </NavLink>
@@ -668,14 +689,34 @@ export function Sidebar({
   function renderExpandedEntry(entry: NavEntry) {
     const EntryIcon = entry.icon;
     if (entry.kind === 'link') {
-      return (
-        <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
+      const conteudo = (
+        <>
           <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
           <span className="flex min-w-0 flex-1 items-center gap-1.5 pr-1">
             <span className="truncate">{entry.label}</span>
             {!isLocked(entry.feature) && entry.badge && <MenuBadge>{entry.badge}</MenuBadge>}
           </span>
           {isLocked(entry.feature) && <LockBadge />}
+        </>
+      );
+      if (entry.externo === 'ia') {
+        return (
+          <a
+            key={entry.key}
+            href={urlDaAreaDeIa('/')}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onNavigate}
+            className={navLinkClass({ isActive: false })}
+            title="Abre a área de IA em outra janela"
+          >
+            {conteudo}
+          </a>
+        );
+      }
+      return (
+        <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
+          {conteudo}
         </NavLink>
       );
     }

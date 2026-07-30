@@ -2,6 +2,8 @@ import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from 're
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from './lib/auth';
+import { isAiHost } from './lib/aiHost';
+import { AiApp } from './ai/AiApp';
 import { useCan } from './lib/queries/permissions';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardLayout } from './layout/DashboardLayout';
@@ -546,6 +548,17 @@ export function App() {
       }
     }
   }, [session?.user?.id, queryClient]);
+
+  // ÁREA DE IA (ai.salonpass.com.br): mesmo bundle, produto separado. Decidido
+  // pelo hostname, então o painel e a IA não dividem casca nem sidebar. O login
+  // é o mesmo cookie (domínio-base), não há segundo login. Ver estudo 62.
+  if (isAiHost()) {
+    return (
+      <RouteErrorBoundary routeKey={location.pathname}>
+        <AiApp />
+      </RouteErrorBoundary>
+    );
+  }
 
   return (
     <RouteErrorBoundary routeKey={location.pathname}>

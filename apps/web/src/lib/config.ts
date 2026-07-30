@@ -27,6 +27,26 @@ function resolveClubOrigin(): string {
 
 export const CLUB_ORIGIN = resolveClubOrigin();
 
+/**
+ * Origem da área de IA (`ai.salonpass.com.br`) — mesmo bundle, outro hostname.
+ * Fora de produção cai na própria origem com `?app=ia`, que é como o modo IA
+ * é testado no Vite dev. Ver estudo 62.
+ */
+function resolveAiOrigin(): string {
+  const env = import.meta.env.VITE_AI_ORIGIN as string | undefined;
+  if (env) return env.replace(/\/$/, '');
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'app.salonpass.com.br') {
+      return 'https://ai.salonpass.com.br';
+    }
+    // Dev/preview: mesma origem — quem monta a URL acrescenta o `?app=ia`.
+    return window.location.origin;
+  }
+  return 'https://ai.salonpass.com.br';
+}
+
+export const AI_ORIGIN = resolveAiOrigin();
+
 // Fonte única = package.json (injetada pelo Vite `define` como __APP_VERSION__).
 // Bumpar o package.json atualiza a versão em TODOS os lugares (login, sidebar,
 // configurações → informações do sistema).
