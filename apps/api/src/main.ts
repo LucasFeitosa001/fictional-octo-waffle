@@ -43,13 +43,26 @@ async function bootstrap() {
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  // `AUTH_TRUSTED_ORIGINS` já trazia `https://*.salonpass.com.br`, mas o CORS do
+  // Nest compara STRING EXATA quando a lista é de strings — o curinga nunca
+  // casava, e qualquer subdomínio novo (a área de IA, os subdomínios próprios de
+  // salão) tomava bloqueio de origem mesmo "estando" na lista. Entrada com `*`
+  // vira RegExp; o resto continua exato. Ver estudo 62.
+  const curingaParaRegex = (origem: string): string | RegExp => {
+    if (!origem.includes('*')) return origem;
+    const escapado = origem
+      .split('*')
+      .map((parte) => parte.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('[^.]+');
+    return new RegExp(`^${escapado}$`);
+  };
   app.enableCors({
     origin: [
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:8081',
       'beautypass://',
-      ...trusted,
+      ...trusted.map(curingaParaRegex),
     ],
     credentials: true,
   });
