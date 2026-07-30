@@ -67,7 +67,16 @@ export async function dispatchWhatsapp(
   logger.log(`${tag} WhatsApp -> ${to}: ${oneLine}`);
   if (!mode.canSendWhatsapp) return false;
   try {
-    await whatsapp.enqueueText(to, text, ctx);
+    // `null` = a fila RECUSOU a linha (canal desconectado, número inválido,
+    // duplicata concorrente). Antes isto devolvia `true` e o chamador marcava a
+    // mensagem como enviada — mentira de contabilidade, e o lembrete nunca era
+    // reavaliado. Devolvendo false, quem marca grava "avaliado, não enviado" e o
+    // poller tenta de novo quando o canal voltar. Ver estudo 60.
+    const queued = await whatsapp.enqueueText(to, text, ctx);
+    if (!queued) {
+      logger.warn(`${tag} não entrou na fila (canal fechado ou destinatário inválido).`);
+      return false;
+    }
     return true;
   } catch (err) {
     logger.error(`${tag} falha ao enfileirar no outbox: ${(err as Error).message}`);
