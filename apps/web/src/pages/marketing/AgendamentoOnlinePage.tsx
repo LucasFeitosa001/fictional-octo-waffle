@@ -21,7 +21,7 @@ import {
 } from '../../components/icons';
 import { useBookingLink, useUpdateBookingLink } from '../../lib/queries/marketing';
 import { useServices } from '../../lib/queries';
-import { useEmpresa } from '../../lib/queries/empresa';
+import { useEmpresa, useUpdateEmpresa } from '../../lib/queries/empresa';
 import {
   WEEKDAY_LABELS,
   useAddGalleryPhoto,
@@ -147,14 +147,37 @@ function ComingSoon({ description }: { description: string }) {
 }
 
 // Fixed phone mockup that previews the public booking page (à la Belasis).
+// Moldura do celular. A página pública é desenhada para telefone REAL (390px);
+// dentro de uma moldura de 300px o conteúdo não cabia e o lado direito era
+// cortado (botão "Selecionar" e filtro sumiam, com rolagem lateral) — foi o que
+// o dono mandou na captura. Agora o iframe é renderizado em 390×823, como um
+// telefone de verdade, e ESCALADO para caber. Ver estudo 65.
+const PREVIEW_LARGURA = 360; // moldura (px)
+const PREVIEW_INTERNO = PREVIEW_LARGURA - 22; // desconta a borda de 11px
+const PREVIEW_TELEFONE = 390; // largura lógica do telefone
+const PREVIEW_ESCALA = PREVIEW_INTERNO / PREVIEW_TELEFONE;
+const PREVIEW_ALTURA_INTERNA = (PREVIEW_INTERNO * 19) / 9; // aspect-[9/19]
+const PREVIEW_ALTURA_TELEFONE = PREVIEW_ALTURA_INTERNA / PREVIEW_ESCALA;
+
 function PhonePreview({ url, active }: { url: string; active: boolean }) {
   return (
-    <div className="mx-auto w-[300px]">
+    <div className="mx-auto" style={{ width: PREVIEW_LARGURA }}>
       <div className="relative aspect-[9/19] w-full rounded-[2.4rem] border-[11px] border-black bg-black shadow-[var(--shadow-card)]">
         <div className="absolute left-1/2 top-0 z-10 h-5 w-28 -translate-x-1/2 rounded-b-2xl bg-black" />
         <div className="h-full w-full overflow-hidden rounded-[1.6rem] bg-[#141118]">
           {url && active ? (
-            <iframe title="Prévia da página pública" src={url} loading="lazy" className="h-full w-full border-0" />
+            <iframe
+              title="Prévia da página pública"
+              src={url}
+              loading="lazy"
+              className="border-0"
+              style={{
+                width: PREVIEW_TELEFONE,
+                height: PREVIEW_ALTURA_TELEFONE,
+                transform: `scale(${PREVIEW_ESCALA})`,
+                transformOrigin: 'top left',
+              }}
+            />
           ) : (
             <div className="flex h-full flex-col gap-3 px-4 pb-4 pt-8 text-white/90">
               <div className="text-center text-sm font-semibold">Sua página de agendamento</div>
@@ -317,6 +340,7 @@ export function AgendamentoOnlinePage() {
   const hours = useBusinessHours();
   const updateHours = useUpdateBusinessHours();
   const empresa = useEmpresa();
+  const updateEmpresa = useUpdateEmpresa();
 
   const profile = useWebProfile();
   const updateProfile = useUpdateWebProfile();
@@ -590,6 +614,46 @@ export function AgendamentoOnlinePage() {
 
   const address = empresa.data?.addressJson ?? null;
 
+  // CONTATO DA EMPRESA (telefone/e-mail/endereço) — vive em Company.addressJson
+  // e aparece na página pública. Estava só como TEXTO nesta aba: o dono não
+  // conseguia digitar. Agora é rascunho local, salvo junto com o "Salvar" da
+  // seção. Ver estudo 65.
+  const [contatoDraft, setContatoDraft] = useState<{
+    phone: string;
+    email: string;
+    address: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!empresa.data) return;
+    const a = empresa.data.addressJson ?? {};
+    setContatoDraft((atual) =>
+      atual ?? {
+        phone: a.phone ?? '',
+        email: a.email ?? '',
+        address: a.address ?? '',
+      },
+    );
+  }, [empresa.data]);
+  const contatoSujo = Boolean(
+    contatoDraft &&
+      ((contatoDraft.phone ?? '') !== (address?.phone ?? '') ||
+        (contatoDraft.email ?? '') !== (address?.email ?? '') ||
+        (contatoDraft.address ?? '') !== (address?.address ?? '')),
+  );
+  async function salvarContato() {
+    if (!contatoDraft || !contatoSujo) return;
+    // Preserva o resto do addressJson (cep, cidade, estado…): o PATCH substitui
+    // o objeto inteiro, então mandar só três campos apagaria os outros.
+    await updateEmpresa.mutateAsync({
+      addressJson: {
+        ...(empresa.data?.addressJson ?? {}),
+        phone: contatoDraft.phone.trim() || null,
+        email: contatoDraft.email.trim() || null,
+        address: contatoDraft.address.trim() || null,
+      },
+    });
+  }
+
   const activeSection = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
 
   // ---- tab bodies ----
@@ -649,20 +713,49 @@ export function AgendamentoOnlinePage() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">{empresa.data?.name ?? '—'}</p>
                 <p className="truncate text-xs text-muted-ink">
-                  {address?.address || 'Endereço não informado'}
+                  {contatoDraft?.address || address?.address || 'Endereço não informado'}
                 </p>
               </div>
             </div>
-            <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="rounded-xl border border-line bg-card px-3 py-2">
-                <dt className="text-xs text-muted-ink">Telefone</dt>
-                <dd className="text-sm text-ink">{address?.phone || '—'}</dd>
-              </div>
-              <div className="rounded-xl border border-line bg-card px-3 py-2">
-                <dt className="text-xs text-muted-ink">E-mail</dt>
-                <dd className="truncate text-sm text-ink">{address?.email || '—'}</dd>
-              </div>
-            </dl>
+
+            {/* Telefone, e-mail e endereço: são o que a cliente vê na página
+                pública. Eram texto fixo aqui — agora dá para digitar, e o
+                "Salvar" da seção grava junto. Ver estudo 65. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Telefone">
+                <TextField
+                  value={contatoDraft?.phone ?? ''}
+                  onChange={(v) =>
+                    setContatoDraft((c) => ({ ...(c ?? { phone: '', email: '', address: '' }), phone: v }))
+                  }
+                  aria-label="Telefone do estabelecimento"
+                >
+                  <Input placeholder="(00) 00000-0000" />
+                </TextField>
+              </Field>
+              <Field label="E-mail">
+                <TextField
+                  value={contatoDraft?.email ?? ''}
+                  onChange={(v) =>
+                    setContatoDraft((c) => ({ ...(c ?? { phone: '', email: '', address: '' }), email: v }))
+                  }
+                  aria-label="E-mail do estabelecimento"
+                >
+                  <Input placeholder="contato@seusalao.com.br" />
+                </TextField>
+              </Field>
+            </div>
+            <Field label="Endereço" hint="Aparece na página pública e no mapa do agendamento.">
+              <TextField
+                value={contatoDraft?.address ?? ''}
+                onChange={(v) =>
+                  setContatoDraft((c) => ({ ...(c ?? { phone: '', email: '', address: '' }), address: v }))
+                }
+                aria-label="Endereço do estabelecimento"
+              >
+                <Input placeholder="Rua, número, bairro, cidade" />
+              </TextField>
+            </Field>
 
             <Field label="Descrição do estabelecimento">
               <textarea
@@ -1067,10 +1160,18 @@ export function AgendamentoOnlinePage() {
             <Button variant="ghost" onClick={() => navigate('/configuracoes')}>
               <IconSettings size={16} /> Editar dados
             </Button>
-            {sectionDirty(DETALHES_FIELDS) && (
+            {(sectionDirty(DETALHES_FIELDS) || contatoSujo) && (
               <Button
                 variant="ghost"
-                onClick={() => resetProfileSection(DETALHES_FIELDS)}
+                onClick={() => {
+                  resetProfileSection(DETALHES_FIELDS);
+                  const a = empresa.data?.addressJson ?? {};
+                  setContatoDraft({
+                    phone: a.phone ?? '',
+                    email: a.email ?? '',
+                    address: a.address ?? '',
+                  });
+                }}
                 isDisabled={updateProfile.isPending}
               >
                 Descartar
@@ -1078,10 +1179,29 @@ export function AgendamentoOnlinePage() {
             )}
             <Button
               variant="primary"
-              onClick={() => saveProfileSection(DETALHES_FIELDS, setRedesMsg)}
-              isDisabled={updateProfile.isPending || !sectionDirty(DETALHES_FIELDS)}
+              onClick={async () => {
+                // Duas gravações: o perfil da página pública (descrição/redes) e
+                // o contato da empresa (telefone/e-mail/endereço). Antes só a
+                // primeira existia nesta aba.
+                setRedesMsg({});
+                try {
+                  await salvarContato();
+                  await saveProfileSection(DETALHES_FIELDS, setRedesMsg);
+                  if (contatoSujo) setRedesMsg({ ok: 'Alterações salvas!' });
+                } catch (err) {
+                  setRedesMsg({
+                    error:
+                      err instanceof ApiClientError ? err.message : 'Não foi possível salvar.',
+                  });
+                }
+              }}
+              isDisabled={
+                updateProfile.isPending ||
+                updateEmpresa.isPending ||
+                (!sectionDirty(DETALHES_FIELDS) && !contatoSujo)
+              }
             >
-              {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+              {updateProfile.isPending || updateEmpresa.isPending ? 'Salvando…' : 'Salvar'}
             </Button>
           </>
         );
