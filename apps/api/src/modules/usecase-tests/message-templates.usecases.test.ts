@@ -24,7 +24,30 @@ import {
 import { BUILTIN_CANCELLATION_TEMPLATES } from '../notifications/cancellation.templates';
 import { composeReminderMessage } from '../queues/reminder.templates';
 
-const START = new Date('2026-07-30T19:00:00.000Z'); // 16h em São Paulo
+/**
+ * AMANHÃ às 16h em São Paulo, calculado a partir de agora.
+ *
+ * Era uma data fixa (`2026-07-30T19:00Z`) e o teste passou a falhar sozinho na
+ * virada do dia: o texto do modelo diz "amanhã"/"hoje" comparando com o relógio
+ * real, e `notifyAppointment` não recebe um `now` para congelar. Teste que
+ * quebra com a passagem do tempo não certifica nada.
+ */
+function amanhaAs16(): Date {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const ler = (tipo: string) =>
+    Number(partes.find((p) => p.type === tipo)?.value ?? '0');
+  // São Paulo é UTC-3 o ano inteiro desde 2019 (sem horário de verão).
+  return new Date(
+    Date.UTC(ler('year'), ler('month') - 1, ler('day') + 1, 19, 0, 0),
+  );
+}
+
+const START = amanhaAs16();
 
 function appointmentRow(over: Record<string, unknown> = {}) {
   return {
@@ -32,7 +55,7 @@ function appointmentRow(over: Record<string, unknown> = {}) {
     companyId: 'company-1',
     customerId: 'cus-1',
     start: START,
-    end: new Date('2026-07-30T20:00:00.000Z'),
+    end: new Date(START.getTime() + 60 * 60 * 1000),
     status: 'scheduled',
     source: 'panel',
     notifyConfirmation: null,
