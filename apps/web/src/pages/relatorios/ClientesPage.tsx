@@ -11,6 +11,7 @@ import { formatDate, formatMoney } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useRelatorioClientes, type RelatorioClienteRow } from '../../lib/queries/relatorios';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
 import { DateRangePicker } from '../../components/DatePicker';
 
 /* ------------------------------------------------------------------ types -- */
@@ -193,6 +194,9 @@ export function ClientesPage() {
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Clientes" />
       <PageHeader
         title="Clientes"
         subtitle="Gere a lista completa de clientes com as colunas desejadas"

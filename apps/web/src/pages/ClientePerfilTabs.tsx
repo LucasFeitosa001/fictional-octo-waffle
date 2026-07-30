@@ -2214,7 +2214,17 @@ export function CustomerCreateModal({
       widthClass="sm:w-[760px]"
       fullscreen
     >
-      {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
+      {isOpen && (
+        // Mesma régua do perfil, com tudo desabilitado menos "Cadastro" — é
+        // como o Belasis abre "Novo cliente", e mostra de cara o que o cliente
+        // vai ter depois de salvo. Ver estudo 63.
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+          <PerfilMenuLateral ativo="cadastro" somenteCadastro />
+          <div className="min-w-0 flex-1">
+            <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />
+          </div>
+        </div>
+      )}
     </Drawer>
   );
 }
@@ -2606,6 +2616,72 @@ const PERFIL_MENU: { id: string; label: string; icon: React.ReactNode }[] = [
   { id: 'assinaturas', label: 'Vendas por Assinatura', icon: <IconLayers size={16} /> },
 ];
 
+/**
+ * Régua vertical das seções do cliente — a mesma no PERFIL e na CRIAÇÃO.
+ *
+ * No Belasis, "Novo cliente" abre com essa régua à esquerda e todas as abas
+ * desabilitadas menos "Cadastro" (`belasis-reference/_structure/drawers/
+ * clients--drawer-1.txt`: `ant-tabs-left` + `ant-tabs-tab-disabled`). Nossa
+ * criação não tinha régua nenhuma — o dono cobrou. Ver estudo 63.
+ */
+function PerfilMenuLateral({
+  ativo,
+  onSelecionar,
+  somenteCadastro = false,
+}: {
+  ativo: string;
+  onSelecionar?: (id: string) => void;
+  /** Criação: só "Cadastro" clica; o resto existe, mas apagado. */
+  somenteCadastro?: boolean;
+}) {
+  return (
+    <nav
+      aria-label="Seções do cliente"
+      className="hidden shrink-0 flex-col gap-0.5 border-r border-line pr-3 md:flex md:w-[210px]"
+    >
+      {PERFIL_MENU.map((secao) => {
+        const bloqueada = somenteCadastro && secao.id !== 'cadastro';
+        const estaAtiva = ativo === secao.id;
+        return (
+          <button
+            key={secao.id}
+            type="button"
+            disabled={bloqueada}
+            onClick={() => !bloqueada && onSelecionar?.(secao.id)}
+            aria-current={estaAtiva ? 'page' : undefined}
+            title={
+              bloqueada
+                ? 'Disponível depois de salvar o cliente'
+                : undefined
+            }
+            className={[
+              'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+              bloqueada
+                ? 'cursor-not-allowed text-muted-ink/45'
+                : estaAtiva
+                  ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] font-medium text-primary'
+                  : 'text-muted-ink hover:bg-canvas hover:text-ink',
+            ].join(' ')}
+          >
+            <span
+              className={
+                bloqueada
+                  ? 'text-muted-ink/45'
+                  : estaAtiva
+                    ? 'text-primary'
+                    : 'text-muted-ink'
+              }
+            >
+              {secao.icon}
+            </span>
+            <span className="min-w-0 truncate">{secao.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function ClientePerfilModal({
   customer,
   isOpen,
@@ -2745,31 +2821,7 @@ export function ClientePerfilModal({
               No celular continua o carrossel do AppTabs: uma coluna de 13 itens
               comeria a tela inteira antes do conteúdo. */}
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
-            <nav
-              aria-label="Seções do cliente"
-              className="hidden shrink-0 flex-col gap-0.5 border-r border-line pr-3 md:flex md:w-[210px]"
-            >
-              {PERFIL_MENU.map((secao) => {
-                const ativo = tab === secao.id;
-                return (
-                  <button
-                    key={secao.id}
-                    type="button"
-                    onClick={() => setTab(secao.id)}
-                    aria-current={ativo ? 'page' : undefined}
-                    className={[
-                      'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                      ativo
-                        ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] font-medium text-primary'
-                        : 'text-muted-ink hover:bg-canvas hover:text-ink',
-                    ].join(' ')}
-                  >
-                    <span className={ativo ? 'text-primary' : 'text-muted-ink'}>{secao.icon}</span>
-                    <span className="min-w-0 truncate">{secao.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+            <PerfilMenuLateral ativo={tab} onSelecionar={setTab} />
 
             <div className="md:hidden">
               <AppTabs

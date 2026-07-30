@@ -31,6 +31,7 @@ import {
 } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
 
 function defaultRange() {
   const to = new Date();
@@ -286,6 +287,9 @@ export function MensagensPage() {
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Mensagens" />
       <PageHeader
         title="Mensagens"
         subtitle="WhatsApp, SMS, lembretes e felicitações enviados"

@@ -1199,7 +1199,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
  * `PacotePerfilModal` com cartão de resumo, e nenhum igual à referência.
  * Ver estudo 50.
  */
-function PacoteDrawer({
+export function PacoteDrawer({
   isOpen,
   onClose,
   packageId,

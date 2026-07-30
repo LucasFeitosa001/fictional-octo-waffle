@@ -7,6 +7,7 @@ import { formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsBirthdays, type BirthdayItem } from '../../lib/queries/relatorios';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
 import { DateRangePicker } from '../../components/DatePicker';
 
 const MONTHS = [
@@ -104,6 +105,9 @@ export function AniversariantesPage() {
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Clientes" />
 
       {/* ── Formulário de relatório (fiel ao Belasis) ─────────────────────── */}
       <Card className={`mb-4 ${CARD}`}>

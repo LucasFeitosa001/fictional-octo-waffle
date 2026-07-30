@@ -18,12 +18,14 @@ import { Drawer } from '../../components/Drawer';
 import {
   IconDollar,
   IconDownload,
-  IconHome,
-  IconInfo,
   IconReceipt,
-  IconStar,
   IconTrendUp,
 } from '../../components/icons';
+import {
+  ReportCategoriesBar,
+  ReportSubmenu,
+  SALES_REPORTS,
+} from './reportNav';
 import { formatMoney, formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsSales } from '../../lib/queries/relatorios';
@@ -44,34 +46,8 @@ function defaultRange() {
 
 // Categorias de relatório (topo do módulo Relatórios no Belasis). "Financeiro"
 // é a categoria ativa desta página.
-const CATEGORIES = [
-  'Favoritos',
-  'Financeiro',
-  'Agendamentos',
-  'Clientes',
-  'Vendas',
-  'Estoque',
-  'Notas Fiscais',
-  'Ranking',
-  'Mensagens',
-];
-
 // Submenu vertical de relatórios financeiros (coluna esquerda do Belasis).
 // "Resultado Líquido de Serviços" (rota service-revenue) é o item selecionado.
-const FIN_REPORTS: { label: string; home?: boolean; current?: boolean }[] = [
-  { label: 'Início', home: true },
-  { label: 'Resultados Financeiros' },
-  { label: 'Resultado Líquido de Serviços', current: true },
-  { label: 'Resultado Líquido de Produtos' },
-  { label: 'Projeção de Faturamento' },
-  { label: 'Fluxo de Caixa' },
-  { label: 'Recebimentos' },
-  { label: 'Despesas' },
-  { label: 'Extrato de Contas' },
-  { label: 'Extrato de Movimentações' },
-  { label: 'Histórico de caixa' },
-];
-
 function Kpi({
   icon,
   title,
@@ -157,63 +133,15 @@ export function VendasPage() {
       {/* Cabeçalho do módulo Relatórios */}
       <h1 className="text-xl font-semibold text-ink">Relatórios</h1>
 
-      {/* Barra de categorias (Financeiro ativa) */}
-      <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {CATEGORIES.map((c) => {
-          const active = c === 'Financeiro';
-          return (
-            <button
-              key={c}
-              type="button"
-              className={[
-                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
-                active
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-line bg-card text-muted-ink hover:text-ink',
-              ].join(' ')}
-            >
-              {c}
-            </button>
-          );
-        })}
-      </div>
+      {/* Barra de categorias e submenu passam a NAVEGAR. Antes eram <button>
+          sem onClick e <div> — clicar não fazia nada, e o dono relatou como
+          "clico entre os itens e não alterna". Fonte única: reportNav.
+          Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Vendas" />
 
       {/* Conteúdo em 2 colunas: submenu de relatórios + card do relatório */}
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* Coluna esquerda: submenu de relatórios financeiros */}
-        <aside className={`${CARD} shrink-0 overflow-hidden p-1.5 lg:w-72`}>
-          <ul className="flex flex-col">
-            {FIN_REPORTS.map((r) => (
-              <li key={r.label}>
-                <div
-                  className={[
-                    'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors',
-                    r.current
-                      ? 'bg-primary/10 font-semibold text-primary'
-                      : 'text-ink hover:bg-primary/5',
-                  ].join(' ')}
-                >
-                  <span
-                    className={r.current ? 'text-primary' : 'text-muted-ink'}
-                    aria-hidden
-                  >
-                    {r.home ? <IconHome size={17} /> : <IconDollar size={17} />}
-                  </span>
-                  <span className="flex-1 truncate">{r.label}</span>
-                  {!r.home && (
-                    <span className="flex items-center gap-1.5 text-muted-ink">
-                      <IconInfo size={15} className="opacity-70" />
-                      <IconStar
-                        size={15}
-                        className={r.current ? 'text-primary' : 'opacity-70'}
-                      />
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <ReportSubmenu items={SALES_REPORTS} activeKey="vendas" />
 
         {/* Coluna direita: filtro + resultados */}
         <div className="min-w-0 flex-1">

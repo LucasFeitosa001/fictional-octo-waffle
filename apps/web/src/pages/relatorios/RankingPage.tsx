@@ -8,6 +8,7 @@ import { downloadCsv } from '../../lib/csv';
 import { useReportsOverview } from '../../lib/queries/relatorios';
 import { useSetPageActions } from '../../layout/PageActions';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clone fiel da página "RelatorioRanking" do Belasis (/reports/clients/rank).
@@ -210,6 +211,9 @@ export function RankingPage() {
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Ranking" />
       <PageHeader
         title="Ranking"
         subtitle="Itens que mais venderam no período, por valor ou quantidade"
