@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { useDbAuthState } from './whatsapp-auth';
+import { RETRY_COUNTER_CACHE } from './retry-cache';
 import {
   autorizacaoAindaVale,
   expirouNaFila,
@@ -190,8 +191,13 @@ const CLIENT_AUTOMATION_KINDS = [
 ] as const;
 // Quantas mensagens enviadas guardar por sessão para responder aos retry-receipts
 // (ver getMessage). Cobre com folga a janela em que um aparelho pede reenvio.
-const SENT_CACHE_MAX = 300;
+const SENT_CACHE_MAX = 1000;
 const MAX_INBOUND_MEDIA_BYTES = 16 * 1024 * 1024;
+// Por quanto tempo guardar a cópia da mensagem enviada para responder a um
+// pedido de reenvio. 14 dias cobre com folga a janela real do WhatsApp; depois
+// disso é peso morto na tabela. Ver estudo 69.
+const RETENCAO_COPIA_MS = 14 * 24 * 60 * 60 * 1000;
+const LIMPEZA_COPIAS_TICK_MS = 6 * 60 * 60 * 1000;
 
 // Minimal pino-compatible logger so Baileys stays quiet (it logs verbosely).
 function silentLogger(): any {
@@ -265,6 +271,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly outboundHandlers = new Set<WhatsappOutboundHandler>();
   private readonly deliveryHandlers = new Set<WhatsappDeliveryHandler>();
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
+  private limpezaTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
   private readonly instanceId = randomUUID();
@@ -308,10 +315,37 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     void this.reconnectSavedSessions();
     // Drena o outbox num timer; no-op enquanto nenhum socket estiver aberto.
     this.outboxTimer = setInterval(() => void this.drainOutbox(), OUTBOX_TICK_MS);
+    // A cópia para reenvio só serve na janela em que o aparelho ainda pode
+    // pedir. Passado isso é peso morto na tabela — some com ela sem apagar a
+    // linha, que é o histórico. Ver estudo 69.
+    this.limpezaTimer = setInterval(
+      () => void this.limparCopiasVelhas(),
+      LIMPEZA_COPIAS_TICK_MS,
+    );
+    void this.limparCopiasVelhas();
+  }
+
+  /** Zera `sentMessageJson` de mensagens antigas demais para receberem retry. */
+  private async limparCopiasVelhas(): Promise<void> {
+    const limite = new Date(Date.now() - RETENCAO_COPIA_MS);
+    try {
+      const { count } = await this.prisma.client.whatsappOutbox.updateMany({
+        where: { sentAt: { lt: limite }, sentMessageJson: { not: Prisma.DbNull } },
+        data: { sentMessageJson: Prisma.DbNull },
+      });
+      if (count > 0) {
+        this.logger.log(`Outbox: ${count} cópia(s) de reenvio expiradas foram descartadas.`);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Não deu para limpar as cópias de reenvio: ${(err as Error).message}`,
+      );
+    }
   }
 
   async onModuleDestroy() {
     if (this.outboxTimer) clearInterval(this.outboxTimer);
+    if (this.limpezaTimer) clearInterval(this.limpezaTimer);
     for (const session of this.sessions.values()) {
       if (session.connectTimeout) clearTimeout(session.connectTimeout);
       if (session.leaseHeartbeat) clearInterval(session.leaseHeartbeat);
@@ -1279,15 +1313,24 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       // (ver makeWASocket) — é isso que tira a mensagem do "Aguardando esta
       // mensagem…" no celular do dono. Mantém o cache limitado (FIFO).
       if (sent?.key?.id && sent.message) {
-        if (session.sentCache.size >= SENT_CACHE_MAX) {
-          const oldest = session.sentCache.keys().next().value;
-          if (oldest !== undefined) session.sentCache.delete(oldest);
-        }
-        session.sentCache.set(sent.key.id, sent.message);
+        this.guardarNoCache(session, sent.key.id, sent.message);
       }
       await db.whatsappOutbox.update({
         where: { id: msg.id },
-        data: { status: 'sent', sentAt: new Date(), attempts: msg.attempts + 1, lastError: null },
+        data: {
+          status: 'sent',
+          sentAt: new Date(),
+          attempts: msg.attempts + 1,
+          lastError: null,
+          // Cópia PERSISTENTE para responder ao pedido de reenvio depois de um
+          // deploy — o cache de memória morre junto com o processo, e sem isto
+          // a mensagem fica em "Aguardando mensagem" no aparelho de destino.
+          // Ver estudo 69.
+          whatsappMessageId: sent?.key?.id ?? null,
+          sentMessageJson: sent?.message
+            ? (JSON.parse(JSON.stringify(sent.message)) as Prisma.InputJsonValue)
+            : Prisma.DbNull,
+        },
       });
       if (msg.inboxMessageId) {
         await db.whatsappInboxMessage.updateMany({
@@ -1537,6 +1580,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * Conteúdo durável para retry-receipts. O cache em memória resolve a janela
    * imediata; o banco resolve pedidos que chegam depois de restart/deploy.
    */
+  /** Guarda no cache de memória da sessão, com teto FIFO. */
+  private guardarNoCache(
+    session: SessionState,
+    messageId: string,
+    message: proto.IMessage,
+  ): void {
+    if (session.sentCache.size >= SENT_CACHE_MAX) {
+      const maisAntigo = session.sentCache.keys().next().value;
+      if (maisAntigo !== undefined) session.sentCache.delete(maisAntigo);
+    }
+    session.sentCache.set(messageId, message);
+  }
+
   private async getMessageForRetry(
     session: SessionState,
     messageId?: string | null,
@@ -1544,24 +1600,36 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     if (!messageId) return undefined;
     const cached = session.sentCache.get(messageId);
     if (cached) return cached;
-    const persisted =
-      await this.prisma.client.whatsappInboxMessage.findFirst({
-        where: {
-          companyId: session.companyId,
-          whatsappMessageId: messageId,
-          direction: 'outbound',
-        },
-        select: { text: true },
-      });
-    if (!persisted) return undefined;
+    // 1º) a fila: cobre TUDO que sai por aqui (confirmação, lembrete, convite,
+    // campanha, resposta do atendente) e sobrevive a deploy. Guarda o proto
+    // inteiro, então mídia também é reenviável. Ver estudo 69.
+    const daFila = await this.prisma.client.whatsappOutbox.findFirst({
+      where: { companyId: session.companyId, whatsappMessageId: messageId },
+      select: { sentMessageJson: true, text: true },
+    });
+    if (daFila?.sentMessageJson) {
+      const message = proto.Message.fromObject(
+        daFila.sentMessageJson as Record<string, unknown>,
+      );
+      this.guardarNoCache(session, messageId, message);
+      return message;
+    }
+
+    const persisted = daFila
+      ? { text: daFila.text }
+      : await this.prisma.client.whatsappInboxMessage.findFirst({
+          where: {
+            companyId: session.companyId,
+            whatsappMessageId: messageId,
+            direction: 'outbound',
+          },
+          select: { text: true },
+        });
+    if (!persisted?.text) return undefined;
     const message = proto.Message.fromObject({
       conversation: persisted.text,
     });
-    if (session.sentCache.size >= SENT_CACHE_MAX) {
-      const oldest = session.sentCache.keys().next().value;
-      if (oldest !== undefined) session.sentCache.delete(oldest);
-    }
-    session.sentCache.set(messageId, message);
+    this.guardarNoCache(session, messageId, message);
     return message;
   }
 
@@ -1717,6 +1785,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         // vem do sentCache alimentado no deliverOutbox.
         maxMsgRetryCount: 5,
         retryRequestDelayMs: 1000,
+        // Fora do socket de propósito: sobrevive à reconexão, como a doc pede.
+        msgRetryCounterCache: RETRY_COUNTER_CACHE,
         getMessage: async (key) =>
           this.getMessageForRetry(session, key.id),
       });

@@ -2345,6 +2345,14 @@ model WhatsappOutbox {
   // entrega e permite enfileirar com o canal fechado. NULL = automação, que é
   // revalidada na hora de entregar. Ver estudo 60.
   authorizedAt   DateTime?
+  // Cópia PERSISTENTE do que foi enviado, para responder ao "retry receipt" do
+  // WhatsApp. Quando o aparelho do destinatário não consegue decifrar, ele pede
+  // o reenvio e o Baileys chama `getMessage(key)`; sem esta cópia (o cache é de
+  // memória e morre em todo deploy) a mensagem fica em "Aguardando mensagem"
+  // para sempre. `sentMessageJson` guarda o proto inteiro — remontar só o texto
+  // não serve para imagem/áudio. Ver estudo 69.
+  whatsappMessageId String?
+  sentMessageJson   Json?
 
   company      Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   customer     Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
