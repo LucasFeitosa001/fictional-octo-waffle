@@ -74,7 +74,19 @@ async function bootstrap() {
   instance.all(/^\/api\/v1\/auth\/.*/, toNodeHandler(auth));
 
   // JSON body parser for all other (Nest) routes.
-  instance.use(express.json());
+  // O webhook da Voltr assina o corpo CRU (HMAC-SHA256). Sem guardar o buffer
+  // exato não há como validar — e re-serializar o JSON muda bytes. Guardamos só
+  // no caminho dela, para não pesar o resto da API. Ver estudo 68.
+  const guardarRawBody = (
+    req: express.Request & { rawBody?: Buffer },
+    _res: express.Response,
+    buf: Buffer,
+  ): void => {
+    if (buf?.length && req.originalUrl?.startsWith('/api/v1/voltr/whatsapp/')) {
+      req.rawBody = Buffer.from(buf);
+    }
+  };
+  instance.use(express.json({ verify: guardarRawBody }));
   instance.use(express.urlencoded({ extended: true }));
 
   app.useGlobalPipes(

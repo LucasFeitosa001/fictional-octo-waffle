@@ -8,3 +8,4 @@ import './message-templates.usecases.test';
 import './orders-cash.usecases.test';
 import './outbox-policy.usecases.test';
 import './platform-access.usecases.test';
+import './voltr.usecases.test';

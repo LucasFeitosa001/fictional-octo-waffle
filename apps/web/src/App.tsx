@@ -79,6 +79,7 @@ import { PromocoesPage } from './pages/marketing/PromocoesPage';
 import { AvaliacoesPage } from './pages/marketing/AvaliacoesPage';
 import { CashbackPage } from './pages/marketing/CashbackPage';
 import { IAAtendimentoPage } from './pages/ia/IAAtendimentoPage';
+import { VoltrCrmPage } from './pages/VoltrCrmPage';
 import { PerfilPage } from './pages/PerfilPage';
 import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
 import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
@@ -473,6 +474,10 @@ function ProtectedRoutes() {
         <Route path="/marketing/cashback" element={<PaidProtectedRoute perm="marketing:view" feature="cashback"><CashbackPage /></PaidProtectedRoute>} />
         <Route path="/whatsapp" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><IAAtendimentoPage /></PaidProtectedRoute>} />
         <Route path="/ia-atendimento" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><IAAtendimentoPage /></PaidProtectedRoute>} />
+        {/* Chat/CRM da Voltr embarcados (estudo 68). Mesmo gate do WhatsApp:
+            quem não tem o módulo vê o upsell da própria rota. */}
+        <Route path="/voltr-crm" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="crm" /></PaidProtectedRoute>} />
+        <Route path="/voltr-chat" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="chat" /></PaidProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute perm="config:view"><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/ajuda" element={<AjudaPage />} />
         <Route path="/ajuda/suporte" element={<AjudaPage />} />

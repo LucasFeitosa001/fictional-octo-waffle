@@ -128,6 +128,16 @@ const NAVIGATION: NavEntry[] = [
     perm: 'config:manage',
   },
   {
+    kind: 'link',
+    key: 'voltr',
+    to: '/voltr-crm',
+    label: 'Voltr CRM',
+    icon: IconMessage,
+    badge: 'novo',
+    feature: 'whatsapp_api',
+    perm: 'marketing:view',
+  },
+  {
     kind: 'group',
     key: 'principal',
     title: 'Principal',
