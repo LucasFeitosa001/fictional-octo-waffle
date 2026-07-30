@@ -27,6 +27,9 @@ import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder 
 import { useAgendaAppointments } from '../lib/queries/agenda';
 import { useNotificationSettings } from '../lib/queries/notificationSettings';
 import { useCan } from '../lib/queries/permissions';
+import { AvisosDoCliente } from '../components/AvisosDoCliente';
+import { variaveisDoAgendamento } from '../lib/queries/messageTemplates';
+import { useEmpresa } from '../lib/queries/empresa';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
@@ -320,6 +323,22 @@ export function AgendaPage() {
   const serviceById = useMemo(
     () => new Map((services.data?.data ?? []).map((s) => [s.id, s.name])),
     [services.data],
+  );
+  // Prévia das mensagens do agendamento aberto (estudo 64): as mesmas variáveis
+  // que o backend usa, para o dono ver o texto que vai sair antes de ligar.
+  const empresaAtual = useEmpresa();
+  const variaveisDaPrevia = useMemo(
+    () =>
+      variaveisDoAgendamento({
+        estabelecimento: empresaAtual.data?.name ?? 'seu salão',
+        cliente: selected?.customer?.name ?? null,
+        profissional: selected?.professional?.name ?? null,
+        servicos: (selected?.items ?? [])
+          .map((it) => serviceById.get(it.serviceId))
+          .filter((n): n is string => Boolean(n)),
+        inicio: selected?.start ? new Date(selected.start) : new Date(),
+      }),
+    [empresaAtual.data?.name, selected, serviceById],
   );
   const statusMutation = useSetAppointmentStatus();
   const createOrder = useCreateOrder();
@@ -1930,64 +1949,34 @@ export function AgendaPage() {
               )}
             </section>
 
-            {/* AÇÕES: toggles */}
+            {/* MENSAGENS PARA O CLIENTE — mesmo bloco da criação (estudo 64).
+                Antes eram três toggles "Avisar…" que não diziam o que ia sair;
+                agora cada linha mostra quando sai e o texto do modelo em uso. O
+                gravar continua no clique (estudo 59). */}
+            <AvisosDoCliente
+              valores={{
+                notifyConfirmation: sendConfirmation,
+                notifyCancellation: sendCancellation,
+                remindClient: sendReminder,
+              }}
+              onChange={(campo, valor) => {
+                if (campo === 'notifyConfirmation') {
+                  setSendConfirmation(valor);
+                  setConfirmationTouched(true);
+                } else if (campo === 'notifyCancellation') {
+                  setSendCancellation(valor);
+                  setCancellationTouched(true);
+                } else {
+                  setSendReminder(valor);
+                  setReminderTouched(true);
+                }
+                void salvarAviso(campo, valor);
+              }}
+              variaveis={variaveisDaPrevia}
+              podeConfigurar={can('config:manage')}
+            />
+
             <section className="flex flex-col gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Ações</h3>
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                {/* O canal no rótulo: os TRÊS vão por WhatsApp, e como só o
-                    lembrete parecia ser do WhatsApp, o dono concluiu que
-                    confirmação e cancelamento iam por outro caminho. Ver
-                    estudo 59. */}
-                <span>Avisar ao marcar/confirmar <span className="text-muted-ink">· WhatsApp</span></span>
-                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendConfirmation ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
-                  <input
-                    type="checkbox"
-                    checked={sendConfirmation}
-                    onChange={(e) => {
-                      setSendConfirmation(e.target.checked);
-                      setConfirmationTouched(true);
-                      void salvarAviso('notifyConfirmation', e.target.checked);
-                    }}
-                    className="sr-only"
-                  />
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendConfirmation ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>Avisar se cancelar <span className="text-muted-ink">· WhatsApp</span></span>
-                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendCancellation ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
-                  <input
-                    type="checkbox"
-                    checked={sendCancellation}
-                    onChange={(e) => {
-                      setSendCancellation(e.target.checked);
-                      setCancellationTouched(true);
-                      void salvarAviso('notifyCancellation', e.target.checked);
-                    }}
-                    className="sr-only"
-                  />
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendCancellation ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>
-                  Enviar lembrete 24h/2h antes{' '}
-                  <span className="text-muted-ink">· WhatsApp</span>
-                </span>
-                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendReminder ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
-                  <input
-                    type="checkbox"
-                    checked={sendReminder}
-                    onChange={(e) => {
-                      setSendReminder(e.target.checked);
-                      setReminderTouched(true);
-                      void salvarAviso('remindClient', e.target.checked);
-                    }}
-                    className="sr-only"
-                  />
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendReminder ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
-                </span>
-              </label>
               <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
                 {can('agenda:manage') && (
                   <Button

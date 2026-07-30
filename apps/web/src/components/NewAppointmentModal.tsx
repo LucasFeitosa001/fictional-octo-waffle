@@ -33,6 +33,9 @@ import {
   useServices,
 } from '../lib/queries';
 import { useNotificationSettings } from '../lib/queries/notificationSettings';
+import { AvisosDoCliente, type CampoDeAviso } from './AvisosDoCliente';
+import { variaveisDoAgendamento } from '../lib/queries/messageTemplates';
+import { useEmpresa } from '../lib/queries/empresa';
 import { formatDuration, formatMoney, formatSlotTime, isoDate } from '../lib/format';
 import type { AppointmentFollowUpInput, AvailabilitySlot } from '../lib/types';
 import { FOLLOWUP_TEMPLATES } from '../lib/followupTemplates';
@@ -364,6 +367,33 @@ export function NewAppointmentModal({
   useEffect(() => {
     setSlotStart('');
   }, [primary.serviceId, primary.professionalId, date]);
+
+  // Prévia das mensagens: mesmas variáveis que o backend usa para renderizar.
+  const empresa = useEmpresa();
+  const variaveisDaPrevia = useMemo(
+    () =>
+      variaveisDoAgendamento({
+        estabelecimento: empresa.data?.name ?? 'seu salão',
+        cliente: selectedCustomer?.name ?? customerSearch ?? newName,
+        profissional:
+          professionalItems.find((p) => p.id === items[0]?.professionalId)?.name ?? null,
+        servicos: items
+          .map((it) => services.data?.data?.find((s) => s.id === it.serviceId)?.name)
+          .filter((n): n is string => Boolean(n)),
+        inicio: new Date(`${date}T${slotStart || '09:00'}:00`),
+      }),
+    [
+      empresa.data?.name,
+      selectedCustomer?.name,
+      customerSearch,
+      newName,
+      professionalItems,
+      services.data,
+      items,
+      date,
+      slotStart,
+    ],
+  );
 
   const primaryService = useMemo(
     () => serviceItems.find((s) => s.id === primary.serviceId),
@@ -1018,34 +1048,25 @@ export function NewAppointmentModal({
               )}
             </div>
 
-            {/* ── Ações (switches inline) ──────────────────────────────── */}
-            <div className="flex flex-col gap-1.5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <InlineToggle
-                  checked={sendConfirmation}
-                  onChange={handleSendConfirmationChange}
-                  label="Avisar ao marcar/confirmar"
-                />
-                <InlineToggle
-                  checked={sendCancellation}
-                  onChange={handleSendCancellationChange}
-                  label="Avisar se cancelar"
-                />
-                {/* Lembrete PRÉ-atendimento (antes do atendimento) — distinto do
-                    follow-up pós-atendimento. É OPT-IN: o padrão vem de
-                    Configurações → Notificações (default desligado). A dona pode
-                    ligar por agendamento sem mudar a config do salão. */}
-                <InlineToggle
-                  checked={sendReminder}
-                  onChange={handleSendReminderChange}
-                  label="Enviar lembrete (antes do atendimento)"
-                />
-              </div>
-              <p className="text-xs text-muted">
-                Os três avisos usam o padrão de Configurações → Notificações,
-                mas podem ser ligados ou desligados somente para este agendamento.
-              </p>
-            </div>
+            {/* ── Mensagens automáticas para o cliente ────────────────────
+                Antes eram três switches "Avisar…" soltos, e logo abaixo um bloco
+                TAMBÉM chamado "Avisar o cliente" (que é o acompanhamento) —
+                quatro rótulos parecidos para duas coisas diferentes. Agora cada
+                linha diz quando sai e, ligada, mostra o texto que vai sair.
+                Ver estudo 64. */}
+            <AvisosDoCliente
+              valores={{
+                notifyConfirmation: sendConfirmation,
+                notifyCancellation: sendCancellation,
+                remindClient: sendReminder,
+              }}
+              onChange={(campo: CampoDeAviso, valor: boolean) => {
+                if (campo === 'notifyConfirmation') handleSendConfirmationChange(valor);
+                else if (campo === 'notifyCancellation') handleSendCancellationChange(valor);
+                else handleSendReminderChange(valor);
+              }}
+              variaveis={variaveisDaPrevia}
+            />
 
             {/* ── Avisar o cliente (aviso personalizado agendado) ──────────
                 Distinto do lembrete fixo acima: mensagem/template + tempo (até
@@ -1054,16 +1075,19 @@ export function NewAppointmentModal({
             <div className="flex flex-col gap-4 rounded-xl border border-default-200 bg-cream/40 p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">Avisar o cliente</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    Acompanhamento <span className="font-normal text-muted">(depois do atendimento)</span>
+                  </p>
                   <p className="mt-0.5 text-xs text-muted">
-                    Envie um aviso personalizado por WhatsApp no tempo que você escolher —
-                    com mensagem pronta ou sua, e o link de reagendamento.
+                    Uma mensagem sua por WhatsApp no tempo que você escolher DEPOIS
+                    do atendimento — com texto pronto ou seu, e o link de reagendamento.
+                    Não confunda com o lembrete, que é antes.
                   </p>
                 </div>
                 <AppSwitch
                   checked={warnEnabled}
                   onChange={setWarnEnabled}
-                  aria-label="Avisar o cliente"
+                  aria-label="Acompanhamento depois do atendimento"
                 />
               </div>
 

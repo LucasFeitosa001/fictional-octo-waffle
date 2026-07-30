@@ -157,3 +157,100 @@ export function renderTemplateSample(
   }
   return mantidas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
+
+/* ────────────────────────── prévia com dados reais do agendamento ───────── */
+
+/**
+ * Variáveis do modelo para UM agendamento, com as MESMAS regras do backend
+ * (`apps/api/src/modules/notifications/confirmation.templates.ts`): primeiro
+ * nome, hoje/amanhã/dia por extenso, "16 horas" quando é hora cheia e "14h30"
+ * quando não é, serviços em lista.
+ *
+ * Isto é PRÉVIA. Quem monta o texto que sai de verdade é o backend — se um dia
+ * as regras divergirem, a verdade é a de lá. Ver estudo 64.
+ */
+export function variaveisDoAgendamento(dados: {
+  estabelecimento: string;
+  cliente?: string | null;
+  profissional?: string | null;
+  servicos: string[];
+  inicio: Date;
+  agora?: Date;
+}): Record<string, string> {
+  const tz = 'America/Sao_Paulo';
+  const agora = dados.agora ?? new Date();
+  const diaLocal = (d: Date) => {
+    const p = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(d);
+    const ler = (t: string) => Number(p.find((x) => x.type === t)?.value ?? '0');
+    return Date.UTC(ler('year'), ler('month') - 1, ler('day'));
+  };
+  const dias = Math.round((diaLocal(dados.inicio) - diaLocal(agora)) / 86_400_000);
+  const quando =
+    dias === 0
+      ? 'hoje'
+      : dias === 1
+        ? 'amanhã'
+        : new Intl.DateTimeFormat('pt-BR', {
+            timeZone: tz,
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long',
+          }).format(dados.inicio);
+
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(dados.inicio);
+  const hora24 = Number(partes.find((x) => x.type === 'hour')?.value ?? '0');
+  const minuto = partes.find((x) => x.type === 'minute')?.value ?? '00';
+  const hora = minuto === '00' ? `${hora24} horas` : `${hora24}h${minuto}`;
+  const horaCurta = minuto === '00' ? `${hora24}hrs` : `${hora24}h${minuto}`;
+
+  const limpos = dados.servicos.map((n) => n.trim()).filter(Boolean);
+  const servico =
+    limpos.length === 0
+      ? 'seu atendimento'
+      : limpos.length === 1
+        ? limpos[0]
+        : `${limpos.slice(0, -1).join(', ')} e ${limpos.at(-1)}`;
+
+  return {
+    cliente: dados.cliente?.trim().split(/\s+/)[0] || 'cliente',
+    quando,
+    hora,
+    hora_curta: horaCurta,
+    servico,
+    profissional: dados.profissional?.trim() || 'nossa equipe',
+    estabelecimento: dados.estabelecimento.trim() || 'salão',
+    motivo: '',
+  };
+}
+
+/** Substitui as variáveis; linha com variável vazia some (igual ao backend). */
+export function renderTemplateComVariaveis(
+  template: string,
+  variaveis: Record<string, string>,
+): string {
+  const mantidas: string[] = [];
+  for (const linha of template.split('\n')) {
+    let saida = linha;
+    let apagar = false;
+    for (const [nome, valor] of Object.entries(variaveis)) {
+      if (!saida.includes(`{${nome}}`)) continue;
+      if (!valor.trim()) {
+        apagar = true;
+        break;
+      }
+      saida = saida.split(`{${nome}}`).join(valor);
+    }
+    if (!apagar) mantidas.push(saida);
+  }
+  return mantidas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
