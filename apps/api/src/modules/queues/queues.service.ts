@@ -133,7 +133,13 @@ export class QueuesService implements OnModuleInit {
       const fireAt = startMs - offsetMs;
       // If the whole appointment is already in the past, there's nothing to send.
       if (startMs <= now) continue;
-      const delay = Math.max(0, fireAt - now);
+      // Se a janela do lembrete já passou, o lembrete não existe. O
+      // Math.max(0, …) grampeava o atraso em zero: agendamento marcado para
+      // daqui a 4h fazia o "lembrete de 24h" sair no ATO, com o texto
+      // "amanhã". Medido em produção: dois marcadores em 60ms e 90ms depois da
+      // criação, para um atendimento 13 minutos à frente. Ver estudo 77.
+      if (fireAt <= now) continue;
+      const delay = fireAt - now;
       const jobId = reminderJobId(appointmentId, kind);
       const data: AppointmentReminderJob = { companyId, appointmentId, kind };
       try {

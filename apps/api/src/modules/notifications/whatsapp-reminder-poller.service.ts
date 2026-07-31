@@ -20,6 +20,8 @@ import {
 import { NotificationSettingsService } from './notification-settings.service';
 
 const HOUR_MS = 60 * 60 * 1000;
+/** Folga em volta do instante devido do lembrete (tick de 60s + parada curta). */
+const TOLERANCIA_MS = 30 * 60 * 1000;
 const DEFAULT_POLL_MS = 60_000;
 const MIN_POLL_MS = 30_000;
 const MAX_APPOINTMENTS_PER_TICK = 500;
@@ -108,10 +110,25 @@ export class WhatsappReminderPollerService
       const candidates = await this.prisma.client.appointment.findMany({
         where: {
           status: { in: REMINDABLE_STATUSES },
-          start: {
-            gt: now,
-            lte: new Date(now.getTime() + 24 * HOUR_MS),
-          },
+          // Só é candidato quem tem lembrete VENCENDO agora. A faixa aberta de
+          // 24h fazia todo agendamento do dia seguinte virar candidato no ato —
+          // e, com o socket reabrindo, todos de uma vez. ±30min cobrem o tick
+          // de 60s e uma parada curta, sem ressuscitar lembrete de ontem.
+          // Ver estudo 77.
+          OR: [
+            {
+              start: {
+                gte: new Date(now.getTime() + 24 * HOUR_MS - TOLERANCIA_MS),
+                lte: new Date(now.getTime() + 24 * HOUR_MS + TOLERANCIA_MS),
+              },
+            },
+            {
+              start: {
+                gte: new Date(now.getTime() + 2 * HOUR_MS - TOLERANCIA_MS),
+                lte: new Date(now.getTime() + 2 * HOUR_MS + TOLERANCIA_MS),
+              },
+            },
+          ],
         },
         include: {
           customer: true,
@@ -164,14 +181,15 @@ export class WhatsappReminderPollerService
     if (!claimed) return false;
 
     const tag = `[reminder db-fallback] company=${appointment.companyId} appt=${appointment.id} kind=${kind}`;
-    let shouldSend = appointment.remindClient;
-    if (shouldSend === null || shouldSend === undefined) {
-      if (!settingsByCompany.has(appointment.companyId)) {
-        const settings = await this.settings.get(appointment.companyId);
-        settingsByCompany.set(appointment.companyId, settings.reminder);
-      }
-      shouldSend = settingsByCompany.get(appointment.companyId) ?? false;
+    // O padrão da conta é VETO. O valor do agendamento vem congelado da
+    // criação (appointments.service.ts:551), então dar prioridade a ele fazia o
+    // interruptor da conta não alcançar nada já marcado. Ver estudo 77.
+    if (!settingsByCompany.has(appointment.companyId)) {
+      const settings = await this.settings.get(appointment.companyId);
+      settingsByCompany.set(appointment.companyId, settings.reminder);
     }
+    const padraoDaConta = settingsByCompany.get(appointment.companyId) ?? false;
+    const shouldSend = padraoDaConta && appointment.remindClient !== false;
 
     if (!shouldSend) {
       this.logger.debug(`${tag} desativado por configuração.`);

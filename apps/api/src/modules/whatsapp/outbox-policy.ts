@@ -176,7 +176,13 @@ export function autorizacaoAindaVale(input: {
           : kind === 'cancellation'
             ? automacao.cancellation
             : automacao.confirmation;
-      const permitido = doAgendamento ?? padraoDaConta;
+      // O padrão da conta é VETO, não valor inicial. Antes era
+      // `doAgendamento ?? padraoDaConta`: como appointments.service.ts:551
+      // congela o padrão dentro do agendamento na criação, desligar a conta
+      // não alcançava nada já criado — o dono desligou às 13:27 e saiu
+      // lembrete às 13:30. Agora o campo do agendamento só RESTRINGE.
+      // Ver estudo 77.
+      const permitido = padraoDaConta && doAgendamento !== false;
       if (!permitido) {
         return {
           ok: false,

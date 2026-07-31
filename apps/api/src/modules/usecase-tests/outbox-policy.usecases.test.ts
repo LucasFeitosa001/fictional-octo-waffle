@@ -128,7 +128,11 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
     assert.match(d.motivo ?? '', /desligado/i);
   });
 
-  it('10) toggle do agendamento ligado autoriza mesmo com o padrão desligado', () => {
+  it('10) toggle do agendamento NÃO autoriza sozinho — a conta desligada veta', () => {
+    // Contrato invertido no estudo 77. O toggle vem congelado do padrão da conta
+    // no momento da criação (appointments.service.ts:551), então deixá-lo
+    // autorizar sozinho tornava o interruptor da conta incapaz de alcançar
+    // qualquer agendamento já existente. Agora ele só RESTRINGE.
     assert.equal(
       autorizacaoAindaVale({
         kind: 'confirmation',
@@ -136,7 +140,7 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
         automacao: DESLIGADO,
         agora: AGORA,
       }).ok,
-      true,
+      false,
     );
   });
 
@@ -277,6 +281,54 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
       autorizacaoAindaVale({ kind: 'campaign', agendamento: undefined, automacao }).ok,
       true,
       'campanha é disparo explícito do salão',
+    );
+  });
+
+  it('20) o padrão da conta VETA o valor congelado no agendamento (estudo 77)', () => {
+    // appointments.service.ts:551 congela o padrão dentro do agendamento na
+    // criação. Com `doAgendamento ?? padraoDaConta`, desligar a conta não
+    // alcançava nada já criado — o dono desligou 13:27 e saiu lembrete 13:30.
+    const contaDesligada = {
+      reminder: false,
+      cancellation: false,
+      confirmation: false,
+      followUp: false,
+    };
+    const d = autorizacaoAindaVale({
+      kind: 'reminder',
+      agendamento: agendamento({ remindClient: true }),
+      automacao: contaDesligada,
+      agora: AGORA, // sem isto o fixture cai no passado e o teste passa por outro motivo
+    });
+    assert.equal(d.ok, false, 'conta desligada tem que vetar mesmo com o agendamento marcado');
+  });
+
+  it('21) com a conta ligada, o agendamento só pode RESTRINGIR', () => {
+    const contaLigada = {
+      reminder: true,
+      cancellation: true,
+      confirmation: true,
+      followUp: true,
+    };
+    assert.equal(
+      autorizacaoAindaVale({
+        kind: 'reminder',
+        agendamento: agendamento({ remindClient: false }),
+        automacao: contaLigada,
+        agora: AGORA,
+      }).ok,
+      false,
+      'agendamento marcado como false continua bloqueando',
+    );
+    assert.equal(
+      autorizacaoAindaVale({
+        kind: 'reminder',
+        agendamento: agendamento({ remindClient: null }),
+        automacao: contaLigada,
+        agora: AGORA,
+      }).ok,
+      true,
+      'sem opinião no agendamento, vale o padrão da conta',
     );
   });
 });
