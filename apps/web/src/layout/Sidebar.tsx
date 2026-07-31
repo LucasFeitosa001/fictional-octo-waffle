@@ -158,6 +158,13 @@ const NAVIGATION: NavEntry[] = [
         feature: 'whatsapp_api',
         perm: 'marketing:view',
       },
+      {
+        to: '/voltr-ia',
+        label: 'Inteligência artificial',
+        icon: IconSparkles,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
     ],
   },
   {

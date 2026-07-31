@@ -53,11 +53,13 @@ export class VoltrController {
     // junto porque navegar entre as telas dela por dentro — do contato para a
     // conversa, do card do Kanban para o contato — é fluxo legítimo, e cada
     // superfície exige o seu escopo.
-    const pedido: VoltrScope =
-      scope === 'chat' ? 'chat' : scope === 'boards' ? 'boards' : 'crm';
+    const TELAS: VoltrScope[] = ['chat', 'crm', 'boards', 'ia'];
+    const pedido: VoltrScope = TELAS.includes(scope as VoltrScope)
+      ? (scope as VoltrScope)
+      : 'crm';
     const scopes: VoltrScope[] = [
       pedido,
-      ...(['chat', 'crm', 'boards'] as VoltrScope[]).filter((s) => s !== pedido),
+      ...TELAS.filter((s) => s !== pedido),
     ];
     const nome = await this.voltr.resolveDisplayName(userId, email);
     return this.voltr.getEmbedToken(

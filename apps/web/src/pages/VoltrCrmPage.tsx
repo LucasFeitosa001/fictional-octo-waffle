@@ -25,7 +25,7 @@ function origemDe(url: string): string {
   }
 }
 
-export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boards' }) {
+export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boards' | 'ia' }) {
   const [src, setSrc] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -33,7 +33,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boar
   const tokenRef = useRef<string>('');
   const origemRef = useRef<string>('');
   /** Escopo que o `src` atual representa — troca de aba precisa de src novo. */
-  const scopeDoSrc = useRef<'crm' | 'chat' | 'boards' | null>(null);
+  const scopeDoSrc = useRef<'crm' | 'chat' | 'boards' | 'ia' | null>(null);
 
   const buscarToken = useCallback(async () => {
     try {
@@ -90,7 +90,9 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boar
       ? 'Atendimento'
       : scope === 'boards'
         ? 'Kanban'
-        : 'Contatos';
+        : scope === 'ia'
+          ? 'Inteligência artificial'
+          : 'Contatos';
 
   // Tela cheia de verdade: sem max-width, sem padding e sem moldura de cartão.
   // A rota está na lista de full-bleed do DashboardLayout, então aqui não sobra

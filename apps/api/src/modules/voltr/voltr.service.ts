@@ -14,7 +14,7 @@ import {
   type VoltrConfig,
 } from './voltr.config';
 
-export type VoltrScope = 'chat' | 'crm' | 'boards';
+export type VoltrScope = 'chat' | 'crm' | 'boards' | 'ia';
 
 export interface VoltrEmbedTokenResponse {
   embedUrl: string;
