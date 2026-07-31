@@ -72,12 +72,13 @@ describe('Integração com a Voltr (estudo 68)', () => {
     assert.equal(resolveTenantSchema('company-2', CFG), 'emp_outro');
   });
 
-  it('2) company desconhecida cai no tenant padrão', () => {
-    assert.equal(resolveTenantSlug('company-nova', CFG), 'salaozinho');
+  it('2) company desconhecida NÃO recebe tenant — nem com padrão configurado', () => {
+    // Contrato mudou no estudo 75: cair no padrão fazia salão não mapeado
+    // enxergar o espaço de outro. Agora é fail-closed, e o embed recusa com 503.
+    assert.equal(resolveTenantSlug('company-nova', CFG), '');
     assert.equal(
       resolveTenantSlug('company-nova', { ...CFG, defaultTenantSlug: '' }),
       '',
-      'sem padrão configurado, fica sem tenant (e o embed recusa)',
     );
   });
 
@@ -174,5 +175,25 @@ describe('Integração com a Voltr (estudo 68)', () => {
     );
     const antiga = new Date(Date.now() - 48 * 3_600_000);
     assert.equal(expirouNaFila('voltr_outbound', antiga, new Date()).ok, true);
+  });
+
+  it('12) empresa fora do mapa NÃO cai no tenant padrão (estudo 75)', () => {
+    // Fail-open aqui fazia salão não mapeado enxergar o espaço de outro.
+    const comPadrao: VoltrConfig = { ...CFG, defaultTenantSlug: 'salaozinho' };
+    assert.equal(
+      resolveTenantSlug('company-que-ninguem-mapeou', comPadrao),
+      '',
+      'sem entrada no mapa, sem tenant — nem com padrão preenchido',
+    );
+    assert.equal(
+      resolveTenantSchema('company-que-ninguem-mapeou', comPadrao),
+      '',
+      'e sem schema, para o embed recusar',
+    );
+    assert.equal(
+      resolveTenantSlug('company-1', comPadrao),
+      'salaozinho',
+      'quem ESTÁ no mapa segue resolvendo',
+    );
   });
 });

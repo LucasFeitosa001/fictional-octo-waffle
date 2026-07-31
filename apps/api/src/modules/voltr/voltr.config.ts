@@ -59,7 +59,11 @@ export function readVoltrConfig(): VoltrConfig {
 
 /** `Company.id` → slug da Voltr (sem entrada, cai no default; vazio = sem tenant). */
 export function resolveTenantSlug(companyId: string, cfg: VoltrConfig): string {
-  return cfg.tenantMap[companyId] ?? cfg.defaultTenantSlug;
+  // Fail-closed: sem entrada no mapa, SEM tenant. Cair no padrão fazia empresa
+  // não mapeada enxergar o espaço de outro salão — o VoltrService traduz string
+  // vazia em 503 ("ainda não vinculado"), que é a resposta certa. Ver estudo 75.
+  const doMapa = cfg.tenantMap[companyId];
+  return doMapa ?? '';
 }
 
 /** Slug → `emp_<slug>`, formato que a Voltr valida (`^emp_[a-z0-9_]+$`). */

@@ -44,7 +44,12 @@ export class VoltrController {
     // que importa não é esta: o módulo pago continua sendo conferido por escopo
     // do lado da Voltr, então tenant sem `atendimento` segue sem chat.
     // Ver estudo 71.
-    const scopes: VoltrScope[] = ['chat', 'crm'];
+    // O escopo PEDIDO vem primeiro: a Voltr monta a URL do iframe com scopes[0]
+    // (embed.service.ts:247), então com a ordem fixa a aba CRM abria o inbox.
+    // Os dois continuam concedidos — abrir a conversa a partir do contato é
+    // fluxo legítimo e precisa de 'chat'. Ver estudo 75.
+    const scopes: VoltrScope[] =
+      scope === 'chat' ? ['chat', 'crm'] : ['crm', 'chat'];
     const nome = await this.voltr.resolveDisplayName(userId, email);
     return this.voltr.getEmbedToken(
       { companyId, externalUserId: userId, email, nome },

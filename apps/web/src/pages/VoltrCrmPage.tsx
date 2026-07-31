@@ -32,14 +32,20 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const tokenRef = useRef<string>('');
   const origemRef = useRef<string>('');
+  /** Escopo que o `src` atual representa — troca de aba precisa de src novo. */
+  const scopeDoSrc = useRef<'crm' | 'chat' | null>(null);
 
   const buscarToken = useCallback(async () => {
     try {
       const r = await api.get<RespostaToken>('/voltr/embed-token', { scope });
       tokenRef.current = r.accessToken;
       origemRef.current = origemDe(r.embedUrl);
-      // Só fixa o src na PRIMEIRA vez; renovações vão por postMessage.
-      setSrc((atual) => atual ?? r.embedUrl);
+      // Fixa na primeira vez de CADA escopo; renovações de token vão por
+      // postMessage e não recarregam o iframe. Sem o escopo na conta, trocar
+      // Atendimento ↔ CRM pelo menu não remontava o componente (as duas rotas
+      // têm a mesma árvore) e o iframe ficava na tela anterior. Ver estudo 75.
+      setSrc((atual) => (atual && scopeDoSrc.current === scope ? atual : r.embedUrl));
+      scopeDoSrc.current = scope;
       setErro(null);
       return r;
     } catch (err) {
