@@ -421,15 +421,12 @@ export function Sidebar({
   onNavigate,
   mobile = false,
   mobileOpen = false,
-  onOpenCrm,
 }: {
   onNavigate?: () => void;
   mobile?: boolean;
   /** Sinaliza (edge false→true) que o drawer mobile abriu — reseta collapsedGroups
    *  sem remontar (remount quebra a animação de saída do drawer parent). */
   mobileOpen?: boolean;
-  /** Desktop: abre o aviso do CRM. */
-  onOpenCrm?: () => void;
 }) {
   const location = useLocation();
   const sidebarStyle = useSidebarStyle();
@@ -852,18 +849,6 @@ export function Sidebar({
         )}
 
         <div className={isCollapsed ? 'flex flex-col items-center gap-2 text-white' : 'flex items-center gap-2 text-white'}>
-          {!mobile && (
-            <IconTip label="Abrir CRM" placement="bottom">
-              <button
-                type="button"
-                onClick={() => onOpenCrm?.()}
-                aria-label="Abrir CRM"
-                className="relative rounded-lg p-2 text-current transition-colors hover:bg-black/5"
-              >
-                <IconUsers size={22} />
-              </button>
-            </IconTip>
-          )}
           <NotificationBell />
           {mobile && (
             <>
@@ -1162,40 +1147,9 @@ export function Sidebar({
         <ZoomControls collapsed={isCollapsed} />
       </div>
 
-      {/* Atalho do CRM no rodapé do sidebar desktop. */}
-      {!mobile && onOpenCrm && (
-        <div className="mt-2 border-t border-white/[0.1] pt-3">
-          {isCollapsed ? (
-            <Tooltip delay={150}>
-              <Tooltip.Trigger className="contents">
-                <button
-                  type="button"
-                  onClick={onOpenCrm}
-                  aria-label="Abrir CRM"
-                  className="grid h-11 w-full place-items-center rounded-lg text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
-                >
-                  <IconUsers size={19} />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Content
-                placement="right"
-                className="rounded-lg bg-ink-soft px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]"
-              >
-                CRM
-              </Tooltip.Content>
-            </Tooltip>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenCrm}
-              className="group flex min-h-10 w-full items-center rounded-lg text-sm font-normal text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center"><IconUsers size={19} /></span>
-              <span className="min-w-0 flex-1 truncate pr-1 text-left">CRM</span>
-            </button>
-          )}
-        </div>
-      )}
+      {/* Não existe atalho de CRM aqui: o grupo "CRM" do menu (Atendimento,
+          Contatos, Kanban, IA) aparece em TODO plano — com cadeado quando a
+          feature não está inclusa —, então um segundo caminho só duplicava. */}
 
       <MinhaContaDrawer isOpen={minhaContaOpen} onClose={() => setMinhaContaOpen(false)} />
     </aside>

@@ -17,13 +17,8 @@ import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { ButtonStyleSwitcher } from '../components/ButtonStyleSwitcher';
 import { CloseStyleSwitcher } from '../components/CloseStyleSwitcher';
 import { SidebarStyleSwitcher } from '../components/SidebarStyleSwitcher';
-import { SwitchRow } from '../components/SwitchRow';
 import { useCan } from '../lib/queries/permissions';
-import { useCrmShortcutEnabled, setCrmShortcutEnabled } from '../theme/crmShortcut';
-import {
-  saveAppearanceToCloud,
-  saveCurrentAppearanceToCloud,
-} from '../theme/useThemeSync';
+import { saveCurrentAppearanceToCloud } from '../theme/useThemeSync';
 import { MobileBackHeader } from '../components/MobileBackHeader';
 import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
 import { APP_VERSION } from '../lib/config';
@@ -830,7 +825,6 @@ export function ConfiguracoesPage() {
 
   // Preferência do atalho flutuante do CRM (mostrar/esconder). Salvo neste
   // dispositivo; o DashboardLayout lê a mesma preferência para exibir o botão.
-  const crmShortcutEnabled = useCrmShortcutEnabled();
 
   // `active` null => mobile mostra a lista de seções; no desktop cai em 'detalhes'.
   const [active, setActive] = useState<TabId | null>(null);
@@ -1602,28 +1596,6 @@ export function ConfiguracoesPage() {
               </p>
               <div className="mt-4">
                 <SidebarStyleSwitcher disabled={!canManageAppearance} />
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
-              <h2 className="text-base font-semibold text-ink">Atalhos</h2>
-              <p className="mt-1 text-sm text-muted-ink">
-                Botões flutuantes que aparecem sobre as telas. A escolha vale para
-                toda a empresa.
-              </p>
-              <div className="mt-4">
-                <SwitchRow
-                  label="Mostrar atalho do CRM"
-                  description="Botão flutuante de acesso rápido ao CRM, no canto da tela."
-                  checked={crmShortcutEnabled}
-                  isDisabled={!canManageAppearance}
-                  onChange={(enabled) => {
-                    setCrmShortcutEnabled(enabled);
-                    void saveAppearanceToCloud({ crmShortcut: enabled }).catch(() => {
-                      /* a escolha segue aplicada localmente */
-                    });
-                  }}
-                />
               </div>
             </section>
 

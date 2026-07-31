@@ -5,22 +5,16 @@ import { BottomNav } from './BottomNav';
 import { CreateSheetProvider, PageActionsProvider } from './PageActions';
 import { CreateDrawerHost, CreateDrawerProvider } from './CreateDrawer';
 import { ConfirmProvider } from '../components/ConfirmDialog';
-import { CrmLockedModal } from '../components/CrmLockedModal';
 import { NotificationToaster } from '../components/NotificationToaster';
-import { IconTip } from '../components/IconTip';
-import { IconUsers } from '../components/icons';
 import { useThemeSync } from '../theme/useThemeSync';
 import { useSidebarStyle } from '../theme/sidebarStyle';
-import { useCrmShortcutEnabled } from '../theme/crmShortcut';
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   // Pull the account's theme once the session is available (localStorage stays
   // the fast pre-paint cache; the account is the cross-device source of truth).
   useThemeSync();
   const sidebarStyle = useSidebarStyle();
-  const crmShortcutEnabled = useCrmShortcutEnabled();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [crmOpen, setCrmOpen] = useState(false);
   const { pathname } = useLocation();
   // Full-bleed pages manage their own height + scroll (no page padding,
   // no max-width, no main scroll). The agenda is one big internal scroller.
@@ -47,7 +41,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop static sidebar (sólida encostada, ou flutuante com margem) */}
       <div className={`hidden lg:block ${sidebarStyle === 'floating' ? 'p-2.5' : ''}`}>
-        <Sidebar onOpenCrm={() => setCrmOpen(true)} />
+        <Sidebar />
       </div>
 
       {/* Mobile off-canvas drawer — always mounted so it can slide in/out
@@ -108,31 +102,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar (same style as the club) */}
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
 
-      {/* Atalho global do CRM — abre apenas o aviso de módulo não adquirido.
-          Mobile: `.fab-above-nav` posiciona o botão ACIMA da BottomNav flutuante
-          (offset único, ver index.css), nunca sobrepondo. z-30 fica ABAIXO da
-          nav (z-40), reforçando que a nav sempre vence. Desktop (md:): a própria
-          .fab-above-nav volta pro canto (bottom 1.5rem); right-6 alinha o X.
-          Escondido quando o usuário desliga "Mostrar atalho do CRM" em
-          Configurações → Personalizar (useCrmShortcutEnabled). */}
-      {!fullBleed && crmShortcutEnabled && (
-        <IconTip
-          label="Abrir CRM"
-          placement="left"
-          className="fab-above-nav fixed right-4 z-30 md:right-6 md:z-40"
-        >
-          <button
-            type="button"
-            aria-label="Abrir CRM"
-            onClick={() => setCrmOpen(true)}
-            className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow-pop)] transition-transform active:scale-95"
-          >
-            <IconUsers size={22} />
-          </button>
-        </IconTip>
-      )}
-
-      <CrmLockedModal open={crmOpen} onClose={() => setCrmOpen(false)} />
 
       {/* Create-in-place host — abre o drawer da entidade direto (Sidebar/BottomNav
           "Novo") sem navegar. Uma única instância global, dentro do provider. */}
