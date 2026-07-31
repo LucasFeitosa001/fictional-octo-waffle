@@ -19,6 +19,7 @@ import {
   podeEnfileirar,
   type AutomacaoDaConta,
 } from '../whatsapp/outbox-policy';
+import { escolherJidConhecido } from '../whatsapp/jid-escolha';
 
 const AGORA = new Date('2026-07-29T18:00:00.000Z');
 const DESLIGADO: AutomacaoDaConta = {
@@ -409,6 +410,63 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
       }).ok,
       false,
       'opt-out do cliente continua valendo',
+    );
+  });
+});
+
+// ─────────────────────── estudo 83: para QUEM a mensagem é cifrada
+//
+// O dono viu "Aguardando mensagem" no próprio WhatsApp. Causa: a automação
+// nascia sem JID e endereçava `<telefone>@s.whatsapp.net`, enquanto o chat vivo
+// do contato é `@lid` — endereço Signal diferente, que os outros aparelhos da
+// conta não abrem. Provado em produção: 5 mensagens, só a endereçada por
+// telefone falhou.
+describe('Escolha do endereço de envio (estudo 83)', () => {
+  const PAULO = [
+    { remoteJid: '19182384714@s.whatsapp.net', phone: '+19182384714' },
+    { remoteJid: '49040423161879@lid', phone: '19182384714' },
+  ];
+
+  it('1) com as duas formas gravadas, prefere o @lid', () => {
+    assert.equal(escolherJidConhecido('+19182384714', PAULO), '49040423161879@lid');
+  });
+
+  it('2) só a forma por telefone: usa ela mesma', () => {
+    assert.equal(
+      escolherJidConhecido('+19182384714', [PAULO[0]]),
+      '19182384714@s.whatsapp.net',
+    );
+  });
+
+  it('3) telefone brasileiro com e sem o nono dígito e com e sem 55', () => {
+    const conversas = [{ remoteJid: '5589981217434@lid', phone: '5589981217434' }];
+    for (const alvo of ['+55 89 98121-7434', '8981217434', '5589981217434']) {
+      assert.equal(escolherJidConhecido(alvo, conversas), '5589981217434@lid', alvo);
+    }
+  });
+
+  it('4) AMBÍGUO não adivinha: dois números distintos batendo devolve null', () => {
+    // O casamento é pelos últimos 8 dígitos; se dois números diferentes casarem,
+    // escolher um mandaria a mensagem para a pessoa errada.
+    const colisao = [
+      { remoteJid: '5511981217434@lid', phone: '5511981217434' },
+      { remoteJid: '5589981217434@lid', phone: '5589981217434' },
+    ];
+    assert.equal(escolherJidConhecido('981217434', colisao), null);
+  });
+
+  it('5) sem conversa conhecida, ou número curto demais, devolve null', () => {
+    assert.equal(escolherJidConhecido('+5589999990000', PAULO), null);
+    assert.equal(escolherJidConhecido('1234', PAULO), null);
+    assert.equal(escolherJidConhecido('', PAULO), null);
+  });
+
+  it('6) JID inválido no banco não é usado como destino', () => {
+    assert.equal(
+      escolherJidConhecido('+19182384714', [
+        { remoteJid: 'status@broadcast', phone: '+19182384714' },
+      ]),
+      null,
     );
   });
 });

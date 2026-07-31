@@ -14,6 +14,7 @@ import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { useDbAuthState } from './whatsapp-auth';
 import { RETRY_COUNTER_CACHE } from './retry-cache';
+import { escolherJidConhecido } from './jid-escolha';
 import {
   autorizacaoAindaVale,
   expirouNaFila,
@@ -1334,8 +1335,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       }
 
       if (await this.deferIfRateLimited(msg)) return;
+      // Ordem: JID da própria linha > JID já conhecido da conversa > telefone.
+      //
+      // O do meio é o que faltava. A automação de agendamento nasce sem toJid,
+      // caía direto no telefone e mandava para `<telefone>@s.whatsapp.net` — um
+      // endereço Signal DIFERENTE do da conversa quando o WhatsApp endereça o
+      // contato por LID. Os outros aparelhos da própria conta acompanham o chat
+      // pelo LID, não abriam a cópia, e a mensagem aparecia como "Aguardando
+      // mensagem" até o retry. Ver estudo 83.
       const jid =
         this.normalizeRecipientJid(msg.toJid ?? undefined) ??
+        (await this.jidConhecidoDoTelefone(msg.companyId, msg.toPhone)) ??
         (await this.resolveJid(session, msg.toPhone));
       if (!jid) {
         await db.whatsappOutbox.update({
@@ -1614,6 +1624,40 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * "<digits>@s.whatsapp.net" if the Brazilian lookup throws (network blip), so a
    * transient error still gets a delivery attempt.
    */
+  /**
+   * O endereço que o WhatsApp realmente usa para este telefone, se já
+   * conversamos com ele. Ver estudo 83.
+   *
+   * Prefere `@lid`: quando o contato tem as duas formas gravadas (acontece — o
+   * mesmo Paulo tinha `19182384714@s.whatsapp.net` e `49040423161879@lid`), o
+   * LID é o endereço vivo do chat. Cifrar para a forma por telefone gera uma
+   * mensagem que os outros aparelhos da própria conta não abrem.
+   */
+  private async jidConhecidoDoTelefone(
+    companyId: string | null,
+    phone: string,
+  ): Promise<string | null> {
+    if (!companyId) return null;
+    const digitos = (phone ?? '').replace(/\D/g, '');
+    if (digitos.length < 8) return null;
+    try {
+      const conversas = await this.prisma.client.whatsappConversation.findMany({
+        // Filtro barato pelos últimos 8 dígitos; quem decide de fato é
+        // `escolherJidConhecido`, que também recusa caso ambíguo.
+        where: { companyId, phone: { contains: digitos.slice(-8) } },
+        select: { remoteJid: true, phone: true, lastMessageAt: true },
+        orderBy: { lastMessageAt: 'desc' },
+        take: 20,
+      });
+      return escolherJidConhecido(phone, conversas);
+    } catch (err) {
+      // Descobrir o endereço é melhoria, não pré-requisito: sem isso o envio
+      // segue pelo telefone, como antes.
+      this.logger.warn(`Não deu para achar o JID conhecido: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   private async resolveJid(session: SessionState, phone: string): Promise<string | null> {
     const normalized = this.normalizeOutgoingPhone(phone);
     if (!normalized) return null;
