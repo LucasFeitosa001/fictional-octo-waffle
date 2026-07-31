@@ -26,10 +26,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   // no max-width, no main scroll). The agenda is one big internal scroller.
   // As telas da Voltr entram aqui porque são um iframe: qualquer padding ou
   // max-width do painel vira faixa vazia em volta do CRM do parceiro.
-  const fullBleed =
-    pathname === '/agenda' ||
-    pathname === '/voltr-crm' ||
-    pathname === '/voltr-chat';
+  // Lista, não encadeamento de ||: toda tela nova da Voltr é um iframe e PRECISA
+  // entrar aqui. Esquecer uma faz ela cair no ramo com padding e SEM altura
+  // definida — o iframe encolhe para uns poucos pixels e a tela parece quebrada,
+  // que foi o que aconteceu com o Kanban e a IA. Ver estudo 82.
+  const TELA_CHEIA = [
+    '/agenda',
+    '/voltr-crm',
+    '/voltr-chat',
+    '/voltr-boards',
+    '/voltr-ia',
+  ];
+  const fullBleed = TELA_CHEIA.includes(pathname);
 
   return (
     <PageActionsProvider>
