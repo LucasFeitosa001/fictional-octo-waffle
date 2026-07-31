@@ -56,6 +56,7 @@ function makeAvailabilityService(options: {
     undefined as any,
     undefined as any,
     undefined as any,
+    undefined as any,
   );
   (service as any).companyTimezone = async () => 'UTC';
   return { service, calls };
@@ -254,6 +255,7 @@ describe('UC-AGD-WA — confirmação manual com opt-in e idempotência', () => 
       undefined as any,
       undefined as any,
       settings as any,
+      undefined as any,
     );
     return { service, enqueued, updates, calls };
   }

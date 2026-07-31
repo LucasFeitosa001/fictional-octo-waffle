@@ -6,6 +6,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { QueuesService } from './queues.service';
 import { AppointmentRemindersProcessor } from './processors/appointment-reminders.processor';
 import { FollowUpsProcessor } from './processors/follow-ups.processor';
+import { FollowUpSenderService } from './follow-up-sender.service';
+import { FollowUpPollerService } from './followup-poller.service';
 import { CampaignsProcessor } from './processors/campaigns.processor';
 import {
   QUEUE_APPOINTMENT_REMINDERS,
@@ -62,6 +64,11 @@ const queueWorkersEnabled = process.env.QUEUE_WORKERS_ENABLED !== 'false';
   ],
   providers: [
     QueuesService,
+    // Sempre fornecidos, mesmo sem workers: o acompanhamento pós-atendimento
+    // depende DELES em produção, onde QUEUES_ENABLED=false. O sender não tem
+    // decorator de BullMQ, então não instancia consumidor nenhum. Estudo 84.
+    FollowUpSenderService,
+    FollowUpPollerService,
     // Um Redis que responde com erro de quota continua "conectado"; nesse caso
     // o BullMQ repete os comandos bloqueantes sem backoff e pode inundar os logs.
     // Esta chave operacional permite manter HTTP, inbox/outbox e WhatsApp no ar
@@ -70,6 +77,6 @@ const queueWorkersEnabled = process.env.QUEUE_WORKERS_ENABLED !== 'false';
       ? [AppointmentRemindersProcessor, FollowUpsProcessor, CampaignsProcessor]
       : []),
   ],
-  exports: [QueuesService],
+  exports: [QueuesService, FollowUpSenderService],
 })
 export class QueuesModule {}

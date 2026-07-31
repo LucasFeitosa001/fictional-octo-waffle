@@ -159,6 +159,19 @@ export class AppointmentsController {
     );
   }
 
+  /** Envia o acompanhamento pós-atendimento agora, por decisão de uma pessoa. */
+  @Post('appointments/:id/followup')
+  @RequirePermission('agenda:manage')
+  async sendFollowUp(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: ResendAppointmentMessageDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.enviarAcompanhamento(companyId, id, dto.requestKey, scope);
+  }
+
   @Post('appointments')
   @RequirePermission('agenda:manage')
   async create(

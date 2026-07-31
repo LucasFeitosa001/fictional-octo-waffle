@@ -28,6 +28,7 @@ import { useAgendaAppointments } from '../lib/queries/agenda';
 import { useNotificationSettings } from '../lib/queries/notificationSettings';
 import { useCan } from '../lib/queries/permissions';
 import { AvisosDoCliente } from '../components/AvisosDoCliente';
+import { useSendAppointmentFollowUp } from '../lib/queries/confirmationMessages';
 import { variaveisDoAgendamento } from '../lib/queries/messageTemplates';
 import { useEmpresa } from '../lib/queries/empresa';
 import { useAutoCreate } from '../lib/useAutoCreate';
@@ -265,6 +266,19 @@ export function AgendaPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+
+  // Acompanhamento manual: a automação espera o prazo configurado; aqui o dono
+  // manda na hora, inclusive depois de finalizado. Ver estudo 84.
+  const followUpMutation = useSendAppointmentFollowUp(selected?.id ?? null);
+  async function enviarAcompanhamento() {
+    if (!selected?.id) return;
+    try {
+      await followUpMutation.mutateAsync({ requestKey: crypto.randomUUID() });
+      setToast('Acompanhamento colocado na fila.');
+    } catch (err) {
+      setToast(apiErrorMessage(err));
+    }
+  }
   useAutoCreate(() => openNew());
 
   // Keep the same daily/weekly/monthly interval at every breakpoint. The
@@ -1995,6 +2009,23 @@ export function AgendaPage() {
                 >
                   Ver logs de envio
                 </Button>
+                  {/* ACOMPANHAMENTO manual: vale a qualquer momento, inclusive
+                      depois de finalizado — foi o pedido do dono. A automação
+                      espera o prazo configurado; isto aqui é o "mandar agora".
+                      Ver estudo 84. */}
+                  {can('agenda:manage') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="sm:col-span-2"
+                      isDisabled={followUpMutation.isPending}
+                      onClick={() => void enviarAcompanhamento()}
+                    >
+                      {followUpMutation.isPending
+                        ? 'Enviando acompanhamento…'
+                        : 'Enviar acompanhamento agora'}
+                    </Button>
+                  )}
               </div>
               <p className="text-xs text-muted-ink">
                 O envio manual exige autorização explícita e não cria cópia se a

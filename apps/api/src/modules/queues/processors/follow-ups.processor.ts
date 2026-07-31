@@ -7,6 +7,7 @@ import { WhatsappService } from '../../whatsapp/whatsapp.service';
 import { NotificationSettingsService } from '../../notifications/notification-settings.service';
 import { composeFollowUpMessage, followUpTemplateById } from '../follow-up.templates';
 import { resolveBookingLink } from '../booking-link.helper';
+import { FollowUpSenderService } from '../follow-up-sender.service';
 import { QueuesService } from '../queues.service';
 import {
   QUEUE_FOLLOW_UPS,
@@ -60,6 +61,7 @@ export class FollowUpsProcessor extends WorkerHost {
     private readonly whatsapp: WhatsappService,
     private readonly settings: NotificationSettingsService,
     private readonly queues: QueuesService,
+    private readonly sender: FollowUpSenderService,
   ) {
     super();
   }
@@ -76,136 +78,19 @@ export class FollowUpsProcessor extends WorkerHost {
     }
 
     const data = job.data as FollowUpJob;
-    const { companyId, appointmentId, orderId } = data;
-    const recurrence = data.recurrence ?? 0;
-    const entityId = orderId ?? appointmentId;
-    if (!entityId) return;
-    // Per-recurrence marker id so the 2nd/3rd sends aren't blocked by the 1st's
-    // marker (idempotency #1 keys on this composite).
-    const markerEntityId = recurrence > 0 ? `${entityId}:r${recurrence}` : entityId;
-    const tag = `[follow-up ${this.mode.mode}] company=${companyId} entity=${entityId} r=${recurrence}`;
-
-    // Durable idempotency #1: already followed up for THIS exact entity+recurrence? stop.
-    const already = await this.prisma.client.notification.findFirst({
-      where: { companyId, type: FOLLOW_UP_TYPE, entityId: markerEntityId },
-      select: { id: true },
-    });
-    if (already) {
-      this.logger.debug(`${tag} follow-up já enviado para esta entidade — ignorando.`);
-      return;
-    }
-
-    const view = orderId
-      ? await this.loadFromOrder(companyId, orderId)
-      : await this.loadFromAppointment(companyId, appointmentId!);
-
-    if (!view) {
-      this.logger.debug(`${tag} origem não encontrada — ignorando.`);
-      return;
-    }
-    if (view.skip) {
-      this.logger.debug(`${tag} ${view.skipReason} — ignorando.`);
-      return;
-    }
-
-    // Durable idempotency #2 (same-visit dedupe): the appointment-done and the
-    // order-finish triggers can both fire for one visit. Skip if this customer got
-    // a follow-up within SAME_VISIT_WINDOW_MS. Keyed on a dedicated per-customer
-    // marker (entityId = customerId) so no User FK is involved. Only guards the
-    // FIRST send — later recurrences are intentional repeats.
-    if (recurrence === 0 && view.customerId) {
-      const recent = await this.prisma.client.notification.findFirst({
-        where: {
-          companyId,
-          type: FOLLOW_UP_CUSTOMER_TYPE,
-          entityId: view.customerId,
-          createdAt: { gte: new Date(Date.now() - SAME_VISIT_WINDOW_MS) },
-        },
-        select: { id: true },
-      });
-      if (recent) {
-        this.logger.debug(`${tag} cliente já recebeu follow-up recente — ignorando.`);
-        // Still record the entity marker so this exact job isn't retried forever.
-        await this.writeMarker(companyId, markerEntityId, view, null, false);
-        return;
-      }
-    }
-
-    // Rich per-company follow-up config: template text, recurrence, booking link.
-    // `enabled` mirrors automation.followUp (kept in sync by the settings service).
-    const cfg = await this.settings.getFollowUp(companyId);
-
-    // If the customer already booked again AFTER this visit, stop chasing them —
-    // they've come back, so nothing (not even the first follow-up) should fire.
-    if (view.customerId && (await this.hasRebookedSince(companyId, view.customerId, view.since))) {
-      this.logger.debug(`${tag} cliente já reagendou após a visita — encerrando follow-up.`);
-      await this.writeMarker(companyId, markerEntityId, view, null, false);
-      return;
-    }
-
-    // Resolve the public re-booking link only when the owner wants it attached and
-    // the company actually has an active booking link; otherwise {link} is omitted.
-    const bookingLink = cfg.includeBookingLink
-      ? await resolveBookingLink(this.prisma, companyId)
-      : null;
-
-    const msg = composeFollowUpMessage({
-      companyName: view.companyName,
-      customerName: view.customerName,
-      customerPhone: view.customerPhone,
-      serviceNames: view.serviceNames,
-      template: cfg.message,
-      bookingLink,
-    });
-
-    const optedOut = isOptedOut(view.optOut);
-
-    let sent = false;
-    if (msg && !optedOut && cfg.enabled) {
-      sent = await dispatchWhatsapp(
-        this.logger,
-        this.whatsapp,
-        this.mode,
-        tag,
-        msg.to,
-        msg.text,
-        // Interações: follow-up ao cliente.
-        { companyId, customerId: view.customerId ?? undefined, kind: 'followup' },
+    // A lógica mora em FollowUpSenderService: o poller de fallback chama o mesmo
+    // método, então idempotência, dedupe e composição são compartilhados. Aqui
+    // fica só o que é do BullMQ — agendar a próxima recorrência. Ver estudo 84.
+    const r = await this.sender.executarFollowUp(data);
+    if (r.enviou && r.recorrenciaProxima !== null) {
+      await this.queues.enqueueFollowUp(
+        data.companyId,
+        { appointmentId: data.appointmentId, orderId: data.orderId },
+        { delayMs: r.intervaloMs, recurrence: r.recorrenciaProxima },
       );
-    } else {
-      const why = !cfg.enabled
-        ? 'follow-up desativado na config'
-        : !msg
-          ? 'sem telefone'
-          : 'opt-out';
-      this.logger.debug(`${tag} sem envio (${why}), apenas marcado.`);
-    }
-
-    await this.writeMarker(companyId, markerEntityId, view, msg?.text ?? null, sent);
-
-    // Recurrence: if enabled and we actually sent, schedule the NEXT follow-up
-    // unless we've hit the cap. maxRecurrences counts total sends, so we compare
-    // the NEXT index (recurrence + 1) against it. The next run re-checks rebooking
-    // and opt-out, so it self-stops if the client comes back or opts out.
-    if (sent && cfg.enabled && cfg.recurring) {
-      const nextIndex = recurrence + 1;
-      if (nextIndex < cfg.maxRecurrences) {
-        // recurringSeconds is unit-normalized (seconds/minutes/hours/days) by the
-        // settings service — use it directly so fast test intervals work.
-        const delayMs = cfg.recurringSeconds * 1000;
-        await this.queues.enqueueFollowUp(
-          companyId,
-          { appointmentId, orderId },
-          { delayMs, recurrence: nextIndex },
-        );
-        this.logger.debug(
-          `${tag} próxima recorrência r${nextIndex} agendada em ${cfg.recurringValue}${cfg.recurringUnit} (${cfg.recurringSeconds}s).`,
-        );
-      } else {
-        this.logger.debug(`${tag} limite de recorrências (${cfg.maxRecurrences}) atingido.`);
-      }
     }
   }
+
 
   /**
    * Handler do aviso PERSONALIZADO agendado no drawer ("Avisar o cliente").
@@ -289,155 +174,6 @@ export class FollowUpsProcessor extends WorkerHost {
     );
   }
 
-  /**
-   * True if the customer created a NEW appointment after `since` (the visit that
-   * triggered this follow-up). Used to stop chasing someone who already re-booked.
-   * Compares against Appointment.createdAt so it counts bookings made after the
-   * visit regardless of when they're scheduled for. `since` null → don't block.
-   */
-  private async hasRebookedSince(
-    companyId: string,
-    customerId: string,
-    since: Date | null,
-  ): Promise<boolean> {
-    if (!since) return false;
-    const later = await this.prisma.client.appointment.findFirst({
-      where: {
-        companyId,
-        customerId,
-        createdAt: { gt: since },
-        status: { not: 'canceled' },
-      },
-      select: { id: true },
-    });
-    return !!later;
-  }
-
-  /**
-   * Writes the durable follow-up markers:
-   *   - the per-entity marker (entityId = order/appt id) — always, so this exact
-   *     job is never retried/re-fired;
-   *   - the per-customer marker (entityId = customerId) — only when a real send
-   *     happened, so the same-visit dedupe window (#2) is armed without blocking
-   *     legitimately-skipped visits (no phone / opt-out) forever.
-   * `entityId` holds ids only (never a User FK), so no referential constraint is
-   * touched. Fail-soft: a send already happened, so a marker write failure must
-   * not fail the job (which would retry and re-send).
-   */
-  private async writeMarker(
-    companyId: string,
-    entityId: string,
-    view: { customerId: string | null; customerName: string | null },
-    text: string | null,
-    sent: boolean,
-  ): Promise<void> {
-    await this.prisma.client.notification
-      .create({
-        data: {
-          companyId,
-          type: FOLLOW_UP_TYPE,
-          title: `Follow-up ${sent ? 'enviado' : 'avaliado'}: ${view.customerName ?? 'cliente'}`,
-          body: text ?? 'Sem telefone/opt-out — não enviado.',
-          entityId,
-        },
-      })
-      .catch((err) =>
-        this.logger.warn(`follow-up marker (${entityId}) falhou: ${(err as Error).message}`),
-      );
-
-    if (sent && view.customerId) {
-      await this.prisma.client.notification
-        .create({
-          data: {
-            companyId,
-            type: FOLLOW_UP_CUSTOMER_TYPE,
-            title: `Follow-up enviado ao cliente`,
-            entityId: view.customerId,
-          },
-        })
-        .catch((err) =>
-          this.logger.warn(
-            `follow-up customer marker (${view.customerId}) falhou: ${(err as Error).message}`,
-          ),
-        );
-    }
-  }
-
-  /**
-   * Resolves the follow-up view from a closed order. Only messages when the order
-   * is actually finished and has a customer; the service names come from the
-   * order's service items (best-effort — falls back to a generic phrasing).
-   */
-  private async loadFromOrder(companyId: string, orderId: string) {
-    const order = await this.prisma.client.order.findFirst({
-      where: { id: orderId, companyId },
-      include: {
-        customer: true,
-        company: { select: { name: true } },
-        items: true,
-      },
-    });
-    if (!order) return null;
-    if (order.status !== 'finished') {
-      return { skip: true as const, skipReason: `order status=${order.status}` };
-    }
-    if (!order.customer) {
-      return { skip: true as const, skipReason: 'order sem cliente' };
-    }
-
-    // Resolve service names for the order's service items (nice-to-have).
-    const serviceIds = order.items
-      .filter((it) => it.kind === 'service')
-      .map((it) => it.refId);
-    const services = serviceIds.length
-      ? await this.prisma.client.service.findMany({
-          where: { id: { in: serviceIds } },
-          select: { name: true },
-        })
-      : [];
-
-    return {
-      skip: false as const,
-      customerId: order.customer.id,
-      companyName: order.company.name,
-      customerName: order.customer.name,
-      customerPhone: order.customer.phone,
-      serviceNames: services.map((s) => s.name),
-      optOut: order.customer,
-      // Reference point for the "already re-booked?" check.
-      since: order.createdAt,
-    };
-  }
-
-  /** Resolves the follow-up view from a concluded appointment. */
-  private async loadFromAppointment(companyId: string, appointmentId: string) {
-    const appt = await this.prisma.client.appointment.findFirst({
-      where: { id: appointmentId, companyId },
-      include: {
-        customer: true,
-        company: { select: { name: true } },
-        items: { include: { service: true } },
-      },
-    });
-    if (!appt) return null;
-    if (!appt.customer) {
-      return { skip: true as const, skipReason: 'agendamento sem cliente' };
-    }
-    return {
-      skip: false as const,
-      customerId: appt.customer.id,
-      companyName: appt.company.name,
-      customerName: appt.customer.name,
-      customerPhone: appt.customer.phone,
-      serviceNames: appt.items
-        .map((it) => it.service?.name)
-        .filter((n): n is string => !!n),
-      optOut: appt.customer,
-      // The visit time — a re-booking made later (createdAt > start) means the
-      // client already came back, so we stop chasing them.
-      since: appt.start,
-    };
-  }
 
   @OnWorkerEvent('failed')
   onFailed(job: Job<FollowUpJob>, err: Error): void {

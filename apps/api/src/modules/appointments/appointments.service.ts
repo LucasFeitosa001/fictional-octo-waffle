@@ -21,6 +21,7 @@ import { AppointmentEvent } from '../notifications/notifications.templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
 import { QueuesService } from '../queues/queues.service';
+import { FollowUpSenderService } from '../queues/follow-up-sender.service';
 import {
   CONFIRMATION_TEMPLATE_VARIABLES,
   confirmationTemplateVariables,
@@ -72,6 +73,7 @@ export class AppointmentsService {
     private readonly email: EmailService,
     private readonly queues: QueuesService,
     private readonly settings: NotificationSettingsService,
+    private readonly followUpSender: FollowUpSenderService,
   ) {}
 
   async list(
@@ -461,6 +463,23 @@ export class AppointmentsService {
       );
     }
     return queued;
+  }
+
+  /**
+   * "Enviar acompanhamento agora" no visualizador do agendamento. O dono pediu
+   * poder mandar mesmo depois de finalizado, sem esperar o prazo. Estudo 84.
+   *
+   * O escopo do profissional é checado ANTES de tocar no envio — sem isto,
+   * alguém com agenda restrita mandaria mensagem de agendamento alheio.
+   */
+  async enviarAcompanhamento(
+    companyId: string,
+    id: string,
+    requestKey: string | undefined,
+    scopeProfessionalId?: string,
+  ) {
+    await this.loadConfirmationAppointment(companyId, id, scopeProfessionalId);
+    return this.followUpSender.enviarManual(companyId, id, requestKey);
   }
 
   private async loadConfirmationAppointment(
