@@ -162,7 +162,20 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
 
   /** Resolve o contato e encaminha. Separado porque a busca do telefone é async. */
   private async encaminhar(
-    msg: { companyId: string; remoteJid?: string; fromDigits: string; fromMe: boolean; messageId?: string; pushName?: string },
+    msg: {
+      companyId: string;
+      remoteJid?: string;
+      fromDigits: string;
+      fromMe: boolean;
+      messageId?: string;
+      pushName?: string;
+      media?: {
+        type: 'image' | 'audio';
+        buffer: Buffer;
+        mimetype: string;
+        fileName: string;
+      };
+    },
     texto: string,
   ): Promise<void> {
     try {
@@ -176,6 +189,21 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
       // Sem saber de quem é a conversa, não se inventa uma.
       if (!jidDoContato) return;
 
+      // Base64 infla ~33%: 12 MB de binário viram ~16 MB de texto, e o corpo
+      // aceito do outro lado é 25 MB. Acima disso o chat fica só com o rótulo —
+      // melhor que a requisição inteira falhar e a mensagem sumir.
+      const m = msg.media;
+      const midia =
+        m && m.buffer.length <= 12 * 1024 * 1024
+          ? {
+              tipo: (m.type === 'image' ? 'imagem' : 'audio') as
+                | 'imagem'
+                | 'audio',
+              dataUrl: `data:${m.mimetype};base64,${m.buffer.toString('base64')}`,
+              nome: m.fileName,
+            }
+          : undefined;
+
       void this.voltr
         .encaminharInbound({
           companyId: msg.companyId,
@@ -184,6 +212,7 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
           externalId: msg.messageId,
           nomeCliente: msg.pushName,
           doSalao: msg.fromMe,
+          ...(midia ? { midia } : {}),
         })
         .catch((err: Error) => {
           this.logger.warn(

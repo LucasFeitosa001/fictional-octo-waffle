@@ -217,6 +217,8 @@ export class VoltrService {
     nomeCliente?: string;
     /** true quando foi o salão que escreveu (msg.fromMe). Ver estudo 78. */
     doSalao?: boolean;
+    /** Mídia recebida, para o chat da Voltr tocar/exibir em vez de só o rótulo. */
+    midia?: { tipo: 'imagem' | 'audio'; dataUrl: string; nome: string };
   }): Promise<void> {
     const token = resolveIngestToken(msg.companyId, this.config);
     const schema = resolveTenantSchema(msg.companyId, this.config);
@@ -240,6 +242,16 @@ export class VoltrService {
         // saída (a Voltr mandando pela nossa fila) segue desligada. Estudo 78.
         direcao: msg.doSalao ? 'saida' : 'entrada',
         autor: msg.doSalao ? 'humano' : 'cliente',
+        // Sem isto o chat mostrava só o rótulo "🎤 Áudio recebido" — o binário
+        // ficava do nosso lado. Mandando o dataUrl, a Voltr toca o áudio, exibe
+        // a imagem e ainda transcreve para a IA entender. Ver estudo 81.
+        ...(msg.midia
+          ? {
+              midiaDataUrl: msg.midia.dataUrl,
+              midiaTipo: msg.midia.tipo,
+              midiaNome: msg.midia.nome,
+            }
+          : {}),
         ...(msg.externalId ? { externalId: msg.externalId } : {}),
         ...(msg.nomeCliente ? { nomeCliente: msg.nomeCliente } : {}),
         ts: new Date().toISOString(),
