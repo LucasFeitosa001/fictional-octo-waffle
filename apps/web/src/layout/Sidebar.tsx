@@ -151,6 +151,13 @@ const NAVIGATION: NavEntry[] = [
         feature: 'whatsapp_api',
         perm: 'marketing:view',
       },
+      {
+        to: '/voltr-boards',
+        label: 'Kanban',
+        icon: IconLayers,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
     ],
   },
   {

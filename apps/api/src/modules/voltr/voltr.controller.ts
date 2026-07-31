@@ -19,6 +19,7 @@ import {
   VoltrService,
   type VoltrEmbedTokenResponse,
   type VoltrScope,
+  type VoltrSyncClientesResultado,
 } from './voltr.service';
 
 /**
@@ -48,13 +49,38 @@ export class VoltrController {
     // (embed.service.ts:247), então com a ordem fixa a aba CRM abria o inbox.
     // Os dois continuam concedidos — abrir a conversa a partir do contato é
     // fluxo legítimo e precisa de 'chat'. Ver estudo 75.
-    const scopes: VoltrScope[] =
-      scope === 'chat' ? ['chat', 'crm'] : ['crm', 'chat'];
+    // O pedido vem primeiro (a Voltr monta a URL com scopes[0]); os outros vão
+    // junto porque navegar entre as telas dela por dentro — do contato para a
+    // conversa, do card do Kanban para o contato — é fluxo legítimo, e cada
+    // superfície exige o seu escopo.
+    const pedido: VoltrScope =
+      scope === 'chat' ? 'chat' : scope === 'boards' ? 'boards' : 'crm';
+    const scopes: VoltrScope[] = [
+      pedido,
+      ...(['chat', 'crm', 'boards'] as VoltrScope[]).filter((s) => s !== pedido),
+    ];
     const nome = await this.voltr.resolveDisplayName(userId, email);
     return this.voltr.getEmbedToken(
       { companyId, externalUserId: userId, email, nome },
       scopes,
     );
+  }
+
+  /**
+   * Empurra o cadastro de clientes do salão para a agenda do CRM da Voltr.
+   *
+   * MESMA porta do embed (`JwtAuthGuard` da classe): quem pode abrir o CRM pode
+   * mandar a própria carteira para ele. O tenant vem do token, nunca do corpo —
+   * não há como sincronizar o cadastro de outro salão por aqui.
+   *
+   * Idempotente do outro lado (casa por telefone e marca a tag `salonpass`), e
+   * não dispara nenhuma mensagem: é cadastro, não automação.
+   */
+  @Post('sync-clientes')
+  async syncClientes(
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<VoltrSyncClientesResultado> {
+    return this.voltr.sincronizarClientes(companyId);
   }
 }
 

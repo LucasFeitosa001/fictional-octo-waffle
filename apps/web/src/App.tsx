@@ -478,6 +478,7 @@ function ProtectedRoutes() {
             quem não tem o módulo vê o upsell da própria rota. */}
         <Route path="/voltr-crm" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="crm" /></PaidProtectedRoute>} />
         <Route path="/voltr-chat" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="chat" /></PaidProtectedRoute>} />
+        <Route path="/voltr-boards" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="boards" /></PaidProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute perm="config:view"><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/ajuda" element={<AjudaPage />} />
         <Route path="/ajuda/suporte" element={<AjudaPage />} />
