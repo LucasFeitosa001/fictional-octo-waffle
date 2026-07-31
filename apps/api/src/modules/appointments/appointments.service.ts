@@ -543,16 +543,18 @@ export class AppointmentsService {
         }
       : undefined;
 
-    // Os três controles começam com o padrão do salão, mas ficam gravados no
-    // agendamento. Assim a recepção pode mudar um horário sem alterar todos os
-    // demais; linhas antigas (NULL) continuam caindo no padrão no momento do
-    // envio.
-    const notificationDefaults = await this.settings.get(companyId);
-    const remindClient = dto.remindClient ?? notificationDefaults.reminder;
-    const notifyConfirmation =
-      dto.notifyConfirmation ?? notificationDefaults.confirmation;
-    const notifyCancellation =
-      dto.notifyCancellation ?? notificationDefaults.cancellation;
+    // Os três controles guardam SÓ a decisão explícita de uma pessoa. Quem não
+    // mexeu no toggle fica NULL, e aí quem manda é o padrão do salão lido na
+    // hora da entrega.
+    //
+    // Antes daqui saía `dto.X ?? notificationDefaults.X`, que congelava o padrão
+    // dentro da linha. Consequência: o campo nunca nascia NULL, desligar a conta
+    // não alcançava nada já criado (o dono desligou 13:27, saiu lembrete 13:30)
+    // e não dava para distinguir "autorizei este agendamento" de "o padrão era
+    // esse quando criei". Estudo 81.
+    const remindClient = dto.remindClient ?? null;
+    const notifyConfirmation = dto.notifyConfirmation ?? null;
+    const notifyCancellation = dto.notifyCancellation ?? null;
 
     // Collision check + create run in a single transaction guarded by a Postgres
     // advisory lock keyed on (companyId, professionalId). Two concurrent creates
@@ -684,12 +686,11 @@ export class AppointmentsService {
       }
     }
 
-    const notificationDefaults = await this.settings.get(companyId);
-    const remindClient = dto.remindClient ?? notificationDefaults.reminder;
-    const notifyConfirmation =
-      dto.notifyConfirmation ?? notificationDefaults.confirmation;
-    const notifyCancellation =
-      dto.notifyCancellation ?? notificationDefaults.cancellation;
+    // Mesma regra do agendamento avulso: só a decisão explícita fica gravada;
+    // NULL deixa o padrão da conta decidir na entrega. Ver estudo 81.
+    const remindClient = dto.remindClient ?? null;
+    const notifyConfirmation = dto.notifyConfirmation ?? null;
+    const notifyCancellation = dto.notifyCancellation ?? null;
     const status = dto.status as AppointmentStatus | undefined;
 
     const created = await this.prisma.client.$transaction(async (tx) => {

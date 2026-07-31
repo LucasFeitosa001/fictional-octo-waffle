@@ -128,11 +128,13 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
     assert.match(d.motivo ?? '', /desligado/i);
   });
 
-  it('10) toggle do agendamento NÃO autoriza sozinho — a conta desligada veta', () => {
-    // Contrato invertido no estudo 77. O toggle vem congelado do padrão da conta
-    // no momento da criação (appointments.service.ts:551), então deixá-lo
-    // autorizar sozinho tornava o interruptor da conta incapaz de alcançar
-    // qualquer agendamento já existente. Agora ele só RESTRINGE.
+  it('10) toggle do agendamento AUTORIZA sozinho — é o "ou" da regra do projeto', () => {
+    // Contrato invertido no estudo 77 e restaurado no 81. O 77 fez o toggle só
+    // RESTRINGIR porque ele vinha congelado do padrão da conta na criação, e
+    // assim desligar a conta não alcançava agendamento já existente. Consertada
+    // a causa (o serviço não congela mais; sem decisão explícita fica NULL), o
+    // toggle volta a significar autorização — e o dono volta a conseguir mandar
+    // o aviso de um agendamento específico com a automação geral desligada.
     assert.equal(
       autorizacaoAindaVale({
         kind: 'confirmation',
@@ -140,7 +142,7 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
         automacao: DESLIGADO,
         agora: AGORA,
       }).ok,
-      false,
+      true,
     );
   });
 
@@ -284,51 +286,129 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
     );
   });
 
-  it('20) o padrão da conta VETA o valor congelado no agendamento (estudo 77)', () => {
-    // appointments.service.ts:551 congela o padrão dentro do agendamento na
-    // criação. Com `doAgendamento ?? padraoDaConta`, desligar a conta não
-    // alcançava nada já criado — o dono desligou 13:27 e saiu lembrete 13:30.
-    const contaDesligada = {
-      reminder: false,
-      cancellation: false,
-      confirmation: false,
-      followUp: false,
-    };
-    const d = autorizacaoAindaVale({
-      kind: 'reminder',
-      agendamento: agendamento({ remindClient: true }),
-      automacao: contaDesligada,
-      agora: AGORA, // sem isto o fixture cai no passado e o teste passa por outro motivo
-    });
-    assert.equal(d.ok, false, 'conta desligada tem que vetar mesmo com o agendamento marcado');
+  // ───────────────────────── estudo 81: o "ou" da regra do projeto
+  //
+  // CLAUDE.md: "só pode sair se a empresa ativou o padrão da conta OU se o
+  // envio foi autorizado especificamente naquele agendamento." Três estados:
+  // null = ninguém mexeu (vale a conta); true = pessoa autorizou; false = pessoa
+  // vetou. O estudo 77 tinha trocado isso por um E, porque o serviço congelava o
+  // padrão dentro da linha; agora que não congela mais, o `??` volta a valer.
+
+  it('20) agendamento AUTORIZADO sai mesmo com a conta desligada (estudo 81)', () => {
+    for (const [kind, campo] of [
+      ['reminder', 'remindClient'],
+      ['confirmation', 'notifyConfirmation'],
+      ['cancellation', 'notifyCancellation'],
+    ] as const) {
+      const d = autorizacaoAindaVale({
+        kind,
+        agendamento: agendamento({ [campo]: true }),
+        automacao: DESLIGADO,
+        agora: AGORA,
+      });
+      assert.equal(d.ok, true, `${kind}: autorização explícita tem que valer`);
+    }
   });
 
-  it('21) com a conta ligada, o agendamento só pode RESTRINGIR', () => {
-    const contaLigada = {
-      reminder: true,
-      cancellation: true,
-      confirmation: true,
-      followUp: true,
-    };
+  it('21) sem opinião no agendamento (NULL), quem manda é o padrão da conta', () => {
+    // É isto que faz desligar a conta alcançar o que já está criado — o
+    // incidente do estudo 77 (desligou 13:27, saiu lembrete 13:30). Só funciona
+    // porque appointments.service.ts parou de congelar o padrão na linha.
     assert.equal(
       autorizacaoAindaVale({
         kind: 'reminder',
-        agendamento: agendamento({ remindClient: false }),
-        automacao: contaLigada,
+        agendamento: agendamento({ remindClient: null }),
+        automacao: DESLIGADO,
         agora: AGORA,
       }).ok,
       false,
-      'agendamento marcado como false continua bloqueando',
+      'conta desligada + agendamento sem opinião: não sai',
     );
     assert.equal(
       autorizacaoAindaVale({
         kind: 'reminder',
         agendamento: agendamento({ remindClient: null }),
-        automacao: contaLigada,
+        automacao: TUDO_LIGADO,
         agora: AGORA,
       }).ok,
       true,
-      'sem opinião no agendamento, vale o padrão da conta',
+      'conta ligada + agendamento sem opinião: sai',
+    );
+  });
+
+  it('22) VETO no agendamento bloqueia mesmo com a conta ligada', () => {
+    assert.equal(
+      autorizacaoAindaVale({
+        kind: 'reminder',
+        agendamento: agendamento({ remindClient: false }),
+        automacao: TUDO_LIGADO,
+        agora: AGORA,
+      }).ok,
+      false,
+    );
+  });
+
+  it('23) cancelamento de horário JÁ PASSADO sai; lembrete e confirmação não', () => {
+    // O caso do dono: agendamento das 15h30, cancelado 15h34. A mensagem foi
+    // escrita, entrou na fila e morreu com "O horário já passou" — trava que eu
+    // tinha escrito para o lembrete e apliquei aos três tipos. Estudo 81.
+    const jaPassou = agendamento({
+      start: new Date(AGORA.getTime() - 5 * 60 * 1000),
+      notifyCancellation: true,
+      notifyConfirmation: true,
+      remindClient: true,
+    });
+    assert.equal(
+      autorizacaoAindaVale({
+        kind: 'cancellation',
+        agendamento: jaPassou,
+        automacao: TUDO_LIGADO,
+        agora: AGORA,
+      }).ok,
+      true,
+      'cancelar horário que já começou é rotina — o cliente precisa saber',
+    );
+    for (const kind of ['reminder', 'confirmation'] as const) {
+      const d = autorizacaoAindaVale({
+        kind,
+        agendamento: jaPassou,
+        automacao: TUDO_LIGADO,
+        agora: AGORA,
+      });
+      assert.equal(d.ok, false, `${kind} de horário vencido continua barrado`);
+      assert.match(d.motivo ?? '', /já passou/i);
+    }
+  });
+
+  it('24) cancelamento de horário passado ainda respeita o veto e o opt-out', () => {
+    // A exceção do 23 abre a porta do TEMPO, não das outras travas.
+    const jaPassou = agendamento({
+      start: new Date(AGORA.getTime() - 5 * 60 * 1000),
+      notifyCancellation: false,
+    });
+    assert.equal(
+      autorizacaoAindaVale({
+        kind: 'cancellation',
+        agendamento: jaPassou,
+        automacao: TUDO_LIGADO,
+        agora: AGORA,
+      }).ok,
+      false,
+      'veto no agendamento continua valendo',
+    );
+    assert.equal(
+      autorizacaoAindaVale({
+        kind: 'cancellation',
+        agendamento: agendamento({
+          start: new Date(AGORA.getTime() - 5 * 60 * 1000),
+          notifyCancellation: true,
+        }),
+        automacao: TUDO_LIGADO,
+        cliente: { notificationsEnabled: true, whatsappOptIn: false },
+        agora: AGORA,
+      }).ok,
+      false,
+      'opt-out do cliente continua valendo',
     );
   });
 });

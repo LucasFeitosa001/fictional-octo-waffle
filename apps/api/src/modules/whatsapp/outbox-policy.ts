@@ -161,7 +161,13 @@ export function autorizacaoAindaVale(input: {
       }
       // Avisar de um horário que já passou é o caso que estourou na cara do
       // dono: "lembrete" chegando depois do atendimento.
-      if (agendamento.start.getTime() <= agora.getTime()) {
+      //
+      // CANCELAMENTO é a exceção, e por isso está fora da regra: cancelar um
+      // horário que já começou é rotina (cliente que não veio, atendimento
+      // desmarcado em cima da hora) e é justamente quando o aviso importa. Eu
+      // tinha aplicado esta trava aos três tipos de uma vez no estudo 77 e ela
+      // engoliu, calada, o cancelamento que o dono mandou. Ver estudo 81.
+      if (kind !== 'cancellation' && agendamento.start.getTime() <= agora.getTime()) {
         return { ok: false, motivo: 'O horário já passou' };
       }
       const doAgendamento =
@@ -176,13 +182,19 @@ export function autorizacaoAindaVale(input: {
           : kind === 'cancellation'
             ? automacao.cancellation
             : automacao.confirmation;
-      // O padrão da conta é VETO, não valor inicial. Antes era
-      // `doAgendamento ?? padraoDaConta`: como appointments.service.ts:551
-      // congela o padrão dentro do agendamento na criação, desligar a conta
-      // não alcançava nada já criado — o dono desligou às 13:27 e saiu
-      // lembrete às 13:30. Agora o campo do agendamento só RESTRINGE.
-      // Ver estudo 77.
-      const permitido = padraoDaConta && doAgendamento !== false;
+      // A regra do projeto é OU: sai se a conta ativou o padrão OU se alguém
+      // autorizou este agendamento. Os três estados importam:
+      //   null  -> ninguém mexeu; decide o padrão da conta, lido AGORA
+      //   true  -> uma pessoa autorizou; sai mesmo com a conta desligada
+      //   false -> uma pessoa vetou; não sai nem com a conta ligada
+      //
+      // No estudo 77 eu tinha trocado isto por `padraoDaConta && ... !== false`
+      // (um E) porque desligar a conta não alcançava agendamento já criado. A
+      // causa real era outra: appointments.service.ts CONGELAVA o padrão dentro
+      // da linha, então o campo nunca era null e o `??` nunca chegava à conta.
+      // Corrigido o congelamento, o veto vira desnecessário — e ele custava
+      // caro, porque impedia o dono de autorizar um envio específico. Estudo 81.
+      const permitido = doAgendamento ?? padraoDaConta;
       if (!permitido) {
         return {
           ok: false,

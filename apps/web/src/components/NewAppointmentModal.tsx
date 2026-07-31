@@ -512,9 +512,19 @@ export function NewAppointmentModal({
         start: slot.start,
         end: endFor(slot.start),
         notes: combinedNotes,
-        remindClient: sendReminder,
-        notifyConfirmation: sendConfirmation,
-        notifyCancellation: sendCancellation,
+        // Só vai o toggle em que a pessoa REALMENTE mexeu. Mandar os três
+        // sempre gravava o padrão da conta dentro do agendamento, e aí desligar
+        // a conta depois não alcançava mais nada — e não dava para distinguir
+        // "eu autorizei este" de "o padrão era esse na hora". Omitido = NULL =
+        // decide o padrão da conta na entrega. O visualizador da agenda já faz
+        // assim (AgendaPage.tsx:853). Ver estudo 81.
+        ...(reminderTouched.current ? { remindClient: sendReminder } : {}),
+        ...(confirmationTouched.current
+          ? { notifyConfirmation: sendConfirmation }
+          : {}),
+        ...(cancellationTouched.current
+          ? { notifyCancellation: sendCancellation }
+          : {}),
         items: itemsPayload,
         followUp: followUpPayload,
         additionalStarts,
