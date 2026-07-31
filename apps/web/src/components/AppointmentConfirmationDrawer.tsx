@@ -340,11 +340,14 @@ export function AppointmentConfirmationDrawer({
       </Button>
     );
 
+  // "Confirmação por WhatsApp" não serve mais como título: a aba Logs passou a
+  // mostrar os três avisos do agendamento (confirmação, cancelamento e
+  // lembrete), não só a confirmação. Ver estudo 82.
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title="Confirmação por WhatsApp"
+      title="Mensagens por WhatsApp"
       widthClass="sm:w-[560px]"
       zClass="z-[95]"
       footer={footer}
