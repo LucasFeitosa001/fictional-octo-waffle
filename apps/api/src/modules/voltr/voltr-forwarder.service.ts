@@ -4,6 +4,7 @@ import {
   type WhatsappDeliveryUpdate,
 } from '../whatsapp/whatsapp.service';
 import { VoltrService, type VoltrStatusEntrega } from './voltr.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * Encaminha para a Voltr cada mensagem que o WhatsApp do salão recebe
@@ -113,6 +114,7 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly whatsapp: WhatsappService,
     private readonly voltr: VoltrService,
+    private readonly prisma: PrismaService,
   ) {}
 
   onModuleInit(): void {
@@ -147,9 +149,25 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
       if (msg.remoteJid && msg.fromDigits) {
         this.telefonePorChat.set(msg.remoteJid, msg.fromDigits);
       }
+      void this.encaminhar(msg, texto);
+    });
+
+    // ✓ enviada, ✓✓ entregue, ✓✓ azul lida — o mesmo que o salão vê no celular.
+    // O handler é síncrono de propósito (o WhatsappService espera cada ouvinte):
+    // aqui só anota; quem fala com a rede é o despacho, fora do caminho do ACK.
+    this.cancelarAck = this.whatsapp.addDeliveryHandler((ack) => {
+      this.registrarAck(ack);
+    });
+  }
+
+  /** Resolve o contato e encaminha. Separado porque a busca do telefone é async. */
+  private async encaminhar(
+    msg: { companyId: string; remoteJid?: string; fromDigits: string; fromMe: boolean; messageId?: string; pushName?: string },
+    texto: string,
+  ): Promise<void> {
+    try {
       const digitos =
-        msg.fromDigits ||
-        (msg.remoteJid ? (this.telefonePorChat.get(msg.remoteJid) ?? '') : '');
+        msg.fromDigits || (await this.telefoneDoChat(msg.companyId, msg.remoteJid));
       const jidDoContato = digitos
         ? `${digitos}@s.whatsapp.net`
         : msg.remoteJid?.endsWith('@s.whatsapp.net')
@@ -172,14 +190,36 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
             `Não deu para encaminhar a mensagem para a Voltr: ${err.message}`,
           );
         });
-    });
+    } catch (err) {
+      this.logger.warn(
+        `Não deu para resolver o contato da mensagem: ${(err as Error).message}`,
+      );
+    }
+  }
 
-    // ✓ enviada, ✓✓ entregue, ✓✓ azul lida — o mesmo que o salão vê no celular.
-    // O handler é síncrono de propósito (o WhatsappService espera cada ouvinte):
-    // aqui só anota, quem fala com a rede é o despacho, fora do caminho do ACK.
-    this.cancelarAck = this.whatsapp.addDeliveryHandler((ack) => {
-      this.registrarAck(ack);
+  /**
+   * Telefone do contato daquele chat, quando a mensagem não traz.
+   *
+   * Em conversa @lid o WhatsApp só entrega o telefone na ENTRADA — medido na
+   * produção: 31 entradas com telefone, 42 saídas sem. `WhatsappConversation`
+   * guarda o par remoteJid→phone de forma durável, então a saída acha o contato
+   * mesmo depois de um deploy (o cache em memória nasce vazio e por isso não
+   * bastava). O cache continua, mas só como atalho: quem manda é a tabela.
+   */
+  private async telefoneDoChat(
+    companyId: string,
+    remoteJid?: string,
+  ): Promise<string> {
+    if (!remoteJid) return '';
+    const emCache = this.telefonePorChat.get(remoteJid);
+    if (emCache) return emCache;
+    const conversa = await this.prisma.client.whatsappConversation.findFirst({
+      where: { companyId, remoteJid },
+      select: { phone: true },
     });
+    const digitos = (conversa?.phone ?? '').replace(/\D/g, '');
+    if (digitos) this.telefonePorChat.set(remoteJid, digitos);
+    return digitos;
   }
 
   onModuleDestroy(): void {

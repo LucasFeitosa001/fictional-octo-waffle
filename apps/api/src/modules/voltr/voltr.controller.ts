@@ -88,6 +88,13 @@ interface EnvioDaVoltr {
   canal?: string;
   externalUserId?: string;
   texto?: string;
+  /**
+   * Id que a Voltr deu à mensagem. É a chave de deduplicação: sem respeitá-lo,
+   * uma retentativa dela vira mensagem REPETIDA no celular do cliente, porque a
+   * fila dedupa por `requestKey` e nós gerávamos um uuid novo a cada chamada.
+   * Também é por ele que a Voltr casa o recibo de entrega que devolvemos.
+   */
+  externalId?: string;
   midiaDataUrl?: string;
   midiaTipo?: string;
   midiaNome?: string;
@@ -133,7 +140,10 @@ export class VoltrWhatsappController {
       );
     }
 
-    const externalId = randomUUID();
+    // O id da VOLTR quando ele vem; uuid nosso só quando ela não mandar. Gerar
+    // um novo a cada chamada anulava a deduplicação da fila — a retentativa dela
+    // não era reconhecida como repetida e o cliente recebia duas vezes.
+    const externalId = dto.externalId?.trim() || randomUUID();
     // `kind: 'voltr_outbound'` NÃO é automação (estudo 60): é resposta de
     // atendente/IA numa conversa viva, então não é bloqueada com o canal
     // fechado nem expira — a Voltr acompanha pelo status.
