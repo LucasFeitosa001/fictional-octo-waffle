@@ -87,10 +87,10 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boar
 
   const titulo =
     scope === 'chat'
-      ? 'Atendimento (Voltr)'
+      ? 'Atendimento'
       : scope === 'boards'
-        ? 'Kanban (Voltr)'
-        : 'CRM (Voltr)';
+        ? 'Kanban'
+        : 'Contatos';
 
   // Tela cheia de verdade: sem max-width, sem padding e sem moldura de cartão.
   // A rota está na lista de full-bleed do DashboardLayout, então aqui não sobra

@@ -133,7 +133,7 @@ const NAVIGATION: NavEntry[] = [
     // sem estes dois itens a rota /voltr-chat existe e ninguém alcança.
     kind: 'group',
     key: 'voltr',
-    title: 'Voltr',
+    title: 'CRM',
     icon: IconMessage,
     items: [
       {
@@ -146,7 +146,7 @@ const NAVIGATION: NavEntry[] = [
       },
       {
         to: '/voltr-crm',
-        label: 'CRM',
+        label: 'Contatos',
         icon: IconUsers,
         feature: 'whatsapp_api',
         perm: 'marketing:view',
