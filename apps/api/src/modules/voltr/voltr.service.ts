@@ -40,6 +40,10 @@ const SYNC_CLIENTES_PAUSA_429_MS = 5_000;
 /** Telefone curto demais não casa com JID de WhatsApp — DDD + 8 dígitos. */
 const TELEFONE_MIN_DIGITOS = 10;
 
+/** Timeout do aviso de recibo. Curto: é um UPDATE de uma linha do outro lado, e
+ *  um ACK que demora mais que isso já foi substituído por outro mais novo. */
+const STATUS_TIMEOUT_MS = 10_000;
+
 /** Formato exato que o `/api/ingest/clientes` da Voltr aceita (IngestClienteExterno). */
 interface ClienteParaVoltr {
   nome: string;
@@ -54,6 +58,22 @@ interface RespostaSyncVoltr {
   atualizados?: number;
   ignorados?: number;
   descartadosPorLimite?: number;
+}
+
+/** Os quatro estados que o `/api/ingest/status` da Voltr aceita. */
+export type VoltrStatusEntrega = 'enviada' | 'entregue' | 'lida' | 'falha';
+
+export interface VoltrStatusResultado {
+  ok: boolean;
+  /** Por que o status não foi gravado lá, quando `ok` é falso. */
+  motivo?:
+    | 'integracao_desligada'
+    /** A Voltr ainda não conhece esse externalId — vale tentar de novo. */
+    | 'mensagem_nao_encontrada'
+    /** A Voltr respondeu, mas recusou (token, schema, payload). */
+    | 'recusado'
+    /** Não houve resposta: rede, timeout, Voltr fora do ar. */
+    | 'sem_resposta';
 }
 
 export interface VoltrSyncClientesResultado {
@@ -412,24 +432,82 @@ export class VoltrService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /** Avisa a Voltr do ACK tardio (entregue/lida/falha), casado por externalId. */
+  /** A ponte com a Voltr está ligada para esta empresa? (mesma regra dos outros
+   *  caminhos: sem apiUrl/token/schema a integração está DESLIGADA). */
+  integracaoLigada(companyId: string): boolean {
+    return Boolean(
+      this.config.apiUrl &&
+        resolveIngestToken(companyId, this.config) &&
+        resolveTenantSchema(companyId, this.config),
+    );
+  }
+
+  /**
+   * Avisa a Voltr do ACK do WhatsApp (entregue/lida), casado por `externalId` —
+   * o mesmo id da mensagem que o encaminhamento mandou em `/api/ingest/mensagem`.
+   * É o que acende ✓✓ e ✓✓ azul no chat de lá.
+   *
+   * NUNCA estoura: devolve o motivo para quem chamou decidir se repete. Um
+   * `mensagem_nao_encontrada` é normal quando o ACK corre na frente da cópia da
+   * mensagem — aí vale tentar de novo daqui a pouco.
+   *
+   * Isto NÃO envia nada por WhatsApp: só relata para a Voltr um ACK que o
+   * WhatsApp já nos deu.
+   */
   async enviarStatus(
     companyId: string,
     externalId: string,
-    status: 'enviada' | 'entregue' | 'lida' | 'falha',
-  ): Promise<void> {
+    status: VoltrStatusEntrega,
+  ): Promise<VoltrStatusResultado> {
     const token = resolveIngestToken(companyId, this.config);
     const schema = resolveTenantSchema(companyId, this.config);
-    if (!this.config.apiUrl || !token || !schema) return;
-    await fetch(`${this.config.apiUrl}/api/ingest/status`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-ingest-token': token,
-        'x-tenant-schema': schema,
-      },
-      body: JSON.stringify({ externalId, status }),
-      signal: AbortSignal.timeout(10_000),
-    });
+    if (!this.config.apiUrl || !token || !schema) {
+      return { ok: false, motivo: 'integracao_desligada' };
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(`${this.config.apiUrl}/api/ingest/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'x-ingest-token': token,
+          'x-tenant-schema': schema,
+        },
+        body: JSON.stringify({ externalId, status }),
+        signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Recibo ${status} não chegou na Voltr (tenant=${schema}): ${(err as Error).message}`,
+      );
+      return { ok: false, motivo: 'sem_resposta' };
+    }
+
+    if (!res.ok) {
+      // 429 (rate-limit do endpoint) e 5xx entram aqui como 'sem_resposta' para o
+      // chamador poder repetir; 4xx de payload/token é 'recusado' e não adianta.
+      const repetivel = res.status === 429 || res.status >= 500;
+      this.logger.warn(
+        `A Voltr recusou o recibo ${status} (tenant=${schema}): HTTP ${res.status}`,
+      );
+      return { ok: false, motivo: repetivel ? 'sem_resposta' : 'recusado' };
+    }
+
+    const corpo = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      motivo?: string;
+    } | null;
+    if (corpo && corpo.ok === false) {
+      return {
+        ok: false,
+        motivo:
+          corpo.motivo === 'mensagem_nao_encontrada'
+            ? 'mensagem_nao_encontrada'
+            : 'recusado',
+      };
+    }
+    return { ok: true };
   }
 }
