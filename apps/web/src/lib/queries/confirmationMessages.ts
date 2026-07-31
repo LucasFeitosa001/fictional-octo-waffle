@@ -30,6 +30,14 @@ export type ConfirmationLogStatus =
 
 export interface ConfirmationLog {
   id: string;
+  /**
+   * Qual dos três avisos do agendamento é esta linha. Antes o log só trazia
+   * confirmação; cancelamento e lembrete não apareciam em lugar nenhum da tela,
+   * nem quando eram recusados. Ver estudo 82.
+   */
+  kind: 'confirmation' | 'cancellation' | 'reminder' | null;
+  /** O backend diz quando faz sentido oferecer "Reenviar" (só o que não saiu). */
+  podeReenviar: boolean;
   phone: string;
   text: string;
   status: ConfirmationLogStatus;
@@ -90,6 +98,26 @@ export function useAppointmentConfirmation(
       ),
     enabled: enabled && Boolean(appointmentId),
     refetchInterval: enabled ? 5_000 : false,
+  });
+}
+
+/**
+ * Reenvia um aviso que não saiu — decisão MANUAL de uma pessoa. Não existe
+ * reenvio automático ao reconectar de propósito: é o incidente que a trava 1
+ * previne. Ver estudo 82.
+ */
+export function useResendAppointmentMessage(appointmentId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { messageId: string; requestKey: string }) =>
+      api.post<SendConfirmationResult>(
+        `/appointments/${appointmentId}/messages/${body.messageId}/resend`,
+        { authorize: true, requestKey: body.requestKey },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: confirmationKey(appointmentId) });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    },
   });
 }
 

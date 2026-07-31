@@ -398,6 +398,71 @@ export class AppointmentsService {
     return queued;
   }
 
+  /**
+   * Reenvia, por decisão de uma PESSOA, um aviso que não saiu.
+   *
+   * Existe por causa do estudo 82: a trava 1 recusa automação com o WhatsApp
+   * desconectado (e faz bem — é o que impede a rajada no reconnect), mas até
+   * então a recusa sumia e não havia como recuperar o aviso depois que a
+   * conexão voltava. Reenviar é MANUAL de propósito: automático no reconnect é
+   * exatamente o incidente que a trava previne.
+   */
+  async reenviarMensagem(
+    companyId: string,
+    appointmentId: string,
+    messageId: string,
+    requestKey: string | undefined,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      appointmentId,
+      scopeProfessionalId,
+    );
+    const linha = await this.prisma.client.whatsappOutbox.findFirst({
+      // companyId e appointmentId no WHERE, não só o id: o id sozinho deixaria
+      // reenviar mensagem de outro salão passando o identificador certo.
+      where: { id: messageId, companyId, appointmentId },
+      select: { id: true, text: true, kind: true, toPhone: true, status: true },
+    });
+    if (!linha) {
+      throw new NotFoundException('Mensagem não encontrada neste agendamento.');
+    }
+    if (!['failed', 'expired'].includes(linha.status)) {
+      throw new ConflictException(
+        linha.status === 'pending'
+          ? 'Esta mensagem ainda está na fila. Aguarde o envio.'
+          : 'Esta mensagem já foi enviada.',
+      );
+    }
+    const customer = appointment.customer;
+    if (
+      customer?.notificationsEnabled === false ||
+      customer?.whatsappOptIn === false
+    ) {
+      throw new BadRequestException(
+        'A cliente optou por não receber mensagens no WhatsApp.',
+      );
+    }
+
+    const queued = await this.whatsapp.enqueueText(linha.toPhone, linha.text, {
+      companyId,
+      customerId: appointment.customerId ?? undefined,
+      appointmentId,
+      kind: linha.kind ?? undefined,
+      requestKey,
+      // Uma pessoa clicou "Reenviar": isenta da trava 1 e da revalidação de
+      // automação na entrega, igual ao "Enviar confirmação" (estudo 60).
+      authorized: true,
+    });
+    if (!queued) {
+      throw new BadRequestException(
+        'Não foi possível reenviar: o telefone da cliente é inválido para o WhatsApp.',
+      );
+    }
+    return queued;
+  }
+
   private async loadConfirmationAppointment(
     companyId: string,
     id: string,
@@ -441,11 +506,20 @@ export class AppointmentsService {
 
   private async confirmationLogs(companyId: string, appointmentId: string) {
     const rows = await this.prisma.client.whatsappOutbox.findMany({
-      where: { companyId, appointmentId, kind: 'confirmation' },
+      // Os TRÊS avisos do agendamento, não só a confirmação. Filtrar por
+      // 'confirmation' escondia justamente o caso que o dono foi cobrar: o
+      // cancelamento recusado pela trava 1 não aparecia em lugar nenhum da
+      // tela. Ver estudo 82.
+      where: {
+        companyId,
+        appointmentId,
+        kind: { in: ['confirmation', 'cancellation', 'reminder'] },
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: {
         id: true,
+        kind: true,
         toPhone: true,
         text: true,
         status: true,
@@ -465,11 +539,14 @@ export class AppointmentsService {
     });
     return rows.map((row) => ({
       id: row.id,
+      kind: row.kind,
       phone: row.toPhone,
       text: row.text,
       status: row.inboxMessage?.status ?? row.status,
       attempts: row.attempts,
       error: row.lastError,
+      // A tela decide se oferece "Reenviar": só faz sentido no que não saiu.
+      podeReenviar: row.status === 'failed' || row.status === 'expired',
       createdAt: row.createdAt,
       sentAt: row.inboxMessage?.sentAt ?? row.sentAt,
       deliveredAt: row.inboxMessage?.deliveredAt ?? null,

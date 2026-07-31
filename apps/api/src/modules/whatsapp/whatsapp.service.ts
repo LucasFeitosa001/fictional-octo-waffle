@@ -807,6 +807,61 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * companyId não têm por onde sair e são deixadas pendentes (nenhum socket as
    * reivindica) — todas as chamadas relevantes já passam companyId.
    */
+  /**
+   * Grava a mensagem que a trava 1 recusou, já em estado terminal, para que a
+   * recusa apareça no histórico em vez de sumir. Ver estudo 82.
+   *
+   * Nunca entra na fila: `status: 'failed'` não é buscado pelo remetente. Sem
+   * `companyId` não há onde pendurar a linha (nem tela que a mostre), então aí
+   * só resta o warn — é o caso de envio avulso sem empresa.
+   */
+  private async registrarRecusa(
+    toPhone: string,
+    text: string,
+    recipientJid: string | null | undefined,
+    motivo: string | undefined,
+    ctx?: { companyId?: string; customerId?: string; appointmentId?: string; kind?: string },
+  ): Promise<void> {
+    const companyId = ctx?.companyId;
+    if (!companyId) return;
+    try {
+      // Automação repetida (o poller tenta de novo a cada tick) viraria uma
+      // lista de lixo idêntica. Uma recusa por mensagem dentro da mesma janela
+      // já usada para duplicatas.
+      const jaRegistrada = await this.prisma.client.whatsappOutbox.findFirst({
+        where: {
+          companyId,
+          toPhone,
+          text,
+          status: 'failed',
+          kind: ctx?.kind ?? null,
+          appointmentId: ctx?.appointmentId ?? null,
+          createdAt: { gte: new Date(Date.now() - OUTBOX_DEDUP_WINDOW_MS) },
+        },
+        select: { id: true },
+      });
+      if (jaRegistrada) return;
+      await this.prisma.client.whatsappOutbox.create({
+        data: {
+          companyId,
+          customerId: ctx?.customerId,
+          appointmentId: ctx?.appointmentId,
+          kind: ctx?.kind,
+          toPhone,
+          toJid: recipientJid,
+          text,
+          status: 'failed',
+          attempts: 0,
+          lastError: motivo ?? 'Recusada antes da fila',
+        },
+      });
+    } catch (err) {
+      // Registrar a recusa não pode derrubar quem chamou: o envio já não ia
+      // acontecer de qualquer jeito.
+      this.logger.error(`Outbox: falha ao registrar a recusa — ${(err as Error).message}`);
+    }
+  }
+
   async enqueueText(
     phone: string,
     text: string,
@@ -862,6 +917,16 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(
         `Outbox: ${ctx?.kind} para ${toPhone} NÃO enfileirada (company=${companyId ?? 'sem-company'}) — ${entrada.motivo}.`,
       );
+      // A recusa não pode sumir. Antes daqui saía só este warn e um `return
+      // null`: sem linha, sem status, sem histórico — o dono cancelou dois
+      // agendamentos, nada chegou, e não havia nada na tela que explicasse. O
+      // CLAUDE.md exige status honesto (na fila/enviado/entregue/lido/falhou), e
+      // "sumiu" não é um deles. Estudo 82.
+      //
+      // A linha nasce TERMINAL: o remetente só busca `status: 'pending'` com
+      // `nextAttemptAt` vencido, então `failed` é invisível para ele e o
+      // comportamento anti-rajada continua idêntico. Muda só o rastro.
+      await this.registrarRecusa(toPhone, text, recipientJid, entrada.motivo, ctx);
       return null;
     }
 

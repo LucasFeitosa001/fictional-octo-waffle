@@ -135,6 +135,23 @@ export class UpdateAppointmentDto {
  * obrigatório: autenticação/permissão identificam QUEM pode agir, mas este campo
  * registra que aquela chamada autorizou especificamente este agendamento.
  */
+/**
+ * Reenvio manual de um aviso que não saiu. Mesmo contrato do envio de
+ * confirmação: uma pessoa autoriza explicitamente, e a requestKey torna o retry
+ * HTTP idempotente (não cria uma segunda mensagem). Ver estudo 82.
+ */
+export class ResendAppointmentMessageDto {
+  @Equals(true, {
+    message: 'Confirme explicitamente o reenvio desta mensagem.',
+  })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+}
+
 export class SendAppointmentConfirmationDto {
   @Equals(true, {
     message:

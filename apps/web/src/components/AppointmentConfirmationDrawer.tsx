@@ -7,6 +7,7 @@ import {
   renderConfirmationPreview,
   useAppointmentConfirmation,
   useSaveConfirmationTemplates,
+  useResendAppointmentMessage,
   useSendAppointmentConfirmation,
   type ConfirmationLog,
   type ConfirmationLogStatus,
@@ -15,6 +16,12 @@ import { apiErrorMessage } from '../lib/toast';
 import { formatPhone } from '../lib/format';
 
 type ConfirmationTab = 'message' | 'logs';
+
+const KIND_LABEL: Record<string, string> = {
+  confirmation: 'Confirmação',
+  cancellation: 'Cancelamento',
+  reminder: 'Lembrete',
+};
 
 interface AppointmentConfirmationDrawerProps {
   appointmentId: string | null;
@@ -108,6 +115,7 @@ export function AppointmentConfirmationDrawer({
 }: AppointmentConfirmationDrawerProps) {
   const setupQuery = useAppointmentConfirmation(appointmentId, isOpen);
   const sendMutation = useSendAppointmentConfirmation(appointmentId);
+  const resendMutation = useResendAppointmentMessage(appointmentId);
   const saveTemplates = useSaveConfirmationTemplates(appointmentId);
   const [tab, setTab] = useState<ConfirmationTab>(initialTab);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -121,6 +129,29 @@ export function AppointmentConfirmationDrawer({
     tone: 'success' | 'danger' | 'warning';
     message: string;
   } | null>(null);
+
+  // Qual linha está reenviando — sem isto, todos os botões da lista viram
+  // "Reenviando…" ao mesmo tempo.
+  const [reenviando, setReenviando] = useState<string | null>(null);
+
+  async function reenviarLinha(log: ConfirmationLog) {
+    setReenviando(log.id);
+    setFeedback(null);
+    try {
+      await resendMutation.mutateAsync({
+        messageId: log.id,
+        requestKey: crypto.randomUUID(),
+      });
+      setFeedback({
+        tone: 'success',
+        message: 'Mensagem colocada na fila. Acompanhe o estado aqui.',
+      });
+    } catch (err) {
+      setFeedback({ tone: 'danger', message: apiErrorMessage(err) });
+    } finally {
+      setReenviando(null);
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
@@ -519,11 +550,21 @@ export function AppointmentConfirmationDrawer({
               return (
                 <li key={log.id} className="flex flex-col gap-2 py-4 first:pt-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${meta.className}`}
-                    >
-                      {meta.label}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${meta.className}`}
+                      >
+                        {meta.label}
+                      </span>
+                      {/* Qual dos três avisos é esta linha. A lista deixou de
+                          ser só de confirmação (estudo 82), então sem o rótulo
+                          não dá para saber o que falhou. */}
+                      {log.kind && (
+                        <span className="rounded-full bg-canvas px-2.5 py-1 text-xs font-medium text-muted-ink">
+                          {KIND_LABEL[log.kind] ?? log.kind}
+                        </span>
+                      )}
+                    </div>
                     <time className="text-xs text-muted-ink">
                       {logTimestamp(log)}
                     </time>
@@ -534,6 +575,21 @@ export function AppointmentConfirmationDrawer({
                   </p>
                   {log.error && (
                     <p className="text-xs text-danger">{log.error}</p>
+                  )}
+                  {/* Reenvio é MANUAL: a trava recusa automação com o WhatsApp
+                      fora do ar justamente para não drenar tudo de uma vez
+                      quando ele volta. Quem decide é quem está olhando a tela. */}
+                  {log.podeReenviar && canSendConfirmation && (
+                    <div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        isDisabled={reenviando !== null}
+                        onPress={() => void reenviarLinha(log)}
+                      >
+                        {reenviando === log.id ? 'Reenviando…' : 'Reenviar'}
+                      </Button>
+                    </div>
                   )}
                   <details>
                     <summary className="cursor-pointer text-xs font-semibold text-primary">

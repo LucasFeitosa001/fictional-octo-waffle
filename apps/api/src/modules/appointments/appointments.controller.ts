@@ -17,6 +17,7 @@ import {
   StatusDto,
   SuggestDto,
   BlockTimeDto,
+  ResendAppointmentMessageDto,
   SendAppointmentConfirmationDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
@@ -136,6 +137,26 @@ export class AppointmentsController {
   ) {
     const scope = await this.professionalScope(companyId, userId);
     return this.service.sendConfirmation(companyId, id, dto, scope);
+  }
+
+  /** Reenvia um aviso que não saiu (ex.: recusado com o WhatsApp fora do ar). */
+  @Post('appointments/:id/messages/:messageId/resend')
+  @RequirePermission('agenda:manage')
+  async resendMessage(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: ResendAppointmentMessageDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.reenviarMensagem(
+      companyId,
+      id,
+      messageId,
+      dto.requestKey,
+      scope,
+    );
   }
 
   @Post('appointments')
