@@ -210,7 +210,8 @@ export class VoltrService {
   /** Encaminha para o inbox da Voltr uma mensagem da conversa — nos dois sentidos. */
   async encaminharInbound(msg: {
     companyId: string;
-    fromDigits: string;
+    /** JID do CONTATO (o outro lado da conversa), não de quem escreveu. */
+    contatoJid: string;
     text: string;
     externalId?: string;
     nomeCliente?: string;
@@ -231,7 +232,7 @@ export class VoltrService {
       },
       body: JSON.stringify({
         canal: 'whatsapp',
-        externalUserId: `${msg.fromDigits}@s.whatsapp.net`,
+        externalUserId: msg.contatoJid,
         texto: msg.text,
         // Os DOIS sentidos. Descartar o que o salão manda deixava o inbox da
         // Voltr com meia conversa — só a fala do cliente. Copiar para lá uma

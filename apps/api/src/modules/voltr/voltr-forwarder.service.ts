@@ -119,10 +119,24 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
         this.lembrarEncaminhada(msg.companyId, msg.messageId);
       }
 
+      // A conversa é identificada pelo CONTATO, e o contato é o `remoteJid` — em
+      // conversa 1:1 ele é sempre o outro lado, venha a mensagem de quem vier.
+      // Usar `fromDigits` quebrava nas conversas @lid: para mensagem MINHA o
+      // telefone vem vazio (whatsappParticipantIdentity só resolve o PN quando
+      // !fromMe), e a Voltr abria uma conversa nova com a chave "@s.whatsapp.net"
+      // — um chat fantasma só com o que o salão mandou.
+      const jidDoContato = msg.remoteJid?.endsWith('@s.whatsapp.net')
+        ? msg.remoteJid
+        : msg.fromDigits
+          ? `${msg.fromDigits}@s.whatsapp.net`
+          : null;
+      // Sem saber de quem é a conversa, não se inventa uma.
+      if (!jidDoContato) return;
+
       void this.voltr
         .encaminharInbound({
           companyId: msg.companyId,
-          fromDigits: msg.fromDigits,
+          contatoJid: jidDoContato,
           text: texto,
           externalId: msg.messageId,
           nomeCliente: msg.pushName,
