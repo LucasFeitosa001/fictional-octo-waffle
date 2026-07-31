@@ -426,6 +426,18 @@ export function AppointmentConfirmationDrawer({
           </button>
           <button
             type="button"
+            onClick={() => setTab('followup')}
+            className={[
+              'min-h-10 rounded-lg px-3 text-sm font-semibold transition-colors',
+              tab === 'followup'
+                ? 'bg-white text-foreground shadow-sm'
+                : 'text-muted-ink',
+            ].join(' ')}
+          >
+            Acompanhamento
+          </button>
+          <button
+            type="button"
             onClick={() => setTab('logs')}
             className={[
               'min-h-10 rounded-lg px-3 text-sm font-semibold transition-colors',
