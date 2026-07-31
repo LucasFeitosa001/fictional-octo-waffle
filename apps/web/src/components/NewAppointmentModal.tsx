@@ -183,6 +183,20 @@ function UserGlyph() {
   );
 }
 
+/**
+ * Instante de início a partir do dia e do horário escolhido.
+ *
+ * `slotStart` chega em DOIS formatos: o ISO completo que a grade devolve
+ * (appointments.service.ts:1300 monta `new Date(slotStart).toISOString()`) ou o
+ * `HH:MM` do padrão. Concatenar cegamente `${date}T${slotStart}:00` produzia
+ * `2026-08-01T2026-08-01T12:00:00.000Z:00` — Invalid Date — e a formatação da
+ * prévia derrubava a tela inteira ao clicar num horário. Ver estudo 79.
+ */
+function instanteDoSlot(date: string, slotStart: string | null): Date {
+  if (slotStart && slotStart.includes('T')) return new Date(slotStart);
+  return new Date(`${date}T${slotStart || '09:00'}:00`);
+}
+
 export function NewAppointmentModal({
   isOpen,
   onOpenChange,
@@ -380,7 +394,7 @@ export function NewAppointmentModal({
         servicos: items
           .map((it) => services.data?.data?.find((s) => s.id === it.serviceId)?.name)
           .filter((n): n is string => Boolean(n)),
-        inicio: new Date(`${date}T${slotStart || '09:00'}:00`),
+        inicio: instanteDoSlot(date, slotStart),
       }),
     [
       empresa.data?.name,

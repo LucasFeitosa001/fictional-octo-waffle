@@ -189,6 +189,31 @@ export function variaveisDoAgendamento(dados: {
     const ler = (t: string) => Number(p.find((x) => x.type === t)?.value ?? '0');
     return Date.UTC(ler('year'), ler('month') - 1, ler('day'));
   };
+  // Data inválida não pode tirar a tela do ar. `formatToParts` lança RangeError
+  // com Invalid Date, e esta função roda dentro de um useMemo — ou seja, DURANTE
+  // o render, onde a exceção sobe até o boundary de rota e troca tudo por "Algo
+  // deu errado". Texto de pré-visualização não tem esse direito. Estudo 79.
+  if (Number.isNaN(dados.inicio.getTime())) {
+    // Só o que depende da data fica vazio; nome, serviço e profissional seguem
+    // aparecendo. Linha com variável vazia some na renderização, então a prévia
+    // encolhe em vez de mentir um horário.
+    const nomes = dados.servicos.map((n) => n.trim()).filter(Boolean);
+    return {
+      cliente: dados.cliente?.trim().split(/\s+/)[0] || 'cliente',
+      quando: '',
+      hora: '',
+      hora_curta: '',
+      servico:
+        nomes.length === 0
+          ? 'seu atendimento'
+          : nomes.length === 1
+            ? nomes[0]
+            : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}`,
+      profissional: dados.profissional?.trim() || 'nossa equipe',
+      estabelecimento: dados.estabelecimento.trim() || 'salão',
+      motivo: '',
+    };
+  }
   const dias = Math.round((diaLocal(dados.inicio) - diaLocal(agora)) / 86_400_000);
   const quando =
     dias === 0
