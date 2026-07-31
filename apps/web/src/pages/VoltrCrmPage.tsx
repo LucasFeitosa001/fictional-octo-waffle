@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PageHeader } from '../components/PageHeader';
 import { ErrorState, LoadingState } from '../components/States';
 import { api } from '../lib/api';
 import { apiErrorMessage } from '../lib/toast';
@@ -82,26 +81,27 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' }) {
 
   const titulo = scope === 'chat' ? 'Atendimento (Voltr)' : 'CRM (Voltr)';
 
+  // Tela cheia de verdade: sem max-width, sem padding e sem moldura de cartão.
+  // A rota está na lista de full-bleed do DashboardLayout, então aqui não sobra
+  // nenhuma margem do painel — o iframe ocupa a área inteira.
   return (
-    <div className="mx-auto flex h-full max-w-6xl flex-col">
-      <PageHeader
-        title={titulo}
-        subtitle="Conversas e clientes na plataforma Voltr, dentro do painel."
-      />
+    <div className="flex h-full min-h-0 w-full flex-col">
       {carregando ? (
-        <LoadingState label="Abrindo a Voltr…" />
-      ) : erro ? (
-        <ErrorState message={erro} onRetry={() => void buscarToken()} />
-      ) : src ? (
-        <div className="mt-3 min-h-[70vh] flex-1 overflow-hidden rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
-          <iframe
-            ref={iframeRef}
-            src={src}
-            title={titulo}
-            className="h-full min-h-[70vh] w-full border-0"
-            allow="clipboard-write; microphone"
-          />
+        <div className="grid flex-1 place-items-center">
+          <LoadingState label="Abrindo a Voltr…" />
         </div>
+      ) : erro ? (
+        <div className="grid flex-1 place-items-center p-6">
+          <ErrorState message={erro} onRetry={() => void buscarToken()} />
+        </div>
+      ) : src ? (
+        <iframe
+          ref={iframeRef}
+          src={src}
+          title={titulo}
+          className="h-full min-h-0 w-full flex-1 border-0"
+          allow="clipboard-write; microphone"
+        />
       ) : null}
     </div>
   );

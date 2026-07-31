@@ -128,14 +128,30 @@ const NAVIGATION: NavEntry[] = [
     perm: 'config:manage',
   },
   {
-    kind: 'link',
+    // O embed da Voltr é "bare" de propósito: o iframe entrega só o miolo, sem
+    // navegação por dentro. Quem oferece a troca Atendimento ↔ CRM somos nós —
+    // sem estes dois itens a rota /voltr-chat existe e ninguém alcança.
+    kind: 'group',
     key: 'voltr',
-    to: '/voltr-crm',
-    label: 'Voltr CRM',
+    title: 'Voltr',
     icon: IconMessage,
-    badge: 'novo',
-    feature: 'whatsapp_api',
-    perm: 'marketing:view',
+    items: [
+      {
+        to: '/voltr-chat',
+        label: 'Atendimento',
+        icon: IconMessage,
+        badge: 'novo',
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+      {
+        to: '/voltr-crm',
+        label: 'CRM',
+        icon: IconUsers,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+    ],
   },
   {
     kind: 'group',

@@ -24,7 +24,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   // Full-bleed pages manage their own height + scroll (no page padding,
   // no max-width, no main scroll). The agenda is one big internal scroller.
-  const fullBleed = pathname === '/agenda';
+  // As telas da Voltr entram aqui porque são um iframe: qualquer padding ou
+  // max-width do painel vira faixa vazia em volta do CRM do parceiro.
+  const fullBleed =
+    pathname === '/agenda' ||
+    pathname === '/voltr-crm' ||
+    pathname === '/voltr-chat';
 
   return (
     <PageActionsProvider>
