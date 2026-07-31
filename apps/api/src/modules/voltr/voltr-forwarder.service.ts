@@ -83,6 +83,17 @@ interface ReciboPendente {
 
 @Injectable()
 export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
+  /**
+   * Último telefone conhecido de cada chat (`remoteJid` → dígitos).
+   *
+   * Só a ENTRADA traz o telefone em conversa @lid; a saída vem sem. Guardar o
+   * que a entrada resolveu é o que mantém os dois lados na mesma conversa.
+   * Memória do processo: se reiniciar antes de qualquer entrada daquele chat, a
+   * saída fica sem chave e é descartada — melhor perder uma linha do que
+   * espalhar a conversa em duas.
+   */
+  private readonly telefonePorChat = new Map<string, string>();
+
   private readonly logger = new Logger(VoltrForwarderService.name);
   private cancelarInbound: (() => void) | null = null;
   private cancelarAck: (() => void) | null = null;
@@ -125,10 +136,24 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
       // telefone vem vazio (whatsappParticipantIdentity só resolve o PN quando
       // !fromMe), e a Voltr abria uma conversa nova com a chave "@s.whatsapp.net"
       // — um chat fantasma só com o que o salão mandou.
-      const jidDoContato = msg.remoteJid?.endsWith('@s.whatsapp.net')
-        ? msg.remoteJid
-        : msg.fromDigits
-          ? `${msg.fromDigits}@s.whatsapp.net`
+      // Em conversa @lid o WhatsApp entrega o telefone só na ENTRADA: medido na
+      // produção do dono, 31 mensagens de entrada com telefone e 42 de saída
+      // SEM. Por isso a entrada caía na conversa certa e a saída abria um chat
+      // fantasma com a chave vazia "@s.whatsapp.net".
+      //
+      // A saída herda o telefone que a entrada daquele mesmo chat já resolveu.
+      // Usar o próprio @lid como chave também uniria os dois lados, mas numa
+      // TERCEIRA conversa — as que já existem estão gravadas pelo telefone.
+      if (msg.remoteJid && msg.fromDigits) {
+        this.telefonePorChat.set(msg.remoteJid, msg.fromDigits);
+      }
+      const digitos =
+        msg.fromDigits ||
+        (msg.remoteJid ? (this.telefonePorChat.get(msg.remoteJid) ?? '') : '');
+      const jidDoContato = digitos
+        ? `${digitos}@s.whatsapp.net`
+        : msg.remoteJid?.endsWith('@s.whatsapp.net')
+          ? msg.remoteJid
           : null;
       // Sem saber de quem é a conversa, não se inventa uma.
       if (!jidDoContato) return;
