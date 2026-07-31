@@ -1,0 +1,1598 @@
+{
+ "servicos": [
+  {
+   "id": "cmrr2e9ha00630hyi3pkimfyu",
+   "name": "CAMUFLAGEM"
+  },
+  {
+   "id": "cmrr2ebuu006l0hyibhrch0de",
+   "name": "COLORAÇAO"
+  },
+  {
+   "id": "cmrr2ec4l006n0hyirkoq5bip",
+   "name": "COLORAÇÃO CLIENTE"
+  },
+  {
+   "id": "cmrr2ecea006p0hyixuxmhvwh",
+   "name": "COLORACAO DO CLIENTE"
+  },
+  {
+   "id": "cmrr2ecnx006r0hyijurejvl4",
+   "name": "COMISSAO DE MECHAS"
+  },
+  {
+   "id": "cmrr2ej2t00810hyivdmtlokc",
+   "name": "CONTORNO DE MECHAS (A PARTIR DE R$300,00)"
+  },
+  {
+   "id": "cmrr2eke0008b0hyio82kss2l",
+   "name": "CORTE"
+  },
+  {
+   "id": "cmrr2dohz00290hyiyz1er4bq",
+   "name": "AVALIAÇÃO"
+  },
+  {
+   "id": "cmrr2dkwl001l0hyikxjrwlap",
+   "name": "ADIANTAMENTO DE SELAGEM"
+  },
+  {
+   "id": "cmrr2dl66001n0hyi4ta80crc",
+   "name": "ADIANTAMENTO MECHAS"
+  },
+  {
+   "id": "cmrr2dlpf001r0hyi3ul4iyu5",
+   "name": "ADIANTAMENTO PENTEADO"
+  },
+  {
+   "id": "cmrr2dlz0001t0hyi2fb6x25s",
+   "name": "ADIANTAMENTO UNHAS"
+  },
+  {
+   "id": "cmrr2dm8k001v0hyi51ikw7nc",
+   "name": "ALISAMENTO {A PARTIR DE 200$}"
+  },
+  {
+   "id": "cmrr2dmi7001x0hyi19chqenb",
+   "name": "ALONGAMENTO MOLD F1"
+  },
+  {
+   "id": "cmrr2dnu400250hyiaewjwv5h",
+   "name": "APLICACO DE PRODUTO"
+  },
+  {
+   "id": "cmrr2dorl002b0hyijk1eehga",
+   "name": "BABYLISS"
+  },
+  {
+   "id": "cmrr2dp16002d0hyieq40moc5",
+   "name": "BANHO DE BRILHO"
+  },
+  {
+   "id": "cmrr2dpas002f0hyipfz4lhze",
+   "name": "BANHO EM GEL"
+  },
+  {
+   "id": "cmrr2dpu3002j0hyiqs6ym1pt",
+   "name": "BLED DE OLEOS"
+  },
+  {
+   "id": "cmrr2dq3o002l0hyi5vb3uyyj",
+   "name": "BLOND DE PROTEINAS"
+  },
+  {
+   "id": "cmrr2dyqh004b0hyi6htijxxv",
+   "name": "BOTOX"
+  },
+  {
+   "id": "cmrr2eox000990hyifa12q3er",
+   "name": "CUTILAGEM"
+  },
+  {
+   "id": "cmrr2epyn009h0hyintpfsx70",
+   "name": "DEPILACAO PERNAS"
+  },
+  {
+   "id": "cmrr2eq81009j0hyin48jlpel",
+   "name": "DEPILACO AXILAS"
+  },
+  {
+   "id": "cmrr2eqvh009n0hyi8xjq0a65",
+   "name": "ESCOVA (A PARTIR DE R$ 45,00)"
+  },
+  {
+   "id": "cmrr2ere8009r0hyibikhzkdv",
+   "name": "ESMALTACAO - MAO"
+  },
+  {
+   "id": "cmrr2ernk009t0hyivctjfwng",
+   "name": "ESMALTACAO - PE"
+  },
+  {
+   "id": "cmrr2erx0009v0hyi2gvpqb46",
+   "name": "ESMATACAO EM GEL"
+  },
+  {
+   "id": "cmrr2esyk00a30hyikv7uvwpc",
+   "name": "FINALIZACAO DE CACHOS"
+  },
+  {
+   "id": "cmrr2eu1l00ab0hyi07b2sff2",
+   "name": "FORA DO SISTEMA"
+  },
+  {
+   "id": "cmrr2ev3f00aj0hyinlprimiq",
+   "name": "HIDRA-BLED DE VITAMINAS"
+  },
+  {
+   "id": "cmrr2evcr00al0hyit0wxdm1s",
+   "name": "HIDRATAÇAO"
+  },
+  {
+   "id": "cmrr2f0qa00b90hyisz2p7c8z",
+   "name": "LAVADO ESPECIAL"
+  },
+  {
+   "id": "cmrr2f0zq00bb0hyim37qdbkz",
+   "name": "LAVADO SIMPLES"
+  },
+  {
+   "id": "cmrr2f7t100cp0hyib88rhhfi",
+   "name": "MANUTENCAO MOLD F1"
+  },
+  {
+   "id": "cmrr2fhwj00et0hyiev8qm7n2",
+   "name": "MATIZAÇAO"
+  },
+  {
+   "id": "cmrr2fiff00ex0hyijixkildv",
+   "name": "MECHAS (A PARTIR DE R$500,00)"
+  },
+  {
+   "id": "cmrr2flps00fl0hyir7ip953m",
+   "name": "NAILS ARTAS ENCAPSULADA {O PAR}"
+  },
+  {
+   "id": "cmrr2fmmn00fr0hyiyvrzj192",
+   "name": "NUTRIÇAO"
+  },
+  {
+   "id": "cmrr2fse900gj0hyi2whrpfq5",
+   "name": "PACOTE DE TRATAMENTO"
+  },
+  {
+   "id": "cmrr2ft6g00gp0hyio55n54ol",
+   "name": "PENTEADOS (A PARTIR DE R$40,00)"
+  },
+  {
+   "id": "cmrr2ftzg00gv0hyi8wl2vlyc",
+   "name": "PLASTICA DOS PES"
+  },
+  {
+   "id": "cmrr2fuiq00gz0hyi5tukyvuy",
+   "name": "PRANCHA"
+  },
+  {
+   "id": "cmrr2fvbq00h50hyi2fc3r1sb",
+   "name": "RECONSTRUÇAO"
+  },
+  {
+   "id": "cmrr2fw5600hb0hyimzmjwuik",
+   "name": "REMOÇAO DE ESMALTAÇAO EM GEL"
+  },
+  {
+   "id": "cmrr2fxif00hl0hyivszyewaf",
+   "name": "REPOSIÇAO DE MASSA"
+  },
+  {
+   "id": "cmrr2fxsg00hn0hyiqflie8z0",
+   "name": "REPOSIÇAO POR UNHA"
+  },
+  {
+   "id": "cmrr2fy2i00hp0hyiz1r5ftj6",
+   "name": "RETOQUE COLORACAO"
+  },
+  {
+   "id": "cmrr2fztc00i10hyiz9bmvj05",
+   "name": "SELAGEM"
+  },
+  {
+   "id": "cmrr2gdf300kt0hyia7nm4lco",
+   "name": "SOBRANCELHA COM HENNA"
+  },
+  {
+   "id": "cmrr2ge2g00kx0hyiurh8jfp8",
+   "name": "SPA DOS PES"
+  },
+  {
+   "id": "cmrr2ghpg00l90hyinyx8ekcp",
+   "name": "TONALIZAÇAO"
+  },
+  {
+   "id": "cmrr2gj0c00lj0hyiqrhbsy9g",
+   "name": "TRATAMENTO"
+  },
+  {
+   "id": "cmrr2glcm00m10hyiyxr2avvn",
+   "name": "UNHA COMPLETA"
+  },
+  {
+   "id": "cmrr2gllz00m30hyi22j6hgft",
+   "name": "UNHAS - MAOS"
+  },
+  {
+   "id": "cmrr2glvd00m50hyiw375b9ph",
+   "name": "UNHAS - PES"
+  },
+  {
+   "id": "cmrr2dkia001j0hyio3ngtah6",
+   "name": "ADIANTAMENTO DE MAKE"
+  },
+  {
+   "id": "cmrr2dznr004h0hyi8kmmfo59",
+   "name": "BUÇO"
+  },
+  {
+   "id": "cmrr2f82t00cr0hyi1b7o2hnk",
+   "name": "MAQUIAGEM"
+  },
+  {
+   "id": "cmrr2gd5q00kr0hyi4orhhpc2",
+   "name": "SOBRANCELHA"
+  },
+  {
+   "id": "cmrr2dlfr001p0hyigfv5bzw5",
+   "name": "ADIANTAMENTO MORENO ILUMINADO"
+  },
+  {
+   "id": "cmrr2ejuz00870hyi2k1mekpf",
+   "name": "CORREÇAO DE MECHAS"
+  },
+  {
+   "id": "cmrr2fksk00ff0hyi79gh94er",
+   "name": "MORENO ILUMINADO"
+  },
+  {
+   "id": "cmrr2gj9p00ll0hyibvg0n1js",
+   "name": "TRATAMENTO + ESCOVA"
+  },
+  {
+   "id": "cmrr2epp9009f0hyi3wqq7tif",
+   "name": "DEPILACAO CONTORNO"
+  }
+ ],
+ "produtos": [
+  {
+   "id": "cmrr2dtdy00370hyi1e09s146",
+   "name": "BLUSA MANGA CURTA"
+  },
+  {
+   "id": "cmrr2djc3001f0hyi93odzxdu",
+   "name": "6D DEFRIZZ"
+  },
+  {
+   "id": "cmrr2djzg001h0hyi713dcg8u",
+   "name": "ACIDIFICANTE"
+  },
+  {
+   "id": "cmrr2dmrt001z0hyip9s6zu4x",
+   "name": "AMPOLA BANHO DE OURO 24ML"
+  },
+  {
+   "id": "cmrr2dn6600210hyip5ahnmsi",
+   "name": "AMPOLA BRAE"
+  },
+  {
+   "id": "cmrr2dnfu00230hyi44ijl3b1",
+   "name": "AMPOLA SEMI D LINO"
+  },
+  {
+   "id": "cmrr2do8f00270hyiijw9s897",
+   "name": "ATIVADOR DE CACHOS"
+  },
+  {
+   "id": "cmrr2dpkf002h0hyitzn8oz0w",
+   "name": "BB CREAM"
+  },
+  {
+   "id": "cmrr2dqdd002n0hyid79v1wge",
+   "name": "BLUSA BICOLOR"
+  },
+  {
+   "id": "cmrr2dqmz002p0hyixgb167ec",
+   "name": "BLUSA CANELADA"
+  },
+  {
+   "id": "cmrr2drai002r0hyi9gga9lhc",
+   "name": "BLUSA CLÉA"
+  },
+  {
+   "id": "cmrr2drk0002t0hyi66tru62r",
+   "name": "BLUSA COLETE"
+  },
+  {
+   "id": "cmrr2drte002v0hyi7fziov6a",
+   "name": "BLUSA DE ALÇA ASSIMETRICA RENDA"
+  },
+  {
+   "id": "cmrr2ds2s002x0hyiif16yftr",
+   "name": "BLUSA ELASTICO"
+  },
+  {
+   "id": "cmrr2dsc7002z0hyig4shg60s",
+   "name": "BLUSA ERICA"
+  },
+  {
+   "id": "cmrr2dslm00310hyip2xhq82a",
+   "name": "BLUSA FRENTE UNICA DAIANA"
+  },
+  {
+   "id": "cmrr2dsv000330hyiiour8byn",
+   "name": "BLUSA ISABEL"
+  },
+  {
+   "id": "cmrr2dt4i00350hyipj3t23lq",
+   "name": "BLUSA JULIA"
+  },
+  {
+   "id": "cmrr2dtnc00390hyikqw453vf",
+   "name": "BLUSA MARGOT"
+  },
+  {
+   "id": "cmrr2dtwq003b0hyis0eoi3in",
+   "name": "BLUSA MARIA FLOR"
+  },
+  {
+   "id": "cmrr2du63003d0hyi71vj98zb",
+   "name": "BLUSA MIRIAN"
+  },
+  {
+   "id": "cmrr2dufj003f0hyivs8n5183",
+   "name": "BLUSA NAELY"
+  },
+  {
+   "id": "cmrr2duox003h0hyipdxv8x8n",
+   "name": "BLUSA REGATA"
+  },
+  {
+   "id": "cmrr2duyb003j0hyi74jlscic",
+   "name": "BLUSA RENDA B/P"
+  },
+  {
+   "id": "cmrr2dv7s003l0hyiv48rc3h2",
+   "name": "BLUSA SELENA"
+  },
+  {
+   "id": "cmrr2dvh5003n0hyik7qpdy8e",
+   "name": "BLUSA VANESSA"
+  },
+  {
+   "id": "cmrr2dvqk003p0hyitwwef295",
+   "name": "BLUSA VIENA"
+  },
+  {
+   "id": "cmrr2dvzx003r0hyipnlfleg3",
+   "name": "BLUSA ZARA"
+  },
+  {
+   "id": "cmrr2dw9b003t0hyirfvklnxz",
+   "name": "BLUSA ZOE DE 1 OBRO"
+  },
+  {
+   "id": "cmrr2dwip003v0hyirf6ywfzj",
+   "name": "BODY CLAIRE"
+  },
+  {
+   "id": "cmrr2dws7003x0hyil27vqjui",
+   "name": "BODY DOMINIQUE"
+  },
+  {
+   "id": "cmrr2gel400l10hyipp7v79t5",
+   "name": "SUNDAE"
+  },
+  {
+   "id": "cmrr2dx1j003z0hyifwgachp9",
+   "name": "BODY ELLEN"
+  },
+  {
+   "id": "cmrr2dxax00410hyip5nopn3y",
+   "name": "BODY IRIS"
+  },
+  {
+   "id": "cmrr2dxk900430hyiz05loafx",
+   "name": "BODY JADY"
+  },
+  {
+   "id": "cmrr2dxya00450hyihdzmhw2b",
+   "name": "BODY MAIÕ"
+  },
+  {
+   "id": "cmrr2dy7n00470hyiuw9jcvya",
+   "name": "BODY MARY"
+  },
+  {
+   "id": "cmrr2dyh200490hyiukhwxdjz",
+   "name": "BODY RENDA B/P"
+  },
+  {
+   "id": "cmrr2dyzz004d0hyild10er8p",
+   "name": "BOTOX BLOND"
+  },
+  {
+   "id": "cmrr2dz9g004f0hyisx5ibv69",
+   "name": "BRIGADEIRO"
+  },
+  {
+   "id": "cmrr2dzx4004j0hyi9aq8sfar",
+   "name": "BYE FRIZZ"
+  },
+  {
+   "id": "cmrr2e06k004l0hyiq329fsbu",
+   "name": "CAÇA CINDI OFF CARGO"
+  },
+  {
+   "id": "cmrr2e0g0004n0hyi711213qr",
+   "name": "CALÇA BARREL"
+  },
+  {
+   "id": "cmrr2e0pf004p0hyi16nhzrhj",
+   "name": "CALÇA DANDARA"
+  },
+  {
+   "id": "cmrr2e0yu004r0hyif3lb9nre",
+   "name": "CALÇA FRANCINE"
+  },
+  {
+   "id": "cmrr2e188004t0hyigpwbhn3e",
+   "name": "CALÇA FRIDA"
+  },
+  {
+   "id": "cmrr2e1hl004v0hyisa9b0gfe",
+   "name": "CALÇA JANAINA"
+  },
+  {
+   "id": "cmrr2e1r0004x0hyiurzuogtd",
+   "name": "CALÇA JOYCE"
+  },
+  {
+   "id": "cmrr2e20e004z0hyimqf0m03p",
+   "name": "CALÇA LEONA"
+  },
+  {
+   "id": "cmrr2e29t00510hyimo56jxil",
+   "name": "CALÇA MARIANA"
+  },
+  {
+   "id": "cmrr2e2jb00530hyifthko5cz",
+   "name": "CALÇA MELISSA"
+  },
+  {
+   "id": "cmrr2e2st00550hyi1n2kn55l",
+   "name": "CALÇA MON"
+  },
+  {
+   "id": "cmrr2e32800570hyi1ncezs9v",
+   "name": "CALÇA NAMIÊ"
+  },
+  {
+   "id": "cmrr2e3bm00590hyib7ikwjyh",
+   "name": "CALÇA SARA"
+  },
+  {
+   "id": "cmrr2e3l2005b0hyinw674n6m",
+   "name": "CALÇA SOCIAL C/ CINTO"
+  },
+  {
+   "id": "cmrr2e3uf005d0hyi6vn4tlb4",
+   "name": "CALÇA SOCIAL SEM CINTO"
+  },
+  {
+   "id": "cmrr2e43u005f0hyi9r24rdxw",
+   "name": "CALÇA TATA"
+  },
+  {
+   "id": "cmrr2e4hu005h0hyiszp29349",
+   "name": "CALÇA THATI"
+  },
+  {
+   "id": "cmrr2e4r8005j0hyip7bemkgd",
+   "name": "CALÇA WIDE LEG C/ CINTO"
+  },
+  {
+   "id": "cmrr2e50l005l0hyi947esx5k",
+   "name": "CALÇA WIDE LEG GRAFITE"
+  },
+  {
+   "id": "cmrr2e59y005n0hyi9rgs74wk",
+   "name": "CALÇA WIDE LEG INSPIRAÇÃO"
+  },
+  {
+   "id": "cmrr2e5jd005p0hyivyjw814j",
+   "name": "CALÇA WIDE LEG PRETA"
+  },
+  {
+   "id": "cmrr2e5su005r0hyi5s7bpqp3",
+   "name": "CAMISA MANGA LONGA FRANZIDA"
+  },
+  {
+   "id": "cmrr2e627005t0hyixvjl33dk",
+   "name": "CAMISA MG LONGA COST ABERT C/ ELASTICO"
+  },
+  {
+   "id": "cmrr2e6bl005v0hyi8dzkziv5",
+   "name": "CAMISA MG LONGA GOLA ALTA"
+  },
+  {
+   "id": "cmrr2e6l1005x0hyiassznigt",
+   "name": "CAMISA S CROPPED LAÇO GOLA"
+  },
+  {
+   "id": "cmrr2e8yj005z0hyi4ludivop",
+   "name": "CAMISA S CROPPED MANGA CURTA"
+  },
+  {
+   "id": "cmrr2e97w00610hyifappez89",
+   "name": "CAMISÃO MG LONGA GOLA ALTA"
+  },
+  {
+   "id": "cmrr2e9qv00650hyi2lko987d",
+   "name": "CHEESECAKE C/ DOCE DE LEITE"
+  },
+  {
+   "id": "cmrr2ea0900670hyihvzlbfzn",
+   "name": "CHOCOLATE BRANCO C/ MORANGO"
+  },
+  {
+   "id": "cmrr2ea9v00690hyilcixt0cl",
+   "name": "COCO QUEIMADO"
+  },
+  {
+   "id": "cmrr2eaj8006b0hyi2katt2m9",
+   "name": "COFFEE"
+  },
+  {
+   "id": "cmrr2easp006d0hyii6ypbbkb",
+   "name": "COLETE C FAIXA"
+  },
+  {
+   "id": "cmrr2eb27006f0hyidthr0kma",
+   "name": "COLETE GOLA PADRE"
+  },
+  {
+   "id": "cmrr2ebbm006h0hyikmcuv7mg",
+   "name": "COLETE LARA"
+  },
+  {
+   "id": "cmrr2ebl4006j0hyii9nom8w3",
+   "name": "COLETE MARIANA LINHO TIRINHA"
+  },
+  {
+   "id": "cmrr2ecxn006t0hyiwnee1t9p",
+   "name": "CONDICIONADOR CONTROL REPAIR"
+  },
+  {
+   "id": "cmrr2ed7i006v0hyi3vabtz5l",
+   "name": "CONDICIONADOR GINKGO BILOBA"
+  },
+  {
+   "id": "cmrr2edh5006x0hyiz0pn9od9",
+   "name": "CONDICIONADOR MEN' S CARE"
+  },
+  {
+   "id": "cmrr2edqv006z0hyin5tbujhh",
+   "name": "CONDICIONADOR OJON"
+  },
+  {
+   "id": "cmrr2ee0p00710hyixh23balj",
+   "name": "CONDICIONADOR OLORCHEE 300ML"
+  },
+  {
+   "id": "cmrr2eea900730hyi0n7m6g7p",
+   "name": "CONDICIONADOR OMEGA COMPLEX NUTRITIVO"
+  },
+  {
+   "id": "cmrr2eekd00750hyib3cw5d34",
+   "name": "CONDICIONADOR PROTEIN FUSION"
+  },
+  {
+   "id": "cmrr2egkf007j0hyim554ljds",
+   "name": "CONJUNTO IOHANNA"
+  },
+  {
+   "id": "cmrr2egu2007l0hyixsa9f1d3",
+   "name": "CONJUNTO JULIA"
+  },
+  {
+   "id": "cmrr2eh3q007n0hyi8t1qoha6",
+   "name": "CONJUNTO LAIS"
+  },
+  {
+   "id": "cmrr2ehdb007p0hyixuugrz6f",
+   "name": "CONJUNTO PRISCILA"
+  },
+  {
+   "id": "cmrr2ehmw007r0hyitvtcpslp",
+   "name": "CONJUNTO SANDRA"
+  },
+  {
+   "id": "cmrr2ehwb007t0hyi7r6fym18",
+   "name": "CONJUNTO TRICÔ FINO"
+  },
+  {
+   "id": "cmrr2ei5t007v0hyiu8bw2tuo",
+   "name": "CONJUNTO VIOLA"
+  },
+  {
+   "id": "cmrr2eijx007x0hyi6mo21n94",
+   "name": "CONJUNTO VIRNA"
+  },
+  {
+   "id": "cmrr2eitg007z0hyix3ptcyni",
+   "name": "CONJUTO MIA"
+  },
+  {
+   "id": "cmrr2ejc700830hyi92p69ouq",
+   "name": "COPAO"
+  },
+  {
+   "id": "cmrr2eknn008d0hyiu90cdlxe",
+   "name": "CRONO HAIR"
+  },
+  {
+   "id": "cmrr2ekx1008f0hyija0k8qr1",
+   "name": "CROPPED  COSTAS NUAS"
+  },
+  {
+   "id": "cmrr2eeyq00770hyi4ezravyl",
+   "name": "CONDICIONADOR PROTEINAS DO LEITE"
+  },
+  {
+   "id": "cmrr2ef8b00790hyipt7owiez",
+   "name": "CONDICIONADOR QUERATINA"
+  },
+  {
+   "id": "cmrr2efhw007b0hyika6dcwkj",
+   "name": "CONDICIONADOR REPOSICAO DE CARBONO"
+  },
+  {
+   "id": "cmrr2efri007d0hyih1wes7x7",
+   "name": "CONDICIONADOR TUTANO+CAVIAR"
+  },
+  {
+   "id": "cmrr2eg13007f0hyih35bvfiu",
+   "name": "CONJUNTO ANA"
+  },
+  {
+   "id": "cmrr2egav007h0hyip482pfim",
+   "name": "CONJUNTO DE CALÇA"
+  },
+  {
+   "id": "cmrr2ejll00850hyi2e0xghzu",
+   "name": "COPO"
+  },
+  {
+   "id": "cmrr2ek4d00890hyinq2tsz0a",
+   "name": "CORSET CETIM BIANCA"
+  },
+  {
+   "id": "cmrr2el6f008h0hyi0mwbwizb",
+   "name": "CROPPED AMARRAÇÃO"
+  },
+  {
+   "id": "cmrr2elfu008j0hyih3m58i2y",
+   "name": "CROPPED ANGELA"
+  },
+  {
+   "id": "cmrr2elpc008l0hyiogli91pk",
+   "name": "CROPPED DUDA"
+  },
+  {
+   "id": "cmrr2elyt008n0hyiejw1q9it",
+   "name": "CROPPED FITNESSR"
+  },
+  {
+   "id": "cmrr2em8a008p0hyilwvyb7xp",
+   "name": "CROPPED IVYNA"
+  },
+  {
+   "id": "cmrr2emhp008r0hyiwlr1k7fn",
+   "name": "CROPPED MANGA CURTA"
+  },
+  {
+   "id": "cmrr2emr1008t0hyi1z7zdbwp",
+   "name": "CROPPED MANGA LONGA"
+  },
+  {
+   "id": "cmrr2en0e008v0hyiqaqouyep",
+   "name": "CROPPED MARESIA CORTININHA"
+  },
+  {
+   "id": "cmrr2ena3008x0hyi9idn31tq",
+   "name": "CROPPED MARI"
+  },
+  {
+   "id": "cmrr2enk3008z0hyirupujzjs",
+   "name": "CROPPED PEPLUM"
+  },
+  {
+   "id": "cmrr2entn00910hyitktj6cxm",
+   "name": "CROPPED RAQUEL"
+  },
+  {
+   "id": "cmrr2eo4q00930hyispr27sjg",
+   "name": "CROPPED TRICÔ COM ALÇA"
+  },
+  {
+   "id": "cmrr2eoe500950hyit3zhxurv",
+   "name": "CROPPED TRICO LAÇO"
+  },
+  {
+   "id": "cmrr2eonk00970hyi4oafqxtx",
+   "name": "CROPPED TRICÔ LISTRA MANU"
+  },
+  {
+   "id": "cmrr2ep6f009b0hyi31vaclcn",
+   "name": "DAILY CARE"
+  },
+  {
+   "id": "cmrr2epfu009d0hyia8k7fwc5",
+   "name": "DELICIA DE ABACAXI"
+  },
+  {
+   "id": "cmrr2eqhf009l0hyi0h7p9fhj",
+   "name": "DUAL MASK HIDRA 3"
+  },
+  {
+   "id": "cmrr2er4u009p0hyipdwrxd90",
+   "name": "ESCOVA DE CABELO"
+  },
+  {
+   "id": "cmrr2es6d009x0hyi7i3vdamz",
+   "name": "ESPECIAL BRIGADEIRO"
+  },
+  {
+   "id": "cmrr2esfr009z0hyimv34t59q",
+   "name": "ESPECIAL CHOCOLATE BRANCO"
+  },
+  {
+   "id": "cmrr2esp500a10hyiaa6pzbz6",
+   "name": "FERRERO ROCHER"
+  },
+  {
+   "id": "cmrr2et7x00a50hyi2bfchvh7",
+   "name": "FLUIDO BRAE"
+  },
+  {
+   "id": "cmrr2ethi00a70hyiohlcq8tj",
+   "name": "FLUIDO OLENKA"
+  },
+  {
+   "id": "cmrr2ets500a90hyisfpgjm9z",
+   "name": "FLUIDO PROTETOR SOL, MAR, PISCINA"
+  },
+  {
+   "id": "cmrr2eub200ad0hyiuojl5ht1",
+   "name": "FRUTA MARACUJA"
+  },
+  {
+   "id": "cmrr2euki00af0hyijmlxv21d",
+   "name": "GELATINA CACHOS"
+  },
+  {
+   "id": "cmrr2eutv00ah0hyir5kha3iz",
+   "name": "HAIR BRUSHING"
+  },
+  {
+   "id": "cmrr2evm500an0hyiaepdzgiv",
+   "name": "HIDRATANTE CONDICIONANTE SOL, MAL, PISCINA"
+  },
+  {
+   "id": "cmrr2ew0400ap0hyiwzqor938",
+   "name": "KIDS D´LEITE"
+  },
+  {
+   "id": "cmrr2ew9j00ar0hyit9fjc9tb",
+   "name": "KIT ANEETHUN POS QUIMICA"
+  },
+  {
+   "id": "cmrr2ewiv00at0hyimym4937n",
+   "name": "KIT BANHO 12 OLEOS"
+  },
+  {
+   "id": "cmrr2ews900av0hyi181kxunc",
+   "name": "KIT BLOND PROTECT"
+  },
+  {
+   "id": "cmrr2ex1m00ax0hyipbsb7gp6",
+   "name": "kIT HIDRATACAO INTENSA"
+  },
+  {
+   "id": "cmrr2exaz00az0hyiald5m2tz",
+   "name": "KIT NUTRICAO"
+  },
+  {
+   "id": "cmrr2exke00b10hyix15nx0dq",
+   "name": "KIT OLEOSIDADE"
+  },
+  {
+   "id": "cmrr2ezy200b30hyisn4n1q2s",
+   "name": "KIT ROYAL LOOK"
+  },
+  {
+   "id": "cmrr2f07h00b50hyile0x1v4k",
+   "name": "KIT SELFCARE LOIRO"
+  },
+  {
+   "id": "cmrr2f0gw00b70hyivmk0ke7b",
+   "name": "KIT SELFCARE REGENERACAO"
+  },
+  {
+   "id": "cmrr2f19400bd0hyicde7dt1k",
+   "name": "LEAVE-IN CONTROL REPAIR"
+  },
+  {
+   "id": "cmrr2f1ih00bf0hyi7lwubme7",
+   "name": "LEAVE-IN GINKGO BILOBA"
+  },
+  {
+   "id": "cmrr2f1s200bh0hyitfnsjt2w",
+   "name": "LEAVE-IN HIDRA REVIT"
+  },
+  {
+   "id": "cmrr2f21i00bj0hyi6c5uken3",
+   "name": "LEAVE-IN JOJOBA E ANDIROBA"
+  },
+  {
+   "id": "cmrr2f2aw00bl0hyihxexwng8",
+   "name": "LEAVE-IN LUNATICA"
+  },
+  {
+   "id": "cmrr2f2kk00bn0hyi5wrtqeu8",
+   "name": "LEAVE-IN MINERALS VITAMIN DETOX"
+  },
+  {
+   "id": "cmrr2f2u700bp0hyi96on95yq",
+   "name": "LEAVE-IN OJON"
+  },
+  {
+   "id": "cmrr2f33u00br0hyihzt2bdo9",
+   "name": "LEAVE-IN OMEGA COMPLEX NUTRITIVO"
+  },
+  {
+   "id": "cmrr2f3dh00bt0hyidr7xipcm",
+   "name": "LEAVE-IN POS PROGRESSIVA"
+  },
+  {
+   "id": "cmrr2f3n200bv0hyi9iq21gfg",
+   "name": "LEAVE-IN PRIME SOLUTION"
+  },
+  {
+   "id": "cmrr2f3wo00bx0hyi4cxijaao",
+   "name": "LEAVE-IN PROTEIN FUSION"
+  },
+  {
+   "id": "cmrr2f46d00bz0hyi9suny1qv",
+   "name": "LEAVE-IN PROTEINAS DO LEITE"
+  },
+  {
+   "id": "cmrr2f4ku00c10hyin2jtqd2y",
+   "name": "LEAVE-IN QUERATINA"
+  },
+  {
+   "id": "cmrr2f4up00c30hyifexuvevg",
+   "name": "LEAVE-IN REPARADOR CAPILAR"
+  },
+  {
+   "id": "cmrr2f54j00c50hyis74d3c3e",
+   "name": "LEAVE-IN REPOSICAO DE CARBONO"
+  },
+  {
+   "id": "cmrr2geui00l30hyieg0km1s2",
+   "name": "T-SHIRT"
+  },
+  {
+   "id": "cmrr2f5ed00c70hyiw8i26dl6",
+   "name": "LEAVE-IN TUTANO+CAVIAR"
+  },
+  {
+   "id": "cmrr2f5xn00cb0hyiazxpwo4i",
+   "name": "LEAVE-IN VEGAN"
+  },
+  {
+   "id": "cmrr2f67900cd0hyitrl2o885",
+   "name": "LEITE CONDENSADO"
+  },
+  {
+   "id": "cmrr2f6gw00cf0hyiii33gcgd",
+   "name": "MACACAO LIA"
+  },
+  {
+   "id": "cmrr2f6ql00ch0hyilgxpnpmo",
+   "name": "MACACÃO MARAGOGI"
+  },
+  {
+   "id": "cmrr2f70900cj0hyilx5s2kof",
+   "name": "MACACÃO SASHA"
+  },
+  {
+   "id": "cmrr2f79u00cl0hyitgz5k2k9",
+   "name": "MACAQUINHO LUANA"
+  },
+  {
+   "id": "cmrr2f7jg00cn0hyicq0w2a0v",
+   "name": "MACAQUINHO MAITÊ CURTO"
+  },
+  {
+   "id": "cmrr2f8cg00ct0hyi2b2f3gi8",
+   "name": "MASCARA ACAI 300G"
+  },
+  {
+   "id": "cmrr2f8ly00cv0hyiwkai5oa6",
+   "name": "MASCARA BANHO DE COLAGENO"
+  },
+  {
+   "id": "cmrr2f8vg00cx0hyiiiw9c8do",
+   "name": "MASCARA BANHO DE OURO"
+  },
+  {
+   "id": "cmrr2f94z00cz0hyi67k9aptd",
+   "name": "MASCARA BLEND DE PROTEINAS 220G"
+  },
+  {
+   "id": "cmrr2f9ed00d10hyi94j4d3k4",
+   "name": "MASCARA BLEND DE PROTEINAS 500G"
+  },
+  {
+   "id": "cmrr2f9ns00d30hyi1mfz69dd",
+   "name": "MASCARA CACAU + AÇAI + MEL 250G"
+  },
+  {
+   "id": "cmrr2f5o200c90hyi3z2m5a2f",
+   "name": "LEAVE-IN UNIVERSAL ACAO 13 EM 1"
+  },
+  {
+   "id": "cmrr2fa1w00d50hyisdo8f72v",
+   "name": "MASCARA CACHOS"
+  },
+  {
+   "id": "cmrr2faba00d70hyigty22gkz",
+   "name": "MASCARA CONTROL REPAIR"
+  },
+  {
+   "id": "cmrr2fakp00d90hyims4cg73r",
+   "name": "MASCARA GINKGO BILOBA 250G"
+  },
+  {
+   "id": "cmrr2fau100db0hyi9eaqnyvp",
+   "name": "MASCARA GINKGO BILOBA 500G"
+  },
+  {
+   "id": "cmrr2fb3d00dd0hyirkbdpeph",
+   "name": "MASCARA HIDRA 3"
+  },
+  {
+   "id": "cmrr2fbcp00df0hyinzi66zx4",
+   "name": "MASCARA HIDRA REVIT"
+  },
+  {
+   "id": "cmrr2fbm200dh0hyios8svgg9",
+   "name": "MASCARA LUNATICA"
+  },
+  {
+   "id": "cmrr2fbvf00dj0hyi06z4n49y",
+   "name": "MASCARA MALINE 500G"
+  },
+  {
+   "id": "cmrr2fc4t00dl0hyi8cws0m9r",
+   "name": "MASCARA MATIZADORA"
+  },
+  {
+   "id": "cmrr2fcea00dn0hyi357qi63w",
+   "name": "MASCARA MINERALS VITAMIN DETOX 200G"
+  },
+  {
+   "id": "cmrr2fcnp00dp0hyipjhhpxqj",
+   "name": "MASCARA NEBULA LUNATICA"
+  },
+  {
+   "id": "cmrr2fcx400dr0hyiwybnerqw",
+   "name": "MASCARA OJON"
+  },
+  {
+   "id": "cmrr2fd6i00dt0hyiy98jljqu",
+   "name": "MASCARA OLORCHEE 500ML"
+  },
+  {
+   "id": "cmrr2fdfy00dv0hyig25b6qf4",
+   "name": "MASCARA OMEGA COMPLEX NUTRITIVO"
+  },
+  {
+   "id": "cmrr2fdpj00dx0hyi2zrujk9t",
+   "name": "MASCARA POS PROGRESSIVA"
+  },
+  {
+   "id": "cmrr2fdz000dz0hyivr8zfxd0",
+   "name": "MASCARA POWER FORCE NATYLLA"
+  },
+  {
+   "id": "cmrr2fe8d00e10hyibcpdse0y",
+   "name": "MASCARA PRIME SOLUTION"
+  },
+  {
+   "id": "cmrr2fehq00e30hyilyz8m0p8",
+   "name": "MASCARA PROTEIN FUSION 200G"
+  },
+  {
+   "id": "cmrr2fer900e50hyiw7aryjzc",
+   "name": "MASCARA PROTEINAS DO LEITE 500G"
+  },
+  {
+   "id": "cmrr2ff0r00e70hyiwu7r2gdp",
+   "name": "MASCARA PROTEINAS DO LEITE MIRRA 250G"
+  },
+  {
+   "id": "cmrr2ffa400e90hyixvp48qt7",
+   "name": "MASCARA QUERATINA 250G"
+  },
+  {
+   "id": "cmrr2ffjj00eb0hyixpd594e2",
+   "name": "MASCARA QUERATINA 500G"
+  },
+  {
+   "id": "cmrr2fft000ed0hyi28m9fmyz",
+   "name": "MASCARA REPOSICAO DE CARBONO"
+  },
+  {
+   "id": "cmrr2fg2e00ef0hyiuzxr7uf7",
+   "name": "MASCARA SECRETS BB HAIR"
+  },
+  {
+   "id": "cmrr2fgbt00eh0hyijwh6zhde",
+   "name": "MASCARA STELLAR LUNATICA"
+  },
+  {
+   "id": "cmrr2fgl900ej0hyi9yto8k9i",
+   "name": "MASCARA TUTANO+CAVIAR 250G"
+  },
+  {
+   "id": "cmrr2fguq00el0hyi0cbeqmog",
+   "name": "MASCARA TUTANO+CAVIAR 500G"
+  },
+  {
+   "id": "cmrr2fh4900en0hyivr4adnj7",
+   "name": "MASCARA VEGAN"
+  },
+  {
+   "id": "cmrr2fhdp00ep0hyi8qlgk5aw",
+   "name": "MASCARA WELLA 150G"
+  },
+  {
+   "id": "cmrr2fhn200er0hyi1gihiawz",
+   "name": "MASSAGEADOR CAPILAR PARA BANHO"
+  },
+  {
+   "id": "cmrr2fi6000ev0hyi3gtxyjsi",
+   "name": "MAX BLACK"
+  },
+  {
+   "id": "cmrr2fiou00ez0hyi1w98mpsn",
+   "name": "MENTA C/ CHOCOLATE"
+  },
+  {
+   "id": "cmrr2fiya00f10hyirqiltpff",
+   "name": "MILHO VERDE"
+  },
+  {
+   "id": "cmrr2fj7p00f30hyi5px3zl7y",
+   "name": "MINI COPINHO"
+  },
+  {
+   "id": "cmrr2fjh600f50hyivuq2e07g",
+   "name": "MINI KIDS BABALU"
+  },
+  {
+   "id": "cmrr2fjqk00f70hyio15qa8i7",
+   "name": "MINI KIDS UVA"
+  },
+  {
+   "id": "cmrr2fk0000f90hyiarux4m78",
+   "name": "MINI OLEO ELIXIR GOLD"
+  },
+  {
+   "id": "cmrr2fk9j00fb0hyir6ghb8p7",
+   "name": "MORANGO"
+  },
+  {
+   "id": "cmrr2fkj400fd0hyikrjynhuj",
+   "name": "MORANGO AO LEITE"
+  },
+  {
+   "id": "cmrr2fl1x00fh0hyicg9i4pt5",
+   "name": "MOUSSE DE LIMÃO"
+  },
+  {
+   "id": "cmrr2flbh00fj0hyi1scr8k0o",
+   "name": "MOUSSE DE MARACUJÁ"
+  },
+  {
+   "id": "cmrr2fm3u00fn0hyi8ttzuzsr",
+   "name": "NINHO C/ NUTELLA"
+  },
+  {
+   "id": "cmrr2fmd900fp0hyiytz4fzog",
+   "name": "NINHO C/ OREO"
+  },
+  {
+   "id": "cmrr2fmwe00ft0hyipu05rzd7",
+   "name": "NUTRIÇAO INSTANTANEA CRONO 10"
+  },
+  {
+   "id": "cmrr2fn5v00fv0hyicsnt3cah",
+   "name": "OLEO BANHO DE OURO"
+  },
+  {
+   "id": "cmrr2fnfd00fx0hyin94dql16",
+   "name": "OLEO DE COCO"
+  },
+  {
+   "id": "cmrr2fnos00fz0hyijx80m7tk",
+   "name": "OLEO EMAH (BRAE)"
+  },
+  {
+   "id": "cmrr2fnyb00g10hyirur0xz17",
+   "name": "OLEO HAPPY END"
+  },
+  {
+   "id": "cmrr2fo7u00g30hyiaf3be9hn",
+   "name": "OLEO OJON"
+  },
+  {
+   "id": "cmrr2foh900g50hyik5pa3jdr",
+   "name": "OLEO PRIME SOLUTION"
+  },
+  {
+   "id": "cmrr2fqto00g70hyi716pgxc8",
+   "name": "OLEO REPARADOR DE AÇAI"
+  },
+  {
+   "id": "cmrr2fr3400g90hyik2mx83qb",
+   "name": "OLEO WELLA 100ML"
+  },
+  {
+   "id": "cmrr2frck00gb0hyidwuolatn",
+   "name": "OLEO WELLA 30ML"
+  },
+  {
+   "id": "cmrr2frm200gd0hyisph3ljjd",
+   "name": "OURO BRANCO"
+  },
+  {
+   "id": "cmrr2frvh00gf0hyi4omv342h",
+   "name": "OVOMALTINE"
+  },
+  {
+   "id": "cmrr2fs4v00gh0hyikueur0a0",
+   "name": "PAÇOCA"
+  },
+  {
+   "id": "cmrr2fsno00gl0hyixvl6g89y",
+   "name": "PAVE"
+  },
+  {
+   "id": "cmrr2fsx200gn0hyi3st29sq7",
+   "name": "PEDACINHO DO CÉU"
+  },
+  {
+   "id": "cmrr2ftg700gr0hyiuk6mfq48",
+   "name": "PERFUME CAPILAR"
+  },
+  {
+   "id": "cmrr2ftpu00gt0hyifpdzd4u9",
+   "name": "PISTACHE C/ CHOCOLATE"
+  },
+  {
+   "id": "cmrr2fu9100gx0hyiy8up8kh0",
+   "name": "PO MODELADOR"
+  },
+  {
+   "id": "cmrr2fusg00h10hyiatlvhhnp",
+   "name": "PRESTIGIO"
+  },
+  {
+   "id": "cmrr2fvlv00h70hyilngk0a9l",
+   "name": "RECONSTRUÇAO INSTANTANEA CRONO 10"
+  },
+  {
+   "id": "cmrr2fvvl00h90hyie3tzzuap",
+   "name": "REGATA ASSIMETRICA RENDA"
+  },
+  {
+   "id": "cmrr2fweu00hd0hyi799sp20c",
+   "name": "REPARADOR CRISTALLI"
+  },
+  {
+   "id": "cmrr2fwow00hf0hyilrd3t3xl",
+   "name": "REPARADOR DE PONTAS"
+  },
+  {
+   "id": "cmrr2fwyl00hh0hyiidu31ijr",
+   "name": "REPARADOR ELIXIR"
+  },
+  {
+   "id": "cmrr2fx8o00hj0hyi7fcsdkqh",
+   "name": "REPARADOR ELIXIR LIGHT"
+  },
+  {
+   "id": "cmrr2fyci00hr0hyiexyhqb3r",
+   "name": "ROMEU E JULIETA"
+  },
+  {
+   "id": "cmrr2fym700ht0hyimd8xd2q9",
+   "name": "SAIA BALONÊ"
+  },
+  {
+   "id": "cmrr2fyvz00hv0hyigp6hq09b",
+   "name": "SAIA COM FENDA"
+  },
+  {
+   "id": "cmrr2fz5n00hx0hyifa0m11rd",
+   "name": "SAIA DE PREGA"
+  },
+  {
+   "id": "cmrr2fzf900hz0hyilalis7fq",
+   "name": "SAIA LYA"
+  },
+  {
+   "id": "cmrr2g02p00i30hyi8au7x7h1",
+   "name": "SELAGEM INSTANTANEA - CRONO 10"
+  },
+  {
+   "id": "cmrr2g0c300i50hyiwg698lwz",
+   "name": "SELAGEM MIRRA"
+  },
+  {
+   "id": "cmrr2g0lk00i70hyirwp48s0q",
+   "name": "SEMI CROPPED"
+  },
+  {
+   "id": "cmrr2g0uz00i90hyie5sikey8",
+   "name": "SERUM BRAE"
+  },
+  {
+   "id": "cmrr2g14e00ib0hyiw5dmpova",
+   "name": "SERUM N21 120ML"
+  },
+  {
+   "id": "cmrr2g1ds00id0hyihu6fjq30",
+   "name": "SERUM N21 30ML"
+  },
+  {
+   "id": "cmrr2g1n600if0hyicaizp3x9",
+   "name": "SERUM SPA NIGTH"
+  },
+  {
+   "id": "cmrr2g1wk00ih0hyi5a8xp38w",
+   "name": "SHAMPOO 1L GINKGO BILOBA"
+  },
+  {
+   "id": "cmrr2g2ak00ij0hyi2wgc43kw",
+   "name": "SHAMPOO 1L PROTEINA DO LEITE"
+  },
+  {
+   "id": "cmrr2g2k200il0hyivdwu95p0",
+   "name": "SHAMPOO CACHOS"
+  },
+  {
+   "id": "cmrr2g2to00in0hyi974thjw2",
+   "name": "SHAMPOO CONTROL REPAIR"
+  },
+  {
+   "id": "cmrr2g33900ip0hyii8qq7mo3",
+   "name": "SHAMPOO DETOX"
+  },
+  {
+   "id": "cmrr2g3cu00ir0hyihgnnem2v",
+   "name": "SHAMPOO GINKGO BILOBA"
+  },
+  {
+   "id": "cmrr2g3mb00it0hyi6b44w8kh",
+   "name": "SHAMPOO HIDRA 3"
+  },
+  {
+   "id": "cmrr2g3vv00iv0hyia9abq3jm",
+   "name": "SHAMPOO HIDRA REVIT"
+  },
+  {
+   "id": "cmrr2g45900ix0hyicdle9qmb",
+   "name": "SHAMPOO LUNATICA"
+  },
+  {
+   "id": "cmrr2g4es00iz0hyiij8rn142",
+   "name": "SHAMPOO MEN´S CARE OLENKA"
+  },
+  {
+   "id": "cmrr2g4o700j10hyindmvg2rd",
+   "name": "SHAMPOO MINERALS VITAMIN DETOX"
+  },
+  {
+   "id": "cmrr2g4xl00j30hyi8nt4pwg6",
+   "name": "SHAMPOO OJON"
+  },
+  {
+   "id": "cmrr2g56x00j50hyiv7diou8q",
+   "name": "SHAMPOO OLORCHEE 300ML"
+  },
+  {
+   "id": "cmrr2g5g900j70hyib4wf9tpb",
+   "name": "SHAMPOO OMEGA COMPLEX NUTRITIVO"
+  },
+  {
+   "id": "cmrr2g5pm00j90hyicbnt3ow7",
+   "name": "SHAMPOO POS PROGRESSIVA"
+  },
+  {
+   "id": "cmrr2g5z200jb0hyibwcld565",
+   "name": "SHAMPOO POWER FORCE"
+  },
+  {
+   "id": "cmrr2g68f00jd0hyixxc4y9vo",
+   "name": "SHAMPOO PRIME SOLUTION"
+  },
+  {
+   "id": "cmrr2g6hs00jf0hyivtqpirut",
+   "name": "SHAMPOO PROTEIN FUSION"
+  },
+  {
+   "id": "cmrr2g6r400jh0hyigp816ap3",
+   "name": "SHAMPOO PROTEINAS DO LEITE"
+  },
+  {
+   "id": "cmrr2g70h00jj0hyiwospsrmr",
+   "name": "SHAMPOO QUERATINA"
+  },
+  {
+   "id": "cmrr2g79u00jl0hyixm63kv46",
+   "name": "SHAMPOO REGENERAÇAO"
+  },
+  {
+   "id": "cmrr2g7j800jn0hyiaitxf1fz",
+   "name": "SHAMPOO REPOSICAO DE CARBONO"
+  },
+  {
+   "id": "cmrr2g7sq00jp0hyiltwopoaa",
+   "name": "SHAMPOO TUTANO+CAVIAR"
+  },
+  {
+   "id": "cmrr2g82300jr0hyi4xx0ef1s",
+   "name": "SHAMPOO VEGAN"
+  },
+  {
+   "id": "cmrr2g8bg00jt0hyifzqt9w4g",
+   "name": "SHAMPOO WELLA"
+  },
+  {
+   "id": "cmrr2g8kt00jv0hyiftmrk39g",
+   "name": "SHORT BARRA"
+  },
+  {
+   "id": "cmrr2g8u500jx0hyirqvi2528",
+   "name": "SHORT BERMUDA"
+  },
+  {
+   "id": "cmrr2g93m00jz0hyid1yqt8c9",
+   "name": "SHORT C/ RENDA BAIANA"
+  },
+  {
+   "id": "cmrr2g9d000k10hyi52gc7ve3",
+   "name": "SHORT HOT PANT"
+  },
+  {
+   "id": "cmrr2ga0e00k30hyiv9exm3gm",
+   "name": "SHORT HOT PANT FLOR"
+  },
+  {
+   "id": "cmrr2ga9r00k50hyi7vjsy9jz",
+   "name": "SHORT HOT PANT ILHABELA"
+  },
+  {
+   "id": "cmrr2gaj700k70hyigylz4wcm",
+   "name": "SHORT HOT PANT PEDRINHAS"
+  },
+  {
+   "id": "cmrr2gask00k90hyix8k248fr",
+   "name": "SHORT IPANEMA"
+  },
+  {
+   "id": "cmrr2gb1x00kb0hyin1dsomv2",
+   "name": "SHORT Jorts Pipa"
+  },
+  {
+   "id": "cmrr2gbba00kd0hyiv4cgkqdn",
+   "name": "SHORT RITA"
+  },
+  {
+   "id": "cmrr2gbkn00kf0hyiyoomotpe",
+   "name": "SHORT SAIA BEATRICE"
+  },
+  {
+   "id": "cmrr2gbu200kh0hyit17o71cp",
+   "name": "SHORT SAIA FRESH ANNY"
+  },
+  {
+   "id": "cmrr2gc3o00kj0hyif9gotqpd",
+   "name": "SHORT SOCIAL BELLE"
+  },
+  {
+   "id": "cmrr2gcd100kl0hyiqt7imvya",
+   "name": "SHORT VERA"
+  },
+  {
+   "id": "cmrr2gcmf00kn0hyiu0k85fah",
+   "name": "SHORTS BRILHO"
+  },
+  {
+   "id": "cmrr2gcvx00kp0hyiicfkfugj",
+   "name": "SHORTS HOT PANT BONDI"
+  },
+  {
+   "id": "cmrr2gdog00kv0hyiuj1anj30",
+   "name": "SOFTHAIR NATYLLA"
+  },
+  {
+   "id": "cmrr2gebs00kz0hyimid3nyud",
+   "name": "SPRAY BIFASICO"
+  },
+  {
+   "id": "cmrr2gf3v00l50hyi1bojm94l",
+   "name": "TIME LISS"
+  },
+  {
+   "id": "cmrr2gfd800l70hyi4gav74vb",
+   "name": "TOCA CETIM"
+  },
+  {
+   "id": "cmrr2ghyt00lb0hyiiijrof3x",
+   "name": "TONICO FORÇA, CRESCIMENTO & RESISTENCIA"
+  },
+  {
+   "id": "cmrr2gi8600ld0hyiap4j68a0",
+   "name": "TONICO POWER FORCE"
+  },
+  {
+   "id": "cmrr2gihk00lf0hyiz0krbt1w",
+   "name": "TOP TOMARA Q CAIA"
+  },
+  {
+   "id": "cmrr2gir000lh0hyi37ad7p0u",
+   "name": "TOP TUBE"
+  },
+  {
+   "id": "cmrr2gjj400ln0hyih1sqay8b",
+   "name": "TRUFA DE MARACUJA"
+  },
+  {
+   "id": "cmrr2gjsh00lp0hyixsqzxj1c",
+   "name": "TSHIRT CELIA"
+  },
+  {
+   "id": "cmrr2gk1t00lr0hyie94fwus4",
+   "name": "TSHIRT CROPPED OVERSIZED"
+  },
+  {
+   "id": "cmrr2gkb500lt0hyiymxfs0zu",
+   "name": "TSHIRT ESTAMPADA"
+  },
+  {
+   "id": "cmrr2gkki00lv0hyinf1hy074",
+   "name": "TSHIRT VERÃO"
+  },
+  {
+   "id": "cmrr2gktw00lx0hyi4wlq28ey",
+   "name": "TSHIRT ZARA"
+  },
+  {
+   "id": "cmrr2gl3a00lz0hyiv29yaorv",
+   "name": "UMIDIFICADOR CACHOS"
+  },
+  {
+   "id": "cmrr2gm4r00m70hyiwirtc1z5",
+   "name": "VESTIDO AMÁLIA"
+  },
+  {
+   "id": "cmrr2gme300m90hyikalspdhv",
+   "name": "VESTIDO BRISA"
+  },
+  {
+   "id": "cmrr2gmni00mb0hyi8fj18pas",
+   "name": "VESTIDO C ZIPER"
+  },
+  {
+   "id": "cmrr2gmwy00md0hyifsbkff60",
+   "name": "VESTIDO CELINE"
+  },
+  {
+   "id": "cmrr2gn6b00mf0hyipvjta4vr",
+   "name": "VESTIDO CLARA"
+  },
+  {
+   "id": "cmrr2gng000mh0hyi786g3rsa",
+   "name": "VESTIDO CURTO"
+  },
+  {
+   "id": "cmrr2gnq600mj0hyih7u3qoq4",
+   "name": "VESTIDO DUKE"
+  },
+  {
+   "id": "cmrr2gnzo00ml0hyinby71zip",
+   "name": "VESTIDO ESTHER"
+  },
+  {
+   "id": "cmrr2go9000mn0hyi4dtk0xql",
+   "name": "VESTIDO IBIZA"
+  },
+  {
+   "id": "cmrr2goid00mp0hyisc7jmkts",
+   "name": "VESTIDO JERI"
+  },
+  {
+   "id": "cmrr2gorp00mr0hyi5ufxgzdr",
+   "name": "VESTIDO LONGO"
+  },
+  {
+   "id": "cmrr2gp1200mt0hyit0yq36oy",
+   "name": "VESTIDO MALLORCA"
+  },
+  {
+   "id": "cmrr2gpae00mv0hyifd5czm0h",
+   "name": "VESTIDO MANDY CINZA"
+  },
+  {
+   "id": "cmrr2gpjt00mx0hyig6wd8o8z",
+   "name": "VESTIDO MIDI POLIAMIDE"
+  },
+  {
+   "id": "cmrr2gpta00mz0hyi8v394j7g",
+   "name": "VESTIDO OLÍVIA"
+  },
+  {
+   "id": "cmrr2gq2n00n10hyifv18ygue",
+   "name": "VESTIDO PARIPUEIRA"
+  },
+  {
+   "id": "cmrr2gqbz00n30hyiisydtddf",
+   "name": "VESTIDO PATRÍCIA"
+  },
+  {
+   "id": "cmrr2gqlc00n50hyi1zma5teg",
+   "name": "VESTIDO SANCHO"
+  },
+  {
+   "id": "cmrr2gqut00n70hyiee871c7t",
+   "name": "VESTIDO SANNY"
+  },
+  {
+   "id": "cmrr2gr4700n90hyi90lde8c6",
+   "name": "VESTIDO SIESTA ANIMAL PRINT"
+  },
+  {
+   "id": "cmrr2grdj00nb0hyihvs3rw4e",
+   "name": "VESTIDO TAI CANELADO"
+  },
+  {
+   "id": "cmrr2grmx00nd0hyip3clh3h3",
+   "name": "VESTIDO TAINÁ LISTRADO"
+  },
+  {
+   "id": "cmrr2gs0v00nf0hyik8i00c0e",
+   "name": "VESTIDO TRANCOSO"
+  },
+  {
+   "id": "cmrr2gseu00nh0hyigr6om77v",
+   "name": "WIDE LEG"
+  },
+  {
+   "id": "cmrr2fv2300h30hyiid0mv7kt",
+   "name": "PUDIM"
+  }
+ ]
+}

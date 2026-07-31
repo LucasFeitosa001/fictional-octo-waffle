@@ -24,6 +24,15 @@ packages/db/src/generated/
 .env
 .env.local
 .env.*.local
+# backups de .env feitos à mão — carregam JWT_SECRET e a senha do banco
+.env.bak*
+.env.bak-*
+*.env.backup-*
+apps/api/.secrets/
+
+# Fila de WhatsApp salva para diagnóstico: tem telefone e texto de mensagem de
+# cliente real. Fica no disco para investigar, nunca no repositório.
+belasis-reference/_backup-fila-*/
 
 # misc
 .DS_Store
