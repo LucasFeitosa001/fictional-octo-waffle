@@ -85,7 +85,13 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' }) {
   // A rota está na lista de full-bleed do DashboardLayout, então aqui não sobra
   // nenhuma margem do painel — o iframe ocupa a área inteira.
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
+    // O fundo é o MESMO tom do app da Voltr desde o primeiro quadro. Sem isso o
+    // refresh piscava entre três brancos: o splash, o canvas do painel e o fundo
+    // da Voltr — o iframe só entra depois de dois saltos de rede. Ver estudo 71.
+    <div
+      className="flex h-full min-h-0 w-full flex-col"
+      style={{ background: '#f4f8f8' }}
+    >
       {carregando ? (
         <div className="grid flex-1 place-items-center">
           <LoadingState label="Abrindo a Voltr…" />

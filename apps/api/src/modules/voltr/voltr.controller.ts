@@ -37,7 +37,14 @@ export class VoltrController {
     @CurrentUser('email') email: string,
     @Query('scope') scope?: string,
   ): Promise<VoltrEmbedTokenResponse> {
-    const scopes: VoltrScope[] = scope === 'chat' ? ['chat'] : ['crm'];
+    // Os DOIS escopos, sempre. O `scope` da query decide qual tela abre (é ele
+    // que monta o embedUrl), não o que o token alcança: dentro do CRM, abrir a
+    // conversa de um contato é fluxo legítimo e precisa de `chat` — com um
+    // escopo só isso devolvia "este token de embed não tem o escopo". A trava
+    // que importa não é esta: o módulo pago continua sendo conferido por escopo
+    // do lado da Voltr, então tenant sem `atendimento` segue sem chat.
+    // Ver estudo 71.
+    const scopes: VoltrScope[] = ['chat', 'crm'];
     const nome = await this.voltr.resolveDisplayName(userId, email);
     return this.voltr.getEmbedToken(
       { companyId, externalUserId: userId, email, nome },
