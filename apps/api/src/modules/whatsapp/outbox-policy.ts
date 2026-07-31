@@ -148,6 +148,13 @@ export function autorizacaoAindaVale(input: {
     if (agendamento === null) {
       return { ok: false, motivo: 'Agendamento não existe mais' };
     }
+    // Sem agendamento para conferir, NÃO sai. Antes este caso escorregava para
+    // baixo e caía no padrão da conta, pulando as três travas seguintes — foi
+    // assim que lembrete de horário já passado saiu quando a conexão voltou.
+    // Aviso automático que não dá para verificar não é enviado. Estudo 73.
+    if (agendamento === undefined) {
+      return { ok: false, motivo: 'Não deu para verificar o agendamento' };
+    }
     if (agendamento) {
       if (agendamento.status === 'canceled' && kind !== 'cancellation') {
         return { ok: false, motivo: 'Agendamento foi cancelado depois' };

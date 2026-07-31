@@ -240,4 +240,43 @@ describe('Travas de envio do WhatsApp (estudo 60)', () => {
       true,
     );
   });
+
+  it('18) automação SEM agendamento verificável não sai, nem com o padrão da conta ligado', () => {
+    // O buraco do estudo 73: `undefined` (linha sem appointmentId) escorregava
+    // para o padrão da conta e pulava a trava do "horário já passou".
+    const tudoLigado = {
+      reminder: true,
+      cancellation: true,
+      confirmation: true,
+      followUp: true,
+    };
+    for (const kind of ['confirmation', 'cancellation', 'reminder'] as const) {
+      const d = autorizacaoAindaVale({
+        kind,
+        agendamento: undefined,
+        automacao: tudoLigado,
+      });
+      assert.equal(d.ok, false, `${kind} não pode sair sem agendamento conferível`);
+      assert.match(d.motivo ?? '', /verificar o agendamento/);
+    }
+  });
+
+  it('19) followup e campanha seguem valendo — não têm agendamento por natureza', () => {
+    const automacao = {
+      reminder: false,
+      cancellation: false,
+      confirmation: false,
+      followUp: true,
+    };
+    assert.equal(
+      autorizacaoAindaVale({ kind: 'followup', agendamento: undefined, automacao }).ok,
+      true,
+      'followup depende do próprio switch, não de agendamento',
+    );
+    assert.equal(
+      autorizacaoAindaVale({ kind: 'campaign', agendamento: undefined, automacao }).ok,
+      true,
+      'campanha é disparo explícito do salão',
+    );
+  });
 });
