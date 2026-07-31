@@ -1,0 +1,6 @@
+-- Desfaz a reativação dos 49 clientes da Fátima Cabelos feita em 31/07/2026.
+-- Eles vieram da importação belasis-xls marcados como inativos e por isso não
+-- apareciam ao criar comanda — mas todos os 49 têm comanda, ou seja, são
+-- clientes reais. Os ids estão em inativos.csv, coluna 1.
+-- Para reverter, rode com a lista de ids daquele arquivo:
+--   update "Customer" set active=false where id in (...);
