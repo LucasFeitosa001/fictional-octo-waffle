@@ -23,8 +23,9 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     this.cancelar = this.whatsapp.addInboundHandler((msg) => {
-      // Mensagem que o próprio salão mandou não é "entrada" do cliente.
-      if (msg.fromMe) return;
+      // Os dois sentidos vão. Antes o que o salão mandava era descartado aqui, e
+      // o inbox da Voltr ficava com meia conversa — só a fala do cliente, que foi
+      // o que o dono viu. Ver estudo 78.
       const texto = msg.text?.trim();
       if (!texto) return;
       void this.voltr
@@ -34,6 +35,7 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
           text: texto,
           externalId: msg.messageId,
           nomeCliente: msg.pushName,
+          doSalao: msg.fromMe,
         })
         .catch((err: Error) => {
           this.logger.warn(

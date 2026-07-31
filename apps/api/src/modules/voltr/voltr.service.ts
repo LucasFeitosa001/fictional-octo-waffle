@@ -187,13 +187,15 @@ export class VoltrService {
     };
   }
 
-  /** Encaminha uma mensagem recebida no Baileys para o inbox da Voltr. */
+  /** Encaminha para o inbox da Voltr uma mensagem da conversa — nos dois sentidos. */
   async encaminharInbound(msg: {
     companyId: string;
     fromDigits: string;
     text: string;
     externalId?: string;
     nomeCliente?: string;
+    /** true quando foi o salão que escreveu (msg.fromMe). Ver estudo 78. */
+    doSalao?: boolean;
   }): Promise<void> {
     const token = resolveIngestToken(msg.companyId, this.config);
     const schema = resolveTenantSchema(msg.companyId, this.config);
@@ -211,8 +213,12 @@ export class VoltrService {
         canal: 'whatsapp',
         externalUserId: `${msg.fromDigits}@s.whatsapp.net`,
         texto: msg.text,
-        direcao: 'entrada',
-        autor: 'cliente',
+        // Os DOIS sentidos. Descartar o que o salão manda deixava o inbox da
+        // Voltr com meia conversa — só a fala do cliente. Copiar para lá uma
+        // mensagem que JÁ foi enviada pelo WhatsApp não dispara nada; a via de
+        // saída (a Voltr mandando pela nossa fila) segue desligada. Estudo 78.
+        direcao: msg.doSalao ? 'saida' : 'entrada',
+        autor: msg.doSalao ? 'humano' : 'cliente',
         ...(msg.externalId ? { externalId: msg.externalId } : {}),
         ...(msg.nomeCliente ? { nomeCliente: msg.nomeCliente } : {}),
         ts: new Date().toISOString(),
