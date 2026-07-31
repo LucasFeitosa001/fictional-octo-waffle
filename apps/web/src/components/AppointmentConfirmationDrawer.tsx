@@ -9,13 +9,21 @@ import {
   useSaveConfirmationTemplates,
   useResendAppointmentMessage,
   useSendAppointmentConfirmation,
+  useSendAppointmentFollowUp,
   type ConfirmationLog,
   type ConfirmationLogStatus,
 } from '../lib/queries/confirmationMessages';
 import { apiErrorMessage } from '../lib/toast';
 import { formatPhone } from '../lib/format';
 
-type ConfirmationTab = 'message' | 'logs';
+type ConfirmationTab = 'message' | 'followup' | 'logs';
+
+const UNIDADE: Record<string, string> = {
+  seconds: 'segundos',
+  minutes: 'minutos',
+  hours: 'horas',
+  days: 'dias',
+};
 
 const KIND_LABEL: Record<string, string> = {
   confirmation: 'Confirmação',
@@ -130,6 +138,40 @@ export function AppointmentConfirmationDrawer({
     message: string;
   } | null>(null);
 
+  // ── Acompanhamento (estudo 86). Antes era só um botão que disparava direto;
+  // agora tem modelo, edição, prévia e autorização, como a confirmação.
+  const followUpMutation = useSendAppointmentFollowUp(appointmentId);
+  const [fuTemplateId, setFuTemplateId] = useState('');
+  const [fuMessage, setFuMessage] = useState('');
+  const [fuAutorizado, setFuAutorizado] = useState(false);
+
+  function escolherModeloAcompanhamento(id: string) {
+    setFuTemplateId(id);
+    const t = setupQuery.data?.followUp.templates.find((x) => x.id === id);
+    // Vazio = "usar o texto configurado na empresa": limpa o campo em vez de
+    // deixar o texto do modelo anterior fingindo que é o da config.
+    setFuMessage(t ? t.message : '');
+  }
+
+  async function enviarAcompanhamento() {
+    setFeedback(null);
+    try {
+      await followUpMutation.mutateAsync({
+        requestKey: crypto.randomUUID(),
+        templateId: fuTemplateId || undefined,
+        message: fuMessage.trim() || undefined,
+      });
+      setFuAutorizado(false);
+      setFeedback({
+        tone: 'success',
+        message: 'Acompanhamento colocado na fila. Acompanhe o estado nos Logs.',
+      });
+      setTab('logs');
+    } catch (err) {
+      setFeedback({ tone: 'danger', message: apiErrorMessage(err) });
+    }
+  }
+
   // Qual linha está reenviando — sem isto, todos os botões da lista viram
   // "Reenviando…" ao mesmo tempo.
   const [reenviando, setReenviando] = useState<string | null>(null);
@@ -163,6 +205,9 @@ export function AppointmentConfirmationDrawer({
     setRequestKey(null);
     setResendRequired(false);
     setFeedback(null);
+    setFuAutorizado(false);
+    setFuTemplateId('');
+    setFuMessage('');
   }, [isOpen, initialTab]);
 
   useEffect(() => {
@@ -188,6 +233,18 @@ export function AppointmentConfirmationDrawer({
         : '',
     [message, setup],
   );
+  // A prévia do servidor vale para o texto da config; quando a pessoa escolhe
+  // modelo ou escreve, mostramos o que ela digitou com as variáveis resolvidas
+  // a partir da própria prévia do servidor não seria confiável — então usamos o
+  // texto local, cru, e o servidor renderiza no envio.
+  const previaAcompanhamento =
+    fuMessage.trim() || setup?.followUp.preview || '';
+  const fuPodeEnviar =
+    canSendConfirmation &&
+    Boolean(setup?.recipient.phone) &&
+    fuAutorizado &&
+    !followUpMutation.isPending;
+
   const customerBlocked =
     setup?.recipient.notificationsEnabled === false ||
     setup?.recipient.whatsappOptIn === false;
@@ -354,7 +411,7 @@ export function AppointmentConfirmationDrawer({
       mobileBackLabel="Voltar"
     >
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-canvas p-1">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-canvas p-1">
           <button
             type="button"
             onClick={() => setTab('message')}
@@ -537,6 +594,99 @@ export function AppointmentConfirmationDrawer({
               </p>
             )}
           </>
+          ) : tab === 'followup' ? (
+            <>
+              {/* O que o AUTOMÁTICO faria — o dono pediu ver isto sem abrir
+                  Configurações. Ver estudo 86. */}
+              <section className="rounded-xl border border-line bg-canvas p-3 text-xs text-muted-ink">
+                {setup.followUp.enabled ? (
+                  <>
+                    Automático <strong className="text-foreground">ligado</strong>: sai{' '}
+                    {setup.followUp.agendado.prazoValor}{' '}
+                    {UNIDADE[setup.followUp.agendado.prazoUnidade] ??
+                      setup.followUp.agendado.prazoUnidade}{' '}
+                    depois de o atendimento ser concluído
+                    {setup.followUp.agendado.repete
+                      ? `, repetindo a cada ${setup.followUp.agendado.repeteValor} ${
+                          UNIDADE[setup.followUp.agendado.repeteUnidade] ??
+                          setup.followUp.agendado.repeteUnidade
+                        } (máx. ${setup.followUp.agendado.maximo})`
+                      : ', sem repetição'}
+                    .
+                  </>
+                ) : (
+                  <>
+                    Automático <strong className="text-foreground">desligado</strong> em
+                    Configurações. O envio abaixo é manual e funciona mesmo assim.
+                  </>
+                )}
+              </section>
+
+              <section className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  Modelo
+                </span>
+                <select
+                  value={fuTemplateId}
+                  onChange={(e) => escolherModeloAcompanhamento(e.target.value)}
+                  className="min-h-11 rounded-xl border border-line bg-card px-3 text-sm text-foreground"
+                >
+                  <option value="">Texto configurado na empresa</option>
+                  {setup.followUp.templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  value={fuMessage}
+                  onChange={(e) => setFuMessage(e.target.value)}
+                  rows={5}
+                  placeholder="Deixe vazio para usar o texto configurado."
+                  className="rounded-xl border border-line bg-card p-3 text-sm text-foreground"
+                />
+                <p className="text-xs text-muted-ink">
+                  Variáveis: {'{cliente}'}, {'{estabelecimento}'}, {'{servico}'} e{' '}
+                  {'{link}'} (link de reagendamento
+                  {setup.followUp.includeBookingLink ? '' : ' — desativado na config'}).
+                </p>
+              </section>
+
+              <section className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  Prévia
+                </span>
+                <p className="whitespace-pre-wrap rounded-xl border border-line bg-canvas p-3 text-sm leading-6 text-foreground">
+                  {previaAcompanhamento || 'Sem prévia — confira o telefone da cliente.'}
+                </p>
+              </section>
+
+              {/* A caixa de autorização é o que faltava: antes o botão disparava
+                  direto, contra o que a própria tela promete. */}
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={fuAutorizado}
+                  onChange={(e) => setFuAutorizado(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  Autorizo enviar este acompanhamento agora para{' '}
+                  {setup.recipient.name ?? 'a cliente'}.
+                </span>
+              </label>
+
+              <Button
+                variant="primary"
+                isDisabled={!fuPodeEnviar}
+                onPress={() => void enviarAcompanhamento()}
+              >
+                {followUpMutation.isPending
+                  ? 'Enviando…'
+                  : 'Enviar acompanhamento'}
+              </Button>
+            </>
+
         ) : setup.logs.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-sm font-semibold text-foreground">

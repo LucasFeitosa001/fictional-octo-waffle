@@ -66,6 +66,23 @@ export interface AppointmentConfirmationSetup {
   defaultTemplateId: string;
   templates: ConfirmationTemplate[];
   preview: string;
+  /** Bloco do acompanhamento pós-atendimento. Ver estudo 86. */
+  followUp: {
+    enabled: boolean;
+    templates: { id: string; label: string; message: string }[];
+    message: string;
+    includeBookingLink: boolean;
+    preview: string;
+    /** O que está configurado para o envio AUTOMÁTICO. */
+    agendado: {
+      prazoValor: number;
+      prazoUnidade: string;
+      repete: boolean;
+      repeteValor: number;
+      repeteUnidade: string;
+      maximo: number;
+    };
+  };
   logs: ConfirmationLog[];
 }
 
@@ -128,10 +145,19 @@ export function useResendAppointmentMessage(appointmentId: string | null) {
 export function useSendAppointmentFollowUp(appointmentId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { requestKey: string }) =>
+    mutationFn: (body: {
+      requestKey: string;
+      templateId?: string;
+      message?: string;
+    }) =>
       api.post<{ ok: true; texto: string }>(
         `/appointments/${appointmentId}/followup`,
-        { authorize: true, requestKey: body.requestKey },
+        {
+          authorize: true,
+          requestKey: body.requestKey,
+          templateId: body.templateId,
+          message: body.message,
+        },
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: confirmationKey(appointmentId) });

@@ -21,7 +21,10 @@ import { AppointmentEvent } from '../notifications/notifications.templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
 import { QueuesService } from '../queues/queues.service';
-import { FollowUpSenderService } from '../queues/follow-up-sender.service';
+import {
+  FollowUpSenderService,
+  MODELOS_DE_ACOMPANHAMENTO,
+} from '../queues/follow-up-sender.service';
 import {
   CONFIRMATION_TEMPLATE_VARIABLES,
   confirmationTemplateVariables,
@@ -205,11 +208,17 @@ export class AppointmentsService {
       id,
       scopeProfessionalId,
     );
-    const [automation, templateSettings, logs] = await Promise.all([
-      this.settings.get(companyId),
-      this.settings.getConfirmationTemplates(companyId),
-      this.confirmationLogs(companyId, id),
-    ]);
+    const [automation, templateSettings, logs, followUpCfg, followUpPreview] =
+      await Promise.all([
+        this.settings.get(companyId),
+        this.settings.getConfirmationTemplates(companyId),
+        this.confirmationLogs(companyId, id),
+        this.settings.getFollowUp(companyId),
+        // Prévia do acompanhamento com o texto atual da empresa. A tela precisa
+        // MOSTRAR o que vai sair antes de mandar — o botão antigo disparava sem
+        // prévia nenhuma. Ver estudo 86.
+        this.followUpSender.previaManual(companyId, id),
+      ]);
     const variables = confirmationTemplateVariables({
       companyName: appointment.company.name,
       timezone: appointment.company.timezone,
@@ -242,6 +251,26 @@ export class AppointmentsService {
       preview: selectedTemplate
         ? renderConfirmationTemplate(selectedTemplate.message, variables)
         : '',
+      // Bloco do ACOMPANHAMENTO: modelos, texto atual, prévia e o que está
+      // configurado para o automático — o dono pediu ver o prazo sem precisar
+      // abrir Configurações. Ver estudo 86.
+      followUp: {
+        enabled: followUpCfg.enabled,
+        templates: MODELOS_DE_ACOMPANHAMENTO,
+        // A config guarda o TEXTO, não um id de modelo: os modelos da lista
+        // servem para preencher o campo na tela, não para ficar gravados.
+        message: followUpCfg.message,
+        includeBookingLink: followUpCfg.includeBookingLink,
+        preview: followUpPreview ?? '',
+        agendado: {
+          prazoValor: followUpCfg.delayValue,
+          prazoUnidade: followUpCfg.delayUnit,
+          repete: followUpCfg.recurring,
+          repeteValor: followUpCfg.recurringValue,
+          repeteUnidade: followUpCfg.recurringUnit,
+          maximo: followUpCfg.maxRecurrences,
+        },
+      },
       logs,
     };
   }
@@ -476,10 +505,11 @@ export class AppointmentsService {
     companyId: string,
     id: string,
     requestKey: string | undefined,
+    escolha: { templateId?: string; message?: string } | undefined,
     scopeProfessionalId?: string,
   ) {
     await this.loadConfirmationAppointment(companyId, id, scopeProfessionalId);
-    return this.followUpSender.enviarManual(companyId, id, requestKey);
+    return this.followUpSender.enviarManual(companyId, id, requestKey, escolha);
   }
 
   private async loadConfirmationAppointment(

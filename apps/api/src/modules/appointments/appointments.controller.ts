@@ -18,6 +18,7 @@ import {
   SuggestDto,
   BlockTimeDto,
   ResendAppointmentMessageDto,
+  SendAppointmentFollowUpDto,
   SendAppointmentConfirmationDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
@@ -166,10 +167,16 @@ export class AppointmentsController {
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
-    @Body() dto: ResendAppointmentMessageDto,
+    @Body() dto: SendAppointmentFollowUpDto,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    return this.service.enviarAcompanhamento(companyId, id, dto.requestKey, scope);
+    return this.service.enviarAcompanhamento(
+      companyId,
+      id,
+      dto.requestKey,
+      { templateId: dto.templateId, message: dto.message },
+      scope,
+    );
   }
 
   @Post('appointments')

@@ -140,6 +140,28 @@ export class UpdateAppointmentDto {
  * confirmação: uma pessoa autoriza explicitamente, e a requestKey torna o retry
  * HTTP idempotente (não cria uma segunda mensagem). Ver estudo 82.
  */
+/**
+ * Envio manual do acompanhamento. Mesma exigência de autorização explícita da
+ * confirmação — o botão antigo disparava sem nada disso. Ver estudo 86.
+ */
+export class SendAppointmentFollowUpDto {
+  @Equals(true, {
+    message: 'Confirme explicitamente o envio do acompanhamento.',
+  })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+
+  /** Modelo escolhido na tela; ignorado quando `message` vem preenchida. */
+  @IsOptional() @IsString() templateId?: string;
+
+  /** Texto editado só para este envio. */
+  @IsOptional() @IsString() message?: string;
+}
+
 export class ResendAppointmentMessageDto {
   @Equals(true, {
     message: 'Confirme explicitamente o reenvio desta mensagem.',

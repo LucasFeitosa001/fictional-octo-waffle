@@ -8,7 +8,11 @@ import { AppointmentStatus } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { NotificationSettingsService } from '../notifications/notification-settings.service';
-import { composeFollowUpMessage } from './follow-up.templates';
+import {
+  composeFollowUpMessage,
+  followUpTemplateById,
+  FOLLOWUP_TEMPLATES,
+} from './follow-up.templates';
 import { resolveBookingLink } from './booking-link.helper';
 import { type FollowUpJob } from './queue-names';
 import { readMessagingMode, isOptedOut, dispatchWhatsapp } from './messaging.helpers';
@@ -20,6 +24,9 @@ const FOLLOW_UP_TYPE = 'automation.follow_up';
 const FOLLOW_UP_CUSTOMER_TYPE = 'automation.follow_up.customer';
 // Janela da mesma visita: o agendamento e a comanda fecham dentro deste intervalo.
 const SAME_VISIT_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+/** Modelos prontos oferecidos na tela. */
+export const MODELOS_DE_ACOMPANHAMENTO = FOLLOWUP_TEMPLATES;
 
 export interface ResultadoFollowUp {
   enviou: boolean;
@@ -205,6 +212,7 @@ export class FollowUpSenderService {
     companyId: string,
     appointmentId: string,
     requestKey?: string,
+    escolha?: { templateId?: string; message?: string },
   ): Promise<{ ok: true; texto: string }> {
     const view = await this.loadFromAppointment(companyId, appointmentId);
     if (!view) throw new NotFoundException('Agendamento não encontrado.');
@@ -224,7 +232,12 @@ export class FollowUpSenderService {
       customerName: view.customerName,
       customerPhone: view.customerPhone,
       serviceNames: view.serviceNames,
-      template: cfg.message,
+      // Precedência: o que a pessoa escreveu > o modelo que ela escolheu > o
+      // texto da config da empresa. Igual ao envio manual de confirmação.
+      template:
+        escolha?.message?.trim() ||
+        followUpTemplateById(escolha?.templateId) ||
+        cfg.message,
       bookingLink,
     });
     if (!msg) {
@@ -247,6 +260,37 @@ export class FollowUpSenderService {
       );
     }
     return { ok: true, texto: msg.text };
+  }
+
+  /**
+   * O texto que sairia, SEM enviar — alimenta a prévia do drawer. Ver estudo 86.
+   *
+   * Devolve `null` (em vez de lançar) quando não há cliente ou telefone: a tela
+   * precisa poder abrir e explicar o motivo, não quebrar.
+   */
+  async previaManual(
+    companyId: string,
+    appointmentId: string,
+    escolha?: { templateId?: string; message?: string },
+  ): Promise<string | null> {
+    const view = await this.loadFromAppointment(companyId, appointmentId);
+    if (!view || view.skip) return null;
+    const cfg = await this.settings.getFollowUp(companyId);
+    const bookingLink = cfg.includeBookingLink
+      ? await resolveBookingLink(this.prisma, companyId)
+      : null;
+    const msg = composeFollowUpMessage({
+      companyName: view.companyName,
+      customerName: view.customerName,
+      customerPhone: view.customerPhone,
+      serviceNames: view.serviceNames,
+      template:
+        escolha?.message?.trim() ||
+        followUpTemplateById(escolha?.templateId) ||
+        cfg.message,
+      bookingLink,
+    });
+    return msg?.text ?? null;
   }
 
   private async hasRebookedSince(
