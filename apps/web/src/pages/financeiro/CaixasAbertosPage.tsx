@@ -49,6 +49,17 @@ export function openCashDetail(id: string) {
   return `/financeiro/caixas-abertos/${id}`;
 }
 
+/** Instante do fechamento: agora, se for hoje; meio-dia, se for dia passado. */
+function carimboDeFechamento(dia: string): string {
+  const hoje = new Date();
+  const ehHoje =
+    dia ===
+    `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(
+      hoje.getDate(),
+    ).padStart(2, '0')}`;
+  return ehHoje ? hoje.toISOString() : new Date(`${dia}T12:00:00`).toISOString();
+}
+
 export function CaixasAbertosPage() {
   const opened = useOpenedCashRegisters();
   const rows = opened.data ?? [];
@@ -518,7 +529,11 @@ function CashActionDrawer({
           countedBalance: value,
           // Data escolhida (fechamento feito no dia seguinte). Fecha ao meio-dia
           // local para a data civil não escorregar por fuso.
-          ...(closeDate ? { closedAt: new Date(`${closeDate}T12:00:00`).toISOString() } : {}),
+          // Meio-dia cego jogava o fechamento de HOJE para a frente do relógio
+          // (12:00 local = 15:00Z num salão em UTC−3) e o backend recusava.
+          // Hoje fecha com a hora atual; dia passado segue com meio-dia, que
+          // representa bem um fechamento retroativo. Ver estudo 74.
+          ...(closeDate ? { closedAt: carimboDeFechamento(closeDate) } : {}),
         });
         setResult({ expected: res.expectedBalance, divergence: res.divergence });
         // Transferência do dinheiro do dia para outra conta. Roda DEPOIS do

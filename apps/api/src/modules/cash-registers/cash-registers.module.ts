@@ -36,6 +36,9 @@ class CloseCashDto {
   @IsOptional() @IsDateString() closedAt?: string;
 }
 
+/** Folga do fechamento: a tela manda meio-dia local, que pode passar do relógio. */
+const UM_DIA_MS = 24 * 60 * 60 * 1000;
+
 class MovementDto {
   @IsIn(['in', 'out']) type: 'in' | 'out';
   @IsNumber() @Min(0) amount: number;
@@ -316,8 +319,18 @@ export class CashRegistersService {
         if (Number.isNaN(informada.getTime())) {
           throw new BadRequestException('Data de fechamento inválida.');
         }
-        if (informada.getTime() > Date.now() + 60_000) {
+        // A tela carimba MEIO-DIA do dia escolhido, no fuso do navegador. Num
+        // salão em UTC−3 isso vira 15:00Z — então quem fechava o caixa de
+        // manhã levava "a data não pode estar no futuro" todo dia, sem ter
+        // feito nada de errado. Hora à frente do relógio, dentro de 24 h, é
+        // aparada para agora; data de OUTRO dia à frente continua recusada,
+        // que é o abuso que esta guarda existe para impedir. Ver estudo 74.
+        const agora = Date.now();
+        if (informada.getTime() > agora + UM_DIA_MS) {
           throw new BadRequestException('A data de fechamento não pode estar no futuro.');
+        }
+        if (informada.getTime() > agora) {
+          informada.setTime(agora);
         }
         if (informada < reg.openedAt) {
           throw new BadRequestException(
