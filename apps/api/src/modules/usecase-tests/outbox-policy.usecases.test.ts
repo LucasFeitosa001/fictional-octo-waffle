@@ -19,6 +19,7 @@ import {
   podeEnfileirar,
   type AutomacaoDaConta,
 } from '../whatsapp/outbox-policy';
+import { expirouEsperandoConexao } from '../whatsapp/outbox-policy';
 import { escolherJidConhecido } from '../whatsapp/jid-escolha';
 
 const AGORA = new Date('2026-07-29T18:00:00.000Z');
@@ -49,12 +50,36 @@ function agendamento(over: Record<string, unknown> = {}) {
 describe('Travas de envio do WhatsApp (estudo 60)', () => {
   // ───────────────────────── trava 1: não enfileirar desconectado
 
-  it('1) automação com o canal FECHADO não entra na fila', () => {
+  it('1) automação com o canal FECHADO ADIA, não é mais recusada (estudo 85)', () => {
+    // Contrato invertido: a recusa cega engolia calada toda mensagem da janela
+    // de reinício da API (~10 min). Agora a linha nasce e sai quando conectar;
+    // quem descarta o que ficou velho é o teto de espera + o prazo por tipo.
     for (const kind of ['confirmation', 'cancellation', 'reminder', 'followup', 'campaign']) {
-      const d = podeEnfileirar(kind, false);
-      assert.equal(d.ok, false, `${kind} deveria ser barrada`);
-      assert.match(d.motivo ?? '', /desconectado/i);
+      assert.equal(podeEnfileirar(kind, false).ok, true, `${kind} deveria entrar`);
     }
+  });
+
+  it('1b) o teto de espera pela conexão descarta só quem NUNCA foi tentado', () => {
+    const criada = new Date(AGORA.getTime() - 45 * 60 * 1000); // 45 min parada
+    const recente = new Date(AGORA.getTime() - 10 * 60 * 1000); // 10 min parada
+    assert.equal(
+      expirouEsperandoConexao('confirmation', recente, 0, AGORA).ok,
+      true,
+      'reinício de 10 min tem que sair quando a conexão volta',
+    );
+    const velha = expirouEsperandoConexao('confirmation', criada, 0, AGORA);
+    assert.equal(velha.ok, false, '45 min esperando conexão é descarte');
+    assert.match(velha.motivo ?? '', /esperou a conexão/i);
+    assert.equal(
+      expirouEsperandoConexao('confirmation', criada, 2, AGORA).ok,
+      true,
+      'com tentativa feita o teto não vale — quem manda é o prazo do tipo',
+    );
+    assert.equal(
+      expirouEsperandoConexao('manual', criada, 0, AGORA).ok,
+      true,
+      'o que não é automação não é descartado por este teto',
+    );
   });
 
   it('2) com o canal ABERTO a automação entra normalmente', () => {

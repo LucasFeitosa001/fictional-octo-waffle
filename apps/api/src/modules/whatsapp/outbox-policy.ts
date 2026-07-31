@@ -7,7 +7,10 @@
  * já tinha passado. O dono desconectou o número para não ser banido.
  *
  * São três travas independentes:
- *   1. não ENFILEIRAR automação com o canal fechado (senão a bomba se arma);
+ *   1. teto de espera pela conexão: automação com o canal fechado ADIA (nasce
+ *      `pending`) e é descartada se ninguém conseguir enviá-la a tempo. Antes
+ *      ela era RECUSADA na porta, o que engolia calado toda mensagem de uma
+ *      janela de reinício da API — ver estudo 85;
  *   2. prazo de validade por tipo (o que envelheceu na fila não sai);
  *   3. revalidar a autorização na ENTREGA (a decisão não pode ficar congelada
  *      do momento em que a linha nasceu).
@@ -51,6 +54,13 @@ const TTL_MS: Record<OutboxAutomationKind, number> = {
   followup: 24 * 60 * 60 * 1000, // 24h
 };
 
+/**
+ * Teto para a linha que ficou esperando a conexão do WhatsApp voltar. Um
+ * reinício da API leva 8–12 min; 30 min cobre isso com folga e ainda impede que
+ * uma queda longa vire rajada no reconnect. Ver estudo 85.
+ */
+const ESPERA_CONEXAO_MS = Number(process.env.WHATSAPP_OFFLINE_GRACE_MS ?? 30 * 60 * 1000);
+
 /** Fallback para um tipo de automação novo que ninguém cadastrou aqui. */
 const TTL_FALLBACK_MS = 12 * 60 * 60 * 1000;
 
@@ -75,11 +85,40 @@ export function podeEnfileirar(
 ): DecisaoDeFila {
   if (!isAutomationKind(kind)) return { ok: true };
   if (opts.doInbox || opts.autorizadaPorPessoa) return { ok: true };
-  if (socketAberto) return { ok: true };
+  // O canal fechado deixou de RECUSAR e passou a ADIAR: a linha nasce `pending`
+  // e sai quando a conexão voltar.
+  //
+  // A recusa cega vinha do estudo 60 (fila de DIAS drenando de uma vez), mas não
+  // distinguia "fora do ar há 9 minutos" de "fora do ar há 3 dias" — e todo
+  // reinício da API (deploy, queda, troca de instância) engolia calado as
+  // mensagens de uma janela de ~10 min. Quem distingue são o prazo por tipo
+  // (TTL_MS), a revalidação na entrega e o teto de `expirouEsperandoConexao`.
+  // Ver estudo 85.
+  void socketAberto;
+  return { ok: true };
+}
+
+/**
+ * Teto para a linha que ficou esperando a conexão voltar. Ver estudo 85.
+ *
+ * `attempts === 0` é o sinal exato de "nunca houve tentativa de envio": linha
+ * criada com o canal aberto é entregue em segundos e nunca chega perto do teto.
+ * Só morde o que ficou parado esperando — que é o caso do reinício.
+ */
+export function expirouEsperandoConexao(
+  kind: string | null | undefined,
+  createdAt: Date,
+  attempts: number,
+  agora: Date = new Date(),
+  tetoMs: number = ESPERA_CONEXAO_MS,
+): DecisaoDeFila {
+  if (!isAutomationKind(kind)) return { ok: true };
+  if (attempts > 0) return { ok: true };
+  const idade = agora.getTime() - createdAt.getTime();
+  if (idade <= tetoMs) return { ok: true };
   return {
     ok: false,
-    motivo:
-      'WhatsApp desconectado: mensagem automática não é enfileirada (evita rajada no reconnect)',
+    motivo: `Esperou a conexão do WhatsApp por mais de ${Math.round(tetoMs / 60000)} min e foi descartada`,
   };
 }
 

@@ -18,6 +18,7 @@ import { escolherJidConhecido } from './jid-escolha';
 import {
   autorizacaoAindaVale,
   expirouNaFila,
+  expirouEsperandoConexao,
   isAutomationKind,
   podeEnfileirar,
   type AutomacaoDaConta,
@@ -915,18 +916,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       doInbox: Boolean(ctx?.inboxMessageId),
     });
     if (!entrada.ok) {
+      // Hoje só cai aqui o que a política recusa por mérito próprio — o canal
+      // fechado deixou de recusar e passou a ADIAR (estudo 85). O rastro do
+      // estudo 82 continua valendo para o que ainda for recusado.
       this.logger.warn(
         `Outbox: ${ctx?.kind} para ${toPhone} NÃO enfileirada (company=${companyId ?? 'sem-company'}) — ${entrada.motivo}.`,
       );
-      // A recusa não pode sumir. Antes daqui saía só este warn e um `return
-      // null`: sem linha, sem status, sem histórico — o dono cancelou dois
-      // agendamentos, nada chegou, e não havia nada na tela que explicasse. O
-      // CLAUDE.md exige status honesto (na fila/enviado/entregue/lido/falhou), e
-      // "sumiu" não é um deles. Estudo 82.
-      //
-      // A linha nasce TERMINAL: o remetente só busca `status: 'pending'` com
-      // `nextAttemptAt` vencido, então `failed` é invisível para ele e o
-      // comportamento anti-rajada continua idêntico. Muda só o rastro.
       await this.registrarRecusa(toPhone, text, recipientJid, entrada.motivo, ctx);
       return null;
     }
@@ -1309,6 +1304,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      // Teto de quem ficou ESPERANDO a conexão voltar (estudo 85). `attempts=0`
+      // é "nunca houve tentativa de envio": linha criada com o canal aberto sai
+      // em segundos e nunca chega perto do teto. Isto substitui a recusa cega na
+      // porta de entrada — reinício de 10 min fica transparente, queda longa não
+      // vira rajada.
+      const espera = expirouEsperandoConexao(msg.kind, msg.createdAt, msg.attempts);
+      if (!espera.ok) {
+        await this.descartarOutbox(msg, espera.motivo ?? 'Esperou a conexão por tempo demais');
+        return;
+      }
+
       // TRAVA 3 (estudo 60): a autorização é revalidada AGORA. A decisão não
       // pode ficar congelada do momento em que a linha nasceu — o dono pode ter
       // desligado o aviso, o agendamento pode ter sido cancelado ou já ter
@@ -1544,10 +1550,16 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     const db = this.prisma.client;
     const now = Date.now();
 
-    if (
-      RECIPIENT_COOLDOWN_MS > 0 &&
-      this.isClientAutomationKind(msg.kind)
-    ) {
+    // O cooldown por destinatário vale só para DISPARO EM MASSA.
+    //
+    // Antes pegava todo `isClientAutomationKind`, então confirmação, cancelamento
+    // e lembrete também esperavam 5 min. Foi isso que segurou o cancelamento do
+    // dono: criou 18:35:53, cancelou 18:36:04, e a mensagem só saiu 18:41:44.
+    // Mas esses três não são repetição — são eventos distintos, cada um vindo de
+    // uma ação real, e chegar atrasado destrói o propósito deles. O risco de
+    // parecer spam mora em campanha/follow-up, e lá o cooldown continua.
+    // Ver estudo 85.
+    if (RECIPIENT_COOLDOWN_MS > 0 && this.isBulkKind(msg.kind)) {
       const previous = await db.whatsappOutbox.findFirst({
         where: {
           id: { not: msg.id },
