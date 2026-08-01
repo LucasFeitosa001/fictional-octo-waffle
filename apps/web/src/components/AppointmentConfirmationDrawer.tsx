@@ -460,7 +460,7 @@ export function AppointmentConfirmationDrawer({
             type="button"
             onClick={() => setTab('message')}
             className={[
-              'min-h-10 rounded-lg px-3 text-sm font-semibold transition-colors',
+              'min-h-10 truncate rounded-lg px-1.5 text-xs font-semibold transition-colors sm:px-2',
               tab === 'message'
                 ? 'bg-white text-foreground shadow-sm'
                 : 'text-muted-ink',
@@ -472,7 +472,7 @@ export function AppointmentConfirmationDrawer({
             type="button"
             onClick={() => setTab('followup')}
             className={[
-              'min-h-10 rounded-lg px-3 text-sm font-semibold transition-colors',
+              'min-h-10 truncate rounded-lg px-1.5 text-xs font-semibold transition-colors sm:px-2',
               tab === 'followup'
                 ? 'bg-white text-foreground shadow-sm'
                 : 'text-muted-ink',
@@ -484,7 +484,7 @@ export function AppointmentConfirmationDrawer({
             type="button"
             onClick={() => setTab('livre')}
             className={[
-              'min-h-10 rounded-lg px-3 text-sm font-semibold transition-colors',
+              'min-h-10 truncate rounded-lg px-1.5 text-xs font-semibold transition-colors sm:px-2',
               tab === 'livre'
                 ? 'bg-white text-foreground shadow-sm'
                 : 'text-muted-ink',
@@ -496,7 +496,7 @@ export function AppointmentConfirmationDrawer({
             type="button"
             onClick={() => setTab('logs')}
             className={[
-              'min-h-10 rounded-lg px-3 text-sm font-semibold transition-colors',
+              'min-h-10 truncate rounded-lg px-1.5 text-xs font-semibold transition-colors sm:px-2',
               tab === 'logs'
                 ? 'bg-white text-foreground shadow-sm'
                 : 'text-muted-ink',
