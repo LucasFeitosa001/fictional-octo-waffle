@@ -37,19 +37,31 @@ function origemDe(url: string): string {
 }
 
 async function buscarTokenComFallback(scope: Escopo): Promise<RespostaToken> {
+  let ultimoErro: unknown;
+  for (let tentativa = 0; tentativa < 3; tentativa += 1) {
+    try {
+      return await api.get<RespostaToken>('/voltr/embed-token', { scope });
+    } catch (erro) {
+      ultimoErro = erro;
+      // Falhas de rede transitórias são comuns enquanto o iframe troca de
+      // escopo. Pequena espera evita exibir um erro permanente por um único
+      // pacote perdido.
+      if (tentativa < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (tentativa + 1)));
+    }
+  }
   try {
-    return await api.get<RespostaToken>('/voltr/embed-token', { scope });
-  } catch (erro) {
     // O caminho normal preserva a sessão host-only do app. Se o proxy da
     // aplicação falhar em rede, tenta apenas o token no domínio da API;
     // nenhuma outra chamada do SalonPass é desviada.
-    if (!(erro instanceof TypeError)) throw erro;
+    if (!(ultimoErro instanceof TypeError)) throw ultimoErro;
     const resposta = await fetch(
       `https://api.salonpass.com.br/api/v1/voltr/embed-token?scope=${encodeURIComponent(scope)}`,
       { credentials: 'include' },
     );
-    if (!resposta.ok) throw erro;
+    if (!resposta.ok) throw ultimoErro;
     return (await resposta.json()) as RespostaToken;
+  } catch {
+    throw ultimoErro;
   }
 }
 
