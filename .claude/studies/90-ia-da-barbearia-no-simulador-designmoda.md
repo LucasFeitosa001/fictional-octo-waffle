@@ -28,6 +28,14 @@ real da DesignModa durante um teste. O texto da tela diz “nenhuma mensagem vai
 para o cliente real”, mas isso não é equivalente a “nenhum dado real será
 alterado”.
 
+O teste de produção revelou uma segunda corrida: `IngestService.persistir()`
+sempre chamava `autopilot.processar(conversa.id)` em fire-and-forget
+(`apps/api/src/ingest/ingest.service.ts:465`), enquanto
+`SimuladorController` chamava outro `processar(..., { force: true, dryRun:
+true })` logo depois. Assim havia dois cérebros para a mesma entrada: o dry-run
+e um processamento normal sem o agente escolhido. O mesmo defeito existia no
+laboratório de stories, que também persiste e chama o autopilot explicitamente.
+
 ## Decisão
 
 1. O simulador recebe um `agenteId` opcional, validado dentro do tenant atual.
@@ -37,6 +45,9 @@ alterado”.
 3. O simulador chama o autopilot com `dryRun: true`: tools de leitura continuam
    consultando serviços/profissionais/horários reais da DesignModa, mas propostas
    de criar/cancelar nunca chegam ao executor.
+   `IngestService.persistir` ganha ainda a opção interna
+   `dispararEfeitos: false`; simulador e laboratório de stories a usam para não
+   disparar um segundo autopilot nem automações em paralelo.
 4. A tela ganha um seletor e mostra nome, negócio e se o agente está ativo em
    produção ou disponível somente para teste. Trocar o agente abre uma nova
    sessão para não misturar históricos/personas.
