@@ -33,6 +33,7 @@ import { useThemeColors } from '../../theme/useThemeColors';
 import { getCategoricalColor } from '../../theme/dataColors';
 import { BackToReports, shortDay } from './reportShared';
 import { ErrorState } from '../../components/States';
+import { requestReportPdf } from './ReportPdfButton';
 
 // ── card no estilo Belasis (branco + sombra suave), 100% themeable ────────────
 const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
@@ -433,18 +434,17 @@ export function VendasPage() {
               <span className="text-xs font-normal text-muted-ink">Planilha com o resumo do período</span>
             </span>
           </button>
-          {/* TODO: exportação em Excel/PDF depende de endpoint dedicado no backend */}
           <button
             type="button"
-            disabled
-            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-muted-ink opacity-60"
+            onClick={() => { setExportOpen(false); requestReportPdf(); }}
+            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-ink transition-colors hover:bg-primary/5"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <IconDownload size={18} />
             </span>
             <span className="flex flex-col">
               <span>Exportar PDF</span>
-              <span className="text-xs font-normal text-muted-ink">Em breve</span>
+              <span className="text-xs font-normal text-muted-ink">Abre o PDF com campo de assinatura</span>
             </span>
           </button>
         </div>

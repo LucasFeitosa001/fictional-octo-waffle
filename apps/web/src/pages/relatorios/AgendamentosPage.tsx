@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Checkbox } from '@heroui/react';
 import { IconChevron } from '../../components/icons';
 import { isoDate } from '../../lib/format';
-import { useReportsOverview } from '../../lib/queries/relatorios';
+import { useAgendaAppointments } from '../../lib/queries/agenda';
+import { useProfessionals, useServices } from '../../lib/queries';
 import { CalendarReportShell } from './reportNav';
+import { requestReportPdf } from './ReportPdfButton';
 import { DateRangePicker } from '../../components/DatePicker';
 
 /* -------------------------------------------------------------------------- */
@@ -90,8 +92,31 @@ export function AgendamentosPage() {
     () => new Set(COLUMN_OPTIONS.map((c) => c.value)),
   );
 
-  // Data-wiring preservado: dispara a query de overview para o período escolhido.
-  const query = useReportsOverview(range.from, range.to);
+  const professionalsQuery = useProfessionals(1, 200, {
+    status: employeeStatus === 'all' ? 'all' : employeeStatus === 'actives' ? 'active' : 'inactive',
+  });
+  const servicesQuery = useServices();
+  const professionalRows = Array.isArray(professionalsQuery.data?.data) ? professionalsQuery.data.data : [];
+  const professionalIds = employeeStatus === 'all' ? undefined : professionalRows.map((p) => p.id);
+  // A API usa `lte` no horário; somamos um dia para incluir todo o último dia
+  // escolhido (até 23:59), sem alterar o período mostrado ao usuário.
+  // Durante a seleção o DateRangePicker emite `{ from, to: '' }` entre o
+  // primeiro e o segundo clique. Nunca tente converter esse estado parcial
+  // para `toISOString()` — era isso que derrubava a rota ao trocar o período.
+  const safeTo = range.to || range.from || isoDate(new Date());
+  const endExclusive = new Date(`${safeTo}T00:00:00`);
+  endExclusive.setDate(endExclusive.getDate() + 1);
+  const apiTo = isoDate(endExclusive);
+  const appointmentsQuery = useAgendaAppointments({ from: range.from, to: apiTo, professionalIds }, { enabled: false });
+  const serviceRows = Array.isArray(servicesQuery.data?.data) ? servicesQuery.data.data : [];
+  const serviceNames = new Map(serviceRows.map((s) => [s.id, s.name]));
+  const allowedProfessionalIds = employeeStatus === 'all' ? null : new Set(professionalIds ?? []);
+  const appointmentRows = Array.isArray(appointmentsQuery.data?.data) ? appointmentsQuery.data.data : [];
+  const reportAppointments = appointmentRows.filter((a) =>
+    !allowedProfessionalIds || allowedProfessionalIds.has(a.professionalId ?? ''),
+  );
+  const [generated, setGenerated] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   function toggleColumn(v: string) {
     setChecked((prev) => {
@@ -105,7 +130,18 @@ export function AgendamentosPage() {
   function gerarRelatorio() {
     // TODO: endpoint de geração de relatório de agendamentos (PDF) não existe
     // ainda no backend SalonPass — por ora reprocessa a query do período.
-    query.refetch();
+    appointmentsQuery.refetch();
+    setGenerated(true);
+  }
+
+  function gerarPdf() {
+    // O modal aparece primeiro. A busca e a montagem da tabela acontecem atrás
+    // dele somente depois da confirmação da assinatura, sem piscar a página.
+    requestReportPdf(async () => {
+      await appointmentsQuery.refetch();
+      setGenerated(true);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
   }
 
   return (
@@ -116,6 +152,8 @@ export function AgendamentosPage() {
     >
         {/* ---- Formulário de configuração do relatório ------------------- */}
         <form
+          data-report-pdf-meta={`Período ${range.from} – ${range.to}; Layout ${layout === 'portrait' ? 'Retrato' : 'Paisagem'}; Profissionais ${employeeStatus === 'all' ? 'Todos' : employeeStatus === 'actives' ? 'Ativos' : 'Inativos'}; Colunas ${columnsOption === 'columns' ? 'Informativa' : 'Em branco'}; Agrupar por ${groupBy === 'all' ? 'Todos' : groupBy === 'employee' ? 'Profissional' : 'Data'}; Campos ${COLUMN_OPTIONS.filter((c) => checked.has(c.value)).map((c) => c.label).join(', ')}`}
+          data-report-pdf-layout={layout}
           className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-6"
           onSubmit={(e) => {
             e.preventDefault();
@@ -218,17 +256,55 @@ export function AgendamentosPage() {
           </div>
 
           {/* Ação: Gerar relatório (botão primário) */}
-          <div className="mt-6 flex justify-end">
+          <div className="relative mt-6 flex justify-end">
             <button
               type="submit"
-              disabled={query.isFetching}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
+              disabled={appointmentsQuery.isFetching}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-l-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
             >
-              {query.isFetching ? 'Gerando…' : 'Gerar relatório'}
+              {appointmentsQuery.isFetching ? 'Gerando…' : 'Gerar relatório'}
               <IconChevron size={16} className="rotate-180" />
             </button>
+            <button type="button" aria-label="Opções de geração" onClick={() => setExportOpen((v) => !v)} className="h-10 w-10 rounded-r-lg border-l border-white/25 bg-primary text-primary-foreground">···</button>
+            {exportOpen && (
+              <div className="report-no-print absolute right-0 top-12 z-20 w-52 rounded-xl border border-line bg-card p-1.5 shadow-[var(--shadow-pop)]">
+                <button type="button" onClick={() => { setExportOpen(false); gerarPdf(); }} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-ink hover:bg-canvas">Gerar PDF</button>
+              </div>
+            )}
           </div>
         </form>
+        {generated && (
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
+              <div className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">
+              Agendamentos de {range.from} a {range.to} ({reportAppointments.length})
+            </div>
+            {appointmentsQuery.isFetching ? (
+              <div className="p-6 text-sm text-muted-ink">Carregando agendamentos…</div>
+            ) : reportAppointments.length === 0 ? (
+              <div className="p-6 text-sm text-muted-ink">Nenhum agendamento no período.</div>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead><tr className="border-b border-line text-xs uppercase tracking-wide text-muted-ink">
+                  {COLUMN_OPTIONS.filter((c) => checked.has(c.value)).map((c) => <th key={c.value} className="whitespace-nowrap px-3 py-2">{c.label}</th>)}
+                </tr></thead>
+                <tbody>{reportAppointments.map((a) => <tr key={a.id} className="border-b border-line last:border-0">
+                  {COLUMN_OPTIONS.filter((c) => checked.has(c.value)).map((c) => {
+                    const start = new Date(a.start); const end = new Date(a.end);
+                    const value: Record<string, string> = {
+                      employee: a.professional?.name ?? '—', date: start.toLocaleDateString('pt-BR'),
+                      start_hour: start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                      end_hour: end.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                      service: a.items?.map((i) => serviceNames.get(i.serviceId) ?? i.serviceId).join(', ') || '—', client: a.customer?.name ?? '—',
+                      client_cellphone: a.customer?.phone ?? '—', address: '—', city_state: '—', obs: a.notes ?? '—',
+                      duration: `${Math.round((end.getTime() - start.getTime()) / 60000)} min`, status: a.status, color: '—',
+                    };
+                    return <td key={c.value} className="whitespace-nowrap px-3 py-2 text-ink">{value[c.value]}</td>;
+                  })}
+                </tr>)}</tbody>
+              </table>
+            )}
+          </div>
+        )}
     </CalendarReportShell>
   );
 }

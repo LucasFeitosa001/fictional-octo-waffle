@@ -20,6 +20,7 @@ import { downloadCsv } from '../../lib/csv';
 import { useReportsCriacaoAgendamento } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { CalendarReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 import { shortDay } from './reportShared';
 
 /* -------------------------------------------------------------------------- */
@@ -125,6 +126,7 @@ export function CriacaoAgendamentoPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            <ReportPdfOption />
             <button
               type="submit"
               disabled={query.isFetching}

@@ -28,6 +28,7 @@ import { useReportsDre, type DreLinha } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { COLOR_GREEN, COLOR_RED } from './reportShared';
 import { FinancialReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Clone 100% fiel da página "Resultados Financeiros" (DRE) do Belasis        */
@@ -340,6 +341,7 @@ export function DrePage() {
 
             {/* Ação: Gerar relatório (botão primário + split de export) */}
             <div className="mt-6 flex justify-end gap-1.5">
+              <ReportPdfOption />
               <button
                 type="submit"
                 disabled={query.isFetching}

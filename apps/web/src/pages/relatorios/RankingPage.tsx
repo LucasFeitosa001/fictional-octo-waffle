@@ -9,6 +9,7 @@ import { useReportsOverview } from '../../lib/queries/relatorios';
 import { useSetPageActions } from '../../layout/PageActions';
 import { BackToReports, CARD } from './reportShared';
 import { ReportCategoriesBar } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clone fiel da página "RelatorioRanking" do Belasis (/reports/clients/rank).
@@ -259,7 +260,8 @@ export function RankingPage() {
 
         {/* Ação: Gerar relatório + export (Belasis: botão primário + dropdown).
             Desktop-only: no mobile essas ações ficam na BottomNav (useSetPageActions). */}
-        <div className="mt-4 hidden justify-end md:flex">
+        <div className="mt-4 hidden justify-end gap-2 md:flex">
+          <ReportPdfOption />
           <div className="inline-flex overflow-hidden rounded-lg">
             <button
               type="button"

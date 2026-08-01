@@ -13,6 +13,7 @@ import { useRelatorioClientes, type RelatorioClienteRow } from '../../lib/querie
 import { BackToReports, CARD } from './reportShared';
 import { ReportCategoriesBar } from './reportNav';
 import { DateRangePicker } from '../../components/DatePicker';
+import { requestReportPdf } from './ReportPdfButton';
 
 /* ------------------------------------------------------------------ types -- */
 
@@ -310,11 +311,10 @@ export function ClientesPage() {
                 </button>
                 <button
                   type="button"
-                  disabled
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted"
-                  title="Em breve"
+                  onClick={() => { setMenuOpen(false); requestReportPdf(); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas"
                 >
-                  <IconUsers size={15} /> Exportar PDF (em breve)
+                  <IconUsers size={15} /> Exportar PDF
                 </button>
               </div>
             )}

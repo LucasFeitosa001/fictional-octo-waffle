@@ -9,6 +9,7 @@ import { useReportsBirthdays, type BirthdayItem } from '../../lib/queries/relato
 import { BackToReports, CARD } from './reportShared';
 import { ReportCategoriesBar } from './reportNav';
 import { DateRangePicker } from '../../components/DatePicker';
+import { ReportPdfOption } from './ReportPdfButton';
 
 const MONTHS = [
   'Janeiro',
@@ -156,6 +157,7 @@ export function AniversariantesPage() {
             </div>
 
             {/* Gerar relatório — botão primário block */}
+            <ReportPdfOption />
             <button
               type="button"
               onClick={gerar}

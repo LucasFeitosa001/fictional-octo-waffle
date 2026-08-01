@@ -102,7 +102,7 @@ const INVENTORY_CATEGORIES: { label: string; to: string }[] = [
  */
 export function ReportCategoriesBar({ ativa }: { ativa: string }) {
   return (
-    <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+    <div className="report-no-print mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
       {INVENTORY_CATEGORIES.map((c) => {
         const active = c.label === ativa;
         return (
@@ -134,7 +134,7 @@ export function ReportSubmenu({
   activeKey: string;
 }) {
   return (
-    <nav className="shrink-0 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-card)] lg:w-[320px]">
+    <nav className="report-no-print shrink-0 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-card)] lg:w-[320px]">
       <ul className="flex flex-col gap-0.5">
         {items.map((r) => {
           const active = r.key === activeKey;
@@ -223,7 +223,7 @@ export function CalendarReportShell({
 /** Aside do módulo Estoque (clone do menu lateral do Belasis). */
 function InventoryAside({ activeKey }: { activeKey: string }) {
   return (
-    <aside className="shrink-0 overflow-hidden rounded-xl border border-line bg-card p-1.5 shadow-[var(--shadow-card)] lg:w-72">
+    <aside className="report-no-print shrink-0 overflow-hidden rounded-xl border border-line bg-card p-1.5 shadow-[var(--shadow-card)] lg:w-72">
       <ul className="flex flex-col">
         {INVENTORY_REPORTS.map((r) => {
           const active = r.key === activeKey;

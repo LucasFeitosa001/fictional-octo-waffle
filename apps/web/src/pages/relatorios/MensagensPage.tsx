@@ -32,6 +32,7 @@ import {
 import { useThemeColors } from '../../theme/useThemeColors';
 import { BackToReports, CARD } from './reportShared';
 import { ReportCategoriesBar } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 function defaultRange() {
   const to = new Date();
@@ -145,7 +146,7 @@ function StatusSegmented({
       {STATUS_OPTIONS.map((opt, i) => {
         const active = opt.value === value;
         return (
-          <button
+            <button
             key={opt.value}
             type="button"
             role="radio"
@@ -360,6 +361,7 @@ export function MensagensPage() {
             </div>
 
             {/* Gerar relatório */}
+            <ReportPdfOption />
             <Button variant="primary" onClick={refetchAll} isDisabled={isFetching}>
               <IconSearch size={16} /> Gerar relatório
             </Button>

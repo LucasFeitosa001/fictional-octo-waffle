@@ -12,6 +12,7 @@ import { useReportsOrigemAgendamentos } from '../../lib/queries/relatorios';
 import { DateRangePicker } from '../../components/DatePicker';
 import { getCategoricalColor } from '../../theme/dataColors';
 import { CalendarReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Relatório real "Origem dos Agendamentos" (/reports/calendars/origin).     */
@@ -115,6 +116,7 @@ export function OrigemAgendamentosPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            <ReportPdfOption />
             <button
               type="submit"
               disabled={query.isFetching}
