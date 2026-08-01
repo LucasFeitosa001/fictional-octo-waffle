@@ -48,6 +48,7 @@ import { CompanySwitcher } from '../components/CompanySwitcher';
 import { urlDaAreaDeIa } from '../lib/aiHost';
 import { useMinhasContas } from '../lib/queries/contas';
 import { useBookingLink } from '../lib/queries/marketing';
+import { useEmpresa } from '../lib/queries/empresa';
 import { APP_VERSION, CLUB_ORIGIN } from '../lib/config';
 import { toast, TOAST_TIMEOUT } from '../lib/toast';
 import { useSidebarStyle } from '../theme/sidebarStyle';
@@ -433,6 +434,14 @@ export function Sidebar({
   const { data: session } = useSession();
   const { openCreate } = useCreateDrawer();
   const bookingLink = useBookingLink();
+  const { data: empresa } = useEmpresa();
+  // Fátima não usa o produto CRM/Voltr. O gate é por empresa, não por usuário:
+  // enquanto o cadastro ainda carrega mantemos o menu (fail-open), e depois
+  // removemos o grupo inteiro, inclusive os atalhos internos.
+  const crmOculto = Boolean(
+    empresa?.name?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() ===
+      'fatima cabelos',
+  );
   // FASE 2: features ativas do plano. Fail-open: sem dados (loading/erro) nada é
   // travado — só mostramos cadeado quando SABEMOS que a feature não está no plano.
   const { data: featuresData } = useFeatures();
@@ -465,6 +474,7 @@ export function Sidebar({
   function filterEntries(entries: NavEntry[]): NavEntry[] {
     const out: NavEntry[] = [];
     for (const entry of entries) {
+      if (entry.key === 'voltr' && crmOculto) continue;
       if (entry.kind === 'link') {
         if (canSee(entry.perm) && daPlataforma(entry)) out.push(entry);
         continue;
