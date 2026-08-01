@@ -36,6 +36,23 @@ function origemDe(url: string): string {
   }
 }
 
+async function buscarTokenComFallback(scope: Escopo): Promise<RespostaToken> {
+  try {
+    return await api.get<RespostaToken>('/voltr/embed-token', { scope });
+  } catch (erro) {
+    // O caminho normal preserva a sessão host-only do app. Se o proxy da
+    // aplicação falhar em rede, tenta apenas o token no domínio da API;
+    // nenhuma outra chamada do SalonPass é desviada.
+    if (!(erro instanceof TypeError)) throw erro;
+    const resposta = await fetch(
+      `https://api.salonpass.com.br/api/v1/voltr/embed-token?scope=${encodeURIComponent(scope)}`,
+      { credentials: 'include' },
+    );
+    if (!resposta.ok) throw erro;
+    return (await resposta.json()) as RespostaToken;
+  }
+}
+
 export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [src, setSrc] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -71,13 +88,13 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       setErro(null);
       setCarregando(false);
       // Atualiza em segundo plano para a próxima troca, sem bloquear a tela.
-      void api.get<RespostaToken>('/voltr/embed-token', { scope }).then((novo) => {
+      void buscarTokenComFallback(scope).then((novo) => {
         EMBED_CACHE.set(scope, { ...novo, salvoEm: Date.now() });
       }).catch(() => undefined);
       return guardado;
     }
     try {
-      const r = await api.get<RespostaToken>('/voltr/embed-token', { scope });
+      const r = await buscarTokenComFallback(scope);
       EMBED_CACHE.set(scope, { ...r, salvoEm: Date.now() });
       tokenRef.current = r.accessToken;
       origemRef.current = origemDe(r.embedUrl);
@@ -93,7 +110,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       const demais: Escopo[] = ['crm', 'chat', 'boards', 'ia'].filter((s) => s !== scope) as Escopo[];
       void Promise.allSettled(demais.map(async (s) => {
         if (EMBED_CACHE.has(s)) return;
-        const outro = await api.get<RespostaToken>('/voltr/embed-token', { scope: s });
+        const outro = await buscarTokenComFallback(s);
         EMBED_CACHE.set(s, { ...outro, salvoEm: Date.now() });
       }));
       return r;
