@@ -40,8 +40,11 @@ const CFG: VoltrConfig = {
 };
 
 /** Guard com a config injetada — o construtor lê env, então sobrescrevo. */
-function guardCom(cfg: VoltrConfig): VoltrSignatureGuard {
-  const guard = new VoltrSignatureGuard();
+function guardCom(cfg: VoltrConfig, escopoDaRota?: string): VoltrSignatureGuard {
+  const reflector = {
+    getAllAndOverride: () => escopoDaRota,
+  } as unknown as ConstructorParameters<typeof VoltrSignatureGuard>[0];
+  const guard = new VoltrSignatureGuard(reflector);
   (guard as unknown as { config: VoltrConfig }).config = cfg;
   return guard;
 }
@@ -49,15 +52,38 @@ function guardCom(cfg: VoltrConfig): VoltrSignatureGuard {
 function contexto(req: Record<string, unknown>) {
   return {
     switchToHttp: () => ({ getRequest: () => req }),
+    getHandler: () => undefined,
+    getClass: () => undefined,
   } as unknown as Parameters<VoltrSignatureGuard['canActivate']>[0];
 }
 
-function requisicao(corpo: string, segredo: string, schema = 'emp_salaozinho') {
+// O guard compara com Date.now(); usar o relógio real mantém o teste dentro da
+// janela sem precisar de mock de tempo.
+const AGORA_MS = Date.now();
+let contadorDeNonce = 0;
+
+/**
+ * Assina como a VOLTR assina: `timestamp.nonce.corpo`. Este helper assinava só o
+ * corpo — ou seja, o teste certificava exatamente o formato quebrado que fazia
+ * toda chamada real tomar 403. Ver estudo 88.
+ */
+function requisicao(
+  corpo: string,
+  segredo: string,
+  schema = 'emp_salaozinho',
+  over: { timestamp?: string; nonce?: string } = {},
+) {
   const raw = Buffer.from(corpo);
+  const timestamp = over.timestamp ?? String(Math.floor(AGORA_MS / 1000));
+  const nonce = over.nonce ?? `nonce-${(contadorDeNonce += 1)}`;
   return {
     headers: {
       'x-tenant-schema': schema,
-      'x-signature': createHmac('sha256', segredo).update(raw).digest('hex'),
+      'x-timestamp': timestamp,
+      'x-nonce': nonce,
+      'x-signature': createHmac('sha256', segredo)
+        .update(`${timestamp}.${nonce}.${raw.toString('utf8')}`)
+        .digest('hex'),
     },
     rawBody: raw,
   } as Record<string, unknown>;
@@ -195,5 +221,136 @@ describe('Integração com a Voltr (estudo 68)', () => {
       'salaozinho',
       'quem ESTÁ no mapa segue resolvendo',
     );
+  });
+});
+
+// ─────────────────── estudo 88: a assinatura precisa casar com a Voltr
+//
+// A ponte não estava só desligada, estava QUEBRADA: a Voltr assina
+// `timestamp.nonce.corpo` e a SalonPass conferia só o corpo. Ligar dava 403 em
+// toda chamada. Sem timestamp nem nonce também não havia anti-replay.
+describe('Assinatura do conector da Voltr (estudo 88)', () => {
+  const CFG2 = {
+    embedUrl: 'http://voltr.local',
+    apiUrl: 'http://voltr.local',
+    clientId: 'salonpass',
+    clientSecret: 'segredo-parceiro',
+    tenantMap: { 'company-1': 'salaozinho' },
+    ingestTokens: {},
+    connectorSecrets: { salaozinho: 'hmac-do-salaozinho' },
+  } as unknown as VoltrConfig;
+
+  function guard2(escopo?: string) {
+    const reflector = {
+      getAllAndOverride: () => escopo,
+    } as unknown as ConstructorParameters<typeof VoltrSignatureGuard>[0];
+    const g = new VoltrSignatureGuard(reflector);
+    (g as unknown as { config: VoltrConfig }).config = CFG2;
+    return g;
+  }
+
+  it('A) assinatura no formato da Voltr é aceita', () => {
+    const req = requisicao('{"ola":1}', 'hmac-do-salaozinho');
+    assert.equal(guard2().canActivate(contexto(req)), true);
+  });
+
+  it('B) o formato ANTIGO (só o corpo) é recusado', () => {
+    const raw = Buffer.from('{"ola":1}');
+    const req = {
+      headers: {
+        'x-tenant-schema': 'emp_salaozinho',
+        'x-timestamp': String(Math.floor(Date.now() / 1000)),
+        'x-nonce': 'nonce-antigo',
+        'x-signature': createHmac('sha256', 'hmac-do-salaozinho')
+          .update(raw)
+          .digest('hex'),
+      },
+      rawBody: raw,
+    } as Record<string, unknown>;
+    assert.throws(() => guard2().canActivate(contexto(req)), /Assinatura inválida/);
+  });
+
+  it('C) sem timestamp ou sem nonce não passa', () => {
+    for (const faltando of ['x-timestamp', 'x-nonce']) {
+      const req = requisicao('{"a":1}', 'hmac-do-salaozinho') as {
+        headers: Record<string, string>;
+      };
+      delete req.headers[faltando];
+      assert.throws(
+        () => guard2().canActivate(contexto(req as unknown as Record<string, unknown>)),
+        /anti-replay/i,
+        faltando,
+      );
+    }
+  });
+
+  it('D) timestamp velho é recusado antes de gastar cripto', () => {
+    const antigo = String(Math.floor((Date.now() - 30 * 60 * 1000) / 1000));
+    const req = requisicao('{"a":1}', 'hmac-do-salaozinho', 'emp_salaozinho', {
+      timestamp: antigo,
+    });
+    assert.throws(() => guard2().canActivate(contexto(req)), /janela de tempo/i);
+  });
+
+  it('E) REPLAY: a mesma requisição não passa duas vezes', () => {
+    const req = requisicao('{"a":1}', 'hmac-do-salaozinho', 'emp_salaozinho', {
+      nonce: 'nonce-repetido-do-teste',
+    });
+    assert.equal(guard2().canActivate(contexto(req)), true);
+    assert.throws(() => guard2().canActivate(contexto(req)), /repetida/i);
+  });
+
+  it('F) ESCOPO: sem VOLTR_SCOPES, rota de agenda é recusada', () => {
+    const anterior = process.env.VOLTR_SCOPES;
+    delete process.env.VOLTR_SCOPES;
+    try {
+      const req = requisicao('{"a":1}', 'hmac-do-salaozinho');
+      assert.throws(
+        () => guard2('agenda').canActivate(contexto(req)),
+        /permissão de agenda/i,
+      );
+    } finally {
+      if (anterior === undefined) delete process.env.VOLTR_SCOPES;
+      else process.env.VOLTR_SCOPES = anterior;
+    }
+  });
+
+  it('G) ESCOPO concedido no ambiente libera; escopo de outro tenant não', () => {
+    const anterior = process.env.VOLTR_SCOPES;
+    process.env.VOLTR_SCOPES = 'salaozinho:mensagem|agenda,outro:mensagem';
+    try {
+      assert.equal(
+        guard2('agenda').canActivate(
+          contexto(requisicao('{"a":1}', 'hmac-do-salaozinho')),
+        ),
+        true,
+      );
+      process.env.VOLTR_SCOPES = 'outro:agenda';
+      assert.throws(
+        () =>
+          guard2('agenda').canActivate(
+            contexto(requisicao('{"a":1}', 'hmac-do-salaozinho')),
+          ),
+        /permissão de agenda/i,
+      );
+    } finally {
+      if (anterior === undefined) delete process.env.VOLTR_SCOPES;
+      else process.env.VOLTR_SCOPES = anterior;
+    }
+  });
+
+  it('H) rota SEM escopo declarado continua passando (o /whatsapp/send de hoje)', () => {
+    const anterior = process.env.VOLTR_SCOPES;
+    delete process.env.VOLTR_SCOPES;
+    try {
+      assert.equal(
+        guard2(undefined).canActivate(
+          contexto(requisicao('{"a":1}', 'hmac-do-salaozinho')),
+        ),
+        true,
+      );
+    } finally {
+      if (anterior !== undefined) process.env.VOLTR_SCOPES = anterior;
+    }
   });
 });

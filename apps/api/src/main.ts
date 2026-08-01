@@ -82,7 +82,10 @@ async function bootstrap() {
     _res: express.Response,
     buf: Buffer,
   ): void => {
-    if (buf?.length && req.originalUrl?.startsWith('/api/v1/voltr/whatsapp/')) {
+    // `/voltr/` e não só `/voltr/whatsapp/`: as rotas de agenda que a IA vai
+    // usar moram sob o mesmo guard de assinatura, e sem o corpo cru elas
+    // reprovariam em 100% das chamadas. Ver estudo 88.
+    if (buf?.length && req.originalUrl?.startsWith('/api/v1/voltr/')) {
       req.rawBody = Buffer.from(buf);
     }
   };
