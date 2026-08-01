@@ -860,6 +860,11 @@ function PagamentosDrawer({
   const [amount, setAmount] = useState('');
   const [methodId, setMethodId] = useState('');
   const [quickMethod, setQuickMethod] = useState('Dinheiro');
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitPayments, setSplitPayments] = useState([
+    { methodId: '', amount: '' },
+    { methodId: '', amount: '' },
+  ]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -867,6 +872,8 @@ function PagamentosDrawer({
       setAmount(remaining > 0 ? remaining.toFixed(2) : '');
       setMethodId('');
       setQuickMethod('Dinheiro');
+      setSplitMode(false);
+      setSplitPayments([{ methodId: '', amount: '' }, { methodId: '', amount: '' }]);
       setError(null);
     }
   }, [isOpen, remaining]);
@@ -951,7 +958,27 @@ function PagamentosDrawer({
       // O campo já abre preenchido com o restante. Se a pessoa tocar direto em
       // “Faturar”, registra primeiro esse pagamento e só então fecha a comanda.
       // Antes o botão fechava sem pagamento e a venda não aparecia no caixa.
-      if (remaining > 0.009) {
+      if (splitMode) {
+        const partes = splitPayments
+          .map((p) => ({ methodId: p.methodId, amount: parseNum(p.amount) }))
+          .filter((p) => p.amount > 0);
+        const totalPartes = partes.reduce((sum, p) => sum + p.amount, 0);
+        if (partes.length < 2) {
+          setError('Selecione pelo menos duas formas e informe os valores.');
+          return;
+        }
+        if (partes.some((p) => !p.methodId)) {
+          setError('Escolha a forma de pagamento de cada parte.');
+          return;
+        }
+        if (Math.abs(totalPartes - remaining) > 0.009) {
+          setError(`As partes precisam totalizar ${formatMoney(remaining)}.`);
+          return;
+        }
+        for (const parte of partes) {
+          await add.mutateAsync({ paymentMethodId: parte.methodId, amount: parte.amount });
+        }
+      } else if (remaining > 0.009) {
         const value = parseNum(amount);
         if (value + 0.009 < remaining) {
           setError(`Falta registrar ${formatMoney(remaining - Math.max(value, 0))}.`);
@@ -1021,8 +1048,50 @@ function PagamentosDrawer({
           />
         </Field>
 
+        <button
+          type="button"
+          onClick={() => setSplitMode((v) => !v)}
+          className="self-start text-sm font-semibold text-primary hover:underline"
+        >
+          {splitMode ? 'Usar uma única forma de pagamento' : '+ Dividir em duas ou mais formas'}
+        </button>
+
+        {splitMode ? (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
+            <p className="m-0 text-xs text-muted">Informe quanto será pago em cada forma. A soma deve fechar o restante.</p>
+            {splitPayments.map((part, index) => (
+              <div key={index} className="grid grid-cols-[1fr_7rem] gap-2">
+                <select
+                  value={part.methodId}
+                  onChange={(e) => setSplitPayments((xs) => xs.map((x, i) => i === index ? { ...x, methodId: e.target.value } : x))}
+                  className={numInputCls}
+                  aria-label={`Forma de pagamento ${index + 1}`}
+                >
+                  <option value="">Forma {index + 1}</option>
+                  {methodList.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                <input
+                  inputMode="decimal"
+                  value={part.amount}
+                  onChange={(e) => setSplitPayments((xs) => xs.map((x, i) => i === index ? { ...x, amount: e.target.value } : x))}
+                  placeholder="R$ 0,00"
+                  className={numInputCls}
+                  aria-label={`Valor da forma ${index + 1}`}
+                />
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSplitPayments((xs) => [...xs, { methodId: '', amount: '' }])}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              + Adicionar outra forma
+            </button>
+          </div>
+        ) : null}
+
         {/* Formas rápidas Dinheiro / Cartão / Outros. */}
-        <div className="grid grid-cols-3 gap-2">
+        {!splitMode && <div className="grid grid-cols-3 gap-2">
           {quicks.map((q) => (
             <button
               key={q}
@@ -1041,9 +1110,9 @@ function PagamentosDrawer({
               {q}
             </button>
           ))}
-        </div>
+        </div>}
 
-        {methodList.length > 0 && (
+        {!splitMode && methodList.length > 0 && (
           <Field label="Método cadastrado (opcional)">
             <select
               value={methodId}
@@ -1061,9 +1130,9 @@ function PagamentosDrawer({
           </Field>
         )}
 
-        <Button variant="outline" isDisabled={add.isPending} onClick={handleAdd}>
+        {!splitMode && <Button variant="outline" isDisabled={add.isPending} onClick={handleAdd}>
           <IconPlus size={16} /> {add.isPending ? 'Registrando…' : 'Adicionar pagamento'}
-        </Button>
+        </Button>}
 
         {/* Lista de pagamentos. */}
         {order.payments.length > 0 && (
