@@ -33,6 +33,12 @@ promessa deixava a cliente esperando indefinidamente. O orquestrador agora
 intercepta até duas promessas de consulta sem ação e força a próxima leitura na
 mesma rodada; somente o resultado real pode encerrar o turno.
 
+No smoke seguinte, as seis tools chegaram à oferta correta com 44 slots, mas o
+modelo resumiu “tem vários horários” sem mostrar nenhum. A apresentação da
+oferta também deixou de ser decisão do LLM: quando há slots, o backend monta a
+lista diretamente do estado assinado e convertido ao fuso da empresa. O modelo
+não pode omitir, escolher nem alterar os horários devolvidos pela SalonPass.
+
 ## Evidências do código atual
 
 - `apps/api/src/autopilot/agenda-tools.service.ts:446` apenas entrega ao modelo
