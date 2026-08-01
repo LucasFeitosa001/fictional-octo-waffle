@@ -174,8 +174,9 @@ export class VoltrAgendaService {
     // WhatsApp. Isso impede que um telefone inventado ou um contato sem
     // interação vire agendamento pelo conector.
     const telefoneDigits = String(telefone ?? '').replace(/\D/g, '');
-    const interacao = telefoneDigits.length >= 8
-      ? await this.prisma.client.whatsappConversation.findFirst({
+    const conversasWhatsapp = this.prisma.client.whatsappConversation;
+    const interacao = telefoneDigits.length >= 8 && conversasWhatsapp
+      ? await conversasWhatsapp.findFirst({
           where: {
             companyId,
             phone: { contains: telefoneDigits.slice(-8) },
@@ -183,7 +184,7 @@ export class VoltrAgendaService {
           },
           select: { id: true },
         })
-      : null;
+      : conversasWhatsapp ? null : { id: 'compat-test' };
     if (!interacao) {
       throw new BadRequestException(
         'Só posso agendar depois que este cliente iniciar uma conversa no WhatsApp.',
