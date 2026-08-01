@@ -80,12 +80,16 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     const origem = origemRef.current;
     if (!iframe?.contentWindow || !origem) return;
     const root = getComputedStyle(document.documentElement);
-    const nomes = [
-      '--sp-canvas', '--sp-card', '--sp-warm-white', '--sp-border',
-      '--sp-ink', '--sp-muted-ink', '--sp-primary', '--sp-primary-strong',
-      '--sp-primary-fg', '--sp-sidebar', '--sp-sidebar-fg',
-    ] as const;
-    const vars = Object.fromEntries(nomes.map((nome) => [nome, root.getPropertyValue(nome).trim()]).filter(([, valor]) => valor));
+    // O CRM deve receber exatamente a personalização ativa, não uma lista
+    // parcial. Enumerar os tokens --sp-* evita que novos estados/temas voltem
+    // a cair nos defaults do iframe.
+    const vars: Record<string, string> = {};
+    for (let i = 0; i < root.length; i += 1) {
+      const nome = root.item(i);
+      if (!nome.startsWith('--sp-')) continue;
+      const valor = root.getPropertyValue(nome).trim();
+      if (valor) vars[nome] = valor;
+    }
     iframe.contentWindow.postMessage({ type: 'salonpass-theme', vars }, origem);
   }, []);
 
@@ -186,7 +190,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     // da Voltr — o iframe só entra depois de dois saltos de rede. Ver estudo 71.
     <div
       className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col"
-      style={{ background: '#f4f8f8' }}
+      style={{ background: 'var(--sp-canvas)' }}
     >
       {carregando ? (
         <div className="grid flex-1 place-items-center">
