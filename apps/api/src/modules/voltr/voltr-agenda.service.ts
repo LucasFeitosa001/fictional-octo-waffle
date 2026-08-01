@@ -170,6 +170,26 @@ export class VoltrAgendaService {
       );
     }
 
+    // A IA só pode reservar para alguém que realmente iniciou conversa no
+    // WhatsApp. Isso impede que um telefone inventado ou um contato sem
+    // interação vire agendamento pelo conector.
+    const telefoneDigits = String(telefone ?? '').replace(/\D/g, '');
+    const interacao = telefoneDigits.length >= 8
+      ? await this.prisma.client.whatsappConversation.findFirst({
+          where: {
+            companyId,
+            phone: { contains: telefoneDigits.slice(-8) },
+            lastInboundAt: { not: null },
+          },
+          select: { id: true },
+        })
+      : null;
+    if (!interacao) {
+      throw new BadRequestException(
+        'Só posso agendar depois que este cliente iniciar uma conversa no WhatsApp.',
+      );
+    }
+
     const customerId = await this.acharOuCriarCliente(companyId, telefone, nomeCliente);
     // Idempotência de negócio: aprovação repetida, retry HTTP ou dois cliques
     // concorrentes não podem reservar o mesmo horário duas vezes. O token da
