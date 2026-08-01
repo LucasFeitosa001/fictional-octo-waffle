@@ -20,6 +20,12 @@ a mesma rota assinada usada pela Mariana devolveu Lucas e a consulta de domingo
 retornou 44 slots reais. A aba Expediente também precisa deixar explícito que o
 horário só vale para serviços marcados em “Personalizar serviços”.
 
+O primeiro smoke da conversa encontrou uma segunda falha: a SalonPass devolve
+slots ISO em UTC e a tool os entregava crus ao modelo. Assim, o expediente local
+09:00–20:00 apareceu à cliente como 12:00–22:45. O estado privado continua
+guardando ISO (necessário para validar/agendar), mas o resultado exposto ao LLM
+agora contém somente `HH:mm` em `BUSINESS_TIMEZONE`.
+
 ## Evidências do código atual
 
 - `apps/api/src/autopilot/agenda-tools.service.ts:446` apenas entrega ao modelo
