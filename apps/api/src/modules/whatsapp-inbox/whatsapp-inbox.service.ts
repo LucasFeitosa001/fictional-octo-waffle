@@ -376,6 +376,14 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     dto: UpdateWhatsappConversationDto,
   ) {
     const conversation = await this.findConversation(companyId, id);
+    if (dto.handledByAi === true) {
+      const config = await this.ensureConfig(companyId);
+      if (!config.enabled) {
+        throw new BadRequestException(
+          'A IA está pausada nesta empresa. Ative a recepcionista antes de devolver a conversa para ela.',
+        );
+      }
+    }
     if (dto.read && conversation.unreadCount > 0) {
       const unreadMessages =
         await this.prisma.client.whatsappInboxMessage.findMany({
