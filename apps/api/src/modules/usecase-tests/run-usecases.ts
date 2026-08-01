@@ -9,4 +9,5 @@ import './orders-cash.usecases.test';
 import './outbox-policy.usecases.test';
 import './platform-access.usecases.test';
 import './voltr.usecases.test';
+import './voltr-forwarder.usecases.test';
 import './retry-cache.usecases.test';

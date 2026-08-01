@@ -65,8 +65,9 @@ const ENCAMINHADAS_TTL_MS = 12 * 60 * 60 * 1000;
 
 /** Uma mensagem nossa que já foi copiada para a Voltr e pode receber recibo. */
 interface MensagemEncaminhada {
-  /** Maior degrau que a Voltr JÁ tem gravado. Começa em `sent` porque lá a
-   *  mensagem nasce com `statusEntrega = 'enviada'` — esse degrau já está pago. */
+  /** Maior degrau que a Voltr JÁ tem gravado. Começa em zero: a resposta HTTP
+   *  do conector significa somente `na_fila`; o ACK `sent` ainda precisa ser
+   *  informado depois que a cópia da mensagem existir lá. Ver estudo 91. */
   degrau: number;
   em: number;
 }
@@ -204,21 +205,26 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
             }
           : undefined;
 
-      void this.voltr
-        .encaminharInbound({
+      await this.voltr.encaminharInbound({
+        companyId: msg.companyId,
+        contatoJid: jidDoContato,
+        text: texto,
+        externalId: msg.messageId,
+        nomeCliente: msg.pushName,
+        doSalao: msg.fromMe,
+        ...(midia ? { midia } : {}),
+      });
+      // O POST acima criou/encontrou a mensagem na Voltr. Só agora o ACK
+      // `sent` pode promovê-la de `na_fila` para `enviada`; registrar antes
+      // criaria uma corrida em que o status chegaria antes da própria linha.
+      if (msg.fromMe && msg.messageId) {
+        this.registrarAck({
           companyId: msg.companyId,
-          contatoJid: jidDoContato,
-          text: texto,
-          externalId: msg.messageId,
-          nomeCliente: msg.pushName,
-          doSalao: msg.fromMe,
-          ...(midia ? { midia } : {}),
-        })
-        .catch((err: Error) => {
-          this.logger.warn(
-            `Não deu para encaminhar a mensagem para a Voltr: ${err.message}`,
-          );
+          whatsappMessageId: msg.messageId,
+          status: 'sent',
+          at: new Date(),
         });
+      }
     } catch (err) {
       this.logger.warn(
         `Não deu para resolver o contato da mensagem: ${(err as Error).message}`,
@@ -269,7 +275,7 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
   /** Anota que esta mensagem nossa foi copiada para a Voltr e pode receber ACK. */
   private lembrarEncaminhada(companyId: string, messageId: string): void {
     this.encaminhadas.set(this.chave(companyId, messageId), {
-      degrau: DEGRAU_ACK.sent,
+      degrau: 0,
       em: Date.now(),
     });
     this.podarEncaminhadas();
@@ -290,7 +296,7 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
     const chave = this.chave(ack.companyId, ack.whatsappMessageId);
     const encaminhada = this.encaminhadas.get(chave);
     if (!encaminhada) return; // não está no inbox da Voltr — nada a atualizar
-    if (degrau <= encaminhada.degrau) return; // 'enviada' já é o estado inicial lá
+    if (degrau <= encaminhada.degrau) return;
 
     const pendente = this.pendentes.get(chave);
     if (pendente) {
