@@ -144,6 +144,19 @@ export class UpdateAppointmentDto {
  * Envio manual do acompanhamento. Mesma exigência de autorização explícita da
  * confirmação — o botão antigo disparava sem nada disso. Ver estudo 86.
  */
+/** Mensagem livre para a cliente, a partir do agendamento. Ver estudo 87. */
+export class SendAppointmentMessageDto {
+  @Equals(true, { message: 'Confirme explicitamente o envio da mensagem.' })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+
+  @IsString() message: string;
+}
+
 export class SendAppointmentFollowUpDto {
   @Equals(true, {
     message: 'Confirme explicitamente o envio do acompanhamento.',

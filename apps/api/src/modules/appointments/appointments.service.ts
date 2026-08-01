@@ -512,6 +512,87 @@ export class AppointmentsService {
     return this.followUpSender.enviarManual(companyId, id, requestKey, escolha);
   }
 
+  /**
+   * Mensagem LIVRE para a cliente, escrita na hora pelo salão. Ver estudo 87.
+   *
+   * Sai como `kind: 'manual'` de propósito: não é automação, então não passa
+   * pela revalidação de autorização nem expira na fila — o texto é de uma
+   * pessoa, não de uma regra. Continuam valendo opt-out, telefone válido e o
+   * registro no histórico.
+   */
+  async enviarMensagemLivre(
+    companyId: string,
+    id: string,
+    requestKey: string | undefined,
+    texto: string,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      id,
+      scopeProfessionalId,
+    );
+    const customer = appointment.customer;
+    if (!customer?.phone?.trim()) {
+      throw new BadRequestException(
+        'Cadastre um telefone para a cliente antes de enviar.',
+      );
+    }
+    if (
+      customer.notificationsEnabled === false ||
+      customer.whatsappOptIn === false
+    ) {
+      throw new BadRequestException(
+        'A cliente optou por não receber mensagens no WhatsApp.',
+      );
+    }
+
+    const bruto = texto?.trim() ?? '';
+    if (!bruto) throw new BadRequestException('Escreva a mensagem.');
+
+    // Mesma checagem da confirmação: variável que não existe vira texto cru na
+    // mensagem da cliente, e isso não pode passar despercebido.
+    const conhecidas = new Set<string>(CONFIRMATION_TEMPLATE_VARIABLES);
+    const desconhecidas = unresolvedConfirmationVariables(bruto).filter(
+      (v) => !conhecidas.has(v),
+    );
+    if (desconhecidas.length > 0) {
+      throw new BadRequestException(
+        `Variável não reconhecida na mensagem: {${desconhecidas[0]}}.`,
+      );
+    }
+
+    const variables = confirmationTemplateVariables({
+      companyName: appointment.company.name,
+      timezone: appointment.company.timezone,
+      customerName: customer.name,
+      professionalName: appointment.professional?.name ?? null,
+      serviceNames: appointment.items.map((item) => item.service.name),
+      start: appointment.start,
+    });
+    const message = renderConfirmationTemplate(bruto, variables);
+    if (!message || message.length > 2_000) {
+      throw new BadRequestException(
+        'A mensagem final deve ter entre 1 e 2000 caracteres.',
+      );
+    }
+
+    const fila = await this.whatsapp.enqueueText(customer.phone, message, {
+      companyId,
+      customerId: appointment.customerId ?? undefined,
+      appointmentId: id,
+      kind: 'manual',
+      requestKey,
+      authorized: true,
+    });
+    if (!fila) {
+      throw new BadRequestException(
+        'O telefone da cliente é inválido para envio no WhatsApp.',
+      );
+    }
+    return fila;
+  }
+
   private async loadConfirmationAppointment(
     companyId: string,
     id: string,

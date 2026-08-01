@@ -257,7 +257,7 @@ export function AgendaPage() {
   }
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
   const [confirmationDrawerTab, setConfirmationDrawerTab] = useState<
-    'message' | 'followup' | 'logs' | null
+    'message' | 'followup' | 'livre' | 'logs' | null
   >(null);
   const [comandaOrder, setComandaOrder] = useState<OrderRow | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
@@ -2008,6 +2008,18 @@ export function AgendaPage() {
                       onClick={() => setConfirmationDrawerTab('followup')}
                     >
                       Enviar acompanhamento
+                    </Button>
+                  )}
+                  {/* Mensagem escrita na hora, para o que não cabe em modelo
+                      nenhum. Ver estudo 87. */}
+                  {can('agenda:manage') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="sm:col-span-2"
+                      onClick={() => setConfirmationDrawerTab('livre')}
+                    >
+                      Escrever mensagem para a cliente
                     </Button>
                   )}
               </div>

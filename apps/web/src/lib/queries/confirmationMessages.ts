@@ -142,6 +142,24 @@ export function useResendAppointmentMessage(appointmentId: string | null) {
  * Envia o acompanhamento pós-atendimento AGORA, sem esperar o prazo. Serve
  * inclusive depois de finalizado — foi o que o dono pediu. Ver estudo 84.
  */
+/**
+ * Mensagem livre para a cliente, escrita na hora. Sai como `manual`: não é
+ * automação, então não expira na fila nem passa pela revalidação. Ver estudo 87.
+ */
+export function useSendAppointmentFreeMessage(appointmentId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { requestKey: string; message: string }) =>
+      api.post<SendConfirmationResult>(
+        `/appointments/${appointmentId}/message`,
+        { authorize: true, ...body },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: confirmationKey(appointmentId) });
+    },
+  });
+}
+
 export function useSendAppointmentFollowUp(appointmentId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({

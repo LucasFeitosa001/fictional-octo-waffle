@@ -10,13 +10,14 @@ import {
   useResendAppointmentMessage,
   useSendAppointmentConfirmation,
   useSendAppointmentFollowUp,
+  useSendAppointmentFreeMessage,
   type ConfirmationLog,
   type ConfirmationLogStatus,
 } from '../lib/queries/confirmationMessages';
 import { apiErrorMessage } from '../lib/toast';
 import { formatPhone } from '../lib/format';
 
-type ConfirmationTab = 'message' | 'followup' | 'logs';
+type ConfirmationTab = 'message' | 'followup' | 'livre' | 'logs';
 
 const UNIDADE: Record<string, string> = {
   seconds: 'segundos',
@@ -172,6 +173,31 @@ export function AppointmentConfirmationDrawer({
     }
   }
 
+  // ── Mensagem livre (estudo 87). Sai como `manual`: texto de uma pessoa, não
+  // de uma regra, então não expira na fila nem revalida automação.
+  const freeMutation = useSendAppointmentFreeMessage(appointmentId);
+  const [livreMessage, setLivreMessage] = useState('');
+  const [livreAutorizado, setLivreAutorizado] = useState(false);
+
+  async function enviarMensagemLivre() {
+    setFeedback(null);
+    try {
+      await freeMutation.mutateAsync({
+        requestKey: crypto.randomUUID(),
+        message: livreMessage,
+      });
+      setLivreAutorizado(false);
+      setLivreMessage('');
+      setFeedback({
+        tone: 'success',
+        message: 'Mensagem colocada na fila. Acompanhe o estado nos Logs.',
+      });
+      setTab('logs');
+    } catch (err) {
+      setFeedback({ tone: 'danger', message: apiErrorMessage(err) });
+    }
+  }
+
   // Qual linha está reenviando — sem isto, todos os botões da lista viram
   // "Reenviando…" ao mesmo tempo.
   const [reenviando, setReenviando] = useState<string | null>(null);
@@ -208,6 +234,8 @@ export function AppointmentConfirmationDrawer({
     setFuAutorizado(false);
     setFuTemplateId('');
     setFuMessage('');
+    setLivreMessage('');
+    setLivreAutorizado(false);
   }, [isOpen, initialTab]);
 
   useEffect(() => {
@@ -244,6 +272,22 @@ export function AppointmentConfirmationDrawer({
     Boolean(setup?.recipient.phone) &&
     fuAutorizado &&
     !followUpMutation.isPending;
+
+  // Prévia local: o drawer já tem as variáveis, então não precisa ir ao servidor
+  // a cada tecla. O backend renderiza de novo no envio, com os mesmos dados.
+  const previaLivre = useMemo(
+    () =>
+      setup && livreMessage.trim()
+        ? renderConfirmationPreview(livreMessage, setup.variables).trim()
+        : '',
+    [livreMessage, setup],
+  );
+  const livrePodeEnviar =
+    canSendConfirmation &&
+    Boolean(setup?.recipient.phone) &&
+    livreAutorizado &&
+    previaLivre.length > 0 &&
+    !freeMutation.isPending;
 
   const customerBlocked =
     setup?.recipient.notificationsEnabled === false ||
@@ -411,7 +455,7 @@ export function AppointmentConfirmationDrawer({
       mobileBackLabel="Voltar"
     >
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-canvas p-1">
+        <div className="grid grid-cols-4 gap-1 rounded-xl bg-canvas p-1">
           <button
             type="button"
             onClick={() => setTab('message')}
@@ -422,7 +466,7 @@ export function AppointmentConfirmationDrawer({
                 : 'text-muted-ink',
             ].join(' ')}
           >
-            Mensagem
+            Confirmação
           </button>
           <button
             type="button"
@@ -435,6 +479,18 @@ export function AppointmentConfirmationDrawer({
             ].join(' ')}
           >
             Acompanhamento
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('livre')}
+            className={[
+              'min-h-10 rounded-lg px-3 text-sm font-semibold transition-colors',
+              tab === 'livre'
+                ? 'bg-white text-foreground shadow-sm'
+                : 'text-muted-ink',
+            ].join(' ')}
+          >
+            Livre
           </button>
           <button
             type="button"
@@ -696,6 +752,64 @@ export function AppointmentConfirmationDrawer({
                 {followUpMutation.isPending
                   ? 'Enviando…'
                   : 'Enviar acompanhamento'}
+              </Button>
+            </>
+
+          ) : tab === 'livre' ? (
+            <>
+              <section className="rounded-xl border border-line bg-canvas p-3 text-xs text-muted-ink">
+                Mensagem escrita por você, enviada agora. Não liga nem agenda
+                nada — é um envio pontual, e fica registrado nos Logs.
+              </section>
+
+              <section className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  Mensagem
+                </span>
+                <textarea
+                  value={livreMessage}
+                  onChange={(e) => setLivreMessage(e.target.value)}
+                  rows={6}
+                  placeholder="Escreva o que quer dizer para a cliente…"
+                  className="rounded-xl border border-line bg-card p-3 text-sm text-foreground"
+                />
+                <p className="text-xs text-muted-ink">
+                  Pode usar as mesmas variáveis da confirmação:{' '}
+                  {Object.keys(setup.variables)
+                    .map((v) => `{${v}}`)
+                    .join(', ')}
+                  .
+                </p>
+              </section>
+
+              <section className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  Prévia
+                </span>
+                <p className="whitespace-pre-wrap rounded-xl border border-line bg-canvas p-3 text-sm leading-6 text-foreground">
+                  {previaLivre || 'Escreva a mensagem para ver a prévia.'}
+                </p>
+              </section>
+
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={livreAutorizado}
+                  onChange={(e) => setLivreAutorizado(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  Autorizo enviar esta mensagem agora para{' '}
+                  {setup.recipient.name ?? 'a cliente'}.
+                </span>
+              </label>
+
+              <Button
+                variant="primary"
+                isDisabled={!livrePodeEnviar}
+                onPress={() => void enviarMensagemLivre()}
+              >
+                {freeMutation.isPending ? 'Enviando…' : 'Enviar mensagem'}
               </Button>
             </>
 

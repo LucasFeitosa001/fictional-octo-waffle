@@ -19,6 +19,7 @@ import {
   BlockTimeDto,
   ResendAppointmentMessageDto,
   SendAppointmentFollowUpDto,
+  SendAppointmentMessageDto,
   SendAppointmentConfirmationDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
@@ -175,6 +176,25 @@ export class AppointmentsController {
       id,
       dto.requestKey,
       { templateId: dto.templateId, message: dto.message },
+      scope,
+    );
+  }
+
+  /** Envia uma mensagem livre para a cliente deste agendamento. */
+  @Post('appointments/:id/message')
+  @RequirePermission('agenda:manage')
+  async sendFreeMessage(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentMessageDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.enviarMensagemLivre(
+      companyId,
+      id,
+      dto.requestKey,
+      dto.message,
       scope,
     );
   }
