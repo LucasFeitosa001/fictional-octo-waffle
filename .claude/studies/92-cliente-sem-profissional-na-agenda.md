@@ -39,6 +39,12 @@ oferta também deixou de ser decisão do LLM: quando há slots, o backend monta 
 lista diretamente do estado assinado e convertido ao fuso da empresa. O modelo
 não pode omitir, escolher nem alterar os horários devolvidos pela SalonPass.
 
+O teste da sessão `demo` revelou ainda a falha de referência entre turnos: após
+o catálogo, “corte” era enviado como `serviceId` e “1” como profissional. O
+backend agora recarrega o catálogo oficial no início do turno seguinte, resolve
+o nome para o ID real, e converte datas relativas como “amanhã” no fuso do
+negócio antes de consultar a disponibilidade.
+
 ## Evidências do código atual
 
 - `apps/api/src/autopilot/agenda-tools.service.ts:446` apenas entrega ao modelo
