@@ -102,7 +102,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boar
     // refresh piscava entre três brancos: o splash, o canvas do painel e o fundo
     // da Voltr — o iframe só entra depois de dois saltos de rede. Ver estudo 71.
     <div
-      className="flex h-full min-h-0 w-full flex-col"
+      className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col"
       style={{ background: '#f4f8f8' }}
     >
       {carregando ? (
@@ -118,7 +118,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boar
           ref={iframeRef}
           src={src}
           title={titulo}
-          className="h-full min-h-0 w-full flex-1 border-0"
+          className="block h-full min-h-0 w-full min-w-0 flex-1 border-0"
           allow="clipboard-write; microphone"
         />
       ) : null}

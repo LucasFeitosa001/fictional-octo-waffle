@@ -83,7 +83,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           // Full-bleed (agenda): gerencia a própria altura/scroll. Só reservamos
           // a safe-area do topo no mobile (o header interno da agenda não pode
           // ficar sob o notch); no desktop (lg:) não há notch e o topbar cobre.
-          <main className="db-canvas flex min-h-0 flex-1 flex-col overflow-hidden pt-[var(--sp-safe-top)] lg:pt-0">
+          <main className="db-canvas flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden pt-[var(--sp-safe-top)] lg:pt-0">
             {children}
           </main>
         ) : (
