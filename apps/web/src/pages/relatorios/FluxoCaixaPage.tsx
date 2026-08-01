@@ -156,6 +156,28 @@ export function FluxoCaixaPage() {
             </div>
           </div>
 
+          {/* Recebimentos separados por forma: o backend já agrupa pelas
+              transações pagas; aqui deixamos Pix, dinheiro e cartão visíveis
+              sem misturar com o saldo geral. */}
+          <div className="mt-4 rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="m-0 text-sm font-semibold text-ink">Recebimentos por forma de pagamento</h3>
+              <span className="text-xs text-muted-ink">Somente entradas pagas no período</span>
+            </div>
+            {(d?.byPaymentMethod ?? []).length === 0 ? (
+              <p className="m-0 text-sm text-muted-ink">Nenhum recebimento no período.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {(d?.byPaymentMethod ?? []).map((m) => (
+                  <div key={m.paymentMethodId ?? 'none'} className="rounded-xl border border-line/70 bg-canvas/40 px-4 py-3">
+                    <div className="truncate text-xs font-medium text-muted-ink">{m.paymentMethodName}</div>
+                    <div className="mt-1 text-xl font-bold text-success">{formatMoney(m.total)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Gráfico */}
           <div className="mt-4 rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
             <h3 className="mb-3 text-sm font-semibold text-ink">Entradas × Saídas por dia</h3>
