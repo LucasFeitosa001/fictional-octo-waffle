@@ -176,3 +176,42 @@ do schema revelou que os tenants antigos também não tinham `movidoEm`; apenas
 foram aplicadas em `emp_alecrim`, `emp_designmoda`, `emp_silviahair` e
 `emp_timefit`, preservando todos os cards. `GET /crm/boards` da DesignModa
 voltou 200 depois da correção.
+
+## 01/08 — tool textual vazou e a autorização precisava de dois níveis
+
+O modelo Groq devolveu duas variações de chamada serializada no texto:
+`<function=listar_servicos={}></function>` e
+`<function=listar_profissionais={"serviceId":"1"}></function>`. O parser em
+`apps/api/src/autopilot/groq.client.ts` reconhecia apenas argumentos escritos
+entre a abertura e o fechamento. A segunda forma ficou visível ao cliente; no
+turno seguinte, sem resultado estruturado, o modelo inventou cortes e preços
+que não existem na DesignModa.
+
+Decisão:
+
+1. O parser aceita as duas serializações, mas só executa nomes presentes na
+   allowlist de tools enviada pela aplicação. Marcadores desconhecidos,
+   truncados ou inválidos são removidos do texto; código de ferramenta nunca é
+   resposta ao cliente.
+2. Depois de `listar_servicos`, se o pedido não corresponde exatamente a um
+   serviço real, `apps/api/src/autopilot/agenda-tools.service.ts` responde de
+   forma determinística com os serviços retornados pela SalonPass. O modelo não
+   recebe a oportunidade de fabricar alternativas ou preços.
+3. A permissão de saída deixa de depender apenas do kill-switch global. O
+   cadastro da empresa em `apps/api/prisma/platform/schema.prisma` ganha uma
+   autorização de outbound, desligada por padrão. `apps/api/src/mensageria/
+   mensageria.service.ts` exige o kill-switch **e** essa autorização por tenant.
+4. O mesmo cadastro guarda se a IA atende todos os contatos. O padrão é false.
+   Em `apps/api/src/autopilot/autopilot.service.ts`, a autonomia vale quando o
+   modo todos está ligado ou quando `Conversa.iaHabilitada` liberou aquele
+   contato. No modo selecionados, o switch já existente em
+   `apps/web/app/components/crm/InboxChatHeader.tsx` continua sendo a seleção
+   individual.
+5. `apps/api/src/agentes/agentes.controller.ts`, `apps/api/src/agentes/
+   agentes.service.ts` e `apps/web/app/agentes/page.tsx` expõem e explicam a
+   política. A empresa vê se a saída real foi autorizada, mas só escolhe entre
+   todos e selecionados; ela não pode autorizar a si própria.
+
+A DesignModa (empresa do Lucas) é a única autorização inicial. Nenhum envio de
+teste real é permitido sem número destinatário exato, revisão do backlog e
+confirmação do dono, conforme `AGENTS.md`.
