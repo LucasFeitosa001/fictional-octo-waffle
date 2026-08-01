@@ -3,11 +3,22 @@ import { authBaseUrl, DEFAULT_API_ORIGIN } from '@beautypass/shared';
 const CONFIGURED_ORIGIN =
   (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim();
 
+function origemApiProducao(): string {
+  if (typeof window !== 'undefined' && window.location.hostname === 'app.salonpass.com.br') {
+    // O CRM embarcado usa muitas chamadas e token-exchange. Ir direto ao
+    // endpoint da API evita a camada de proxy/CloudFront da aplicação, que
+    // ocasionalmente devolvia `Failed to fetch` durante a troca de iframe.
+    return 'https://api.salonpass.com.br';
+  }
+  return '';
+}
+
 // An absent or empty VITE_API_ORIGIN means "same origin as the current host".
 // Better Auth's createAuthClient rejects a relative baseURL ("Invalid base URL"),
 // so we resolve it to the absolute window.location.origin at runtime.
 const API_ORIGIN =
   CONFIGURED_ORIGIN ||
+  origemApiProducao() ||
   (typeof window !== 'undefined' ? window.location.origin : DEFAULT_API_ORIGIN);
 
 /** REST data API base, e.g. http://localhost:3333/api/v1 */
