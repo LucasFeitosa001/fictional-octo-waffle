@@ -306,3 +306,36 @@ de produção, “quero marcar amanhã” exibiu o catálogo e a resposta seguin
 avançou para a disponibilidade. Como não havia profissional disponível amanhã,
 respondeu isso e ofereceu consultar hoje. As duas saídas ficaram `simulada`,
 nenhum marcador de tool apareceu e a conversa temporária foi removida.
+
+## 01/08 — Uma única sessão `demo`, carregada ao abrir
+
+O simulador mantinha `contador`, começava em `demo-1` e “Nova conversa” apenas
+incrementava para `demo-2`, `demo-3` etc. Não apagava nenhuma conversa antiga.
+Além disso, `conversaId` começava `null` e só era preenchido pelo primeiro
+`POST /simulador/cliente`; por isso voltar à aba Testar mostrava uma tela vazia
+até o operador mandar outra mensagem.
+
+O ciclo correto fica sob autoridade do backend:
+
+- `GET /simulador/sessao?agenteId=...` encontra a última conversa daquele
+  agente e permite à tela carregá-la na abertura;
+- `POST /simulador/sessao/nova` remove todas as simulações anteriores daquele
+  agente, incluindo filhos e memória, e cria uma conversa vazia canônica
+  `sim:demo:<agenteId>`;
+- a interface mostra sempre **Sessão demo**, sem contador;
+- trocar o agente carrega a última simulação dele; não apaga nada por efeito
+  colateral — apagar/recomeçar acontece somente no botão “Nova conversa”;
+- a primeira mensagem e a inicialização usam o id retornado explicitamente,
+  evitando depender do polling de 3 s ou de um estado React ainda antigo.
+
+Implementado na Voltr no commit `d9f7eff`. O reset é uma transação única e
+remove mensagens, notificações, ligações, auditorias, vendas sandbox, execuções
+de automação/campanha e memória antes de criar `sim:demo:<agenteId>`. A suíte
+ficou em 27/27 arquivos e 122/122 testes; API e web também passaram em
+typecheck/build.
+
+No smoke autenticado de produção, `GET /simulador/sessao` devolveu 200 para a
+Barbearia Paulista, encontrou a sessão canônica `demo` e o detalhe trouxe as 4
+mensagens que já estavam salvas — sem mandar uma mensagem nova para revelar a
+conversa. O reset destrutivo não foi acionado no smoke para preservar a conversa
+real do dono; seu comportamento ficou certificado no teste unitário transacional.
