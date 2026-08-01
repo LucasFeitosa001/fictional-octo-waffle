@@ -1282,8 +1282,8 @@ export function ProfessionalDrawer({
                 </button>
               </div>
               <p className="text-xs text-muted-ink">
-                Marque os dias em que atende e defina o horário. É o que libera os encaixes no
-                agendamento online.
+                Marque os dias em que atende e defina o horário. O agendamento só libera
+                horários para os serviços também marcados em “Personalizar serviços”.
               </p>
               {detailLoading ? (
                 <p className="text-sm text-muted-ink">Carregando horários…</p>
