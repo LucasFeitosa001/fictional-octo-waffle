@@ -26,6 +26,13 @@ slots ISO em UTC e a tool os entregava crus ao modelo. Assim, o expediente local
 guardando ISO (necessário para validar/agendar), mas o resultado exposto ao LLM
 agora contém somente `HH:mm` em `BUSINESS_TIMEZONE`.
 
+O smoke posterior ao deploy encontrou uma terceira falha: depois de reconhecer
+“corte”, o modelo respondeu “deixa eu ver os horários” sem emitir a próxima
+tool call. Como cada turno HTTP termina quando vem texto sem ferramenta, essa
+promessa deixava a cliente esperando indefinidamente. O orquestrador agora
+intercepta até duas promessas de consulta sem ação e força a próxima leitura na
+mesma rodada; somente o resultado real pode encerrar o turno.
+
 ## Evidências do código atual
 
 - `apps/api/src/autopilot/agenda-tools.service.ts:446` apenas entrega ao modelo
