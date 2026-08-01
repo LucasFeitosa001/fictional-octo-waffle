@@ -171,22 +171,83 @@ export class VoltrAgendaService {
     }
 
     const customerId = await this.acharOuCriarCliente(companyId, telefone, nomeCliente);
-    const criado = await this.appointments.create(
+    // Idempotência de negócio: aprovação repetida, retry HTTP ou dois cliques
+    // concorrentes não podem reservar o mesmo horário duas vezes. O token da
+    // oferta é reutilizável durante 30 min, portanto ele sozinho não é uma
+    // chave de idempotência. A identidade é cliente + profissional + serviço +
+    // início. Ver estudo 89.
+    const existente = await this.agendamentoIgual(
       companyId,
-      {
-        customerId,
-        professionalId: oferta.professionalId,
-        start: inicio,
-        items: [{ serviceId: oferta.serviceId, professionalId: oferta.professionalId }],
-        // Veto explícito: a IA já avisou na conversa.
-        notifyConfirmation: false,
-      } as Parameters<AppointmentsService['create']>[1],
-      { source: 'online' },
+      customerId,
+      oferta,
+      inicio,
     );
+    if (existente) {
+      return {
+        ok: true,
+        agendamentoId: existente.id,
+        inicio,
+        jaExistia: true,
+      };
+    }
+
+    let criado: Awaited<ReturnType<AppointmentsService['create']>>;
+    try {
+      criado = await this.appointments.create(
+        companyId,
+        {
+          customerId,
+          professionalId: oferta.professionalId,
+          start: inicio,
+          items: [{ serviceId: oferta.serviceId, professionalId: oferta.professionalId }],
+          // Veto explícito: a IA já avisou na conversa.
+          notifyConfirmation: false,
+        } as Parameters<AppointmentsService['create']>[1],
+        { source: 'online' },
+      );
+    } catch (erro) {
+      // Fecha a corrida entre a consulta acima e o INSERT. Se o outro request
+      // acabou de criar exatamente a mesma reserva, ambos recebem o mesmo id;
+      // se o conflito for de outra natureza, preservamos o erro verdadeiro.
+      const criadoEmParalelo = await this.agendamentoIgual(
+        companyId,
+        customerId,
+        oferta,
+        inicio,
+      );
+      if (criadoEmParalelo) {
+        return {
+          ok: true,
+          agendamentoId: criadoEmParalelo.id,
+          inicio,
+          jaExistia: true,
+        };
+      }
+      throw erro;
+    }
     this.logger.log(
       `Agendamento criado pela IA (company=${companyId}, appt=${criado.id}).`,
     );
     return { ok: true, agendamentoId: criado.id, inicio };
+  }
+
+  private async agendamentoIgual(
+    companyId: string,
+    customerId: string,
+    oferta: OfertaAberta,
+    inicio: string,
+  ): Promise<{ id: string } | null> {
+    return this.prisma.client.appointment.findFirst({
+      where: {
+        companyId,
+        customerId,
+        professionalId: oferta.professionalId,
+        start: new Date(inicio),
+        status: { not: 'canceled' },
+        items: { some: { serviceId: oferta.serviceId } },
+      },
+      select: { id: true },
+    });
   }
 
   /**

@@ -440,4 +440,111 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
       /assinatura inválida/i,
     );
   });
+
+  function tokenDoServico(s: VoltrAgendaService): string {
+    return (s as unknown as Interno).assinarOferta(OFERTA, 'emp_salaozinho');
+  }
+
+  it('L) criar é idempotente: retry devolve o agendamento existente', async () => {
+    let chamadasCreate = 0;
+    const prisma = {
+      client: {
+        customer: {
+          findMany: async () => [{ id: 'customer-1', phone: '+55 85 99999-0000' }],
+        },
+        appointment: {
+          findFirst: async () => ({ id: 'appt-existente' }),
+        },
+      },
+    };
+    const appointments = {
+      create: async () => {
+        chamadasCreate += 1;
+        return { id: 'nao-deveria-criar' };
+      },
+    };
+    const s = new VoltrAgendaService(prisma as never, appointments as never);
+    (s as unknown as { config: VoltrConfig }).config = CFG3;
+
+    const r = await s.criar('company-1', 'emp_salaozinho', {
+      oferta: tokenDoServico(s),
+      inicio: OFERTA.slots[0],
+      telefone: '+55 85 99999-0000',
+      nomeCliente: 'Paulo',
+    });
+
+    assert.deepEqual(r, {
+      ok: true,
+      agendamentoId: 'appt-existente',
+      inicio: OFERTA.slots[0],
+      jaExistia: true,
+    });
+    assert.equal(chamadasCreate, 0, 'retry não pode criar uma segunda reserva');
+  });
+
+  it('M) corrida concorrente relê a identidade após conflito e devolve o mesmo id', async () => {
+    let consultas = 0;
+    const prisma = {
+      client: {
+        customer: {
+          findMany: async () => [{ id: 'customer-1', phone: '+55 85 99999-0000' }],
+        },
+        appointment: {
+          findFirst: async () => {
+            consultas += 1;
+            return consultas === 1 ? null : { id: 'appt-do-outro-request' };
+          },
+        },
+      },
+    };
+    const appointments = {
+      create: async () => {
+        throw new Error('conflito de sobreposição');
+      },
+    };
+    const s = new VoltrAgendaService(prisma as never, appointments as never);
+    (s as unknown as { config: VoltrConfig }).config = CFG3;
+
+    const r = await s.criar('company-1', 'emp_salaozinho', {
+      oferta: tokenDoServico(s),
+      inicio: OFERTA.slots[0],
+      telefone: '+55 85 99999-0000',
+    });
+
+    assert.equal(r.agendamentoId, 'appt-do-outro-request');
+    assert.equal(r.jaExistia, true);
+    assert.equal(consultas, 2);
+  });
+
+  it('N) cancelar repetido é idempotente e não dispara nova mudança de status', async () => {
+    let updates = 0;
+    let statusChanges = 0;
+    const prisma = {
+      client: {
+        customer: {
+          findMany: async () => [{ id: 'customer-1', phone: '+55 85 99999-0000' }],
+        },
+        appointment: {
+          findFirst: async () => ({ id: 'appt-1', status: 'canceled' }),
+          update: async () => {
+            updates += 1;
+          },
+        },
+      },
+    };
+    const appointments = {
+      setStatus: async () => {
+        statusChanges += 1;
+      },
+    };
+    const s = new VoltrAgendaService(prisma as never, appointments as never);
+    const r = await s.cancelar('company-1', {
+      agendamentoId: 'appt-1',
+      telefone: '+55 85 99999-0000',
+    });
+
+    assert.deepEqual(r, { ok: true, jaEstavaCancelado: true });
+    assert.equal(updates, 0);
+    assert.equal(statusChanges, 0);
+  });
 });
