@@ -215,3 +215,21 @@ Decisão:
 A DesignModa (empresa do Lucas) é a única autorização inicial. Nenhum envio de
 teste real é permitido sem número destinatário exato, revisão do backlog e
 confirmação do dono, conforme `AGENTS.md`.
+
+### Falha encontrada ao ligar a chave global
+
+O primeiro smoke test depois de `OUTBOUND_ENABLED=true` revelou uma dependência
+escondida: `dryRun` impedia criar/cancelar agenda, mas a resposta textual ainda
+chamava `MensageriaService`; antes, era o kill-switch desligado que a segurava.
+Com a DesignModa autorizada, um `waJid` iniciado por `sim:` atravessou o webhook
+externo. A saída global foi desligada imediatamente.
+
+Correção em defesa dupla:
+
+- `AutopilotService` grava resposta de dry-run diretamente como `simulada` e
+  nem chama a mensageria;
+- `MensageriaService` recusa incondicionalmente qualquer `waJid` `sim:`, para
+  cobrir aprovação manual e futuros chamadores que esqueçam a opção.
+
+A linha criada no outbox da SalonPass precisa ser localizada e encerrada antes
+de reativar a chave global; ela não pode ser drenada como teste.
