@@ -233,3 +233,46 @@ Correção em defesa dupla:
 
 A linha criada no outbox da SalonPass precisa ser localizada e encerrada antes
 de reativar a chave global; ela não pode ser drenada como teste.
+
+## 01/08 — Fechamento da autorização, do incidente e do deploy
+
+O artefato do primeiro smoke inseguro foi localizado pela `requestKey`
+`421de263-de51-4f55-a0a2-5a54af5af60b`. A SalonPass o aceitou e o socket o
+marcou como `sent` para um número sintético mascarado `160***126`; não existe
+ACK `delivered` nem `read`. A linha foi preservada como histórico honesto — não
+foi apagada nem reclassificada. Depois da defesa dupla de `dryRun` + prefixo
+`sim:`, nenhum outro `voltr_outbound` nasceu.
+
+A saída global voltou a ficar ligada, porém o backend agora exige os dois
+níveis de autorização:
+
+- `OUTBOUND_ENABLED=true` na infraestrutura;
+- `Empresa.outboundAutorizado=true` no tenant.
+
+Somente `designmoda` recebeu a autorização de tenant. `alecrim`,
+`barbeariapaulista`, `silviahair` e `timefit` continuam `false`. Dentro da
+DesignModa, `iaTodosContatos=false` e havia zero conversas com
+`iaHabilitada=true` no fechamento: a empresa pode enviar, mas a IA automática
+continua desligada para todos até alguém selecionar contatos ou confirmar o
+modo “todos”.
+
+O deploy seguinte revelou mais uma diferença importante: fila aceita não é
+mensagem enviada. A Voltr ganhou o estado `na_fila`; somente o ACK `sent` do
+WhatsApp promove para `enviada`, e os estados seguintes avançam
+monotonicamente para `entregue` e `lida`. Ver estudo 91.
+
+Após o App Runner reiniciar, a sessão da DesignModa precisou de duas tentativas
+de 45 s e reconectou sem QR nem remoção de lease. A fila permaneceu vazia.
+
+Na auditoria final, o banco ainda mostrava a cópia da Barbearia como agente de
+produção — estado que contrariava a finalidade deste estudo. A situação foi
+restaurada explicitamente:
+
+- `Recepção DesignModa` = **EM PRODUÇÃO**;
+- `Mariana · Barbearia Paulista (teste)` = **SÓ TESTE**.
+
+Um smoke final em produção, com a frase “quero marcar para cortar daqui a
+pouco”, gerou apenas saída `simulada`, sem marcador `<function...>` e sem linha
+na outbox. A resposta listou os quatro serviços reais que existiam naquele
+momento: Cabelos, Corte masculino de cabelo, Pes e Unhas. A conversa `sim:` e a
+memória temporária foram removidas depois da prova.
