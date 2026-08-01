@@ -118,6 +118,35 @@ Ordem obrigatória — o item 1 é pré-requisito de tudo:
 
    Motivo de existir: hoje o guard só prova QUEM está chamando, não O QUE pode fazer. Mandar
    mensagem e gravar na agenda de um profissional não podem ter o mesmo peso.
+
+   As rotas ficam em **`apps/api/src/modules/voltr/voltr-agenda.controller.ts`** e
+   **`apps/api/src/modules/voltr/voltr-agenda.service.ts`** (novos), todas POST (a assinatura é
+   sobre o corpo) e marcadas `@EscopoVoltr('agenda')`:
+
+   | rota | o que faz |
+   | --- | --- |
+   | `/voltr/agenda/servicos` | serviços agendáveis da empresa |
+   | `/voltr/agenda/profissionais` | quem executa aquele serviço |
+   | `/voltr/agenda/horarios` | horários livres **+ uma OFERTA assinada** |
+   | `/voltr/agenda/criar` | grava, só se o horário pertencer à oferta |
+
+   Não uso as rotas públicas `/public/booking/:slug`: elas exigem um `BookingLink` ATIVO
+   (`public-booking.service.ts:168`-`:177`), dependência desnecessária aqui — o `companyId` já vem
+   provado pelo guard. O motor de disponibilidade é o mesmo (`appointments.service.ts:1422`).
+
+### A trava contra a IA inventar horário mora no SERVIDOR
+
+`/horarios` devolve, junto dos slots, uma **oferta assinada** (HMAC do próprio segredo do tenant)
+contendo empresa, serviço, profissional, data, a lista de slots ofertados e um vencimento de 30 min.
+`/criar` só grava se o horário pedido estiver DENTRO daquela oferta e ela não tiver vencido.
+
+É a mesma garantia que a implementação da Duda tem em
+`whatsapp-inbox.service.ts:2025`-`:2041` (`matchesLastOffer`), mas aqui ela precisa ser
+**server-side e sem estado**: o cérebro que decide roda em outro processo, em outro repositório. Se a
+regra vivesse no prompt, uma alucinação ou uma injeção de prompt bastaria para furá-la. Assinada, o
+pior que a IA consegue é pedir um horário que não está na oferta — e levar 400.
+
+Sem tabela nova: a oferta é um token assinado, não uma linha.
 3. **Tool calling no cérebro**: `groq.client` passa a mandar `tools` e a ler `tool_calls`, com
    segunda chamada; as ferramentas são só as quatro acima. A IA nunca inventa horário — ela lê.
 4. **Agendamento entra no fluxo de aprovação que já existe**, com `Notificacao` ganhando payload

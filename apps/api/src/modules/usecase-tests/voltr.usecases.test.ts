@@ -23,6 +23,7 @@ import {
   resolveTenantSlug,
   type VoltrConfig,
 } from '../voltr/voltr.config';
+import { VoltrAgendaService } from '../voltr/voltr-agenda.service';
 import { VoltrSignatureGuard } from '../voltr/voltr-signature.guard';
 import { isAutomationKind, podeEnfileirar, expirouNaFila } from '../whatsapp/outbox-policy';
 
@@ -352,5 +353,91 @@ describe('Assinatura do conector da Voltr (estudo 88)', () => {
     } finally {
       if (anterior !== undefined) process.env.VOLTR_SCOPES = anterior;
     }
+  });
+});
+
+// ────────── estudo 88: a IA não pode inventar horário (trava server-side)
+//
+// O cérebro que decide roda em OUTRO processo, em outro repositório, e conversa
+// com o CLIENTE. Se a regra vivesse no prompt, uma alucinação ou uma injeção
+// bastaria para furá-la. Aqui ela é uma oferta assinada: o pior que a IA
+// consegue é pedir horário fora dela e levar 400.
+describe('Oferta assinada da agenda (estudo 88)', () => {
+  const SEGREDO = 'hmac-do-salaozinho';
+  const CFG3 = {
+    embedUrl: 'http://voltr.local',
+    apiUrl: 'http://voltr.local',
+    clientId: 'salonpass',
+    clientSecret: 'x',
+    tenantMap: { 'company-1': 'salaozinho' },
+    ingestTokens: {},
+    connectorSecrets: { salaozinho: SEGREDO },
+  } as unknown as VoltrConfig;
+
+  function servico() {
+    const s = new VoltrAgendaService(
+      {} as never,
+      {} as never,
+    );
+    (s as unknown as { config: VoltrConfig }).config = CFG3;
+    return s;
+  }
+
+  type Interno = {
+    assinarOferta: (o: unknown, schema: string) => string;
+    conferirOferta: (t: string, schema: string) => Record<string, unknown>;
+  };
+
+  const OFERTA = {
+    companyId: 'company-1',
+    serviceId: 'svc-1',
+    professionalId: 'prof-1',
+    date: '2026-08-10',
+    slots: ['2026-08-10T13:00:00.000Z', '2026-08-10T14:00:00.000Z'],
+    exp: Date.now() + 30 * 60 * 1000,
+  };
+
+  it('I) a oferta que ela mesma assinou volta íntegra', () => {
+    const s = servico() as unknown as Interno;
+    const token = s.assinarOferta(OFERTA, 'emp_salaozinho');
+    const volta = s.conferirOferta(token, 'emp_salaozinho');
+    assert.equal(volta.serviceId, 'svc-1');
+    assert.deepEqual(volta.slots, OFERTA.slots);
+  });
+
+  it('J) token adulterado é recusado', () => {
+    const s = servico() as unknown as Interno;
+    const token = s.assinarOferta(OFERTA, 'emp_salaozinho');
+    const [corpo, mac] = token.split('.');
+    // troca o corpo mantendo a assinatura: é o ataque óbvio — pedir um horário
+    // que o servidor nunca ofereceu.
+    const outro = Buffer.from(
+      JSON.stringify({ ...OFERTA, slots: ['2026-08-10T23:00:00.000Z'] }),
+      'utf8',
+    ).toString('base64url');
+    assert.throws(
+      () => s.conferirOferta(`${outro}.${mac}`, 'emp_salaozinho'),
+      /assinatura inválida/i,
+    );
+    assert.throws(
+      () => s.conferirOferta(`${corpo}.deadbeef`, 'emp_salaozinho'),
+      /assinatura inválida/i,
+    );
+    assert.throws(() => s.conferirOferta('sem-ponto', 'emp_salaozinho'), /inválida/i);
+  });
+
+  it('K) oferta assinada por OUTRO tenant não vale', () => {
+    const cfg = {
+      ...CFG3,
+      connectorSecrets: { salaozinho: SEGREDO, outro: 'segredo-do-outro' },
+    } as unknown as VoltrConfig;
+    const s = new VoltrAgendaService({} as never, {} as never);
+    (s as unknown as { config: VoltrConfig }).config = cfg;
+    const i = s as unknown as Interno;
+    const token = i.assinarOferta(OFERTA, 'emp_outro');
+    assert.throws(
+      () => i.conferirOferta(token, 'emp_salaozinho'),
+      /assinatura inválida/i,
+    );
   });
 });
