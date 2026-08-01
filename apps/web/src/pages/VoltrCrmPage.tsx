@@ -148,6 +148,10 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
           { type: 'voltr-embed:token', token: tokenRef.current, scope },
           origem,
         );
+        // O handshake é o momento garantido em que o listener do iframe já
+        // está montado. Reenvia o tema aqui (e não só no onLoad), evitando
+        // perder a personalização por uma corrida de carregamento.
+        enviarTema();
       }
       if (tipo === 'voltr-embed:token-expired') {
         void buscarToken().then((r) => {
@@ -156,12 +160,13 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
             { type: 'voltr-embed:token', token: r.accessToken, scope },
             origem,
           );
+          enviarTema();
         });
       }
     }
     window.addEventListener('message', aoReceber);
     return () => window.removeEventListener('message', aoReceber);
-  }, [buscarToken, scope]);
+  }, [buscarToken, enviarTema, scope]);
 
   const titulo =
     scope === 'chat'
