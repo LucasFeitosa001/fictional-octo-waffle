@@ -190,7 +190,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     // da Voltr — o iframe só entra depois de dois saltos de rede. Ver estudo 71.
     <div
       className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col"
-      style={{ background: 'var(--sp-canvas)' }}
+      style={{ background: 'var(--sp-warm-white)' }}
     >
       {carregando ? (
         <div className="grid flex-1 place-items-center">
