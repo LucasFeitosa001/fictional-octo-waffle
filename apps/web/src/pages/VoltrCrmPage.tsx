@@ -46,6 +46,20 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   /** Escopo que o `src` atual representa — troca de aba precisa de src novo. */
   const scopeDoSrc = useRef<'crm' | 'chat' | 'boards' | 'ia' | null>(null);
 
+  const enviarTema = useCallback(() => {
+    const iframe = iframeRef.current;
+    const origem = origemRef.current;
+    if (!iframe?.contentWindow || !origem) return;
+    const root = getComputedStyle(document.documentElement);
+    const nomes = [
+      '--sp-canvas', '--sp-card', '--sp-warm-white', '--sp-border',
+      '--sp-ink', '--sp-muted-ink', '--sp-primary', '--sp-primary-strong',
+      '--sp-primary-fg', '--sp-sidebar', '--sp-sidebar-fg',
+    ] as const;
+    const vars = Object.fromEntries(nomes.map((nome) => [nome, root.getPropertyValue(nome).trim()]).filter(([, valor]) => valor));
+    iframe.contentWindow.postMessage({ type: 'salonpass-theme', vars }, origem);
+  }, []);
+
   const buscarToken = useCallback(async () => {
     const agora = Date.now();
     const guardado = EMBED_CACHE.get(scope);
@@ -154,6 +168,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
           src={src}
           title={titulo}
           className="block h-full min-h-0 w-full min-w-0 flex-1 border-0"
+          onLoad={enviarTema}
           allow="clipboard-write; microphone"
         />
       ) : null}
