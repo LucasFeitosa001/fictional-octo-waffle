@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorState, LoadingState } from '../components/States';
+import { AppSwitch } from '../components/SwitchRow';
 import { api } from '../lib/api';
 import { apiErrorMessage } from '../lib/toast';
 
@@ -19,6 +20,18 @@ interface RespostaToken {
 
 type Escopo = 'crm' | 'chat' | 'boards' | 'ia';
 type TokenEmCache = RespostaToken & { salvoEm: number };
+
+interface ResumoIa {
+  conversationsToday: number;
+  aiMessagesToday: number;
+  bookingsViaAi: number;
+  resolutionRate: number;
+}
+
+interface ConfigIa {
+  enabled: boolean;
+  channel?: { phone?: string | null } | null;
+}
 
 // Trocar Atendimento ↔ Contatos ↔ Kanban não deve parecer uma navegação para
 // outro produto. As rotas do host desmontam este componente, então mantemos o
@@ -69,6 +82,9 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [src, setSrc] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [resumoIa, setResumoIa] = useState<ResumoIa | null>(null);
+  const [configIa, setConfigIa] = useState<ConfigIa | null>(null);
+  const [salvandoIa, setSalvandoIa] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const tokenRef = useRef<string>('');
   const origemRef = useRef<string>('');
@@ -142,6 +158,32 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     void buscarToken();
   }, [buscarToken]);
 
+  // O resumo pertence ao Atendimento (e não a Contatos/Kanban/IA). Ele usa os
+  // mesmos dados reais da tela /atendimento, agora visíveis também no /voltr-chat.
+  useEffect(() => {
+    if (scope !== 'chat') return;
+    let vivo = true;
+    void Promise.all([
+      api.get<ResumoIa>('/whatsapp/inbox/stats'),
+      api.get<ConfigIa>('/whatsapp/inbox/config'),
+    ]).then(([stats, config]) => {
+      if (!vivo) return;
+      setResumoIa(stats);
+      setConfigIa(config);
+    }).catch(() => undefined);
+    return () => { vivo = false; };
+  }, [scope]);
+
+  async function alternarIa(enabled: boolean) {
+    setSalvandoIa(true);
+    try {
+      const salvo = await api.patch<ConfigIa>('/whatsapp/inbox/config', { enabled });
+      setConfigIa(salvo);
+    } finally {
+      setSalvandoIa(false);
+    }
+  }
+
   useEffect(() => {
     function aoReceber(event: MessageEvent) {
       const origem = origemRef.current;
@@ -192,6 +234,33 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col"
       style={{ background: 'var(--sp-warm-white)' }}
     >
+      {scope === 'chat' ? (
+        <section className="shrink-0 border-b border-[var(--sp-border)] bg-[var(--sp-warm-white)] px-5 py-4 lg:px-7">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="m-0 text-xl font-bold text-[var(--sp-ink)]">WhatsApp e IA</h1>
+              <p className="m-0 mt-1 text-sm text-[var(--sp-muted-ink)]">Caixa real do número vinculado, atendimento humano e recepcionista virtual</p>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-3 py-2 text-sm">
+              <span className="font-medium text-[var(--sp-ink)]">IA {configIa?.enabled ? 'ativa' : 'pausada'}</span>
+              <AppSwitch checked={!!configIa?.enabled} onChange={(v) => void alternarIa(v)} isDisabled={!configIa || salvandoIa} aria-label="Ativar ou pausar a IA" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ['Conversas hoje', resumoIa?.conversationsToday ?? 0],
+              ['Respostas da IA hoje', resumoIa?.aiMessagesToday ?? 0],
+              ['Agendamentos feitos pela IA', resumoIa?.bookingsViaAi ?? 0],
+              ['Taxa de resolução', `${resumoIa?.resolutionRate ?? 0}%`],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-2xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-4 py-3 shadow-sm">
+                <div className="text-xs text-[var(--sp-muted-ink)]">{label}</div>
+                <div className="mt-1 text-xl font-bold text-[var(--sp-ink)]">{value}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {carregando ? (
         <div className="grid flex-1 place-items-center">
           <LoadingState label="Abrindo a Voltr…" />
