@@ -54,6 +54,25 @@ export class VoltrAgendaController {
     );
   }
 
+  @Post('meus')
+  @EscopoVoltr('agenda')
+  async meus(@Req() req: ReqVoltr, @Body() body: { telefone?: string }) {
+    return this.service.proximos(req.voltrCompanyId!, body?.telefone ?? '');
+  }
+
+  @Post('cancelar')
+  @EscopoVoltr('agenda')
+  async cancelar(
+    @Req() req: ReqVoltr,
+    @Body() body: { agendamentoId?: string; telefone?: string; motivo?: string },
+  ) {
+    return this.service.cancelar(req.voltrCompanyId!, {
+      agendamentoId: body?.agendamentoId ?? '',
+      telefone: body?.telefone ?? '',
+      motivo: body?.motivo,
+    });
+  }
+
   @Post('criar')
   @EscopoVoltr('agenda')
   async criar(

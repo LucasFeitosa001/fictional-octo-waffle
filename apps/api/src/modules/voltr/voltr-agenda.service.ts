@@ -190,6 +190,111 @@ export class VoltrAgendaService {
   }
 
   /**
+   * Os próximos agendamentos daquele telefone. A IA precisa disso para saber o
+   * que a cliente já tem antes de cancelar ou remarcar. Ver estudo 88.
+   */
+  async proximos(companyId: string, telefone: string) {
+    const customerId = await this.acharCliente(companyId, telefone);
+    if (!customerId) return { agendamentos: [] };
+    const lista = await this.prisma.client.appointment.findMany({
+      where: {
+        companyId,
+        customerId,
+        start: { gte: new Date() },
+        status: { notIn: ['canceled'] },
+      },
+      select: {
+        id: true,
+        start: true,
+        professional: { select: { name: true } },
+        items: { select: { service: { select: { name: true } } } },
+      },
+      orderBy: { start: 'asc' },
+      take: 10,
+    });
+    return {
+      agendamentos: lista.map((a) => ({
+        id: a.id,
+        inicio: a.start.toISOString(),
+        profissional: a.professional?.name ?? null,
+        servicos: a.items.map((i) => i.service?.name).filter(Boolean),
+      })),
+    };
+  }
+
+  /**
+   * Cancela — só o que pertence àquele telefone.
+   *
+   * O `customerId` é derivado do telefone da conversa, nunca aceito do modelo:
+   * receber o id no payload deixaria a IA cancelar o horário de outra pessoa a
+   * pedido de quem estivesse conversando com ela.
+   */
+  async cancelar(
+    companyId: string,
+    entrada: { agendamentoId: string; telefone: string; motivo?: string },
+  ) {
+    const { agendamentoId, telefone, motivo } = entrada;
+    const customerId = await this.acharCliente(companyId, telefone);
+    if (!customerId) {
+      throw new BadRequestException('Não encontrei cadastro para este telefone.');
+    }
+    const alvo = await this.prisma.client.appointment.findFirst({
+      where: { id: agendamentoId, companyId, customerId },
+      select: { id: true, status: true },
+    });
+    if (!alvo) {
+      throw new BadRequestException('Este agendamento não é desta cliente.');
+    }
+    if (alvo.status === 'canceled') {
+      return { ok: true, jaEstavaCancelado: true };
+    }
+    // `setStatus`, não `update`: o update NÃO mexe em status (o campo nem existe
+    // em UpdateAppointmentDto), então a chamada "funcionava" devolvendo ok e
+    // deixando o agendamento intacto. Peguei isso testando — o retorno mentia.
+    //
+    // Este caminho também herda a recusa de cancelar agendamento com comanda
+    // viva (assertSemComandaViva), que é o comportamento certo: a IA não pode
+    // desfazer um atendimento que já virou dinheiro.
+    await this.prisma.client.appointment.update({
+      where: { id: agendamentoId },
+      // A IA já avisa na conversa; a automática seria duplicata para o mesmo
+      // número. Veto explícito ANTES de mudar o status, senão o portão de
+      // entrega leria o padrão da conta.
+      data: { notifyCancellation: false },
+    });
+    await this.appointments.setStatus(companyId, agendamentoId, {
+      status: 'canceled',
+      reason: motivo?.slice(0, 200) || 'Cancelado pela cliente no atendimento',
+    } as Parameters<AppointmentsService['setStatus']>[2]);
+    this.logger.log(`Agendamento ${agendamentoId} cancelado pela IA (${companyId}).`);
+    return { ok: true };
+  }
+
+  /** Só encontra; não cria. Usado por consultar/cancelar. */
+  private async acharCliente(
+    companyId: string,
+    telefone: string,
+  ): Promise<string | null> {
+    const digitos = (telefone ?? '').replace(/\D/g, '');
+    if (digitos.length < 8) return null;
+    const candidatos = await this.prisma.client.customer.findMany({
+      where: { companyId, phone: { contains: digitos.slice(-8) } },
+      select: { id: true, phone: true },
+      take: 10,
+    });
+    const compativeis = candidatos.filter((c) => {
+      const d = (c.phone ?? '').replace(/\D/g, '');
+      return d.endsWith(digitos.slice(-8)) && Math.abs(d.length - digitos.length) <= 4;
+    });
+    const distintos = new Set(
+      compativeis.map((c) => (c.phone ?? '').replace(/\D/g, '').slice(-11)),
+    );
+    // Ambíguo: não adivinha de quem é o horário.
+    if (distintos.size > 1) return null;
+    return compativeis[0]?.id ?? null;
+  }
+
+  /**
    * Cliente pelo telefone; cria quando não existe.
    *
    * Casa pelos últimos 8 dígitos, único pedaço estável entre `+`, `55` e o nono
