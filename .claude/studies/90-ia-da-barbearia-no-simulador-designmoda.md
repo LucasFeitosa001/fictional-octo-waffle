@@ -276,3 +276,33 @@ pouco”, gerou apenas saída `simulada`, sem marcador `<function...>` e sem lin
 na outbox. A resposta listou os quatro serviços reais que existiam naquele
 momento: Cabelos, Corte masculino de cabelo, Pes e Unhas. A conversa `sim:` e a
 memória temporária foram removidas depois da prova.
+
+## 01/08 — “Quero o corte” repetia o catálogo
+
+Com os quatro serviços acima já exibidos, a cliente respondeu “quero o corte”.
+Mesmo havendo uma única opção cujo nome continha “corte”, o resolvedor exigia o
+nome completo “Corte masculino de cabelo”. Como não encontrou essa frase exata,
+devolveu a lista inteira de novo.
+
+A correção fica em `apps/api/src/autopilot/agenda-tools.service.ts`, no
+repositório Voltr: referências naturais são pontuadas pelos termos relevantes
+da última fala. Flexões simples compartilham a mesma raiz (`corta`, `cortar` e
+`corte`; singular/plural), e também são aceitas escolhas por posição (“a
+primeira”, “opção 2”) ou preço inequívoco (“o de 35 reais”).
+
+A resolução continua fail-closed:
+
+- só avança quando existe **um único melhor resultado**;
+- se “corte” puder ser corte masculino ou infantil, mostra somente essas opções
+  e pergunta qual, sem escolher por conta própria;
+- palavras genéricas como “cabelo”, quando combinam igualmente com “Cabelos” e
+  “Corte masculino de cabelo”, também permanecem ambíguas;
+- o `serviceId` final continua vindo exclusivamente do catálogo retornado pela
+  SalonPass, nunca do texto nem do modelo.
+
+Certificação depois do deploy: 119/119 testes da Voltr passaram. No simulador
+de produção, “quero marcar amanhã” exibiu o catálogo e a resposta seguinte,
+“quero o corte”, não repetiu a lista: resolveu `Corte masculino de cabelo` e
+avançou para a disponibilidade. Como não havia profissional disponível amanhã,
+respondeu isso e ofereceu consultar hoje. As duas saídas ficaram `simulada`,
+nenhum marcador de tool apareceu e a conversa temporária foi removida.
