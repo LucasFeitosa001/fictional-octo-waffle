@@ -17,6 +17,17 @@ interface RespostaToken {
   accessToken: string;
 }
 
+type Escopo = 'crm' | 'chat' | 'boards' | 'ia';
+type TokenEmCache = RespostaToken & { salvoEm: number };
+
+// Trocar Atendimento ↔ Contatos ↔ Kanban não deve parecer uma navegação para
+// outro produto. As rotas do host desmontam este componente, então mantemos o
+// último token de cada área por alguns minutos e o iframe já nasce apontando
+// para a tela correta. O EmbedBootstrap continua renovando o JWT por
+// postMessage; isto é apenas cache de navegação, não bypass de autenticação.
+const EMBED_CACHE = new Map<Escopo, TokenEmCache>();
+const CACHE_MS = 8 * 60 * 1000;
+
 function origemDe(url: string): string {
   try {
     return new URL(url).origin;
@@ -25,7 +36,7 @@ function origemDe(url: string): string {
   }
 }
 
-export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boards' | 'ia' }) {
+export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [src, setSrc] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -36,8 +47,24 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boar
   const scopeDoSrc = useRef<'crm' | 'chat' | 'boards' | 'ia' | null>(null);
 
   const buscarToken = useCallback(async () => {
+    const agora = Date.now();
+    const guardado = EMBED_CACHE.get(scope);
+    if (guardado && agora - guardado.salvoEm < CACHE_MS) {
+      tokenRef.current = guardado.accessToken;
+      origemRef.current = origemDe(guardado.embedUrl);
+      scopeDoSrc.current = scope;
+      setSrc(guardado.embedUrl);
+      setErro(null);
+      setCarregando(false);
+      // Atualiza em segundo plano para a próxima troca, sem bloquear a tela.
+      void api.get<RespostaToken>('/voltr/embed-token', { scope }).then((novo) => {
+        EMBED_CACHE.set(scope, { ...novo, salvoEm: Date.now() });
+      }).catch(() => undefined);
+      return guardado;
+    }
     try {
       const r = await api.get<RespostaToken>('/voltr/embed-token', { scope });
+      EMBED_CACHE.set(scope, { ...r, salvoEm: Date.now() });
       tokenRef.current = r.accessToken;
       origemRef.current = origemDe(r.embedUrl);
       // Fixa na primeira vez de CADA escopo; renovações de token vão por
@@ -47,6 +74,14 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: 'crm' | 'chat' | 'boar
       setSrc((atual) => (atual && scopeDoSrc.current === scope ? atual : r.embedUrl));
       scopeDoSrc.current = scope;
       setErro(null);
+      // Pré-carrega as outras áreas autorizadas. Se uma não estiver habilitada,
+      // o erro fica restrito ao prefetch e não interfere na tela atual.
+      const demais: Escopo[] = ['crm', 'chat', 'boards', 'ia'].filter((s) => s !== scope) as Escopo[];
+      void Promise.allSettled(demais.map(async (s) => {
+        if (EMBED_CACHE.has(s)) return;
+        const outro = await api.get<RespostaToken>('/voltr/embed-token', { scope: s });
+        EMBED_CACHE.set(s, { ...outro, salvoEm: Date.now() });
+      }));
       return r;
     } catch (err) {
       setErro(apiErrorMessage(err));
