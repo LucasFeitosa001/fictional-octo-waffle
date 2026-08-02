@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { IconDownload } from '../../components/icons';
+import { useEmpresa } from '../../lib/queries/empresa';
 
 /**
  * Gera e baixa o PDF diretamente. A geração é semântica (título, filtros,
  * tabelas e assinatura), portanto não abre o diálogo de impressão nem captura
  * a tela inteira como uma imagem.
  */
-export async function downloadCurrentReport(signatureName = ''): Promise<void> {
+export async function downloadCurrentReport(signatureName = '', companyName = 'SalonPass'): Promise<void> {
   const [{ default: JsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -31,6 +32,14 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   const doc = new JsPDF({ orientation: pdfOrientation, unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const themePrimary = getComputedStyle(document.documentElement).getPropertyValue('--sp-primary').trim() || '#4f46e5';
+  const colorCanvas = document.createElement('canvas');
+  const colorContext = colorCanvas.getContext('2d');
+  if (!colorContext) throw new Error('canvas indisponível');
+  colorContext.fillStyle = themePrimary;
+  const normalizedColor = colorContext.fillStyle;
+  const colorParts = normalizedColor.match(/\d+/g)?.map(Number) ?? [79, 70, 229];
+  const primary: [number, number, number] = colorParts.length >= 3 ? [colorParts[0], colorParts[1], colorParts[2]] : [79, 70, 229];
   // O relatório operacional de agendamentos é entregue como uma folha única
   // paisagem quando há muitas colunas: evita quebrar o resumo e o detalhe em
   // páginas que parecem vazias para o usuário.
@@ -39,21 +48,32 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   }
   // Cabeçalho de documento, em vez de reproduzir a tela do sistema: faixa de
   // marca, título legível e contexto do período antes da tabela.
-  doc.setFillColor(67, 56, 202);
+  doc.setFillColor(...primary);
   doc.rect(0, 0, pageWidth, 9, 'F');
+  await drawSalonPassLogo(doc, primary);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(17);
   doc.setTextColor(15, 23, 42);
-  doc.text(title, 14, y);
-  y += 8;
+  doc.text(title, 14, 32);
+  y = 40;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
-  doc.text(`SalonPass · Relatório operacional · Emitido em ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, 14, y);
+  doc.text('Empresa:', 14, y);
+  const companyX = 14 + doc.getTextWidth('Empresa: ');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(companyName, companyX, y);
+  const companyWidth = doc.getTextWidth(companyName);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(' · Relatório operacional · Emitido em ' + new Intl.DateTimeFormat('pt-BR').format(new Date()), companyX + companyWidth + 1.5, y);
   doc.setTextColor(17, 24, 39);
   y += 7;
   if (reportMeta.length) {
-    y = drawFilterPanel(doc, reportMeta, y, pageWidth);
+    y = drawFilterPanel(doc, reportMeta, y, pageWidth, primary);
   }
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -78,7 +98,7 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
       horizontalPageBreak: !wideAppointment,
       horizontalPageBreakRepeat: 1,
       styles: { font: 'helvetica', fontSize: wideAppointment ? 6 : 7, cellPadding: wideAppointment ? 1.3 : 2, overflow: 'linebreak', valign: 'middle' },
-      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+      headStyles: { fillColor: primary, textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       tableLineColor: [203, 213, 225],
       tableLineWidth: 0.15,
@@ -133,6 +153,33 @@ function normalizeReportCell(value: string | null): string {
   return status[text] ?? text;
 }
 
+async function drawSalonPassLogo(
+  doc: { setFillColor: (r: number, g: number, b: number) => void; roundedRect: (x: number, y: number, w: number, h: number, rx: number, ry: number, style: string) => void; addImage: (image: string, format: string, x: number, y: number, w: number, h: number) => void; setFont: (font: string, style?: string) => void; setFontSize: (size: number) => void; setTextColor: (r: number, g: number, b: number) => void; text: (text: string, x: number, y: number) => void },
+  primary: [number, number, number],
+): Promise<void> {
+  doc.setFillColor(...primary);
+  doc.roundedRect(14, 12, 42, 10, 2, 2, 'F');
+  try {
+    const response = await fetch('/brand/salonpass-wordmark-white.svg');
+    const svg = await response.text();
+    const image = new Image();
+    image.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = 420;
+    canvas.height = 100;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('canvas indisponível');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    doc.addImage(canvas.toDataURL('image/png'), 'PNG', 17, 14, 36, 6);
+  } catch {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text('salonpass', 21, 18.3);
+  }
+}
+
 function formatReportMetadata(value: string): string {
   return value.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1');
 }
@@ -143,6 +190,7 @@ function drawFilterPanel(
   metadata: string[],
   startY: number,
   pageWidth: number,
+  primary: [number, number, number],
 ): number {
   const items = metadata.join(';').split(';').map((item) => item.trim()).filter(Boolean)
     .map((item) => formatReportMetadata(item));
@@ -157,7 +205,7 @@ function drawFilterPanel(
   doc.roundedRect(14, startY - 4, pageWidth - 28, panelHeight, 2, 2, 'FD');
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(67, 56, 202);
+  doc.setTextColor(...primary);
   doc.text('Filtros aplicados', 18, startY + 2);
   let y = startY + 9;
   regular.forEach((item, index) => {
@@ -269,6 +317,7 @@ export function ReportPdfOption() {
 }
 
 export function ReportPdfModalHost() {
+  const empresa = useEmpresa();
   const [open, setOpen] = useState(false);
   const [signatureName, setSignatureName] = useState('');
   const [preparing, setPreparing] = useState(false);
@@ -288,7 +337,7 @@ export function ReportPdfModalHost() {
     setPreparing(true);
     try {
       await prepare?.();
-      await downloadCurrentReport(signatureName);
+      await downloadCurrentReport(signatureName, empresa.data?.name || 'SalonPass');
       setOpen(false);
     } finally {
       setPreparing(false);
