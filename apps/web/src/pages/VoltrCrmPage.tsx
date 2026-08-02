@@ -3,7 +3,6 @@ import { ErrorState, LoadingState } from '../components/States';
 import { AppSwitch } from '../components/SwitchRow';
 import { api } from '../lib/api';
 import { apiErrorMessage } from '../lib/toast';
-import { CustomerCreateModal } from './ClientePerfilTabs';
 
 /**
  * Host do Chat/CRM da Voltr embarcado no painel (estudo 68).
@@ -87,7 +86,6 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [configIa, setConfigIa] = useState<ConfigIa | null>(null);
   const [salvandoIa, setSalvandoIa] = useState(false);
   const [chatMobileAberto, setChatMobileAberto] = useState(false);
-  const [novoClienteAberto, setNovoClienteAberto] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const tokenRef = useRef<string>('');
   const origemRef = useRef<string>('');
@@ -217,33 +215,21 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
           (event.data as { aberto?: unknown }).aberto === true,
         );
       }
-      if (tipo === 'voltr-embed:novo-cliente' && scope === 'chat') {
-        // O cadastro pertence à SalonPass (fonte da verdade), não ao banco
-        // auxiliar da Voltr. O iframe apenas solicita a abertura do modal.
-        setNovoClienteAberto(true);
+      if (tipo === 'voltr-embed:sincronizar-clientes' && scope === 'chat') {
+        // O seletor do iframe trabalha com a cópia de clientes da Voltr. Antes
+        // de mostrá-la, atualiza essa cópia pela fonte oficial (SalonPass).
+        // A rota é idempotente e nunca cria ou envia mensagem.
+        void api.post('/voltr/sync-clientes').then(() => {
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: 'voltr-embed:clientes-atualizados' },
+            origem,
+          );
+        }).catch(() => undefined);
       }
     }
     window.addEventListener('message', aoReceber);
     return () => window.removeEventListener('message', aoReceber);
   }, [buscarToken, enviarTema, scope]);
-
-  const aoCriarCliente = useCallback(async () => {
-    try {
-      // Empurra o cadastro oficial atualizado para o tenant da Voltr. A rota é
-      // idempotente e não envia mensagem; só atualiza a agenda de contatos.
-      await api.post('/voltr/sync-clientes');
-      const origem = origemRef.current;
-      if (origem) {
-        iframeRef.current?.contentWindow?.postMessage(
-          { type: 'voltr-embed:clientes-atualizados' },
-          origem,
-        );
-      }
-    } catch {
-      // O cliente já foi salvo na SalonPass. Uma falha transitória do sync não
-      // pode transformar o cadastro concluído em erro; o próximo sync corrige.
-    }
-  }, []);
 
   const titulo =
     scope === 'chat'
@@ -311,11 +297,6 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
           allow="clipboard-write; microphone"
         />
       ) : null}
-      <CustomerCreateModal
-        isOpen={novoClienteAberto}
-        onClose={() => setNovoClienteAberto(false)}
-        onCreated={() => void aoCriarCliente()}
-      />
     </div>
   );
 }

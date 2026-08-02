@@ -2202,12 +2202,9 @@ function AnswerField({
 export function CustomerCreateModal({
   isOpen,
   onClose,
-  onCreated,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  /** Chamado somente depois de o cadastro ser persistido com sucesso. */
-  onCreated?: () => void;
 }) {
   return (
     <Drawer
@@ -2224,14 +2221,7 @@ export function CustomerCreateModal({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
           <PerfilMenuLateral ativo="cadastro" somenteCadastro />
           <div className="min-w-0 flex-1">
-            <CustomerForm
-              mode="create"
-              onDone={() => {
-                onCreated?.();
-                onClose();
-              }}
-              onCancel={onClose}
-            />
+            <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />
           </div>
         </div>
       )}
