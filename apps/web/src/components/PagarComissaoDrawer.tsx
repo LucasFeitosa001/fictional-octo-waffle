@@ -102,17 +102,23 @@ export function PagarComissaoDrawer({
   // Ao abrir (ou quando os vales carregam), marca todos os vales por padrão.
   useEffect(() => {
     if (!open) return;
+    setError(null);
+    setResult(null);
+    setPaidAt(isoDate(new Date()));
+  }, [open]);
+
+  // Os vales são carregados depois que o drawer abre. Atualizar os checkboxes
+  // quando essa consulta termina não pode limpar o resultado do pagamento —
+  // caso contrário o refetch disparado por `onPaid` apagava os botões de recibo
+  // antes que o operador conseguisse baixá-los.
+  useEffect(() => {
+    if (!open) return;
     const next: Record<string, Set<string>> = {};
     for (const row of rows) {
       const list = advancesByProf.get(row.professionalId) ?? [];
       next[row.professionalId] = new Set(list.map((a) => a.id));
     }
     setCheckedByProf(next);
-    setError(null);
-    setResult(null);
-    setPaidAt(isoDate(new Date()));
-    // rows é estável por abertura; advancesByProf muda quando a query resolve.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, advancesByProf]);
 
   function toggleAdvance(profId: string, advanceId: string) {
