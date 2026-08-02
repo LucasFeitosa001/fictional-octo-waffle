@@ -96,6 +96,9 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
 const REPORT_TITLE_BY_PATH: Record<string, string> = {
   '/reports/calendars/all': 'Relatório de Agendamentos',
   '/relatorios/agendamentos': 'Relatório de Agendamentos',
+  '/relatorios/aniversariantes': 'Relatório de Aniversariantes',
+  '/relatorios/ranking': 'Relatório de Ranking',
+  '/relatorios/financeiro/dre': 'Demonstrativo de Resultado (DRE)',
   '/reports/calendars/deleted': 'Relatório de Agendamentos Excluídos',
   '/reports/calendars/origin': 'Relatório de Origem dos Agendamentos',
   '/reports/calendars/creation': 'Relatório de Criação de Agendamentos',
