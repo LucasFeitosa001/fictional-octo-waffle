@@ -35,9 +35,11 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
     .filter(Boolean);
   if (reportMeta.length) {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    const lines = doc.splitTextToSize(`Filtros: ${reportMeta.join(' · ')}`, pageWidth - 28);
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    const lines = doc.splitTextToSize(`Filtros aplicados: ${formatReportMetadata(reportMeta.join(' · '))}`, pageWidth - 28);
     doc.text(lines, 14, y);
+    doc.setTextColor(17, 24, 39);
     y += lines.length * 4 + 5;
   }
   doc.setFont('helvetica', 'normal');
@@ -46,10 +48,10 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   for (const table of tables) {
     const headerRow = table.querySelector('thead tr:last-child');
     const head = headerRow
-      ? [Array.from(headerRow.querySelectorAll('th,td')).map((cell) => cell.textContent?.replace(/\s+/g, ' ').trim() || '')]
+      ? [Array.from(headerRow.querySelectorAll('th,td')).map((cell) => normalizeReportCell(cell.textContent))]
       : [];
     const body = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
-      Array.from(row.querySelectorAll('td,th')).map((cell) => cell.textContent?.replace(/\s+/g, ' ').trim() || ''),
+      Array.from(row.querySelectorAll('td,th')).map((cell) => normalizeReportCell(cell.textContent)),
     );
     if (!head.length && !body.length) continue;
     autoTable(doc, {
@@ -57,7 +59,12 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
       body,
       startY: y,
       margin: { left: 14, right: 14 },
-      styles: { font: 'helvetica', fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+      // Quando o usuário escolhe retrato e marca muitas colunas, a tabela não
+      // pode simplesmente desaparecer pela borda direita. O autoTable divide
+      // as colunas em páginas horizontais mantendo o cabeçalho em cada uma.
+      horizontalPageBreak: true,
+      horizontalPageBreakRepeat: 1,
+      styles: { font: 'helvetica', fontSize: 7, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
       headStyles: { fillColor: [79, 70, 229], textColor: 255 },
       theme: 'grid',
       didDrawPage: () => drawFooter(doc),
@@ -91,6 +98,22 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   doc.text(`Data: ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, pageWidth / 2 + 8, y + 5);
   const slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'relatorio';
   doc.save(`${slug}-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+function normalizeReportCell(value: string | null): string {
+  const text = value?.replace(/\s+/g, ' ').trim() || '';
+  const date = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(text);
+  if (date) return `${date[3]}/${date[2]}/${date[1]}`;
+  const status: Record<string, string> = {
+    canceled: 'Cancelado', cancelled: 'Cancelado', confirmed: 'Confirmado',
+    finished: 'Finalizado', scheduled: 'Agendado', pending: 'Pendente',
+    no_show: 'Não compareceu', noShow: 'Não compareceu',
+  };
+  return status[text] ?? text;
+}
+
+function formatReportMetadata(value: string): string {
+  return value.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1');
 }
 
 const REPORT_TITLE_BY_PATH: Record<string, string> = {
