@@ -25,6 +25,7 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     const { default: JsPDF } = await import('jspdf');
     const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     const width = doc.internal.pageSize.getWidth();
+    const themePrimary = getComputedStyle(document.documentElement).getPropertyValue('--sp-primary').trim() || '#4f46e5';
     const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const date = (value: string) => {
       // Datas de competência vêm como YYYY-MM-DD. Criar `new Date` diretamente
@@ -52,7 +53,7 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
       const context = canvas.getContext('2d');
       if (!context) throw new Error('canvas indisponível');
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      doc.setFillColor(79, 70, 229);
+      doc.setFillColor(themePrimary);
       doc.roundedRect(18, 12, 42, 10, 2, 2, 'F');
       doc.addImage(canvas.toDataURL('image/png'), 'PNG', 21, 14, 36, 6);
     } catch {
@@ -60,8 +61,6 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     }
     const slug = data.professionalName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'profissional';
 
-    doc.setFillColor(67, 56, 202);
-    doc.rect(0, 0, width, 10, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     doc.setTextColor(15, 23, 42);
@@ -78,10 +77,11 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     doc.setFontSize(13);
     doc.setTextColor(15, 23, 42);
     doc.text(companyLabel, companyX, 40);
+    const companyWidth = doc.getTextWidth(companyLabel);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
-    doc.text(' · Comissões', companyX + doc.getTextWidth(companyLabel), 40);
+    doc.text(' · Comissões', companyX + companyWidth + 1.5, 40);
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
