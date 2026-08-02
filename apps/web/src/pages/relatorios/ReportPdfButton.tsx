@@ -2,74 +2,88 @@ import { useEffect, useState } from 'react';
 import { IconDownload } from '../../components/icons';
 
 /**
- * Abre uma versão limpa do relatório no diálogo nativo de impressão.
- * O navegador permite escolher "Salvar como PDF" e a versão impressa sempre
- * inclui a área de assinatura. Não depende de um endpoint nem de biblioteca
- * externa, portanto funciona também nos relatórios legados que só têm CSV.
+ * Gera e baixa o PDF diretamente. A geração é semântica (título, filtros,
+ * tabelas e assinatura), portanto não abre o diálogo de impressão nem captura
+ * a tela inteira como uma imagem.
  */
-export function printCurrentReport(signatureName = '') {
+export async function downloadCurrentReport(signatureName = ''): Promise<void> {
+  const [{ default: JsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   const report = document.querySelector<HTMLElement>('.mobile-page-content');
-  if (!report) {
-    window.print();
-    return;
-  }
-  // Não usamos `noopener` aqui: alguns navegadores retornam `null` para a
-  // janela recém-aberta quando essa flag é passada, impedindo escrever o PDF.
-  const popup = window.open('', '_blank', 'width=1100,height=800');
-  if (!popup) {
-    window.print();
-    return;
-  }
-  // A janela de impressão é separada pelo navegador. Deixar o SalonPass
-  // visível atrás dela dava a impressão de que o relatório estava duplicado ou
-  // piscando. Escondemos a aplicação original até a janela ser fechada.
-  const appRoot = document.getElementById('root');
-  const previousVisibility = appRoot?.style.visibility ?? '';
-  if (appRoot) appRoot.style.visibility = 'hidden';
-  let restored = false;
-  const restoreApp = () => {
-    if (restored) return;
-    restored = true;
-    if (appRoot) appRoot.style.visibility = previousVisibility;
-  };
-  popup.addEventListener('beforeunload', restoreApp);
-  const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-    .map((node) => node.outerHTML)
-    .join('');
-  const today = new Intl.DateTimeFormat('pt-BR').format(new Date());
+  if (!report) throw new Error('Relatório não encontrado na página.');
+  const layout = document.querySelector<HTMLElement>('[data-report-pdf-layout]')?.dataset.reportPdfLayout;
+  const doc = new JsPDF({ orientation: layout === 'landscape' ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let y = 16;
+  const title = report.querySelector('h1, h2')?.textContent?.trim() || document.title || 'Relatório';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(title, 14, y);
+  y += 8;
   const reportMeta = Array.from(document.querySelectorAll<HTMLElement>('[data-report-pdf-meta]'))
     .map((node) => node.dataset.reportPdfMeta || node.textContent || '')
-    .filter(Boolean)
-    .join(' · ');
-  const layout = document.querySelector<HTMLElement>('[data-report-pdf-layout]')?.dataset.reportPdfLayout;
-  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório</title>${styles}<style>
-    @page { size: A4 ${layout === 'landscape' ? 'landscape' : 'portrait'}; margin: 14mm; }
-    html,body { background:#fff !important; color:#111827 !important; }
-    body { font-family: ui-sans-serif,system-ui,sans-serif; }
-    .report-no-print, form, nav, button, input, select, textarea { display:none !important; }
-    .report-signature-print { display:block !important; margin-top:32px; break-inside:avoid; color:#111827; }
-    .report-signature-print .line { border-bottom:1px solid #374151; width:280px; margin:34px auto 8px; }
-    .report-signature-print .meta { display:flex; justify-content:space-between; gap:24px; font-size:11px; color:#4b5563; }
-    .report-pdf-meta { margin:0 0 18px; padding:8px 10px; border:1px solid #d1d5db; font-size:11px; color:#374151; }
-    .mobile-page-content { max-width:none !important; padding:0 !important; }
-  </style></head><body><main>${reportMeta ? `<div class="report-pdf-meta"><strong>Filtros:</strong> ${escapeHtml(reportMeta)}</div>` : ''}${report.innerHTML}
-    <section class="report-signature-print" aria-label="Assinatura do relatório">
-      <div style="text-align:center;font-weight:600">Responsável pelo relatório</div>
-      <div class="line"></div>
-      <div class="meta"><span>${escapeHtml(signatureName || 'Nome e assinatura')}</span><span>Data: ${today}</span></div>
-    </section>
-  </main></body></html>`);
-  popup.document.close();
-  popup.focus();
-  window.setTimeout(() => {
-    popup.print();
-  }, 500);
-  const watch = window.setInterval(() => {
-    if (popup.closed) {
-      window.clearInterval(watch);
-      restoreApp();
+    .map((text) => text.trim())
+    .filter(Boolean);
+  if (reportMeta.length) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const lines = doc.splitTextToSize(`Filtros: ${reportMeta.join(' · ')}`, pageWidth - 28);
+    doc.text(lines, 14, y);
+    y += lines.length * 4 + 5;
+  }
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const tables = Array.from(report.querySelectorAll('table'));
+  for (const table of tables) {
+    const headerRow = table.querySelector('thead tr:last-child');
+    const head = headerRow
+      ? [Array.from(headerRow.querySelectorAll('th,td')).map((cell) => cell.textContent?.replace(/\s+/g, ' ').trim() || '')]
+      : [];
+    const body = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
+      Array.from(row.querySelectorAll('td,th')).map((cell) => cell.textContent?.replace(/\s+/g, ' ').trim() || ''),
+    );
+    if (!head.length && !body.length) continue;
+    autoTable(doc, {
+      head,
+      body,
+      startY: y,
+      margin: { left: 14, right: 14 },
+      styles: { font: 'helvetica', fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+      headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+      theme: 'grid',
+    });
+    y = ((doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 8;
+    if (y > pageHeight - 45) { doc.addPage(); y = 16; }
+  }
+  if (!tables.length) {
+    const clone = report.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('form,nav,button,input,select,textarea,[data-report-pdf-meta],.report-no-print').forEach((node) => node.remove());
+    const text = clone.innerText.replace(/\n{3,}/g, '\n\n').trim();
+    if (text) {
+      const lines = doc.splitTextToSize(text, pageWidth - 28);
+      for (const line of lines) {
+        if (y > pageHeight - 20) { doc.addPage(); y = 16; }
+        doc.text(line, 14, y); y += 4;
+      }
     }
-  }, 250);
+  }
+  if (y > pageHeight - 42) { doc.addPage(); y = 16; }
+  y += 8;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Responsável pelo relatório', pageWidth / 2, y, { align: 'center' });
+  y += 14;
+  doc.setDrawColor(55, 65, 81);
+  doc.line(pageWidth / 2 - 38, y, pageWidth / 2 + 38, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(signatureName.trim() || 'Nome e assinatura', pageWidth / 2 - 38, y + 5);
+  doc.text(`Data: ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, pageWidth / 2 + 8, y + 5);
+  const slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'relatorio';
+  doc.save(`${slug}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 /** Solicita o modal da instância de PDF montada na página. */
@@ -90,10 +104,6 @@ export function ReportPdfOption() {
   );
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char);
-}
-
 export function ReportPdfModalHost() {
   const [open, setOpen] = useState(false);
   const [signatureName, setSignatureName] = useState('');
@@ -112,10 +122,13 @@ export function ReportPdfModalHost() {
 
   async function confirm() {
     setPreparing(true);
-    await prepare?.();
-    setOpen(false);
-    setPreparing(false);
-    printCurrentReport(signatureName);
+    try {
+      await prepare?.();
+      await downloadCurrentReport(signatureName);
+      setOpen(false);
+    } finally {
+      setPreparing(false);
+    }
   }
 
   return (
