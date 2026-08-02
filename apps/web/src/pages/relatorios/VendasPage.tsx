@@ -98,14 +98,22 @@ export function VendasPage() {
   const byCategory = d?.byCategory ?? [];
   const byProfessional = d?.byProfessional ?? [];
   const ticketMedio = d && d.ordersCount > 0 ? d.salesTotal / d.ordersCount : 0;
-  const hasData = !!d && (byDay.length > 0 || byCategory.length > 0 || byProfessional.length > 0);
+  // Uma venda válida pode não ter itens vinculados (comanda importada ou
+  // serviço removido do cadastro). Nesse caso os agrupamentos ficam vazios,
+  // mas o total e a quantidade de comandas continuam sendo dados reais e não
+  // podem transformar a tela em "Nenhum item encontrado".
+  const hasData = !!d && (
+    d.salesTotal !== 0 || d.ordersCount > 0 ||
+    byDay.length > 0 || byCategory.length > 0 || byProfessional.length > 0
+  );
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    // refetch() garante feedback (loading + dados) mesmo quando o período não
-    // mudou — senão o React Query vê a mesma queryKey e não faz nada, dando a
-    // sensação de "botão morto".
-    void query.refetch();
+    // Quando o período muda, a queryKey nova dispara a busca automaticamente.
+    // Refetchar aqui também buscava a janela ANTIGA e podia deixar a tela em
+    // "Não há dados" mesmo havendo vendas no período escolhido.
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {

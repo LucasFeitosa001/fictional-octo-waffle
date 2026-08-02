@@ -79,8 +79,9 @@ export function CriacaoAgendamentoPage() {
   const hasData = !!d && (total > 0 || byDay.length > 0 || byAuthor.length > 0);
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {

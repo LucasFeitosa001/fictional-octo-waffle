@@ -82,9 +82,9 @@ export function GenericReport({
   const totals = query.data?.totals ?? {};
 
   function gerar() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    // refetch garante feedback (loading + dados) mesmo com filtro igual.
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   const gridCols = columns

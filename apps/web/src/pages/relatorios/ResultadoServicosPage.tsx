@@ -49,10 +49,11 @@ export function ResultadoServicosPage() {
   const totalNet = d?.totalNet ?? 0;
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
     // refetch() garante feedback (loading + dados) mesmo quando o período não
     // mudou — senão o React Query vê a mesma queryKey e não faz nada.
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {
