@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateField } from '../../components/DateRangeFilter';
 import { HelpTooltip } from '../../components/HelpTooltip';
 import { PagarComissaoDrawer } from '../../components/PagarComissaoDrawer';
+import { CommissionReceiptButton } from '../../components/CommissionReceiptButton';
 import { ValeModal } from '../../components/ValeModal';
 import { JustificativaDialog } from '../../components/JustificativaDialog';
 import { AppTabs } from '../../components/AppTabs';
@@ -576,6 +577,27 @@ export function ComissoesResumoPage() {
       ),
     },
     {
+      key: 'receipt',
+      header: 'Recibo',
+      render: (p) => (
+        <CommissionReceiptButton
+          compact
+          data={{
+            professionalName: p.professional.name,
+            paidAt: p.paidAt,
+            createdAt: p.createdAt,
+            amount: p.amount,
+            commissionTotal: p.commissionTotal,
+            bonusTotal: p.bonusTotal,
+            advancesTotal: p.advancesTotal,
+            entriesCount: p.entriesCount,
+            from,
+            to,
+          }}
+        />
+      ),
+    },
+    {
       key: 'actions',
       header: '',
       render: (p) => (
@@ -942,7 +964,7 @@ export function ComissoesResumoPage() {
                 description="As comissões importadas aparecem acima. Novos pagamentos gerarão recibos aqui."
               />
             ) : isMobile ? (
-              <PagamentosListaMobile rows={paymentRows} onExcluir={setDeletingPayment} />
+              <PagamentosListaMobile rows={paymentRows} onExcluir={setDeletingPayment} from={from} to={to} />
             ) : (
               <DataTable
                 aria-label="Histórico de pagamentos de comissão"
@@ -1167,9 +1189,13 @@ export function ComissoesResumoPage() {
 function PagamentosListaMobile({
   rows,
   onExcluir,
+  from,
+  to,
 }: {
   rows: CommissionPayment[];
   onExcluir: (p: CommissionPayment) => void;
+  from?: string;
+  to?: string;
 }) {
   return (
     <ul className="flex flex-col gap-2" aria-label="Histórico de pagamentos de comissão">
@@ -1187,6 +1213,21 @@ function PagamentosListaMobile({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="font-semibold text-foreground">{formatMoney(p.amount)}</span>
+            <CommissionReceiptButton
+              compact
+              data={{
+                professionalName: p.professional.name,
+                paidAt: p.paidAt,
+                createdAt: p.createdAt,
+                amount: p.amount,
+                commissionTotal: p.commissionTotal,
+                bonusTotal: p.bonusTotal,
+                advancesTotal: p.advancesTotal,
+                entriesCount: p.entriesCount,
+                from,
+                to,
+              }}
+            />
             <button
               type="button"
               onClick={() => onExcluir(p)}

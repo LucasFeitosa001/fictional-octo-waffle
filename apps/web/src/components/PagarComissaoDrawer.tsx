@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Checkbox, Chip, ListBox, Select } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from './Drawer';
+import { CommissionReceiptButton } from './CommissionReceiptButton';
 import { LoadingState } from './States';
 import { DateField } from './DateRangeFilter';
 import { IconGift, IconInfo, IconReceipt, IconWallet } from './icons';
@@ -13,6 +14,7 @@ import {
   useCommissionAdvances,
   usePayCommissionsBulk,
   type CommissionAdvance,
+  type CommissionPaymentRecord,
   type CommissionSummaryRow,
 } from '../lib/queries/comissoes';
 
@@ -59,7 +61,11 @@ export function PagarComissaoDrawer({
   // Todos os vales `open` da empresa; agrupamos por profissional no cliente.
   const advancesQuery = useCommissionAdvances({ status: 'open' });
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ count: number; total: number } | null>(null);
+  const [result, setResult] = useState<{
+    count: number;
+    total: number;
+    payments: CommissionPaymentRecord[];
+  } | null>(null);
   // Forma de pagamento, conta e data — os três campos que o Belasis marca como
   // obrigatórios. São eles que permitem gerar a despesa no Financeiro; sem
   // conta, o pagamento some do fechamento do mês.
@@ -191,7 +197,7 @@ export function PagarComissaoDrawer({
         })),
       });
       const total = res.payments.reduce((s, p) => s + Number(p.amount), 0);
-      setResult({ count: res.count, total });
+      setResult({ count: res.count, total, payments: res.payments });
       onPaid?.();
     } catch (err) {
       setError(err instanceof ApiClientError ? apiErrorMessage(err) : 'Não foi possível registrar o pagamento.');
@@ -245,6 +251,35 @@ export function PagarComissaoDrawer({
             {result.count} {result.count === 1 ? 'pagamento registrado' : 'pagamentos registrados'} · total de{' '}
             <span className="font-semibold text-foreground">{formatMoney(result.total)}</span>
           </p>
+          <div className="mt-3 w-full max-w-md divide-y divide-[var(--color-soft-border)] rounded-xl border border-[var(--color-soft-border)] bg-white text-left">
+            {result.payments.map((payment) => {
+              const row = rows.find((item) => item.professionalId === payment.professionalId);
+              return (
+                <div key={payment.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-foreground">
+                      {row?.professionalName ?? 'Profissional'}
+                    </div>
+                    <div className="text-xs text-muted">{formatMoney(Number(payment.amount))} · recibo para assinatura</div>
+                  </div>
+                  <CommissionReceiptButton
+                    compact
+                    data={{
+                      professionalName: row?.professionalName ?? 'Profissional',
+                      paidAt,
+                      amount: Number(payment.amount),
+                      commissionTotal: Number(payment.commissionTotal),
+                      bonusTotal: Number(payment.bonusTotal),
+                      advancesTotal: Number(payment.advancesTotal),
+                      entriesCount: payment.entriesCount,
+                      from,
+                      to,
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

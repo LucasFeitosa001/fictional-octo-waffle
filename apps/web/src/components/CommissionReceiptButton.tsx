@@ -1,0 +1,105 @@
+import { IconDownload } from './icons';
+
+export interface CommissionReceiptData {
+  professionalName: string;
+  paidAt: string;
+  createdAt?: string;
+  amount: number;
+  commissionTotal: number;
+  bonusTotal: number;
+  advancesTotal: number;
+  entriesCount: number;
+  from?: string;
+  to?: string;
+}
+
+/** Baixa um recibo individual, pronto para a assinatura do profissional. */
+export function CommissionReceiptButton({ data, compact = false }: { data: CommissionReceiptData; compact?: boolean }) {
+  async function download() {
+    const { default: JsPDF } = await import('jspdf');
+    const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const width = doc.internal.pageSize.getWidth();
+    const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const date = (value: string) => {
+      // Datas de competência vêm como YYYY-MM-DD. Criar `new Date` diretamente
+      // interpreta esse formato em UTC e pode voltar um dia no fuso do salão.
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? (() => {
+            const [year, month, day] = value.split('-').map(Number);
+            return new Date(year, month - 1, day);
+          })()
+        : new Date(value);
+      return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('pt-BR');
+    };
+    const slug = data.professionalName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'profissional';
+
+    doc.setFillColor(67, 56, 202);
+    doc.rect(0, 0, width, 10, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Recibo de pagamento de comissão', 18, 28);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text('SalonPass · Comissões', 18, 36);
+
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(18, 46, width - 36, 34, 3, 3, 'FD');
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text('PROFISSIONAL', 25, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(15, 23, 42);
+    doc.text(data.professionalName, 25, 64);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Pagamento: ${date(data.paidAt)}`, width - 78, 56);
+    if (data.from || data.to) doc.text(`Período: ${date(data.from ?? '')} a ${date(data.to ?? '')}`, width - 78, 64);
+
+    let y = 98;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Resumo do pagamento', 18, y);
+    y += 10;
+    const lines: [string, string][] = [
+      ['Comissões', money(data.commissionTotal)],
+      ['Bonificações', money(data.bonusTotal)],
+      ['Vales descontados', `− ${money(data.advancesTotal)}`],
+      ['Lançamentos quitados', String(data.entriesCount)],
+    ];
+    doc.setFontSize(10);
+    lines.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105); doc.text(label, 22, y);
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42); doc.text(value, width - 22, y, { align: 'right' });
+      doc.setDrawColor(226, 232, 240); doc.line(18, y + 3, width - 18, y + 3); y += 9;
+    });
+    doc.setFillColor(238, 242, 255);
+    doc.roundedRect(18, y + 3, width - 36, 18, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(67, 56, 202);
+    doc.text('Valor líquido pago', 25, y + 15);
+    doc.text(money(data.amount), width - 25, y + 15, { align: 'right' });
+
+    y += 55;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(71, 85, 105);
+    const declaration = 'Declaro ter recebido o valor acima referente às comissões apuradas no período indicado.';
+    doc.text(doc.splitTextToSize(declaration, width - 36), 18, y);
+    y += 38;
+    doc.setDrawColor(51, 65, 85); doc.line(58, y, width - 58, y);
+    doc.setFontSize(9); doc.text(data.professionalName, width / 2, y + 6, { align: 'center' });
+    doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.text('Assinatura do profissional', width / 2, y + 12, { align: 'center' });
+    doc.text(`Emitido em ${date(new Date().toISOString())}`, 18, 282);
+    doc.text('Documento gerado pelo SalonPass', width - 18, 282, { align: 'right' });
+    doc.save(`recibo-comissao-${slug}-${date(data.paidAt).replace(/\//g, '-')}.pdf`);
+  }
+
+  return (
+    <button type="button" onClick={(event) => { event.stopPropagation(); void download(); }} className={compact ? 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10' : 'inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-primary hover:text-primary'}>
+      <IconDownload size={15} /> {compact ? 'Recibo' : 'Baixar recibo'}
+    </button>
+  );
+}
