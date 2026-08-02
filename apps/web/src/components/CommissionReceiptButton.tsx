@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { IconDownload, IconX } from './icons';
 
 export interface CommissionReceiptData {
+  companyName?: string;
+  companyLogoUrl?: string | null;
   professionalName: string;
   paidAt: string;
   createdAt?: string;
@@ -35,6 +37,21 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
         : new Date(value);
       return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('pt-BR');
     };
+    if (data.companyLogoUrl) {
+      try {
+        const response = await fetch(data.companyLogoUrl);
+        const blob = await response.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        doc.addImage(dataUrl, 'AUTO', 18, 14, 22, 14);
+      } catch {
+        // O recibo continua válido mesmo quando a logo está protegida por CORS.
+      }
+    }
     const slug = data.professionalName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'profissional';
 
     doc.setFillColor(67, 56, 202);
@@ -46,7 +63,7 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
-    doc.text('SalonPass · Comissões', 18, 36);
+    doc.text(`${data.companyName || 'SalonPass'} · Comissões`, 18, 36);
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
@@ -97,7 +114,7 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     doc.setFontSize(9); doc.text(signatureName.trim() || data.professionalName, width / 2, y + 6, { align: 'center' });
     doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.text('Assinatura do profissional', width / 2, y + 12, { align: 'center' });
     doc.text(`Emitido em ${date(new Date().toISOString())}`, 18, 282);
-    doc.text('Documento gerado pelo SalonPass', width - 18, 282, { align: 'right' });
+    doc.text(`Documento gerado pelo ${data.companyName || 'SalonPass'}`, width - 18, 282, { align: 'right' });
     doc.save(`recibo-comissao-${slug}-${date(data.paidAt).replace(/\//g, '-')}.pdf`);
     setOpen(false);
   }

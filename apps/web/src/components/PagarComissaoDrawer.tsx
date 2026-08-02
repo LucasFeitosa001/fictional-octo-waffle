@@ -8,6 +8,7 @@ import { DateField } from './DateRangeFilter';
 import { IconGift, IconInfo, IconReceipt, IconWallet } from './icons';
 import { formatDate, formatMoney, isoDate } from '../lib/format';
 import { useFinancialAccounts, usePaymentMethods } from '../lib/queries/financeiro';
+import { useEmpresa } from '../lib/queries/empresa';
 import { useSalonPay, useSalonPayRecipients } from '../lib/queries/salonpay';
 import { apiErrorMessage } from '../lib/toast';
 import {
@@ -72,6 +73,7 @@ export function PagarComissaoDrawer({
   const methods = usePaymentMethods();
   const accounts = useFinancialAccounts();
   const salonpay = useSalonPay();
+  const empresa = useEmpresa();
   // Quem tem chave PIX. Sem destino não há transferência — precisa aparecer
   // ANTES de pagar, por profissional, e não falhar depois.
   const recipients = useSalonPayRecipients();
@@ -272,6 +274,8 @@ export function PagarComissaoDrawer({
                     compact
                     data={{
                       professionalName: row?.professionalName ?? 'Profissional',
+                      companyName: empresa.data?.name,
+                      companyLogoUrl: empresa.data?.logoUrl,
                       paidAt,
                       amount: Number(payment.amount),
                       commissionTotal: Number(payment.commissionTotal),

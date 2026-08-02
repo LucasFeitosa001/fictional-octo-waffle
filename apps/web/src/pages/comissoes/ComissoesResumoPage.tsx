@@ -35,6 +35,7 @@ import {
 import { formatDate, formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useProfessionals } from '../../lib/queries';
+import { useEmpresa } from '../../lib/queries/empresa';
 import { useSetPageActions } from '../../layout/PageActions';
 import { FilterAside } from '../../components/FilterAside';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -94,6 +95,7 @@ function shortDate(iso: string): string {
 }
 
 export function ComissoesResumoPage() {
+  const empresa = useEmpresa();
   const navigate = useNavigate();
   const location = useLocation();
   // `/comissoes` e `/comissoes/detalhadas` abrem em Detalhadas, como no Belasis.
@@ -584,6 +586,8 @@ export function ComissoesResumoPage() {
           compact
           data={{
             professionalName: p.professional.name,
+            companyName: empresa.data?.name,
+            companyLogoUrl: empresa.data?.logoUrl,
             paidAt: p.paidAt,
             createdAt: p.createdAt,
             amount: p.amount,
@@ -964,7 +968,7 @@ export function ComissoesResumoPage() {
                 description="As comissões importadas aparecem acima. Novos pagamentos gerarão recibos aqui."
               />
             ) : isMobile ? (
-              <PagamentosListaMobile rows={paymentRows} onExcluir={setDeletingPayment} from={from} to={to} />
+              <PagamentosListaMobile rows={paymentRows} onExcluir={setDeletingPayment} from={from} to={to} companyName={empresa.data?.name} companyLogoUrl={empresa.data?.logoUrl} />
             ) : (
               <DataTable
                 aria-label="Histórico de pagamentos de comissão"
@@ -1124,6 +1128,8 @@ export function ComissoesResumoPage() {
       {/* Drawer lateral de detalhe do profissional */}
       <DetailDrawer
         row={detailFor}
+        companyName={empresa.data?.name}
+        companyLogoUrl={empresa.data?.logoUrl}
         from={from}
         to={to}
         // `statusFiltro`, não `status`: em "Detalhadas" o id da aba não é status
@@ -1191,11 +1197,15 @@ function PagamentosListaMobile({
   onExcluir,
   from,
   to,
+  companyName,
+  companyLogoUrl,
 }: {
   rows: CommissionPayment[];
   onExcluir: (p: CommissionPayment) => void;
   from?: string;
   to?: string;
+  companyName?: string;
+  companyLogoUrl?: string | null;
 }) {
   return (
     <ul className="flex flex-col gap-2" aria-label="Histórico de pagamentos de comissão">
@@ -1217,6 +1227,8 @@ function PagamentosListaMobile({
               compact
               data={{
                 professionalName: p.professional.name,
+                companyName,
+                companyLogoUrl,
                 paidAt: p.paidAt,
                 createdAt: p.createdAt,
                 amount: p.amount,
@@ -1431,12 +1443,16 @@ const DETAIL_COLUMNS: Column<CommissionDetailItem>[] = [
 
 function DetailDrawer({
   row,
+  companyName,
+  companyLogoUrl,
   from,
   to,
   status,
   onClose,
 }: {
   row: CommissionSummaryRow | null;
+  companyName?: string;
+  companyLogoUrl?: string | null;
   from: string;
   to: string;
   status: string;
@@ -1521,6 +1537,8 @@ function DetailDrawer({
               <CommissionReceiptButton
                 data={{
                   professionalName: receiptPayment.professional.name,
+                  companyName,
+                  companyLogoUrl,
                   paidAt: receiptPayment.paidAt,
                   createdAt: receiptPayment.createdAt,
                   amount: receiptPayment.amount,
