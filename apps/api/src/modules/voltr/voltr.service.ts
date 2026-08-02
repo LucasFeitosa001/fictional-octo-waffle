@@ -50,12 +50,8 @@ interface ClienteParaVoltr {
   telefone: string;
   email?: string;
   documento?: string;
-  /**
-   * Não confundir "está no cadastro" com "já usou a agenda". O inbox da
-   * Voltr usa este marcador para mostrar somente conversas de pessoas com
-   * histórico real de agendamento na SalonPass.
-   */
-  temAgendamento: boolean;
+  /** Fonte de verdade do inbox: cliente ativo no cadastro da SalonPass. */
+  clienteAtivo: boolean;
 }
 
 /** Resposta do `/api/ingest/clientes` da Voltr. */
@@ -310,7 +306,10 @@ export class VoltrService {
       let cursor: string | undefined;
       for (;;) {
         const pagina = await this.prisma.client.customer.findMany({
-          where: { companyId, deletedAt: null },
+          // Inclui soft-deleted para a Voltr REMOVER o marcador de cliente
+          // ativo. Se filtrássemos aqui, quem foi excluído continuaria visível
+          // para sempre no CRM por causa do último sync.
+          where: { companyId },
           select: {
             id: true,
             name: true,
@@ -319,7 +318,7 @@ export class VoltrService {
             email: true,
             cpf: true,
             cnpj: true,
-            _count: { select: { appointments: true } },
+            deletedAt: true,
           },
           orderBy: { id: 'asc' },
           take: SYNC_CLIENTES_LOTE,
@@ -346,7 +345,7 @@ export class VoltrService {
           lote.push({
             nome: c.name?.trim() || telefone,
             telefone,
-            temAgendamento: c._count.appointments > 0,
+            clienteAtivo: c.deletedAt === null,
             ...(email ? { email } : {}),
             ...(documento ? { documento } : {}),
           });
