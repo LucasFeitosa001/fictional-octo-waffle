@@ -132,9 +132,15 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
       doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42); doc.text(value, width - 22, y, { align: 'right' });
       doc.setDrawColor(226, 232, 240); doc.line(18, y + 3, width - 18, y + 3); y += 9;
     });
-    doc.setFillColor(238, 242, 255);
+    // O destaque do valor líquido acompanha a mesma cor do cabeçalho, mas
+    // suavizada para preservar contraste e leitura no papel.
+    doc.setFillColor(
+      Math.round(primaryR + (255 - primaryR) * 0.88),
+      Math.round(primaryG + (255 - primaryG) * 0.88),
+      Math.round(primaryB + (255 - primaryB) * 0.88),
+    );
     doc.roundedRect(18, y + 3, width - 36, 18, 2, 2, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(67, 56, 202);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(primaryR, primaryG, primaryB);
     doc.text('Valor líquido pago', 25, y + 15);
     doc.text(money(data.amount), width - 25, y + 15, { align: 'right' });
 
