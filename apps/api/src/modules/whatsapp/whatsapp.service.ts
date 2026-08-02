@@ -279,6 +279,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
   private readonly instanceId = randomUUID();
+  // Fence monotônico do lease. No blue-green, o App Runner pode conservar o
+  // container antigo indefinidamente por causa do WebSocket aberto. O processo
+  // que iniciou depois precisa poder assumir e fazer o antigo perder o próximo
+  // heartbeat; depender só do TTL nunca funciona enquanto ele ainda renova.
+  private readonly instanceStartedAt = Date.now();
   // A versão embutida no pacote Baileys fica obsoleta antes de um novo release
   // npm e o WhatsApp rejeita o handshake com 405. Busca uma vez por processo e
   // reutiliza em todos os sockets/empresas; se a consulta falhar, o Baileys
@@ -1785,7 +1790,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    */
   private async acquireConnectionLease(companyId: string): Promise<boolean> {
     const expiresAt = new Date(Date.now() + CONNECTION_LEASE_TTL_MS).toISOString();
-    const data = JSON.stringify({ ownerId: this.instanceId, expiresAt });
+    const data = JSON.stringify({
+      ownerId: this.instanceId,
+      expiresAt,
+      generation: this.instanceStartedAt,
+    });
     try {
       const rows = await this.prisma.client.$queryRaw<Array<{ data: unknown }>>(
         Prisma.sql`
@@ -1802,6 +1811,10 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           SET "data" = EXCLUDED."data", "updatedAt" = NOW()
           WHERE
             "WhatsappAuthState"."data"->>'ownerId' = ${this.instanceId}
+            OR COALESCE(
+              NULLIF("WhatsappAuthState"."data"->>'generation', '')::bigint,
+              0
+            ) < ${this.instanceStartedAt}
             OR COALESCE(
               NULLIF("WhatsappAuthState"."data"->>'expiresAt', '')::timestamptz,
               to_timestamp(0)

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { useDbAuthState } from '../whatsapp/whatsapp-auth';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 describe('Persistência criptográfica do WhatsApp', () => {
   it('a atualização antiga nunca sobrescreve uma credencial mais nova', async () => {
@@ -66,5 +67,31 @@ describe('Persistência criptográfica do WhatsApp', () => {
       'a escrita precisa provar o ownerId do lease no mesmo SQL',
     );
     assert.ok(statements[0]?.values?.includes('connection-lease'));
+  });
+
+  it('a geração mais nova fica embutida no lease para tomar o lugar do blue-green antigo', async () => {
+    const statements: Array<{ values?: unknown[] }> = [];
+    const service = new WhatsappService({
+      client: {
+        $queryRaw: async (statement: { values?: unknown[] }) => {
+          statements.push(statement);
+          return [{ data: {} }];
+        },
+      },
+    } as any);
+
+    const acquired = await (service as any).acquireConnectionLease('company-a');
+    const generation = (service as any).instanceStartedAt as number;
+    const payload = statements[0]?.values?.find(
+      (value): value is string =>
+        typeof value === 'string' && value.includes('"generation"'),
+    );
+
+    assert.equal(acquired, true);
+    assert.equal(JSON.parse(payload ?? '{}').generation, generation);
+    assert.ok(
+      statements[0]?.values?.includes(generation),
+      'o WHERE também precisa comparar a geração para cercar o dono antigo',
+    );
   });
 });
