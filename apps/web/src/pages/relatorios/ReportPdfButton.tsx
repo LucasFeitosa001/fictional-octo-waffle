@@ -87,6 +87,21 @@ export async function downloadCurrentReport(signatureName = '', companyName = 'S
       Array.from(row.querySelectorAll('td,th')).map((cell) => normalizeReportCell(cell.textContent)),
     );
     if (!head.length && !body.length) continue;
+    // O resumo de agendamentos por serviço termina com uma coluna monetária
+    // "Total". Mostramos também o somatório do período, para o relatório não
+    // obrigar o responsável a somar linha por linha.
+    const headerLabels = head[0] ?? [];
+    const serviceSummary = headerLabels.some((label) => /^servi[cç]o$/i.test(label))
+      && headerLabels.some((label) => /^quantidade$/i.test(label))
+      && headerLabels.some((label) => /^total$/i.test(label));
+    if (serviceSummary && body.length) {
+      const totalIndex = headerLabels.findIndex((label) => /^total$/i.test(label));
+      const total = body.reduce((sum, row) => sum + parseReportMoney(row[totalIndex] ?? ''), 0);
+      const totalRow = Array.from({ length: headerLabels.length }, () => '');
+      totalRow[Math.max(0, totalIndex - 1)] = 'Total geral';
+      totalRow[totalIndex] = formatReportMoney(total);
+      body.push(totalRow);
+    }
     autoTable(doc, {
       head,
       body,
@@ -182,6 +197,16 @@ async function drawSalonPassLogo(
 
 function formatReportMetadata(value: string): string {
   return value.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1');
+}
+
+function parseReportMoney(value: string): number {
+  const normalized = value.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function formatReportMoney(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function drawFilterPanel(
