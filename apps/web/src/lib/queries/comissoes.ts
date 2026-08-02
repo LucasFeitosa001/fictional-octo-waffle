@@ -447,9 +447,10 @@ export function usePayCommissionsBulk() {
 // Histórico de pagamentos
 // =====================================================================
 
-export function useCommissionPayments(filters: PaymentFilters = {}) {
+export function useCommissionPayments(filters: PaymentFilters = {}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['commission-payments', filters],
+    enabled: options?.enabled ?? true,
     queryFn: () =>
       api.get<CommissionPayment[]>('/commission-payments', {
         professionalId: filters.professionalId || undefined,

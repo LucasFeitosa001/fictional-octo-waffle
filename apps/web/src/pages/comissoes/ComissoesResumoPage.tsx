@@ -1447,7 +1447,16 @@ function DetailDrawer({
     to: to || undefined,
     status: status || undefined,
   });
+  const paidPayments = useCommissionPayments(
+    {
+      professionalId: row?.professionalId,
+      from: from || undefined,
+      to: to || undefined,
+    },
+    { enabled: row?.status === 'paid' },
+  );
   const d = detail.data;
+  const receiptPayment = paidPayments.data?.[0];
 
   return (
     <Drawer
@@ -1503,6 +1512,28 @@ function DetailDrawer({
               {d?.signed ? 'Assinado' : 'Não assinado'}
             </Chip>
           </div>
+          {row?.status === 'paid' && receiptPayment && (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <div>
+                <div className="text-sm font-semibold text-foreground">Recibo do pagamento</div>
+                <div className="text-xs text-muted">Abra o recibo, informe o nome e baixe para assinatura.</div>
+              </div>
+              <CommissionReceiptButton
+                data={{
+                  professionalName: receiptPayment.professional.name,
+                  paidAt: receiptPayment.paidAt,
+                  createdAt: receiptPayment.createdAt,
+                  amount: receiptPayment.amount,
+                  commissionTotal: receiptPayment.commissionTotal,
+                  bonusTotal: receiptPayment.bonusTotal,
+                  advancesTotal: receiptPayment.advancesTotal,
+                  entriesCount: receiptPayment.entriesCount,
+                  from,
+                  to,
+                }}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between">

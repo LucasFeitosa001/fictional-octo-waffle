@@ -1,4 +1,5 @@
-import { IconDownload } from './icons';
+import { useState } from 'react';
+import { IconDownload, IconX } from './icons';
 
 export interface CommissionReceiptData {
   professionalName: string;
@@ -15,6 +16,9 @@ export interface CommissionReceiptData {
 
 /** Baixa um recibo individual, pronto para a assinatura do profissional. */
 export function CommissionReceiptButton({ data, compact = false }: { data: CommissionReceiptData; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [signatureName, setSignatureName] = useState(data.professionalName);
+
   async function download() {
     const { default: JsPDF } = await import('jspdf');
     const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -90,16 +94,41 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     doc.text(doc.splitTextToSize(declaration, width - 36), 18, y);
     y += 38;
     doc.setDrawColor(51, 65, 85); doc.line(58, y, width - 58, y);
-    doc.setFontSize(9); doc.text(data.professionalName, width / 2, y + 6, { align: 'center' });
+    doc.setFontSize(9); doc.text(signatureName.trim() || data.professionalName, width / 2, y + 6, { align: 'center' });
     doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.text('Assinatura do profissional', width / 2, y + 12, { align: 'center' });
     doc.text(`Emitido em ${date(new Date().toISOString())}`, 18, 282);
     doc.text('Documento gerado pelo SalonPass', width - 18, 282, { align: 'right' });
     doc.save(`recibo-comissao-${slug}-${date(data.paidAt).replace(/\//g, '-')}.pdf`);
+    setOpen(false);
   }
 
   return (
-    <button type="button" onClick={(event) => { event.stopPropagation(); void download(); }} className={compact ? 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10' : 'inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-primary hover:text-primary'}>
-      <IconDownload size={15} /> {compact ? 'Recibo' : 'Baixar recibo'}
-    </button>
+    <>
+      <button type="button" onClick={(event) => { event.stopPropagation(); setOpen(true); }} className={compact ? 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10' : 'inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-primary hover:text-primary'}>
+        <IconDownload size={15} /> {compact ? 'Recibo' : 'Baixar recibo'}
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Gerar recibo de comissão</h2>
+                <p className="mt-1 text-sm text-muted">Informe o profissional que assinará o recebimento.</p>
+              </div>
+              <button type="button" className="rounded-lg p-1 text-muted hover:bg-cream" onClick={() => setOpen(false)} aria-label="Fechar"><IconX size={18} /></button>
+            </div>
+            <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+              Nome para assinatura
+              <input value={signatureName} onChange={(event) => setSignatureName(event.target.value)} className="h-10 rounded-lg border border-line bg-white px-3 outline-none focus:border-primary" placeholder="Nome do profissional" />
+            </label>
+            <p className="mt-3 text-xs text-muted">O PDF será baixado diretamente com a linha de assinatura e os dados deste pagamento.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-foreground" onClick={() => setOpen(false)}>Cancelar</button>
+              <button type="button" className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white" onClick={() => void download()}>Gerar e baixar PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
