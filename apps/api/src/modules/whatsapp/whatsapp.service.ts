@@ -1905,7 +1905,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     }, 45_000);
     try {
       // Credenciais keyed pela empresa: sessionId = companyId.
-      const { state, saveCreds } = await useDbAuthState(this.prisma, companyId);
+      const { state, saveCreds } = await useDbAuthState(
+        this.prisma,
+        companyId,
+        this.instanceId,
+      );
       const version = await this.getCurrentWaVersion();
       const sock = makeWASocket({
         auth: state,

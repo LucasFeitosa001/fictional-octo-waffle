@@ -34,4 +34,37 @@ describe('Persistência criptográfica do WhatsApp', () => {
     assert.equal(stored.registered, true);
     assert.equal(calls, 2);
   });
+
+  it('a conexão só grava chaves Signal enquanto ainda possui o lease distribuído', async () => {
+    const statements: Array<{ values?: unknown[] }> = [];
+    let unguardedUpserts = 0;
+    const client = {
+      whatsappAuthState: {
+        findUnique: async () => null,
+        upsert: async () => {
+          unguardedUpserts += 1;
+        },
+      },
+      $executeRaw: async (statement: { values?: unknown[] }) => {
+        statements.push(statement);
+        return 1;
+      },
+    };
+    const { state, saveCreds } = await useDbAuthState(
+      { client } as any,
+      'company-a',
+      'owner-current',
+    );
+
+    state.creds.registered = true;
+    await saveCreds();
+
+    assert.equal(unguardedUpserts, 0);
+    assert.equal(statements.length, 1);
+    assert.ok(
+      statements[0]?.values?.includes('owner-current'),
+      'a escrita precisa provar o ownerId do lease no mesmo SQL',
+    );
+    assert.ok(statements[0]?.values?.includes('connection-lease'));
+  });
 });

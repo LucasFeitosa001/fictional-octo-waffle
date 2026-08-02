@@ -1,6 +1,10 @@
 import { initAuthCreds, BufferJSON, proto } from 'baileys';
 import type { AuthenticationCreds, AuthenticationState, SignalDataTypeMap } from 'baileys';
+import { Prisma } from '@beautypass/db';
 import type { PrismaService } from '../../prisma/prisma.service';
+
+const RUNTIME_CATEGORY = 'runtime';
+const CONNECTION_LEASE_ITEM_ID = 'connection-lease';
 
 /**
  * Serializa gravações da mesma chave Signal dentro do processo.
@@ -40,6 +44,7 @@ async function enqueueAuthWrite(
 export async function useDbAuthState(
   prisma: PrismaService,
   sessionId: string,
+  connectionOwnerId?: string,
 ): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void>; clear: () => Promise<void> }> {
   const db = prisma.client;
 
@@ -66,6 +71,35 @@ export async function useDbAuthState(
     // as atualizações, mesmo que o banco tenha latências diferentes por chamada.
     const data = encode(value);
     await enqueueAuthWrite(authRowKey(sessionId, category, itemId), async () => {
+      if (connectionOwnerId) {
+        // App Runner faz blue-green: o container antigo pode continuar vivo por
+        // alguns minutos depois de o lease passar ao novo. A fila em memória
+        // ordena chamadas dentro de UM processo, mas não impede esse processo
+        // antigo de devolver ao banco uma chave Signal obsoleta. O CTE trava a
+        // linha do lease e só persiste se este processo ainda for o dono.
+        const payload = JSON.stringify(data);
+        await db.$executeRaw(
+          Prisma.sql`
+            WITH owned_lease AS (
+              SELECT 1
+              FROM "WhatsappAuthState"
+              WHERE "sessionId" = ${sessionId}
+                AND "category" = ${RUNTIME_CATEGORY}
+                AND "itemId" = ${CONNECTION_LEASE_ITEM_ID}
+                AND "data"->>'ownerId' = ${connectionOwnerId}
+              FOR UPDATE
+            )
+            INSERT INTO "WhatsappAuthState"
+              ("sessionId", "category", "itemId", "data", "updatedAt")
+            SELECT
+              ${sessionId}, ${category}, ${itemId}, CAST(${payload} AS JSONB), NOW()
+            FROM owned_lease
+            ON CONFLICT ("sessionId", "category", "itemId") DO UPDATE
+            SET "data" = EXCLUDED."data", "updatedAt" = NOW()
+          `,
+        );
+        return;
+      }
       await db.whatsappAuthState.upsert({
         where: { sessionId_category_itemId: { sessionId, category, itemId } },
         create: { sessionId, category, itemId, data },
@@ -76,6 +110,27 @@ export async function useDbAuthState(
 
   async function removeItem(category: string, itemId: string): Promise<void> {
     await enqueueAuthWrite(authRowKey(sessionId, category, itemId), async () => {
+      if (connectionOwnerId) {
+        await db.$executeRaw(
+          Prisma.sql`
+            WITH owned_lease AS (
+              SELECT 1
+              FROM "WhatsappAuthState"
+              WHERE "sessionId" = ${sessionId}
+                AND "category" = ${RUNTIME_CATEGORY}
+                AND "itemId" = ${CONNECTION_LEASE_ITEM_ID}
+                AND "data"->>'ownerId' = ${connectionOwnerId}
+              FOR UPDATE
+            )
+            DELETE FROM "WhatsappAuthState" target
+            USING owned_lease
+            WHERE target."sessionId" = ${sessionId}
+              AND target."category" = ${category}
+              AND target."itemId" = ${itemId}
+          `,
+        );
+        return;
+      }
       await db.whatsappAuthState
         .delete({ where: { sessionId_category_itemId: { sessionId, category, itemId } } })
         .catch(() => undefined);
