@@ -26,6 +26,13 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     const width = doc.internal.pageSize.getWidth();
     const themePrimary = getComputedStyle(document.documentElement).getPropertyValue('--sp-primary').trim() || '#4f46e5';
+    const colorCanvas = document.createElement('canvas');
+    const colorContext = colorCanvas.getContext('2d');
+    if (!colorContext) throw new Error('canvas indisponível');
+    colorContext.fillStyle = themePrimary;
+    const normalizedColor = colorContext.fillStyle;
+    const colorParts = normalizedColor.match(/\d+/g)?.map(Number) ?? [79, 70, 229];
+    const [primaryR, primaryG, primaryB] = colorParts.length >= 3 ? colorParts : [79, 70, 229];
     const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const date = (value: string) => {
       // Datas de competência vêm como YYYY-MM-DD. Criar `new Date` diretamente
@@ -53,11 +60,19 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
       const context = canvas.getContext('2d');
       if (!context) throw new Error('canvas indisponível');
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      doc.setFillColor(themePrimary);
+      doc.setFillColor(primaryR, primaryG, primaryB);
+      doc.rect(0, 0, width, 9, 'F');
       doc.roundedRect(18, 12, 42, 10, 2, 2, 'F');
       doc.addImage(canvas.toDataURL('image/png'), 'PNG', 21, 14, 36, 6);
     } catch {
-      // O recibo continua válido mesmo se a logo não carregar.
+      // Mesmo sem o SVG, a faixa temática e o nome da marca permanecem.
+      doc.setFillColor(primaryR, primaryG, primaryB);
+      doc.rect(0, 0, width, 9, 'F');
+      doc.roundedRect(18, 12, 42, 10, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text('salonpass', 25, 18.3);
     }
     const slug = data.professionalName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'profissional';
 
