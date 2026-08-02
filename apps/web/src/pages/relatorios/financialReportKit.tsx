@@ -25,7 +25,11 @@ export interface DateRange {
 export function rangeLastDays(days: number): DateRange {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - days);
+  // O padrão de todos os relatórios é um mês corrido até hoje. Mantemos o
+  // parâmetro para chamadas específicas que realmente pedem outra quantidade
+  // de dias.
+  if (days === 30) from.setMonth(from.getMonth() - 1);
+  else from.setDate(from.getDate() - days);
   return { from: isoDate(from), to: isoDate(to) };
 }
 

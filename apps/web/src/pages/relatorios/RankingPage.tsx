@@ -33,7 +33,7 @@ interface Filters {
 function defaultFilters(): Filters {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { saleType: 'both', from: isoDate(from), to: isoDate(to), orderBy: 'total' };
 }
 
