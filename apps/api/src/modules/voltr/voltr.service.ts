@@ -50,6 +50,12 @@ interface ClienteParaVoltr {
   telefone: string;
   email?: string;
   documento?: string;
+  /**
+   * Não confundir "está no cadastro" com "já usou a agenda". O inbox da
+   * Voltr usa este marcador para mostrar somente conversas de pessoas com
+   * histórico real de agendamento na SalonPass.
+   */
+  temAgendamento: boolean;
 }
 
 /** Resposta do `/api/ingest/clientes` da Voltr. */
@@ -313,6 +319,7 @@ export class VoltrService {
             email: true,
             cpf: true,
             cnpj: true,
+            _count: { select: { appointments: true } },
           },
           orderBy: { id: 'asc' },
           take: SYNC_CLIENTES_LOTE,
@@ -339,6 +346,7 @@ export class VoltrService {
           lote.push({
             nome: c.name?.trim() || telefone,
             telefone,
+            temAgendamento: c._count.appointments > 0,
             ...(email ? { email } : {}),
             ...(documento ? { documento } : {}),
           });
