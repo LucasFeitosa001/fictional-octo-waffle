@@ -3,6 +3,35 @@ import type { AuthenticationCreds, AuthenticationState, SignalDataTypeMap } from
 import type { PrismaService } from '../../prisma/prisma.service';
 
 /**
+ * Serializa gravações da mesma chave Signal dentro do processo.
+ *
+ * O Baileys pode emitir vários `creds.update`/`keys.set` quase ao mesmo tempo.
+ * Sem esta fila, dois UPSERTs da mesma linha correm em paralelo e o mais antigo
+ * pode terminar por último, devolvendo a sessão criptográfica a um snapshot já
+ * ultrapassado. O mapa é global ao módulo para também cobrir a curta sobreposição
+ * entre um socket encerrando e o seguinte iniciando no mesmo processo.
+ */
+const AUTH_WRITE_CHAINS = new Map<string, Promise<void>>();
+
+function authRowKey(sessionId: string, category: string, itemId: string): string {
+  return `${sessionId}\u0000${category}\u0000${itemId}`;
+}
+
+async function enqueueAuthWrite(
+  key: string,
+  operation: () => Promise<void>,
+): Promise<void> {
+  const previous = AUTH_WRITE_CHAINS.get(key) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(operation);
+  AUTH_WRITE_CHAINS.set(key, current);
+  try {
+    await current;
+  } finally {
+    if (AUTH_WRITE_CHAINS.get(key) === current) AUTH_WRITE_CHAINS.delete(key);
+  }
+}
+
+/**
  * Baileys auth state backed by Postgres (model WhatsappAuthState). Mirrors the
  * shape of `useMultiFileAuthState`, but reads/writes rows instead of files so
  * the session survives App Runner restarts/redeploys (ephemeral FS). Values are
@@ -20,6 +49,11 @@ export async function useDbAuthState(
     JSON.parse(JSON.stringify(value), BufferJSON.reviver) as T;
 
   async function readItem<T>(category: string, itemId: string): Promise<T | null> {
+    // Uma leitura disparada logo depois de `keys.set` precisa observar a escrita
+    // que este processo ainda está concluindo.
+    await AUTH_WRITE_CHAINS.get(authRowKey(sessionId, category, itemId))?.catch(
+      () => undefined,
+    );
     const row = await db.whatsappAuthState.findUnique({
       where: { sessionId_category_itemId: { sessionId, category, itemId } },
       select: { data: true },
@@ -28,18 +62,24 @@ export async function useDbAuthState(
   }
 
   async function writeItem(category: string, itemId: string, value: unknown): Promise<void> {
+    // Captura o snapshot AGORA; a fila preserva a ordem em que o Baileys emitiu
+    // as atualizações, mesmo que o banco tenha latências diferentes por chamada.
     const data = encode(value);
-    await db.whatsappAuthState.upsert({
-      where: { sessionId_category_itemId: { sessionId, category, itemId } },
-      create: { sessionId, category, itemId, data },
-      update: { data },
+    await enqueueAuthWrite(authRowKey(sessionId, category, itemId), async () => {
+      await db.whatsappAuthState.upsert({
+        where: { sessionId_category_itemId: { sessionId, category, itemId } },
+        create: { sessionId, category, itemId, data },
+        update: { data },
+      });
     });
   }
 
   async function removeItem(category: string, itemId: string): Promise<void> {
-    await db.whatsappAuthState
-      .delete({ where: { sessionId_category_itemId: { sessionId, category, itemId } } })
-      .catch(() => undefined);
+    await enqueueAuthWrite(authRowKey(sessionId, category, itemId), async () => {
+      await db.whatsappAuthState
+        .delete({ where: { sessionId_category_itemId: { sessionId, category, itemId } } })
+        .catch(() => undefined);
+    });
   }
 
   const creds: AuthenticationCreds =
@@ -80,6 +120,14 @@ export async function useDbAuthState(
     },
     saveCreds: () => writeItem('creds', 'creds', creds),
     clear: async () => {
+      // Não apaga a sessão enquanto uma atualização criptográfica ainda está
+      // em trânsito neste processo.
+      const prefix = `${sessionId}\u0000`;
+      await Promise.all(
+        [...AUTH_WRITE_CHAINS.entries()]
+          .filter(([key]) => key.startsWith(prefix))
+          .map(([, pending]) => pending.catch(() => undefined)),
+      );
       await db.whatsappAuthState.deleteMany({ where: { sessionId } });
     },
   };

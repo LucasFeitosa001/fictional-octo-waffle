@@ -665,6 +665,12 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     phone: string,
     customerId?: string | null,
   ) {
+    await this.consolidateParticipantConversations(
+      companyId,
+      remoteJid,
+      phone,
+      customerId,
+    );
     const exact =
       await this.prisma.client.whatsappConversation.findUnique({
         where: {
@@ -682,12 +688,122 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     }
     const tail = this.digitsTail(phone);
     if (!tail) return null;
-    return this.prisma.client.whatsappConversation.findFirst({
+    const possible = await this.prisma.client.whatsappConversation.findMany({
       where: {
         companyId,
         phone: { endsWith: tail },
       },
       orderBy: { lastMessageAt: 'desc' },
+      take: 20,
+    });
+    const canonicalPhone = this.canonicalPhone(phone);
+    return (
+      possible.find(
+        (conversation) =>
+          this.canonicalPhone(conversation.phone) === canonicalPhone,
+      ) ?? null
+    );
+  }
+
+  /** Normaliza telefone brasileiro antigo/novo sem usar nome como identidade. */
+  private canonicalPhone(value: string): string {
+    let digits = (value ?? '').replace(/\D/g, '');
+    if (digits.startsWith('55') && digits.length >= 12) digits = digits.slice(2);
+    // 89 9xxxx-xxxx e 89 xxxx-xxxx representam o mesmo celular legado.
+    if (digits.length === 11 && digits[2] === '9') {
+      digits = `${digits.slice(0, 2)}${digits.slice(3)}`;
+    }
+    return digits;
+  }
+
+  private latestDate(
+    rows: Array<Date | null | undefined>,
+  ): Date | null {
+    const values = rows.filter((value): value is Date => value instanceof Date);
+    return values.length
+      ? new Date(Math.max(...values.map((value) => value.getTime())))
+      : null;
+  }
+
+  /**
+   * Une a conversa `@lid` e `@s.whatsapp.net` quando customer/telefone provam
+   * que são a mesma pessoa. As mensagens são movidas antes de apagar a casca
+   * duplicada. O lock por identidade impede dois eventos simultâneos de fazerem
+   * consolidações concorrentes dentro do mesmo banco.
+   */
+  private async consolidateParticipantConversations(
+    companyId: string,
+    remoteJid: string,
+    phone: string,
+    customerId?: string | null,
+  ): Promise<void> {
+    const canonicalPhone = this.canonicalPhone(phone);
+    const identity = customerId
+      ? `customer:${customerId}`
+      : canonicalPhone
+        ? `phone:${canonicalPhone}`
+        : `jid:${remoteJid}`;
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:${identity}`}))`,
+      );
+      const tail = canonicalPhone.length >= 8 ? canonicalPhone.slice(-8) : '';
+      const possible = await tx.whatsappConversation.findMany({
+        where: {
+          companyId,
+          OR: [
+            { remoteJid },
+            ...(customerId ? [{ customerId }] : []),
+            ...(tail ? [{ phone: { endsWith: tail } }] : []),
+          ],
+        },
+        orderBy: { lastMessageAt: 'desc' },
+      });
+      const candidates = possible.filter(
+        (item) =>
+          item.remoteJid === remoteJid ||
+          (!!customerId && item.customerId === customerId) ||
+          (!!canonicalPhone && this.canonicalPhone(item.phone) === canonicalPhone),
+      );
+      if (candidates.length < 2) return;
+
+      // LID observado é o endereço vivo do chat multi-device; não o substitui
+      // por um JID reconstruído apenas a partir do telefone.
+      const canonical =
+        candidates.find((item) => item.remoteJid.endsWith('@lid')) ??
+        candidates.find((item) => item.remoteJid === remoteJid) ??
+        candidates[0];
+      const duplicates = candidates.filter((item) => item.id !== canonical.id);
+      const latest = [...candidates].sort(
+        (a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime(),
+      )[0];
+      await tx.whatsappInboxMessage.updateMany({
+        where: { conversationId: { in: duplicates.map((item) => item.id) } },
+        data: { conversationId: canonical.id },
+      });
+      await tx.whatsappConversation.deleteMany({
+        where: { id: { in: duplicates.map((item) => item.id) } },
+      });
+      await tx.whatsappConversation.update({
+        where: { id: canonical.id },
+        data: {
+          remoteJid: canonical.remoteJid,
+          phone: phone || canonical.phone,
+          customerId:
+            customerId ?? candidates.find((item) => item.customerId)?.customerId ?? null,
+          displayName: latest.displayName ?? canonical.displayName,
+          handledByAi: candidates.every((item) => item.handledByAi),
+          resolved: candidates.every((item) => item.resolved),
+          unreadCount: candidates.reduce((total, item) => total + item.unreadCount, 0),
+          lastMessageText: latest.lastMessageText,
+          lastMessageAt: latest.lastMessageAt,
+          lastInboundAt: this.latestDate(candidates.map((item) => item.lastInboundAt)),
+          lastOutboundAt: this.latestDate(candidates.map((item) => item.lastOutboundAt)),
+        },
+      });
+      this.logger.log(
+        `Inbox WhatsApp: ${duplicates.length} conversa(s) duplicada(s) consolidada(s) (company=${companyId}).`,
+      );
     });
   }
 
@@ -995,7 +1111,9 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
             data: {
               // Se a conversa nasceu de uma automação (JID por telefone) e a
               // resposta real chegou por LID, passa a usar o JID observado.
-              ...(existingConversation.remoteJid !== message.remoteJid
+              ...(existingConversation.remoteJid !== message.remoteJid &&
+              (message.remoteJid.endsWith('@lid') ||
+                !existingConversation.remoteJid.endsWith('@lid'))
                 ? { remoteJid: message.remoteJid }
                 : {}),
               ...(message.fromDigits ? { phone: message.fromDigits } : {}),

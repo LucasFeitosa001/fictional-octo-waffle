@@ -27,8 +27,11 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  me(@CurrentUser('userId') userId: string) {
-    return this.auth.me(userId);
+  me(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('companyId') companyId: string,
+  ) {
+    return this.auth.me(userId, companyId);
   }
 
   // Permissões da EMPRESA ATIVA (companyId já reflete a empresa ativa da sessão).

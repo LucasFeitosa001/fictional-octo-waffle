@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -296,7 +296,24 @@ export class MarketingService {
     });
   }
 
-  createPromotion(companyId: string, dto: CreatePromotionDto) {
+  private validatePromotionPeriod(
+    validFrom?: string | Date | null,
+    validTo?: string | Date | null,
+  ): void {
+    if (!validFrom || !validTo) return;
+    const from = validFrom instanceof Date ? validFrom : new Date(validFrom);
+    const to = validTo instanceof Date ? validTo : new Date(validTo);
+    if (
+      Number.isNaN(from.getTime()) ||
+      Number.isNaN(to.getTime()) ||
+      to.getTime() < from.getTime()
+    ) {
+      throw new BadRequestException('Período de validade da promoção inválido.');
+    }
+  }
+
+  async createPromotion(companyId: string, dto: CreatePromotionDto) {
+    this.validatePromotionPeriod(dto.validFrom, dto.validTo);
     return this.prisma.client.promotion.create({
       data: {
         companyId,
@@ -316,6 +333,10 @@ export class MarketingService {
   async updatePromotion(companyId: string, id: string, dto: UpdatePromotionDto) {
     const found = await this.prisma.client.promotion.findFirst({ where: { id, companyId } });
     if (!found) throw new NotFoundException('Promoção não encontrada');
+    this.validatePromotionPeriod(
+      dto.validFrom !== undefined ? dto.validFrom : found.validFrom,
+      dto.validTo !== undefined ? dto.validTo : found.validTo,
+    );
     return this.prisma.client.promotion.update({
       where: { id },
       data: {

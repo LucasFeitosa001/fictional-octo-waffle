@@ -10,11 +10,13 @@ import makeWASocket, {
 import type { WAMessage, WASocket, WAVersion } from 'baileys';
 import * as QRCode from 'qrcode';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { useDbAuthState } from './whatsapp-auth';
 import { RETRY_COUNTER_CACHE } from './retry-cache';
 import { escolherJidConhecido } from './jid-escolha';
+import { UploadsService } from '../uploads/uploads.service';
 import {
   autorizacaoAindaVale,
   expirouNaFila,
@@ -286,7 +288,10 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   // deduplicação antes de uma delas persistir a linha no banco.
   private readonly enqueueInFlight = new Set<string>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly uploads?: UploadsService,
+  ) {}
 
   private getCurrentWaVersion(): Promise<WAVersion | undefined> {
     if (!this.waVersionPromise) {
@@ -1143,6 +1148,22 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Baileys não carrega o cookie da sessão do navegador. Para uploads locais
+   * privados, lê o arquivo já validado pelo tenant e entrega o Buffer direto;
+   * mídias S3/CDN continuam por URL.
+   */
+  private async outboundMediaSource(
+    value: string,
+    companyId: string,
+  ): Promise<Buffer | { url: string }> {
+    const match = value.match(/^\/api\/v1\/uploads\/file\/([A-Za-z0-9._-]+)$/);
+    if (!match) return { url: this.absoluteMediaUrl(value) };
+    const full = await this.uploads?.resolveLocalFile(match[1], companyId);
+    if (!full) throw new Error('Upload local não pertence à empresa ou não existe.');
+    return readFile(full);
+  }
+
+  /**
    * Marca no WhatsApp as mensagens que o atendente realmente abriu. Além de
    * zerar o contador local, isso envia o receipt que transforma os vistos do
    * cliente em azuis (se a confirmação de leitura estiver habilitada na conta).
@@ -1371,21 +1392,21 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn(`Outbox ${msg.id}: número ${msg.toPhone} sem WhatsApp — descartado.`);
         return;
       }
-      const mediaUrl = msg.mediaUrl
-        ? this.absoluteMediaUrl(msg.mediaUrl)
+      const mediaSource = msg.mediaUrl
+        ? await this.outboundMediaSource(msg.mediaUrl, session.companyId)
         : null;
       const sent =
-        msg.mediaType === 'image' && mediaUrl
+        msg.mediaType === 'image' && mediaSource
           ? await session.sock.sendMessage(jid, {
-              image: { url: mediaUrl },
+              image: mediaSource,
               ...(msg.text && !msg.text.startsWith('📷 Imagem')
                 ? { caption: msg.text }
                 : {}),
               ...(msg.mediaMimeType ? { mimetype: msg.mediaMimeType } : {}),
             })
-          : msg.mediaType === 'audio' && mediaUrl
+          : msg.mediaType === 'audio' && mediaSource
             ? await session.sock.sendMessage(jid, {
-                audio: { url: mediaUrl },
+                audio: mediaSource,
                 mimetype: msg.mediaMimeType || 'audio/ogg',
                 ptt: msg.mediaPtt,
               })

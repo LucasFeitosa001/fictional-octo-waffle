@@ -3,6 +3,7 @@ import { ErrorState, LoadingState } from '../components/States';
 import { AppSwitch } from '../components/SwitchRow';
 import { api } from '../lib/api';
 import { apiErrorMessage } from '../lib/toast';
+import { useTheme } from '../theme/theme';
 
 /**
  * Host do Chat/CRM da Voltr embarcado no painel (estudo 68).
@@ -84,6 +85,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [carregando, setCarregando] = useState(true);
   const [resumoIa, setResumoIa] = useState<ResumoIa | null>(null);
   const [configIa, setConfigIa] = useState<ConfigIa | null>(null);
+  const [erroPainelIa, setErroPainelIa] = useState<string | null>(null);
   const [salvandoIa, setSalvandoIa] = useState(false);
   const [chatMobileAberto, setChatMobileAberto] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -91,6 +93,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const origemRef = useRef<string>('');
   /** Escopo que o `src` atual representa — troca de aba precisa de src novo. */
   const scopeDoSrc = useRef<'crm' | 'chat' | 'boards' | 'ia' | null>(null);
+  const [temaAtual] = useTheme();
 
   const enviarTema = useCallback(() => {
     const iframe = iframeRef.current;
@@ -159,20 +162,45 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     void buscarToken();
   }, [buscarToken]);
 
+  // Alterar a personalização com o CRM já aberto precisa atualizar o iframe no
+  // mesmo instante. Antes o tema era enviado apenas no load/handshake e ficava
+  // velho até navegar ou recarregar a página.
+  useEffect(() => {
+    enviarTema();
+  }, [temaAtual, enviarTema]);
+
   // O resumo pertence ao Atendimento (e não a Contatos/Kanban/IA). Ele usa os
   // mesmos dados reais da tela /atendimento, agora visíveis também no /voltr-chat.
   useEffect(() => {
     if (scope !== 'chat') return;
     let vivo = true;
-    void Promise.all([
-      api.get<ResumoIa>('/whatsapp/inbox/stats'),
-      api.get<ConfigIa>('/whatsapp/inbox/config'),
-    ]).then(([stats, config]) => {
+    const carregar = async () => {
+      const [stats, config] = await Promise.allSettled([
+        api.get<ResumoIa>('/whatsapp/inbox/stats'),
+        api.get<ConfigIa>('/whatsapp/inbox/config'),
+      ]);
       if (!vivo) return;
-      setResumoIa(stats);
-      setConfigIa(config);
-    }).catch(() => undefined);
-    return () => { vivo = false; };
+      if (stats.status === 'fulfilled') setResumoIa(stats.value);
+      if (config.status === 'fulfilled') setConfigIa(config.value);
+      setErroPainelIa(
+        stats.status === 'rejected' || config.status === 'rejected'
+          ? 'Não foi possível atualizar o estado da IA agora. Nova tentativa automática em instantes.'
+          : null,
+      );
+    };
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') void carregar();
+    };
+    void carregar();
+    // O painel fica aberto o dia inteiro no salão. Uma indisponibilidade curta
+    // não pode congelar "IA pausada"/zeros até o próximo F5.
+    const timer = window.setInterval(() => void carregar(), 30_000);
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => {
+      vivo = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', aoVoltar);
+    };
   }, [scope]);
 
   async function alternarIa(enabled: boolean) {
@@ -180,6 +208,9 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     try {
       const salvo = await api.patch<ConfigIa>('/whatsapp/inbox/config', { enabled });
       setConfigIa(salvo);
+      setErroPainelIa(null);
+    } catch (error) {
+      setErroPainelIa(apiErrorMessage(error));
     } finally {
       setSalvandoIa(false);
     }
@@ -259,16 +290,21 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
               <p className="m-0 mt-1 hidden text-sm text-[var(--sp-muted-ink)] sm:block">Caixa real do número vinculado, atendimento humano e recepcionista virtual</p>
             </div>
             <div className="flex shrink-0 items-center gap-2 rounded-full border border-[var(--sp-border)] bg-[var(--sp-card)] px-2.5 py-1.5 text-xs shadow-sm sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm">
-              <span className="font-semibold text-[var(--sp-ink)]">IA {configIa?.enabled ? 'ativa' : 'pausada'}</span>
+              <span
+                className="font-semibold text-[var(--sp-ink)]"
+                title={erroPainelIa ?? undefined}
+              >
+                {configIa ? `IA ${configIa.enabled ? 'ativa' : 'pausada'}` : 'IA indisponível'}
+              </span>
               <AppSwitch checked={!!configIa?.enabled} onChange={(v) => void alternarIa(v)} isDisabled={!configIa || salvandoIa} aria-label="Ativar ou pausar a IA" />
             </div>
           </div>
           <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
             {[
-              { label: 'Conversas hoje', mobile: 'Conversas', value: resumoIa?.conversationsToday ?? 0 },
-              { label: 'Respostas da IA hoje', mobile: 'Respostas IA', value: resumoIa?.aiMessagesToday ?? 0 },
-              { label: 'Agendamentos feitos pela IA', mobile: 'Agendamentos', value: resumoIa?.bookingsViaAi ?? 0 },
-              { label: 'Taxa de resolução', mobile: 'Resolução', value: `${resumoIa?.resolutionRate ?? 0}%` },
+              { label: 'Conversas hoje', mobile: 'Conversas', value: resumoIa?.conversationsToday ?? '—' },
+              { label: 'Respostas da IA hoje', mobile: 'Respostas IA', value: resumoIa?.aiMessagesToday ?? '—' },
+              { label: 'Agendamentos feitos pela IA', mobile: 'Agendamentos', value: resumoIa?.bookingsViaAi ?? '—' },
+              { label: 'Taxa de resolução', mobile: 'Resolução', value: resumoIa ? `${resumoIa.resolutionRate}%` : '—' },
             ].map(({ label, mobile, value }) => (
               <div key={label} className="min-w-0 rounded-xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-2 py-2 shadow-sm sm:rounded-2xl sm:px-4 sm:py-3">
                 <div className="truncate text-[0.64rem] leading-tight text-[var(--sp-muted-ink)] sm:hidden">{mobile}</div>

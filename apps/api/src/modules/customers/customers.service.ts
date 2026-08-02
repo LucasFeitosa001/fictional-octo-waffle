@@ -510,17 +510,26 @@ export class CustomersService {
 
   async listCashback(companyId: string, id: string) {
     await this.findOne(companyId, id);
+    const now = new Date();
     const cashback = await this.prisma.client.customerCashback.findMany({
       where: { customerId: id, customer: { companyId } },
       orderBy: { createdAt: 'desc' },
     });
-    const saldo = cashback.reduce((acc, c) => acc + num(c.amount), 0);
+    // O extrato continua completo para auditoria, mas o saldo precisa coincidir
+    // com o que pode ser resgatado. Antes uma linha vencida aparecia corretamente
+    // no histórico e, ao mesmo tempo, inflava o saldo exibido.
+    const saldo = cashback
+      .filter((c) => !c.expiresAt || c.expiresAt >= now)
+      .reduce((acc, c) => acc + num(c.amount), 0);
     return { cashback, saldo };
   }
 
-  /** Saldo de cashback válido (linhas não vencidas) do cliente. */
-  private async cashbackBalance(companyId: string, id: string): Promise<number> {
-    const rows = await this.prisma.client.customerCashback.findMany({
+  private async cashbackBalanceUsing(
+    client: Prisma.TransactionClient | PrismaService['client'],
+    companyId: string,
+    id: string,
+  ): Promise<number> {
+    const rows = await client.customerCashback.findMany({
       where: {
         customerId: id,
         customer: { companyId },
@@ -538,25 +547,30 @@ export class CustomersService {
    */
   async redeemCashback(companyId: string, id: string, dto: RedeemCashbackDto) {
     await this.findOne(companyId, id);
-    const company = await this.prisma.client.company.findUnique({
-      where: { id: companyId },
-      select: { cashbackCanRedeem: true },
+    return this.prisma.client.$transaction(async (tx) => {
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:cashback:${id}`}))`,
+      );
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { cashbackCanRedeem: true },
+      });
+      if (company && company.cashbackCanRedeem === false) {
+        throw new BadRequestException('Resgate de cashback desativado no programa.');
+      }
+      const saldo = await this.cashbackBalanceUsing(tx, companyId, id);
+      if (dto.amount > saldo) {
+        throw new BadRequestException('Saldo de cashback insuficiente.');
+      }
+      const entry = await tx.customerCashback.create({
+        data: {
+          customerId: id,
+          amount: new Prisma.Decimal(-Math.abs(dto.amount)),
+          sourceType: 'redeem',
+        },
+      });
+      return { entry, saldo: saldo - Math.abs(dto.amount) };
     });
-    if (company && company.cashbackCanRedeem === false) {
-      throw new BadRequestException('Resgate de cashback desativado no programa.');
-    }
-    const saldo = await this.cashbackBalance(companyId, id);
-    if (dto.amount > saldo) {
-      throw new BadRequestException('Saldo de cashback insuficiente.');
-    }
-    const entry = await this.prisma.client.customerCashback.create({
-      data: {
-        customerId: id,
-        amount: new Prisma.Decimal(-Math.abs(dto.amount)),
-        sourceType: 'redeem',
-      },
-    });
-    return { entry, saldo: saldo - Math.abs(dto.amount) };
   }
 
   /**
@@ -565,16 +579,27 @@ export class CustomersService {
    */
   async adjustCashback(companyId: string, id: string, dto: AdjustCashbackDto) {
     await this.findOne(companyId, id);
-    const entry = await this.prisma.client.customerCashback.create({
-      data: {
-        customerId: id,
-        amount: new Prisma.Decimal(dto.amount),
-        sourceType: 'adjust',
-        ...(dto.expiresAt ? { expiresAt: new Date(dto.expiresAt) } : {}),
-      },
+    return this.prisma.client.$transaction(async (tx) => {
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:cashback:${id}`}))`,
+      );
+      if (dto.amount < 0) {
+        const saldoAtual = await this.cashbackBalanceUsing(tx, companyId, id);
+        if (Math.abs(dto.amount) > saldoAtual) {
+          throw new BadRequestException('Saldo de cashback insuficiente.');
+        }
+      }
+      const entry = await tx.customerCashback.create({
+        data: {
+          customerId: id,
+          amount: new Prisma.Decimal(dto.amount),
+          sourceType: 'adjust',
+          ...(dto.expiresAt ? { expiresAt: new Date(dto.expiresAt) } : {}),
+        },
+      });
+      const saldo = await this.cashbackBalanceUsing(tx, companyId, id);
+      return { entry, saldo };
     });
-    const saldo = await this.cashbackBalance(companyId, id);
-    return { entry, saldo };
   }
 
   // ===== Agendamentos =====
@@ -762,7 +787,12 @@ export class CustomersService {
     dto: UpdateCustomerAnamnesisDto,
   ) {
     await this.findOne(companyId, id);
-    await this.ensureAnamnesis(companyId, id, anamId);
+    const atual = await this.ensureAnamnesis(companyId, id, anamId);
+    if (atual.signedAt) {
+      throw new BadRequestException(
+        'Esta anamnese já foi assinada e é imutável para preservar a auditoria.',
+      );
+    }
     return this.prisma.client.customerAnamnesis.update({
       where: { id: anamId },
       data: {
@@ -779,7 +809,12 @@ export class CustomersService {
   /** DELETE /customers/:id/anamneses/:anamId */
   async removeAnamnesis(companyId: string, id: string, anamId: string) {
     await this.findOne(companyId, id);
-    await this.ensureAnamnesis(companyId, id, anamId);
+    const atual = await this.ensureAnamnesis(companyId, id, anamId);
+    if (atual.signedAt) {
+      throw new BadRequestException(
+        'Esta anamnese já foi assinada e não pode ser excluída.',
+      );
+    }
     await this.prisma.client.customerAnamnesis.delete({ where: { id: anamId } });
     return { id: anamId, deleted: true };
   }
@@ -816,12 +851,11 @@ export class CustomersService {
         // registros antigos sem empresa continuam acessíveis apenas quando já
         // estão ligados ao cliente desta empresa (ramo customerId).
         AND: [
+          { companyId },
           {
             OR: [
               { customerId: id },
-              ...(phoneTail
-                ? [{ toPhone: { endsWith: phoneTail }, companyId }]
-                : []),
+              ...(phoneTail ? [{ toPhone: { endsWith: phoneTail } }] : []),
             ],
           },
         ],
@@ -855,6 +889,9 @@ export class CustomersService {
     const items: Interaction[] = [];
 
     for (const o of outboxRows) {
+      // Defesa em profundidade: mocks, views futuras ou regressões de query não
+      // podem transformar a timeline numa janela para mensagens de outro salão.
+      if (o.companyId !== companyId) continue;
       items.push({
         id: o.id,
         channel: 'whatsapp',

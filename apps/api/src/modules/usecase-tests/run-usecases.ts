@@ -11,3 +11,5 @@ import './platform-access.usecases.test';
 import './voltr.usecases.test';
 import './voltr-forwarder.usecases.test';
 import './retry-cache.usecases.test';
+import './whatsapp-auth.usecases.test';
+import './whatsapp-inbox-identity.usecases.test';

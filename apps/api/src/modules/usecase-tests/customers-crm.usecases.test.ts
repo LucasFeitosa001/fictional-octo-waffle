@@ -6,6 +6,8 @@ import { CustomersService } from '../customers/customers.service';
 import { MarketingService } from '../marketing/marketing.service';
 
 function customersService(client: any) {
+  client.$executeRaw ??= async () => 1;
+  client.$transaction ??= async (run: (tx: any) => unknown) => run(client);
   return new CustomersService({ client } as any);
 }
 

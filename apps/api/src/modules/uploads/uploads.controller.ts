@@ -109,14 +109,15 @@ export class UploadsController {
     return this.service.presign(companyId, dto);
   }
 
-  /**
-   * Serves files stored on the local disk fallback. Public (unauthenticated) so
-   * <img src> and mobile clients can render avatars without extra plumbing.
-   * Filenames are UUID-scoped, so URLs are effectively unguessable.
-   */
+  /** Arquivos locais continuam privados e isolados pelo tenant da sessão. */
+  @UseGuards(JwtAuthGuard)
   @Get('file/:name')
-  async serve(@Param('name') name: string, @Res() res: Response) {
-    const full = await this.service.resolveLocalFile(name);
+  async serve(
+    @CurrentUser('companyId') companyId: string,
+    @Param('name') name: string,
+    @Res() res: Response,
+  ) {
+    const full = await this.service.resolveLocalFile(name, companyId);
     if (!full) throw new NotFoundException('Arquivo não encontrado.');
 
     const ext = path.extname(full).slice(1).toLowerCase();

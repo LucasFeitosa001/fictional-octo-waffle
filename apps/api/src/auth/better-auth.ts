@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { randomBytes } from 'node:crypto';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { bearer } from 'better-auth/plugins';
 import { expo } from '@better-auth/expo';
@@ -122,7 +123,10 @@ function resolveAuthSecret(): string {
   console.warn(
     '[auth] BETTER_AUTH_SECRET não definido — usando segredo de desenvolvimento. NUNCA use isto em produção.',
   );
-  return 'dev-better-auth-secret-change-me-32chars';
+  // Em desenvolvimento, um segredo aleatório por processo evita guardar no
+  // repositório uma chave conhecida capaz de forjar sessões. Reiniciar invalida
+  // apenas as sessões locais; produção continua obrigatoriamente fail-closed.
+  return randomBytes(32).toString('hex');
 }
 
 export const auth = betterAuth({
