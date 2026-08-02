@@ -86,6 +86,7 @@ export function AgendamentosPage() {
   const [range, setRange] = useState(defaultRange);
   const [layout, setLayout] = useState<'portrait' | 'landscape'>('portrait');
   const [employeeStatus, setEmployeeStatus] = useState<'all' | 'actives' | 'inactives'>('all');
+  const [specificProfessionalId, setSpecificProfessionalId] = useState('all');
   const [columnsOption, setColumnsOption] = useState<'columns' | 'empty_columns'>('columns');
   const [groupBy, setGroupBy] = useState('all');
   const [checked, setChecked] = useState<Set<string>>(
@@ -97,7 +98,13 @@ export function AgendamentosPage() {
   });
   const servicesQuery = useServices();
   const professionalRows = Array.isArray(professionalsQuery.data?.data) ? professionalsQuery.data.data : [];
-  const professionalIds = employeeStatus === 'all' ? undefined : professionalRows.map((p) => p.id);
+  // `Todos/Ativos/Inativos` é o filtro de situação. Este segundo filtro permite
+  // gerar somente os agendamentos de uma pessoa, sem alterar o cadastro nem a
+  // agenda. O id também vai para a API, evitando buscar e filtrar uma lista
+  // inteira no navegador.
+  const professionalIds = specificProfessionalId !== 'all'
+    ? [specificProfessionalId]
+    : employeeStatus === 'all' ? undefined : professionalRows.map((p) => p.id);
   // A API usa `lte` no horário; somamos um dia para incluir todo o último dia
   // escolhido (até 23:59), sem alterar o período mostrado ao usuário.
   // Durante a seleção o DateRangePicker emite `{ from, to: '' }` entre o
@@ -110,7 +117,7 @@ export function AgendamentosPage() {
   const appointmentsQuery = useAgendaAppointments({ from: range.from, to: apiTo, professionalIds }, { enabled: false });
   const serviceRows = Array.isArray(servicesQuery.data?.data) ? servicesQuery.data.data : [];
   const serviceNames = new Map(serviceRows.map((s) => [s.id, s.name]));
-  const allowedProfessionalIds = employeeStatus === 'all' ? null : new Set(professionalIds ?? []);
+  const allowedProfessionalIds = professionalIds?.length ? new Set(professionalIds) : null;
   const appointmentRows = Array.isArray(appointmentsQuery.data?.data) ? appointmentsQuery.data.data : [];
   const reportAppointments = appointmentRows.filter((a) =>
     !allowedProfessionalIds || allowedProfessionalIds.has(a.professionalId ?? ''),
@@ -152,7 +159,7 @@ export function AgendamentosPage() {
     >
         {/* ---- Formulário de configuração do relatório ------------------- */}
         <form
-          data-report-pdf-meta={`Período ${range.from} – ${range.to}; Layout ${layout === 'portrait' ? 'Retrato' : 'Paisagem'}; Profissionais ${employeeStatus === 'all' ? 'Todos' : employeeStatus === 'actives' ? 'Ativos' : 'Inativos'}; Colunas ${columnsOption === 'columns' ? 'Informativa' : 'Em branco'}; Agrupar por ${groupBy === 'all' ? 'Todos' : groupBy === 'employee' ? 'Profissional' : 'Data'}; Campos ${COLUMN_OPTIONS.filter((c) => checked.has(c.value)).map((c) => c.label).join(', ')}`}
+          data-report-pdf-meta={`Período ${range.from} – ${range.to}; Layout ${layout === 'portrait' ? 'Retrato' : 'Paisagem'}; Profissionais ${specificProfessionalId === 'all' ? (employeeStatus === 'all' ? 'Todos' : employeeStatus === 'actives' ? 'Ativos' : 'Inativos') : professionalRows.find((p) => p.id === specificProfessionalId)?.name ?? 'Selecionado'}; Colunas ${columnsOption === 'columns' ? 'Informativa' : 'Em branco'}; Agrupar por ${groupBy === 'all' ? 'Todos' : groupBy === 'employee' ? 'Profissional' : 'Data'}; Campos ${COLUMN_OPTIONS.filter((c) => checked.has(c.value)).map((c) => c.label).join(', ')}`}
           data-report-pdf-layout={layout}
           className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-6"
           onSubmit={(e) => {
@@ -197,6 +204,20 @@ export function AgendamentosPage() {
                   { value: 'inactives', label: 'Inativos' },
                 ]}
               />
+              <label className="mt-3 block text-sm text-ink">
+                Profissional específico
+                <select
+                  value={specificProfessionalId}
+                  onChange={(e) => setSpecificProfessionalId(e.target.value)}
+                  aria-label="Profissional específico"
+                  className="mt-1.5 h-11 w-full rounded-xl border border-line bg-card px-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="all">Todos os profissionais</option>
+                  {professionalRows.map((professional) => (
+                    <option key={professional.id} value={professional.id}>{professional.name}</option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             {/* Colunas */}
