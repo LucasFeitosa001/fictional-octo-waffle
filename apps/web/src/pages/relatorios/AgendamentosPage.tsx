@@ -122,6 +122,17 @@ export function AgendamentosPage() {
   const reportAppointments = appointmentRows.filter((a) =>
     !allowedProfessionalIds || allowedProfessionalIds.has(a.professionalId ?? ''),
   );
+  const serviceSummary = Array.from(reportAppointments.reduce((map, appointment) => {
+    for (const item of appointment.items ?? []) {
+      const name = serviceNames.get(item.serviceId) ?? item.serviceId;
+      const current = map.get(name) ?? { name, count: 0, total: 0 };
+      current.count += 1;
+      current.total += Number(item.price) || 0;
+      map.set(name, current);
+    }
+    return map;
+  }, new Map<string, { name: string; count: number; total: number }>()).values());
+  const totalServices = serviceSummary.reduce((sum, item) => sum + item.total, 0);
   const [generated, setGenerated] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -295,6 +306,22 @@ export function AgendamentosPage() {
           </div>
         </form>
         {generated && (
+          <>
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
+            <div className="border-b border-line px-4 py-3">
+              <div className="text-sm font-semibold text-ink">Resumo por serviço</div>
+              <div className="mt-1 text-xs text-muted-ink">Valores dos serviços registrados nos agendamentos do período</div>
+            </div>
+            {serviceSummary.length === 0 ? (
+              <div className="p-4 text-sm text-muted-ink">Nenhum serviço encontrado no período.</div>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead><tr className="border-b border-line text-xs uppercase tracking-wide text-muted-ink"><th className="px-3 py-2">Serviço</th><th className="px-3 py-2">Quantidade</th><th className="px-3 py-2">Total</th></tr></thead>
+                <tbody>{serviceSummary.map((item) => <tr key={item.name} className="border-b border-line last:border-0"><td className="px-3 py-2 text-ink">{item.name}</td><td className="px-3 py-2 text-ink">{item.count}</td><td className="px-3 py-2 font-medium text-ink">{item.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td></tr>)}</tbody>
+                <tfoot><tr className="border-t-2 border-line font-semibold"><td className="px-3 py-2 text-ink">Total geral</td><td className="px-3 py-2 text-ink">{serviceSummary.reduce((sum, item) => sum + item.count, 0)}</td><td className="px-3 py-2 text-ink">{totalServices.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td></tr></tfoot>
+              </table>
+            )}
+          </div>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]">
               <div className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">
               Agendamentos de {range.from} a {range.to} ({reportAppointments.length})
@@ -325,6 +352,7 @@ export function AgendamentosPage() {
               </table>
             )}
           </div>
+          </>
         )}
     </CalendarReportShell>
   );

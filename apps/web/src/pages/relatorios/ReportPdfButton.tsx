@@ -14,15 +14,24 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   const report = document.querySelector<HTMLElement>('.mobile-page-content');
   if (!report) throw new Error('Relatório não encontrado na página.');
   const layout = document.querySelector<HTMLElement>('[data-report-pdf-layout]')?.dataset.reportPdfLayout;
-  const doc = new JsPDF({ orientation: layout === 'landscape' ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
   const reportMeta = Array.from(document.querySelectorAll<HTMLElement>('[data-report-pdf-meta]'))
     .map((node) => node.dataset.reportPdfMeta || node.textContent || '')
     .map((text) => text.trim())
     .filter(Boolean);
   let y = 20;
   const title = reportTitle(report, reportMeta);
+  const appointmentReport = /agendamentos/i.test(title);
+  const wideAppointment = appointmentReport && report.querySelectorAll('table').length > 0;
+  const pdfOrientation = wideAppointment ? 'landscape' : (layout === 'landscape' ? 'landscape' : 'portrait');
+  const doc = new JsPDF({ orientation: pdfOrientation, unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  // O relatório operacional de agendamentos é entregue como uma folha única
+  // paisagem quando há muitas colunas: evita quebrar o resumo e o detalhe em
+  // páginas que parecem vazias para o usuário.
+  if (wideAppointment && layout !== 'landscape') {
+    doc.setProperties({ subject: 'Agendamentos em uma página paisagem' });
+  }
   // Cabeçalho de documento, em vez de reproduzir a tela do sistema: faixa de
   // marca, título legível e contexto do período antes da tabela.
   doc.setFillColor(67, 56, 202);
@@ -70,9 +79,9 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
       // Quando o usuário escolhe retrato e marca muitas colunas, a tabela não
       // pode simplesmente desaparecer pela borda direita. O autoTable divide
       // as colunas em páginas horizontais mantendo o cabeçalho em cada uma.
-      horizontalPageBreak: true,
+      horizontalPageBreak: !wideAppointment,
       horizontalPageBreakRepeat: 1,
-      styles: { font: 'helvetica', fontSize: 7, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
+      styles: { font: 'helvetica', fontSize: wideAppointment ? 6 : 7, cellPadding: wideAppointment ? 1.3 : 2, overflow: 'linebreak', valign: 'middle' },
       headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       tableLineColor: [203, 213, 225],
@@ -81,7 +90,7 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
       didDrawPage: () => drawFooter(doc),
     });
     y = ((doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 8;
-    if (y > pageHeight - 45) { doc.addPage(); y = 16; }
+    if (!wideAppointment && y > pageHeight - 45) { doc.addPage(); y = 16; }
   }
   if (!tables.length) {
     const clone = report.cloneNode(true) as HTMLElement;
@@ -95,7 +104,7 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
       }
     }
   }
-  if (y > pageHeight - 42) { doc.addPage(); y = 16; }
+  if (!wideAppointment && y > pageHeight - 42) { doc.addPage(); y = 16; }
   y += 8;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
