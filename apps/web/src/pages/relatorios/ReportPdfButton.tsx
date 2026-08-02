@@ -18,11 +18,17 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   let y = 16;
-  const title = report.querySelector('h1, h2')?.textContent?.trim() || document.title || 'Relatório';
+  const title = reportTitle(report);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.text(title, 14, y);
   y += 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Emitido em ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, 14, y);
+  doc.setTextColor(17, 24, 39);
+  y += 5;
   const reportMeta = Array.from(document.querySelectorAll<HTMLElement>('[data-report-pdf-meta]'))
     .map((node) => node.dataset.reportPdfMeta || node.textContent || '')
     .map((text) => text.trim())
@@ -54,6 +60,7 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
       styles: { font: 'helvetica', fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
       headStyles: { fillColor: [79, 70, 229], textColor: 255 },
       theme: 'grid',
+      didDrawPage: () => drawFooter(doc),
     });
     y = ((doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 8;
     if (y > pageHeight - 45) { doc.addPage(); y = 16; }
@@ -84,6 +91,57 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   doc.text(`Data: ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, pageWidth / 2 + 8, y + 5);
   const slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'relatorio';
   doc.save(`${slug}-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+const REPORT_TITLE_BY_PATH: Record<string, string> = {
+  '/reports/calendars/all': 'Relatório de Agendamentos',
+  '/relatorios/agendamentos': 'Relatório de Agendamentos',
+  '/reports/calendars/deleted': 'Relatório de Agendamentos Excluídos',
+  '/reports/calendars/origin': 'Relatório de Origem dos Agendamentos',
+  '/reports/calendars/creation': 'Relatório de Criação de Agendamentos',
+  '/reports/calendars/care-messages-today': 'Relatório de Cuidados para Hoje',
+  '/reports/financial/dre': 'Demonstrativo de Resultado (DRE)',
+  '/reports/financial/service-revenue': 'Resultado Líquido de Serviços',
+  '/reports/financial/product-revenue': 'Resultado Líquido de Produtos',
+  '/reports/financial/billing-projection': 'Projeção de Faturamento',
+  '/reports/financial/cash-movements': 'Fluxo de Caixa',
+  '/reports/financial/bill-recs': 'Relatório de Recebimentos',
+  '/reports/financial/bill-pays': 'Relatório de Despesas',
+  '/reports/financial/extract': 'Extrato de Contas',
+  '/reports/financial/extract-movements': 'Extrato de Movimentações',
+  '/relatorios/vendas': 'Relatório de Vendas',
+  '/relatorios/clientes': 'Relatório de Clientes',
+  '/relatorios/mensagens': 'Relatório de Mensagens',
+  '/relatorios/estoque': 'Relatório de Estoque',
+  '/reports/inventory/stock': 'Relatório de Estoque Atual',
+  '/reports/inventory/movements': 'Relatório de Movimentação de Estoque',
+  '/reports/inventory/purchases': 'Relatório de Compras',
+  '/reports/inventory/products-services': 'Lista de Produtos e Serviços',
+  '/reports/inventory/suggestion': 'Sugestão de Compra',
+  '/reports/inventory/consumed': 'Relatório de Produtos Consumidos',
+};
+
+function reportTitle(report: HTMLElement): string {
+  const explicit = report.closest('[data-report-pdf-title]')?.getAttribute('data-report-pdf-title')
+    || document.querySelector<HTMLElement>('[data-report-pdf-title]')?.dataset.reportPdfTitle;
+  if (explicit?.trim()) return explicit.trim();
+  const byPath = REPORT_TITLE_BY_PATH[window.location.pathname];
+  if (byPath) return byPath;
+  const heading = Array.from(report.querySelectorAll('h1, h2'))
+    .map((node) => node.textContent?.replace(/\s+/g, ' ').trim() || '')
+    .find((text) => text && text.toLowerCase() !== 'relatórios');
+  return heading || 'Relatório';
+}
+
+function drawFooter(doc: { internal: { pageSize: { getWidth: () => number; getHeight: () => number }; getCurrentPageInfo?: () => { pageNumber: number } }; setFontSize: (size: number) => void; setTextColor: (r: number, g: number, b: number) => void; text: (text: string, x: number, y: number, options?: { align?: 'left' | 'center' | 'right' }) => void }) {
+  const width = doc.internal.pageSize.getWidth();
+  const height = doc.internal.pageSize.getHeight();
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text('SalonPass · Relatório gerado pelo sistema', 14, height - 8);
+  const page = doc.internal.getCurrentPageInfo?.().pageNumber;
+  if (page) doc.text(`Página ${page}`, width - 14, height - 8, { align: 'right' });
+  doc.setTextColor(17, 24, 39);
 }
 
 /** Solicita o modal da instância de PDF montada na página. */
