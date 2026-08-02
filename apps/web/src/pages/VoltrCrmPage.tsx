@@ -85,6 +85,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [resumoIa, setResumoIa] = useState<ResumoIa | null>(null);
   const [configIa, setConfigIa] = useState<ConfigIa | null>(null);
   const [salvandoIa, setSalvandoIa] = useState(false);
+  const [chatMobileAberto, setChatMobileAberto] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const tokenRef = useRef<string>('');
   const origemRef = useRef<string>('');
@@ -209,6 +210,11 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
           enviarTema();
         });
       }
+      if (tipo === 'voltr-embed:mobile-chat') {
+        setChatMobileAberto(
+          (event.data as { aberto?: unknown }).aberto === true,
+        );
+      }
     }
     window.addEventListener('message', aoReceber);
     return () => window.removeEventListener('message', aoReceber);
@@ -231,31 +237,32 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     // refresh piscava entre três brancos: o splash, o canvas do painel e o fundo
     // da Voltr — o iframe só entra depois de dois saltos de rede. Ver estudo 71.
     <div
-      className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col"
+      className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0"
       style={{ background: 'var(--sp-warm-white)' }}
     >
       {scope === 'chat' ? (
-        <section className="shrink-0 border-b border-[var(--sp-border)] bg-[var(--sp-warm-white)] px-5 py-4 lg:px-7">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="m-0 text-xl font-bold text-[var(--sp-ink)]">WhatsApp e IA</h1>
-              <p className="m-0 mt-1 text-sm text-[var(--sp-muted-ink)]">Caixa real do número vinculado, atendimento humano e recepcionista virtual</p>
+        <section className={`${chatMobileAberto ? 'hidden lg:block' : ''} shrink-0 border-b border-[var(--sp-border)] bg-[var(--sp-warm-white)] px-3 py-2.5 sm:px-5 sm:py-4 lg:px-7`}>
+          <div className="mb-2 flex items-center justify-between gap-2 sm:mb-3 sm:flex-wrap sm:gap-3">
+            <div className="min-w-0">
+              <h1 className="m-0 truncate text-lg font-bold text-[var(--sp-ink)] sm:text-xl">WhatsApp e IA</h1>
+              <p className="m-0 mt-1 hidden text-sm text-[var(--sp-muted-ink)] sm:block">Caixa real do número vinculado, atendimento humano e recepcionista virtual</p>
             </div>
-            <div className="flex items-center gap-2 rounded-xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-3 py-2 text-sm">
-              <span className="font-medium text-[var(--sp-ink)]">IA {configIa?.enabled ? 'ativa' : 'pausada'}</span>
+            <div className="flex shrink-0 items-center gap-2 rounded-full border border-[var(--sp-border)] bg-[var(--sp-card)] px-2.5 py-1.5 text-xs shadow-sm sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm">
+              <span className="font-semibold text-[var(--sp-ink)]">IA {configIa?.enabled ? 'ativa' : 'pausada'}</span>
               <AppSwitch checked={!!configIa?.enabled} onChange={(v) => void alternarIa(v)} isDisabled={!configIa || salvandoIa} aria-label="Ativar ou pausar a IA" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
             {[
-              ['Conversas hoje', resumoIa?.conversationsToday ?? 0],
-              ['Respostas da IA hoje', resumoIa?.aiMessagesToday ?? 0],
-              ['Agendamentos feitos pela IA', resumoIa?.bookingsViaAi ?? 0],
-              ['Taxa de resolução', `${resumoIa?.resolutionRate ?? 0}%`],
-            ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-2xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-4 py-3 shadow-sm">
-                <div className="text-xs text-[var(--sp-muted-ink)]">{label}</div>
-                <div className="mt-1 text-xl font-bold text-[var(--sp-ink)]">{value}</div>
+              { label: 'Conversas hoje', mobile: 'Conversas', value: resumoIa?.conversationsToday ?? 0 },
+              { label: 'Respostas da IA hoje', mobile: 'Respostas IA', value: resumoIa?.aiMessagesToday ?? 0 },
+              { label: 'Agendamentos feitos pela IA', mobile: 'Agendamentos', value: resumoIa?.bookingsViaAi ?? 0 },
+              { label: 'Taxa de resolução', mobile: 'Resolução', value: `${resumoIa?.resolutionRate ?? 0}%` },
+            ].map(({ label, mobile, value }) => (
+              <div key={label} className="min-w-0 rounded-xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-2 py-2 shadow-sm sm:rounded-2xl sm:px-4 sm:py-3">
+                <div className="truncate text-[0.64rem] leading-tight text-[var(--sp-muted-ink)] sm:hidden">{mobile}</div>
+                <div className="hidden text-xs text-[var(--sp-muted-ink)] sm:block">{label}</div>
+                <div className="mt-0.5 text-lg font-bold leading-none text-[var(--sp-ink)] sm:mt-1 sm:text-xl">{value}</div>
               </div>
             ))}
           </div>
