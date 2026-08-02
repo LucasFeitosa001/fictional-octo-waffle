@@ -17,30 +17,38 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   const doc = new JsPDF({ orientation: layout === 'landscape' ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  let y = 16;
-  const title = reportTitle(report);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(title, 14, y);
-  y += 8;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Emitido em ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, 14, y);
-  doc.setTextColor(17, 24, 39);
-  y += 5;
   const reportMeta = Array.from(document.querySelectorAll<HTMLElement>('[data-report-pdf-meta]'))
     .map((node) => node.dataset.reportPdfMeta || node.textContent || '')
     .map((text) => text.trim())
     .filter(Boolean);
+  let y = 20;
+  const title = reportTitle(report, reportMeta);
+  // Cabeçalho de documento, em vez de reproduzir a tela do sistema: faixa de
+  // marca, título legível e contexto do período antes da tabela.
+  doc.setFillColor(67, 56, 202);
+  doc.rect(0, 0, pageWidth, 9, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(17);
+  doc.setTextColor(15, 23, 42);
+  doc.text(title, 14, y);
+  y += 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`SalonPass · Relatório operacional · Emitido em ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, 14, y);
+  doc.setTextColor(17, 24, 39);
+  y += 7;
   if (reportMeta.length) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
     const lines = doc.splitTextToSize(`Filtros aplicados: ${formatReportMetadata(reportMeta.join(' · '))}`, pageWidth - 28);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(14, y - 4, pageWidth - 28, lines.length * 4 + 8, 2, 2, 'FD');
     doc.text(lines, 14, y);
     doc.setTextColor(17, 24, 39);
-    y += lines.length * 4 + 5;
+    y += lines.length * 4 + 11;
   }
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -65,7 +73,10 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
       horizontalPageBreak: true,
       horizontalPageBreakRepeat: 1,
       styles: { font: 'helvetica', fontSize: 7, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
-      headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      tableLineColor: [203, 213, 225],
+      tableLineWidth: 0.15,
       theme: 'grid',
       didDrawPage: () => drawFooter(doc),
     });
@@ -86,14 +97,19 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   }
   if (y > pageHeight - 42) { doc.addPage(); y = 16; }
   y += 8;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, y - 5, pageWidth - 28, 31, 2, 2, 'FD');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
   doc.text('Responsável pelo relatório', pageWidth / 2, y, { align: 'center' });
   y += 14;
   doc.setDrawColor(55, 65, 81);
   doc.line(pageWidth / 2 - 38, y, pageWidth / 2 + 38, y);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
   doc.text(signatureName.trim() || 'Nome e assinatura', pageWidth / 2 - 38, y + 5);
   doc.text(`Data: ${new Intl.DateTimeFormat('pt-BR').format(new Date())}`, pageWidth / 2 + 8, y + 5);
   const slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'relatorio';
@@ -147,16 +163,24 @@ const REPORT_TITLE_BY_PATH: Record<string, string> = {
   '/reports/inventory/consumed': 'Relatório de Produtos Consumidos',
 };
 
-function reportTitle(report: HTMLElement): string {
+function reportTitle(report: HTMLElement, metadata: string[]): string {
   const explicit = report.closest('[data-report-pdf-title]')?.getAttribute('data-report-pdf-title')
     || document.querySelector<HTMLElement>('[data-report-pdf-title]')?.dataset.reportPdfTitle;
-  if (explicit?.trim()) return explicit.trim();
-  const byPath = REPORT_TITLE_BY_PATH[window.location.pathname];
-  if (byPath) return byPath;
-  const heading = Array.from(report.querySelectorAll('h1, h2'))
+  const base = explicit?.trim() || REPORT_TITLE_BY_PATH[window.location.pathname] || Array.from(report.querySelectorAll('h1, h2'))
     .map((node) => node.textContent?.replace(/\s+/g, ' ').trim() || '')
-    .find((text) => text && text.toLowerCase() !== 'relatórios');
-  return heading || 'Relatório';
+    .find((text) => text && text.toLowerCase() !== 'relatórios') || 'Relatório';
+  const period = /Período\s+(\d{4}-\d{2}-\d{2})\s*[–-]\s*(\d{4}-\d{2}-\d{2})/i.exec(metadata.join(' '));
+  if (period) return `${stripReportPrefix(base)} · ${formatDate(period[1])} a ${formatDate(period[2])}`;
+  return stripReportPrefix(base);
+}
+
+function stripReportPrefix(value: string): string {
+  return value.replace(/^Relatório de /i, '').replace(/^Relatório /i, '').trim();
+}
+
+function formatDate(value: string): string {
+  const [, year, month, day] = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) ?? [];
+  return year ? `${day}/${month}/${year}` : value;
 }
 
 function drawFooter(doc: { internal: { pageSize: { getWidth: () => number; getHeight: () => number }; getCurrentPageInfo?: () => { pageNumber: number } }; setFontSize: (size: number) => void; setTextColor: (r: number, g: number, b: number) => void; text: (text: string, x: number, y: number, options?: { align?: 'left' | 'center' | 'right' }) => void }) {
