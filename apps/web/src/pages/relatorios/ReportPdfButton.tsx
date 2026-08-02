@@ -18,6 +18,11 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
     .map((node) => node.dataset.reportPdfMeta || node.textContent || '')
     .map((text) => text.trim())
     .filter(Boolean);
+  // Relatórios legados ainda não possuem um bloco de metadados próprio. Eles
+  // continuam usando o mesmo quadro visual, sem deixar o PDF com um cabeçalho
+  // vazio; quando a página não expõe filtros estruturados, registramos isso de
+  // forma honesta em vez de inventar valores.
+  if (!reportMeta.length) reportMeta.push('Período e filtros definidos na tela do relatório');
   let y = 20;
   const title = reportTitle(report, reportMeta);
   const appointmentReport = /agendamentos/i.test(title);
