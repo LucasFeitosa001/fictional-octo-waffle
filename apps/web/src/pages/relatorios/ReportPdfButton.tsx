@@ -48,16 +48,7 @@ export async function downloadCurrentReport(signatureName = ''): Promise<void> {
   doc.setTextColor(17, 24, 39);
   y += 7;
   if (reportMeta.length) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(71, 85, 105);
-    const lines = doc.splitTextToSize(`Filtros aplicados: ${formatReportMetadata(reportMeta.join(' · '))}`, pageWidth - 28);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(14, y - 4, pageWidth - 28, lines.length * 4 + 8, 2, 2, 'FD');
-    doc.text(lines, 14, y);
-    doc.setTextColor(17, 24, 39);
-    y += lines.length * 4 + 11;
+    y = drawFilterPanel(doc, reportMeta, y, pageWidth);
   }
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -139,6 +130,57 @@ function normalizeReportCell(value: string | null): string {
 
 function formatReportMetadata(value: string): string {
   return value.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1');
+}
+
+function drawFilterPanel(
+  doc: { setFont: (font: string, style?: string) => void; setFontSize: (size: number) => void; setTextColor: (r: number, g: number, b: number) => void; setFillColor: (r: number, g: number, b: number) => void; setDrawColor: (r: number, g: number, b: number) => void; roundedRect: (x: number, y: number, w: number, h: number, rx: number, ry: number, style: string) => void; text: (text: string | string[], x: number, y: number) => void; splitTextToSize: (text: string, size: number) => string[];
+  },
+  metadata: string[],
+  startY: number,
+  pageWidth: number,
+): number {
+  const items = metadata.join(';').split(';').map((item) => item.trim()).filter(Boolean)
+    .map((item) => formatReportMetadata(item));
+  const fields = items.find((item) => /^Campos\b/i.test(item));
+  const regular = items.filter((item) => !/^Campos\b/i.test(item));
+  const columnWidth = (pageWidth - 38) / 2;
+  const rows = Math.ceil(regular.length / 2);
+  const fieldLines = fields ? doc.splitTextToSize(fields.replace(/^Campos\s*/i, ''), pageWidth - 38) : [];
+  const panelHeight = 9 + rows * 9 + (fields ? fieldLines.length * 3.5 + 8 : 3);
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, startY - 4, pageWidth - 28, panelHeight, 2, 2, 'FD');
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(67, 56, 202);
+  doc.text('Filtros aplicados', 18, startY + 2);
+  let y = startY + 9;
+  regular.forEach((item, index) => {
+    const column = index % 2;
+    if (column === 0 && index > 0) y += 9;
+    const x = 18 + column * (columnWidth + 4);
+    const split = item.indexOf(' ');
+    const label = split > 0 ? item.slice(0, split) : item;
+    const value = split > 0 ? item.slice(split + 1) : '';
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${label}:`, x, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(value, x + 22, y);
+  });
+  if (fields) {
+    y += rows ? 9 : 0;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(51, 65, 85);
+    doc.text('Campos:', 18, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(fieldLines, 39, y);
+    y += fieldLines.length * 3.5;
+  }
+  doc.setTextColor(17, 24, 39);
+  return startY + panelHeight + 5;
 }
 
 const REPORT_TITLE_BY_PATH: Record<string, string> = {
