@@ -41,6 +41,52 @@ const SLOT_STEP_MIN = 15;
  * mas marcado — a recepção precisa ver que está marcando em cima de alguém.
  */
 type Slot = { start: string; end: string; busy?: boolean };
+
+/**
+ * POR QUE a lista de horários voltou vazia. Ver estudo 99.
+ *
+ * `availability` devolvia `slots: []` com HTTP 200 em cinco situações bem
+ * diferentes e quem consumia não tinha como distinguir "id de serviço inválido"
+ * de "salão lotado". A IA da Voltr leu uma lista vazia por serviço desconhecido
+ * como "não há horário livre" e disse isso à cliente — num dia com 33 horários
+ * livres. O motivo viaja junto para a ponte poder dizer a verdade.
+ *
+ * O campo é ADITIVO e só aparece quando `slots` está vazio: quem já consome
+ * (painel, agendamento online) continua lendo só `slots`.
+ */
+export type AvailabilityEmptyReason =
+  /** Ninguém informou profissional — sem ele não há agenda concreta. */
+  | 'sem_profissional'
+  /** O serviço pedido não existe nesta empresa (ou foi apagado). */
+  | 'servico_desconhecido'
+  /** O serviço existe, mas este profissional não o executa. */
+  | 'profissional_nao_vinculado'
+  /** O profissional não tem expediente cadastrado neste dia da semana. */
+  | 'sem_expediente'
+  /** Havia expediente: acabou ocupado ou já passou. Este SIM é "dia cheio". */
+  | 'sem_vaga';
+
+export const AVAILABILITY_EMPTY_REASON_TEXT: Record<AvailabilityEmptyReason, string> = {
+  sem_profissional: 'Nenhum profissional foi informado.',
+  servico_desconhecido: 'Este serviço não existe neste salão.',
+  profissional_nao_vinculado: 'Este profissional não executa este serviço.',
+  sem_expediente: 'Este profissional não atende neste dia.',
+  sem_vaga: 'Não sobrou horário livre neste dia.',
+};
+
+/**
+ * O retorno de `availability`. `motivo`/`motivoTexto` só vêm quando `slots`
+ * está vazio — o formato antigo continua intacto para quem já consome.
+ */
+export type AvailabilityResult = {
+  date: string;
+  serviceId: string | null;
+  professionalId: string | null;
+  slots: Slot[];
+  motivo?: AvailabilityEmptyReason;
+  motivoTexto?: string;
+};
+
 // Default duration (minutes) when no service is provided.
 const DEFAULT_DURATION_MIN = 30;
 
@@ -697,6 +743,17 @@ export class AppointmentsService {
        * dupla marcação continua valendo integralmente.
        */
       allowOverlap?: boolean;
+      /**
+       * Quem originou o agendamento, com mais precisão do que `source`.
+       *
+       * `AppointmentSource` só tem `admin` e `online`, então a IA da Voltr e o
+       * formulário público do site caem os dois em `online` e ninguém consegue
+       * separar um do outro no banco. Enquanto o enum não ganha um valor novo
+       * (é migração de schema, decisão do dono — ver estudo 99), gravamos a
+       * etiqueta em `legacySource`, que é `String?`, está NULL em tudo que não
+       * veio de importação e não é lido por nenhuma tela.
+       */
+      originTag?: string;
     },
     scopeProfessionalId?: string,
   ) {
@@ -790,6 +847,7 @@ export class AppointmentsService {
           notifyConfirmation,
           notifyCancellation,
           source: opts?.source ?? AppointmentSource.admin,
+          ...(opts?.originTag ? { legacySource: opts.originTag } : {}),
           ...(opts?.status ? { status: opts.status } : {}),
           items: itemsData,
         },
@@ -1426,21 +1484,31 @@ export class AppointmentsService {
     date?: string,
     serviceIds?: string[],
     opts?: { includePast?: boolean; includeBusy?: boolean },
-  ) {
+  ): Promise<AvailabilityResult> {
     const day = date ?? this.todayInCompanyTz(await this.companyTimezone(companyId));
     const tz = await this.companyTimezone(companyId);
 
-    const empty = { date: day, serviceId: serviceId ?? null, professionalId: professionalId ?? null, slots: [] as Slot[] };
+    // Lista vazia SEMPRE sai com o porquê. Antes daqui saía o mesmo objeto mudo
+    // em cinco caminhos diferentes e a ponte da IA traduzia todos como "dia sem
+    // vaga" — inclusive id de serviço inválido. Ver estudo 99.
+    const vazio = (motivo: AvailabilityEmptyReason): AvailabilityResult => ({
+      date: day,
+      serviceId: serviceId ?? null,
+      professionalId: professionalId ?? null,
+      slots: [],
+      motivo,
+      motivoTexto: AVAILABILITY_EMPTY_REASON_TEXT[motivo],
+    });
 
     // A professional is required to compute a concrete agenda.
-    if (!professionalId) return empty;
+    if (!professionalId) return vazio('sem_profissional');
 
     // Determine required duration from the requested service(s).
     let durationMin = DEFAULT_DURATION_MIN;
     const allIds = serviceIds?.length ? serviceIds : serviceId ? [serviceId] : [];
     if (allIds.length) {
       const services = await this.loadServices(companyId, allIds).catch(() => []);
-      if (!services.length) return empty; // unknown service → no slots
+      if (!services.length) return vazio('servico_desconhecido');
       durationMin = services.reduce((sum, s) => sum + s.durationMin, 0);
 
       // Validate the professional actually performs ALL requested services.
@@ -1448,7 +1516,7 @@ export class AppointmentsService {
         const performs = await this.prisma.client.professionalService.findUnique({
           where: { professionalId_serviceId: { professionalId, serviceId: sid } },
         });
-        if (!performs) return empty;
+        if (!performs) return vazio('profissional_nao_vinculado');
       }
     }
 
@@ -1460,7 +1528,7 @@ export class AppointmentsService {
       where: { professionalId, weekday, professional: { deletedAt: null, active: true } },
       orderBy: { startTime: 'asc' },
     });
-    if (!schedules.length) return empty;
+    if (!schedules.length) return vazio('sem_expediente');
 
     // Existing non-canceled appointments overlapping the requested day.
     const dayStart = this.zonedWallClockToUtc(day, '00:00', tz);
@@ -1511,6 +1579,10 @@ export class AppointmentsService {
         });
       }
     }
+
+    // Só AQUI a lista vazia significa de fato "não sobrou horário": havia
+    // serviço, vínculo e expediente, e mesmo assim nada coube.
+    if (!slots.length) return vazio('sem_vaga');
 
     return { date: day, serviceId: serviceId ?? null, professionalId, slots };
   }

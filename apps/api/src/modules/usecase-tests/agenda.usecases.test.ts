@@ -120,6 +120,83 @@ describe('UC-01 — disponibilidade de horário', () => {
   });
 });
 
+// ─────────────────── estudo 99: lista vazia tem que dizer POR QUÊ
+//
+// A IA ofereceu 33 horários para 06/08, a cliente pediu 08:00 e a IA respondeu
+// "não encontrei horário livre para esse serviço em quinta-feira, 06/08". Era
+// mentira: o que estava errado era o id do serviço. `availability` devolvia a
+// MESMA lista vazia com HTTP 200 em cinco situações e quem consumia lia todas
+// como "dia lotado".
+describe('UC-AGD-099 — motivo da lista de horários vazia', () => {
+  it('serviço desconhecido não pode virar "dia sem vaga"', async () => {
+    const { service } = makeAvailabilityService({ services: [] });
+
+    const r = await service.availability('company-a', 'missing', 'pro-1', '2099-01-05');
+
+    assert.deepEqual(r.slots, []);
+    assert.equal(r.motivo, 'servico_desconhecido');
+    assert.ok(r.motivoTexto, 'o texto legível acompanha o código');
+    assert.notEqual(r.motivo, 'sem_vaga', 'id inválido não é lotação');
+  });
+
+  it('profissional que não executa o serviço tem motivo próprio', async () => {
+    const { service } = makeAvailabilityService({ performs: false });
+
+    const r = await service.availability('company-a', 'svc-1', 'pro-1', '2099-01-05');
+
+    assert.deepEqual(r.slots, []);
+    assert.equal(r.motivo, 'profissional_nao_vinculado');
+  });
+
+  it('dia sem escala é sem_expediente, não lotação', async () => {
+    const { service } = makeAvailabilityService({ schedules: [] });
+
+    const r = await service.availability('company-a', 'svc-1', 'pro-1', '2099-01-05');
+
+    assert.deepEqual(r.slots, []);
+    assert.equal(r.motivo, 'sem_expediente');
+  });
+
+  it('sem profissional informado não é lotação', async () => {
+    const { service } = makeAvailabilityService({});
+
+    const r = await service.availability('company-a', 'svc-1', undefined, '2099-01-05');
+
+    assert.deepEqual(r.slots, []);
+    assert.equal(r.motivo, 'sem_profissional');
+  });
+
+  it('agenda de fato cheia é o ÚNICO caso que sai como sem_vaga', async () => {
+    const { service } = makeAvailabilityService({
+      busy: [
+        {
+          start: new Date('2099-01-05T09:00:00.000Z'),
+          end: new Date('2099-01-05T10:00:00.000Z'),
+        },
+      ],
+    });
+
+    const r = await service.availability('company-a', 'svc-1', 'pro-1', '2099-01-05');
+
+    assert.deepEqual(r.slots, []);
+    assert.equal(r.motivo, 'sem_vaga');
+  });
+
+  it('dia COM horário livre continua no formato antigo, sem motivo', async () => {
+    const { service } = makeAvailabilityService({});
+
+    const r = await service.availability('company-a', 'svc-1', 'pro-1', '2099-01-05');
+
+    assert.ok(r.slots.length > 0);
+    assert.equal(r.motivo, undefined, 'campo é aditivo: só aparece em lista vazia');
+    assert.deepEqual(
+      Object.keys(r).sort(),
+      ['date', 'professionalId', 'serviceId', 'slots'],
+      'quem já consome não pode ver chave nova quando há horário',
+    );
+  });
+});
+
 describe('GAP: UC-AGD-002 — isolamento e flags do profissional', () => {
   it('não oferece expediente de profissional pertencente a outro tenant', async () => {
     const { service } = makeAvailabilityService({

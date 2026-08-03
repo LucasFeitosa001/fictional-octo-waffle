@@ -78,7 +78,23 @@ export class VoltrAgendaController {
   async criar(
     @Req() req: ReqVoltr,
     @Body()
-    body: { oferta?: string; inicio?: string; telefone?: string; nomeCliente?: string },
+    body: {
+      oferta?: string;
+      inicio?: string;
+      telefone?: string;
+      /** pushName do WhatsApp. */
+      nomeCliente?: string;
+      /** Nome que a cliente respondeu quando a IA perguntou — vence o pushName. */
+      nomeInformado?: string;
+      /** Apelido aceito para o mesmo campo. */
+      nome?: string;
+      /**
+       * Identidade que a Voltr guardou de um atendimento anterior. É uma DICA:
+       * o serviço confere empresa e telefone antes de usar, e ignora se não
+       * bater. Vem do corpo, então nunca substitui o `companyId` do guard.
+       */
+      customerId?: string;
+    },
   ) {
     return this.service.criar(
       req.voltrCompanyId!,
@@ -88,6 +104,8 @@ export class VoltrAgendaController {
         inicio: body?.inicio ?? '',
         telefone: body?.telefone ?? '',
         nomeCliente: body?.nomeCliente,
+        nomeInformado: body?.nomeInformado ?? body?.nome,
+        customerId: body?.customerId,
       },
     );
   }

@@ -23,7 +23,7 @@ import {
   resolveTenantSlug,
   type VoltrConfig,
 } from '../voltr/voltr.config';
-import { VoltrAgendaService } from '../voltr/voltr-agenda.service';
+import { VoltrAgendaService, _internoAgenda } from '../voltr/voltr-agenda.service';
 import { VoltrSignatureGuard } from '../voltr/voltr-signature.guard';
 import { isAutomationKind, podeEnfileirar, expirouNaFila } from '../whatsapp/outbox-policy';
 
@@ -388,12 +388,21 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
     conferirOferta: (t: string, schema: string) => Record<string, unknown>;
   };
 
+  // Datas RELATIVAS a agora: `criar` recusa horário no passado (estudo 99), e
+  // uma data fixa transformaria estes testes numa bomba-relógio — passariam até
+  // o dia da oferta e quebrariam sozinhos depois.
+  const DIA = new Date(Date.now() + 7 * 24 * 3_600_000);
+  const emDias = (hora: number) => {
+    const d = new Date(DIA);
+    d.setUTCHours(hora, 0, 0, 0);
+    return d.toISOString();
+  };
   const OFERTA = {
     companyId: 'company-1',
     serviceId: 'svc-1',
     professionalId: 'prof-1',
-    date: '2026-08-10',
-    slots: ['2026-08-10T13:00:00.000Z', '2026-08-10T14:00:00.000Z'],
+    date: DIA.toISOString().slice(0, 10),
+    slots: [emDias(13), emDias(14)],
     exp: Date.now() + 30 * 60 * 1000,
   };
 
@@ -450,7 +459,9 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
     const prisma = {
       client: {
         customer: {
-          findMany: async () => [{ id: 'customer-1', phone: '+55 85 99999-0000' }],
+          findMany: async () => [
+            { id: 'customer-1', name: 'Ana Antiga', phone: '+55 85 99999-0000' },
+          ],
         },
         appointment: {
           findFirst: async () => ({ id: 'appt-existente' }),
@@ -478,6 +489,11 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
       agendamentoId: 'appt-existente',
       inicio: OFERTA.slots[0],
       jaExistia: true,
+      // A identidade volta também no caminho idempotente: a ponte precisa dela
+      // mesmo quando nada foi gravado agora.
+      customerId: 'customer-1',
+      customerName: 'Ana Antiga',
+      customerCreated: false,
     });
     assert.equal(chamadasCreate, 0, 'retry não pode criar uma segunda reserva');
   });
@@ -487,7 +503,9 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
     const prisma = {
       client: {
         customer: {
-          findMany: async () => [{ id: 'customer-1', phone: '+55 85 99999-0000' }],
+          findMany: async () => [
+            { id: 'customer-1', name: 'Ana Antiga', phone: '+55 85 99999-0000' },
+          ],
         },
         appointment: {
           findFirst: async () => {
@@ -516,13 +534,319 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
     assert.equal(consultas, 2);
   });
 
+  // ─────────── estudo 99: identidade do cliente, nome e horário no passado
+  //
+  // O banco de produção tem 22% dos telefones COM máscara e o payload da IA
+  // chega cru com DDI. O casamento por `contains` na string crua falhava —
+  // `(89) 98121-7434` não contém "81217434", a máscara corta bem no meio — e
+  // cada agendamento pela IA nascia com um cliente DUPLICADO.
+
+  /**
+   * Banco de mentira que imita o `LIKE '%x%'` do Postgres na string CRUA: se o
+   * pré-filtro não for compatível com máscara, o cliente não aparece — que é
+   * exatamente o que acontecia em produção.
+   */
+  function bancoCom(
+    phoneNoBanco: string,
+    guardados: Record<
+      string,
+      { id: string; name: string; phone: string; companyId: string }
+    > = {},
+  ) {
+    const consultas: { contains: string }[] = [];
+    const criados: { name: string; phone: string }[] = [];
+    const criadosAppt: any[] = [];
+    const prisma = {
+      client: {
+        customer: {
+          // Busca por id: o WHERE precisa carregar o companyId, senão a IA de um
+          // salão puxaria a cliente de outro. O mock só devolve quando bate.
+          findFirst: async (args: any) => {
+            const alvo = guardados[String(args?.where?.id ?? '')];
+            if (!alvo || alvo.companyId !== args?.where?.companyId) return null;
+            return { id: alvo.id, name: alvo.name, phone: alvo.phone };
+          },
+          findMany: async (args: any) => {
+            const alvo = String(args?.where?.phone?.contains ?? '');
+            consultas.push({ contains: alvo });
+            return phoneNoBanco.includes(alvo)
+              ? [
+                  {
+                    id: 'customer-existente',
+                    name: 'Cliente De Casa',
+                    phone: phoneNoBanco,
+                  },
+                ]
+              : [];
+          },
+          create: async (args: any) => {
+            criados.push(args.data);
+            return { id: 'customer-novo' };
+          },
+        },
+        appointment: { findFirst: async () => null },
+      },
+    };
+    const appointments = {
+      create: async (_companyId: string, dto: any, opts: any) => {
+        criadosAppt.push({ dto, opts });
+        return { id: 'appt-novo' };
+      },
+    };
+    const s = new VoltrAgendaService(prisma as never, appointments as never);
+    (s as unknown as { config: VoltrConfig }).config = CFG3;
+    return { s, consultas, criados, criadosAppt };
+  }
+
+  /** Oferta viva, com um horário sempre no futuro. */
+  function ofertaFutura(s: VoltrAgendaService) {
+    const inicio = new Date(Date.now() + 3 * 24 * 3_600_000);
+    inicio.setUTCMinutes(0, 0, 0);
+    const iso = inicio.toISOString();
+    const token = (s as unknown as Interno).assinarOferta(
+      { ...OFERTA, slots: [iso], exp: Date.now() + 30 * 60 * 1000 },
+      'emp_salaozinho',
+    );
+    return { token, inicio: iso };
+  }
+
+  it('O) telefone COM máscara no banco casa com o número CRU com DDI da IA', async () => {
+    // Produção: cadastro "(89) 98121-7434", payload da IA "558981217434".
+    const { s, criados, consultas } = bancoCom('(89) 98121-7434');
+    const { token, inicio } = ofertaFutura(s);
+
+    const r = await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      nomeCliente: 'Paulo',
+    });
+
+    assert.equal(r.ok, true);
+    assert.deepEqual(criados, [], 'não pode nascer cliente duplicado');
+    assert.ok(
+      consultas.every((c) => '(89) 98121-7434'.includes(c.contains)),
+      'o pré-filtro precisa achar telefone mascarado',
+    );
+    // A ponte precisa levar a identidade embora — é o que impede a próxima
+    // conversa de re-resolver do zero e cadastrar de novo.
+    assert.equal(r.customerCreated, false, 'reaproveitou o cadastro que já havia');
+    assert.equal(r.customerId, 'customer-existente');
+    assert.equal(r.customerName, 'Cliente De Casa', 'o nome canônico, não o pushName');
+  });
+
+  it('P) o número cru no banco também casa com o cru da IA', async () => {
+    const { s, criados } = bancoCom('89981217434');
+    const { token, inicio } = ofertaFutura(s);
+
+    await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+    });
+
+    assert.deepEqual(criados, [], 'o caminho que já funcionava não pode quebrar');
+  });
+
+  it('Q) telefone de OUTRA pessoa com os mesmos 4 dígitos finais não casa', async () => {
+    // O pré-filtro por 4 dígitos é largo de propósito; quem decide é a
+    // conferência dos 8 dígitos em memória.
+    const { s, criados } = bancoCom('(11) 3333-7434');
+    const { token, inicio } = ofertaFutura(s);
+
+    await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+    });
+
+    assert.equal(criados.length, 1, 'é outra pessoa: cadastra a certa');
+    assert.equal(criados[0].phone, '558981217434');
+  });
+
+  it('R) nome: tira emoji, preserva acento e cai no fallback quando não há nome', () => {
+    const { limparNome } = _internoAgenda;
+    assert.equal(limparNome('Paulo 🔥'), 'Paulo');
+    assert.equal(limparNome('  Maria   Conceição  '), 'Maria Conceição');
+    assert.equal(limparNome("D'Ávila Ana-Clara"), "D'Ávila Ana-Clara");
+    assert.equal(limparNome('José'), 'José');
+    assert.equal(limparNome('🔥🔥'), '', 'só emoji não é nome');
+    assert.equal(limparNome('   '), '');
+    assert.equal(limparNome(undefined), '');
+    assert.equal(limparNome('12345'), '', 'número não é nome');
+  });
+
+  it('S) cliente novo: nome informado à IA vence o pushName, e emoji não entra', async () => {
+    const { s, criados } = bancoCom('(11) 90000-0000');
+    const { token, inicio } = ofertaFutura(s);
+
+    await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      nomeCliente: 'Paulo 🔥',
+      nomeInformado: 'Paulo Ricardo',
+    });
+
+    assert.equal(criados[0].name, 'Paulo Ricardo');
+  });
+
+  it('T) sem nome utilizável, o fallback "Cliente XXXX" continua', async () => {
+    const { s, criados } = bancoCom('(11) 90000-0000');
+    const { token, inicio } = ofertaFutura(s);
+
+    await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      nomeCliente: '🔥',
+    });
+
+    assert.equal(criados[0].name, 'Cliente 7434', 'não inventa nome');
+  });
+
+  it('U) horário no passado é recusado mesmo dentro da oferta assinada', async () => {
+    const { s, criadosAppt } = bancoCom('558981217434');
+    const passado = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const token = (s as unknown as Interno).assinarOferta(
+      { ...OFERTA, slots: [passado], exp: Date.now() + 30 * 60 * 1000 },
+      'emp_salaozinho',
+    );
+
+    await assert.rejects(
+      () =>
+        s.criar('company-1', 'emp_salaozinho', {
+          oferta: token,
+          inicio: passado,
+          telefone: '558981217434',
+        }),
+      /já passou/i,
+    );
+    assert.deepEqual(criadosAppt, [], 'nada pode ser gravado no passado');
+  });
+
+  it('V) o agendamento da IA fica marcado como tal, e SEM confirmação automática', async () => {
+    const { s, criadosAppt } = bancoCom('558981217434');
+    const { token, inicio } = ofertaFutura(s);
+
+    await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+    });
+
+    assert.equal(criadosAppt.length, 1);
+    assert.equal(criadosAppt[0].opts.source, 'online');
+    assert.equal(criadosAppt[0].opts.originTag, 'voltr-ia');
+    assert.equal(
+      criadosAppt[0].dto.notifyConfirmation,
+      false,
+      'a trava de WhatsApp automático não pode afrouxar',
+    );
+  });
+
+  // ─── a identidade resolvida volta para a ponte, e o id dela é conferido
+  //
+  // Regra do dono: "se o cliente já existe, ela não vai criar um novo caso seja
+  // o mesmo número; e ela tem que guardar no banco dela essa informação".
+
+  it('W) cliente novo volta marcado como novo — é o contador de duplicata', async () => {
+    const { s, criados } = bancoCom('(11) 90000-0000');
+    const { token, inicio } = ofertaFutura(s);
+
+    const r = await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      nomeInformado: 'Joana Silva',
+    });
+
+    assert.equal(criados.length, 1);
+    assert.equal(r.customerCreated, true);
+    assert.equal(r.customerId, 'customer-novo');
+    assert.equal(r.customerName, 'Joana Silva');
+  });
+
+  it('X) customerId guardado pela Voltr é usado sem procurar por telefone', async () => {
+    const { s, consultas, criados } = bancoCom('(89) 98121-7434', {
+      'cli-guardado': {
+        id: 'cli-guardado',
+        name: 'Marta Souza',
+        phone: '(89) 98121-7434',
+        companyId: 'company-1',
+      },
+    });
+    const { token, inicio } = ofertaFutura(s);
+
+    const r = await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      customerId: 'cli-guardado',
+    });
+
+    assert.equal(r.customerId, 'cli-guardado');
+    assert.equal(r.customerName, 'Marta Souza');
+    assert.equal(r.customerCreated, false);
+    assert.deepEqual(consultas, [], 'com id conferido não precisa varrer telefone');
+    assert.deepEqual(criados, []);
+  });
+
+  it('Y) customerId de OUTRA empresa é ignorado — não vaza entre salões', async () => {
+    const { s, consultas } = bancoCom('(89) 98121-7434', {
+      'cli-de-outro-salao': {
+        id: 'cli-de-outro-salao',
+        name: 'Cliente Alheia',
+        phone: '(89) 98121-7434',
+        companyId: 'company-2',
+      },
+    });
+    const { token, inicio } = ofertaFutura(s);
+
+    const r = await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      customerId: 'cli-de-outro-salao',
+    });
+
+    assert.notEqual(r.customerId, 'cli-de-outro-salao', 'id de outro tenant não vale');
+    assert.equal(r.customerId, 'customer-existente', 'caiu na busca por telefone');
+    assert.ok(consultas.length > 0, 'a busca por telefone precisa ter acontecido');
+  });
+
+  it('Z) customerId válido mas de OUTRO telefone perde para o telefone', async () => {
+    // O telefone é quem provou a conversa no WhatsApp; o id só veio no payload.
+    const { s } = bancoCom('(89) 98121-7434', {
+      'cli-trocado': {
+        id: 'cli-trocado',
+        name: 'Pessoa Errada',
+        phone: '(11) 3333-1111',
+        companyId: 'company-1',
+      },
+    });
+    const { token, inicio } = ofertaFutura(s);
+
+    const r = await s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      customerId: 'cli-trocado',
+    });
+
+    assert.equal(r.customerId, 'customer-existente');
+    assert.equal(r.customerName, 'Cliente De Casa');
+  });
+
   it('N) cancelar repetido é idempotente e não dispara nova mudança de status', async () => {
     let updates = 0;
     let statusChanges = 0;
     const prisma = {
       client: {
         customer: {
-          findMany: async () => [{ id: 'customer-1', phone: '+55 85 99999-0000' }],
+          findMany: async () => [
+            { id: 'customer-1', name: 'Ana Antiga', phone: '+55 85 99999-0000' },
+          ],
         },
         appointment: {
           findFirst: async () => ({ id: 'appt-1', status: 'canceled' }),
