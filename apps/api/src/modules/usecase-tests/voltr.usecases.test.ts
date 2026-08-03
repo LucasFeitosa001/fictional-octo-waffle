@@ -872,3 +872,286 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
     assert.equal(statusChanges, 0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Estudo 101 — os PRODUTOS do salão para a IA.
+//
+// A Mariana já sabia falar de serviço e não sabia falar de produto: a cliente
+// perguntava "vocês vendem shampoo?" e ela não tinha de onde tirar a resposta.
+// Estes testes travam as três coisas que importam nessa rota: o WHERE não sai
+// sem `companyId` (senão a IA de um salão lê o estoque de outro), o payload não
+// carrega custo/margem para dentro de uma conversa com a cliente, e a
+// disponibilidade não mente sobre quem não controla estoque.
+describe('Produtos do salão expostos para a IA (estudo 101)', () => {
+  type Consulta = { where: Record<string, unknown>; take?: number; orderBy?: unknown };
+
+  const CADASTRO = [
+    {
+      id: 'prod-1',
+      name: 'Pomada Modeladora',
+      salePrice: 32.5,
+      stock: 4,
+      trackStock: true,
+      brand: { name: 'Barba Forte' },
+      // Campos internos que o `select` não pode deixar vazar. Se algum dia
+      // alguém trocar o select por um include, este teste denuncia.
+      costPrice: 11.9,
+      employeePrice: 18,
+      defaultCommissionPercent: 10,
+      barcode: '7891234567890',
+      itemCode: 'INT-42',
+      observation: 'combinar reposição com o fornecedor',
+      minStock: 2,
+    },
+    {
+      id: 'prod-2',
+      name: 'Shampoo Anticaspa',
+      salePrice: 49.9,
+      stock: 0,
+      trackStock: true,
+      brand: null,
+    },
+    {
+      id: 'prod-3',
+      name: 'Óleo para Barba',
+      salePrice: 27,
+      stock: 0,
+      trackStock: false,
+      brand: { name: 'Barba Forte' },
+    },
+  ];
+
+  function bancoDeProdutos(linhas: Record<string, unknown>[] = CADASTRO) {
+    const consultas: Consulta[] = [];
+    const prisma = {
+      client: {
+        product: {
+          findMany: async (args: Consulta) => {
+            consultas.push(args);
+            const termo = String(
+              ((args.where?.name as { contains?: string })?.contains ?? ''),
+            ).toLowerCase();
+            const filtradas = termo
+              ? linhas.filter((p) => String(p.name).toLowerCase().includes(termo))
+              : linhas;
+            return filtradas.slice(0, args.take ?? filtradas.length);
+          },
+          count: async (args: { where: Record<string, unknown> }) => {
+            const termo = String(
+              ((args.where?.name as { contains?: string })?.contains ?? ''),
+            ).toLowerCase();
+            return termo
+              ? linhas.filter((p) => String(p.name).toLowerCase().includes(termo)).length
+              : linhas.length;
+          },
+        },
+      },
+    };
+    const s = new VoltrAgendaService(prisma as never, {} as never);
+    return { s, consultas };
+  }
+
+  it('só devolve produto ATIVO, não excluído e DA EMPRESA da requisição', async () => {
+    const { s, consultas } = bancoDeProdutos();
+
+    await s.produtos('company-1');
+
+    assert.equal(consultas.length, 1);
+    const where = consultas[0].where;
+    // O isolamento é o WHERE. Sem `companyId` a IA de um salão leria o estoque
+    // de outro — é a mesma regra do `resolverCliente`.
+    assert.equal(where.companyId, 'company-1');
+    assert.equal(where.active, true);
+    assert.equal(where.deletedAt, null);
+    // Mesma ordem da tela de Produtos: destaque primeiro, depois alfabética.
+    assert.deepEqual(consultas[0].orderBy, [{ favorite: 'desc' }, { name: 'asc' }]);
+  });
+
+  it('o payload leva preço de venda e NÃO leva custo, margem nem código interno', async () => {
+    const { s } = bancoDeProdutos();
+
+    const r = await s.produtos('company-1');
+
+    assert.deepEqual(r.produtos[0], {
+      id: 'prod-1',
+      nome: 'Pomada Modeladora',
+      preco: 32.5,
+      marca: 'Barba Forte',
+      estoque: 4,
+      emEstoque: true,
+    });
+    // Nada do que é interno pode atravessar a ponte: do outro lado existe um
+    // processo que conversa com a CLIENTE.
+    const chaves = new Set(Object.keys(r.produtos[0]));
+    for (const proibida of [
+      'costPrice',
+      'employeePrice',
+      'defaultCommissionPercent',
+      'barcode',
+      'itemCode',
+      'observation',
+      'minStock',
+    ]) {
+      assert.equal(chaves.has(proibida), false, `vazou ${proibida}`);
+    }
+  });
+
+  it('estoque zerado é "em falta"; sem controle de estoque é "não sei", não "não tem"', async () => {
+    const { s } = bancoDeProdutos();
+
+    const r = await s.produtos('company-1');
+    const shampoo = r.produtos.find((p) => p.id === 'prod-2')!;
+    const oleo = r.produtos.find((p) => p.id === 'prod-3')!;
+
+    // Controla estoque e está zerado: falta de verdade.
+    assert.equal(shampoo.estoque, 0);
+    assert.equal(shampoo.emEstoque, false);
+    // NÃO controla estoque (default do schema, e a maioria do que foi
+    // importado): saldo 0 não é informação. Dizer "em falta" aqui faria a IA
+    // negar o catálogo inteiro de um salão que nunca ligou o controle.
+    assert.equal(oleo.estoque, null);
+    assert.equal(oleo.emEstoque, null);
+  });
+
+  it('busca por termo procura no NOME, sem casar por código de barras', async () => {
+    const { s, consultas } = bancoDeProdutos();
+
+    const r = await s.produtos('company-1', { termo: 'shampoo' });
+
+    assert.deepEqual(consultas[0].where.name, {
+      contains: 'shampoo',
+      mode: 'insensitive',
+    });
+    assert.equal(consultas[0].where.barcode, undefined);
+    assert.equal(consultas[0].where.itemCode, undefined);
+    assert.deepEqual(
+      r.produtos.map((p) => p.nome),
+      ['Shampoo Anticaspa'],
+    );
+    assert.equal(r.total, 1);
+    assert.equal(r.truncado, false);
+  });
+
+  it('catálogo grande é cortado com teto e avisa que foi cortado', async () => {
+    const muitos = Array.from({ length: 250 }, (_, i) => ({
+      id: `p-${i}`,
+      name: `Produto ${String(i).padStart(3, '0')}`,
+      salePrice: 10,
+      stock: 1,
+      trackStock: true,
+      brand: null,
+    }));
+    const { s, consultas } = bancoDeProdutos(muitos);
+
+    const padrao = await s.produtos('company-1');
+    assert.equal(consultas[0].take, 40, 'o padrão não pode ser o cadastro inteiro');
+    assert.equal(padrao.produtos.length, 40);
+    assert.equal(padrao.total, 250);
+    assert.equal(padrao.truncado, true, 'a IA precisa saber que a lista foi cortada');
+
+    // Pedido absurdo não vira varredura: o teto é do servidor, não do chamador.
+    const pedido = await s.produtos('company-1', { limite: 10_000 });
+    assert.equal(consultas[1].take, 100);
+    assert.equal(pedido.produtos.length, 100);
+  });
+
+  it('salão sem produto devolve lista vazia — nunca inventa item', async () => {
+    const { s } = bancoDeProdutos([]);
+
+    const r = await s.produtos('company-2');
+
+    assert.deepEqual(r.produtos, []);
+    assert.equal(r.total, 0);
+    assert.equal(r.truncado, false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Estudo 101 — lista VAZIA de profissionais tem que dizer POR QUÊ.
+//
+// Incidente do simulador: a IA disse "não encontrei profissional disponível
+// para esse serviço para hoje" e abriu pendência. O banco dizia o contrário —
+// o profissional estava ativo, com expediente 09:00–18:00, vinculado aos quatro
+// serviços e com ZERO agendamentos no dia. A rota tinha respondido 200 com `[]`
+// porque o serviceId que chegou não existia. É a mesma classe de falha que
+// `availability` já resolveu no estudo 99: 200 mudo para causas opostas.
+describe('Por que não há profissional (estudo 101)', () => {
+  function banco(opts: {
+    agendaveis?: { id: string; name: string; nickname?: string | null }[];
+    servicoExiste?: boolean;
+    vinculados?: number;
+  }) {
+    const consultas: Record<string, unknown>[] = [];
+    const prisma = {
+      client: {
+        professional: {
+          findMany: async (args: { where: Record<string, unknown> }) => {
+            consultas.push(args.where);
+            return opts.agendaveis ?? [];
+          },
+          count: async () => opts.vinculados ?? 0,
+        },
+        service: {
+          findFirst: async () => (opts.servicoExiste === false ? null : { id: 'svc-1' }),
+        },
+      },
+    };
+    return {
+      s: new VoltrAgendaService(prisma as never, {} as never),
+      consultas,
+    };
+  }
+
+  it('lista cheia continua exatamente como era: sem motivo, sem consulta extra', async () => {
+    const { s } = banco({
+      agendaveis: [{ id: 'prof-1', name: 'Lucas Feitosa', nickname: null }],
+    });
+
+    const r = await s.profissionais('company-1', 'svc-1');
+
+    // O campo é ADITIVO: quem já consome não pode ver nada novo no caminho feliz.
+    assert.deepEqual(r, { profissionais: [{ id: 'prof-1', nome: 'Lucas Feitosa' }] });
+  });
+
+  it('serviço que não existe é "servico_desconhecido", não falta de gente', async () => {
+    const { s } = banco({ servicoExiste: false });
+
+    const r = await s.profissionais('company-1', 'id-que-o-modelo-inventou');
+
+    assert.deepEqual(r.profissionais, []);
+    assert.equal(r.motivo, 'servico_desconhecido');
+    assert.match(r.motivoTexto!, /não existe/i);
+  });
+
+  it('serviço existe e ninguém foi vinculado a ele', async () => {
+    const { s } = banco({ servicoExiste: true, vinculados: 0 });
+
+    const r = await s.profissionais('company-1', 'svc-1');
+
+    assert.equal(r.motivo, 'nenhum_profissional_vinculado');
+  });
+
+  it('há quem faça, mas ninguém está agendável online', async () => {
+    const { s } = banco({ servicoExiste: true, vinculados: 2 });
+
+    const r = await s.profissionais('company-1', 'svc-1');
+
+    assert.equal(r.motivo, 'nenhum_agendavel_online');
+    assert.match(r.motivoTexto!, /agendamento online/i);
+  });
+
+  it('não oferece profissional excluído nem de outra empresa', async () => {
+    const { s, consultas } = banco({
+      agendaveis: [{ id: 'prof-1', name: 'Lucas Feitosa' }],
+    });
+
+    await s.profissionais('company-1', 'svc-1');
+
+    assert.equal(consultas[0].companyId, 'company-1');
+    assert.equal(consultas[0].active, true);
+    assert.equal(consultas[0].onlineBookable, true);
+    // Faltava: profissional soft-deletado continuava sendo oferecido pela IA.
+    assert.equal(consultas[0].deletedAt, null);
+  });
+});
+

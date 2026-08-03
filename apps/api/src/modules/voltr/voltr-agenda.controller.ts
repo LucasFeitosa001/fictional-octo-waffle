@@ -28,6 +28,26 @@ export class VoltrAgendaController {
     return this.service.servicos(req.voltrCompanyId!);
   }
 
+  /**
+   * O que o salão VENDE (estudo 101). Mesma guarda, mesmo escopo e mesmo
+   * isolamento da rota `servicos`: leitura da própria empresa, nada mais.
+   *
+   * `termo` é opcional e serve para o salão com catálogo grande — a IA pergunta
+   * "shampoo" em vez de baixar tudo. `limite` é sugestão: o serviço aplica o
+   * teto, então pedir 10.000 não derruba o banco.
+   */
+  @Post('produtos')
+  @EscopoVoltr('agenda')
+  async produtos(
+    @Req() req: ReqVoltr,
+    @Body() body: { termo?: string; limite?: number },
+  ) {
+    return this.service.produtos(req.voltrCompanyId!, {
+      termo: body?.termo,
+      limite: body?.limite,
+    });
+  }
+
   @Post('profissionais')
   @EscopoVoltr('agenda')
   async profissionais(

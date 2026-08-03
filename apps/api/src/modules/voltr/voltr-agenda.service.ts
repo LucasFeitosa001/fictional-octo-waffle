@@ -22,6 +22,51 @@ const ORIGEM_IA = 'voltr-ia';
 /** Quantos candidatos a "mesmo telefone" o pré-filtro do banco traz por vez. */
 const LIMITE_CANDIDATOS = 200;
 
+/**
+ * Quantos produtos a ponte devolve por chamada, e o teto quando a Voltr pede
+ * mais. A lista vira contexto de LLM: despejar o cadastro inteiro custa token,
+ * atrasa a resposta e ainda piora a escolha do modelo. Ver estudo 101.
+ */
+const LIMITE_PRODUTOS = 40;
+const MAX_PRODUTOS = 100;
+
+/**
+ * POR QUE a lista de profissionais voltou vazia. Ver estudo 101 e, para o mesmo
+ * padrão em disponibilidade, `AVAILABILITY_EMPTY_REASON_TEXT` (estudo 99).
+ *
+ * `profissionais` respondia 200 com `[]` em três situações que exigem respostas
+ * OPOSTAS da IA — e ela dizia "não encontrei profissional disponível" nas três,
+ * abrindo pendência e avisando a equipe até quando o id do serviço era inválido.
+ */
+export type ProfissionaisEmptyReason =
+  /** O serviço pedido não existe nesta empresa (ou foi apagado). Erro de id. */
+  | 'servico_desconhecido'
+  /** O serviço existe, mas nenhum profissional está vinculado a ele. */
+  | 'nenhum_profissional_vinculado'
+  /** Há quem faça, mas ninguém está ativo/agendável online. */
+  | 'nenhum_agendavel_online';
+
+export const PROFISSIONAIS_EMPTY_REASON_TEXT: Record<
+  ProfissionaisEmptyReason,
+  string
+> = {
+  servico_desconhecido: 'Este serviço não existe neste salão.',
+  nenhum_profissional_vinculado:
+    'Nenhum profissional está vinculado a este serviço.',
+  nenhum_agendavel_online:
+    'Quem faz este serviço não está aceitando agendamento online.',
+};
+
+/**
+ * O retorno de `profissionais`. `motivo`/`motivoTexto` só vêm quando a lista
+ * está vazia — o formato antigo continua intacto para quem já consome.
+ */
+export type ProfissionaisResult = {
+  profissionais: { id: string; nome: string }[];
+  motivo?: ProfissionaisEmptyReason;
+  motivoTexto?: string;
+};
+
 /** A linha de cadastro que basta para decidir identidade. */
 interface ClienteBruto {
   id: string;
@@ -122,8 +167,104 @@ export class VoltrAgendaService {
     };
   }
 
-  /** Quem executa aquele serviço e aceita agendamento. */
-  async profissionais(companyId: string, serviceId: string) {
+  /**
+   * Os produtos que o salão vende. Ver estudo 101.
+   *
+   * O filtro é o da tela de Produtos: `active` e não excluído
+   * (ProdutosPage.tsx:223 já abre em "Ativo"; products.service.ts:31 só descarta
+   * o `deletedAt`). Produto inativo é produto que o salão tirou de circulação —
+   * a IA não pode oferecer, exatamente como não oferece serviço despublicado.
+   *
+   * A ordem é a mesma da tela (`favorite desc, name asc`): se a lista precisar
+   * ser cortada, o que o salão marcou como destaque é o que sobra.
+   *
+   * NÃO devolvo o cadastro inteiro. Custo, custo adicional, preço de
+   * funcionário, comissão, estoque mínimo, código de barras, código do item e
+   * observação são dados INTERNOS — margem e anotação da equipe. Isso vai para
+   * um processo que conversa com a CLIENTE; o que não é preço de venda não tem
+   * por que atravessar a ponte.
+   */
+  async produtos(
+    companyId: string,
+    entrada: { termo?: string; limite?: number } = {},
+  ) {
+    const termo = String(entrada.termo ?? '').trim().slice(0, 80);
+    // O limite existe porque a lista vira contexto de LLM: um salão com 800
+    // produtos afogaria o modelo e ainda faria ele escolher no meio do ruído.
+    // Com `total` junto, a IA sabe que há mais e pode pedir com termo.
+    const limite = Math.min(
+      Math.max(Number(entrada.limite) || LIMITE_PRODUTOS, 1),
+      MAX_PRODUTOS,
+    );
+
+    const where = {
+      companyId,
+      active: true,
+      deletedAt: null,
+      // Busca só no NOME. Código de barras e código do item são referência de
+      // estoque; ninguém pergunta produto por EAN no WhatsApp, e casar por eles
+      // só serviria para devolver item pelo número interno do salão.
+      ...(termo
+        ? { name: { contains: termo, mode: 'insensitive' as const } }
+        : {}),
+    };
+
+    const [linhas, total] = await Promise.all([
+      this.prisma.client.product.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          salePrice: true,
+          stock: true,
+          trackStock: true,
+          brand: { select: { name: true } },
+        },
+        orderBy: [{ favorite: 'desc' }, { name: 'asc' }],
+        take: limite,
+      }),
+      this.prisma.client.product.count({ where }),
+    ]);
+
+    return {
+      produtos: linhas.map((p) => ({
+        id: p.id,
+        nome: p.name,
+        preco: Number(p.salePrice ?? 0),
+        marca: p.brand?.name ?? null,
+        // Quantidade só é verdade quando o salão controla o estoque daquele
+        // item. `trackStock` tem default false no schema e a maioria dos
+        // produtos importados está com saldo zero: publicar "0 em estoque"
+        // faria a IA dizer "está em falta" para o catálogo inteiro. Sem
+        // controle, a resposta honesta é "não sei", não "não tem".
+        estoque: p.trackStock ? Number(p.stock ?? 0) : null,
+        emEstoque: p.trackStock ? Number(p.stock ?? 0) > 0 : null,
+      })),
+      total,
+      // A IA precisa saber que a lista foi cortada, senão diz "é só isso que
+      // temos" olhando para um pedaço do catálogo.
+      truncado: total > linhas.length,
+    };
+  }
+
+  /**
+   * Quem executa aquele serviço e aceita agendamento.
+   *
+   * Lista vazia SEMPRE sai com o porquê — mesma regra de `availability` (estudo
+   * 99). Aqui `[]` significava três coisas incompatíveis: o serviço não existe,
+   * ninguém foi vinculado a ele, ou quem faz não está agendável online. A IA
+   * traduzia as três como "não encontrei profissional disponível", abria
+   * pendência e avisava a equipe — inclusive quando o id do serviço vinha
+   * inválido do modelo. Foi assim que ela disse "não tem profissional" num dia
+   * em que o Lucas tinha expediente 09:00–18:00 e agenda vazia. Ver estudo 101.
+   *
+   * O campo é ADITIVO e só aparece quando a lista está vazia: quem já consome
+   * (a própria Voltr, versão antiga) continua lendo só `profissionais`.
+   */
+  async profissionais(
+    companyId: string,
+    serviceId: string,
+  ): Promise<ProfissionaisResult> {
     if (!serviceId?.trim()) {
       throw new BadRequestException('Informe o serviço.');
     }
@@ -132,16 +273,44 @@ export class VoltrAgendaService {
         companyId,
         active: true,
         onlineBookable: true,
+        // `deletedAt: null` faltava aqui: profissional excluído continuava
+        // sendo oferecido pela IA. `availability` já filtrava assim.
+        deletedAt: null,
         services: { some: { serviceId } },
       },
       select: { id: true, name: true, nickname: true },
       orderBy: { name: 'asc' },
     });
+    if (profissionais.length > 0) {
+      return {
+        profissionais: profissionais.map((p) => ({
+          id: p.id,
+          nome: p.nickname?.trim() || p.name,
+        })),
+      };
+    }
+
+    // As consultas do diagnóstico só rodam no caminho vazio — o caminho normal
+    // continua sendo uma query só.
+    const servico = await this.prisma.client.service.findFirst({
+      where: { id: serviceId, companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!servico) return this.semProfissional('servico_desconhecido');
+
+    const vinculados = await this.prisma.client.professional.count({
+      where: { companyId, deletedAt: null, services: { some: { serviceId } } },
+    });
+    return this.semProfissional(
+      vinculados > 0 ? 'nenhum_agendavel_online' : 'nenhum_profissional_vinculado',
+    );
+  }
+
+  private semProfissional(motivo: ProfissionaisEmptyReason): ProfissionaisResult {
     return {
-      profissionais: profissionais.map((p) => ({
-        id: p.id,
-        nome: p.nickname?.trim() || p.name,
-      })),
+      profissionais: [],
+      motivo,
+      motivoTexto: PROFISSIONAIS_EMPTY_REASON_TEXT[motivo],
     };
   }
 
