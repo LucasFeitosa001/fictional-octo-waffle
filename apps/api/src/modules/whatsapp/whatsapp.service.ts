@@ -1422,6 +1422,18 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       if (sent?.key?.id && sent.message) {
         this.guardarNoCache(session, sent.key.id, sent.message);
       }
+      // Marca AQUI, no mesmo tique em que o id existe, o que saiu por ordem da
+      // Voltr. O Baileys devolve esta mesma mensagem como `fromMe`, e sem a
+      // marca o encaminhador a manda de volta para a Voltr como se fosse fala
+      // nova do salão — foi por isso que toda linha da Mariana aparecia
+      // duplicada logo abaixo como "Você:". Ver estudo 98.
+      if (sent?.key?.id && msg.kind === 'voltr_outbound') {
+        this.nascidasNaVoltr.add(sent.key.id);
+        if (this.nascidasNaVoltr.size > 500) {
+          const maisVelha = this.nascidasNaVoltr.values().next().value;
+          if (maisVelha) this.nascidasNaVoltr.delete(maisVelha);
+        }
+      }
       await db.whatsappOutbox.update({
         where: { id: msg.id },
         data: {
@@ -1728,6 +1740,18 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * imediata; o banco resolve pedidos que chegam depois de restart/deploy.
    */
   /** Guarda no cache de memória da sessão, com teto FIFO. */
+  /**
+   * Ids de mensagens que a própria Voltr mandou enviar. Só serve para o
+   * encaminhador não devolvê-las à Voltr (a cópia de lá já existe). Some no
+   * restart: o pior caso é uma duplicata isolada, nunca uma mensagem perdida.
+   */
+  private readonly nascidasNaVoltr = new Set<string>();
+
+  /** O encaminhador pergunta antes de mandar um `fromMe` de volta para a Voltr. */
+  nasceuNaVoltr(messageId: string): boolean {
+    return this.nascidasNaVoltr.has(messageId);
+  }
+
   private guardarNoCache(
     session: SessionState,
     messageId: string,

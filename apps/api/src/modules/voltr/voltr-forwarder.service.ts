@@ -205,15 +205,24 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
             }
           : undefined;
 
-      await this.voltr.encaminharInbound({
-        companyId: msg.companyId,
-        contatoJid: jidDoContato,
-        text: texto,
-        externalId: msg.messageId,
-        nomeCliente: msg.pushName,
-        doSalao: msg.fromMe,
-        ...(midia ? { midia } : {}),
-      });
+      // O que a Voltr mandou enviar NÃO volta para a Voltr: a cópia já existe
+      // lá desde antes do envio. Sem esta porta, cada fala da Mariana voltava
+      // pelo `fromMe` e aparecia uma segunda vez no painel como "Você:", com o
+      // texto idêntico logo abaixo. O ACK continua indo (bloco abaixo) para a
+      // mensagem original sair de "na fila". Ver estudo 98.
+      const ecoDaPropriaVoltr =
+        msg.fromMe && !!msg.messageId && this.whatsapp.nasceuNaVoltr(msg.messageId);
+      if (!ecoDaPropriaVoltr) {
+        await this.voltr.encaminharInbound({
+          companyId: msg.companyId,
+          contatoJid: jidDoContato,
+          text: texto,
+          externalId: msg.messageId,
+          nomeCliente: msg.pushName,
+          doSalao: msg.fromMe,
+          ...(midia ? { midia } : {}),
+        });
+      }
       // O POST acima criou/encontrou a mensagem na Voltr. Só agora o ACK
       // `sent` pode promovê-la de `na_fila` para `enviada`; registrar antes
       // criaria uma corrida em que o status chegaria antes da própria linha.
