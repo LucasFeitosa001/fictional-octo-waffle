@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ReportPdfOption } from './ReportPdfButton';
 import { LoadingState } from '../../components/States';
 import {
   IconChevron,
@@ -77,14 +78,19 @@ export function ExtratoContasPage() {
       title="Extrato de Contas"
       subtitle="Saldos das contas e extrato detalhado por conta no período"
       actions={
-        <button
-          type="button"
-          onClick={exportCsv}
-          disabled={rows.length === 0}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
-        >
-          <IconDownload size={16} /> Exportar CSV
-        </button>
+        <>
+          {/* Mesma acao compartilhada dos demais relatorios: este era um dos
+              quatro que so ofereciam CSV. Ver estudo 97. */}
+          <ReportPdfOption />
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={rows.length === 0}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
+          >
+            <IconDownload size={16} /> Exportar CSV
+          </button>
+        </>
       }
     >
       {/* Filtros: período + conta */}
