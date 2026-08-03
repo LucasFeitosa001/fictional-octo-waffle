@@ -176,6 +176,30 @@ export function ComandaImpressao({
           </div>
         )}
 
+        {/* ASSINATURA — o dono pediu espaço para assinar a comanda impressa.
+            Vem DEPOIS das observações e ANTES do rodapé, que é a ordem de um
+            recibo: primeiro o que se está aceitando, depois a assinatura.
+            Na bobina o traço é mais estreito e sem colunas, senão estoura os
+            74mm; no A4 cabe cliente e atendente lado a lado. */}
+        <div className="sp-print__assinaturas">
+          <div className="sp-print__assinatura">
+            <span className="sp-print__assinatura-linha" />
+            <span className="sp-print__assinatura-nome">
+              {d.customerName ?? d.customer?.name ?? 'Cliente'}
+            </span>
+            <span className="sp-print__linha-fraca">Assinatura do cliente</span>
+          </div>
+          {!termica && (
+            <div className="sp-print__assinatura">
+              <span className="sp-print__assinatura-linha" />
+              <span className="sp-print__assinatura-nome">
+                {d.professionalName ?? ''}
+              </span>
+              <span className="sp-print__linha-fraca">Responsável pelo atendimento</span>
+            </div>
+          )}
+        </div>
+
         <footer className="sp-print__rodape">
           Emitido em {formatDate(new Date().toISOString())} · {emp?.name ?? ''}
         </footer>

@@ -1254,6 +1254,41 @@ h1, h2, h3, h4, h5, h6,
   justify-content: space-between;
   gap: 12px;
 }
+/* Assinatura da comanda impressa. `break-inside: avoid` para o bloco não
+   partir entre duas folhas no A4 — assinatura cortada ao meio não vale nada. */
+.sp-print__assinaturas {
+  display: flex;
+  gap: 28px;
+  margin-top: 26px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.sp-print--termica .sp-print__assinaturas {
+  display: block;
+  margin-top: 18px;
+}
+.sp-print__assinatura {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+/* Espaço em branco ACIMA do traço: é onde a pessoa realmente assina. */
+.sp-print__assinatura-linha {
+  display: block;
+  width: 100%;
+  margin-top: 26px;
+  border-top: 1px solid #000;
+}
+.sp-print--termica .sp-print__assinatura-linha {
+  margin-top: 22px;
+}
+.sp-print__assinatura-nome {
+  margin-top: 3px;
+  font-size: 0.9em;
+}
+
 .sp-print__linha--forte {
   font-weight: 700;
   border-top: 1px solid #000;
