@@ -23,7 +23,14 @@ export async function downloadCurrentReport(signatureName = '', companyName = 'S
   // continuam usando o mesmo quadro visual, sem deixar o PDF com um cabeçalho
   // vazio; quando a página não expõe filtros estruturados, registramos isso de
   // forma honesta em vez de inventar valores.
-  if (!reportMeta.length) reportMeta.push('Período e filtros definidos na tela do relatório');
+  // Período derivado da própria tela quando a página não se declara. Antes daqui
+  // saía a frase "Período e filtros definidos na tela do relatório", que o painel
+  // partia no primeiro espaço e imprimia como "Período: e filtros definidos…".
+  // Ver estudo 97.
+  if (!reportMeta.length) {
+    const periodo = periodoDaTela();
+    if (periodo) reportMeta.push(`Período: ${periodo}`);
+  }
   let y = 20;
   const title = reportTitle(report, reportMeta);
   const appointmentReport = /agendamentos/i.test(title);
@@ -77,15 +84,44 @@ export async function downloadCurrentReport(signatureName = '', companyName = 'S
   }
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  const tables = Array.from(report.querySelectorAll('table'));
+  // Só as tabelas VISÍVEIS: a tela tem um bloco desktop e outro `md:hidden`, e
+  // pegar os dois duplicava cada linha no PDF. Ver estudo 97.
+  const tables = Array.from(report.querySelectorAll('table')).filter(visivel);
+
+  // Resumo (KPIs) ANTES das tabelas: é o dado mais importante da página e ficava
+  // de fora sempre que existia alguma tabela.
+  const resumo = lerResumo(report);
+  if (resumo.length) {
+    autoTable(doc, {
+      head: [['Resumo', 'Valor']],
+      body: resumo.map(([r, v]) => [normalizeReportCell(r), normalizeReportCell(v)]),
+      startY: y,
+      margin: { left: 14, right: 14 },
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.2, overflow: 'linebreak' },
+      headStyles: { fillColor: primary, textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+      tableLineColor: [203, 213, 225],
+      tableLineWidth: 0.15,
+      theme: 'grid',
+      didDrawPage: () => drawFooter(doc),
+    });
+    y = ((doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 8;
+  }
   for (const table of tables) {
     const headerRow = table.querySelector('thead tr:last-child');
     const head = headerRow
-      ? [Array.from(headerRow.querySelectorAll('th,td')).map((cell) => normalizeReportCell(cell.textContent))]
+      ? [Array.from(headerRow.querySelectorAll('th,td')).map((cell) => normalizeReportCell(textoLegivel(cell) || cell.textContent))]
       : [];
-    const body = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
-      Array.from(row.querySelectorAll('td,th')).map((cell) => normalizeReportCell(cell.textContent)),
-    );
+    // `tfoot` junto: a linha de Total da tela não ia para o PDF. E `textoLegivel`
+    // em vez de `textContent` para não grudar rótulo e valor dentro da célula.
+    const body = Array.from(table.querySelectorAll('tbody tr, tfoot tr'))
+      .filter(visivel)
+      .map((row) =>
+        Array.from(row.querySelectorAll('td,th')).map((cell) =>
+          normalizeReportCell(textoLegivel(cell) || cell.textContent),
+        ),
+      );
     if (!head.length && !body.length) continue;
     // O resumo de agendamentos por serviço termina com uma coluna monetária
     // "Total". Mostramos também o somatório do período, para o relatório não
@@ -123,18 +159,46 @@ export async function downloadCurrentReport(signatureName = '', companyName = 'S
     y = ((doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 8;
     if (!wideAppointment && y > pageHeight - 45) { doc.addPage(); y = 16; }
   }
-  if (!tables.length) {
-    const clone = report.cloneNode(true) as HTMLElement;
-    clone.querySelectorAll('form,nav,button,input,select,textarea,[data-report-pdf-meta],.report-no-print').forEach((node) => node.remove());
-    const text = clone.innerText.replace(/\n{3,}/g, '\n\n').trim();
-    if (text) {
-      const lines = doc.splitTextToSize(text, pageWidth - 28);
-      for (const line of lines) {
-        if (y > pageHeight - 20) { doc.addPage(); y = 16; }
-        doc.text(line, 14, y); y += 4;
-      }
+  if (!tables.length && !resumo.length) {
+    // Sem tabela e sem KPI não há o que tabular. Antes daqui saía o `innerText`
+    // da página inteira — título, subtítulo, banners e números colados uns nos
+    // outros ("Òleo de Alecrim33R$ 66,00"). Ilegível, e pior que não dizer nada.
+    //
+    // Agora as LINHAS de dado da tela (que são `div`/grid, não `<table>`) são
+    // lidas com separador; se nem isso existir, o PDF diz honestamente que não
+    // há dados em vez de despejar a interface. Ver estudo 97.
+    const linhas = Array.from(report.querySelectorAll<HTMLElement>('[data-report-row], li, tr'))
+      .filter(visivel)
+      .map((node) => textoLegivel(node))
+      .filter((t) => t.length > 2)
+      .slice(0, 400);
+    if (linhas.length) {
+      autoTable(doc, {
+        head: [['Registro']],
+        body: linhas.map((t) => [normalizeReportCell(t)]),
+        startY: y,
+        margin: { left: 14, right: 14 },
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: primary, textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        tableLineColor: [203, 213, 225],
+        tableLineWidth: 0.15,
+        theme: 'grid',
+        didDrawPage: () => drawFooter(doc),
+      });
+      y = ((doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 8;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Nenhum dado no período consultado.', 14, y + 4);
+      doc.setTextColor(17, 24, 39);
+      y += 12;
     }
   }
+  // Rodapé também nas páginas sem tabela: o `didDrawPage` do autoTable só roda
+  // quando existe tabela, então esses PDFs saíam sem paginação.
+  drawFooter(doc);
   if (!wideAppointment && y > pageHeight - 42) { doc.addPage(); y = 16; }
   y += 8;
   doc.setFillColor(248, 250, 252);
@@ -156,8 +220,96 @@ export async function downloadCurrentReport(signatureName = '', companyName = 'S
   doc.save(`${slug}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+
+/** O elemento aparece na tela AGORA? Ver estudo 97. */
+function visivel(node: Element): boolean {
+  const el = node as HTMLElement;
+  if (!el.isConnected) return false;
+  // `offsetParent` é null para `display:none` e para ancestrais ocultos. É o que
+  // elimina a DUPLICAÇÃO: as telas têm um bloco desktop e outro `md:hidden`, e
+  // raspar os dois fazia cada linha sair duas vezes no PDF.
+  if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 || rect.height > 0;
+}
+
+/**
+ * Texto de um nó com SEPARADOR entre os filhos.
+ *
+ * `innerText`/`textContent` grudam rótulo e valor quando são elementos irmãos —
+ * era daí que saíam `Òleo de Alecrim33R$ 66,00` e `31/07/20265`.
+ */
+function textoLegivel(node: Element): string {
+  const partes: string[] = [];
+  node.childNodes.forEach((filho) => {
+    if (filho.nodeType === Node.TEXT_NODE) {
+      const t = (filho.textContent || '').replace(/\s+/g, ' ').trim();
+      if (t) partes.push(t);
+      return;
+    }
+    if (filho.nodeType !== Node.ELEMENT_NODE) return;
+    if (!visivel(filho as Element)) return;
+    const t = textoLegivel(filho as Element);
+    if (t) partes.push(t);
+  });
+  return partes.join(' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
+ * Cards de resumo (KPI) da tela: rótulo curto + valor destacado.
+ *
+ * Eles ficavam de fora do PDF sempre que a página tinha alguma tabela — e são o
+ * dado mais importante do relatório (Entradas/Saídas/Saldo, totais de vendas).
+ */
+function lerResumo(report: HTMLElement): [string, string][] {
+  const achados: [string, string][] = [];
+  const vistos = new Set<string>();
+  const candidatos = report.querySelectorAll<HTMLElement>('[data-report-kpi], .rounded-2xl, .rounded-xl');
+  candidatos.forEach((card) => {
+    if (!visivel(card) || card.querySelector('table')) return;
+    // Card de KPI é raso: um rótulo e um número. Se tiver muito texto, é seção.
+    const texto = textoLegivel(card);
+    if (!texto || texto.length > 90) return;
+    const valor = texto.match(/(-?R\$\s?[\d.,]+|-?\d+[\d.,]*\s?%?)\s*$/);
+    if (!valor) return;
+    const rotulo = texto.slice(0, texto.length - valor[0].length).replace(/[:·-]\s*$/, '').trim();
+    if (!rotulo || rotulo.length < 2) return;
+    const chave = `${rotulo}|${valor[0].trim()}`;
+    if (vistos.has(chave)) return;
+    vistos.add(chave);
+    achados.push([rotulo, valor[0].trim()]);
+  });
+  return achados.slice(0, 12);
+}
+
+/**
+ * O período da tela, mesmo quando a página não se declara.
+ *
+ * Antes, só `/reports/calendars/all` emitia metadados, então 27 dos 28 PDFs
+ * saíam sem dizer que intervalo cobriam — num documento assinado, isso o torna
+ * inauditável. Ver estudo 97.
+ */
+function periodoDaTela(): string {
+  const datas = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="date"]'))
+    .filter((i) => visivel(i) && i.value)
+    .map((i) => i.value);
+  if (datas.length >= 2) {
+    const [de, ate] = [datas[0], datas[datas.length - 1]];
+    return `${formatReportMetadata(de)} a ${formatReportMetadata(ate)}`;
+  }
+  if (datas.length === 1) return formatReportMetadata(datas[0]);
+  return '';
+}
+
 function normalizeReportCell(value: string | null): string {
-  const text = value?.replace(/\s+/g, ' ').trim() || '';
+  // A Helvetica embutida do jsPDF não tem o menos tipográfico (−, U+2212) nem
+  // travessões/espaços finos: eles saíam como aspas com os dígitos espalhados
+  // nos relatórios de extrato. Normalizar para ASCII antes de escrever.
+  const text = (value ?? '')
+    .replace(/[\u2212\u2012\u2013\u2014]/g, '-')
+    .replace(/[\u00a0\u2007\u202f\u2009]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const date = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(text);
   if (date) return `${date[3]}/${date[2]}/${date[1]}`;
   const status: Record<string, string> = {

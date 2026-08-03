@@ -33,7 +33,16 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     const normalizedColor = colorContext.fillStyle;
     const colorParts = normalizedColor.match(/\d+/g)?.map(Number) ?? [79, 70, 229];
     const [primaryR, primaryG, primaryB] = colorParts.length >= 3 ? colorParts : [79, 70, 229];
-    const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    // A Helvetica embutida do jsPDF não tem o menos tipográfico (−, U+2212), o
+    // travessão nem o espaço fino: eles saem como aspas com os dígitos
+    // espalhados. Num recibo que o profissional ASSINA, isso é inaceitável —
+    // e era exatamente o que acontecia na linha dos vales. Ver estudo 97.
+    const ascii = (t: string) =>
+      t
+        .replace(/[\u2212\u2012\u2013\u2014]/g, '-')
+        .replace(/[\u00a0\u2007\u202f\u2009]/g, ' ');
+    const money = (value: number) =>
+      ascii(value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
     const date = (value: string) => {
       // Datas de competência vêm como YYYY-MM-DD. Criar `new Date` diretamente
       // interpreta esse formato em UTC e pode voltar um dia no fuso do salão.
@@ -107,7 +116,12 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(15, 23, 42);
-    doc.text(data.professionalName, 25, 64);
+    // Nome longo invadia o bloco de "Pagamento:" à direita; corta na largura útil.
+    doc.text(
+      doc.splitTextToSize(ascii(data.professionalName), width - 25 - 82)[0] ?? '',
+      25,
+      64,
+    );
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
@@ -123,13 +137,13 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     const lines: [string, string][] = [
       ['Comissões', money(data.commissionTotal)],
       ['Bonificações', money(data.bonusTotal)],
-      ['Vales descontados', `− ${money(data.advancesTotal)}`],
+      ['Vales descontados', `- ${money(data.advancesTotal)}`],
       ['Lançamentos quitados', String(data.entriesCount)],
     ];
     doc.setFontSize(10);
     lines.forEach(([label, value]) => {
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105); doc.text(label, 22, y);
-      doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42); doc.text(value, width - 22, y, { align: 'right' });
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105); doc.text(ascii(label), 22, y);
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42); doc.text(ascii(value), width - 22, y, { align: 'right' });
       doc.setDrawColor(226, 232, 240); doc.line(18, y + 3, width - 18, y + 3); y += 9;
     });
     // O destaque do valor líquido acompanha a mesma cor do cabeçalho, mas
@@ -150,7 +164,7 @@ export function CommissionReceiptButton({ data, compact = false }: { data: Commi
     doc.text(doc.splitTextToSize(declaration, width - 36), 18, y);
     y += 38;
     doc.setDrawColor(51, 65, 85); doc.line(58, y, width - 58, y);
-    doc.setFontSize(9); doc.text(signatureName.trim() || data.professionalName, width / 2, y + 6, { align: 'center' });
+    doc.setFontSize(9); doc.text(ascii(signatureName.trim() || data.professionalName), width / 2, y + 6, { align: 'center' });
     doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.text('Assinatura do profissional', width / 2, y + 12, { align: 'center' });
     doc.text(`Emitido em ${date(new Date().toISOString())}`, 18, 282);
     doc.text('Documento gerado pelo SalonPass', width - 18, 282, { align: 'right' });
