@@ -48,6 +48,20 @@ export class VoltrAgendaController {
     });
   }
 
+  /**
+   * A EQUIPE inteira com o que cada um faz. Mesma guarda, mesmo escopo e mesmo
+   * isolamento das outras: `companyId` vem do guard, nunca do corpo.
+   *
+   * Sem corpo de propósito — quem pergunta "o Carlos faz corte?" ainda não tem
+   * id de serviço nenhum, e era justamente por exigir `serviceId` que a rota
+   * `profissionais` não servia para essa pergunta.
+   */
+  @Post('equipe')
+  @EscopoVoltr('agenda')
+  async equipe(@Req() req: ReqVoltr) {
+    return this.service.equipe(req.voltrCompanyId!);
+  }
+
   @Post('profissionais')
   @EscopoVoltr('agenda')
   async profissionais(

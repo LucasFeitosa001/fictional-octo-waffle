@@ -1155,3 +1155,200 @@ describe('Por que não há profissional (estudo 101)', () => {
   });
 });
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Estudo 105 — a cliente EXCLUÍDA não pode voltar pela ponte, e a IA precisa
+// conhecer a equipe antes de fixar um serviço.
+describe('Cliente excluída e equipe completa (estudo 105)', () => {
+  function bancoDeCliente(linhas: {
+    porId?: { id: string; name: string; phone: string } | null;
+    porTelefone?: { id: string; name: string; phone: string }[];
+  }) {
+    const wheres: Record<string, unknown>[] = [];
+    const criados: Record<string, unknown>[] = [];
+    const prisma = {
+      client: {
+        customer: {
+          findFirst: async (args: { where: Record<string, unknown> }) => {
+            wheres.push({ rota: 'findFirst', ...args.where });
+            return linhas.porId ?? null;
+          },
+          findMany: async (args: { where: Record<string, unknown> }) => {
+            wheres.push({ rota: 'findMany', ...args.where });
+            return linhas.porTelefone ?? [];
+          },
+          create: async (args: { data: Record<string, unknown> }) => {
+            criados.push(args.data);
+            return { id: 'cliente-novo' };
+          },
+        },
+      },
+    };
+    return {
+      s: new VoltrAgendaService(prisma as never, {} as never),
+      wheres,
+      criados,
+    };
+  }
+
+  const resolver = (s: VoltrAgendaService, opts: Record<string, unknown>) =>
+    (s as unknown as {
+      resolverCliente: (
+        c: string,
+        t: string,
+        o: Record<string, unknown>,
+      ) => Promise<{ id: string; criado: boolean }>;
+    }).resolverCliente('company-1', '5588999997434', opts);
+
+  it('o customerId guardado pela Voltr é conferido com deletedAt: null', async () => {
+    const { s, wheres } = bancoDeCliente({ porId: null });
+
+    await resolver(s, { customerId: 'cliente-excluida', nome: 'Maria' });
+
+    const porId = wheres.find((w) => w.rota === 'findFirst')!;
+    assert.equal(porId.id, 'cliente-excluida');
+    assert.equal(porId.companyId, 'company-1');
+    // A trava do estudo 105: sem isto o agendamento nascia preso a um cadastro
+    // soft-deletado, invisível em toda tela do salão.
+    assert.equal(porId.deletedAt, null);
+  });
+
+  it('a busca por telefone também ignora cadastro excluído', async () => {
+    const { s, wheres } = bancoDeCliente({ porTelefone: [] });
+
+    await resolver(s, { nome: 'Maria' });
+
+    const porTelefone = wheres.find((w) => w.rota === 'findMany')!;
+    assert.equal(porTelefone.companyId, 'company-1');
+    assert.equal(porTelefone.deletedAt, null);
+    assert.equal(porTelefone.active, true);
+  });
+
+  it('cliente EXCLUÍDA volta a agendar: nasce cadastro novo em vez de reviver o apagado', async () => {
+    // O banco não devolve mais a linha excluída (é isso que o WHERE garante),
+    // então o fluxo tem de terminar num cadastro novo — e não em erro.
+    const { s, criados } = bancoDeCliente({ porId: null, porTelefone: [] });
+
+    const r = await resolver(s, {
+      customerId: 'id-da-cliente-excluida',
+      nome: 'Maria Silva',
+    });
+
+    assert.equal(r.criado, true);
+    assert.equal(criados[0].companyId, 'company-1');
+    assert.equal(criados[0].name, 'Maria Silva');
+  });
+
+  it('cliente ATIVA com o mesmo id continua sendo reaproveitada (sem duplicar)', async () => {
+    const { s, criados } = bancoDeCliente({
+      porId: { id: 'cliente-1', name: 'Maria Silva', phone: '5588999997434' },
+    });
+
+    const r = await resolver(s, { customerId: 'cliente-1' });
+
+    assert.equal(r.id, 'cliente-1');
+    assert.equal(r.criado, false);
+    assert.equal(criados.length, 0);
+  });
+
+  function bancoDeEquipe(linhas: unknown[]) {
+    const wheres: Record<string, unknown>[] = [];
+    const selects: Record<string, unknown>[] = [];
+    const prisma = {
+      client: {
+        professional: {
+          findMany: async (args: {
+            where: Record<string, unknown>;
+            select: Record<string, unknown>;
+          }) => {
+            wheres.push(args.where);
+            selects.push(args.select);
+            return linhas;
+          },
+        },
+      },
+    };
+    return { s: new VoltrAgendaService(prisma as never, {} as never), wheres, selects };
+  }
+
+  it('a equipe vem sem serviço nenhum no pedido, com o que cada um executa', async () => {
+    // Dado real de produção: o Carlos só faz Selagem; quem corta é o Lucas.
+    const { s } = bancoDeEquipe([
+      {
+        id: 'lucas',
+        name: 'Lucas Feitosa',
+        nickname: null,
+        services: [
+          { service: { id: 'svc-unhas', name: 'Unhas' } },
+          { service: { id: 'svc-corte', name: 'Corte masculino de cabelo' } },
+        ],
+      },
+      {
+        id: 'carlos',
+        name: 'Carlos Ferreira',
+        nickname: null,
+        services: [{ service: { id: 'svc-selagem', name: 'Selagem para Cabelos' } }],
+      },
+    ]);
+
+    const r = await s.equipe('company-1');
+
+    assert.deepEqual(r.equipe, [
+      {
+        id: 'lucas',
+        nome: 'Lucas Feitosa',
+        servicos: [
+          { id: 'svc-corte', nome: 'Corte masculino de cabelo' },
+          { id: 'svc-unhas', nome: 'Unhas' },
+        ],
+      },
+      {
+        id: 'carlos',
+        nome: 'Carlos Ferreira',
+        servicos: [{ id: 'svc-selagem', nome: 'Selagem para Cabelos' }],
+      },
+    ]);
+  });
+
+  it('a equipe usa os MESMOS filtros das outras rotas: nada de excluído nem despublicado', async () => {
+    const { s, selects, wheres } = bancoDeEquipe([]);
+
+    await s.equipe('company-1');
+
+    assert.deepEqual(wheres[0], {
+      companyId: 'company-1',
+      active: true,
+      onlineBookable: true,
+      deletedAt: null,
+    });
+    const servicos = (selects[0].services as { where: { service: Record<string, unknown> } })
+      .where.service;
+    assert.deepEqual(servicos, {
+      companyId: 'company-1',
+      onlineBookable: true,
+      active: true,
+      visible: true,
+      deletedAt: null,
+    });
+  });
+
+  it('quem não tem serviço vinculado aparece com lista vazia — existe, só não faz', async () => {
+    const { s } = bancoDeEquipe([
+      { id: 'nova', name: 'Bruna', nickname: '  ', services: [] },
+    ]);
+
+    const r = await s.equipe('company-1');
+
+    assert.deepEqual(r.equipe, [{ id: 'nova', nome: 'Bruna', servicos: [] }]);
+  });
+
+  it('apelido vence o nome, como na rota profissionais', async () => {
+    const { s } = bancoDeEquipe([
+      { id: 'p1', name: 'Maria da Conceição Souza', nickname: 'Cocó', services: [] },
+    ]);
+
+    const r = await s.equipe('company-1');
+
+    assert.equal(r.equipe[0].nome, 'Cocó');
+  });
+});

@@ -306,6 +306,61 @@ export class VoltrAgendaService {
     );
   }
 
+  /**
+   * A EQUIPE INTEIRA e o que cada pessoa faz — sem exigir serviço antes.
+   *
+   * `profissionais(companyId, serviceId)` exige o serviço, então a IA só
+   * conseguia falar de gente DEPOIS de fixar um serviço. O caso do dono:
+   * "quero corta com o Carlos, ele está disponível hoje?" recebia o catálogo
+   * inteiro, porque nenhum id de serviço tinha sido resolvido ainda. Com esta
+   * rota a primeira mensagem já pode ser "o Carlos faz Selagem, mas não corte;
+   * quem corta é o Lucas".
+   *
+   * Os filtros são os MESMOS das rotas existentes, de propósito:
+   *  - profissional: `active`, `onlineBookable`, `deletedAt: null` (igual a
+   *    `profissionais`);
+   *  - serviço: `onlineBookable`, `active`, `visible`, `deletedAt: null` (igual
+   *    a `servicos`).
+   * Assim a IA nunca conhece por aqui alguém — ou algo — que ela não pode
+   * oferecer pelas outras rotas.
+   *
+   * Devolve quem NÃO tem serviço vinculado também, com `servicos: []`: essa
+   * pessoa existe no salão e a resposta honesta sobre ela é "ela não faz esse
+   * serviço", não "ela não existe".
+   */
+  async equipe(companyId: string) {
+    const profissionais = await this.prisma.client.professional.findMany({
+      where: { companyId, active: true, onlineBookable: true, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        nickname: true,
+        services: {
+          where: {
+            service: {
+              companyId,
+              onlineBookable: true,
+              active: true,
+              visible: true,
+              deletedAt: null,
+            },
+          },
+          select: { service: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return {
+      equipe: profissionais.map((p) => ({
+        id: p.id,
+        nome: p.nickname?.trim() || p.name,
+        servicos: p.services
+          .map((v) => ({ id: v.service.id, nome: v.service.name }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      })),
+    };
+  }
+
   private semProfissional(motivo: ProfissionaisEmptyReason): ProfissionaisResult {
     return {
       profissionais: [],
@@ -688,7 +743,16 @@ export class VoltrAgendaService {
   ): Promise<ClienteBruto[]> {
     const chave = digitos.slice(-8);
     const linhas = await this.prisma.client.customer.findMany({
-      where: { companyId, ...extra, phone: { contains: digitos.slice(-4) } },
+      // `deletedAt: null` como em toda leitura desta ponte (serviços, produtos,
+      // profissionais): cliente excluída sumiu das telas do salão, então ela não
+      // pode voltar por aqui. Sem isto, o telefone de uma cadastro apagado ainda
+      // casava e o agendamento nascia preso a uma pessoa invisível.
+      where: {
+        companyId,
+        deletedAt: null,
+        ...extra,
+        phone: { contains: digitos.slice(-4) },
+      },
       select: { id: true, name: true, phone: true },
       take: LIMITE_CANDIDATOS,
     });
@@ -752,7 +816,11 @@ export class VoltrAgendaService {
       const guardado: ClienteBruto | null =
         await this.prisma.client.customer.findFirst({
           // `companyId` no WHERE é o isolamento: id de outro salão não existe aqui.
-          where: { id: idInformado, companyId },
+          // `deletedAt: null` é a terceira porta: a Voltr guarda o id por meses,
+          // e o salão pode ter excluído a cliente nesse meio-tempo. Sem isto o
+          // agendamento era gravado num cadastro soft-deleted — invisível em toda
+          // lista do painel, ou seja, ninguém atende ninguém.
+          where: { id: idInformado, companyId, deletedAt: null },
           select: { id: true, name: true, phone: true },
         });
       const telefoneBate =
@@ -762,7 +830,7 @@ export class VoltrAgendaService {
       }
       this.logger.warn(
         `customerId ${idInformado} recusado (company=${companyId}, ` +
-          `${guardado ? 'telefone não confere' : 'não é desta empresa'}); ` +
+          `${guardado ? 'telefone não confere' : 'não é desta empresa ou foi excluída'}); ` +
           'caindo na busca por telefone.',
       );
     }
