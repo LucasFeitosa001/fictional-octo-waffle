@@ -344,15 +344,28 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
                 requisição saiu. */}
             <div
               className="flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs shadow-sm sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm"
+              // Pausada, o estado tem que SALTAR aos olhos: o painel fica
+              // aberto o dia inteiro e ninguém lê um rótulo que não muda de
+              // cor. Tokens de tema (`--sp-status-warning-*`), nunca cor crua.
               style={{
-                borderColor: 'var(--sp-border)',
-                background: estadoIa && !estadoIa.envioAutomatico
-                  ? 'var(--sp-warning-soft, var(--sp-card))'
-                  : 'var(--sp-card)',
+                borderColor:
+                  estadoIa && !estadoIa.envioAutomatico
+                    ? 'var(--sp-status-warning)'
+                    : 'var(--sp-border)',
+                background:
+                  estadoIa && !estadoIa.envioAutomatico
+                    ? 'var(--sp-status-warning-soft)'
+                    : 'var(--sp-card)',
               }}
             >
               <span
-                className="font-semibold text-[var(--sp-ink)]"
+                className="font-semibold"
+                style={{
+                  color:
+                    estadoIa && !estadoIa.envioAutomatico
+                      ? 'var(--sp-status-warning-fg)'
+                      : 'var(--sp-ink)',
+                }}
                 title={
                   erroPainelIa ??
                   (estadoIa
