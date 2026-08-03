@@ -2088,8 +2088,26 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     );
     const slots = availability.slots;
     if (!slots.length) {
+      // Lista vazia NÃO quer dizer "dia lotado". O `availability` devolve vazio
+      // por cinco razões diferentes — serviço desconhecido, profissional não
+      // vinculado, dia sem expediente, sem profissional e, só então, agenda
+      // cheia. Dizer "não encontrei horário livre" para todas elas é mentir: no
+      // CRM isso fez a IA anunciar um dia lotado que tinha 33 horários vagos, e
+      // aqui o mesmo texto está no ar há mais tempo. Ver estudo 99.
+      // Os textos de `AVAILABILITY_EMPTY_REASON_TEXT` são de diagnóstico. Para
+      // quem está do outro lado do WhatsApp, cadastro incompleto do salão não é
+      // problema do cliente: nesses casos ficamos no texto genérico em vez de
+      // dizer "este serviço não existe neste salão".
+      const falaDoMotivo: Partial<Record<string, string>> = {
+        sem_vaga: `Não sobrou horário livre para ${service.name} com ${professional.name} nesse dia.`,
+        sem_expediente: `${professional.name} não atende nesse dia.`,
+        profissional_nao_vinculado: `${professional.name} não faz ${service.name}.`,
+      };
+      const abertura =
+        falaDoMotivo[availability.motivo ?? ''] ??
+        `Não encontrei horário livre para ${service.name} com ${professional.name} nesse dia.`;
       return {
-        text: `Não encontrei horário livre para ${service.name} com ${professional.name} nesse dia. Quer tentar outra data?`,
+        text: `${abertura} Quer tentar outra data?`,
         kind: 'ai_reply',
       };
     }

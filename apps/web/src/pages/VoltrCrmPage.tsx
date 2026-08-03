@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ErrorState, LoadingState } from '../components/States';
 import { AppSwitch } from '../components/SwitchRow';
 import { api } from '../lib/api';
@@ -79,8 +80,23 @@ async function buscarTokenComFallback(scope: Escopo): Promise<RespostaToken> {
   }
 }
 
+/**
+ * Anexa a conversa alvo à URL do embed. O sino do SalonPass aponta para
+ * `/voltr-chat?conversa=<id>` quando a IA abre uma pendência; a página de
+ * conversas da Voltr já sabe abrir por `?id=`, só faltava alguém carregar o id
+ * daqui até lá. Sem isto o link do sino abriria o CRM na conversa errada — um
+ * atalho decorativo. Ver estudo 99.
+ */
+function comConversaAlvo(embedUrl: string, conversaId: string | null): string {
+  if (!conversaId) return embedUrl;
+  const separador = embedUrl.includes('?') ? '&' : '?';
+  return `${embedUrl}${separador}id=${encodeURIComponent(conversaId)}`;
+}
+
 export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const conversaAlvo = searchParams.get('conversa');
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [resumoIa, setResumoIa] = useState<ResumoIa | null>(null);
@@ -120,7 +136,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       tokenRef.current = guardado.accessToken;
       origemRef.current = origemDe(guardado.embedUrl);
       scopeDoSrc.current = scope;
-      setSrc(guardado.embedUrl);
+      setSrc(comConversaAlvo(guardado.embedUrl, conversaAlvo));
       setErro(null);
       setCarregando(false);
       // Atualiza em segundo plano para a próxima troca, sem bloquear a tela.
@@ -138,7 +154,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       // postMessage e não recarregam o iframe. Sem o escopo na conta, trocar
       // Atendimento ↔ CRM pelo menu não remontava o componente (as duas rotas
       // têm a mesma árvore) e o iframe ficava na tela anterior. Ver estudo 75.
-      setSrc((atual) => (atual && scopeDoSrc.current === scope ? atual : r.embedUrl));
+      setSrc((atual) => (atual && scopeDoSrc.current === scope ? atual : comConversaAlvo(r.embedUrl, conversaAlvo)));
       scopeDoSrc.current = scope;
       setErro(null);
       // Pré-carrega as outras áreas autorizadas. Se uma não estiver habilitada,

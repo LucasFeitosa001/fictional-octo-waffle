@@ -46,6 +46,16 @@ function hrefForNotification(n: NotificationItem): string | null {
       ? `/agenda?appointmentId=${encodeURIComponent(n.entityId)}`
       : '/agenda';
   }
+  // Pendência aberta pela IA do CRM: leva direto para a conversa que travou.
+  // O `entityId` aqui é o id da conversa na Voltr, não um agendamento. Antes o
+  // aviso só saía por WhatsApp para o número da empresa e o dono não tinha onde
+  // clicar — o sino da Voltr existe, mas o embed do CRM é montado sem a barra
+  // de navegação dela, então nunca aparecia. Ver estudo 99.
+  if (n.type.startsWith('crm.')) {
+    return n.entityId
+      ? `/voltr-chat?conversa=${encodeURIComponent(n.entityId)}`
+      : '/voltr-chat';
+  }
   return null;
 }
 

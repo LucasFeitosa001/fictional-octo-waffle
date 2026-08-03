@@ -31,7 +31,7 @@ export interface NotificationSummaryResponse {
 }
 
 // ─── Taxonomia de categorias (front) ────────────────────────────────────────
-// O backend hoje só emite `appointment.created | confirmed | canceled`. Cada
+// O backend emite `appointment.created | confirmed | canceled` e `crm.*`. Cada
 // categoria da UI mapeia para um conjunto de tipos reais. NÃO inventar
 // categorias sem tipo real por trás — se um dia surgirem novos tipos no
 // backend, adicione a categoria aqui.
@@ -54,6 +54,11 @@ export const NOTIF_CATEGORIES: NotifCategoryDef[] = [
     label: 'Agendamentos cancelados',
     types: ['appointment.canceled'],
   },
+  {
+    slug: 'crm',
+    label: 'Atendimento (CRM)',
+    types: ['crm.agenda_pendencia'],
+  },
 ];
 
 export function categoryBySlug(slug: string | undefined): NotifCategoryDef | undefined {
@@ -65,6 +70,7 @@ export const NOTIF_TYPE_LABEL: Record<string, string> = {
   'appointment.created': 'Agendamento criado',
   'appointment.confirmed': 'Agendamento confirmado',
   'appointment.canceled': 'Agendamento cancelado',
+  'crm.agenda_pendencia': 'A IA não achou horário',
 };
 
 /** Full list for the bell panel. Polls so new bookings surface without reload. */
