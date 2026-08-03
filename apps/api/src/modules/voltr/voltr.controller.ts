@@ -4,29 +4,42 @@ import {
   Controller,
   Get,
   Logger,
+  Patch,
   Post,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { IsBoolean } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { VoltrSignatureGuard } from './voltr-signature.guard';
 import {
   VoltrService,
   type VoltrEmbedTokenResponse,
+  type VoltrEstadoIa,
   type VoltrScope,
   type VoltrSyncClientesResultado,
 } from './voltr.service';
+
+class PausaIaDto {
+  // Sem o decorator o ValidationPipe (whitelist) descarta o campo e o PATCH
+  // vira um no-op silencioso — a família exata do defeito que consertamos.
+  @IsBoolean() envioAutomatico!: boolean;
+}
 
 /**
  * Embed do Chat/CRM da Voltr dentro do painel (estudo 68).
  * O painel chama esta rota logado; o segredo de parceiro fica no servidor.
  */
-@UseGuards(JwtAuthGuard)
+// PermissionGuard só cobra onde há @RequirePermission — `embed-token` e
+// `sync-clientes` seguem com a mesma porta de antes (JwtAuthGuard).
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('voltr')
 export class VoltrController {
   constructor(private readonly voltr: VoltrService) {}
@@ -83,6 +96,49 @@ export class VoltrController {
     @CurrentUser('companyId') companyId: string,
   ): Promise<VoltrSyncClientesResultado> {
     return this.voltr.sincronizarClientes(companyId);
+  }
+
+  /**
+   * Estado da IA da VOLTR (a que atende no WhatsApp deste salão).
+   *
+   * Existe separado de `/whatsapp/inbox/config` de propósito: aquele é a
+   * recepcionista NATIVA do SalonPass, outro produto, outro banco. Ler um e
+   * mostrar o outro foi o defeito que fez o botão de pausa não pausar nada.
+   */
+  @RequirePermission('marketing:view')
+  @Get('ia')
+  async estadoIa(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('email') email: string,
+  ): Promise<VoltrEstadoIa> {
+    return this.voltr.estadoIa({ companyId, userId, email });
+  }
+
+  /**
+   * PAUSA / RETOMA a IA da Voltr — o botão do dono, com o cargo REAL dele.
+   *
+   * A permissão é conferida AQUI (`marketing:manage`, a mesma que governa a
+   * recepcionista nativa), com o usuário logado no SalonPass. Do outro lado a
+   * chamada chega como sessão de embed, que a Voltr aceita justamente porque o
+   * parceiro já validou a permissão antes de pedir o token.
+   *
+   * Não envia nem enfileira mensagem: só muda quem pode responder daqui para a
+   * frente. O tenant vem do token, nunca do corpo — não há como pausar a IA de
+   * outro salão por aqui.
+   */
+  @RequirePermission('marketing:manage')
+  @Patch('ia')
+  async pausarIa(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('email') email: string,
+    @Body() dto: PausaIaDto,
+  ): Promise<VoltrEstadoIa> {
+    return this.voltr.definirPausaIa(
+      { companyId, userId, email },
+      dto.envioAutomatico,
+    );
   }
 }
 

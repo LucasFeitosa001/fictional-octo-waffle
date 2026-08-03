@@ -22,6 +22,29 @@ export interface VoltrEmbedTokenResponse {
   accessToken: string;
 }
 
+/**
+ * Estado REAL da IA da Voltr para este salão — a que atende no WhatsApp.
+ *
+ * Não confundir com `/whatsapp/inbox/config`, que é a recepcionista NATIVA do
+ * SalonPass. Era exatamente essa confusão que fazia o botão "pausar a IA" do
+ * /voltr-chat mexer no interruptor errado.
+ */
+export interface VoltrEstadoIa {
+  /** `false` = IA PAUSADA: segue rascunhando, mas não responde ninguém sozinha. */
+  envioAutomatico: boolean;
+  /** Sem agente ativo na Voltr não há o que retomar (fica pausada). */
+  agenteAtivo: boolean;
+  /** Chave-mestra do processo da Voltr (AUTOPILOT_ENABLED lá). */
+  autopilotAtivo: boolean;
+}
+
+/** Identidade do usuário do painel que está operando (vira token de embed). */
+export interface VoltrUsuario {
+  companyId: string;
+  userId: string;
+  email: string;
+}
+
 /** Clientes por requisição no sync. O `/api/ingest/clientes` da Voltr aceita até
  *  5.000 por chamada, mas o upsert lá é linha a linha — lote menor mantém cada
  *  requisição curta e cabe no rate-limit de 30/min do endpoint. */
@@ -111,6 +134,18 @@ export class VoltrService {
   private readonly config: VoltrConfig = readVoltrConfig();
   /** Empresas com sync de clientes rodando agora (trava contra clique duplo). */
   private readonly syncEmAndamento = new Set<string>();
+  /**
+   * Token de embed reaproveitado por usuário nas chamadas server-to-server.
+   *
+   * O cabeçalho do atendimento relê o estado da IA a cada 30s: sem cache, cada
+   * leitura viraria uma troca de token completa (anti-replay + JIT-provision) do
+   * outro lado. A chave inclui o companyId — token de um salão NUNCA é
+   * reutilizado por outro.
+   */
+  private readonly tokenPorUsuario = new Map<
+    string,
+    { token: string; expiraEm: number }
+  >();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -206,6 +241,143 @@ export class VoltrService {
       accessToken: corpo.accessToken,
       expiresIn: corpo.expiresIn ?? 900,
       embedUrl: corpo.embedUrl,
+    };
+  }
+
+  /**
+   * Chama a API da Voltr COMO O USUÁRIO do painel, usando um token de embed
+   * recém-emitido para ele.
+   *
+   * Por que passar por token de embed em vez de um segredo de serviço: é a
+   * única credencial que a Voltr sabe amarrar ao TENANT deste salão e a um
+   * usuário identificável — o mesmo caminho que já abre o iframe. Um segredo
+   * de serviço genérico teria que dizer "em nome de qual empresa", e é aí que
+   * nasce vazamento entre salões.
+   *
+   * A permissão de verdade é conferida ANTES daqui, no controller
+   * (`@RequirePermission`), com o cargo real do usuário no SalonPass.
+   */
+  private async chamarComoUsuario<T>(
+    user: VoltrUsuario,
+    rota: string,
+    init?: { method?: string; body?: unknown },
+    jaRepetiu = false,
+  ): Promise<T> {
+    if (!this.configurado) {
+      throw new ServiceUnavailableException(
+        'Integração com a Voltr não configurada nesta instalação.',
+      );
+    }
+    const accessToken = await this.tokenDeServico(user);
+
+    let res: Response;
+    try {
+      res = await fetch(`${this.config.apiUrl}${rota}`, {
+        method: init?.method ?? 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        ...(init?.body === undefined
+          ? {}
+          : { body: JSON.stringify(init.body) }),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (err) {
+      this.logger.error(`Voltr indisponível em ${rota}: ${(err as Error).message}`);
+      throw new BadGatewayException('A Voltr não respondeu. Tente de novo.');
+    }
+
+    // Token cacheado que a Voltr não reconhece mais (ela reiniciou, o segredo
+    // girou): descarta e tenta UMA vez com um token novo. Sem isto o botão
+    // ficaria quebrado até o cache expirar — e um botão quebrado é o defeito
+    // que estamos consertando.
+    if (res.status === 401 && !jaRepetiu) {
+      this.tokenPorUsuario.delete(`${user.companyId}:${user.userId}`);
+      return this.chamarComoUsuario<T>(user, rota, init, true);
+    }
+
+    const corpo = (await res.json().catch(() => null)) as
+      | (T & { message?: string })
+      | null;
+    if (!res.ok || !corpo) {
+      const motivo = corpo?.message ?? `HTTP ${res.status}`;
+      this.logger.warn(`A Voltr recusou ${rota}: ${motivo}`);
+      throw new BadGatewayException(`A Voltr recusou a operação: ${motivo}`);
+    }
+    return corpo;
+  }
+
+  /**
+   * Token de embed para as chamadas server-to-server, com reuso enquanto vale.
+   * Margem de 60s para nunca usar um token que expira no meio do voo.
+   */
+  private async tokenDeServico(user: VoltrUsuario): Promise<string> {
+    const chave = `${user.companyId}:${user.userId}`;
+    const agora = Date.now();
+    const cacheado = this.tokenPorUsuario.get(chave);
+    if (cacheado && cacheado.expiraEm > agora) return cacheado.token;
+
+    const nome = await this.resolveDisplayName(user.userId, user.email);
+    const { accessToken, expiresIn } = await this.getEmbedToken(
+      {
+        companyId: user.companyId,
+        externalUserId: user.userId,
+        email: user.email,
+        nome,
+      },
+      // Só 'chat': o botão da pausa vive no inbox e não precisa de mais nada.
+      ['chat'],
+    );
+    this.tokenPorUsuario.set(chave, {
+      token: accessToken,
+      expiraEm: agora + Math.max((expiresIn - 60) * 1000, 30_000),
+    });
+    return accessToken;
+  }
+
+  /** Lê o estado da IA da Voltr (pausada ou respondendo) deste salão. */
+  async estadoIa(user: VoltrUsuario): Promise<VoltrEstadoIa> {
+    const r = await this.chamarComoUsuario<{
+      envioAutomatico?: boolean;
+      agenteAtivo?: boolean;
+      autopilotAtivo?: boolean;
+    }>(user, '/api/conversas/politica-ia');
+    return {
+      envioAutomatico: r.envioAutomatico !== false,
+      agenteAtivo: r.agenteAtivo !== false,
+      autopilotAtivo: r.autopilotAtivo !== false,
+    };
+  }
+
+  /**
+   * PAUSA ou RETOMA a IA da Voltr neste salão.
+   *
+   * Não envia nem enfileira mensagem nenhuma: só decide quem pode responder
+   * daqui para a frente. Devolve o estado que a Voltr passou a ter de fato —
+   * pedir "retomar" sem agente ativo lá continua pausado, e a tela precisa
+   * mostrar isso em vez do que foi pedido.
+   */
+  async definirPausaIa(
+    user: VoltrUsuario,
+    envioAutomatico: boolean,
+  ): Promise<VoltrEstadoIa> {
+    const r = await this.chamarComoUsuario<{
+      envioAutomatico?: boolean;
+      agenteAtivo?: boolean;
+      autopilotAtivo?: boolean;
+    }>(user, '/api/conversas/politica-ia', {
+      method: 'PATCH',
+      body: { envioAutomatico },
+    });
+    this.logger.log(
+      `IA da Voltr ${envioAutomatico ? 'RETOMADA' : 'PAUSADA'} por ${user.email} (company=${user.companyId}).`,
+    );
+    return {
+      envioAutomatico: r.envioAutomatico !== false,
+      agenteAtivo: r.agenteAtivo !== false,
+      autopilotAtivo: r.autopilotAtivo !== false,
     };
   }
 

@@ -4,6 +4,7 @@ import { ErrorState, LoadingState } from '../components/States';
 import { AppSwitch } from '../components/SwitchRow';
 import { api } from '../lib/api';
 import { apiErrorMessage } from '../lib/toast';
+import { useCan } from '../lib/queries/permissions';
 import { useTheme } from '../theme/theme';
 
 /**
@@ -30,9 +31,21 @@ interface ResumoIa {
   resolutionRate: number;
 }
 
-interface ConfigIa {
-  enabled: boolean;
-  channel?: { phone?: string | null } | null;
+/**
+ * Estado da IA da VOLTR — a que de fato atende no WhatsApp desta tela.
+ *
+ * NÃO é `/whatsapp/inbox/config` (a recepcionista NATIVA do SalonPass, que tem
+ * a tela própria em /whatsapp). O botão daqui mexia naquele interruptor: o dono
+ * apertava "pausar a IA" ao lado do CRM da Voltr e a IA da Voltr, que roda em
+ * outro servidor e outro banco, seguia respondendo. Ver o estudo da pausa.
+ */
+interface EstadoIaVoltr {
+  /** `false` = PAUSADA: ela segue rascunhando, mas não responde ninguém sozinha. */
+  envioAutomatico: boolean;
+  /** Sem agente ativo na Voltr não há o que retomar. */
+  agenteAtivo: boolean;
+  /** Chave-mestra do processo da Voltr — desligada, ninguém responde sozinho. */
+  autopilotAtivo: boolean;
 }
 
 // Trocar Atendimento ↔ Contatos ↔ Kanban não deve parecer uma navegação para
@@ -100,7 +113,11 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [resumoIa, setResumoIa] = useState<ResumoIa | null>(null);
-  const [configIa, setConfigIa] = useState<ConfigIa | null>(null);
+  const [estadoIa, setEstadoIa] = useState<EstadoIaVoltr | null>(null);
+  // Pausar a IA é ação de gestão (a mesma permissão da recepcionista nativa).
+  // Sem ela o estado continua VISÍVEL — esconder o estado é o oposto de honesto
+  // — mas o switch não fica clicável só para tomar 403 do servidor.
+  const podeGerenciarIa = useCan().can('marketing:manage');
   const [erroPainelIa, setErroPainelIa] = useState<string | null>(null);
   const [salvandoIa, setSalvandoIa] = useState(false);
   const [chatMobileAberto, setChatMobileAberto] = useState(false);
@@ -193,11 +210,13 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     const carregar = async () => {
       const [stats, config] = await Promise.allSettled([
         api.get<ResumoIa>('/whatsapp/inbox/stats'),
-        api.get<ConfigIa>('/whatsapp/inbox/config'),
+        // A IA desta tela é a da VOLTR. Ler a config da recepcionista nativa
+        // aqui é o que fazia o cabeçalho anunciar um estado que não era o dela.
+        api.get<EstadoIaVoltr>('/voltr/ia'),
       ]);
       if (!vivo) return;
       if (stats.status === 'fulfilled') setResumoIa(stats.value);
-      if (config.status === 'fulfilled') setConfigIa(config.value);
+      if (config.status === 'fulfilled') setEstadoIa(config.value);
       setErroPainelIa(
         stats.status === 'rejected' || config.status === 'rejected'
           ? 'Não foi possível atualizar o estado da IA agora. Nova tentativa automática em instantes.'
@@ -219,12 +238,26 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     };
   }, [scope]);
 
-  async function alternarIa(enabled: boolean) {
+  /**
+   * PAUSA / RETOMA a IA da Voltr de verdade.
+   *
+   * Nada de otimismo aqui: o estado exibido é o que o servidor devolveu depois
+   * de gravar. Pedir "retomar" sem agente ativo na Voltr continua pausado, e a
+   * tela precisa dizer isso — foi mostrar o que foi PEDIDO, e não o que
+   * ACONTECEU, que deixou o dono achando que tinha pausado a IA.
+   */
+  async function alternarIa(envioAutomatico: boolean) {
     setSalvandoIa(true);
     try {
-      const salvo = await api.patch<ConfigIa>('/whatsapp/inbox/config', { enabled });
-      setConfigIa(salvo);
-      setErroPainelIa(null);
+      const salvo = await api.patch<EstadoIaVoltr>('/voltr/ia', { envioAutomatico });
+      setEstadoIa(salvo);
+      setErroPainelIa(
+        salvo.envioAutomatico === envioAutomatico
+          ? null
+          : envioAutomatico
+            ? 'A IA continua pausada: não há agente ativo na Voltr para retomar.'
+            : 'A IA continua ativa. Recarregue e tente de novo.',
+      );
     } catch (error) {
       setErroPainelIa(apiErrorMessage(error));
     } finally {
@@ -305,14 +338,42 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
               <h1 className="m-0 truncate text-lg font-bold text-[var(--sp-ink)] sm:text-xl">WhatsApp e IA</h1>
               <p className="m-0 mt-1 hidden text-sm text-[var(--sp-muted-ink)] sm:block">Caixa real do número vinculado, atendimento humano e recepcionista virtual</p>
             </div>
-            <div className="flex shrink-0 items-center gap-2 rounded-full border border-[var(--sp-border)] bg-[var(--sp-card)] px-2.5 py-1.5 text-xs shadow-sm sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm">
+            {/* PAUSA DA IA — o rótulo diz o estado REAL do servidor, não o que
+                foi clicado. Três estados honestos: pausada, ativa e
+                indisponível; e a pausa nunca aparece como "ativa" só porque a
+                requisição saiu. */}
+            <div
+              className="flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs shadow-sm sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm"
+              style={{
+                borderColor: 'var(--sp-border)',
+                background: estadoIa && !estadoIa.envioAutomatico
+                  ? 'var(--sp-warning-soft, var(--sp-card))'
+                  : 'var(--sp-card)',
+              }}
+            >
               <span
                 className="font-semibold text-[var(--sp-ink)]"
-                title={erroPainelIa ?? undefined}
+                title={
+                  erroPainelIa ??
+                  (estadoIa
+                    ? estadoIa.envioAutomatico
+                      ? 'A IA responde sozinha os contatos autorizados.'
+                      : 'A IA continua lendo e deixando rascunho, mas nada é enviado sem alguém mandar.'
+                    : undefined)
+                }
               >
-                {configIa ? `IA ${configIa.enabled ? 'ativa' : 'pausada'}` : 'IA indisponível'}
+                {!estadoIa
+                  ? 'IA indisponível'
+                  : estadoIa.envioAutomatico
+                    ? 'IA respondendo'
+                    : 'IA pausada · só rascunhos'}
               </span>
-              <AppSwitch checked={!!configIa?.enabled} onChange={(v) => void alternarIa(v)} isDisabled={!configIa || salvandoIa} aria-label="Ativar ou pausar a IA" />
+              <AppSwitch
+                checked={!!estadoIa?.envioAutomatico}
+                onChange={(v) => void alternarIa(v)}
+                isDisabled={!estadoIa || salvandoIa || !podeGerenciarIa}
+                aria-label="Pausar ou retomar as respostas automáticas da IA"
+              />
             </div>
           </div>
           <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
