@@ -169,6 +169,11 @@ export async function downloadCurrentReport(signatureName = '', companyName = 'S
     // há dados em vez de despejar a interface. Ver estudo 97.
     const linhas = Array.from(report.querySelectorAll<HTMLElement>('[data-report-row], li, tr'))
       .filter(visivel)
+      // Fora navegação, abas e cabeçalho: sem isto o PDF de um relatório VAZIO
+      // saía listando o próprio menu ("Início, Estoque atual, Compras…") como se
+      // fosse dado. Ver estudo 97.
+      .filter((node) => !node.closest('nav,header,[role="tablist"],[role="navigation"],.report-no-print'))
+      .filter((node) => !node.querySelector('a[href]') && node.tagName !== 'A')
       .map((node) => textoLegivel(node))
       .filter((t) => t.length > 2)
       .slice(0, 400);
@@ -270,10 +275,17 @@ function lerResumo(report: HTMLElement): [string, string][] {
     // Card de KPI é raso: um rótulo e um número. Se tiver muito texto, é seção.
     const texto = textoLegivel(card);
     if (!texto || texto.length > 90) return;
+    // O intervalo de datas é período, não indicador — entrava como linha
+    // quebrada ("03/07/2026 - 03/08/" | "2026").
+    if (ehPeriodo(texto)) return;
     const valor = texto.match(/(-?R\$\s?[\d.,]+|-?\d+[\d.,]*\s?%?)\s*$/);
     if (!valor) return;
     const rotulo = texto.slice(0, texto.length - valor[0].length).replace(/[:·-]\s*$/, '').trim();
     if (!rotulo || rotulo.length < 2) return;
+    // Card COMPOSTO (uma seção com vários valores dentro) vinha inteiro como
+    // rótulo: "Receitas por categoria R$ 116,00 Serviços". Indicador de verdade
+    // tem um valor só, no fim.
+    if (/R\$/.test(rotulo)) return;
     const chave = `${rotulo}|${valor[0].trim()}`;
     if (vistos.has(chave)) return;
     vistos.add(chave);
@@ -298,7 +310,19 @@ function periodoDaTela(): string {
     return `${formatReportMetadata(de)} a ${formatReportMetadata(ate)}`;
   }
   if (datas.length === 1) return formatReportMetadata(datas[0]);
-  return '';
+  // Várias telas não usam `input[type=date]`: mostram o intervalo num botão/card
+  // ("03/07/2026 - 03/08/2026"). Sem ler isso, o período sumia do PDF e ainda
+  // era confundido com um KPI. Ver estudo 97.
+  const texto = document.querySelector<HTMLElement>('.mobile-page-content');
+  const achado = texto?.innerText.match(
+    /(\d{2}\/\d{2}\/\d{4})\s*(?:-|–|a|até)\s*(\d{2}\/\d{2}\/\d{4})/,
+  );
+  return achado ? `${achado[1]} a ${achado[2]}` : '';
+}
+
+/** É um card de intervalo de datas (não um indicador)? */
+function ehPeriodo(texto: string): boolean {
+  return /\d{2}\/\d{2}\/\d{4}\s*(?:-|–|a|até)\s*\d{2}\/\d{2}\/\d{4}/.test(texto);
 }
 
 function normalizeReportCell(value: string | null): string {
@@ -389,9 +413,14 @@ function drawFilterPanel(
     const column = index % 2;
     if (column === 0 && index > 0) y += 9;
     const x = 18 + column * (columnWidth + 4);
-    const split = item.indexOf(' ');
+    // Separa por ':' e só cai no primeiro espaço quando não há dois-pontos.
+    // Partir sempre no espaço deformava rótulo de duas palavras ("Data inicial
+    // 01/01" virava "Data: inicial 01/01") e duplicava o sinal quando o item já
+    // vinha rotulado ("Período:: 03/07…"). Ver estudo 97.
+    const doisPontos = item.indexOf(':');
+    const split = doisPontos > 0 ? doisPontos : item.indexOf(' ');
     const label = split > 0 ? item.slice(0, split) : item;
-    const value = split > 0 ? item.slice(split + 1) : '';
+    const value = split > 0 ? item.slice(split + 1).replace(/^:\s*/, '').trim() : '';
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(51, 65, 85);
     doc.text(`${label}:`, x, y);
