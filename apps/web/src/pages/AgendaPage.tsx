@@ -2010,18 +2010,13 @@ export function AgendaPage() {
                       Enviar acompanhamento
                     </Button>
                   )}
-                  {/* Mensagem escrita na hora, para o que não cabe em modelo
-                      nenhum. Ver estudo 87. */}
-                  {can('agenda:manage') && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="sm:col-span-2"
-                      onClick={() => setConfirmationDrawerTab('livre')}
-                    >
-                      Escrever mensagem para a cliente
-                    </Button>
-                  )}
+                  {/* O atalho "Escrever mensagem para a cliente" saiu daqui a
+                      pedido do dono: três botões de envio empilhados nesta
+                      coluna pesavam a visualização do agendamento. A mensagem
+                      livre continua existindo — é a aba "Livre" dentro do
+                      próprio drawer de confirmação
+                      (AppointmentConfirmationDrawer.tsx:485), alcançável por
+                      qualquer um dos dois botões acima. Ver estudo 87. */}
               </div>
               <p className="text-xs text-muted-ink">
                 O envio manual exige autorização explícita e não cria cópia se a
