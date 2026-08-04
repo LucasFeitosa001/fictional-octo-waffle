@@ -73,21 +73,65 @@ export const NOTIF_TYPE_LABEL: Record<string, string> = {
   'crm.agenda_pendencia': 'A IA não achou horário',
 };
 
-/** Full list for the bell panel. Polls so new bookings surface without reload. */
+/**
+ * Opções de POLLING do sino — e por que elas não são o padrão do app.
+ *
+ * O aviso chegava com atraso grande, e a causa era a soma de dois padrões que,
+ * isolados, fazem sentido (ver estudo 116):
+ *
+ *  1. `refetchIntervalInBackground` é `false` por padrão no React Query, então
+ *     o `refetchInterval` PARA quando a aba não está em primeiro plano — e o
+ *     painel do salão passa o dia numa aba de fundo, que é exatamente quando
+ *     um cancelamento precisa aparecer;
+ *  2. `refetchOnWindowFocus: false` global (main.tsx:91) é bom para o resto do
+ *     app — voltar à aba não deve refazer TODAS as queries montadas —, mas
+ *     também tira a chance de recuperar o atraso ao voltar.
+ *
+ * Juntos: nada chegava com a aba de fundo, e voltar para ela ainda esperava o
+ * próximo tique. Um cancelamento feito pela IA levava minutos para aparecer,
+ * com o painel aberto o tempo todo.
+ *
+ * A exceção vale SÓ para notificação: é o dado cuja utilidade depende de chegar
+ * rápido, são queries pequenas, e o sino não desloca conteúdo da página — o
+ * risco de "layout tremendo" que motivou o padrão global não se aplica aqui.
+ *
+ * Limite honesto: isto reduz o atraso ao intervalo, não o elimina. Entrega
+ * instantânea exigiria push nativo ou realtime no painel; nenhum dos dois
+ * existe hoje.
+ */
+const POLL_SINO = {
+  refetchInterval: 30_000,
+  /** Continua contando com a aba em segundo plano. */
+  refetchIntervalInBackground: true,
+  /** Vence o `false` global: voltar à aba mostra na hora o que chegou. */
+  refetchOnWindowFocus: true,
+} as const;
+
+/**
+ * Lista do sino. É ela que alimenta TAMBÉM o badge de não-lidas
+ * (NotificationBell.tsx:87 lê `data.unreadCount`), então é a query que decide
+ * quanto tempo um aviso novo demora a aparecer.
+ */
 export function useNotifications(limit = 30) {
   return useQuery({
     queryKey: ['notifications', limit],
     queryFn: () => api.get<NotificationsResponse>('/notifications', { limit }),
-    refetchInterval: 30_000,
+    ...POLL_SINO,
   });
 }
 
-/** Lightweight unread badge count, polled frequently. */
+/**
+ * Contagem de não-lidas.
+ *
+ * ATENÇÃO: hoje NENHUMA tela consome este hook — o badge do sino sai de
+ * `useNotifications`. Mantido com o mesmo polling para que, se alguém o ligar,
+ * já nasça com o comportamento certo; ligar ou remover é decisão à parte.
+ */
 export function useUnreadCount() {
   return useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: () => api.get<{ unreadCount: number }>('/notifications/unread-count'),
-    refetchInterval: 30_000,
+    ...POLL_SINO,
   });
 }
 
@@ -100,7 +144,7 @@ export function useNotificationSummary() {
   const query = useQuery({
     queryKey: ['notifications', 'summary'],
     queryFn: () => api.get<NotificationSummaryResponse>('/notifications/summary'),
-    refetchInterval: 30_000,
+    ...POLL_SINO,
   });
 
   const unreadByType = new Map(
