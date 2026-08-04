@@ -36,6 +36,21 @@ export interface NotificationRow {
   createdAt: Date;
 }
 
+/**
+ * O sino do PAINEL é só do salão — `userId: null`.
+ *
+ * A mesma tabela guarda dois destinatários muito diferentes: as linhas do salão
+ * (`userId` nulo) e as do CLIENTE logado no portal (`userId` preenchido, lidas
+ * por `PublicBookingService.getMyNotifications`). Sem esta cláusula bastava o
+ * `companyId` para as duas caírem no sino do painel, e o salão lia o recado
+ * pessoal da cliente — "Olá, Fulana! Seu Manicure com … está confirmado … 💕" —
+ * em vez do resumo curto de `composeAppointmentMessages().studio`
+ * ("Agendamento confirmado: Fulana" / "Manicure com Bruna em terça-feira,
+ * 04/08, 16:15 (até 16:30)."). Aparecia só no agendamento ONLINE porque só ali
+ * a cliente tem conta.
+ */
+const DO_SALAO = (companyId: string) => ({ companyId, userId: null });
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -228,11 +243,11 @@ export class NotificationsService {
     const typeFilter =
       opts.types && opts.types.length > 0 ? { type: { in: opts.types } } : {};
     const where = {
-      companyId,
+      ...DO_SALAO(companyId),
       ...typeFilter,
       ...(opts.unreadOnly ? { readAt: null } : {}),
     };
-    const countWhere = { companyId, ...typeFilter };
+    const countWhere = { ...DO_SALAO(companyId), ...typeFilter };
     const [data, total, unreadCount] = await Promise.all([
       this.prisma.client.notification.findMany({
         where,
@@ -257,12 +272,12 @@ export class NotificationsService {
     const [totals, unreads] = await Promise.all([
       this.prisma.client.notification.groupBy({
         by: ['type'],
-        where: { companyId },
+        where: DO_SALAO(companyId),
         _count: { _all: true },
       }),
       this.prisma.client.notification.groupBy({
         by: ['type'],
-        where: { companyId, readAt: null },
+        where: { ...DO_SALAO(companyId), readAt: null },
         _count: { _all: true },
       }),
     ]);
@@ -277,14 +292,14 @@ export class NotificationsService {
 
   async unreadCount(companyId: string): Promise<{ unreadCount: number }> {
     const unreadCount = await this.prisma.client.notification.count({
-      where: { companyId, readAt: null },
+      where: { ...DO_SALAO(companyId), readAt: null },
     });
     return { unreadCount };
   }
 
   async markRead(companyId: string, id: string): Promise<{ ok: true }> {
     await this.prisma.client.notification.updateMany({
-      where: { id, companyId, readAt: null },
+      where: { id, ...DO_SALAO(companyId), readAt: null },
       data: { readAt: new Date() },
     });
     return { ok: true };
@@ -298,7 +313,7 @@ export class NotificationsService {
   async markAllRead(companyId: string, types?: string[]): Promise<{ ok: true }> {
     const typeFilter = types && types.length > 0 ? { type: { in: types } } : {};
     await this.prisma.client.notification.updateMany({
-      where: { companyId, readAt: null, ...typeFilter },
+      where: { ...DO_SALAO(companyId), readAt: null, ...typeFilter },
       data: { readAt: new Date() },
     });
     return { ok: true };
