@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Input, Label, Spinner, TextField } from '@heroui/react';
 import { ArrowLeft } from '@gravity-ui/icons';
-import { signIn, signUp } from '../lib/auth';
+import { signIn, signOut, signUp, useCustomerSession } from '../lib/auth';
 import { useBookingAccent } from '../lib/booking';
 import { SalonBrand } from '../components/SalonBrand';
 
@@ -82,6 +82,8 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
   const [error, setError] = useState<string | null>(null);
   /** Código cru do Better Auth, preservado para diagnóstico. */
   const [erroCru, setErroCru] = useState<string | null>(null);
+  // Sessão de STAFF: entrou com a conta do salão, que não agenda. Ver estudo 119.
+  const { ehStaff, emailDaConta } = useCustomerSession();
 
   /**
    * Mostra a falha do OAuth que volta na URL (`?error=`).
@@ -262,6 +264,25 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
               >
                 {error}
               </p>
+            )}
+
+            {/* Entrou com a conta do SALÃO: o login deu certo, mas aquela conta
+                não agenda. Sem dizer isso, a tela apenas voltava ao formulário e
+                parecia que nada tinha acontecido. Ver estudo 119. */}
+            {ehStaff && (
+              <div className="rounded-lg bg-warning/10 px-3 py-2 text-sm">
+                <p className="m-0 text-foreground">
+                  {emailDaConta ? <><strong>{emailDaConta}</strong> é </> : 'Esta é '}
+                  uma conta de administrador do salão e não agenda como cliente.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void signOut().then(() => window.location.reload())}
+                  className="mt-1 font-semibold underline underline-offset-2"
+                >
+                  Sair e entrar com outra conta
+                </button>
+              </div>
             )}
 
             <Button

@@ -25,7 +25,18 @@ export function useCustomerSession() {
   const session = useSession();
   const accountType = (session.data?.user as { accountType?: string } | undefined)?.accountType;
   if (session.data && accountType !== 'customer') {
-    return { ...session, data: null };
+    // `ehStaff` existe porque anular a sessão em silêncio confundia quem tinha
+    // acabado de entrar. O dono vinculou a conta Google do ADMIN dele no passo 4
+    // do agendamento: o login funcionou (vínculo e sessão criados no servidor),
+    // mas a tela voltou a oferecer "Crie sua conta", sem uma palavra — parecia
+    // que "nem conectou". Quem consome este hook usa o sinal para EXPLICAR o que
+    // houve, em vez de fingir que não houve nada. Ver estudo 119.
+    return {
+      ...session,
+      data: null,
+      ehStaff: true,
+      emailDaConta: (session.data.user as { email?: string } | undefined)?.email ?? null,
+    };
   }
-  return session;
+  return { ...session, ehStaff: false, emailDaConta: null };
 }
