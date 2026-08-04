@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { betterAuth } from 'better-auth';
 import { randomBytes } from 'node:crypto';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
@@ -129,6 +130,9 @@ function resolveAuthSecret(): string {
   return randomBytes(32).toString('hex');
 }
 
+/** Log das falhas de autenticação — ver `onAPIError` abaixo. */
+const logAuth = new Logger('BetterAuth');
+
 export const auth = betterAuth({
   appName: 'Beautypass',
   secret: resolveAuthSecret(),
@@ -172,6 +176,30 @@ export const auth = betterAuth({
       enabled: true,
       trustedProviders: ['google'],
       requireLocalEmailVerified: false,
+    },
+  },
+  /**
+   * LOG do erro de login social — sem isto o defeito é invisível em produção.
+   *
+   * `oauth2/link-account.mjs:23` só avisa `if (isDevelopment())`, então a recusa
+   * mais comum (`account_not_linked`) não deixa NENHUM rastro no servidor: o
+   * usuário é redirecionado e não sobra nada para investigar. Passei dois vídeos
+   * do dono tentando adivinhar qual era o erro porque a janela de log estava
+   * vazia. Ver estudo 117.
+   *
+   * Só metadado: caminho, status e mensagem do Better Auth. Nada de token,
+   * código de autorização ou dado do usuário.
+   */
+  onAPIError: {
+    onError: (error) => {
+      const e = error as {
+        status?: number | string;
+        message?: string;
+        body?: { code?: string; message?: string };
+      };
+      const codigo = e?.body?.code ?? e?.status ?? '?';
+      const detalhe = e?.body?.message ?? e?.message ?? '';
+      logAuth.warn(`falha: ${codigo} ${detalhe}`.trim());
     },
   },
   // Share the session cookie across salonpass.com.br subdomains so a Google
