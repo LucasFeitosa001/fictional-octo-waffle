@@ -70,6 +70,16 @@ interface MensagemEncaminhada {
    *  informado depois que a cópia da mensagem existir lá. Ver estudo 91. */
   degrau: number;
   em: number;
+  /**
+   * Com que chave a VOLTR conhece esta mensagem.
+   *
+   * Só existe quando o envio NASCEU na Voltr: lá a Mensagem foi gravada com um
+   * UUID próprio (que chegou até nós em `requestKey`), e não com o id do
+   * WhatsApp — o `/api/ingest/status` casa por esse UUID. Quando o atendente
+   * digita no celular do salão, quem criou a Mensagem na Voltr foi o nosso
+   * `/api/ingest/mensagem` usando o id do WhatsApp, e aí não há o que traduzir.
+   */
+  externalIdNaVoltr?: string;
 }
 
 /** Recibo esperando a janela fechar para ser despachado. */
@@ -130,7 +140,15 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
       // Guardamos antes do POST: o ACK costuma vir depois, e quem chegar antes
       // da cópia existir lá é reagendado pelo despacho.
       if (msg.fromMe && msg.messageId && this.voltr.integracaoLigada(msg.companyId)) {
-        this.lembrarEncaminhada(msg.companyId, msg.messageId);
+        // Anota junto a chave com que a Voltr conhece a mensagem, quando o
+        // envio nasceu lá. É consulta a um Map em memória — o mesmo que a porta
+        // do eco já faz duas linhas abaixo —, então o ACK continua sem custo de
+        // banco. Ver `registrarAck`.
+        this.lembrarEncaminhada(
+          msg.companyId,
+          msg.messageId,
+          this.whatsapp.externalIdDaVoltr(msg.messageId),
+        );
       }
 
       // A conversa é identificada pelo CONTATO, e o contato é o `remoteJid` — em
@@ -281,11 +299,21 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
     this.encaminhadas.clear();
   }
 
-  /** Anota que esta mensagem nossa foi copiada para a Voltr e pode receber ACK. */
-  private lembrarEncaminhada(companyId: string, messageId: string): void {
+  /**
+   * Anota que esta mensagem nossa foi copiada para a Voltr e pode receber ACK.
+   *
+   * `externalIdNaVoltr` só vem quando o envio nasceu na Voltr; ausente significa
+   * "a Voltr conhece esta mensagem pelo id do WhatsApp mesmo".
+   */
+  private lembrarEncaminhada(
+    companyId: string,
+    messageId: string,
+    externalIdNaVoltr?: string,
+  ): void {
     this.encaminhadas.set(this.chave(companyId, messageId), {
       degrau: 0,
       em: Date.now(),
+      ...(externalIdNaVoltr ? { externalIdNaVoltr } : {}),
     });
     this.podarEncaminhadas();
   }
@@ -296,6 +324,13 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
    * Sai calado em três casos, todos normais: status que não sobe o degrau,
    * mensagem que nunca foi para a Voltr (mídia, outro salão, envio anterior a um
    * restart) e degrau que a Voltr já tem.
+   *
+   * O recibo sai com a chave que a VOLTR usa, que nem sempre é o id do
+   * WhatsApp: o que a Voltr mandou enviar está gravado lá com o UUID dela, e o
+   * ACK com o id do WhatsApp nunca achava aquela linha — a mensagem ficava
+   * eternamente `na_fila` (relógio no balão). O que o atendente digita no
+   * celular continua indo com o id do WhatsApp, porque foi assim que a nossa
+   * cópia criou a Mensagem lá.
    */
   private registrarAck(ack: WhatsappDeliveryUpdate): void {
     if (this.parado) return;
@@ -320,7 +355,7 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
 
     this.pendentes.set(chave, {
       companyId: ack.companyId,
-      externalId: ack.whatsappMessageId,
+      externalId: encaminhada.externalIdNaVoltr ?? ack.whatsappMessageId,
       degrau,
       status: STATUS_VOLTR[ack.status],
       tentativas: 0,

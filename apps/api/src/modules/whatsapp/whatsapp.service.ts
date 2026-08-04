@@ -196,6 +196,10 @@ const CLIENT_AUTOMATION_KINDS = [
 // Quantas mensagens enviadas guardar por sessão para responder aos retry-receipts
 // (ver getMessage). Cobre com folga a janela em que um aparelho pede reenvio.
 const SENT_CACHE_MAX = 1000;
+// Quantos pares `id do WhatsApp → externalId da Voltr` ficam em memória. O par
+// é consumido segundos depois do envio (eco do Baileys e recibo); o teto só
+// existe para o mapa não crescer sem fim num processo de vida longa.
+const NASCIDAS_NA_VOLTR_MAX = 500;
 const MAX_INBOUND_MEDIA_BYTES = 16 * 1024 * 1024;
 // Por quanto tempo guardar a cópia da mensagem enviada para responder a um
 // pedido de reenvio. 14 dias cobre com folga a janela real do WhatsApp; depois
@@ -1312,6 +1316,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     customerId: string | null;
     appointmentId: string | null;
     kind: string | null;
+    /** Chave de idempotência de quem pediu o envio. Na Voltr é o externalId
+     *  dela — é por ele que o recibo tem de voltar. */
+    requestKey: string | null;
     inboxMessageId: string | null;
     createdAt: Date;
     authorizedAt: Date | null;
@@ -1427,12 +1434,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       // marca o encaminhador a manda de volta para a Voltr como se fosse fala
       // nova do salão — foi por isso que toda linha da Mariana aparecia
       // duplicada logo abaixo como "Você:". Ver estudo 98.
+      // Guarda o PAR, não só o id: o recibo do WhatsApp precisa voltar para a
+      // Voltr com o externalId DELA (o UUID que veio em `requestKey`), senão o
+      // ACK bate numa mensagem que não existe lá e o balão fica no relógio.
+      // Sem `requestKey` (não deveria acontecer — o controller sempre grava um)
+      // o par vira identidade e o comportamento é o de antes.
       if (sent?.key?.id && msg.kind === 'voltr_outbound') {
-        this.nascidasNaVoltr.add(sent.key.id);
-        if (this.nascidasNaVoltr.size > 500) {
-          const maisVelha = this.nascidasNaVoltr.values().next().value;
-          if (maisVelha) this.nascidasNaVoltr.delete(maisVelha);
-        }
+        this.marcarNascidaNaVoltr(sent.key.id, msg.requestKey);
       }
       await db.whatsappOutbox.update({
         where: { id: msg.id },
@@ -1741,15 +1749,54 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    */
   /** Guarda no cache de memória da sessão, com teto FIFO. */
   /**
-   * Ids de mensagens que a própria Voltr mandou enviar. Só serve para o
-   * encaminhador não devolvê-las à Voltr (a cópia de lá já existe). Some no
-   * restart: o pior caso é uma duplicata isolada, nunca uma mensagem perdida.
+   * Mensagens que a própria Voltr mandou enviar: `id do WhatsApp` → `externalId
+   * que a Voltr conhece` (o UUID que ela gerou e nos entregou em `requestKey`).
+   *
+   * Serve para duas coisas, e as duas dependem do MESMO par:
+   *   1. o encaminhador não devolve estas mensagens à Voltr (a cópia de lá já
+   *      existe) — ver estudo 98;
+   *   2. o recibo do WhatsApp é traduzido de volta para a chave da Voltr antes
+   *      de ser despachado; sem isso o ACK chega lá com um id que a Mensagem
+   *      original não tem e o balão fica no relógio para sempre.
+   *
+   * Some no restart, de propósito: o `encaminhadas` do forwarder — o único
+   * consumidor do recibo — também é memória e nasce vazio junto, então não há
+   * ACK órfão esperando por esta tabela. Pior caso: uma duplicata isolada,
+   * nunca uma mensagem perdida.
    */
-  private readonly nascidasNaVoltr = new Set<string>();
+  private readonly nascidasNaVoltr = new Map<string, string>();
 
   /** O encaminhador pergunta antes de mandar um `fromMe` de volta para a Voltr. */
   nasceuNaVoltr(messageId: string): boolean {
     return this.nascidasNaVoltr.has(messageId);
+  }
+
+  /**
+   * Com que `externalId` a VOLTR conhece esta mensagem nossa.
+   *
+   * `undefined` quando o envio NÃO nasceu na Voltr (atendente digitando no
+   * celular do salão) — aí quem vale é o próprio id do WhatsApp, que é o que a
+   * cópia encaminhada gravou lá.
+   */
+  externalIdDaVoltr(messageId: string): string | undefined {
+    return this.nascidasNaVoltr.get(messageId);
+  }
+
+  /**
+   * Guarda o par `id do WhatsApp → externalId da Voltr` do envio recém-saído.
+   *
+   * Sem `requestKey` (não deveria acontecer — o controller da Voltr sempre
+   * grava um) o par vira identidade: a porta do eco continua fechando e o
+   * recibo sai com o id do WhatsApp, exatamente como antes.
+   */
+  private marcarNascidaNaVoltr(messageId: string, requestKey: string | null): void {
+    this.nascidasNaVoltr.set(messageId, requestKey ?? messageId);
+    if (this.nascidasNaVoltr.size > NASCIDAS_NA_VOLTR_MAX) {
+      // `keys()`, não `values()`: num Map o valor é o externalId da Voltr, e
+      // apagar por ele não removeria nada — a memória cresceria sem teto.
+      const maisVelha = this.nascidasNaVoltr.keys().next().value;
+      if (maisVelha) this.nascidasNaVoltr.delete(maisVelha);
+    }
   }
 
   private guardarNoCache(
