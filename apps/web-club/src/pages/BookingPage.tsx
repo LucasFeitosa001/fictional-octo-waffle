@@ -126,6 +126,62 @@ function nextDays(count = 14): Date[] {
 }
 
 type Step = BookingNavStep;
+
+/**
+ * RASCUNHO do agendamento — o que sobrevive ao desvio pelo login com Google.
+ *
+ * O login social é uma navegação de página inteira: o navegador sai para o
+ * Google e volta, e todo `useState` do BookingPage morre no caminho. O dono
+ * escolhia serviço, profissional, dia e horário, vinculava a conta e voltava
+ * para o passo 1, tendo que refazer tudo. O dado nunca foi "perdido por bug" —
+ * ele nunca era guardado. Ver estudo 118.
+ *
+ * `sessionStorage`, não `localStorage`: rascunho pertence à aba e àquela visita.
+ * Em `localStorage` ele sobreviveria dias e ressuscitaria, na visita seguinte,
+ * um horário provavelmente já ocupado.
+ */
+interface RascunhoAgendamento {
+  slug: string;
+  step: Step;
+  services: Service[];
+  professional: Professional | null;
+  /** ISO do dia escolhido (só a data importa). */
+  date: string;
+  slot: string | null;
+  salvoEm: number;
+}
+
+/** Rascunho mais velho que isto é descartado: horário velho é pior que nenhum. */
+const RASCUNHO_VALIDADE_MS = 30 * 60 * 1000;
+
+const rascunhoKey = (slug: string) => `sp-club:rascunho:${slug}`;
+
+function lerRascunho(slug: string): RascunhoAgendamento | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cru = window.sessionStorage.getItem(rascunhoKey(slug));
+    if (!cru) return null;
+    const r = JSON.parse(cru) as RascunhoAgendamento;
+    const fresco = Date.now() - (r?.salvoEm ?? 0) < RASCUNHO_VALIDADE_MS;
+    // Confere o salão: a mesma aba pode ter passado por outro portal.
+    if (!fresco || r?.slug !== slug || !Array.isArray(r.services)) {
+      window.sessionStorage.removeItem(rascunhoKey(slug));
+      return null;
+    }
+    return r;
+  } catch {
+    return null;
+  }
+}
+
+function apagarRascunho(slug: string): void {
+  try {
+    window.sessionStorage.removeItem(rascunhoKey(slug));
+  } catch {
+    // Modo privado/quota: seguir sem rascunho é degradação aceitável.
+  }
+}
+
 const STEPS: { id: Step; label: string; icon: React.ReactNode }[] = [
   { id: 'service', label: 'Serviços', icon: <Tag width={16} height={16} /> },
   { id: 'professional', label: 'Profissional', icon: <Person width={16} height={16} /> },
@@ -202,18 +258,23 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     };
   }, [portal.data?.logoUrl]);
 
-  const [step, setStep] = useState<Step>('service');
-  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  // Rascunho lido UMA vez, na montagem: é o que devolve a pessoa ao ponto em
+  // que ela estava antes de sair para o Google. Ver estudo 118.
+  const rascunho = useRef<RascunhoAgendamento | null>(lerRascunho(slug)).current;
+
+  const [step, setStep] = useState<Step>(rascunho?.step ?? 'service');
+  const [selectedServices, setSelectedServices] = useState<Service[]>(rascunho?.services ?? []);
   // Convenience aliases for the primary (first) service — used by downstream
   // queries that still need a single serviceId, and backwards compat.
   const service = selectedServices.length > 0 ? selectedServices[0] : null;
-  const [professional, setProfessional] = useState<Professional | null>(null);
+  const [professional, setProfessional] = useState<Professional | null>(rascunho?.professional ?? null);
   const [date, setDate] = useState<Date>(() => {
-    const d = new Date();
+    const salva = rascunho?.date ? new Date(rascunho.date) : null;
+    const d = salva && !Number.isNaN(salva.getTime()) ? salva : new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  const [slot, setSlot] = useState<string | null>(null);
+  const [slot, setSlot] = useState<string | null>(rascunho?.slot ?? null);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
@@ -226,6 +287,34 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   // "Favoritos" tab or the Favoritos filter chip).
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const favorites = useFavorites(slug);
+
+  /**
+   * Grava o rascunho a cada escolha, para que o desvio pelo login não custe o
+   * trabalho já feito.
+   *
+   * Grava a partir do momento em que HÁ algo escolhido — um rascunho vazio só
+   * ocuparia espaço e mascararia o "começar do zero" legítimo. Falha de
+   * `sessionStorage` (modo privado, cota) é engolida: perder o rascunho é ruim,
+   * derrubar a tela de agendamento é pior.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (selectedServices.length === 0 && !professional && !slot) return;
+    try {
+      const r: RascunhoAgendamento = {
+        slug,
+        step,
+        services: selectedServices,
+        professional,
+        date: date.toISOString(),
+        slot,
+        salvoEm: Date.now(),
+      };
+      window.sessionStorage.setItem(rascunhoKey(slug), JSON.stringify(r));
+    } catch {
+      // Sem rascunho o fluxo continua funcionando; só não sobrevive ao login.
+    }
+  }, [slug, step, selectedServices, professional, date, slot]);
 
   const serviceIds = selectedServices.map((s) => s.id);
   const professionals = useProfessionals(slug, service?.id ?? null, serviceIds.length > 1 ? serviceIds : undefined);
@@ -327,6 +416,9 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
       // Logged-in customers without a phone supply one here; it's persisted.
       phone: needsPhone ? accountPhone.trim() : undefined,
     });
+    // O rascunho cumpriu o papel: mantê-lo faria o PRÓXIMO agendamento abrir já
+    // preenchido com o horário que a pessoa acabou de marcar.
+    apagarRascunho(slug);
     setDone(true);
   }
 
