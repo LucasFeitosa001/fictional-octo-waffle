@@ -92,6 +92,20 @@ function numeroOuTraco(v: number | null | undefined): number | string {
 // para a tela correta. O EmbedBootstrap continua renovando o JWT por
 // postMessage; isto é apenas cache de navegação, não bypass de autenticação.
 const EMBED_CACHE = new Map<Escopo, TokenEmCache>();
+
+/**
+ * Último estado CONHECIDO da pausa da IA, para a faixa não piscar ao abrir.
+ *
+ * Sem isto o `useState(null)` renderizava o switch DESLIGADO por ~1 segundo até
+ * o GET voltar, e ele saltava para ligado — medido no navegador em 04/08: a
+ * faixa ia de "IA indisponível" para "IA respondendo". Parecia que a coisa
+ * ligava e desligava sozinha.
+ *
+ * Em MEMÓRIA de propósito, nunca em localStorage: configuração é por empresa e
+ * não pode sobreviver a uma troca de tenant. Recarregar a página zera, que é o
+ * comportamento seguro. Ver estudo 108.
+ */
+let ULTIMO_ESTADO_IA: EstadoIaVoltr | null = null;
 const CACHE_MS = 8 * 60 * 1000;
 
 function origemDe(url: string): string {
@@ -151,7 +165,11 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [metricasIa, setMetricasIa] = useState<MetricasIa | null>(null);
-  const [estadoIa, setEstadoIa] = useState<EstadoIaVoltr | null>(null);
+  const [estadoIa, setEstadoIa] = useState<EstadoIaVoltr | null>(ULTIMO_ESTADO_IA);
+  // "Ainda não perguntei" é diferente de "perguntei e não deu". Sem separar os
+  // dois, o primeiro acesso anunciava "IA indisponível" por um segundo — um
+  // alarme falso para quem só abriu a tela.
+  const [iaConsultada, setIaConsultada] = useState(ULTIMO_ESTADO_IA !== null);
   // Pausar a IA é ação de gestão (a mesma permissão da recepcionista nativa).
   // Sem ela o estado continua VISÍVEL — esconder o estado é o oposto de honesto
   // — mas o switch não fica clicável só para tomar 403 do servidor.
@@ -254,7 +272,11 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       ]);
       if (!vivo) return;
       if (metricas.status === 'fulfilled') setMetricasIa(metricas.value);
-      if (config.status === 'fulfilled') setEstadoIa(config.value);
+      if (config.status === 'fulfilled') {
+        ULTIMO_ESTADO_IA = config.value;
+        setEstadoIa(config.value);
+      }
+      setIaConsultada(true);
       setErroPainelIa(
         metricas.status === 'rejected' || config.status === 'rejected'
           ? 'Não foi possível atualizar o estado da IA agora. Nova tentativa automática em instantes.'
@@ -288,6 +310,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     setSalvandoIa(true);
     try {
       const salvo = await api.patch<EstadoIaVoltr>('/voltr/ia', { envioAutomatico });
+      ULTIMO_ESTADO_IA = salvo;
       setEstadoIa(salvo);
       setErroPainelIa(
         salvo.envioAutomatico === envioAutomatico
@@ -431,7 +454,9 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
                 }
               >
                 {!estadoIa
-                  ? 'IA indisponível'
+                  ? iaConsultada
+                    ? 'IA indisponível'
+                    : 'Verificando a IA…'
                   : estadoIa.envioAutomatico
                     ? 'IA respondendo'
                     : 'IA pausada · só rascunhos'}
