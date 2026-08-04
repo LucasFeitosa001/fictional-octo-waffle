@@ -27,6 +27,7 @@ import { SalonPayPage } from './pages/financeiro/SalonPayPage';
 import { CaixasAbertosPage } from './pages/financeiro/CaixasAbertosPage';
 import { CaixaHistoricoPage } from './pages/financeiro/CaixaHistoricoPage';
 import { FinanceiroConfiguracoesPage } from './pages/financeiro/FinanceiroConfiguracoesPage';
+import { NotasFiscaisBloqueioPage } from './pages/financeiro/NotasFiscaisBloqueioPage';
 import { AnamnesesPage } from './pages/cadastros/AnamnesesPage';
 // "Convidar profissionais" e "Usuários" foram ABSORVIDOS pela página
 // consolidada Profissionais (/profissionais). As rotas antigas redirecionam
@@ -494,11 +495,7 @@ function ProtectedRoutes() {
           path="/financeiro/notas-fiscais"
           element={
             <ProtectedRoute perm="financeiro:view">
-              <IntegrationUnavailablePage
-                title="Emissão fiscal ainda não configurada"
-                description="É necessário integrar um provedor fiscal antes de emitir, editar ou baixar notas. A tela não simula mais emissões locais."
-                backTo="/financeiro"
-              />
+              <NotasFiscaisBloqueioPage />
             </ProtectedRoute>
           }
         />

@@ -74,3 +74,62 @@ acertado. Entrega a tela sem fingir cobrança e sem liberar recurso pago.
 
 O `IntegrationUnavailablePage` sai dessa rota. Ele continua existindo e sendo
 usado por outras integrações que de fato não existem.
+
+## Segunda rodada — separar o que funciona do que é promessa
+
+Pedidos do dono depois de ver a tela:
+
+1. trazer de volta, **como vitrine**, os módulos que ainda não existem — quem
+   tenta adicionar cai no suporte;
+2. **auditar os 12** e mover para essa vitrine os que não funcionam de verdade;
+3. na página de **Nota Fiscal**, duas mensagens conforme o plano: quem não tem o
+   Max precisa subir de plano; quem já tem, precisa da integração.
+
+### Auditoria — arquivos tocados nesta rodada
+
+- `apps/web/src/pages/PerfilAdicionaisPage.tsx`
+- `apps/web/src/pages/financeiro/NotasFiscaisBloqueioPage.tsx` (novo)
+- `apps/web/src/App.tsx`
+
+### O que a auditoria mediu
+
+Para cada uma das 12 chaves, contei rotas com `@RequireFeature('<chave>')` em
+`apps/api/src` e o gate correspondente no menu (`feature="<chave>"` em App.tsx):
+
+```
+online_booking     backend=1  menu=1     cashback        backend=3  menu=1
+goals              backend=1  menu=1     commissions     backend=2  menu=1
+packages           backend=1  menu=1     memberships     backend=1  menu=1
+messaging          backend=2  menu=0     campaigns       backend=2  menu=1
+reports_advanced   backend=1  menu=1     whatsapp_api    backend=2  menu=1
+custom_subdomain   backend=0  menu=0  ←  nfe             backend=0  menu=0  ←
+```
+
+Os dois de backend=0:
+
+- **`nfe`** — não existe módulo algum no backend, e as duas telas
+  (`/financeiro/notas-fiscais`, `/reports/invoices`) já apontavam para
+  `IntegrationUnavailablePage`. `NotasFiscaisPage.tsx` é uma maquete de 782
+  linhas com ZERO chamadas de API — o mesmo padrão da tela de adicionais.
+- **`custom_subdomain`** — vendido no plano Pro e a chave **não é conferida em
+  lugar nenhum**: grep em `apps/api/src` e `apps/web/src` fora do catálogo não
+  devolve nada. Vender como pronto o que não tem gate é a mesma mentira que esta
+  tela veio corrigir.
+
+Os outros 10 têm rota no backend e tela real — incluindo o `whatsapp_api`, que
+já se comporta como o dono descreveu: só no Max, com `FeatureGate` barrando quem
+está no Pro.
+
+### O que a segunda rodada muda
+
+- `AINDA_NAO_FUNCIONA = {nfe, custom_subdomain}`: nunca aparecem como ativos nem
+  como contratáveis, mesmo que o plano os inclua;
+- seção **"Em desenvolvimento"**, com esses dois mais cinco itens sem
+  equivalente real que sobreviveram da maquete (Assinatura digital,
+  Contabilidade, Envio de imagens e arquivos, Gerador de documentos, Integração
+  via API). Sem preço e sem data — só selo "Em breve" e "Tenho interesse", que
+  abre o suporte. Os itens da maquete que duplicavam módulos reais (Cashback,
+  Metas, Promoções, Pacotes, Vendas por assinatura, WhatsApp) ficaram de fora;
+- `NotasFiscaisBloqueioPage`: lê `GET /feature-flags` e escolhe entre "está no
+  plano Max" (para quem não tem) e "ainda não configurada" (para quem já tem) —
+  mandar quem já assina o Max "assinar o Max" seria mentira.

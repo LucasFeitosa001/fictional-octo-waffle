@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { MobileBackHeader } from '../components/MobileBackHeader';
 import { LoadingState } from '../components/States';
-import { IconCheck, IconLock, IconSparkles, IconWhatsApp } from '../components/icons';
+import { IconCheck, IconClock, IconLock, IconSparkles, IconWhatsApp } from '../components/icons';
 import { useFeatures } from '../lib/queries/features';
 import { usePlans, type Plan, type PlanFeature } from '../lib/queries/plans';
 import { useEmpresa } from '../lib/queries/empresa';
@@ -37,6 +37,59 @@ import { useEmpresa } from '../lib/queries/empresa';
 
 /** Ordem de exibição dos planos, do mais barato ao mais completo. */
 const ORDEM_PLANO: Record<string, number> = { starter: 0, pro: 1, max: 2 };
+
+/**
+ * Módulos do catálogo que AINDA NÃO funcionam — ficam na vitrine, nunca entre os
+ * contratáveis.
+ *
+ *  - `nfe`: não existe NADA no backend (grep por nfe/NotaFiscal em apps/api/src
+ *    não devolve módulo algum) e as duas telas — /financeiro/notas-fiscais e
+ *    /reports/invoices — já mostram "ainda não configurada".
+ *  - `custom_subdomain`: está vendido no plano Pro e a chave não é conferida em
+ *    lugar nenhum, nem no backend nem no menu. Vender como pronto o que não tem
+ *    gate é o mesmo tipo de mentira da maquete que esta tela substituiu.
+ *
+ * Ver estudo 122.
+ */
+const AINDA_NAO_FUNCIONA = new Set<string>(['nfe', 'custom_subdomain']);
+
+/**
+ * Vitrine: o que o produto pretende ter e ainda não tem. Sobreviveu da maquete
+ * antiga — de propósito, a pedido do dono: serve para o salão ver o caminho e
+ * dizer que tem interesse. Ficam SEM preço e sem promessa de data; o botão só
+ * abre o suporte.
+ *
+ * Só entram itens sem equivalente entre os módulos reais. Os da maquete que
+ * duplicavam módulos existentes (Cashback, Metas, Promoções, Pacotes, Vendas por
+ * assinatura, WhatsApp) saíram para não listar a mesma coisa duas vezes.
+ */
+const EM_BREVE: { label: string; description: string }[] = [
+  {
+    label: 'Assinatura digital',
+    description:
+      'Assinatura com validade jurídica em comissões e documentos, aplicada também na impressão.',
+  },
+  {
+    label: 'Contabilidade',
+    description:
+      'Envio automático do movimento financeiro para o seu contador, sem exportar planilha.',
+  },
+  {
+    label: 'Envio de imagens e arquivos',
+    description:
+      'Mandar fotos de referência e documentos para a cliente junto das mensagens do salão.',
+  },
+  {
+    label: 'Gerador de documentos',
+    description:
+      'Contratos, termos e recibos preenchidos com os dados do cliente e do atendimento.',
+  },
+  {
+    label: 'Integração via API',
+    description:
+      'Conectar o Salonpass a outros sistemas da sua operação por uma API própria.',
+  },
+];
 
 interface ModuloNaTela extends PlanFeature {
   /** Plano mais barato que inclui este módulo. */
@@ -73,19 +126,34 @@ export function PerfilAdicionaisPage() {
     return [...porChave.values()];
   }, [plansQuery.data, featuresQuery.data]);
 
-  const ativos = modulos.filter((m) => m.ativo);
-  const disponiveis = modulos.filter((m) => !m.ativo);
+  // Um módulo que ainda não funciona NUNCA aparece como ativo nem como
+  // contratável, mesmo que o plano da empresa o inclua no catálogo.
+  const ativos = modulos.filter((m) => m.ativo && !AINDA_NAO_FUNCIONA.has(m.key));
+  const disponiveis = modulos.filter((m) => !m.ativo && !AINDA_NAO_FUNCIONA.has(m.key));
+  const naoProntos = modulos.filter((m) => AINDA_NAO_FUNCIONA.has(m.key));
   const planoAtual = featuresQuery.data?.plan ?? null;
 
-  function pedirContratacao(modulo: ModuloNaTela) {
-    const salao = empresa.data?.name?.trim() || 'meu salão';
-    const texto =
-      `Olá! Quero contratar o módulo "${modulo.label}" para ${salao}. ` +
-      `(entra no plano ${modulo.plano.label})`;
+  const salao = () => empresa.data?.name?.trim() || 'meu salão';
+
+  function abrirSuporte(texto: string) {
     window.open(
       `https://wa.me/?text=${encodeURIComponent(texto)}`,
       '_blank',
       'noopener,noreferrer',
+    );
+  }
+
+  function pedirContratacao(modulo: ModuloNaTela) {
+    abrirSuporte(
+      `Olá! Quero contratar o módulo "${modulo.label}" para ${salao()}. ` +
+        `(entra no plano ${modulo.plano.label})`,
+    );
+  }
+
+  function registrarInteresse(label: string) {
+    abrirSuporte(
+      `Olá! Tenho interesse no módulo "${label}" para ${salao()}. ` +
+        `Quero saber quando estará disponível.`,
     );
   }
 
@@ -173,6 +241,56 @@ export function PerfilAdicionaisPage() {
                 Você já tem todos os módulos disponíveis.
               </p>
             )}
+
+            {/* VITRINE — o que ainda não funciona. Fica visível de propósito,
+                para o salão ver o caminho e sinalizar interesse, mas sem preço,
+                sem data e sem botão de contratar: prometer entrega é como a
+                maquete anterior enganava. */}
+            <section className="flex flex-col gap-3">
+              <div>
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  Em desenvolvimento ({naoProntos.length + EM_BREVE.length})
+                </h2>
+                <p className="mt-1 text-xs text-muted-ink">
+                  Ainda não estão prontos para uso. Se algum te interessa, avise o suporte —
+                  isso ajuda a definir a ordem do que sai primeiro.
+                </p>
+              </div>
+              <ul className="grid list-none gap-3 p-0 sm:grid-cols-2">
+                {[
+                  ...naoProntos.map((m) => ({ label: m.label, description: m.description })),
+                  ...EM_BREVE,
+                ].map((m) => (
+                  <li
+                    key={m.label}
+                    className="flex flex-col gap-3 rounded-2xl border border-dashed border-line bg-canvas p-4"
+                  >
+                    <div className="flex gap-3">
+                      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-muted-ink/10 text-muted-ink">
+                        <IconClock size={16} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="m-0 flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+                          {m.label}
+                          <span className="rounded-full bg-muted-ink/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-muted-ink">
+                            Em breve
+                          </span>
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-muted-ink">{m.description}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => registrarInteresse(m.label)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-canvas"
+                    >
+                      <IconWhatsApp size={15} />
+                      Tenho interesse
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
             {modulos.length === 0 && (
               <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
