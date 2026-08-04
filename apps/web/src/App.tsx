@@ -2,6 +2,7 @@ import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from 're
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { signOut, useSession } from './lib/auth';
+import { CLUB_ORIGIN } from './lib/config';
 import { isAiHost } from './lib/aiHost';
 import { AiApp } from './ai/AiApp';
 import { useCan } from './lib/queries/permissions';
@@ -350,17 +351,20 @@ function RoutedFeatureGate({ children }: { children: ReactNode }) {
  * login naturalmente — uma transição, sem ciclo. Ver estudo 120.
  */
 function ContaDeAgendamento({ email }: { email?: string }) {
-  useEffect(() => {
-    // Deixa o recado ANTES de encerrar: esta tela vive só o tempo do signOut,
-    // e sem isto a pessoa é levada ao login sem entender por que foi expulsa.
-    try {
-      sessionStorage.setItem('sp:motivo-saida', email ? `agendamento:${email}` : 'agendamento');
-    } catch {
-      // Sem storage o aviso se perde, mas a barreira continua valendo.
-    }
-    void signOut();
-  }, [email]);
-
+  /**
+   * NÃO faz `signOut()` sozinho — e isso é o ponto principal desta tela.
+   *
+   * A primeira versão encerrava a sessão automaticamente ao detectar a conta de
+   * cliente. Como o cookie é o MESMO em `.salonpass.com.br`, isso derrubava
+   * junto a sessão que a pessoa acabara de criar no portal de agendamento:
+   * quem entrasse com o Google no salão e tivesse o painel aberto em outra aba
+   * era deslogado dos DOIS, e ainda ia parar no login de profissionais. Foi
+   * relatado como crítico, e com razão — a barreira do painel estava sabotando
+   * o login do portal.
+   *
+   * Agora ela só INFORMA. Encerrar a sessão passa a ser uma escolha explícita
+   * de quem está na frente da tela. Ver estudo 120.
+   */
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas p-6">
       <div className="w-full max-w-md rounded-2xl border border-line bg-card p-6 text-center shadow-[var(--shadow-card)]">
@@ -372,9 +376,35 @@ function ContaDeAgendamento({ email }: { email?: string }) {
         </h1>
         <p className="mt-2 text-sm text-muted">
           {email ? <><strong>{email}</strong> serve</> : 'Esta conta serve'} para marcar horário
-          como cliente e não abre a gestão do salão. Estamos encerrando esta sessão — entre com
-          a conta do salão.
+          como cliente e não abre a gestão do salão.
         </p>
+        <div className="mt-5 flex flex-col gap-2">
+          <a
+            href={CLUB_ORIGIN}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Ir para os meus agendamentos
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              // O recado sobrevive ao signOut para a tela de login explicar por
+              // que a pessoa chegou lá.
+              try {
+                sessionStorage.setItem(
+                  'sp:motivo-saida',
+                  email ? `agendamento:${email}` : 'agendamento',
+                );
+              } catch {
+                // Sem storage o aviso se perde; a barreira continua valendo.
+              }
+              void signOut().then(() => window.location.assign('/login'));
+            }}
+            className="rounded-xl border border-line px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-canvas"
+          >
+            Sair e entrar com a conta do salão
+          </button>
+        </div>
       </div>
     </main>
   );
