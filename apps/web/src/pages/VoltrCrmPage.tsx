@@ -411,7 +411,15 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       style={{ background: 'var(--sp-warm-white)' }}
     >
       {scope === 'chat' ? (
-        <section className={`${chatMobileAberto ? 'hidden lg:block' : ''} shrink-0 border-b border-[var(--sp-border)] bg-[var(--sp-warm-white)] px-3 py-2.5 sm:px-5 sm:py-4 lg:px-7`}>
+        // UMA tela só, não duas. Esta faixa já teve `border-b`: uma linha cheia
+        // atravessando os 1920px, com quatro cartõezinhos de moldura própria
+        // flutuando em cima dela. O olho lia como uma página empilhada sobre
+        // outra — foi o que o dono apontou em 04/08. Agora a faixa não tem
+        // costura: mesmo fundo do miolo (`--sp-warm-white` vira `--background`
+        // dentro do iframe), sem linha divisória, e os números perderam a
+        // moldura de cartão (ver a classe deles logo abaixo). O único objeto com
+        // contorno na tela passa a ser o cartão do inbox.
+        <section className={`${chatMobileAberto ? 'hidden lg:block' : ''} shrink-0 bg-[var(--sp-warm-white)] px-3 pt-2.5 pb-0.5 sm:px-5 sm:pt-4 sm:pb-1 lg:px-7`}>
           <div className="mb-2 flex items-center justify-between gap-2 sm:mb-3 sm:flex-wrap sm:gap-3">
             <div className="min-w-0">
               <h1 className="m-0 truncate text-lg font-bold text-[var(--sp-ink)] sm:text-xl">WhatsApp e IA</h1>
@@ -532,7 +540,12 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
                     ? `${ajuda}\n\n${MOTIVO_INDISPONIVEL[metricasIa.fonteVoltr]}`
                     : ajuda
                 }
-                className="min-w-0 rounded-xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-2 py-2 shadow-sm sm:rounded-2xl sm:px-4 sm:py-3"
+                // Sem moldura, sem sombra e sem fundo próprio: os números ficam
+                // DENTRO da tela, não em quatro cartões pousados sobre ela. No
+                // desktop, onde os quatro cabem numa linha só, uma hairline
+                // separa um do outro — no mobile e no tablet o espaçamento já
+                // separa, e a linha só sujaria.
+                className="min-w-0 px-2 py-1 sm:px-4 sm:py-1.5 lg:border-l lg:border-[var(--sp-border)] lg:first:border-l-0 lg:first:pl-0"
               >
                 <div className="truncate text-[0.64rem] leading-tight text-[var(--sp-muted-ink)] sm:hidden">{mobile}</div>
                 <div className="hidden text-xs text-[var(--sp-muted-ink)] sm:block">{label}</div>
