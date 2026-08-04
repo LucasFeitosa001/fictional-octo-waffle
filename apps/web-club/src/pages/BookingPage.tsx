@@ -762,6 +762,11 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                                 void signIn.social({
                                   provider: 'google',
                                   callbackURL: window.location.origin + loginPath.replace(/\/login$/, ''),
+                                  // Sem isto, a falha do OAuth despeja o cliente
+                                  // na raiz do PAINEL (app.salonpass.com.br) —
+                                  // ver estudo 117. Aqui ela volta para a tela de
+                                  // login do portal, que mostra o motivo.
+                                  errorCallbackURL: window.location.origin + loginPath,
                                 })
                               }
                             >

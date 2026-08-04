@@ -1,10 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Input, Label, Spinner, TextField } from '@heroui/react';
 import { ArrowLeft } from '@gravity-ui/icons';
 import { signIn, signUp } from '../lib/auth';
 import { useBookingAccent } from '../lib/booking';
 import { SalonBrand } from '../components/SalonBrand';
+
+/**
+ * Motivos de falha do OAuth em português.
+ *
+ * As chaves são os códigos que o Better Auth devolve em `?error=`
+ * (better-auth@1.6.13, `api/routes/callback.mjs`). Um código fora desta lista
+ * cai num texto genérico — melhor uma frase compreensível do que a chave crua.
+ */
+const MOTIVO_OAUTH: Record<string, string> = {
+  state_mismatch:
+    'A tentativa de entrar demorou demais ou foi aberta em outra aba. Toque de novo em “Continuar com Google”.',
+  invalid_code: 'O Google não confirmou o acesso. Tente de novo.',
+  please_restart_the_process: 'A tentativa expirou. Toque de novo em “Continuar com Google”.',
+  unable_to_create_user: 'Não foi possível criar sua conta com esse e-mail. Tente com e-mail e senha.',
+  email_not_verified: 'Sua conta Google está sem e-mail verificado.',
+  signup_disabled: 'O cadastro por Google está indisponível no momento.',
+  account_not_linked:
+    'Este e-mail já tem conta com senha. Entre com e-mail e senha, ou use outra conta Google.',
+};
 
 // A phone (WhatsApp) is required on sign-up so confirmations/reminders can reach
 // the customer. Brazilian numbers carry at least a DDD + number (10 digits).
@@ -61,6 +80,25 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Código cru do Better Auth, preservado para diagnóstico. */
+  const [erroCru, setErroCru] = useState<string | null>(null);
+
+  /**
+   * Mostra a falha do OAuth que volta na URL (`?error=`).
+   *
+   * O Better Auth devolve o motivo em código (`state_mismatch`, `invalid_code`,
+   * …) e ninguém lia esse parâmetro: o cliente era jogado de volta sem UMA
+   * palavra sobre o que houve — e, pior, no painel administrativo. O texto cru
+   * fica no `title` para quem for diagnosticar. Ver estudo 117.
+   */
+  useEffect(() => {
+    const cru = new URLSearchParams(location.search).get('error');
+    if (!cru) return;
+    setError(MOTIVO_OAUTH[cru] ?? 'Não foi possível entrar com o Google. Tente de novo.');
+    setErroCru(cru);
+    // Limpa da barra de endereço para o aviso não reaparecer num F5.
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [location.search]);
 
   // Theme the login page with the salon's brand color too (no-op when there's no
   // slug, e.g. the shared-host login).
@@ -78,6 +116,13 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
       await signIn.social({
         provider: 'google',
         callbackURL: window.location.origin + backTo,
+        // SEM isto, QUALQUER falha do OAuth despeja o cliente na raiz de
+        // app.salonpass.com.br — o painel administrativo, que não é o produto
+        // dele. Em better-auth@1.6.13, `callback.mjs` faz
+        // `errorURL ?? \`${baseURL}/error\``, e o BETTER_AUTH_URL de produção é
+        // o painel; `/api/v1/auth/error` então responde 302 para `/`. O erro
+        // ainda por cima era mudo: ninguém lá lê o `?error=`. Ver estudo 117.
+        errorCallbackURL: `${window.location.origin}${backTo}/login`,
       });
     } catch {
       setError('Não foi possível conectar com o Google.');
@@ -208,7 +253,15 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
             </TextField>
 
             {error && (
-              <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
+              // `title` carrega o código cru do Better Auth: o cliente lê a
+              // frase, e quem for diagnosticar tem o motivo exato sem precisar
+              // de log de servidor.
+              <p
+                className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger"
+                title={erroCru ?? undefined}
+              >
+                {error}
+              </p>
             )}
 
             <Button
