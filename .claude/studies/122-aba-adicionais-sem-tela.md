@@ -133,3 +133,31 @@ está no Pro.
 - `NotasFiscaisBloqueioPage`: lê `GET /feature-flags` e escolhe entre "está no
   plano Max" (para quem não tem) e "ainda não configurada" (para quem já tem) —
   mandar quem já assina o Max "assinar o Max" seria mentira.
+
+## Terceira rodada — o plano Max não via a lista
+
+Pedido do dono: *"falta aparecer no Plano Max os que vai querer acrescentar"*.
+
+A seção estava condicionada a `disponiveis.length > 0` — os módulos do CATÁLOGO
+que faltam. O plano Max inclui os 12, então esse número é zero e a seção inteira
+não renderizava, levando junto os 7 itens que ainda dá para pedir (os dois sem
+integração e os cinco da vitrine). O contador ao lado do título já somava os três
+grupos; só a guarda ficou para trás.
+
+Simulação da filtragem por plano (starter/pro/max):
+
+```
+starter  ativos=1   antes: aparece    agora: 16 itens
+pro      ativos=9   antes: aparece    agora:  8 itens
+max      ativos=10  antes: SOME  ←    agora:  7 itens
+```
+
+Correções:
+
+- `paraAcrescentar` deixa de ser montado dentro do JSX e vira a fonte única da
+  seção — guarda, contador e itens saem do mesmo array, então não há como voltar
+  a divergir;
+- o aviso "Você já tem todos os módulos disponíveis" aparecia DUPLICADO (o mesmo
+  bloco escrito duas vezes) e também dependia de `disponiveis`: no Max o dono
+  lia "já tem todos os módulos" — agora só sai quando `paraAcrescentar` está
+  realmente vazio.

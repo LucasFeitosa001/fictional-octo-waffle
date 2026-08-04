@@ -132,6 +132,44 @@ export function PerfilAdicionaisPage() {
   const planoAtual = featuresQuery.data?.plan ?? null;
 
   /**
+   * Tudo o que dá para pedir, numa lista só.
+   *
+   * Montar isto FORA do JSX conserta um buraco: a seção era condicionada a
+   * `disponiveis.length > 0`, e no plano Max esse número é zero — o Max já
+   * inclui todos os módulos do catálogo. Resultado: quem mais paga era o único
+   * que não via o que ainda podia acrescentar (os sem integração e os da
+   * vitrine), embora o contador ao lado do título já os somasse.
+   */
+  const paraAcrescentar = useMemo(
+    () => [
+      ...disponiveis.map((m) => ({
+        chave: m.key,
+        label: m.label,
+        description: m.description,
+        aoClicar: () => pedirContratacao(m),
+      })),
+      // Os que ainda não têm integração entram na MESMA lista, sem selo
+      // "Em breve": o dono não quer duas seções nem promessa de data na tela.
+      // A diferença aparece quando a pessoa pede — o suporte é quem diz o que
+      // já dá para ligar hoje.
+      ...naoProntos.map((m) => ({
+        chave: m.key,
+        label: m.label,
+        description: m.description,
+        aoClicar: () => registrarInteresse(m.label),
+      })),
+      ...EM_BREVE.map((m) => ({
+        chave: m.label,
+        label: m.label,
+        description: m.description,
+        aoClicar: () => registrarInteresse(m.label),
+      })),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [modulos],
+  );
+
+  /**
    * Leva para o SUPORTE do painel, não para o WhatsApp.
    *
    * A primeira versão abria `wa.me/?text=…` — sem número de destino. O WhatsApp
@@ -194,36 +232,13 @@ export function PerfilAdicionaisPage() {
               </section>
             )}
 
-            {disponiveis.length > 0 && (
+            {paraAcrescentar.length > 0 && (
               <section className="flex flex-col gap-3">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                  Para acrescentar ({disponiveis.length + naoProntos.length + EM_BREVE.length})
+                  Para acrescentar ({paraAcrescentar.length})
                 </h2>
                 <ul className="grid list-none gap-3 p-0 sm:grid-cols-2">
-                  {[
-                  ...disponiveis.map((m) => ({
-                    chave: m.key,
-                    label: m.label,
-                    description: m.description,
-                    aoClicar: () => pedirContratacao(m),
-                  })),
-                  // Os que ainda não têm integração entram na MESMA lista, sem
-                  // selo "Em breve": o dono não quer duas seções nem promessa de
-                  // data na tela. A diferença aparece quando a pessoa pede — o
-                  // suporte é quem diz o que já dá para ligar hoje.
-                  ...naoProntos.map((m) => ({
-                    chave: m.key,
-                    label: m.label,
-                    description: m.description,
-                    aoClicar: () => registrarInteresse(m.label),
-                  })),
-                  ...EM_BREVE.map((m) => ({
-                    chave: m.label,
-                    label: m.label,
-                    description: m.description,
-                    aoClicar: () => registrarInteresse(m.label),
-                  })),
-                ].map((m) => (
+                  {paraAcrescentar.map((m) => (
                     <li
                       key={m.chave}
                       className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
@@ -259,23 +274,15 @@ export function PerfilAdicionaisPage() {
               </section>
             )}
 
-            {disponiveis.length === 0 && ativos.length > 0 && (
+            {/* "Já tem tudo" só quando NÃO sobrou nada para pedir. Antes este
+                aviso saía repetido (o mesmo bloco aparecia duas vezes) e
+                dependia de `disponiveis`, então o plano Max lia "já tem todos os
+                módulos" com sete itens ainda por acrescentar logo acima. */}
+            {paraAcrescentar.length === 0 && ativos.length > 0 && (
               <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
                 Você já tem todos os módulos disponíveis.
               </p>
             )}
-
-
-            {disponiveis.length === 0 && ativos.length > 0 && (
-              <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
-                Você já tem todos os módulos disponíveis.
-              </p>
-            )}
-
-            {/* VITRINE — o que ainda não funciona. Fica visível de propósito,
-                para o salão ver o caminho e sinalizar interesse, mas sem preço,
-                sem data e sem botão de contratar: prometer entrega é como a
-                maquete anterior enganava. */}
 
             {modulos.length === 0 && (
               <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
