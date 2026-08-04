@@ -24,7 +24,7 @@ import {
   type VoltrConfig,
 } from '../voltr/voltr.config';
 import { VoltrAgendaService, _internoAgenda } from '../voltr/voltr-agenda.service';
-import { VoltrService, lerEscoposAceitos } from '../voltr/voltr.service';
+import { VoltrService, lerEscoposAceitos, lerModuloAusente } from '../voltr/voltr.service';
 import { VoltrSignatureGuard } from '../voltr/voltr-signature.guard';
 import { isAutomationKind, podeEnfileirar, expirouNaFila } from '../whatsapp/outbox-policy';
 
@@ -260,6 +260,23 @@ describe('Escopos do embed: incompatibilidade degrada, não quebra', () => {
     assert.equal(lerEscoposAceitos('Requisição de embed expirada'), undefined);
     assert.equal(lerEscoposAceitos('tenant desconhecido'), undefined);
     assert.equal(lerEscoposAceitos(undefined), undefined);
+  });
+
+  it('reconhece o módulo ausente na recusa 403 da Voltr', () => {
+    // Mensagem REAL: com 'ia' na lista, o salão sem o módulo Agentes tomava
+    // isto ao abrir Contatos, Atendimento ou Kanban — telas que nada têm com a
+    // IA. As cinco caíam de uma vez.
+    assert.equal(
+      lerModuloAusente('O tenant não tem o módulo Agentes habilitado.'),
+      'Agentes',
+    );
+    assert.equal(lerModuloAusente('O tenant não tem o módulo CRM habilitado.'), 'CRM');
+  });
+
+  it('não confunde outras recusas 403 com falta de módulo', () => {
+    assert.equal(lerModuloAusente('Requisição de embed expirada.'), undefined);
+    assert.equal(lerModuloAusente('Embed não habilitado neste ambiente'), undefined);
+    assert.equal(lerModuloAusente(undefined), undefined);
   });
 
   it('não degrada quando a Voltr já conhece TODOS os escopos pedidos', () => {

@@ -41,6 +41,19 @@ export function lerEscoposAceitos(mensagem: string | string[] | undefined): stri
   return aceitos.length ? aceitos : undefined;
 }
 
+/**
+ * Nome do módulo que o tenant não contratou, lido da recusa da Voltr:
+ * "O tenant não tem o módulo Agentes habilitado."
+ *
+ * Só serve para registrar no log e decidir repetir com menos escopos — nunca
+ * para liberar nada. Não reconhecer a frase apenas deixa o erro original subir.
+ */
+export function lerModuloAusente(mensagem: string | string[] | undefined): string | undefined {
+  const texto = Array.isArray(mensagem) ? mensagem.join(' ') : mensagem;
+  if (!texto) return undefined;
+  return /m[óo]dulo\s+(.+?)\s+habilitado/i.exec(texto)?.[1]?.trim() || undefined;
+}
+
 export interface VoltrEmbedTokenResponse {
   embedUrl: string;
   expiresIn: number;
@@ -293,14 +306,23 @@ export class VoltrService {
 
     let resposta = await tentar(scopes);
 
-    // A Voltr valida os escopos com um @IsIn: um escopo que ELA ainda não
-    // conhece derruba a troca inteira com 400 — e o painel perde TODAS as telas,
-    // não só a nova. É o que acontece quando este lado sobe primeiro.
+    // PEDIR DEMAIS NÃO PODE CUSTAR TUDO.
     //
-    // Então a incompatibilidade degrada em vez de quebrar: repete a troca só com
-    // os escopos que a versão dela aceita. O painel volta ao conjunto anterior
-    // de telas e a nova aparece sozinha assim que o outro lado subir — a ordem
-    // do deploy deixa de importar.
+    // Pedimos os escopos de todas as telas de uma vez, porque navegar por dentro
+    // da Voltr (do contato para a conversa, do card para o contato) é fluxo
+    // legítimo e cada superfície exige o seu. Só que um único escopo problemático
+    // derruba a troca INTEIRA, e aí o salão perde as cinco telas de uma vez:
+    //
+    //  - 400, quando a versão dela ainda não conhece o escopo (@IsIn) — é o que
+    //    acontece enquanto os dois lados não subiram;
+    //  - 403, quando o tenant não contratou o MÓDULO daquele escopo. Foi o que
+    //    tirou o CRM do ar: pedimos 'ia' sempre, e o salão sem o módulo Agentes
+    //    tomava "O tenant não tem o módulo Agentes habilitado" ao abrir
+    //    Contatos, Atendimento ou Kanban — telas que nada têm com a IA.
+    //
+    // Nos dois casos a recusa degrada em vez de quebrar: repete com um conjunto
+    // menor e entrega a tela que a pessoa pediu. O que se perde é a navegação
+    // lateral dentro do iframe, não a tela.
     const recusados = resposta.escoposRecusados;
     if (recusados) {
       const aceitos = scopes.filter((s) => recusados.includes(s));
@@ -310,6 +332,14 @@ export class VoltrService {
         );
         resposta = await tentar(aceitos);
       }
+    } else if (resposta.moduloAusente && scopes.length > 1) {
+      // Não dá para saber pela mensagem QUAL escopo exige o módulo que falta —
+      // ela nomeia o módulo, não o escopo. Então cai no mínimo garantido: o
+      // escopo que a pessoa pediu, que é o dono da tela que ela abriu.
+      this.logger.warn(
+        `Tenant ${tenantSlug} sem módulo para algum escopo (${resposta.moduloAusente}); repetindo só com '${scopes[0]}'.`,
+      );
+      resposta = await tentar([scopes[0]]);
     }
 
     const { corpo, status } = resposta;
@@ -346,6 +376,8 @@ export class VoltrService {
       message?: string | string[];
     } | null;
     escoposRecusados?: string[];
+    /** Nome do módulo que o tenant não tem, quando a recusa foi por isso. */
+    moduloAusente?: string;
   }> {
     // Anti-replay exigido pela Voltr: timestamp em SEGUNDOS (janela ±300s) e um
     // nonce único por requisição. Sem eles a troca devolve 400.
@@ -391,6 +423,7 @@ export class VoltrService {
       status: res.status,
       corpo,
       escoposRecusados: res.status === 400 ? lerEscoposAceitos(corpo?.message) : undefined,
+      moduloAusente: res.status === 403 ? lerModuloAusente(corpo?.message) : undefined,
     };
   }
 
