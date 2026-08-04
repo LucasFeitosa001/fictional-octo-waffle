@@ -6,8 +6,62 @@ principal do SalonPass"*.
 
 ## Arquivos tocados
 
+- `apps/web/vite.config.ts`  ← **a causa real, achada na terceira rodada**
 - `apps/web-club/src/pages/LoginPage.tsx`
 - `apps/web-club/src/pages/BookingPage.tsx`
+- `apps/api/src/auth/better-auth.ts`
+- `apps/api/src/main.ts`
+
+## A CAUSA REAL — o service worker do PAINEL engole o callback
+
+Depois de duas correções que não resolveram, o log que instrumentei
+(`main.ts`, `OAuthRedirect`) mostrou o que faltava: na terceira tentativa do
+dono **não houve NENHUMA recusa registrada**, e também **nenhuma sessão nova**
+nem vínculo criado. Ou seja: o callback do Google **nunca executou no
+servidor**.
+
+O motivo está no PWA do painel:
+
+```
+$ curl https://app.salonpass.com.br/sw.js | grep NavigationRoute
+NavigationRoute(e.createHandlerBoundToURL("index.html"))     ← sem denylist
+
+$ curl https://agenda.salonpass.com.br/sw.js | grep NavigationRoute
+(nada)
+```
+
+`apps/web/vite.config.ts` não define `navigateFallbackDenylist`, então o
+service worker do painel intercepta **toda navegação** e responde com o
+`index.html` do cache. O caminho real era:
+
+1. Google redireciona o NAVEGADOR para
+   `app.salonpass.com.br/api/v1/auth/callback/google?code=…&state=…`;
+2. isso é uma navegação (`Sec-Fetch-Mode: navigate`), então o `NavigationRoute`
+   do service worker a captura;
+3. o SW devolve o `index.html` da SPA — **a requisição não sai do navegador**;
+4. a SPA do painel monta, encontra a sessão de staff que ele já tinha aberta na
+   aba "Salonpass Pro" e navega para `/painel`.
+
+Fecha com cada sintoma: a tela final é o painel; não há log nem sessão nova
+porque nada chegou ao servidor; e todo teste meu por `curl` passava, porque
+`curl` não tem service worker. Também explica por que só acontece com quem já
+visitou o painel — é preciso ter o SW instalado.
+
+`apps/web-club/vite.config.ts:47` já tinha `navigateFallbackDenylist: [/^\/api/]`
+desde sempre; o painel nunca teve.
+
+### O que as duas primeiras rodadas resolveram (e o que não)
+
+Não foram inúteis, mas nenhuma atacava isto:
+
+- `errorCallbackURL` — corrige o destino QUANDO há erro de verdade. Como o
+  callback nem rodava, nunca entrou em ação.
+- `accountLinking` — a conta `lucssfeitosa@gmail.com` (credential,
+  `emailVerified=false`) bateria mesmo em `account_not_linked` se o callback
+  chegasse ao servidor. Continua necessária; só não era o que ele via.
+- Cache-Control no `index.html` — os dois sites serviam HTML de até 52 minutos
+  atrás, o que atrasava QUALQUER correção chegar ao navegador dele. Real, e
+  agravava o diagnóstico.
 
 ## O que foi MEDIDO em produção (e está certo)
 
