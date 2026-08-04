@@ -38,6 +38,80 @@ export interface VoltrEstadoIa {
   autopilotAtivo: boolean;
 }
 
+/**
+ * Números dos cartões do `/voltr-chat` — a IA que de fato atende.
+ *
+ * `null` significa NÃO MEDIDO, nunca "zero". A tela desenha "—" nesses casos:
+ * mostrar zero foi justamente o defeito que fez o dono achar que a IA estava
+ * parada.
+ */
+export interface VoltrMetricasIa {
+  /** Conversas com mensagem hoje, medidas na Voltr. */
+  conversasHoje: number | null;
+  /** Mensagens que a IA da Voltr ENVIOU hoje (rascunho não aprovado não conta). */
+  respostasIaHoje: number | null;
+  /** % das conversas já arquivadas na Voltr; `null` quando não há conversa. */
+  taxaResolucao: number | null;
+  /**
+   * Agendamentos criados pela IA da Voltr neste salão no mês corrente.
+   * Fonte: NOSSO banco (`Appointment.legacySource = 'voltr-ia'`). Não é `null`
+   * nunca — não depende da Voltr responder.
+   */
+  agendamentosIaMes: number;
+  /** De onde vieram os três primeiros. A tela precisa poder explicar o "—". */
+  fonteVoltr: 'ok' | 'indisponivel' | 'desligada';
+}
+
+/**
+ * Etiqueta que `voltr-agenda.service.ts` grava em `Appointment.legacySource`
+ * quando a IA da Voltr cria o horário. Precisa ser IDÊNTICA lá e aqui — é a
+ * única forma de separar a IA do formulário público, já que os dois gravam
+ * `source: 'online'`.
+ */
+const ORIGEM_IA_VOLTR = 'voltr-ia';
+
+/** Descarta o que não for número finito — a Voltr fora do ar não vira 0. */
+function numeroOuNulo(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Instante em que o mês corrente começou no fuso da EMPRESA.
+ *
+ * Sem isto o corte sai pelo TZ do processo (UTC no App Runner): no dia 1º, das
+ * 21h às 24h de Brasília, o mês "já virou" para o servidor e o contador zerava
+ * cedo demais.
+ */
+function inicioDoMesNoFuso(agora: Date, tz: string): Date {
+  const partes = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(agora)
+      .map((p) => [p.type, p.value]),
+  );
+  // Meia-noite do dia 1º como se fosse UTC, corrigida pelo offset real do fuso
+  // naquele instante (mesma técnica do dashboard.service).
+  const provisorio = Date.UTC(Number(partes.year), Number(partes.month) - 1, 1);
+  const comoUtc = Date.UTC(
+    Number(partes.year),
+    Number(partes.month) - 1,
+    Number(partes.day),
+    Number(partes.hour),
+    Number(partes.minute),
+    Number(partes.second),
+  );
+  const offset = comoUtc - agora.getTime();
+  return new Date(provisorio - offset);
+}
+
 /** Identidade do usuário do painel que está operando (vira token de embed). */
 export interface VoltrUsuario {
   companyId: string;
@@ -379,6 +453,105 @@ export class VoltrService {
       agenteAtivo: r.agenteAtivo !== false,
       autopilotAtivo: r.autopilotAtivo !== false,
     };
+  }
+
+  /**
+   * Os números da IA que REALMENTE atende neste salão.
+   *
+   * O defeito que isto conserta: os cartões do `/voltr-chat` vinham de
+   * `/whatsapp/inbox/stats`, que conta `sender:'ai'` — carimbo gravado só pela
+   * recepcionista NATIVA do SalonPass. Quem atende é a IA da Voltr, que grava
+   * no banco DELA. Os cartões tendiam a zero e o dono lia isso como "a IA não
+   * fez nada".
+   *
+   * As fontes ficam separadas de propósito, cada número medido onde ele existe:
+   *
+   *  - conversas, respostas da IA e taxa de resolução → a VOLTR
+   *    (`GET /api/conversas/metricas-ia`). São dela e não têm cópia aqui.
+   *  - agendamentos feitos pela IA → o NOSSO banco. `voltr-agenda.service.ts`
+   *    carimba `legacySource='voltr-ia'` em todo agendamento que a IA cria pela
+   *    ponte, então este é o número mais confiável dos quatro: é o efeito real
+   *    da IA na agenda do salão, contado na fonte, sem depender da Voltr estar
+   *    no ar.
+   *
+   * Degradação HONESTA: se a Voltr não responder, os três campos dela voltam
+   * `null` (a tela mostra "—", não zero) e o agendamento continua vindo. Zerar
+   * por indisponibilidade seria repetir exatamente o defeito original.
+   */
+  async metricasIa(user: VoltrUsuario): Promise<VoltrMetricasIa> {
+    const agendamentosIaMes = await this.contarAgendamentosDaIa(user.companyId);
+
+    if (!this.configurado) {
+      return {
+        conversasHoje: null,
+        respostasIaHoje: null,
+        taxaResolucao: null,
+        agendamentosIaMes,
+        fonteVoltr: 'desligada',
+      };
+    }
+
+    try {
+      const r = await this.chamarComoUsuario<{
+        conversasHoje?: number;
+        respostasIaHoje?: number;
+        taxaResolucao?: number | null;
+      }>(user, '/api/conversas/metricas-ia');
+      return {
+        conversasHoje: numeroOuNulo(r.conversasHoje),
+        respostasIaHoje: numeroOuNulo(r.respostasIaHoje),
+        // A Voltr manda `null` quando não há conversa nenhuma — sem denominador
+        // não existe taxa, e 0% seria anunciar um desempenho que ninguém mediu.
+        taxaResolucao: numeroOuNulo(r.taxaResolucao),
+        agendamentosIaMes,
+        fonteVoltr: 'ok',
+      };
+    } catch (erro) {
+      // Um cartão em branco é recuperável; um cartão mentindo zero não é.
+      this.logger.warn(
+        `Métricas da IA da Voltr indisponíveis (company=${user.companyId}): ${(erro as Error).message}`,
+      );
+      return {
+        conversasHoje: null,
+        respostasIaHoje: null,
+        taxaResolucao: null,
+        agendamentosIaMes,
+        fonteVoltr: 'indisponivel',
+      };
+    }
+  }
+
+  /**
+   * Agendamentos que a IA da Voltr criou NESTE salão no mês corrente.
+   *
+   * A etiqueta é `legacySource='voltr-ia'`, gravada por
+   * `voltr-agenda.service.ts` na criação. `source` não serve: o enum
+   * `AppointmentSource` só tem `admin` e `online`, então a IA e o formulário
+   * público do site caem os dois em `online` (ver estudo 99).
+   *
+   * Não filtra por status: a IA marcou o horário, e a cliente ter cancelado
+   * depois é outro número. O corte do mês usa o fuso da EMPRESA — em UTC o
+   * primeiro e o último dia do mês viram na hora errada.
+   *
+   * Cancelamento não desconta e o número é do MÊS: é isso que a tela precisa
+   * dizer no rótulo, e é o que ela diz.
+   */
+  private async contarAgendamentosDaIa(companyId: string): Promise<number> {
+    const empresa = await this.prisma.client.company.findUnique({
+      where: { id: companyId },
+      select: { timezone: true },
+    });
+    const inicioDoMes = inicioDoMesNoFuso(
+      new Date(),
+      empresa?.timezone || 'America/Sao_Paulo',
+    );
+    return this.prisma.client.appointment.count({
+      where: {
+        companyId,
+        legacySource: ORIGEM_IA_VOLTR,
+        createdAt: { gte: inicioDoMes },
+      },
+    });
   }
 
   /** Encaminha para o inbox da Voltr uma mensagem da conversa — nos dois sentidos. */

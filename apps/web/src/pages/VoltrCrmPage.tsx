@@ -24,11 +24,32 @@ interface RespostaToken {
 type Escopo = 'crm' | 'chat' | 'boards' | 'ia';
 type TokenEmCache = RespostaToken & { salvoEm: number };
 
-interface ResumoIa {
-  conversationsToday: number;
-  aiMessagesToday: number;
-  bookingsViaAi: number;
-  resolutionRate: number;
+/**
+ * Números da IA que REALMENTE atende nesta tela — vêm de `/voltr/metricas`.
+ *
+ * Antes vinham de `/whatsapp/inbox/stats`, que conta `sender:'ai'`: carimbo da
+ * recepcionista NATIVA do SalonPass. Nos salões atendidos pela IA da Voltr
+ * (outro servidor, outro banco) esse carimbo nunca aparece, então os quatro
+ * cartões tendiam a ZERO e o dono lia "a IA não fez nada".
+ *
+ * `null` é NÃO MEDIDO e vira "—" na tela. Zero só aparece quando é zero de
+ * verdade — trocar um número indisponível por 0 é a mentira que estamos
+ * consertando.
+ */
+interface MetricasIa {
+  /** Conversas com mensagem hoje (fonte: Voltr). */
+  conversasHoje: number | null;
+  /** Mensagens que a IA da Voltr enviou hoje (fonte: Voltr). */
+  respostasIaHoje: number | null;
+  /** % das conversas já arquivadas (fonte: Voltr). */
+  taxaResolucao: number | null;
+  /**
+   * Agendamentos criados pela IA no mês — fonte: o banco do SALONPASS
+   * (`Appointment.legacySource='voltr-ia'`). É o efeito real dela na agenda e
+   * o único dos quatro que continua medido com a Voltr fora do ar.
+   */
+  agendamentosIaMes: number;
+  fonteVoltr: 'ok' | 'indisponivel' | 'desligada';
 }
 
 /**
@@ -46,6 +67,23 @@ interface EstadoIaVoltr {
   agenteAtivo: boolean;
   /** Chave-mestra do processo da Voltr — desligada, ninguém responde sozinho. */
   autopilotAtivo: boolean;
+}
+
+/** Procedência dos três números que a Voltr mede — vai no title do cartão. */
+const ORIGEM_VOLTR = 'Medido no atendimento da IA (Voltr).';
+
+/** Por que um cartão está em "—". Explicar é obrigatório; zero seria mentira. */
+const MOTIVO_INDISPONIVEL: Record<MetricasIa['fonteVoltr'], string> = {
+  ok: '',
+  indisponivel:
+    'Os números do atendimento da IA não puderam ser lidos agora — nova tentativa automática em instantes.',
+  desligada:
+    'A integração com o atendimento da IA não está configurada nesta instalação.',
+};
+
+/** `null`/indefinido é NÃO MEDIDO e aparece como "—". Zero só quando é zero. */
+function numeroOuTraco(v: number | null | undefined): number | string {
+  return typeof v === 'number' ? v : '—';
 }
 
 // Trocar Atendimento ↔ Contatos ↔ Kanban não deve parecer uma navegação para
@@ -112,7 +150,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const conversaAlvo = searchParams.get('conversa');
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
-  const [resumoIa, setResumoIa] = useState<ResumoIa | null>(null);
+  const [metricasIa, setMetricasIa] = useState<MetricasIa | null>(null);
   const [estadoIa, setEstadoIa] = useState<EstadoIaVoltr | null>(null);
   // Pausar a IA é ação de gestão (a mesma permissão da recepcionista nativa).
   // Sem ela o estado continua VISÍVEL — esconder o estado é o oposto de honesto
@@ -202,23 +240,23 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
     enviarTema();
   }, [temaAtual, enviarTema]);
 
-  // O resumo pertence ao Atendimento (e não a Contatos/Kanban/IA). Ele usa os
-  // mesmos dados reais da tela /atendimento, agora visíveis também no /voltr-chat.
+  // O resumo pertence ao Atendimento (e não a Contatos/Kanban/IA).
   useEffect(() => {
     if (scope !== 'chat') return;
     let vivo = true;
     const carregar = async () => {
-      const [stats, config] = await Promise.allSettled([
-        api.get<ResumoIa>('/whatsapp/inbox/stats'),
-        // A IA desta tela é a da VOLTR. Ler a config da recepcionista nativa
-        // aqui é o que fazia o cabeçalho anunciar um estado que não era o dela.
+      const [metricas, config] = await Promise.allSettled([
+        // A IA desta tela é a da VOLTR — nos dois pedidos. Ler a recepcionista
+        // NATIVA aqui é o que fazia o cabeçalho anunciar um estado que não era
+        // o dela e os cartões mostrarem zero enquanto a Mariana trabalhava.
+        api.get<MetricasIa>('/voltr/metricas'),
         api.get<EstadoIaVoltr>('/voltr/ia'),
       ]);
       if (!vivo) return;
-      if (stats.status === 'fulfilled') setResumoIa(stats.value);
+      if (metricas.status === 'fulfilled') setMetricasIa(metricas.value);
       if (config.status === 'fulfilled') setEstadoIa(config.value);
       setErroPainelIa(
-        stats.status === 'rejected' || config.status === 'rejected'
+        metricas.status === 'rejected' || config.status === 'rejected'
           ? 'Não foi possível atualizar o estado da IA agora. Nova tentativa automática em instantes.'
           : null,
       );
@@ -389,20 +427,68 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
               />
             </div>
           </div>
+          {/* Cada cartão diz O QUE mede e DE ONDE vem. Um número indisponível
+              aparece como "—" com o motivo no title — nunca como zero, que foi
+              o que fez o dono achar que a IA estava parada. */}
           <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
             {[
-              { label: 'Conversas hoje', mobile: 'Conversas', value: resumoIa?.conversationsToday ?? '—' },
-              { label: 'Respostas da IA hoje', mobile: 'Respostas IA', value: resumoIa?.aiMessagesToday ?? '—' },
-              { label: 'Agendamentos feitos pela IA', mobile: 'Agendamentos', value: resumoIa?.bookingsViaAi ?? '—' },
-              { label: 'Taxa de resolução', mobile: 'Resolução', value: resumoIa ? `${resumoIa.resolutionRate}%` : '—' },
-            ].map(({ label, mobile, value }) => (
-              <div key={label} className="min-w-0 rounded-xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-2 py-2 shadow-sm sm:rounded-2xl sm:px-4 sm:py-3">
+              {
+                label: 'Conversas hoje',
+                mobile: 'Conversas',
+                value: numeroOuTraco(metricasIa?.conversasHoje),
+                ajuda: `Conversas com mensagem hoje no atendimento da IA. ${ORIGEM_VOLTR}`,
+              },
+              {
+                label: 'Respostas da IA hoje',
+                mobile: 'Respostas IA',
+                value: numeroOuTraco(metricasIa?.respostasIaHoje),
+                ajuda: `Mensagens que a IA enviou hoje. Rascunho que ninguém aprovou não entra. ${ORIGEM_VOLTR}`,
+              },
+              {
+                // O rótulo carrega a janela: sem "no mês" o número parecia do
+                // dia e não batia com nada que o dono conseguisse conferir.
+                label: 'Agendamentos pela IA no mês',
+                mobile: 'Agend. mês',
+                // Este NUNCA é "—": é medido no banco do SalonPass, então
+                // continua de pé mesmo com a Voltr fora do ar.
+                value: metricasIa ? metricasIa.agendamentosIaMes : '—',
+                ajuda:
+                  'Horários que a IA marcou na sua agenda no mês corrente. Medido aqui no SalonPass; cancelamento posterior não desconta.',
+              },
+              {
+                label: 'Taxa de resolução',
+                mobile: 'Resolução',
+                value:
+                  typeof metricasIa?.taxaResolucao === 'number'
+                    ? `${metricasIa.taxaResolucao}%`
+                    : '—',
+                ajuda: `Percentual das conversas já arquivadas. Sem conversa nenhuma não há taxa. ${ORIGEM_VOLTR}`,
+              },
+            ].map(({ label, mobile, value, ajuda }) => (
+              <div
+                key={label}
+                title={
+                  value === '—' && metricasIa && metricasIa.fonteVoltr !== 'ok'
+                    ? `${ajuda}\n\n${MOTIVO_INDISPONIVEL[metricasIa.fonteVoltr]}`
+                    : ajuda
+                }
+                className="min-w-0 rounded-xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-2 py-2 shadow-sm sm:rounded-2xl sm:px-4 sm:py-3"
+              >
                 <div className="truncate text-[0.64rem] leading-tight text-[var(--sp-muted-ink)] sm:hidden">{mobile}</div>
                 <div className="hidden text-xs text-[var(--sp-muted-ink)] sm:block">{label}</div>
                 <div className="mt-0.5 text-lg font-bold leading-none text-[var(--sp-ink)] sm:mt-1 sm:text-xl">{value}</div>
               </div>
             ))}
           </div>
+          {/* Quando os números da Voltr não vieram, a tela DIZ isso. Sem esta
+              linha o "—" viraria adivinhação — e o silêncio é o que fez o dono
+              confiar num zero que não era medição. */}
+          {metricasIa && metricasIa.fonteVoltr !== 'ok' ? (
+            <p className="m-0 mt-2 text-[0.68rem] leading-snug text-[var(--sp-muted-ink)] sm:text-xs">
+              {MOTIVO_INDISPONIVEL[metricasIa.fonteVoltr]} Os agendamentos do mês
+              continuam medidos aqui no SalonPass.
+            </p>
+          ) : null}
         </section>
       ) : null}
       {carregando ? (

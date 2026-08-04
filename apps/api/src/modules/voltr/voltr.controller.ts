@@ -23,6 +23,7 @@ import {
   VoltrService,
   type VoltrEmbedTokenResponse,
   type VoltrEstadoIa,
+  type VoltrMetricasIa,
   type VoltrScope,
   type VoltrSyncClientesResultado,
 } from './voltr.service';
@@ -113,6 +114,29 @@ export class VoltrController {
     @CurrentUser('email') email: string,
   ): Promise<VoltrEstadoIa> {
     return this.voltr.estadoIa({ companyId, userId, email });
+  }
+
+  /**
+   * Os números da IA que REALMENTE atende neste salão.
+   *
+   * Existe separado de `/whatsapp/inbox/stats` pela MESMA razão de `/voltr/ia`
+   * existir separado de `/whatsapp/inbox/config`: aquele mede a recepcionista
+   * NATIVA do SalonPass (`sender:'ai'`), que não atende ninguém nos salões em
+   * que quem responde é a Mariana, da Voltr. Ler um e mostrar o outro fazia os
+   * cartões do /voltr-chat tenderem a ZERO.
+   *
+   * Mesma permissão de leitura do inbox (`marketing:view`). O tenant vem do
+   * token, nunca do corpo — não há como ler o desempenho de outro salão aqui.
+   * Só leitura agregada: nada é enviado nem enfileirado.
+   */
+  @RequirePermission('marketing:view')
+  @Get('metricas')
+  async metricasIa(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('email') email: string,
+  ): Promise<VoltrMetricasIa> {
+    return this.voltr.metricasIa({ companyId, userId, email });
   }
 
   /**

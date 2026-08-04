@@ -24,6 +24,7 @@ import {
   type VoltrConfig,
 } from '../voltr/voltr.config';
 import { VoltrAgendaService, _internoAgenda } from '../voltr/voltr-agenda.service';
+import { VoltrService } from '../voltr/voltr.service';
 import { VoltrSignatureGuard } from '../voltr/voltr-signature.guard';
 import { isAutomationKind, podeEnfileirar, expirouNaFila } from '../whatsapp/outbox-policy';
 
@@ -1350,5 +1351,167 @@ describe('Cliente excluída e equipe completa (estudo 105)', () => {
     const r = await s.equipe('company-1');
 
     assert.equal(r.equipe[0].nome, 'Cocó');
+  });
+});
+
+/**
+ * Os números do /voltr-chat medem a IA que REALMENTE atende (estudo da pausa).
+ *
+ * O defeito: os cartões vinham de `/whatsapp/inbox/stats`, que conta
+ * `sender:'ai'` — carimbo gravado só pela recepcionista NATIVA do SalonPass.
+ * Nos salões atendidos pela IA da Voltr esse carimbo nunca aparece, então os
+ * quatro cartões tendiam a ZERO e o dono lia "a IA não fez nada".
+ *
+ * A regra que estes testes travam: número indisponível vira `null` (a tela
+ * mostra "—"), NUNCA zero. E o agendamento, que é medido no nosso próprio
+ * banco, continua de pé mesmo com a Voltr fora do ar.
+ */
+describe('Números da IA no /voltr-chat', () => {
+  const USUARIO = {
+    companyId: 'company-1',
+    userId: 'user-1',
+    email: 'dono@salao.com',
+  };
+
+  /** VoltrService com prisma falso; `configurado` e a chamada HTTP são fixados. */
+  function servicoCom(opts: {
+    agendamentos?: number;
+    timezone?: string | null;
+    configurado?: boolean;
+    resposta?: unknown;
+    erro?: Error;
+  }) {
+    const wheres: any[] = [];
+    const prisma = {
+      client: {
+        company: {
+          findUnique: async () =>
+            opts.timezone === null ? null : { timezone: opts.timezone ?? 'America/Sao_Paulo' },
+        },
+        appointment: {
+          count: async (args: any) => {
+            wheres.push(args.where);
+            return opts.agendamentos ?? 0;
+          },
+        },
+      },
+    };
+    const s = new VoltrService(prisma as never);
+    Object.defineProperty(s, 'configurado', {
+      get: () => opts.configurado !== false,
+    });
+    const rotas: string[] = [];
+    (s as unknown as { chamarComoUsuario: unknown }).chamarComoUsuario = async (
+      _u: unknown,
+      rota: string,
+    ) => {
+      rotas.push(rota);
+      if (opts.erro) throw opts.erro;
+      return opts.resposta ?? {};
+    };
+    return { s, wheres, rotas };
+  }
+
+  it('conta agendamento pela ETIQUETA da IA, não por `source`', async () => {
+    const { s, wheres } = servicoCom({
+      agendamentos: 5,
+      resposta: { conversasHoje: 3, respostasIaHoje: 9, taxaResolucao: 40 },
+    });
+
+    const r = await s.metricasIa(USUARIO);
+
+    // `source` não serve: o enum só tem admin|online, então a IA e o formulário
+    // público do site cairiam os dois em 'online'. A etiqueta é o que separa.
+    assert.equal(wheres[0].legacySource, 'voltr-ia');
+    assert.equal(wheres[0].companyId, 'company-1');
+    assert.ok(wheres[0].createdAt.gte instanceof Date, 'recorte do mês corrente');
+    assert.equal(r.agendamentosIaMes, 5);
+  });
+
+  it('os três números de conversa vêm da VOLTR, não do inbox nativo', async () => {
+    const { s, rotas } = servicoCom({
+      resposta: { conversasHoje: 3, respostasIaHoje: 9, taxaResolucao: 40 },
+    });
+
+    const r = await s.metricasIa(USUARIO);
+
+    assert.deepEqual(rotas, ['/api/conversas/metricas-ia']);
+    assert.equal(r.conversasHoje, 3);
+    assert.equal(r.respostasIaHoje, 9);
+    assert.equal(r.taxaResolucao, 40);
+    assert.equal(r.fonteVoltr, 'ok');
+  });
+
+  it('Voltr fora do ar devolve null — NUNCA zero', async () => {
+    const { s } = servicoCom({
+      agendamentos: 4,
+      erro: new Error('A Voltr não respondeu. Tente de novo.'),
+    });
+
+    const r = await s.metricasIa(USUARIO);
+
+    // Zerar por indisponibilidade é repetir o defeito original: o dono leria
+    // "a IA não fez nada" quando na verdade ninguém mediu.
+    assert.equal(r.conversasHoje, null);
+    assert.equal(r.respostasIaHoje, null);
+    assert.equal(r.taxaResolucao, null);
+    assert.equal(r.fonteVoltr, 'indisponivel');
+    // O agendamento é medido AQUI e não depende dela.
+    assert.equal(r.agendamentosIaMes, 4);
+  });
+
+  it('integração desligada: diz que está desligada e nem tenta chamar', async () => {
+    const { s, rotas } = servicoCom({ agendamentos: 2, configurado: false });
+
+    const r = await s.metricasIa(USUARIO);
+
+    assert.deepEqual(rotas, [], 'sem integração não há a quem perguntar');
+    assert.equal(r.fonteVoltr, 'desligada');
+    assert.equal(r.conversasHoje, null);
+    assert.equal(r.agendamentosIaMes, 2);
+  });
+
+  it('taxa null da Voltr (salão sem conversa) atravessa como null', async () => {
+    const { s } = servicoCom({
+      resposta: { conversasHoje: 0, respostasIaHoje: 0, taxaResolucao: null },
+    });
+
+    const r = await s.metricasIa(USUARIO);
+
+    // Zero conversa É zero conversa (número real); o que não existe é a TAXA.
+    assert.equal(r.conversasHoje, 0);
+    assert.equal(r.respostasIaHoje, 0);
+    assert.equal(r.taxaResolucao, null);
+  });
+
+  it('resposta malformada da Voltr não vira zero', async () => {
+    const { s } = servicoCom({ resposta: { conversasHoje: 'muitas' } });
+
+    const r = await s.metricasIa(USUARIO);
+
+    assert.equal(r.conversasHoje, null, 'texto no lugar de número é NÃO MEDIDO');
+    assert.equal(r.respostasIaHoje, null, 'campo ausente é NÃO MEDIDO');
+  });
+
+  it('o corte do mês respeita o fuso da EMPRESA, não o UTC do servidor', async () => {
+    const { s, wheres } = servicoCom({ timezone: 'America/Sao_Paulo', resposta: {} });
+
+    await s.metricasIa(USUARIO);
+
+    const corte: Date = wheres[0].createdAt.gte;
+    // Meia-noite do dia 1º em São Paulo é 03:00 UTC (UTC-3).
+    const emSp = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(corte);
+    const parte = (t: string) => emSp.find((p) => p.type === t)!.value;
+    assert.equal(parte('day'), '01', 'começa no dia 1º do fuso do salão');
+    assert.equal(parte('hour'), '00');
+    assert.equal(parte('minute'), '00');
   });
 });
