@@ -29,6 +29,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     '/voltr-crm',
     '/voltr-chat',
     '/voltr-boards',
+    '/voltr-tarefas',
     '/voltr-ia',
   ];
   const fullBleed = TELA_CHEIA.includes(pathname);

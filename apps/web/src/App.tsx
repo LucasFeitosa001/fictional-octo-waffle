@@ -479,6 +479,7 @@ function ProtectedRoutes() {
         <Route path="/voltr-crm" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="crm" /></PaidProtectedRoute>} />
         <Route path="/voltr-chat" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="chat" /></PaidProtectedRoute>} />
         <Route path="/voltr-boards" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="boards" /></PaidProtectedRoute>} />
+        <Route path="/voltr-tarefas" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="tarefas" /></PaidProtectedRoute>} />
         <Route path="/voltr-ia" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="ia" /></PaidProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute perm="config:view"><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/ajuda" element={<AjudaPage />} />

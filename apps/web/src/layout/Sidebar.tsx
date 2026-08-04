@@ -160,6 +160,16 @@ const NAVIGATION: NavEntry[] = [
         perm: 'marketing:view',
       },
       {
+        // A agenda de follow-up do CRM. Estava pronta do outro lado (rotas,
+        // tela e tudo) e não tinha porta de entrada: quem move um negócio no
+        // Kanban não tinha onde anotar "ligar quinta".
+        to: '/voltr-tarefas',
+        label: 'Tarefas',
+        icon: IconClock,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+      {
         to: '/voltr-ia',
         label: 'Inteligência artificial',
         icon: IconSparkles,

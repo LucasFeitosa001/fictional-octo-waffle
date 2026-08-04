@@ -21,7 +21,7 @@ interface RespostaToken {
   accessToken: string;
 }
 
-type Escopo = 'crm' | 'chat' | 'boards' | 'ia';
+type Escopo = 'crm' | 'chat' | 'boards' | 'tarefas' | 'ia';
 type TokenEmCache = RespostaToken & { salvoEm: number };
 
 /**
@@ -181,7 +181,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
   const tokenRef = useRef<string>('');
   const origemRef = useRef<string>('');
   /** Escopo que o `src` atual representa — troca de aba precisa de src novo. */
-  const scopeDoSrc = useRef<'crm' | 'chat' | 'boards' | 'ia' | null>(null);
+  const scopeDoSrc = useRef<Escopo | null>(null);
   const [temaAtual] = useTheme();
 
   const enviarTema = useCallback(() => {
@@ -232,7 +232,7 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       setErro(null);
       // Pré-carrega as outras áreas autorizadas. Se uma não estiver habilitada,
       // o erro fica restrito ao prefetch e não interfere na tela atual.
-      const demais: Escopo[] = ['crm', 'chat', 'boards', 'ia'].filter((s) => s !== scope) as Escopo[];
+      const demais: Escopo[] = ['crm', 'chat', 'boards', 'tarefas', 'ia'].filter((s) => s !== scope) as Escopo[];
       void Promise.allSettled(demais.map(async (s) => {
         if (EMBED_CACHE.has(s)) return;
         const outro = await buscarTokenComFallback(s);
@@ -312,6 +312,16 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       const salvo = await api.patch<EstadoIaVoltr>('/voltr/ia', { envioAutomatico });
       ULTIMO_ESTADO_IA = salvo;
       setEstadoIa(salvo);
+      // Avisa o inbox NA HORA. Sem isto ele só descobria no poll de 30s (ou
+      // quando alguém recarregava a página) — e o dono via "pausei e continua
+      // como estava". A mensagem não leva estado de propósito: é um gatilho
+      // para o embed reler da API, então nada aqui pode mentir para ele.
+      // Ver estudo 108.
+      const iframe = iframeRef.current;
+      const origem = origemRef.current;
+      if (iframe?.contentWindow && origem) {
+        iframe.contentWindow.postMessage({ type: 'salonpass-ia:mudou' }, origem);
+      }
       setErroPainelIa(
         salvo.envioAutomatico === envioAutomatico
           ? null
@@ -356,10 +366,16 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
           (event.data as { aberto?: unknown }).aberto === true,
         );
       }
-      if (tipo === 'voltr-embed:sincronizar-clientes' && scope === 'chat') {
+      if (tipo === 'voltr-embed:sincronizar-clientes') {
         // O seletor do iframe trabalha com a cópia de clientes da Voltr. Antes
         // de mostrá-la, atualiza essa cópia pela fonte oficial (SalonPass).
         // A rota é idempotente e nunca cria ou envia mensagem.
+        //
+        // Vale em TODA tela que escolhe cliente, não só no Atendimento. Antes
+        // era `&& scope === 'chat'`: no Kanban, vincular um cliente ao negócio
+        // buscava numa carteira que nunca era atualizada, então quem foi
+        // cadastrado hoje aqui não aparecia no autocomplete de lá — a não ser
+        // que alguém tivesse aberto o Atendimento antes, por acaso.
         void api.post('/voltr/sync-clientes').then(() => {
           iframeRef.current?.contentWindow?.postMessage(
             { type: 'voltr-embed:clientes-atualizados' },
@@ -377,9 +393,11 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
       ? 'Atendimento'
       : scope === 'boards'
         ? 'Kanban'
-        : scope === 'ia'
-          ? 'Inteligência artificial'
-          : 'Contatos';
+        : scope === 'tarefas'
+          ? 'Tarefas'
+          : scope === 'ia'
+            ? 'Inteligência artificial'
+            : 'Contatos';
 
   // Tela cheia de verdade: sem max-width, sem padding e sem moldura de cartão.
   // A rota está na lista de full-bleed do DashboardLayout, então aqui não sobra

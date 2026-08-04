@@ -14,7 +14,12 @@ import {
   type VoltrConfig,
 } from './voltr.config';
 
-export type VoltrScope = 'chat' | 'crm' | 'boards' | 'ia';
+/**
+ * Escopos do embed da Voltr. `crm_admin` não abre tela: é o que autoriza APAGAR
+ * board e coluna do lado de lá, e só é pedido para quem tem `marketing:manage`
+ * aqui (ver `VoltrController.podeGerirMarketing`).
+ */
+export type VoltrScope = 'chat' | 'crm' | 'boards' | 'tarefas' | 'ia' | 'crm_admin';
 
 export interface VoltrEmbedTokenResponse {
   embedUrl: string;

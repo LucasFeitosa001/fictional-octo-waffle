@@ -14,6 +14,7 @@ import { IsBoolean } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
@@ -43,13 +44,17 @@ class PausaIaDto {
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('voltr')
 export class VoltrController {
-  constructor(private readonly voltr: VoltrService) {}
+  constructor(
+    private readonly voltr: VoltrService,
+    private readonly auth: AuthService,
+  ) {}
 
   @Get('embed-token')
   async embedToken(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
     @CurrentUser('email') email: string,
+    @Req() req: Request,
     @Query('scope') scope?: string,
   ): Promise<VoltrEmbedTokenResponse> {
     // Os DOIS escopos, sempre. O `scope` da query decide qual tela abre (é ele
@@ -67,7 +72,7 @@ export class VoltrController {
     // junto porque navegar entre as telas dela por dentro — do contato para a
     // conversa, do card do Kanban para o contato — é fluxo legítimo, e cada
     // superfície exige o seu escopo.
-    const TELAS: VoltrScope[] = ['chat', 'crm', 'boards', 'ia'];
+    const TELAS: VoltrScope[] = ['chat', 'crm', 'boards', 'tarefas', 'ia'];
     const pedido: VoltrScope = TELAS.includes(scope as VoltrScope)
       ? (scope as VoltrScope)
       : 'crm';
@@ -75,11 +80,46 @@ export class VoltrController {
       pedido,
       ...TELAS.filter((s) => s !== pedido),
     ];
+    // `crm_admin` é o que autoriza APAGAR board e coluna do outro lado. Ele não
+    // abre tela e não vem de graça: a Voltr provisiona todo mundo do embed como
+    // `atendente`, então o cargo real de quem está aqui não viaja no token — sem
+    // este recorte, qualquer pessoa com `marketing:view` (leitura) podia apagar
+    // o funil inteiro do salão em cascata. Quem confere é o par
+    // @Cargos + @EscopoDeEmbed('crm_admin') no CrmController da Voltr.
+    if (await this.podeGerirMarketing(req, userId, companyId)) {
+      scopes.push('crm_admin');
+    }
     const nome = await this.voltr.resolveDisplayName(userId, email);
     return this.voltr.getEmbedToken(
       { companyId, externalUserId: userId, email, nome },
       scopes,
     );
+  }
+
+  /**
+   * `marketing:manage` — a MESMA permissão que governa a pausa da IA e a
+   * recepcionista nativa. Owner (curinga `*`) satisfaz.
+   *
+   * Reaproveita o cache por-requisição que o PermissionGuard grava, para não
+   * bater no banco duas vezes na mesma chamada.
+   */
+  private async podeGerirMarketing(
+    req: Request & { __permissionKeys?: string[] },
+    userId: string,
+    companyId: string,
+  ): Promise<boolean> {
+    try {
+      let keys = req.__permissionKeys;
+      if (!keys) {
+        keys = (await this.auth.permissions(userId, companyId)).permissions;
+        req.__permissionKeys = keys;
+      }
+      return keys.includes('*') || keys.includes('marketing:manage');
+    } catch {
+      // Fail-closed: na dúvida, o token sai SEM o poder de destruir. Perder a
+      // ação de excluir é recuperável; conceder por engano, não.
+      return false;
+    }
   }
 
   /**
