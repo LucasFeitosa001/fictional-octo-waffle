@@ -257,7 +257,7 @@ export function AgendaPage() {
   }
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
   const [confirmationDrawerTab, setConfirmationDrawerTab] = useState<
-    'message' | 'followup' | 'livre' | 'logs' | null
+    'message' | 'followup' | 'logs' | null
   >(null);
   const [comandaOrder, setComandaOrder] = useState<OrderRow | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
