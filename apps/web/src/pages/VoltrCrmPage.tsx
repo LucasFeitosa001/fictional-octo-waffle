@@ -381,7 +381,24 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
                 indisponível; e a pausa nunca aparece como "ativa" só porque a
                 requisição saiu. */}
             <div
-              className="flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs shadow-sm sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm"
+              // A FAIXA INTEIRA é o alvo, não só o switch.
+              //
+              // Medido no navegador em 03/08: o switch tem 40x20 px e fica no
+              // canto superior direito (x=1839 num monitor de 1920). Ele
+              // funciona — cliquei e o PATCH saiu — mas errar um alvo desse
+              // tamanho, longe de onde a pessoa trabalha, é fácil, e errar não
+              // dá retorno nenhum: parece que "não funcionou". Clicar em
+              // qualquer ponto do rótulo agora alterna. Ver estudo 108.
+              onClick={(evento) => {
+                if (!estadoIa || salvandoIa || !podeGerenciarIa) return;
+                // Clique direto no switch é DELE: deixar passar alternaria duas
+                // vezes e voltaria ao estado anterior.
+                if ((evento.target as HTMLElement).closest('[data-slot="switch"], label.switch')) return;
+                void alternarIa(!estadoIa.envioAutomatico);
+              }}
+              className={`flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs shadow-sm sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm ${
+                estadoIa && !salvandoIa && podeGerenciarIa ? 'cursor-pointer select-none' : ''
+              }`}
               // Pausada, o estado tem que SALTAR aos olhos: o painel fica
               // aberto o dia inteiro e ninguém lê um rótulo que não muda de
               // cor. Tokens de tema (`--sp-status-warning-*`), nunca cor crua.
