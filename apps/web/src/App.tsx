@@ -85,6 +85,7 @@ import { PerfilPage } from './pages/PerfilPage';
 import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
 import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
 import { PerfilAssinaturaPage } from './pages/PerfilAssinaturaPage';
+import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
 import { FeatureGate } from './components/FeatureGate';
 import { IconLock } from './components/icons';
 
@@ -621,16 +622,13 @@ function ProtectedRoutes() {
         <Route path="/ajuda/artigo/:slug" element={<HelpArticlePage />} />
         <Route path="/indique" element={<IndiquePage />} />
         <Route path="/perfil/assinatura" element={<PerfilAssinaturaPage />} />
-        <Route
-          path="/perfil/adicionais"
-          element={
-            <IntegrationUnavailablePage
-              title="Contratação de adicionais ainda não habilitada"
-              description="A cobrança e a ativação de adicionais ainda não possuem integração com o provedor de assinatura. Nenhum recurso será marcado como contratado sem uma cobrança real."
-              backTo="/perfil/assinatura"
-            />
-          }
-        />
+        {/* A rota mostrava "Contratação de adicionais ainda não habilitada"
+            porque a tela que existia era uma MAQUETE: 22 adicionais escritos à
+            mão, carrinho e checkout que não chamavam o servidor e anunciavam
+            "ativados com sucesso" sem cobrar nem ativar nada. Agora ela lista os
+            módulos REAIS (GET /plans × GET /feature-flags) e a contratação passa
+            pelo suporte — nada é ativado sem cobrança. Ver estudo 122. */}
+        <Route path="/perfil/adicionais" element={<PerfilAdicionaisPage />} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/notificacoes" element={<NotificacoesCategoriasPage />} />
         <Route path="/notificacoes/:tipo" element={<NotificacoesDetalhePage />} />
