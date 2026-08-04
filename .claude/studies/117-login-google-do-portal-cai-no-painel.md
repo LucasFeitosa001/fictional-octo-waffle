@@ -63,15 +63,63 @@ também não vê motivo nenhum: o erro é MUDO.
 
 É exatamente a tela que o dono descreveu.
 
-## O que NÃO consegui reproduzir
+## A CAUSA RAIZ — achada no vídeo do dono
 
-A falha em si. Toda tentativa de OAuth registrada nas últimas 24h na base é
-minha (16:46–16:54 de 04/08), e sem uma credencial Google real não dá para
-completar o fluxo de volta. Ou seja: sei que QUALQUER erro leva ao painel, mas
-não sei ainda QUAL erro acontece com o dono.
+O dono gravou a tela. Os frames mostram o caminho inteiro:
 
-Por isso a correção tem duas partes, e a segunda existe justamente para tornar
-o próximo relato diagnosticável.
+- f001 — portal `agenda.salonpass.com.br/designmoda`, serviço escolhido. Note a
+  aba "Salonpass Pro" já aberta: ele **já estava logado no painel**.
+- f008 — passo 4 "Revise e confirme", com o card "Crie sua conta" e o botão
+  "Continuar com Google" (o do `BookingPage.tsx`, não o do LoginPage).
+- f011 — o Google abre "Escolha uma conta".
+- f017 — ele escolhe **`lucssfeitosa@gmail.com`** e confirma o consentimento.
+- f018 — cai em **`app.salonpass.com.br/painel`**, o painel administrativo.
+
+O estado dessa conta na base de produção:
+
+```
+lucssfeitosa@gmail.com | accountType=customer | emailVerified=f | provedores: credential
+```
+
+Ou seja: a conta JÁ EXISTE, criada com e-mail/senha em 2026-06-09, **sem Google
+vinculado** e com `emailVerified = false`.
+
+E em `better-auth@1.6.13`, `dist/oauth2/link-account.mjs:19-28`:
+
+```js
+const requireLocalEmailVerified = accountLinking?.requireLocalEmailVerified ?? true;
+if (!isTrustedProvider && !userInfo.emailVerified
+    || requireLocalEmailVerified && !dbUser.user.emailVerified
+    || accountLinking?.enabled === false
+    || accountLinking?.disableImplicitLinking === true) {
+  return { error: "account not linked", data: null };
+}
+```
+
+`better-auth.ts` **não configura `account.accountLinking`**, então
+`requireLocalEmailVerified` fica no padrão `true`. E este produto não roda
+verificação de e-mail (`emailAndPassword.requireEmailVerification: false`,
+better-auth.ts:146-149), então `emailVerified` é `false` para toda conta criada
+com senha. A segunda condição vira `true && !false` → **`account not linked`**.
+
+O erro então segue o caminho descrito acima e despeja o dono em `/` do painel —
+onde a sessão de staff que ele já tinha o levou direto para `/painel`. Fecha
+exatamente com o vídeo.
+
+**Alcance:** `SELECT count(*) FROM "User" WHERE "emailVerified"=false AND EXISTS
+(… providerId='credential')` → **12 contas** na mesma armadilha. Qualquer uma
+delas que tente entrar com Google bate no mesmo muro.
+
+## O que este estudo muda (parte 3)
+
+`account.accountLinking` passa a ser configurado em `better-auth.ts`:
+`trustedProviders: ['google']` e `requireLocalEmailVerified: false`.
+
+Por que é seguro: quem garante o e-mail é o Google, que o verifica. O caminho
+inverso — o que exigiria cuidado — não abre: ninguém entra na conta de outro
+sem possuir a Conta Google daquele e-mail. E o cadastro por senha deste produto
+não verifica e-mail, então exigir `emailVerified` local é exigir algo que nunca
+vai ser verdade — a trava não protegia nada, só impedia o login.
 
 ## O que este estudo muda
 

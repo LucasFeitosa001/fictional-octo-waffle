@@ -148,6 +148,32 @@ export const auth = betterAuth({
     requireEmailVerification: false,
   },
   socialProviders,
+  /**
+   * VÍNCULO DE CONTA — sem isto, "Continuar com Google" era um beco sem saída
+   * para quem já tinha conta com senha.
+   *
+   * `link-account.mjs:19-28` recusa vincular quando
+   * `requireLocalEmailVerified && !user.emailVerified`, e o padrão daquela
+   * flag é `true`. Como este produto NÃO roda verificação de e-mail (veja
+   * `requireEmailVerification: false` logo acima), `emailVerified` é sempre
+   * `false` — a condição era permanentemente verdadeira e devolvia
+   * `account_not_linked`. Eram 12 contas na base nessa armadilha; o dono
+   * gravou a própria caindo nela (estudo 117).
+   *
+   * Por que afrouxar é seguro aqui: quem garante o e-mail é o GOOGLE, que o
+   * verifica — por isso ele entra como `trustedProvider` e ninguém mais. O
+   * caminho perigoso não abre: para assumir a conta de alguém é preciso possuir
+   * a Conta Google daquele e-mail. Exigir `emailVerified` local era exigir algo
+   * que nunca seria verdade neste produto: a trava não protegia nada, só
+   * impedia o login.
+   */
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ['google'],
+      requireLocalEmailVerified: false,
+    },
+  },
   // Share the session cookie across salonpass.com.br subdomains so a Google
   // login that completes on app.salonpass.com.br is recognized on the club
   // (agenda.salonpass.com.br). Disabled when we can't derive a base domain.
