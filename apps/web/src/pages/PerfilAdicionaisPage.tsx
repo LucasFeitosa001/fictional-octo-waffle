@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { MobileBackHeader } from '../components/MobileBackHeader';
 import { LoadingState } from '../components/States';
-import { IconCheck, IconClock, IconLock, IconSparkles, IconUsers } from '../components/icons';
+import { IconCheck, IconLock, IconSparkles, IconUsers } from '../components/icons';
 import { useFeatures } from '../lib/queries/features';
 import { usePlans, type Plan, type PlanFeature } from '../lib/queries/plans';
 
@@ -96,7 +96,6 @@ interface ModuloNaTela extends PlanFeature {
   ativo: boolean;
 }
 
-const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function PerfilAdicionaisPage() {
   const navigate = useNavigate();
@@ -198,12 +197,35 @@ export function PerfilAdicionaisPage() {
             {disponiveis.length > 0 && (
               <section className="flex flex-col gap-3">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                  Para acrescentar ({disponiveis.length})
+                  Para acrescentar ({disponiveis.length + naoProntos.length + EM_BREVE.length})
                 </h2>
                 <ul className="grid list-none gap-3 p-0 sm:grid-cols-2">
-                  {disponiveis.map((m) => (
+                  {[
+                  ...disponiveis.map((m) => ({
+                    chave: m.key,
+                    label: m.label,
+                    description: m.description,
+                    aoClicar: () => pedirContratacao(m),
+                  })),
+                  // Os que ainda não têm integração entram na MESMA lista, sem
+                  // selo "Em breve": o dono não quer duas seções nem promessa de
+                  // data na tela. A diferença aparece quando a pessoa pede — o
+                  // suporte é quem diz o que já dá para ligar hoje.
+                  ...naoProntos.map((m) => ({
+                    chave: m.key,
+                    label: m.label,
+                    description: m.description,
+                    aoClicar: () => registrarInteresse(m.label),
+                  })),
+                  ...EM_BREVE.map((m) => ({
+                    chave: m.label,
+                    label: m.label,
+                    description: m.description,
+                    aoClicar: () => registrarInteresse(m.label),
+                  })),
+                ].map((m) => (
                     <li
-                      key={m.key}
+                      key={m.chave}
                       className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
                     >
                       <div className="flex gap-3">
@@ -213,17 +235,19 @@ export function PerfilAdicionaisPage() {
                         <div className="min-w-0">
                           <p className="m-0 text-sm font-semibold text-foreground">{m.label}</p>
                           <p className="mt-1 text-xs leading-5 text-muted-ink">{m.description}</p>
+                          {/* Antes dizia "Entra no plano Max · R$ 349/mês", o que
+                              obrigava a trocar de plano para ter UM módulo. O dono
+                              quer que quem está no Starter ou no Pro consiga
+                              habilitar o WhatsApp como adicional avulso — o preço
+                              de cada um é combinado no suporte. */}
                           <p className="mt-2 text-xs text-muted-ink">
-                            Entra no plano{' '}
-                            <strong className="text-foreground">{m.plano.label}</strong>
-                            {' · '}
-                            {moeda.format(m.plano.priceMonthly)}/mês
+                            Adicional · valor combinado no suporte
                           </p>
                         </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => pedirContratacao(m)}
+                        onClick={m.aoClicar}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                       >
                         <IconUsers size={15} />
@@ -241,55 +265,17 @@ export function PerfilAdicionaisPage() {
               </p>
             )}
 
+
+            {disponiveis.length === 0 && ativos.length > 0 && (
+              <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
+                Você já tem todos os módulos disponíveis.
+              </p>
+            )}
+
             {/* VITRINE — o que ainda não funciona. Fica visível de propósito,
                 para o salão ver o caminho e sinalizar interesse, mas sem preço,
                 sem data e sem botão de contratar: prometer entrega é como a
                 maquete anterior enganava. */}
-            <section className="flex flex-col gap-3">
-              <div>
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                  Em desenvolvimento ({naoProntos.length + EM_BREVE.length})
-                </h2>
-                <p className="mt-1 text-xs text-muted-ink">
-                  Ainda não estão prontos para uso. Se algum te interessa, avise o suporte —
-                  isso ajuda a definir a ordem do que sai primeiro.
-                </p>
-              </div>
-              <ul className="grid list-none gap-3 p-0 sm:grid-cols-2">
-                {[
-                  ...naoProntos.map((m) => ({ label: m.label, description: m.description })),
-                  ...EM_BREVE,
-                ].map((m) => (
-                  <li
-                    key={m.label}
-                    className="flex flex-col gap-3 rounded-2xl border border-dashed border-line bg-canvas p-4"
-                  >
-                    <div className="flex gap-3">
-                      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-muted-ink/10 text-muted-ink">
-                        <IconClock size={16} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="m-0 flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
-                          {m.label}
-                          <span className="rounded-full bg-muted-ink/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-muted-ink">
-                            Em breve
-                          </span>
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-muted-ink">{m.description}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => registrarInteresse(m.label)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-canvas"
-                    >
-                      <IconUsers size={15} />
-                      Tenho interesse
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
 
             {modulos.length === 0 && (
               <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
