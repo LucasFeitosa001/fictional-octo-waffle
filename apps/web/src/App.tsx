@@ -1,7 +1,7 @@
 import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSession } from './lib/auth';
+import { signOut, useSession } from './lib/auth';
 import { isAiHost } from './lib/aiHost';
 import { AiApp } from './ai/AiApp';
 import { useCan } from './lib/queries/permissions';
@@ -189,22 +189,61 @@ function useHideSplashWhenReady(ready: boolean) {
  * usuário dentro do app (não estoura pra /login) e oferece voltar ao painel.
  */
 function ForbiddenRoute() {
+  const { data: session } = useSession();
+  /**
+   * CONTA DE CLIENTE no painel — o dono caía aqui sem entender por quê.
+   *
+   * O cookie de sessão é compartilhado entre os subdomínios
+   * (`crossSubDomainCookies`, para o login de `app.` valer em `agenda.`), então
+   * entrar no portal de agendamento como CLIENTE substitui a sessão do painel.
+   * O painel passa a rodar com uma conta `customer`, que não tem empresa nem
+   * papel: menu reduzido e 403 em tudo.
+   *
+   * O RBAC está certo em negar. Errado era o texto: mandava "falar com o
+   * responsável pela conta" para quem É o responsável, e o único botão levava
+   * de volta ao mesmo lugar bloqueado. Ver estudo 120.
+   */
+  const usuario = session?.user as { accountType?: string; email?: string } | undefined;
+  const ehContaDeCliente = usuario?.accountType === 'customer';
+
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
       <span className="grid h-14 w-14 place-items-center rounded-2xl bg-pink/12 text-pink ring-1 ring-inset ring-pink/20">
         <IconLock size={26} />
       </span>
-      <h1 className="font-brand text-xl font-bold text-foreground">Acesso restrito</h1>
-      <p className="text-sm text-muted">
-        Seu perfil não tem permissão para acessar esta área. Fale com o
-        responsável pela conta se precisar de acesso.
-      </p>
-      <Link
-        to="/painel"
-        className="mt-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-      >
-        Voltar ao painel
-      </Link>
+      {ehContaDeCliente ? (
+        <>
+          <h1 className="font-brand text-xl font-bold text-foreground">
+            Você está na conta de agendamento
+          </h1>
+          <p className="text-sm text-muted">
+            {usuario?.email ? <><strong>{usuario.email}</strong> é a conta</> : 'Esta é a conta'}{' '}
+            que você usa para marcar horário como cliente — ela não abre a gestão do salão.
+            Entrar por ela troca a sessão aqui do painel.
+          </p>
+          <button
+            type="button"
+            onClick={() => void signOut().then(() => window.location.assign('/login'))}
+            className="mt-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Entrar com a conta do salão
+          </button>
+        </>
+      ) : (
+        <>
+          <h1 className="font-brand text-xl font-bold text-foreground">Acesso restrito</h1>
+          <p className="text-sm text-muted">
+            Seu perfil não tem permissão para acessar esta área. Fale com o
+            responsável pela conta se precisar de acesso.
+          </p>
+          <Link
+            to="/painel"
+            className="mt-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Voltar ao painel
+          </Link>
+        </>
+      )}
     </div>
   );
 }
@@ -298,6 +337,49 @@ function RoutedFeatureGate({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Barreira para conta de AGENDAMENTO no painel de gestão.
+ *
+ * NÃO navega para `/login`: a rota de login redireciona quem tem sessão de volta
+ * para `/` (App.tsx:642-643), e como o `signOut()` é assíncrono a sessão ainda
+ * existe no instante do redirect — dava um pingue-pongue infinito
+ * `/ ↔ /login?conta=agendamento`, medido no navegador.
+ *
+ * Em vez disso a sessão é encerrada AQUI, com a explicação na tela. Quando o
+ * `signOut` conclui, `useSession` deixa de ter sessão e o roteador manda para o
+ * login naturalmente — uma transição, sem ciclo. Ver estudo 120.
+ */
+function ContaDeAgendamento({ email }: { email?: string }) {
+  useEffect(() => {
+    // Deixa o recado ANTES de encerrar: esta tela vive só o tempo do signOut,
+    // e sem isto a pessoa é levada ao login sem entender por que foi expulsa.
+    try {
+      sessionStorage.setItem('sp:motivo-saida', email ? `agendamento:${email}` : 'agendamento');
+    } catch {
+      // Sem storage o aviso se perde, mas a barreira continua valendo.
+    }
+    void signOut();
+  }, [email]);
+
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-canvas p-6">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-card p-6 text-center shadow-[var(--shadow-card)]">
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-pink/12 text-pink ring-1 ring-inset ring-pink/20">
+          <IconLock size={26} />
+        </span>
+        <h1 className="mt-3 font-brand text-xl font-bold text-foreground">
+          Esta é uma conta de agendamento
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          {email ? <><strong>{email}</strong> serve</> : 'Esta conta serve'} para marcar horário
+          como cliente e não abre a gestão do salão. Estamos encerrando esta sessão — entre com
+          a conta do salão.
+        </p>
+      </div>
+    </main>
+  );
+}
+
 function ProtectedRoutes() {
   const { data: session, isPending } = useSession();
   // Render null SOMENTE no primeiro load (sem session em cache). Better Auth
@@ -307,6 +389,25 @@ function ProtectedRoutes() {
   // refetching preserva o UX. Splash HTML só cobre no primeiro paint.
   if (isPending && !session) return null;
   if (!session) return <Navigate to="/login" replace />;
+  /**
+   * CONTA DE AGENDAMENTO NÃO ENTRA NA GESTÃO.
+   *
+   * As contas criadas no portal (`accountType: 'customer'`) vivem na mesma
+   * tabela e compartilham o cookie de `.salonpass.com.br`. Elas nunca tiveram
+   * acesso a dado nenhum — a API devolve 401 em TODAS as rotas do salão
+   * (medido: /companies/current, /appointments, /customers, /orders,
+   * /professionals, /reports/sales) —, mas conseguiam ATRAVESSAR esta porta e
+   * montar o painel vazio, com "Acesso restrito" e um formulário de perfil que
+   * ainda por cima exibia "Proprietário(a)" (valor padrão do campo, nunca o
+   * papel real). Para o dono, isso parecia um cliente dentro da gestão.
+   *
+   * Aqui a porta fecha antes de montar qualquer coisa: quem é cliente vai para
+   * o login com o aviso, e não vê nada do salão. Ver estudo 120.
+   */
+  const tipoDeConta = (session.user as { accountType?: string } | undefined)?.accountType;
+  if (tipoDeConta === 'customer') {
+    return <ContaDeAgendamento email={(session.user as { email?: string }).email} />;
+  }
   return (
     <DashboardLayout>
       <RoutedFeatureGate>
