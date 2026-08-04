@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { MobileBackHeader } from '../components/MobileBackHeader';
 import { LoadingState } from '../components/States';
-import { IconCheck, IconClock, IconLock, IconSparkles, IconWhatsApp } from '../components/icons';
+import { IconCheck, IconClock, IconLock, IconSparkles, IconUsers } from '../components/icons';
 import { useFeatures } from '../lib/queries/features';
 import { usePlans, type Plan, type PlanFeature } from '../lib/queries/plans';
-import { useEmpresa } from '../lib/queries/empresa';
 
 /**
  * Adicionais da assinatura — os módulos do produto, o que já está ativo e o que
@@ -100,9 +99,9 @@ interface ModuloNaTela extends PlanFeature {
 const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function PerfilAdicionaisPage() {
+  const navigate = useNavigate();
   const plansQuery = usePlans();
   const featuresQuery = useFeatures();
-  const empresa = useEmpresa();
 
   /**
    * Cada módulo aparece UMA vez, no plano mais barato que o inclui. Os planos
@@ -133,28 +132,28 @@ export function PerfilAdicionaisPage() {
   const naoProntos = modulos.filter((m) => AINDA_NAO_FUNCIONA.has(m.key));
   const planoAtual = featuresQuery.data?.plan ?? null;
 
-  const salao = () => empresa.data?.name?.trim() || 'meu salão';
-
-  function abrirSuporte(texto: string) {
-    window.open(
-      `https://wa.me/?text=${encodeURIComponent(texto)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
+  /**
+   * Leva para o SUPORTE do painel, não para o WhatsApp.
+   *
+   * A primeira versão abria `wa.me/?text=…` — sem número de destino. O WhatsApp
+   * abre pedindo para escolher com quem falar, e o salão não tem como saber
+   * qual contato é o suporte do Salonpass: o pedido morria ali. Ainda não existe
+   * um número oficial de suporte (está para ser integrado); quando existir,
+   * basta trocar este destino por ele.
+   *
+   * O assunto vai na URL para a tela de suporte já abrir com o contexto do
+   * módulo, em vez de a pessoa ter de repetir o que queria.
+   */
+  function irParaSuporte(assunto: string) {
+    navigate(`/ajuda/suporte?assunto=${encodeURIComponent(assunto)}`);
   }
 
   function pedirContratacao(modulo: ModuloNaTela) {
-    abrirSuporte(
-      `Olá! Quero contratar o módulo "${modulo.label}" para ${salao()}. ` +
-        `(entra no plano ${modulo.plano.label})`,
-    );
+    irParaSuporte(`Quero contratar o módulo ${modulo.label} (plano ${modulo.plano.label})`);
   }
 
   function registrarInteresse(label: string) {
-    abrirSuporte(
-      `Olá! Tenho interesse no módulo "${label}" para ${salao()}. ` +
-        `Quero saber quando estará disponível.`,
-    );
+    irParaSuporte(`Tenho interesse no módulo ${label}`);
   }
 
   const carregando = plansQuery.isLoading || featuresQuery.isLoading;
@@ -227,7 +226,7 @@ export function PerfilAdicionaisPage() {
                         onClick={() => pedirContratacao(m)}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                       >
-                        <IconWhatsApp size={15} />
+                        <IconUsers size={15} />
                         Quero contratar
                       </button>
                     </li>
@@ -284,7 +283,7 @@ export function PerfilAdicionaisPage() {
                       onClick={() => registrarInteresse(m.label)}
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-canvas"
                     >
-                      <IconWhatsApp size={15} />
+                      <IconUsers size={15} />
                       Tenho interesse
                     </button>
                   </li>
