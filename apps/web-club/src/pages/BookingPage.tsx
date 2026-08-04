@@ -195,8 +195,18 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   const isLoggedIn = !!session;
   // Phone already on the logged-in account (additional field on the auth user).
   const userPhone = (session?.user as { phone?: string | null } | undefined)?.phone ?? null;
-  // Logged in but without a phone → we must collect one before booking.
-  const needsPhone = isLoggedIn && !userPhone;
+  /**
+   * SEMPRE confirmar o telefone de quem agenda com conta — não só quando falta.
+   *
+   * Antes era `isLoggedIn && !userPhone`: havendo QUALQUER número na conta, ele
+   * entrava no agendamento sem aparecer na tela. E esse número é o destino da
+   * confirmação e dos lembretes de WhatsApp; herdado de um cadastro antigo ou de
+   * outra pessoa que usou o mesmo aparelho, a mensagem do horário de alguém vai
+   * para o celular de outro. Na base havia o MESMO telefone em contas de pessoas
+   * diferentes, e foi o que o dono viu virar "o número da empresa" nos dois
+   * agendamentos que fez. Ver estudo 121.
+   */
+  const needsPhone = isLoggedIn;
 
   // SPA navigation targets for the auth flows. `basePath` is "" on a tenant
   // subdomain (portal at "/") and "/:slug" under path-based routing.
@@ -280,6 +290,15 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   const [guestEmail, setGuestEmail] = useState('');
   // Phone for a logged-in customer who has none on file yet (e.g. Google sign-up).
   const [accountPhone, setAccountPhone] = useState('');
+  // Pré-preenche com o número que a conta já tem, para a pessoa CONFERIR em vez
+  // de digitar de novo. Só enquanto ela não mexeu no campo — depois disso o que
+  // vale é o que ela escreveu. A sessão chega depois da primeira renderização,
+  // por isso é efeito e não valor inicial do useState.
+  const telefoneTocado = useRef(false);
+  useEffect(() => {
+    if (telefoneTocado.current || !userPhone) return;
+    setAccountPhone(userPhone);
+  }, [userPhone]);
   const [done, setDone] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -812,19 +831,32 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                     </Card.Content>
                   </Card>
 
-                  {/* Logged-in customer with no phone on file (e.g. Google sign-up):
-                      collect a WhatsApp so the confirmation/reminders can reach them. */}
+                  {/* Quem agenda com conta CONFIRMA o WhatsApp aqui, sempre —
+                      inclusive quem já tem número gravado. É o destino da
+                      confirmação e dos lembretes; um número herdado de cadastro
+                      antigo manda a mensagem do horário para o aparelho de outra
+                      pessoa. Ver estudo 121. */}
                   {needsPhone && (
                     <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
                       <Card.Content className="flex flex-col gap-3 p-4">
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                           <WhatsAppGlyph size={16} />
-                          Seu WhatsApp
+                          {userPhone ? 'Confirme seu WhatsApp' : 'Seu WhatsApp'}
                         </h3>
                         <p className="text-xs text-muted">
-                          Para enviarmos a confirmação e os lembretes do seu horário.
+                          {userPhone
+                            ? 'Confira se o número está certo — é nele que a confirmação e os lembretes chegam.'
+                            : 'Para enviarmos a confirmação e os lembretes do seu horário.'}
                         </p>
-                        <TextField value={accountPhone} onChange={setAccountPhone} type="tel" isRequired>
+                        <TextField
+                          value={accountPhone}
+                          onChange={(v) => {
+                            telefoneTocado.current = true;
+                            setAccountPhone(v);
+                          }}
+                          type="tel"
+                          isRequired
+                        >
                           <Label>Telefone (WhatsApp)</Label>
                           <Input placeholder="(00) 00000-0000" />
                         </TextField>
