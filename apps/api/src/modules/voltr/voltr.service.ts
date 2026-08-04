@@ -21,6 +21,26 @@ import {
  */
 export type VoltrScope = 'chat' | 'crm' | 'boards' | 'tarefas' | 'ia' | 'crm_admin';
 
+/**
+ * Lê os escopos que a Voltr aceita a partir da mensagem do `@IsIn` dela:
+ * "each value in scopes must be one of the following values: chat, crm, ...".
+ *
+ * É frágil por natureza — depende do texto do class-validator —, mas o preço de
+ * errar é apenas não degradar (o erro original volta ao chamador), enquanto o
+ * preço de não tentar é o painel inteiro sem CRM até os dois lados subirem.
+ */
+export function lerEscoposAceitos(mensagem: string | string[] | undefined): string[] | undefined {
+  const texto = Array.isArray(mensagem) ? mensagem.join(' ') : mensagem;
+  if (!texto?.includes('scopes')) return undefined;
+  const lista = /following values:\s*([^.]+)/i.exec(texto)?.[1];
+  if (!lista) return undefined;
+  const aceitos = lista
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return aceitos.length ? aceitos : undefined;
+}
+
 export interface VoltrEmbedTokenResponse {
   embedUrl: string;
   expiresIn: number;
@@ -268,6 +288,65 @@ export class VoltrService {
       );
     }
 
+    const tentar = (pedidos: VoltrScope[]) =>
+      this.trocarToken(tenantSlug, user, pedidos);
+
+    let resposta = await tentar(scopes);
+
+    // A Voltr valida os escopos com um @IsIn: um escopo que ELA ainda não
+    // conhece derruba a troca inteira com 400 — e o painel perde TODAS as telas,
+    // não só a nova. É o que acontece quando este lado sobe primeiro.
+    //
+    // Então a incompatibilidade degrada em vez de quebrar: repete a troca só com
+    // os escopos que a versão dela aceita. O painel volta ao conjunto anterior
+    // de telas e a nova aparece sozinha assim que o outro lado subir — a ordem
+    // do deploy deixa de importar.
+    const recusados = resposta.escoposRecusados;
+    if (recusados) {
+      const aceitos = scopes.filter((s) => recusados.includes(s));
+      if (aceitos.length && aceitos.length < scopes.length) {
+        this.logger.warn(
+          `Voltr ainda não conhece ${scopes.filter((s) => !recusados.includes(s)).join(', ')}; repetindo sem eles.`,
+        );
+        resposta = await tentar(aceitos);
+      }
+    }
+
+    const { corpo, status } = resposta;
+    if (!corpo?.accessToken || !corpo.embedUrl) {
+      const motivo = corpo?.message ?? `HTTP ${status}`;
+      this.logger.warn(
+        `Troca de token da Voltr recusada (tenant=${tenantSlug}): ${motivo}`,
+      );
+      throw new BadGatewayException(`A Voltr recusou o acesso: ${motivo}`);
+    }
+
+    return {
+      accessToken: corpo.accessToken,
+      expiresIn: corpo.expiresIn ?? 900,
+      embedUrl: corpo.embedUrl,
+    };
+  }
+
+  /**
+   * Uma tentativa de token-exchange. Devolve o corpo cru e, quando a recusa foi
+   * por escopo desconhecido, a LISTA que aquela versão da Voltr aceita — lida da
+   * própria mensagem de erro do `@IsIn` dela.
+   */
+  private async trocarToken(
+    tenantSlug: string,
+    user: { externalUserId: string; email: string; nome: string },
+    scopes: VoltrScope[],
+  ): Promise<{
+    status: number;
+    corpo: {
+      accessToken?: string;
+      expiresIn?: number;
+      embedUrl?: string;
+      message?: string | string[];
+    } | null;
+    escoposRecusados?: string[];
+  }> {
     // Anti-replay exigido pela Voltr: timestamp em SEGUNDOS (janela ±300s) e um
     // nonce único por requisição. Sem eles a troca devolve 400.
     const ts = Math.floor(Date.now() / 1000);
@@ -305,21 +384,13 @@ export class VoltrService {
       accessToken?: string;
       expiresIn?: number;
       embedUrl?: string;
-      message?: string;
+      message?: string | string[];
     } | null;
 
-    if (!res.ok || !corpo?.accessToken || !corpo.embedUrl) {
-      const motivo = corpo?.message ?? `HTTP ${res.status}`;
-      this.logger.warn(
-        `Troca de token da Voltr recusada (tenant=${tenantSlug}): ${motivo}`,
-      );
-      throw new BadGatewayException(`A Voltr recusou o acesso: ${motivo}`);
-    }
-
     return {
-      accessToken: corpo.accessToken,
-      expiresIn: corpo.expiresIn ?? 900,
-      embedUrl: corpo.embedUrl,
+      status: res.status,
+      corpo,
+      escoposRecusados: res.status === 400 ? lerEscoposAceitos(corpo?.message) : undefined,
     };
   }
 

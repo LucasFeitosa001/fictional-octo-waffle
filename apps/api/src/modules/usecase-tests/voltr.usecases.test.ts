@@ -24,7 +24,7 @@ import {
   type VoltrConfig,
 } from '../voltr/voltr.config';
 import { VoltrAgendaService, _internoAgenda } from '../voltr/voltr-agenda.service';
-import { VoltrService } from '../voltr/voltr.service';
+import { VoltrService, lerEscoposAceitos } from '../voltr/voltr.service';
 import { VoltrSignatureGuard } from '../voltr/voltr-signature.guard';
 import { isAutomationKind, podeEnfileirar, expirouNaFila } from '../whatsapp/outbox-policy';
 
@@ -223,6 +223,52 @@ describe('Integração com a Voltr (estudo 68)', () => {
       'salaozinho',
       'quem ESTÁ no mapa segue resolvendo',
     );
+  });
+});
+
+/**
+ * Escopo novo não pode derrubar as telas antigas.
+ *
+ * Os dois lados sobem em momentos diferentes. A Voltr valida `scopes` com um
+ * `@IsIn`, então um escopo que a versão dela ainda não conhece recusa a troca
+ * inteira com 400 — e o painel perde TODAS as telas do CRM, não só a nova.
+ * Aconteceu em produção em 04/08/2026, ao subir este lado primeiro pedindo
+ * `tarefas`. A degradação lê os escopos aceitos da própria mensagem de erro
+ * dela e repete a troca só com eles.
+ */
+describe('Escopos do embed: incompatibilidade degrada, não quebra', () => {
+  // Mensagem REAL devolvida pela Voltr de produção em 04/08/2026.
+  const RECUSA = 'each value in scopes must be one of the following values: chat, crm, boards, ia';
+
+  it('lê os escopos aceitos da mensagem do @IsIn da Voltr', () => {
+    assert.deepEqual(lerEscoposAceitos(RECUSA), ['chat', 'crm', 'boards', 'ia']);
+    // O class-validator devolve array de mensagens; o formato de string também
+    // precisa funcionar, porque a versão do outro lado pode mudar.
+    assert.deepEqual(lerEscoposAceitos([RECUSA]), ['chat', 'crm', 'boards', 'ia']);
+  });
+
+  it('só os escopos conhecidos sobrevivem à repetição — as telas antigas voltam', () => {
+    const pedidos = ['boards', 'chat', 'crm', 'tarefas', 'ia', 'crm_admin'];
+    const aceitos = lerEscoposAceitos(RECUSA)!;
+    const repetir = pedidos.filter((s) => aceitos.includes(s));
+    assert.deepEqual(repetir, ['boards', 'chat', 'crm', 'ia']);
+    // O escopo PEDIDO continua em primeiro: é ele que monta a URL do iframe.
+    assert.equal(repetir[0], 'boards');
+  });
+
+  it('não degrada quando o erro não é de escopo — o erro real precisa subir', () => {
+    assert.equal(lerEscoposAceitos('Requisição de embed expirada'), undefined);
+    assert.equal(lerEscoposAceitos('tenant desconhecido'), undefined);
+    assert.equal(lerEscoposAceitos(undefined), undefined);
+  });
+
+  it('não degrada quando a Voltr já conhece TODOS os escopos pedidos', () => {
+    const nova = 'each value in scopes must be one of the following values: chat, crm, boards, tarefas, ia, crm_admin';
+    const pedidos = ['boards', 'chat', 'crm', 'tarefas', 'ia', 'crm_admin'];
+    const aceitos = lerEscoposAceitos(nova)!;
+    const repetir = pedidos.filter((s) => aceitos.includes(s));
+    // Mesmo tamanho = nada a remover, então a repetição não acontece.
+    assert.equal(repetir.length, pedidos.length);
   });
 });
 
