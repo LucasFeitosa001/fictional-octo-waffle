@@ -159,16 +159,20 @@ const NAVIGATION: NavEntry[] = [
         feature: 'whatsapp_api',
         perm: 'marketing:view',
       },
-      {
-        // A agenda de follow-up do CRM. Estava pronta do outro lado (rotas,
-        // tela e tudo) e não tinha porta de entrada: quem move um negócio no
-        // Kanban não tinha onde anotar "ligar quinta".
-        to: '/voltr-tarefas',
-        label: 'Tarefas',
-        icon: IconClock,
-        feature: 'whatsapp_api',
-        perm: 'marketing:view',
-      },
+      // TAREFAS — a agenda de follow-up do CRM. Fora do menu ATÉ o web da Voltr
+      // subir: a API dela já emite o token do escopo `tarefas`, mas a página
+      // /embed/tarefas ainda responde 404 em produção, e o item levaria a um
+      // iframe quebrado. Deste lado está tudo pronto (rota /voltr-tarefas no
+      // App.tsx, full-bleed no DashboardLayout, escopo no embed-token) — basta
+      // descomentar quando `curl https://<tenant>.belivin.com.br/embed/tarefas`
+      // devolver 200.
+      // {
+      //   to: '/voltr-tarefas',
+      //   label: 'Tarefas',
+      //   icon: IconClock,
+      //   feature: 'whatsapp_api',
+      //   perm: 'marketing:view',
+      // },
       {
         to: '/voltr-ia',
         label: 'Inteligência artificial',
