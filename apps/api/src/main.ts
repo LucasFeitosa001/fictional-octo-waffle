@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as express from 'express';
@@ -69,6 +69,44 @@ async function bootstrap() {
 
   const httpAdapter = app.getHttpAdapter();
   const instance = httpAdapter.getInstance();
+
+  /**
+   * Registra TODA falha de login social — o defeito era invisível em produção.
+   *
+   * O Better Auth não LANÇA erro no OAuth: ele REDIRECIONA para uma URL com
+   * `?error=…`. Por isso nem o `onAPIError.onError` nem os filtros de exceção do
+   * Nest enxergam essas falhas, e `oauth2/link-account.mjs:23` só avisa
+   * `if (isDevelopment())`. Resultado: a janela de log ficava vazia no minuto
+   * exato da tentativa, e sobrou adivinhar por vídeo qual era o erro.
+   *
+   * Vem ANTES do mount abaixo de propósito: o handler do Better Auth encerra a
+   * resposta, então um middleware registrado depois dele nunca rodaria. Aqui só
+   * pendura um listener no `finish` e segue.
+   *
+   * Lê apenas o `Location` da resposta — nada de corpo, token ou código de
+   * autorização, e do destino guarda só o host (o caminho carrega o slug do
+   * salão). Ver estudo 117.
+   */
+  const logOAuth = new Logger('OAuthRedirect');
+  instance.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!req.originalUrl?.startsWith('/api/v1/auth/')) return next();
+    res.on('finish', () => {
+      const destino = res.getHeader('location');
+      if (typeof destino !== 'string' || !destino.includes('error')) return;
+      const motivo = /[?&]error=([^&]+)/.exec(destino)?.[1] ?? 'sem-codigo';
+      const paraOnde = (() => {
+        try {
+          return new URL(destino, 'https://app.salonpass.com.br').host;
+        } catch {
+          return '?';
+        }
+      })();
+      logOAuth.warn(
+        `login social recusado: ${decodeURIComponent(motivo)} · rota=${req.path} · devolvido para ${paraOnde}`,
+      );
+    });
+    next();
+  });
 
   // Mount Better Auth on /api/v1/auth/* (raw request, no JSON parsing).
   instance.all(/^\/api\/v1\/auth\/.*/, toNodeHandler(auth));
