@@ -60,15 +60,26 @@ manda a mensagem do agendamento de uma pessoa para o aparelho de outra.
 
 ## O que este estudo muda
 
-O telefone passa a ser SEMPRE confirmado por quem agenda com conta, não só
-quando falta:
+O telefone passa a ser SEMPRE pedido a quem agenda com conta, não só quando
+falta:
 
-- o campo aparece pré-preenchido com o que já existe na conta, editável;
+- o campo aparece **em branco**, todas as vezes;
 - continua obrigatório e validado (DDD + número);
-- o texto muda de "Seu WhatsApp" para "Confirme seu WhatsApp" quando já há um
-  número, deixando claro que é revisão, não cadastro;
-- o valor confirmado é enviado sempre, e o servidor o grava no cadastro —
-  corrigindo um número velho em vez de perpetuá-lo.
+- o valor digitado é enviado sempre, e o servidor o grava no cadastro
+  (public-booking.service.ts:557-562) — corrigindo um número velho em vez de
+  perpetuá-lo.
 
-Uma tela a mais de atrito, de propósito: é a diferença entre a confirmação
-chegar no aparelho certo ou no de outra pessoa.
+Um atrito a mais, de propósito: é a diferença entre a confirmação chegar no
+aparelho certo ou no de outra pessoa.
+
+### Por que em branco, e não pré-preenchido
+
+A primeira versão vinha pré-preenchida com o número da conta, para a pessoa
+"conferir". O dono viu na tela e recusou: *"por que está meu número da empresa
+como padrão? remova, deixa o espaço em branco"*.
+
+Ele está certo, e por um motivo que a versão anterior ignorava: **campo já
+preenchido é confirmado no automático**. Era exatamente esse hábito que
+produziu o número errado — pedir revisão de um valor que já está lá não muda o
+comportamento de quem está com pressa para fechar o horário. Em branco, o
+número tem de ser digitado, e só entra o que a pessoa realmente quer.

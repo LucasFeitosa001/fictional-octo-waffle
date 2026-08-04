@@ -193,18 +193,17 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   const navigate = useNavigate();
   const { data: session, ehStaff, emailDaConta } = useCustomerSession();
   const isLoggedIn = !!session;
-  // Phone already on the logged-in account (additional field on the auth user).
-  const userPhone = (session?.user as { phone?: string | null } | undefined)?.phone ?? null;
   /**
-   * SEMPRE confirmar o telefone de quem agenda com conta — não só quando falta.
+   * SEMPRE pedir o telefone de quem agenda com conta — em branco, todas as vezes.
    *
-   * Antes era `isLoggedIn && !userPhone`: havendo QUALQUER número na conta, ele
-   * entrava no agendamento sem aparecer na tela. E esse número é o destino da
+   * Era `isLoggedIn && !userPhone`: havendo QUALQUER número na conta, ele entrava
+   * no agendamento sem sequer aparecer na tela. Esse número é o destino da
    * confirmação e dos lembretes de WhatsApp; herdado de um cadastro antigo ou de
    * outra pessoa que usou o mesmo aparelho, a mensagem do horário de alguém vai
-   * para o celular de outro. Na base havia o MESMO telefone em contas de pessoas
-   * diferentes, e foi o que o dono viu virar "o número da empresa" nos dois
-   * agendamentos que fez. Ver estudo 121.
+   * para o celular de outro — e na base havia o MESMO telefone em contas de
+   * pessoas diferentes. O campo também não vem preenchido: um valor já posto é
+   * confirmado no automático, que é o hábito que produziu o número errado.
+   * Ver estudo 121.
    */
   const needsPhone = isLoggedIn;
 
@@ -289,16 +288,17 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   // Phone for a logged-in customer who has none on file yet (e.g. Google sign-up).
+  /**
+   * Começa VAZIO de propósito, mesmo quando a conta já tem telefone.
+   *
+   * A primeira versão vinha pré-preenchida, para a pessoa "conferir". Só que um
+   * campo já preenchido é confirmado no automático — e era justamente o número
+   * herdado (o mesmo aparecia em contas de pessoas diferentes na base) que
+   * mandava a confirmação do horário de alguém para o aparelho de outro. Em
+   * branco, quem agenda precisa DIGITAR o número em que quer ser avisado.
+   * Ver estudo 121.
+   */
   const [accountPhone, setAccountPhone] = useState('');
-  // Pré-preenche com o número que a conta já tem, para a pessoa CONFERIR em vez
-  // de digitar de novo. Só enquanto ela não mexeu no campo — depois disso o que
-  // vale é o que ela escreveu. A sessão chega depois da primeira renderização,
-  // por isso é efeito e não valor inicial do useState.
-  const telefoneTocado = useRef(false);
-  useEffect(() => {
-    if (telefoneTocado.current || !userPhone) return;
-    setAccountPhone(userPhone);
-  }, [userPhone]);
   const [done, setDone] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -841,19 +841,15 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                       <Card.Content className="flex flex-col gap-3 p-4">
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                           <WhatsAppGlyph size={16} />
-                          {userPhone ? 'Confirme seu WhatsApp' : 'Seu WhatsApp'}
+                          Seu WhatsApp
                         </h3>
                         <p className="text-xs text-muted">
-                          {userPhone
-                            ? 'Confira se o número está certo — é nele que a confirmação e os lembretes chegam.'
-                            : 'Para enviarmos a confirmação e os lembretes do seu horário.'}
+                          Informe o número em que quer receber a confirmação e os lembretes
+                          deste horário.
                         </p>
                         <TextField
                           value={accountPhone}
-                          onChange={(v) => {
-                            telefoneTocado.current = true;
-                            setAccountPhone(v);
-                          }}
+                          onChange={setAccountPhone}
                           type="tel"
                           isRequired
                         >
