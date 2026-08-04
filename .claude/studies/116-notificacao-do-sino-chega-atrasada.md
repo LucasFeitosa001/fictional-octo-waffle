@@ -86,3 +86,57 @@ risco de "layout tremendo" que motivou o padrão global não se aplica).
 **Limite honesto:** isto reduz o atraso ao intervalo de polling, não o elimina.
 Entrega instantânea exigiria push nativo ou um canal realtime no painel —
 nenhum dos dois existe hoje, e ambos são trabalho maior que este estudo.
+
+## Segunda rodada — "isso vale para TODAS as notificações?"
+
+Pergunta do dono depois da primeira correção. Fui conferir em vez de supor, e a
+resposta era **não** por três motivos, todos corrigidos aqui.
+
+### Os tipos que REALMENTE existem (medido na base de produção)
+
+```
+appointment.created    137   (último: 2026-08-04)
+appointment.canceled    47   (último: 2026-08-04)
+appointment.confirmed   44   (último: 2026-07-31)
+automation.follow_up     1   (último: 2026-08-01)
+```
+
+### 1. A página de categoria não atualizava sozinha
+
+- apps/web/src/lib/queries/notificacoes.ts:166-186 — `useNotificationsByType`,
+  usada por `NotificacoesDetalhePage`, não tem `refetchInterval` NENHUM. Com o
+  `staleTime: 30_000` global, ela busca ao montar e fica parada: quem deixa
+  aberta a página "Agendamentos cancelados" não vê nada novo chegar.
+
+### 2. Follow-up aparece no sino como tipo cru
+
+- apps/api/src/modules/queues/follow-up-sender.service.ts:23-24 — cria
+  `automation.follow_up` (estúdio) e `automation.follow_up.customer` (cliente).
+  Também em `followup-poller.service.ts:10` e `processors/follow-ups.processor.ts:32-33`.
+- Exemplo real em produção: `Follow-up avaliado: Paulo / Sem telefone/opt-out —
+  não enviado.`
+- apps/web/src/lib/queries/notificacoes.ts:69-74 — `NOTIF_TYPE_LABEL` não tem
+  nenhum dos dois, e apps/web/src/pages/NotificacoesDetalhePage.tsx:167 cai no
+  fallback `?? n.type` — o dono lê `automation.follow_up` na tela.
+- apps/web/src/lib/queries/notificacoes.ts:46-62 — `NOTIF_CATEGORIES` também
+  não os cobre, então eles não aparecem em categoria nenhuma.
+
+### 3. Existe uma categoria que nunca terá conteúdo
+
+- `crm.agenda_pendencia` está em `NOTIF_CATEGORIES` (categoria "Atendimento
+  (CRM)") e em `NOTIF_TYPE_LABEL`.
+- `grep -rn "agenda_pendencia" apps/api/src` → **vazio**. Nada no backend cria
+  esse tipo.
+- Na base de produção: **0 linhas**.
+- O comentário logo acima da lista (linha 34-37) pede exatamente para "NÃO
+  inventar categorias sem tipo real por trás" — e essa é uma.
+
+### O que a segunda rodada muda
+
+- `useNotificationsByType` passa a usar o mesmo `POLL_SINO`: a página de
+  categoria atualiza como o sino;
+- categoria **Follow-up** cobrindo `automation.follow_up` e
+  `automation.follow_up.customer`, com rótulos em português;
+- `crm.agenda_pendencia` sai da taxonomia — categoria vazia permanente é a
+  mesma "feature decorativa" que a regra do projeto combate. Volta no dia em
+  que algum código realmente criar o tipo.

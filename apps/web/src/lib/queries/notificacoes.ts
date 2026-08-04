@@ -55,22 +55,37 @@ export const NOTIF_CATEGORIES: NotifCategoryDef[] = [
     types: ['appointment.canceled'],
   },
   {
-    slug: 'crm',
-    label: 'Atendimento (CRM)',
-    types: ['crm.agenda_pendencia'],
+    // Emitidos por follow-up-sender.service.ts:23-24 (e pelo poller e pelo
+    // processor). Existiam em produção e não estavam em categoria nenhuma: o
+    // aviso caía no sino e sumia da página de notificações, com o tipo cru
+    // `automation.follow_up` na tela por falta de rótulo.
+    slug: 'follow-up',
+    label: 'Follow-up',
+    types: ['automation.follow_up', 'automation.follow_up.customer'],
   },
+  // NÃO existe categoria 'crm.agenda_pendencia': o tipo estava listado aqui e
+  // NADA no backend o cria (grep vazio em apps/api/src, zero linhas na base de
+  // produção). Era uma categoria permanentemente vazia — exatamente o que o
+  // comentário acima manda evitar. Volta quando algum código emitir o tipo.
 ];
 
 export function categoryBySlug(slug: string | undefined): NotifCategoryDef | undefined {
   return NOTIF_CATEGORIES.find((c) => c.slug === slug);
 }
 
-/** Rótulo pt-BR por tipo de notificação (para itens individuais). */
+/**
+ * Rótulo pt-BR por tipo de notificação (para itens individuais).
+ *
+ * Tipo sem rótulo aqui cai no fallback `?? n.type` de
+ * NotificacoesDetalhePage.tsx:167 e o dono lê a chave crua na tela — foi o que
+ * acontecia com os dois de follow-up.
+ */
 export const NOTIF_TYPE_LABEL: Record<string, string> = {
   'appointment.created': 'Agendamento criado',
   'appointment.confirmed': 'Agendamento confirmado',
   'appointment.canceled': 'Agendamento cancelado',
-  'crm.agenda_pendencia': 'A IA não achou horário',
+  'automation.follow_up': 'Follow-up do salão',
+  'automation.follow_up.customer': 'Follow-up enviado ao cliente',
 };
 
 /**
@@ -179,6 +194,10 @@ export function useNotificationsByType(
         offset,
       }),
     enabled: types.length > 0,
+    // Mesmo polling do sino: esta página não tinha refetchInterval NENHUM, então
+    // quem deixava aberta "Agendamentos cancelados" não via nada novo chegar —
+    // justamente a tela de quem está acompanhando aquele assunto.
+    ...POLL_SINO,
     // Mantém páginas anteriores visíveis enquanto a próxima carrega ("Mostrar
     // mais" não pisca a lista inteira).
     placeholderData: (prev) => prev,
