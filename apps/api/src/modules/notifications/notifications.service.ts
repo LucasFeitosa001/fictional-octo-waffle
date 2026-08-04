@@ -156,11 +156,26 @@ export class NotificationsService {
       // Studio channel — always an in-app notification (the panel bell).
       // `entityId = appointmentId` habilita o deep-link do sino → drawer do
       // agendamento (o clique navega para /agenda?appointmentId=<id>).
+      // Quem fez isso: a IA ou uma pessoa?
+      //
+      // O dono não conseguia distinguir no sino um agendamento que a Mariana
+      // fechou sozinha de um que a recepção digitou — e são coisas diferentes
+      // para conferir. `legacySource: 'voltr-ia'` é o carimbo que a ponte grava
+      // em tudo que a IA cria. Ver estudo 115.
+      //
+      // Limite honesto: o carimbo é do AGENDAMENTO, não do evento. Um horário
+      // marcado no balcão e cancelado pela IA não aparece como "IA" aqui —
+      // resolver isso exige marcar a origem de cada evento, não do registro.
+      const feitoPelaIa = appt.legacySource === 'voltr-ia';
+      const tituloEstudio = feitoPelaIa
+        ? `IA · ${messages.studio.title}`
+        : messages.studio.title;
+
       await this.prisma.client.notification.create({
         data: {
           companyId,
           type: `appointment.${event}`,
-          title: messages.studio.title,
+          title: tituloEstudio,
           body: messages.studio.body,
           entityId: appointmentId,
         },
@@ -170,7 +185,7 @@ export class NotificationsService {
       // Silent quando RESEND_API_KEY ausente (EmailService.send loga warning
       // e retorna sem falhar) — permite ativar depois só setando a chave.
       await this.dispatchStudioEmail(companyId, {
-        subject: messages.studio.title,
+        subject: tituloEstudio,
         body: messages.studio.body,
       });
 
