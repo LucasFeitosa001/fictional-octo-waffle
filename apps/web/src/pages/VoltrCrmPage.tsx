@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { apiErrorMessage } from '../lib/toast';
 import { useCan } from '../lib/queries/permissions';
 import { useTheme } from '../theme/theme';
+import { IconCalendar, IconMessage, IconSparkles, IconTarget } from '../components/icons';
 
 /**
  * Host do Chat/CRM da Voltr embarcado no painel (estudo 68).
@@ -495,22 +496,35 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
               />
             </div>
           </div>
-          {/* Cada cartão diz O QUE mede e DE ONDE vem. Um número indisponível
-              aparece como "—" com o motivo no title — nunca como zero, que foi
-              o que fez o dono achar que a IA estava parada. */}
-          <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+          {/* Cards no estilo do painel próprio da Voltr (ai.salonpass.com.br):
+              pílula de ícone tonalizada à esquerda + número grande à direita.
+              O dono viu os dois lados e pediu que aqui ficasse igual — mesma
+              linguagem visual do painel dela, mesmos tons por família de
+              métrica. Cada cartão diz O QUE mede e DE ONDE vem no title.
+              Um número indisponível aparece como "—" com o motivo — nunca como
+              zero, que foi o que fez o dono achar que a IA estava parada. */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             {[
               {
                 label: 'Conversas hoje',
                 mobile: 'Conversas',
                 value: numeroOuTraco(metricasIa?.conversasHoje),
                 ajuda: `Conversas com mensagem hoje no atendimento da IA. ${ORIGEM_VOLTR}`,
+                icone: <IconMessage size={18} />,
+                // Tom da MARCA do salão (`--sp-primary`): dá afinidade com a cor
+                // que o dono escolheu. `color-mix` faz o "soft" acompanhar
+                // qualquer tema — bege vira bege, roxo vira lilás.
+                bg: 'color-mix(in oklab, var(--sp-primary) 14%, var(--sp-card) 86%)',
+                fg: 'var(--sp-primary-strong, var(--sp-primary))',
               },
               {
                 label: 'Respostas da IA hoje',
                 mobile: 'Respostas IA',
                 value: numeroOuTraco(metricasIa?.respostasIaHoje),
                 ajuda: `Mensagens que a IA enviou hoje. Rascunho que ninguém aprovou não entra. ${ORIGEM_VOLTR}`,
+                icone: <IconSparkles size={18} />,
+                bg: 'color-mix(in oklab, var(--sp-primary) 22%, var(--sp-card) 78%)',
+                fg: 'var(--sp-primary-strong, var(--sp-primary))',
               },
               {
                 // O rótulo carrega a janela: sem "no mês" o número parecia do
@@ -522,6 +536,9 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
                 value: metricasIa ? metricasIa.agendamentosIaMes : '—',
                 ajuda:
                   'Horários que a IA marcou na sua agenda no mês corrente. Medido aqui no SalonPass; cancelamento posterior não desconta.',
+                icone: <IconCalendar size={18} />,
+                bg: 'var(--sp-status-success-soft)',
+                fg: 'var(--sp-status-success-fg)',
               },
               {
                 label: 'Taxa de resolução',
@@ -531,8 +548,11 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
                     ? `${metricasIa.taxaResolucao}%`
                     : '—',
                 ajuda: `Percentual das conversas já arquivadas. Sem conversa nenhuma não há taxa. ${ORIGEM_VOLTR}`,
+                icone: <IconTarget size={18} />,
+                bg: 'var(--sp-status-warning-soft)',
+                fg: 'var(--sp-status-warning-fg)',
               },
-            ].map(({ label, mobile, value, ajuda }) => (
+            ].map(({ label, mobile, value, ajuda, icone, bg, fg }) => (
               <div
                 key={label}
                 title={
@@ -540,16 +560,19 @@ export function VoltrCrmPage({ scope = 'crm' }: { scope?: Escopo }) {
                     ? `${ajuda}\n\n${MOTIVO_INDISPONIVEL[metricasIa.fonteVoltr]}`
                     : ajuda
                 }
-                // Sem moldura, sem sombra e sem fundo próprio: os números ficam
-                // DENTRO da tela, não em quatro cartões pousados sobre ela. No
-                // desktop, onde os quatro cabem numa linha só, uma hairline
-                // separa um do outro — no mobile e no tablet o espaçamento já
-                // separa, e a linha só sujaria.
-                className="min-w-0 px-2 py-1 sm:px-4 sm:py-1.5 lg:border-l lg:border-[var(--sp-border)] lg:first:border-l-0 lg:first:pl-0"
+                className="flex min-w-0 items-center gap-2 rounded-2xl border border-[var(--sp-border)] bg-[var(--sp-card)] px-3 py-2 shadow-[var(--shadow-card)] sm:gap-3 sm:px-4 sm:py-3"
               >
-                <div className="truncate text-[0.64rem] leading-tight text-[var(--sp-muted-ink)] sm:hidden">{mobile}</div>
-                <div className="hidden text-xs text-[var(--sp-muted-ink)] sm:block">{label}</div>
-                <div className="mt-0.5 text-lg font-bold leading-none text-[var(--sp-ink)] sm:mt-1 sm:text-xl">{value}</div>
+                <span
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-10 sm:w-10"
+                  style={{ background: bg, color: fg }}
+                >
+                  {icone}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[0.68rem] font-medium leading-tight text-[var(--sp-muted-ink)] sm:hidden">{mobile}</span>
+                  <span className="hidden truncate text-xs font-medium text-[var(--sp-muted-ink)] sm:block">{label}</span>
+                  <span className="mt-0.5 block text-lg font-bold leading-none text-[var(--sp-ink)] sm:mt-1 sm:text-xl">{value}</span>
+                </span>
               </div>
             ))}
           </div>
