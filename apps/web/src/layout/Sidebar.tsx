@@ -16,6 +16,7 @@ import {
   IconHelpCircle,
   IconHome,
   IconInfo,
+  IconFileText,
   IconLayers,
   IconLink,
   IconLogout,
@@ -189,6 +190,8 @@ const NAVIGATION: NavEntry[] = [
       { to: '/agenda', label: 'Agenda', icon: IconCalendar, perm: 'agenda:view' },
       { to: '/comandas', label: 'Comandas', icon: IconReceipt, perm: 'comandas:view' },
       { to: '/pacotes', label: 'Pacotes', icon: IconLayers, feature: 'packages', perm: 'catalogo:view' },
+      // Adicional avulso (estudo 124): só aparece para quem contratou o módulo.
+      { to: '/documentos', label: 'Documentos', icon: IconFileText, feature: 'documents', perm: 'clientes:view' },
       { to: '/assinaturas', label: 'Vendas por Assinatura', icon: IconRepeat, feature: 'memberships', perm: 'catalogo:view' },
     ],
   },

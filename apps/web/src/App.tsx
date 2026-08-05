@@ -87,6 +87,7 @@ import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
 import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
 import { PerfilAssinaturaPage } from './pages/PerfilAssinaturaPage';
 import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
+import { DocumentosPage } from './pages/DocumentosPage';
 import { FeatureGate } from './components/FeatureGate';
 import { IconLock } from './components/icons';
 
@@ -626,6 +627,8 @@ function ProtectedRoutes() {
             módulos REAIS (GET /plans × GET /feature-flags) e a contratação passa
             pelo suporte — nada é ativado sem cobrança. Ver estudo 122. */}
         <Route path="/perfil/adicionais" element={<PerfilAdicionaisPage />} />
+        {/* Módulo "Gerador de documentos" — adicional avulso (estudo 124). */}
+        <Route path="/documentos" element={<PaidProtectedRoute perm="clientes:view" feature="documents"><DocumentosPage /></PaidProtectedRoute>} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/notificacoes" element={<NotificacoesCategoriasPage />} />
         <Route path="/notificacoes/:tipo" element={<NotificacoesDetalhePage />} />

@@ -26,6 +26,7 @@ import { MarketingModule } from './modules/marketing/marketing.module';
 import { GoalsModule } from './modules/goals/goals.module';
 import { AnamnesisTemplatesModule } from './modules/anamnesis-templates/anamnesis-templates.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { VoltrModule } from './modules/voltr/voltr.module';
 import { WhatsappInboxModule } from './modules/whatsapp-inbox/whatsapp-inbox.module';
@@ -65,6 +66,7 @@ import { InvitesModule } from './modules/invites/invites.module';
     GoalsModule,
     AnamnesisTemplatesModule,
     UploadsModule,
+    DocumentsModule,
     WhatsappModule,
     VoltrModule,
     WhatsappInboxModule,
