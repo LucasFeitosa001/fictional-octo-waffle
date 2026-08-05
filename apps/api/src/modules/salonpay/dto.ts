@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
@@ -5,8 +6,21 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
+import {
+  normalizarCep,
+  normalizarDocumento,
+  normalizarTelefone,
+} from '../customers/dto-helpers';
+
+// Validação no boundary — mesmo padrão do estudo 125. Antes o SalonPay aceitava
+// `taxId="123"`, `phone="tel"`; agora `taxId` (CPF ou CNPJ com DV), `phone`
+// (>= 10 dígitos) e `zipCode` (8 dígitos) chegam limpos, ou 400.
+const normDoc = ({ value }: { value: unknown }) => normalizarDocumento(value);
+const normPhone = ({ value }: { value: unknown }) => normalizarTelefone(value);
+const normCep = ({ value }: { value: unknown }) => normalizarCep(value);
 
 /**
  * Cadastro de recebimento do SalonPay — os mesmos campos do formulário da
@@ -23,15 +37,15 @@ export class UpsertSalonPayAccountDto {
 
   @IsOptional() @IsString() legalName?: string;
   @IsOptional() @IsString() companyType?: string;
-  /** CNPJ (PJ) ou CPF (PF). Guardado só com dígitos. */
-  @IsOptional() @IsString() taxId?: string;
+  /** CNPJ (PJ) ou CPF (PF). Guardado só com dígitos, DV validado. */
+  @IsOptional() @Transform(normDoc) @IsString() @MaxLength(14) taxId?: string;
   @IsOptional() @IsNumber() @Min(0) revenue?: number;
 
   @IsOptional() @IsString() ownerName?: string;
   @IsOptional() @IsEmail({}, { message: 'E-mail inválido' }) email?: string;
-  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @Transform(normPhone) @IsString() @MaxLength(15) phone?: string;
 
-  @IsOptional() @IsString() zipCode?: string;
+  @IsOptional() @Transform(normCep) @IsString() @MaxLength(8) zipCode?: string;
   @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() number?: string;
   @IsOptional() @IsString() district?: string;

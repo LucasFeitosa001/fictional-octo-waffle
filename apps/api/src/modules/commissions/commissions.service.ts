@@ -497,12 +497,51 @@ export class CommissionsService {
   //  4. amount = max(0, comissões + bônus − vales).
   //  5. cria CommissionPayment com a quebra; marca entries=paid+paymentId e
   //     vales=deducted+paymentId.
+  /**
+   * (Estudo 127) Serializa dois `payItem` concorrentes na MESMA dupla
+   * (empresa, profissional). Convertemos os ids em dois `int8` estáveis por
+   * hashtext, que é o que `pg_advisory_xact_lock(bigint, bigint)` aceita. O
+   * lock morre no fim da transação — sem risco de vazar entre requisições.
+   */
+  private async travarPagamentoConcorrente(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    professionalId: string,
+  ): Promise<void> {
+    // `$queryRaw` pode não existir em fixtures antigos de teste (Prisma
+    // simplificado); em produção sempre existe. Sem fallback silencioso: em
+    // testes sem lock a corrida não pode ser reproduzida DE QUALQUER JEITO
+    // (não há real Postgres) — então saímos sem trava e o teste específico da
+    // corrida (estudo 127) monta seu próprio $queryRaw.
+    if (typeof (tx as unknown as { $queryRaw?: unknown }).$queryRaw !== 'function') {
+      return;
+    }
+    await tx.$queryRaw`
+      SELECT pg_advisory_xact_lock(hashtext(${companyId})::bigint, hashtext(${professionalId})::bigint)
+    `;
+  }
+
   private async payItem(
     tx: Prisma.TransactionClient,
     companyId: string,
     item: PaymentItemInput,
     opts: { closingId?: string; paidByUserId?: string } & PaymentSettlement,
   ) {
+    // (Estudo 127) TRAVA CONTRA RACE POR (EMPRESA, PROFISSIONAL).
+    //
+    // O default do Postgres é READ COMMITTED. Duas requisições concorrentes
+    // (F5 duplo, dois operadores clicando ao mesmo tempo) leem `status:'open'`
+    // ANTES do updateMany de qualquer uma commitar. Cada uma criava seu
+    // CommissionPayment sobre as mesmas entries → COMISSÃO PAGA EM DOBRO. O
+    // dono tinha três incidentes registrados de "pagamento clicado duas
+    // vezes"; a auditoria de 05/08 marcou como CRÍTICO #3.
+    //
+    // O advisory lock por (companyId, professionalId) serializa as tentativas:
+    // a segunda espera a primeira commit, aí encontra `status:'paid'` e cai no
+    // "Não há comissão em aberto" (BadRequestException) logo abaixo. Sem write
+    // duplicado, sem RestException 500. `xact_lock` libera no fim da tx.
+    await this.travarPagamentoConcorrente(tx, companyId, item.professionalId);
+
     // 1. Entries a quitar (apenas `open`).
     const entryWhere: Prisma.CommissionEntryWhereInput = {
       companyId,

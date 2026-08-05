@@ -633,10 +633,21 @@ export class FinancialService {
     const label =
       original.description?.trim() || `lançamento ${original.id.slice(0, 8)}`;
     const now = new Date();
-    const [reversed, counter] = await this.prisma.client.$transaction([
-      // Marca a original como estornada e registra quando/por quem.
-      this.prisma.client.transaction.update({
-        where: { id },
+    // (Estudo 126) INTERACTIVE TRANSACTION para proteger contra RACE.
+    //
+    // A guarda `status !== 'reversed'` acima é a primeira porta, mas duas
+    // requisições simultâneas (F5 duplo, retry do axios, dois operadores no
+    // mesmo balcão) passavam pela checagem ANTES do update — e cada uma criava
+    // sua contrapartida, ZERANDO O CAIXA A MAIS do que devia (dinheiro
+    // "sumia").
+    //
+    // Agora o update é `updateMany` com `where: { status: { not: 'reversed' } }`
+    // — se A já reverteu, o update de B afeta 0 linhas. Nesse caso rejeitamos
+    // a operação inteira (`throw` dentro do $transaction faz rollback do
+    // create também).
+    return this.prisma.client.$transaction(async (tx) => {
+      const marcada = await tx.transaction.updateMany({
+        where: { id, companyId, status: { not: 'reversed' } },
         data: {
           status: 'reversed',
           reversedAt: now,
@@ -648,9 +659,13 @@ export class FinancialService {
           legacyId: null,
           ...(userId ? { reversedByUserId: userId } : {}),
         },
-      }),
-      // Contrapartida referenciando a original via reversalOfId.
-      this.prisma.client.transaction.create({
+      });
+      if (marcada.count === 0) {
+        // Lado perdedor da race: alguém já estornou. Não criamos contrapartida.
+        throw new BadRequestException('Transação já estornada');
+      }
+      const reversed = await tx.transaction.findUnique({ where: { id } });
+      const counter = await tx.transaction.create({
         data: {
           companyId,
           kind: counterKind,
@@ -667,9 +682,9 @@ export class FinancialService {
           paidAt: now,
           status: 'reversed',
         },
-      }),
-    ]);
-    return { reversed, counter };
+      });
+      return { reversed, counter };
+    });
   }
 
   /**
@@ -733,8 +748,11 @@ export class FinancialService {
 
   async createTransaction(companyId: string, dto: CreateTransactionDto) {
     await this.assertTransactionPolicy(companyId, dto);
-    // `competenceDate` sai do spread junto das outras datas: vem como string do
-    // DTO e o Prisma espera Date.
+    // (Estudo 126) Antes ia direto para o create sem conferir se `accountId`,
+    // `categoryId` e `paymentMethodId` pertencem à empresa. `accountId` de
+    // outra empresa fazia a transação virar mistura: aparecia no relatório da
+    // empresa X, mas movia saldo da conta de Y. Vazamento cross-tenant clássico.
+    await this.assertRecursosDaEmpresa(companyId, dto);
     const { dueDate, paidAt, competenceDate, ...rest } = dto;
     return this.prisma.client.transaction.create({
       data: {
@@ -755,6 +773,9 @@ export class FinancialService {
       paidAt: dto.paidAt ?? current.paidAt,
       status: dto.status ?? current.status,
     });
+    // (Estudo 126) Também no update — trocar `accountId` para uma conta de
+    // outra empresa era possível.
+    await this.assertRecursosDaEmpresa(companyId, dto);
     const { dueDate, paidAt, competenceDate, ...rest } = dto;
     return this.prisma.client.transaction.update({
       where: { id },
@@ -767,6 +788,55 @@ export class FinancialService {
           : {}),
       },
     });
+  }
+
+  /**
+   * (Estudo 126) Confere que `accountId`, `categoryId` e `paymentMethodId`
+   * pertencem à empresa que está fazendo a operação. Sem isso, a rota
+   * autenticada como empresa X pode gravar uma transação apontando para uma
+   * conta/categoria/método de Y, e as duas empresas passam a ler um dado que
+   * não é delas.
+   *
+   * Fica junto do controller e roda ANTES do write — findFirst é O(1) por
+   * campo, e no caminho feliz (ids da própria empresa) três `SELECT id LIMIT 1`
+   * não têm impacto perceptível. No caminho de ataque, é o 400 que fecha o
+   * furo.
+   */
+  private async assertRecursosDaEmpresa(
+    companyId: string,
+    dto: {
+      accountId?: string | null;
+      categoryId?: string | null;
+      paymentMethodId?: string | null;
+    },
+  ): Promise<void> {
+    if (dto.accountId) {
+      const encontrada = await this.prisma.client.financialAccount.findFirst({
+        where: { id: dto.accountId, companyId },
+        select: { id: true },
+      });
+      if (!encontrada) {
+        throw new BadRequestException('Conta financeira não encontrada nesta empresa.');
+      }
+    }
+    if (dto.categoryId) {
+      const encontrada = await this.prisma.client.financialCategory.findFirst({
+        where: { id: dto.categoryId, companyId },
+        select: { id: true },
+      });
+      if (!encontrada) {
+        throw new BadRequestException('Categoria financeira não encontrada nesta empresa.');
+      }
+    }
+    if (dto.paymentMethodId) {
+      const encontrada = await this.prisma.client.paymentMethod.findFirst({
+        where: { id: dto.paymentMethodId, companyId },
+        select: { id: true },
+      });
+      if (!encontrada) {
+        throw new BadRequestException('Forma de pagamento não encontrada nesta empresa.');
+      }
+    }
   }
 
   async removeTransaction(companyId: string, id: string) {

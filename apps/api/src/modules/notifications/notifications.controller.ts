@@ -17,9 +17,9 @@ import {
   type FollowUpSettings,
 } from './notification-settings.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
-import { CurrentUser } from '../../common/current-user.decorator';
 import { PermissionGuard } from '../../common/permission.guard';
 import { RequirePermission } from '../../common/require-permission.decorator';
+import { CurrentUser } from '../../common/current-user.decorator';
 import { unresolvedConfirmationVariables } from './confirmation.templates';
 import {
   MESSAGE_TEMPLATE_SPECS,
@@ -27,12 +27,23 @@ import {
   type MessageTemplateSpec,
 } from './message-templates';
 
-@UseGuards(JwtAuthGuard)
+/**
+ * (Estudo 128) Antes só tinha `JwtAuthGuard` — qualquer usuário logado da
+ * empresa (inclusive profissional com escopo próprio de agenda) lia o sino do
+ * dono e marcava tudo como lido, atrapalhando quem administra o salão.
+ *
+ * Ler o sino requer visão administrativa da agenda ou de config (`agenda:view`
+ * / `agenda:view_all` / `config:view` / `config:manage`); MARCAR como lida
+ * exige gestão (`agenda:manage` ou `config:manage`) porque muda o estado do
+ * painel de outros usuários.
+ */
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
 
   @Get()
+  @RequirePermission('agenda:view', 'agenda:view_all', 'config:view', 'config:manage')
   list(
     @CurrentUser('companyId') companyId: string,
     @Query('unread') unread?: string,
@@ -50,22 +61,26 @@ export class NotificationsController {
   }
 
   @Get('unread-count')
+  @RequirePermission('agenda:view', 'agenda:view_all', 'config:view', 'config:manage')
   unreadCount(@CurrentUser('companyId') companyId: string) {
     return this.service.unreadCount(companyId);
   }
 
   /** Contagem por tipo (total + não-lidas) para a página de categorias. */
   @Get('summary')
+  @RequirePermission('agenda:view', 'agenda:view_all', 'config:view', 'config:manage')
   summary(@CurrentUser('companyId') companyId: string) {
     return this.service.summaryByType(companyId);
   }
 
   @Post(':id/read')
+  @RequirePermission('agenda:manage', 'config:manage')
   markRead(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
     return this.service.markRead(companyId, id);
   }
 
   @Post('read-all')
+  @RequirePermission('agenda:manage', 'config:manage')
   markAllRead(
     @CurrentUser('companyId') companyId: string,
     // Opcional: marca só as de certos tipos (usado pela página de detalhe).

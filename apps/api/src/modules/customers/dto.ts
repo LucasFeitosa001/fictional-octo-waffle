@@ -1,5 +1,11 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  normalizarCep,
+  normalizarCnpj,
+  normalizarCpf,
+  normalizarTelefone,
+} from './dto-helpers';
+import {
   IsArray,
   IsBoolean,
   IsEmail,
@@ -15,11 +21,14 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-// Keep the caller's phone representation intact: in particular, `+` carries
-// the country-code intent for an E.164 number. Trimming surrounding whitespace
-// is the only normalization performed at the DTO boundary.
-const trimPhone = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
+// Trim + normalização/validação REAL no boundary — o "5555555" (5 na tela do
+// PhoneField, gravado como "555…5" por causa do DDI grudado) chegava aqui e o
+// service gravava. Agora `normalizarTelefone` devolve só dígitos, exige >= 10
+// e lança 400 para o resto. Ver estudo 125.
+const normPhone = ({ value }: { value: unknown }) => normalizarTelefone(value);
+const normCpf = ({ value }: { value: unknown }) => normalizarCpf(value);
+const normCnpj = ({ value }: { value: unknown }) => normalizarCnpj(value);
+const normCep = ({ value }: { value: unknown }) => normalizarCep(value);
 
 export class CustomerDependentDto {
   @IsString() @MinLength(1) name: string;
@@ -37,12 +46,12 @@ export class CreateCustomerDto {
   name: string;
 
   @IsOptional() @IsString() nickname?: string;
-  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) phone?: string;
-  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) secondaryPhone?: string;
+  @IsOptional() @Transform(normPhone) @IsString() @MaxLength(15) phone?: string;
+  @IsOptional() @Transform(normPhone) @IsString() @MaxLength(15) secondaryPhone?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsISO8601() birthday?: string;
-  @IsOptional() @IsString() cpf?: string;
-  @IsOptional() @IsString() cnpj?: string;
+  @IsOptional() @Transform(normCpf) @IsString() @MaxLength(11) cpf?: string;
+  @IsOptional() @Transform(normCnpj) @IsString() @MaxLength(14) cnpj?: string;
   @IsOptional() @IsBoolean() active?: boolean;
 
   // Cliente — profundidade (P0)
@@ -58,7 +67,7 @@ export class CreateCustomerDto {
   @IsOptional() @IsString() legacySource?: string;
 
   // Wave 2/3 — endereço embutido + observações livres.
-  @IsOptional() @IsString() cep?: string;
+  @IsOptional() @Transform(normCep) @IsString() @MaxLength(8) cep?: string;
   @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() number?: string;
   @IsOptional() @IsString() district?: string;
@@ -86,12 +95,12 @@ export class CreateCustomerDto {
 export class UpdateCustomerDto {
   @IsOptional() @IsString() @MinLength(2) name?: string;
   @IsOptional() @IsString() nickname?: string;
-  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) phone?: string;
-  @IsOptional() @Transform(trimPhone) @IsString() @MaxLength(32) secondaryPhone?: string;
+  @IsOptional() @Transform(normPhone) @IsString() @MaxLength(15) phone?: string;
+  @IsOptional() @Transform(normPhone) @IsString() @MaxLength(15) secondaryPhone?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsISO8601() birthday?: string;
-  @IsOptional() @IsString() cpf?: string;
-  @IsOptional() @IsString() cnpj?: string;
+  @IsOptional() @Transform(normCpf) @IsString() @MaxLength(11) cpf?: string;
+  @IsOptional() @Transform(normCnpj) @IsString() @MaxLength(14) cnpj?: string;
   @IsOptional() @IsBoolean() active?: boolean;
 
   // Cliente — profundidade (P0)
@@ -107,7 +116,7 @@ export class UpdateCustomerDto {
   @IsOptional() @IsString() legacySource?: string;
 
   // Wave 2/3 — endereço embutido + observações livres.
-  @IsOptional() @IsString() cep?: string;
+  @IsOptional() @Transform(normCep) @IsString() @MaxLength(8) cep?: string;
   @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() number?: string;
   @IsOptional() @IsString() district?: string;
