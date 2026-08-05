@@ -57,13 +57,25 @@ function mascarar(digitos: string, pais: Pais): string {
 export function separarTelefone(valor: string | null | undefined): { pais: Pais; nacional: string } {
   const digitos = String(valor ?? '').replace(/\D/g, '');
   if (!digitos) return { pais: BRASIL, nacional: '' };
-  // Do maior código para o menor, para "55" não roubar o "555…" de ninguém.
+  // (1) Match perfeito primeiro: DDI + resto com tamanho nacional válido.
+  //     Do maior código para o menor, para "55" não roubar o "555…" de ninguém.
   const candidatos = [...PAISES].sort((a, b) => b.código.length - a.código.length);
   for (const p of candidatos) {
     if (!digitos.startsWith(p.código)) continue;
     const resto = digitos.slice(p.código.length);
     if (p.digitos.includes(resto.length)) return { pais: p, nacional: resto };
   }
+  // (2) BUG que o dono reproduziu: enquanto o número está sendo DIGITADO no
+  //     Brasil, o valor gravado é "55" + os dígitos parciais. Sem match perfeito,
+  //     a função caía no fallback (pais=Brasil, nacional=<tudo>) — e a máscara
+  //     mostrava "(55) 5" para quem só tinha digitado "5", depois "(55) 55",
+  //     "(55) 555"…, com o "55" do DDI virando DDD na cara do usuário.
+  //     Se o valor começa com "55", tratamos como Brasil parcial: o resto é
+  //     mostrado sem o "55" pré-fixado.
+  if (digitos.startsWith('55') && digitos.length <= 13) {
+    return { pais: BRASIL, nacional: digitos.slice(2) };
+  }
+  // (3) Sem DDI reconhecível: assume Brasil (base antiga sem prefixo).
   return { pais: BRASIL, nacional: digitos };
 }
 
