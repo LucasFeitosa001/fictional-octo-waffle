@@ -46,6 +46,9 @@ import { formatDate, formatDateTime, formatMoney, initials, toDateInput } from '
 import { useUploadImage } from '../hooks/useUploadImage';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { useCustomers, useCreateOrder } from '../lib/queries';
+import { useFeatures } from '../lib/queries/features';
+import { useEnviarArquivoNoWhatsapp } from '../lib/queries/whatsappMedia';
+import type { CustomerFileView } from '../lib/queries/clientes';
 import {
   useAdjustCashback,
   useCreateAnamnesis,
@@ -2258,9 +2261,50 @@ function ImagensTab({ customerId }: { customerId: string }) {
   const deleteFile = useDeleteCustomerFile(customerId);
   const uploadImage = useUploadImage();
   const confirm = useConfirm();
+  // MÓDULO "Envio de imagens e arquivos": a aba já guardava o arquivo; o que
+  // faltava era MANDAR para a cliente, que é o que o adicional promete. O botão
+  // só existe para quem tem o módulo — sem ele, a aba fica como sempre foi.
+  const features = useFeatures();
+  const podeEnviar = (features.data?.features ?? []).includes('media_messages');
+  const enviarArquivo = useEnviarArquivoNoWhatsapp();
+  const [enviando, setEnviando] = useState<CustomerFileView | null>(null);
+  const [recado, setRecado] = useState('');
+  const [envioOk, setEnvioOk] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function confirmarEnvio() {
+    if (!enviando) return;
+    setError(null);
+    setEnvioOk(null);
+    try {
+      const r = await enviarArquivo.mutateAsync({
+        customerId,
+        type: isImageFile(enviando) ? 'image' : 'document',
+        url: enviando.url,
+        mimeType: enviando.mimeType || (isImageFile(enviando) ? 'image/jpeg' : 'application/pdf'),
+        fileName: enviando.name,
+        caption: recado.trim() || undefined,
+        // Mesmo clique repetido não vira dois envios.
+        requestKey: `arquivo:${enviando.id}:${Date.now()}`,
+      });
+      // Status honesto: entrou na fila. "Entregue" só o ACK do WhatsApp diz.
+      setEnvioOk(
+        r.deduplicated
+          ? 'Esse arquivo já estava na fila para esta cliente.'
+          : 'Na fila para envio. O histórico de mensagens mostra quando sair.',
+      );
+      setEnviando(null);
+      setRecado('');
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível enviar o arquivo agora.',
+      );
+    }
+  }
 
   const busy = uploadImage.isPending || createFile.isPending;
 
@@ -2347,6 +2391,56 @@ function ImagensTab({ customerId }: { customerId: string }) {
         </div>
       )}
 
+      {envioOk && (
+        <div className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+          {envioOk}
+        </div>
+      )}
+
+      {/* Confirmação do envio: o recado é opcional e vai como legenda do
+          arquivo. Uma pessoa clica, lê o nome do arquivo e confirma — é essa
+          confirmação que autoriza o disparo. */}
+      <Drawer
+        isOpen={Boolean(enviando)}
+        onClose={() => setEnviando(null)}
+        title="Enviar para a cliente"
+      >
+        <div className="flex flex-col gap-4 p-4">
+          <div className="rounded-lg border border-[var(--color-soft-border)] bg-canvas p-3">
+            <div className="text-xs text-muted">Arquivo</div>
+            <div className="truncate text-sm font-medium text-foreground">
+              {enviando?.name}
+            </div>
+          </div>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted">Recado (opcional)</span>
+            <textarea
+              value={recado}
+              onChange={(e) => setRecado(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Ex.: segue a referência que combinamos."
+              className="w-full rounded-lg border border-[var(--color-soft-border)] bg-white p-2.5 text-sm outline-none focus:border-primary"
+            />
+          </label>
+          <p className="m-0 text-xs text-muted">
+            Vai pelo WhatsApp do salão, para o número do cadastro da cliente.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setEnviando(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              isDisabled={enviarArquivo.isPending}
+              onClick={() => void confirmarEnvio()}
+            >
+              {enviarArquivo.isPending ? 'Enviando…' : 'Enviar'}
+            </Button>
+          </div>
+        </div>
+      </Drawer>
+
       {filesQ.isLoading ? (
         <LoadingState />
       ) : filesQ.isError ? (
@@ -2397,6 +2491,20 @@ function ImagensTab({ customerId }: { customerId: string }) {
                         >
                           <IconDownload size={13} />
                         </a>
+                        {podeEnviar && (
+                          <button
+                            type="button"
+                            aria-label={`Enviar ${f.name} para a cliente`}
+                            title="Enviar para a cliente pelo WhatsApp"
+                            className="rounded-md bg-white/90 p-1 text-primary hover:bg-white"
+                            onClick={() => {
+                              setEnviando(f);
+                              setRecado('');
+                            }}
+                          >
+                            <IconMessage size={13} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Excluir ${f.name}`}
@@ -2453,6 +2561,20 @@ function ImagensTab({ customerId }: { customerId: string }) {
                         >
                           <IconDownload size={16} />
                         </a>
+                        {podeEnviar && (
+                          <button
+                            type="button"
+                            aria-label={`Enviar ${f.name} para a cliente`}
+                            title="Enviar para a cliente pelo WhatsApp"
+                            className="rounded-md p-1.5 text-primary hover:bg-primary/10"
+                            onClick={() => {
+                              setEnviando(f);
+                              setRecado('');
+                            }}
+                          >
+                            <IconMessage size={16} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Excluir ${f.name}`}

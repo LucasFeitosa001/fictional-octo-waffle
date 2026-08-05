@@ -19,6 +19,11 @@ export const FEATURE_KEYS = [
   'reports_advanced',
   'whatsapp_api',
   'nfe',
+  // Adicionais avulsos (estudo 124): contratados no suporte e ligados por
+  // `FeatureFlag` da empresa, sem obrigar troca de plano. Esta lista é a cópia
+  // do front de `feature-catalog.ts` — as duas andam juntas.
+  'media_messages',
+  'documents',
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];

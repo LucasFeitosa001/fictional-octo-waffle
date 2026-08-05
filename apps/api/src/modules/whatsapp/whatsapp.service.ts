@@ -899,7 +899,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       /** JID já observado no inbox (`@s.whatsapp.net` ou `@lid`). */
       recipientJid?: string;
       media?: {
-        type: 'image' | 'audio';
+        type: 'image' | 'audio' | 'document';
         url: string;
         mimeType: string;
         fileName?: string;
@@ -1422,7 +1422,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                 mimetype: msg.mediaMimeType || 'audio/ogg',
                 ptt: msg.mediaPtt,
               })
-            : await session.sock.sendMessage(jid, { text: msg.text });
+            : // Módulo "Envio de imagens e arquivos": o PDF/contrato vai como
+              // documento, com o nome do arquivo visível no WhatsApp. Sem
+              // `fileName` o aparelho mostra um anexo sem nome, que ninguém abre.
+              msg.mediaType === 'document' && mediaSource
+              ? await session.sock.sendMessage(jid, {
+                  document: mediaSource,
+                  mimetype: msg.mediaMimeType || 'application/pdf',
+                  fileName: msg.mediaFileName || 'documento',
+                  ...(msg.text ? { caption: msg.text } : {}),
+                })
+              : await session.sock.sendMessage(jid, { text: msg.text });
       // Guarda o conteúdo enviado para o getMessage responder aos retry-receipts
       // (ver makeWASocket) — é isso que tira a mensagem do "Aguardando esta
       // mensagem…" no celular do dono. Mantém o cache limitado (FIFO).

@@ -24,6 +24,8 @@ export const FEATURE_KEYS = [
   'reports_advanced', // relatórios avançados
   'whatsapp_api', // WhatsApp conectado + inbox/recepcionista virtual
   'nfe', // emissão de notas fiscais (/financeiro/notas-fiscais)
+  'media_messages', // anexar foto/documento nas mensagens do salão
+  'documents', // gerador de contratos, termos e recibos
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -55,6 +57,13 @@ const MAX_FEATURES: FeatureKey[] = [
   ...PRO_FEATURES,
   'whatsapp_api',
   'nfe',
+  // Estes dois nasceram como ADICIONAIS avulsos (o dono pediu em 05/08): a tela
+  // de Adicionais os vende por "valor combinado no suporte", e a ativação é um
+  // override de `FeatureFlag` por empresa. Ficam no Max porque todo módulo
+  // precisa de um lar no catálogo — quem está no Starter ou no Pro não precisa
+  // subir de plano para tê-los.
+  'media_messages',
+  'documents',
 ];
 
 export const PLAN_FEATURES: Record<PlanName, FeatureKey[]> = {
@@ -153,6 +162,18 @@ export const FEATURE_META: Record<FeatureKey, { label: string; description: stri
     label: 'Integração fiscal',
     description:
       'Integração com provedor fiscal em preparação; a emissão ainda não está habilitada.',
+  },
+  // Os textos abaixo são os que o dono escreveu na tela de Adicionais — quem
+  // contratou leu exatamente isto, então é o que o módulo tem de entregar.
+  media_messages: {
+    label: 'Envio de imagens e arquivos',
+    description:
+      'Mandar fotos de referência e documentos para a cliente junto das mensagens do salão.',
+  },
+  documents: {
+    label: 'Gerador de documentos',
+    description:
+      'Contratos, termos e recibos preenchidos com os dados do cliente e do atendimento.',
   },
 };
 
