@@ -425,38 +425,52 @@ export class CustomersService {
     dto: CreateCustomerDebtPaymentDto,
   ) {
     await this.findOne(companyId, id);
-    const debt = await this.prisma.client.customerDebt.findFirst({
-      where: { id: debtId, companyId, customerId: id },
-    });
-    if (!debt) throw new NotFoundException('Débito não encontrado');
+    // (Estudo 132) TUDO em uma transação interativa com advisory lock por
+    // débito. Sem isso, dois `POST /customers/:id/debts/:debtId/payments`
+    // simultâneos de R$100 num débito de R$100 leem `prevPaidAgg=0` os dois,
+    // passam a trava de saldo, e criam dois `CustomerDebtPayment` → o débito
+    // fica com R$200 pagos sobre R$100 devidos, e o status vira 'paid' cedo
+    // demais.
+    return this.prisma.client.$transaction(async (tx) => {
+      // O lock é PELO DÉBITO: pagamentos em débitos DIFERENTES do mesmo
+      // cliente não competem. Xact_lock morre no fim da tx.
+      if (typeof (tx as unknown as { $queryRaw?: unknown }).$queryRaw === 'function') {
+        await tx.$queryRaw`
+          SELECT pg_advisory_xact_lock(hashtext(${debtId})::bigint)
+        `;
+      }
+      const debt = await tx.customerDebt.findFirst({
+        where: { id: debtId, companyId, customerId: id },
+      });
+      if (!debt) throw new NotFoundException('Débito não encontrado');
 
-    // Trava de overpayment: pagamento não pode exceder o saldo devedor restante.
-    const prevPaidAgg = await this.prisma.client.customerDebtPayment.aggregate({
-      _sum: { amount: true },
-      where: { debtId },
-    });
-    const saldo = num(debt.amount) - num(prevPaidAgg._sum.amount);
-    if (saldo <= 0) {
-      throw new BadRequestException('Débito já está quitado');
-    }
-    if (dto.amount > saldo) {
-      throw new BadRequestException(
-        'Pagamento excede o saldo devedor restante do débito',
-      );
-    }
+      const prevPaidAgg = await tx.customerDebtPayment.aggregate({
+        _sum: { amount: true },
+        where: { debtId },
+      });
+      const saldo = num(debt.amount) - num(prevPaidAgg._sum.amount);
+      if (saldo <= 0) {
+        throw new BadRequestException('Débito já está quitado');
+      }
+      if (dto.amount > saldo) {
+        throw new BadRequestException(
+          'Pagamento excede o saldo devedor restante do débito',
+        );
+      }
 
-    await this.prisma.client.customerDebtPayment.create({
-      data: { debtId, amount: dto.amount, method: dto.method },
-    });
+      await tx.customerDebtPayment.create({
+        data: { debtId, amount: dto.amount, method: dto.method },
+      });
 
-    // Recalcula status: paid quando o total pago cobre o valor do débito.
-    const totalPaid = num(prevPaidAgg._sum.amount) + dto.amount;
-    const status = totalPaid >= num(debt.amount) ? 'paid' : 'open';
+      // Recalcula status: paid quando o total pago cobre o valor do débito.
+      const totalPaid = num(prevPaidAgg._sum.amount) + dto.amount;
+      const status = totalPaid >= num(debt.amount) ? 'paid' : 'open';
 
-    return this.prisma.client.customerDebt.update({
-      where: { id: debtId },
-      data: { status },
-      include: { payments: { orderBy: { paidAt: 'desc' } } },
+      return tx.customerDebt.update({
+        where: { id: debtId },
+        data: { status },
+        include: { payments: { orderBy: { paidAt: 'desc' } } },
+      });
     });
   }
 
