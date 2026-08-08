@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+
+/* ============================================================================
+   CONSOLE DE SUPORTE — SalonPass. Ver estudo 135.
+
+   Herda a linguagem do painel de controle monocromático da marca: preto real,
+   painéis separados por fio de cabelo (nunca por bloco cinza), branco como
+   único acento. Aqui ela cai bem literalmente — isto É um painel de controle.
+
+   Duas diferenças deliberadas em relação ao painel do salão:
+
+   1. Uma cor funcional de perigo (âmbar). No painel do salão o pior que
+      acontece é um agendamento errado; aqui um clique desativa a conta de um
+      cliente pagante. Ação destrutiva precisa ser VISÍVEL antes do clique, não
+      explicada depois — e âmbar sobre preto passa em contraste sem gritar.
+
+   2. Fonte monoespaçada para identificador, e-mail e IP. O técnico compara
+      esses valores caractere a caractere o tempo todo; em fonte proporcional
+      um `l` e um `1` são a mesma mancha.
+   ========================================================================== */
+
+@theme {
+  --color-canvas: #060606;
+  --color-panel: #0c0c0d;
+  --color-raised: #121214;
+  --color-hairline: rgba(255, 255, 255, 0.08);
+  --color-hairline-strong: rgba(255, 255, 255, 0.16);
+  --color-ink: #f4f4f5;
+  --color-muted: #8b8b90;
+  --color-dim: #5a5a5f;
+
+  /* Perigo. Âmbar em vez de vermelho: o vermelho já é usado como "erro
+     aconteceu"; isto é "está prestes a acontecer", que é outra coisa. */
+  --color-danger: #f0a020;
+  --color-danger-dim: rgba(240, 160, 32, 0.12);
+  --color-ok: #4ade80;
+
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", monospace;
+}
+
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco sempre visível: o console é operado no teclado, e um foco invisível
+   transforma navegação por Tab em adivinhação. */
+*:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@layer components {
+  .painel {
+    background: var(--color-panel);
+    border: 1px solid var(--color-hairline);
+    border-radius: 10px;
+  }
+
+  .rotulo {
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+
+  .campo {
+    width: 100%;
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline-strong);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    color: var(--color-ink);
+    font-size: 0.875rem;
+  }
+  .campo::placeholder {
+    color: var(--color-dim);
+  }
+  .campo:disabled {
+    opacity: 0.5;
+  }
+
+  .botao {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 6px;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: 1px solid var(--color-hairline-strong);
+    color: var(--color-ink);
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .botao:hover:not(:disabled) {
+    background: var(--color-raised);
+  }
+  .botao:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .botao-primario {
+    background: var(--color-ink);
+    color: #0a0a0a;
+    border-color: var(--color-ink);
+    font-weight: 600;
+  }
+  .botao-primario:hover:not(:disabled) {
+    background: #ffffff;
+  }
+
+  .botao-perigo {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+  }
+  .botao-perigo:hover:not(:disabled) {
+    background: var(--color-danger-dim);
+  }
+}

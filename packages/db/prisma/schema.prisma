@@ -383,9 +383,18 @@ model Session {
   // Empresa ativa DESTA sessão (multi-conta). String simples, sem FK, para não
   // acoplar cascades — o valor referencia Company.id e é validado na aplicação.
   activeCompanyId String?
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Preenchido quando a sessão nasceu de um "entrar como" do console de suporte:
+  // guarda o PlatformStaff.id do técnico. Sem FK pelo mesmo motivo acima, e para
+  // o registro sobreviver à exclusão do técnico.
+  //
+  // Existe para que uma sessão personificada NUNCA seja indistinguível de um
+  // login legítimo do dono do salão: é o que permite listar, auditar e revogar
+  // essas sessões, e o que uma faixa de aviso no painel do salão vai ler.
+  impersonatedByStaffId String?
+  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([impersonatedByStaffId])
 }
 
 model Account {
@@ -2588,4 +2597,122 @@ enum SalonPayTransferStatus {
   paid
   /// Recusada — `statusReason` explica.
   failed
+}
+
+// =====================================================================
+// PLATAFORMA — console de suporte da SalonPass (admin.salonpass.com.br)
+//
+// Identidade SEPARADA do tenant, de propósito. O técnico da SalonPass não é um
+// `User`: o BetterAuthGuard exige companyId + UserCompany em toda requisição, e
+// um técnico não pertence a salão nenhum. Empurrá-lo para dentro de `User` com
+// uma flag obrigaria a afrouxar aquele guard — o caminho mais curto para um
+// login de salão virar acesso à plataforma inteira.
+//
+// A separação também vale na direção contrária: a senha de um dono de salão não
+// abre o console, e a credencial do console não entra em nenhum painel de salão.
+// São dois espaços de credencial sem interseção.
+// =====================================================================
+
+enum PlatformStaffRole {
+  /// Consulta e correções do dia a dia: trocar e-mail, resetar senha, encerrar
+  /// sessão. NÃO desativa conta nem entra como usuário.
+  support
+  /// Tudo do suporte + desativar/reativar contas e salões + entrar como usuário.
+  engineer
+  /// Tudo + gerir os próprios técnicos da SalonPass.
+  owner
+}
+
+model PlatformStaff {
+  id           String            @id @default(cuid())
+  name         String
+  email        String            @unique
+  /// scrypt do Better Auth (mesmo hasher do login de salão), NUNCA texto puro.
+  passwordHash String
+  role         PlatformStaffRole @default(support)
+  active       Boolean           @default(true)
+
+  /// Trava de força bruta. `lockedUntil` no futuro recusa o login mesmo com a
+  /// senha certa — sem isso o console vira alvo de tentativa em massa, e ele dá
+  /// acesso a TODOS os salões de uma vez.
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+
+  /// Conta criada por outro técnico nasce com senha temporária: o primeiro
+  /// login é obrigado a trocar. Enquanto for true, só a rota de troca responde.
+  mustChangePassword Boolean @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  createdBy    PlatformStaff?     @relation("PlatformStaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff PlatformStaff[]    @relation("PlatformStaffCreatedBy")
+  sessions     PlatformSession[]
+  auditLogs    PlatformAuditLog[]
+
+  @@index([email])
+}
+
+model PlatformSession {
+  id String @id @default(cuid())
+
+  staffId String
+  /// SHA-256 do token, nunca o token. Um dump do banco não entrega sessão viva
+  /// para ninguém — é a mesma razão de não guardar senha em texto puro.
+  tokenHash String @unique
+
+  /// Prazo ABSOLUTO: a sessão morre nesta hora mesmo com uso contínuo. O idle
+  /// timeout é calculado sobre `lastSeenAt` na validação.
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  ipAddress  String?
+  userAgent  String?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  staff PlatformStaff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([expiresAt])
+}
+
+model PlatformAuditLog {
+  id String @id @default(cuid())
+
+  /// SetNull na exclusão do técnico — por isso `staffEmail` fica desnormalizado:
+  /// o registro tem que sobreviver à saída de quem agiu, senão a trilha some
+  /// justamente no caso em que ela mais importa.
+  staffId    String?
+  staffEmail String
+
+  /// Verbo estável (`usuario.email.alterado`, `salao.desativado`…). Ver
+  /// PLATFORM_ACTIONS em platform.constants.ts.
+  action      String
+  targetType  String
+  targetId    String?
+  /// Rótulo legível no momento do fato (e-mail, nome do salão): a trilha
+  /// continua compreensível mesmo depois de o alvo mudar ou sumir.
+  targetLabel String?
+  companyId   String?
+
+  /// Justificativa. Obrigatória nas ações destrutivas (ver requerJustificativa).
+  reason String?
+
+  /// Estado antes/depois, já sem campo sensível (ver sanitizar()).
+  beforeJson Json?
+  afterJson  Json?
+
+  ipAddress String?
+  userAgent String?
+  at        DateTime @default(now())
+
+  staff PlatformStaff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([at])
+  @@index([staffId])
+  @@index([targetType, targetId])
+  @@index([companyId])
+  @@index([action])
 }

@@ -36,6 +36,7 @@ import { QueuesModule } from './modules/queues/queues.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
 import { InvitesModule } from './modules/invites/invites.module';
+import { PlatformModule } from './modules/platform/platform.module';
 
 @Module({
   imports: [
@@ -76,6 +77,9 @@ import { InvitesModule } from './modules/invites/invites.module';
     CampaignsModule,
     FeatureFlagsModule,
     InvitesModule,
+    // Console de suporte da SalonPass (admin.salonpass.com.br). Caminho de
+    // autenticação próprio, sem interseção com o do tenant — ver estudo 135.
+    PlatformModule,
   ],
 })
 export class AppModule {}

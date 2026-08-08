@@ -61,6 +61,10 @@ async function bootstrap() {
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:8081',
+      // Console de suporte (admin.salonpass.com.br) em desenvolvimento. Em
+      // produção a origem entra por AUTH_TRUSTED_ORIGINS, como as demais — o
+      // curinga `https://*.salonpass.com.br` já a cobre. Ver estudo 135.
+      'http://localhost:3003',
       'beautypass://',
       ...trusted.map(curingaParaRegex),
     ],
