@@ -593,11 +593,17 @@ async function run() {
     const readAllNoTok = await api('POST', `/public/booking/${slug}/my-notifications/read-all`);
     check('POST read-all without token → 401', readAllNoTok.status === 401);
 
-    // A STAFF token is not a customer session → still 401 (accountType guard).
+    // Conta de SALÃO agenda como qualquer pessoa — ver estudo 136.
+    //
+    // Este caso exigia 401: o portal barrava `accountType !== 'customer'`. A
+    // trava existia porque painel e portal dividiam UM cookie, então o dono
+    // logado na Gestão aparecia logado no portal sem nunca ter entrado ali.
+    // Agora o portal tem sessão própria e a trava só atrapalhava — o e-mail é
+    // único no sistema, então staff de um salão não agendava em NENHUM outro.
     const staffOnMine = await api('GET', `/public/booking/${slug}/my-appointments`, {
       token: salon.token,
     });
-    check('staff token on my-appointments → 401 (not a customer)', staffOnMine.status === 401);
+    check('conta de salão acessa my-appointments (estudo 136)', staffOnMine.status === 200);
 
     // ====================================================================
     // 9. BOOKING — POST /:slug/appointments (validation + guest + customer)
@@ -894,11 +900,13 @@ async function run() {
     });
     check('update profile with 1-char name → 400', profBad.status === 400);
 
-    // Staff token cannot touch a customer profile.
+    // Conta de salão tem o próprio perfil de cliente NESTE salão — estudo 136.
+    // `Customer` é por empresa (`{ companyId, userId }`), então ser staff em uma
+    // não vira acesso a outra: o que ela enxerga aqui é só o cadastro dela.
     const profStaff = await api('GET', `/public/booking/${slug}/my-profile`, {
       token: salon.token,
     });
-    check('staff token on my-profile → 401', profStaff.status === 401);
+    check('conta de salão acessa my-profile (estudo 136)', profStaff.status === 200);
 
     // ====================================================================
     // 11c. REVIEW — customer rates a FINISHED appointment

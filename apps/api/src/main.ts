@@ -6,7 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as express from 'express';
 import { toNodeHandler } from 'better-auth/node';
 import { AppModule } from './app.module';
-import { auth } from './auth/better-auth';
+import { auth, authClub, CLUB_AUTH_BASE_PATH } from './auth/better-auth';
 
 // Rede de segurança de processo: um erro async de worker em background — em
 // especial os sockets do WhatsApp/Baileys, cuja camada libsignal lança
@@ -93,7 +93,12 @@ async function bootstrap() {
    */
   const logOAuth = new Logger('OAuthRedirect');
   instance.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (!req.originalUrl?.startsWith('/api/v1/auth/')) return next();
+    // Cobre as DUAS instâncias: o portal tem a sua (`/api/v1/auth-club/`), e um
+    // login social que falha lá é tão invisível quanto era no painel.
+    const url = req.originalUrl ?? '';
+    if (!url.startsWith('/api/v1/auth/') && !url.startsWith(`${CLUB_AUTH_BASE_PATH}/`)) {
+      return next();
+    }
     res.on('finish', () => {
       const destino = res.getHeader('location');
       if (typeof destino !== 'string' || !destino.includes('error')) return;
@@ -114,6 +119,15 @@ async function bootstrap() {
 
   // Mount Better Auth on /api/v1/auth/* (raw request, no JSON parsing).
   instance.all(/^\/api\/v1\/auth\/.*/, toNodeHandler(auth));
+
+  // O portal de agendamento tem a PRÓPRIA instância, montada num caminho
+  // separado — é isso que dá a ele uma sessão independente da do painel (ver
+  // estudo 120). A ordem importa: `/api/v1/auth-club/` não casa com a regex
+  // acima (que exige a barra logo após `auth`), então as duas convivem.
+  instance.all(
+    new RegExp(`^${CLUB_AUTH_BASE_PATH}/.*`),
+    toNodeHandler(authClub),
+  );
 
   // JSON body parser for all other (Nest) routes.
   // O webhook da Voltr assina o corpo CRU (HMAC-SHA256). Sem guardar o buffer

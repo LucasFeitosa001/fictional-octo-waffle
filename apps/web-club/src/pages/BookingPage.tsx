@@ -31,7 +31,7 @@ import {
 import { TopBar } from '../components/TopBar';
 import { NotificationBell } from '../components/NotificationBell';
 import { BottomNav, type BookingNavStep } from '../components/BottomNav';
-import { signIn, signOut, useCustomerSession } from '../lib/auth';
+import { signIn, useCustomerSession } from '../lib/auth';
 import {
   useAvailability,
   useBook,
@@ -191,7 +191,7 @@ const STEPS: { id: Step; label: string; icon: React.ReactNode }[] = [
 
 export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: string }) {
   const navigate = useNavigate();
-  const { data: session, ehStaff, emailDaConta } = useCustomerSession();
+  const { data: session } = useCustomerSession();
   const isLoggedIn = !!session;
   /**
    * SEMPRE pedir o telefone de quem agenda com conta — em branco, todas as vezes.
@@ -860,33 +860,13 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                     </Card>
                   )}
 
-                  {/* CONTA DE ADMINISTRADOR — o login funcionou, mas aquela conta
-                      não agenda. Sem este aviso a tela voltava a oferecer "Crie
-                      sua conta" como se nada tivesse acontecido, e quem acabara
-                      de entrar concluía que "nem conectou". Ver estudo 119. */}
-                  {ehStaff && (
-                    <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
-                      <Card.Content className="flex flex-col gap-3 p-4">
-                        <h3 className="text-sm font-semibold text-foreground">
-                          Esta conta é do salão, não de cliente
-                        </h3>
-                        <p className="text-xs text-muted">
-                          {emailDaConta ? <><strong>{emailDaConta}</strong> é </> : 'Esta é '}
-                          uma conta de administrador e não pode agendar como cliente. Entre com
-                          outra conta ou siga sem conta — logo abaixo.
-                        </p>
-                        <Button
-                          variant="primary"
-                          className="w-full"
-                          onPress={() => void signOut().then(() => window.location.reload())}
-                        >
-                          Sair e entrar com outra conta
-                        </Button>
-                      </Card.Content>
-                    </Card>
-                  )}
+                  {/* O cartão "Esta conta é do salão, não de cliente" ficava aqui
+                      (estudo 119) e saiu com a trava que o motivava. O portal tem
+                      sessão própria desde o estudo 120, então conta de salão
+                      agenda normalmente — era esta mensagem que o dono via ao
+                      abrir o link de agendamento de QUALQUER salão. */}
 
-                  {!isLoggedIn && !ehStaff && (
+                  {!isLoggedIn && (
                     <>
                       <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
                         <Card.Content className="flex flex-col gap-3 p-4">

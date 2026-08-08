@@ -1,4 +1,4 @@
-import { authBaseUrl, DEFAULT_API_ORIGIN } from '@beautypass/shared';
+import { clubAuthBaseUrl, DEFAULT_API_ORIGIN } from '@beautypass/shared';
 
 const CONFIGURED_ORIGIN =
   (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim();
@@ -13,8 +13,13 @@ const API_ORIGIN =
 /** REST data API base, e.g. http://localhost:3333/api/v1 */
 export const API_BASE_URL = `${API_ORIGIN.replace(/\/$/, '')}/api/v1`;
 
-/** Better Auth base URL, e.g. http://localhost:3333/api/v1/auth */
-export const AUTH_BASE_URL = authBaseUrl(API_ORIGIN);
+/**
+ * Auth DO PORTAL, e.g. http://localhost:3333/api/v1/auth-club.
+ *
+ * Caminho separado de propósito: é a instância com cookie próprio, que dá ao
+ * portal uma sessão independente da do painel. Ver estudo 120.
+ */
+export const AUTH_BASE_URL = clubAuthBaseUrl(API_ORIGIN);
 
 function resolveAdminOrigin(): string {
   const configured = (import.meta.env.VITE_ADMIN_ORIGIN as string | undefined)?.trim();
