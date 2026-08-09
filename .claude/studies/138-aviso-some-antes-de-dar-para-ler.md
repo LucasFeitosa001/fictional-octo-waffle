@@ -104,6 +104,45 @@ some". Basta um segundo aviso encostar no primeiro. `LinkAgendamentoPage.tsx`
 não tem esse defeito: ele guarda o timer em `timer.current` e limpa antes de
 reagendar — o padrão certo já existe no repositório.
 
+## Medição no vídeo do dono (09/08 18:00) — o número real é MUITO pior
+
+Ele gravou a tela. Extraí os quadros com ffmpeg (10s, 1080p, 60fps) e medi o
+trecho do erro a 20 quadros por segundo:
+
+```
+7,60s  o aviso começa a entrar (fade + subida)
+7,75s  terminou de entrar
+7,80s  visível, opaco
+7,90s  visível
+7,95s  SUMIU
+```
+
+**Cerca de 0,3 segundo na tela** — e boa parte disso é a animação de entrada.
+Não são os 3s do `flash` nem os 4s do toast: alguma coisa está removendo o aviso
+quase no mesmo instante em que ele aparece.
+
+E o aviso do vídeo **não é o `flash`**: é o toast do HeroUI (cartão branco no
+canto inferior direito, `ToastProvider placement="bottom end"` em `main.tsx:110`),
+disparado pelo handler global `toastMutationError` do `MutationCache`
+(`main.tsx:70-72`). O texto é o do servidor, completo — a frase da comanda #40.
+
+O que descartei, verificando: ninguém chama `toast.clear()`/`close()` no
+repositório; só existe um `ToastProvider`; `timeout` é a opção certa e o
+`ToastQueue.add` a respeita (`dist/components/toast/toast-queue.js:31-37`); o
+default da lib também é 4000 (`constants.js`).
+
+A suspeita que sobra é da própria biblioteca: o `wrapUpdate` padrão do HeroUI
+envolve cada atualização da fila em `document.startViewTransition`
+(`toast-queue.js:21-28`), e há defeito conhecido de toast com View Transition
+nessa linha (heroui-inc/heroui#6406, "Skipped ViewTransition due to another
+transition starting"). Numa tela que dispara mutation + refetch + fechamento de
+menu ao mesmo tempo, é exatamente o cenário. **Não provei isso** — ficaria caro
+reproduzir, e a correção de raiz exigiria trocar a fila global do HeroUI (o
+`ToastProvider` aceita `queue`, mas a função global `toast()` continuaria usando
+a interna, então seria preciso reescrever todas as chamadas).
+
+Por isso a decisão abaixo: para ESTE erro, não depender do toast.
+
 ## A correção
 
 1. `apiErrorMessage(err)` nos cinco `catch` que descartavam a frase do servidor.
@@ -114,3 +153,9 @@ reagendar — o padrão certo já existe no repositório.
    `LinkAgendamentoPage`), para uma mensagem não herdar o prazo da anterior.
 4. O aviso de erro ganha botão de fechar e cor própria — hoje é a mesma tarja
    escura do sucesso, e não há como mantê-lo na tela enquanto se lê.
+5. **A recusa de cancelar/excluir passa a aparecer FIXA dentro do drawer**, ao
+   lado do botão que a provocou, e não some sozinha: sai quando a pessoa fecha,
+   tenta de novo ou troca de agendamento. É o que resolve o relato de verdade —
+   qualquer que seja o motivo de o toast do HeroUI evaporar em 0,3s, este aviso
+   não depende dele. E é melhor assim mesmo: o erro fica onde a ação foi feita,
+   com a instrução visível enquanto a pessoa vai resolver a comanda.

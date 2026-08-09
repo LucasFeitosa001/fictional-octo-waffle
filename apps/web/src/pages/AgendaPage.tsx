@@ -266,6 +266,12 @@ export function AgendaPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null);
   const toastTimer = useRef<number | null>(null);
+  /**
+   * Recusa da última ação sobre ESTE agendamento (cancelar, excluir, salvar).
+   * Fica FIXA no drawer porque é instrução, não aviso: some quando a pessoa
+   * fecha, tenta de novo ou troca de agendamento. Ver estudo 138.
+   */
+  const [erroAcao, setErroAcao] = useState<string | null>(null);
 
   useAutoCreate(() => openNew());
 
@@ -589,6 +595,8 @@ export function AgendaPage() {
     status: AppointmentRow['status'],
     reason?: string,
   ): Promise<boolean> {
+    // Tentativa nova zera a recusa anterior — senão a pessoa lê um erro velho.
+    setErroAcao(null);
     try {
       // Se o status for alterado dentro do drawer, persiste ANTES os toggles
       // desse agendamento. Assim "desligar cancelamento" + cancelar em seguida
@@ -605,8 +613,15 @@ export function AgendaPage() {
           : 'Status atualizado.',
       );
       return true;
-    } catch {
-      flash('Erro ao atualizar.');
+    } catch (err) {
+      // A frase do servidor é a única que diz o que fazer — qual comanda
+      // cancelar antes, por exemplo. "Erro ao atualizar." jogava isso fora.
+      //
+      // E vai para o aviso FIXO do drawer, não para um toast: medindo o vídeo
+      // do dono, o toast do HeroUI ficou ~0,3s na tela nesta ação. Aqui a
+      // instrução permanece até ele fechar, tentar de novo ou trocar de
+      // agendamento. Ver estudo 138.
+      setErroAcao(apiErrorMessage(err));
       return false;
     }
   }
@@ -679,7 +694,8 @@ export function AgendaPage() {
       appts.refetch();
       flash('Agendamento excluído.');
     } catch (err) {
-      flash(apiErrorMessage(err), 'erro');
+      // Mesmo caminho do cancelar: é aqui que a recusa por comanda aparece.
+      setErroAcao(apiErrorMessage(err));
     }
   }
 
@@ -926,6 +942,7 @@ export function AgendaPage() {
     setShowCancel(false);
     setShowReschedule(false);
     setMoreMenuOpen(false);
+    setErroAcao(null);
     setNoteDrawerOpen(false);
   }
   async function confirmReschedule() {
@@ -971,6 +988,7 @@ export function AgendaPage() {
     setShowCancel(false);
     setCancelReason('');
     setShowReschedule(false);
+    setErroAcao(null);
   }
 
   // Consome ?appointmentId=<id> vindo do sino de notificações. Busca o
@@ -2134,6 +2152,26 @@ export function AgendaPage() {
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setShowSuggest(false)}>Voltar</Button>
                 </div>
+              </div>
+            )}
+
+            {/* Recusa da última ação — FIXA. Ver estudo 138: o toast do HeroUI
+                sumia em ~0,3s nesta tela, e esta mensagem é instrução (diz qual
+                comanda resolver antes), não um aviso de passagem. */}
+            {erroAcao && (
+              <div
+                role="alert"
+                className="flex items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger"
+              >
+                <span className="flex-1">{erroAcao}</span>
+                <button
+                  type="button"
+                  onClick={() => setErroAcao(null)}
+                  aria-label="Fechar aviso"
+                  className="shrink-0 rounded px-1 leading-none opacity-70 hover:opacity-100"
+                >
+                  ✕
+                </button>
               </div>
             )}
 
