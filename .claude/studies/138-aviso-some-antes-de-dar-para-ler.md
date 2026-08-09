@@ -10,6 +10,9 @@ São **três** defeitos distintos no caminho, não um.
 ## Arquivos tocados
 
 - `apps/web/src/lib/toast.ts`
+- `apps/web/src/components/AvisosGlobais.tsx` (novo)
+- `apps/web/src/main.tsx`
+- `apps/web/src/lib/queries.ts`
 - `apps/web/src/pages/AgendaPage.tsx`
 - `apps/web/src/pages/AgendamentosPage.tsx`
 - `apps/web/src/components/MinhaContaDrawer.tsx`
@@ -142,6 +145,38 @@ reproduzir, e a correção de raiz exigiria trocar a fila global do HeroUI (o
 a interna, então seria preciso reescrever todas as chamadas).
 
 Por isso a decisão abaixo: para ESTE erro, não depender do toast.
+
+## Segunda rodada: o aviso fixo resolveu, o toast continuou
+
+O dono gravou de novo depois do deploy (09/08 18:35). Nos 3,4s do vídeo:
+
+- **o aviso FIXO do drawer aparece e PERMANECE** em todos os quadros — a
+  correção funcionou;
+- **o toast do HeroUI continua evaporando** ("a notificação bugada continua").
+
+Tentei fechar o diagnóstico com Playwright contra o painel local (API 3334 +
+Vite 5173 + o agendamento real com comanda #7 do banco local). O que consegui
+provar: o 409 chega com a mensagem completa. O que NÃO consegui: fazer o toast
+aparecer no teste — `fetch` cru não passa pelo `MutationCache`, e as telas que
+tentei para forçar mutation usam estado local em vez de toast. Fica registrado
+que a medição in vitro falhou; a evidência do comportamento continua sendo o
+vídeo.
+
+### Decisão: trocar a fila do HeroUI por uma nossa
+
+Não dá para configurar o `wrapUpdate` da fila global do HeroUI: o
+`ToastProvider` aceita `queue`, mas a função global `toast()` continua usando a
+interna, então metade dos avisos iria para uma fila e metade para outra.
+
+Como `apps/web/src/lib/toast.ts` já é o ponto único por onde quase tudo passa
+(só `lib/queries.ts` e `main.tsx` importavam direto de `@heroui/react`; as
+outras ~30 chamadas em 13 arquivos vêm daqui), dá para trocar a implementação
+por baixo **sem tocar em nenhuma chamada**: mesma API `toast.success/danger/
+info/warning`.
+
+O que ganhamos, além de parar de sumir: controle real da duração por
+severidade, erro que só sai quando a pessoa fecha, e nenhuma dependência de
+View Transition.
 
 ## A correção
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
-import { toast } from '@heroui/react';
+import { toast } from './toast';
 import { toastSuccess } from './toast';
 import type {
   AppointmentRow,

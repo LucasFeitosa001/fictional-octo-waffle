@@ -2,13 +2,21 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import { ToastProvider } from '@heroui/react';
 import { App } from './App';
 import './index.css';
 import { initTheme } from './theme/theme';
 import { initButtonRadius } from './theme/buttonStyle';
 import { initZoom } from './theme/zoom';
-import { toast } from '@heroui/react';
+import { toast } from './lib/toast';
+import { AvisosGlobais } from './components/AvisosGlobais';
+
+// Só em desenvolvimento: permite disparar um aviso pelo console/E2E sem ter de
+// reproduzir a tela inteira. Foi a falta disto que travou a verificação do
+// estudo 138 — o `import()` dinâmico do Vite devolve outra instância do módulo,
+// então não dava para acionar a store real de fora.
+if (import.meta.env.DEV) {
+  (window as unknown as { __avisos?: typeof toast }).__avisos = toast;
+}
 import { toastMutationError } from './lib/toast';
 
 // Restore the saved color theme + button style + zoom before the first React
@@ -104,10 +112,10 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
-        {/* Região global de toasts (pilha no canto inferior direito; o HeroUI
-            adapta para o topo/centro no mobile). Montada no root para que a
-            função global `toast()` funcione de qualquer lugar. */}
-        <ToastProvider placement="bottom end" />
+        {/* Pilha global de avisos (canto inferior direito). Implementação
+            própria — o toast do HeroUI evaporava em ~0,3s no fluxo real, ver
+            estudo 138. Montada no root para funcionar de qualquer lugar. */}
+        <AvisosGlobais />
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,
