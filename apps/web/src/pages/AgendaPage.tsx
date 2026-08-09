@@ -33,7 +33,7 @@ import { useEmpresa } from '../lib/queries/empresa';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
-import { apiErrorMessage } from '../lib/toast';
+import { apiErrorMessage, TOAST_TIMEOUT_ERRO } from '../lib/toast';
 import type { AppointmentRow, OrderRow } from '../lib/types';
 
 const STATUS_ORDER: AppointmentStatus[] = [
@@ -264,7 +264,8 @@ export function AgendaPage() {
   const [suggestion, setSuggestion] = useState('');
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
   useAutoCreate(() => openNew());
 
@@ -405,7 +406,7 @@ export function AgendaPage() {
           appts.refetch();
           flash(`${targets.length} agendamento(s) excluído(s).`);
         } catch (err) {
-          flash(err instanceof ApiClientError ? err.message : 'Não foi possível excluir os agendamentos.');
+          flash(apiErrorMessage(err), 'erro');
         }
       },
     },
@@ -509,9 +510,32 @@ export function AgendaPage() {
           ? 'Mensal'
           : 'Anual';
 
-  function flash(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  /**
+   * Aviso na faixa inferior. Ver estudo 138.
+   *
+   * Três coisas que faltavam:
+   *
+   * 1. O timer NÃO era guardado. Duas mensagens seguidas dividiam o destino da
+   *    primeira — `flash(A)` em t=0 agenda o apagamento para t=3s, e um
+   *    `flash(B)` em t=2,5s era apagado meio segundo depois. É literalmente o
+   *    "aparece muito rápido e some" que o dono descreveu.
+   * 2. Erro durava o mesmo que sucesso. Erro aqui é instrução ("cancele a
+   *    comanda antes"), não confirmação.
+   * 3. Erro não tinha como ser mantido na tela nem se distinguia do sucesso.
+   */
+  function flash(msg: string, tipo: 'ok' | 'erro' = 'ok') {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast({ msg, tipo });
+    toastTimer.current = window.setTimeout(
+      () => setToast(null),
+      tipo === 'erro' ? TOAST_TIMEOUT_ERRO : 3000,
+    );
+  }
+
+  /** Fecha o aviso na hora (o X do erro), sem deixar o timer órfão. */
+  function fecharToast() {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast(null);
   }
 
   // Abre o drawer de bloqueio já apontando para a data em foco na agenda.
@@ -655,7 +679,7 @@ export function AgendaPage() {
       appts.refetch();
       flash('Agendamento excluído.');
     } catch (err) {
-      flash(err instanceof ApiClientError ? err.message : 'Não foi possível excluir o agendamento.');
+      flash(apiErrorMessage(err), 'erro');
     }
   }
 
@@ -690,7 +714,7 @@ export function AgendaPage() {
       flash(`${nome} ${valor ? 'ligado' : 'desligado'} para este agendamento.`);
     } catch (err) {
       setSelected((s) => (s && s.id === selected.id ? { ...s, [campo]: anterior } : s));
-      flash(err instanceof ApiClientError ? err.message : 'Não foi possível salvar o aviso.');
+      flash(apiErrorMessage(err), 'erro');
     }
   }
 
@@ -880,8 +904,10 @@ export function AgendaPage() {
       setCancellationTouched(false);
       appts.refetch();
       return { ok: true, notes: saved.notes ?? null };
-    } catch {
-      flash('Não foi possível salvar as alterações do agendamento.');
+    } catch (err) {
+      // Mesma razão do `changeStatus`: a recusa do servidor costuma explicar o
+      // que travou (conflito de horário, comanda aberta). Ver estudo 138.
+      flash(apiErrorMessage(err), 'erro');
       return { ok: false, notes: selected.notes ?? null };
     }
   }
@@ -1511,10 +1537,26 @@ export function AgendaPage() {
         count={sel.count}
       />
 
-      {/* Toast */}
+      {/* Aviso — erro tem cor própria, mais largura para o texto respirar e um
+          X para sair na hora. Ver estudo 138. */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">
-          {toast}
+        <div
+          role={toast.tipo === 'erro' ? 'alert' : 'status'}
+          className={`fixed bottom-6 left-1/2 z-50 flex max-w-[min(90vw,32rem)] -translate-x-1/2 items-start gap-3 rounded-xl px-5 py-3 text-sm font-medium shadow-lg ${
+            toast.tipo === 'erro' ? 'bg-danger text-white' : 'bg-ink text-white'
+          }`}
+        >
+          <span className="flex-1">{toast.msg}</span>
+          {toast.tipo === 'erro' && (
+            <button
+              type="button"
+              onClick={fecharToast}
+              aria-label="Fechar aviso"
+              className="-mr-1 shrink-0 rounded px-1 leading-none opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 

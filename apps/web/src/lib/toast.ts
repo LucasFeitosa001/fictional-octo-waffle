@@ -19,6 +19,17 @@ export { toast };
 export const TOAST_TIMEOUT = 4000;
 
 /**
+ * Erro fica MUITO mais tempo que sucesso. Ver estudo 138.
+ *
+ * Sucesso é confirmação — 4s bastam para "Agendamento confirmado.". Erro quase
+ * sempre é INSTRUÇÃO, e às vezes longa: a recusa de cancelar um agendamento com
+ * comanda diz o número dela, a situação e o que fazer antes
+ * (`appointments.service.assertSemComandaViva`, ~120 caracteres). Em 4s a pessoa
+ * não termina de ler, e o aviso não volta — foi o relato do dono.
+ */
+export const TOAST_TIMEOUT_ERRO = 12000;
+
+/**
  * Extrai uma mensagem humana de um erro de API. `ApiError.message` pode vir como
  * string ou string[] (validação do Nest), então normalizamos ambos.
  */
@@ -40,7 +51,12 @@ export function apiErrorMessage(error: unknown): string {
  * cobrindo TODAS as mutations de uma vez sem tocar em páginas.
  */
 export function toastMutationError(error: unknown): void {
-  toast.danger(apiErrorMessage(error), { timeout: TOAST_TIMEOUT });
+  toast.danger(apiErrorMessage(error), { timeout: TOAST_TIMEOUT_ERRO });
+}
+
+/** Erro avulso (fora de mutation) com a mesma duração generosa. */
+export function toastError(message: string): string {
+  return toast.danger(message, { timeout: TOAST_TIMEOUT_ERRO });
 }
 
 /** Atalho para toasts de sucesso com a duração padrão do app. */
