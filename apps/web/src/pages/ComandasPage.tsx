@@ -12,7 +12,7 @@ import { ComandaDrawer } from '../components/ComandaDrawer';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { IconTip } from '../components/IconTip';
 import { InlineSearch } from '../components/InlineSearch';
-import { ClientePerfilModal } from './ClientePerfilTabs';
+import { ClientePerfilModal, CustomerCreateModal } from './ClientePerfilTabs';
 import { useCustomer } from '../lib/queries/clientes';
 import { FilterCheckbox } from '../components/FilterCheckbox';
 import { useConfirm } from '../components/ConfirmDialog';
@@ -1322,6 +1322,9 @@ export function NovoComandaDrawer({
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<StagedItem[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Cadastro de cliente aberto por cima do picker, sem sair da comanda. Estudo 155.
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false);
+  const [novoClienteNome, setNovoClienteNome] = useState('');
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [editingUid, setEditingUid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1336,12 +1339,34 @@ export function NovoComandaDrawer({
       setNotes('');
       setItems([]);
       setPickerOpen(false);
+      setNovoClienteOpen(false);
+      setNovoClienteNome('');
       setItemPickerOpen(false);
       setEditingUid(null);
       setError(null);
       setSaving(false);
     }
   }, [isOpen]);
+
+  // Há trabalho para perder? O drawer "Nova comanda" é o único caminho em que a
+  // comanda vive só em memória até o Salvar — pela agenda ou pelo perfil da
+  // cliente ela já nasce persistida. Ver estudo 154.
+  const temRascunho =
+    Boolean(selectedCustomer) || items.length > 0 || notes.trim().length > 0;
+
+  // Fechar descartava tudo em silêncio: Cancelar, ESC e clique no fundo. Agora
+  // só o drawer VAZIO fecha direto — quem só abriu por engano não é atrapalhado.
+  function fecharComAviso() {
+    if (!temRascunho) {
+      onClose();
+      return;
+    }
+    const descartar = window.confirm(
+      'Esta comanda ainda não foi salva. Se sair agora, o que você preencheu será perdido.\n\n' +
+        'Cancele e use "Salvar rascunho" para terminar depois.\n\nDescartar mesmo assim?',
+    );
+    if (descartar) onClose();
+  }
 
   const editingItem = items.find((i) => i.uid === editingUid) ?? null;
 
@@ -1420,21 +1445,26 @@ export function NovoComandaDrawer({
   return (
     <Drawer
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={fecharComAviso}
       title="Nova comanda"
       // Belasis: content-wrapper renderiza 1650px (near-fullscreen), cap em 95vw.
       widthClass="sm:w-[1180px] lg:w-[1650px] sm:max-w-[95vw]"
       fullscreen
       footer={
         <>
-          <Button variant="ghost" className="mr-auto text-muted-ink" onClick={onClose}>
-            <IconInfo size={16} /> Ajuda
-          </Button>
-          <Button variant="outline" onClick={onClose}>
+          {/* Aqui havia um botão "Ajuda" que chamava onClose: clicar em Ajuda
+              DESCARTAVA a comanda inteira, e não existia ajuda nenhuma. No
+              lugar dele, a frase que responde o que o dono perguntou — que dá
+              para guardar e terminar depois. Ver estudo 154. */}
+          <span className="mr-auto hidden max-w-[26rem] text-xs leading-tight text-muted-ink sm:block">
+            <IconInfo size={14} className="mr-1 inline align-[-2px]" />
+            "Salvar rascunho" guarda a comanda aberta para você terminar depois.
+          </span>
+          <Button variant="outline" onClick={fecharComAviso}>
             Cancelar
           </Button>
           <Button variant="primary" isDisabled={saving} onClick={() => handleSave(false)}>
-            {saving ? 'Salvando…' : 'Salvar'}
+            {saving ? 'Salvando…' : 'Salvar rascunho'}
           </Button>
           <Button variant="primary" isDisabled={saving} onClick={() => handleSave(true)}>
             <IconCheck size={16} /> Faturar
@@ -1447,6 +1477,29 @@ export function NovoComandaDrawer({
         isOpen={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={(c) => setSelectedCustomer(c)}
+        onCreateNew={(nome) => {
+          setNovoClienteNome(nome);
+          setNovoClienteOpen(true);
+        }}
+      />
+      {/* Sobe acima do picker (z-[90]) para o cadastro não ficar atrás dele.
+          Ao salvar, a cliente já entra escolhida e os dois drawers fecham —
+          a pessoa volta para a comanda pronta para continuar. Estudo 155. */}
+      <CustomerCreateModal
+        isOpen={novoClienteOpen}
+        zClass="z-[95]"
+        initialName={novoClienteNome}
+        onClose={() => setNovoClienteOpen(false)}
+        onCreated={(c) => {
+          setSelectedCustomer({
+            id: c.id,
+            name: c.name,
+            phone: c.phone ?? undefined,
+            avatarUrl: c.avatarUrl ?? undefined,
+          });
+          setNovoClienteOpen(false);
+          setPickerOpen(false);
+        }}
       />
       <ItemPickerDrawer
         isOpen={itemPickerOpen}
