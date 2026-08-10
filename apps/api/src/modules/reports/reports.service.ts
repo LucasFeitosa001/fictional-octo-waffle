@@ -570,11 +570,24 @@ export class ReportsService {
     const rows = await this.prisma.client.whatsappOutbox.findMany({
       where: {
         AND: [
+          // O ramo por telefone casa pelo FINAL do número (8 dígitos), que
+          // colide entre DDDs diferentes. Solto num OR ao lado de `companyId`,
+          // ele trazia mensagem de OUTRO salão para o relatório, com prévia do
+          // texto. Ele existe para alcançar registros ÓRFÃOS (companyId é
+          // nullable), então fica restrito a esses. Estudo 151; irmã da correção
+          // em customers.service.ts:998-1013.
           {
             OR: [
               { companyId },
               ...(phoneTails.length
-                ? phoneTails.map((t) => ({ toPhone: { endsWith: t } }))
+                ? [
+                    {
+                      AND: [
+                        { companyId: null },
+                        { OR: phoneTails.map((t) => ({ toPhone: { endsWith: t } })) },
+                      ],
+                    },
+                  ]
                 : []),
             ],
           },
@@ -602,22 +615,27 @@ export class ReportsService {
       directNames.map((c) => [c.id, c.name] as [string, string]),
     );
 
-    const data = rows.map((r) => {
-      const tail = (r.toPhone ?? '').replace(/\D/g, '').slice(-8);
-      const customerName =
-        (r.customerId ? nameById.get(r.customerId) : undefined) ??
-        tailToCustomer.get(tail)?.name ??
-        null;
-      return {
-        id: r.id,
-        at: r.sentAt ?? r.createdAt,
-        toPhone: r.toPhone,
-        customerName,
-        kind: r.kind ?? null,
-        status: r.status,
-        textPreview: r.text.length > 140 ? `${r.text.slice(0, 140)}…` : r.text,
-      };
-    });
+    const data = rows
+      // Defesa em profundidade (espelha customers.service.ts:1046): uma regressão
+      // futura na query não pode transformar o relatório numa janela para as
+      // mensagens de outro salão. Órfã (companyId null) segue permitida.
+      .filter((r) => r.companyId === null || r.companyId === companyId)
+      .map((r) => {
+        const tail = (r.toPhone ?? '').replace(/\D/g, '').slice(-8);
+        const customerName =
+          (r.customerId ? nameById.get(r.customerId) : undefined) ??
+          tailToCustomer.get(tail)?.name ??
+          null;
+        return {
+          id: r.id,
+          at: r.sentAt ?? r.createdAt,
+          toPhone: r.toPhone,
+          customerName,
+          kind: r.kind ?? null,
+          status: r.status,
+          textPreview: r.text.length > 140 ? `${r.text.slice(0, 140)}…` : r.text,
+        };
+      });
 
     return {
       period: { from: from ?? null, to: to ?? null },
