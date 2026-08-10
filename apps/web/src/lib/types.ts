@@ -180,6 +180,12 @@ export interface AppointmentRow {
   customerId?: string | null;
   professionalId?: string | null;
   status: AppointmentStatus;
+  /**
+   * Como o agendamento entrou. `online` é o pedido feito pela cliente na página
+   * pública — ele tem padrão de aviso PRÓPRIO (`onlineBooking`), diferente do
+   * marcado na recepção. Ver estudo 153.
+   */
+  source?: 'admin' | 'online' | null;
   start: string;
   end: string;
   notes?: string | null;

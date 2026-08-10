@@ -326,7 +326,16 @@ export function AgendaPage() {
   const services = useServices();
   const notificationSettings = useNotificationSettings();
   const reminderDefault = notificationSettings.data?.reminder ?? false;
-  const confirmationDefault = notificationSettings.data?.confirmation ?? false;
+  // O padrão de confirmação DEPENDE DA ORIGEM, igual ao backend decide em
+  // notifications.service.ts (estudo 153): pedido feito pela internet usa
+  // `onlineBooking`; agendamento marcado na recepção usa `confirmation`. Sem
+  // esta distinção o drawer mostrava o toggle desligado para um agendamento
+  // online que o servidor iria avisar — a tela dizia o contrário do que ia
+  // acontecer.
+  const confirmationDefault =
+    (selected?.source === 'online'
+      ? notificationSettings.data?.onlineBooking
+      : notificationSettings.data?.confirmation) ?? false;
   const cancellationDefault = notificationSettings.data?.cancellation ?? false;
   const serviceById = useMemo(
     () => new Map((services.data?.data ?? []).map((s) => [s.id, s.name])),
@@ -1837,19 +1846,46 @@ export function AgendaPage() {
             {/* Sem `comandas:create` o botão de ABRIR some (criar é o que ele
                 faz). ACESSAR uma comanda que já existe continua para todo mundo
                 que enxerga a agenda — é leitura. Ver estudo 56. */}
-            {selected.order && selected.order.status !== 'canceled' ? (
-              <Button variant="primary" isDisabled={createOrder.isPending}
-                className="bg-[#25a244] hover:!bg-[#1e8438]"
-                onClick={() => createComanda(selected)}>
-                {`Acessar comanda #${selected.order.number}`}
-              </Button>
-            ) : can('comandas:create') ? (
-              <Button variant="primary" isDisabled={createOrder.isPending}
-                className="bg-[#25a244] hover:!bg-[#1e8438]"
-                onClick={() => createComanda(selected)}>
-                {createOrder.isPending ? 'Abrindo comanda…' : 'Abrir comanda'}
-              </Button>
-            ) : null}
+            <div className="flex items-end gap-2">
+              {selected.order && selected.order.status !== 'canceled' ? (
+                <Button variant="primary" isDisabled={createOrder.isPending}
+                  className="bg-[#25a244] hover:!bg-[#1e8438]"
+                  onClick={() => createComanda(selected)}>
+                  {`Acessar comanda #${selected.order.number}`}
+                </Button>
+              ) : can('comandas:create') ? (
+                <Button variant="primary" isDisabled={createOrder.isPending}
+                  className="bg-[#25a244] hover:!bg-[#1e8438]"
+                  onClick={() => createComanda(selected)}>
+                  {createOrder.isPending ? 'Abrindo comanda…' : 'Abrir comanda'}
+                </Button>
+              ) : null}
+
+              {/* Confirmar não tinha botão nenhum — para um pedido do
+                  agendamento online, que nasce `unconfirmed`, é a ação mais
+                  frequente do dia e era a mais escondida. Ver estudo 152.
+
+                  ATENÇÃO: em `unconfirmed` este clique MANDA WhatsApp para uma
+                  pessoa real (appointments.service.ts:1276-1279); em
+                  `scheduled` não manda nada. Por isso a linha de baixo diz o
+                  que vai sair, em vez de deixar o dono descobrir depois. */}
+              {can('agenda:manage')
+                && (selected.status === 'unconfirmed' || selected.status === 'scheduled') && (
+                <div className="flex flex-col items-end gap-0.5">
+                  <Button variant="primary" isDisabled={statusMutation.isPending}
+                    onClick={() => { void changeStatus(selected, 'confirmed'); }}>
+                    {statusMutation.isPending ? 'Confirmando…' : 'Confirmar agendamento'}
+                  </Button>
+                  {selected.status === 'unconfirmed' && (
+                    <span className="max-w-[15rem] text-right text-[11px] leading-tight text-muted-ink">
+                      {sendConfirmation
+                        ? 'A cliente recebe a confirmação no WhatsApp.'
+                        : 'A cliente não será avisada (aviso desligado neste agendamento).'}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
       >
