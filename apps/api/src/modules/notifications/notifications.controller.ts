@@ -123,7 +123,10 @@ export class NotificationSettingsController {
     @CurrentUser('companyId') companyId: string,
     @Body() body: Partial<NotificationAutomationSettings>,
   ) {
-    // Only accept the five known booleans; ignore anything else in the body.
+    // Only accept the known booleans; ignore anything else in the body.
+    // QUEM ADICIONAR UM TOGGLE NOVO PRECISA ADICIONÁ-LO AQUI TAMBÉM: sem a
+    // linha correspondente, a tela liga e desliga sem efeito nenhum e o
+    // servidor devolve o valor antigo, como se o clique não tivesse existido.
     const patch: Partial<NotificationAutomationSettings> = {};
     if (typeof body?.confirmation === 'boolean') patch.confirmation = body.confirmation;
     if (typeof body?.cancellation === 'boolean') patch.cancellation = body.cancellation;
@@ -131,6 +134,7 @@ export class NotificationSettingsController {
     if (typeof body?.followUp === 'boolean') patch.followUp = body.followUp;
     if (typeof body?.notifyProfessional === 'boolean')
       patch.notifyProfessional = body.notifyProfessional;
+    if (typeof body?.onlineBooking === 'boolean') patch.onlineBooking = body.onlineBooking;
     return this.settings.update(companyId, patch);
   }
 

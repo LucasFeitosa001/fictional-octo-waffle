@@ -130,10 +130,20 @@ export class NotificationsService {
         event === 'created' &&
         appt.source === 'online' &&
         appt.status === 'unconfirmed';
+      // Padrão da conta que vale para ESTE evento. O agendamento ONLINE tem
+      // chave própria (`onlineBooking`, ligada por padrão): quem agendou pela
+      // internet não recebeu nenhuma confirmação verbal no balcão, e o silêncio
+      // vira "será que deu certo?". Cancelamento segue em `cancellation`, e o
+      // agendamento feito na recepção segue em `confirmation`. Estudo 153.
+      const padraoDaConta =
+        event === 'canceled'
+          ? auto.cancellation
+          : appt.source === 'online'
+            ? auto.onlineBooking
+            : auto.confirmation;
+      // O toggle DO AGENDAMENTO continua tendo a última palavra (trava adicional).
       const clientAllowed =
-        !pendingOnlineConfirmation &&
-        (appointmentOverride ??
-          (event === 'canceled' ? auto.cancellation : auto.confirmation));
+        !pendingOnlineConfirmation && (appointmentOverride ?? padraoDaConta);
       // PERSONALIZAÇÃO (estudo 61): o texto do WhatsApp do cliente é o modelo
       // padrão da empresa renderizado — confirmação para created/confirmed,
       // cancelamento para canceled. Sem modelo utilizável, fica o texto fixo

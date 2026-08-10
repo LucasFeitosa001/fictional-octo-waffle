@@ -567,7 +567,15 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     // sent once WhatsApp reconnects. autoConfirmStaleBookings() catches any
     // booking that goes unanswered.
     const managerPhone = await this.whatsapp.getManagerPhone(companyId);
-    const salonConfirms = Boolean(managerPhone);
+    // O status precisa refletir o que REALMENTE vai acontecer. Antes bastava
+    // existir o número para o agendamento nascer `unconfirmed` — mas o pedido
+    // de confirmação ao salão depende também do toggle, e com ele desligado
+    // (que era o padrão) ninguém era avisado e o agendamento ficava esperando
+    // uma resposta que nunca viria: até 5 dias parado no auto-confirm, com a
+    // cliente sem notícia nenhuma no meio-tempo (ela é suprimida enquanto o
+    // pedido está pendente — notifications.service.ts:129-136). Estudo 153.
+    const auto = await this.settings.get(companyId);
+    const salonConfirms = Boolean(managerPhone) && auto.onlineBooking && auto.notifyProfessional;
 
     // Build items from the validated serviceIds list.
     const items = allServiceIds.map((sid) => ({
@@ -683,11 +691,12 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     managerPhone: string,
   ): Promise<void> {
     try {
-      // OPT-IN: só manda o pedido de confirmação ao gerente se o salão ativou
-      // `notifyProfessional`. Sem o toggle, o agendamento fica pendente e o
-      // auto-confirm cuida dele — nenhuma mensagem sai ao gerente.
+      // OPT-IN: o pedido ao gerente exige o aviso do agendamento online ligado
+      // E o `notifyProfessional`. Quem chama aqui já checou os dois para decidir
+      // o status (ver `salonConfirms`); a checagem é repetida porque este método
+      // é a última porta antes da fila e não pode depender de quem chama.
       const auto = await this.settings.get(companyId);
-      if (!auto.notifyProfessional) return;
+      if (!auto.onlineBooking || !auto.notifyProfessional) return;
       const v = await this.loadApptView(companyId, appointmentId);
       if (!v) return;
       const code = this.apptCode(appointmentId);

@@ -251,9 +251,10 @@ function getNotificationPreferences(): NotificationPreference {
 }
 
 /* --- Notificações automáticas (WhatsApp) ---
- * Switch por tipo de mensagem automática. Padrão do backend: TUDO DESLIGADO —
- * nenhuma mensagem automática (ao cliente OU ao profissional/gerente) sai até o
- * dono ativar aqui. Cada toggle é opt-in, começa desligado. */
+ * Switch por tipo de mensagem automática. Padrão do backend: tudo desligado,
+ * EXCETO o aviso do agendamento online, que vem ligado por decisão do dono
+ * (estudo 153). Nenhuma outra mensagem automática (ao cliente OU ao
+ * profissional/gerente) sai até que ele ative aqui. */
 const AUTOMATION_OPTIONS: {
   id: keyof NotificationAutomationSettings;
   label: string;
@@ -263,11 +264,22 @@ const AUTOMATION_OPTIONS: {
   // diziam o canal no lembrete, e o dono concluiu que confirmação e cancelamento
   // iam por outro meio. Também deixa explícito que LEMBRETE é antes e FOLLOW-UP é
   // depois — são coisas diferentes pelo mesmo canal. Ver estudo 59.
+  // O agendamento ONLINE tem linha própria e vem LIGADO de fábrica (estudo
+  // 153): quem agendou pela internet não ouviu nenhuma confirmação no balcão, e
+  // o silêncio é sentido como "será que deu certo?". É a única automação que
+  // nasce ligada — e é segura porque decide sobre um agendamento que está sendo
+  // criado naquele instante, sem fila acumulada para drenar.
+  {
+    id: 'onlineBooking',
+    label: 'Agendamento feito pela internet · WhatsApp',
+    description:
+      'Mensagem ao cliente que agendou sozinho pela página de agendamento online. Vem ligado. Não afeta os agendamentos marcados na recepção — esses seguem a linha abaixo.',
+  },
   {
     id: 'confirmation',
     label: 'Agendamento marcado/confirmado · WhatsApp',
     description:
-      'Mensagem ao cliente quando o agendamento é criado e quando é confirmado. Padrão para novos agendamentos; pode ser ligado ou desligado em cada um.',
+      'Mensagem ao cliente quando o agendamento é criado na recepção e quando é confirmado. Padrão para novos agendamentos; pode ser ligado ou desligado em cada um.',
   },
   {
     id: 'cancellation',
@@ -312,10 +324,12 @@ function AutomaticNotificationsCard() {
           Notificações automáticas (WhatsApp)
         </h2>
         <p className="text-sm text-muted-ink">
-          Escolha o padrão das mensagens automáticas do Salonpass. <strong>Tudo é
-          opt-in</strong>: por padrão nada é enviado (nem ao cliente nem ao
-          profissional). Confirmação, cancelamento e lembrete ainda podem ser
-          alterados individualmente dentro de cada agendamento.
+          Escolha o padrão das mensagens automáticas do Salonpass. Só o aviso de{' '}
+          <strong>agendamento feito pela internet</strong> já vem ligado — quem
+          agenda sozinho não recebe confirmação de ninguém no balcão. Todo o
+          resto começa desligado e só sai depois que você ativar aqui.
+          Confirmação, cancelamento e lembrete ainda podem ser alterados
+          individualmente dentro de cada agendamento.
         </p>
       </div>
 
