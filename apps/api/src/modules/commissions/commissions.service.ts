@@ -499,25 +499,39 @@ export class CommissionsService {
   //     vales=deducted+paymentId.
   /**
    * (Estudo 127) Serializa dois `payItem` concorrentes na MESMA dupla
-   * (empresa, profissional). Convertemos os ids em dois `int8` estáveis por
-   * hashtext, que é o que `pg_advisory_xact_lock(bigint, bigint)` aceita. O
-   * lock morre no fim da transação — sem risco de vazar entre requisições.
+   * (empresa, profissional). O lock morre no fim da transação — sem risco de
+   * vazar entre requisições.
+   *
+   * SEM `::bigint` (estudo 146). O Postgres tem duas assinaturas:
+   * `pg_advisory_xact_lock(bigint)` — uma chave de 64 bits — e
+   * `pg_advisory_xact_lock(int, int)` — DUAS de 32 bits. Como usamos duas
+   * chaves, o tipo é `int4`, que é exatamente o que `hashtext()` devolve.
+   * O cast para bigint que estava aqui não casava com assinatura nenhuma:
+   * "function pg_advisory_xact_lock(bigint, bigint) does not exist" derrubava
+   * a transação e devolvia 500 — e como esta é a PRIMEIRA linha de `payItem`,
+   * nenhum pagamento de comissão passava. O dono levou "Internal server error"
+   * ao tentar pagar.
    */
   private async travarPagamentoConcorrente(
     tx: Prisma.TransactionClient,
     companyId: string,
     professionalId: string,
   ): Promise<void> {
-    // `$queryRaw` pode não existir em fixtures antigos de teste (Prisma
+    // `$executeRaw` pode não existir em fixtures antigos de teste (Prisma
     // simplificado); em produção sempre existe. Sem fallback silencioso: em
     // testes sem lock a corrida não pode ser reproduzida DE QUALQUER JEITO
     // (não há real Postgres) — então saímos sem trava e o teste específico da
-    // corrida (estudo 127) monta seu próprio $queryRaw.
-    if (typeof (tx as unknown as { $queryRaw?: unknown }).$queryRaw !== 'function') {
+    // corrida (estudo 127) monta seu próprio raw.
+    if (typeof (tx as unknown as { $executeRaw?: unknown }).$executeRaw !== 'function') {
       return;
     }
-    await tx.$queryRaw`
-      SELECT pg_advisory_xact_lock(hashtext(${companyId})::bigint, hashtext(${professionalId})::bigint)
+    // $executeRaw (NÃO $queryRaw): `pg_advisory_xact_lock()` retorna `void` e o
+    // $queryRaw tenta DESSERIALIZAR a coluna → P2010 "Failed to deserialize
+    // column of type 'void'", que abortava a transação e devolvia 500 em TODO
+    // pagamento de comissão. `orders.service.ts:254` e `cash-registers` já
+    // documentavam isso; a comissão foi o único lugar que ficou no $queryRaw.
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${professionalId}))
     `;
   }
 

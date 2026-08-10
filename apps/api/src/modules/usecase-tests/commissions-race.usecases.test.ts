@@ -102,11 +102,25 @@ function fixtureConcorrente() {
       },
       financialAccount: { findFirst: async () => null },
       transaction: { create: async () => null },
-      $queryRaw: async (strings: TemplateStringsArray, ...args: unknown[]) => {
+      $executeRaw: async (strings: TemplateStringsArray, ...args: unknown[]) => {
         // Advisory lock: as duas primeiras `${...}` são companyId e
         // professionalId — a chave do lock.
         const raw = strings.join('?');
         if (raw.includes('pg_advisory_xact_lock')) {
+          // ASSINATURA (estudo 146). Este fixture provava só que a CHAMADA
+          // acontecia; o SQL nunca tocou num Postgres de verdade, então o cast
+          // inválido passou despercebido e derrubou TODO pagamento de comissão
+          // com 500 em produção. O Postgres tem duas assinaturas:
+          //   pg_advisory_xact_lock(bigint)      → UMA chave de 64 bits
+          //   pg_advisory_xact_lock(int, int)    → DUAS de 32 bits
+          // Usamos duas chaves, então nada de ::bigint — hashtext() já é int4.
+          if (/::bigint/.test(raw)) {
+            throw new Error(
+              'pg_advisory_xact_lock com DUAS chaves não aceita ::bigint — ' +
+                'function pg_advisory_xact_lock(bigint, bigint) does not exist. ' +
+                'Ver estudo 146.',
+            );
+          }
           const chave = `${args[0]}:${args[1]}`;
           while (locks.has(chave)) {
             await locks.get(chave); // espera a outra tx acabar
