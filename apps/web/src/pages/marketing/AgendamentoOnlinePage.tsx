@@ -11,7 +11,6 @@ import {
   IconCopy,
   IconExternalLink,
   IconEye,
-  IconHome,
   IconInfo,
   IconScissors,
   IconSettings,
@@ -20,7 +19,7 @@ import {
   IconWhatsApp,
 } from '../../components/icons';
 import { useBookingLink, useUpdateBookingLink } from '../../lib/queries/marketing';
-import { useServices } from '../../lib/queries';
+import { useServices, useUpdateService } from '../../lib/queries';
 import { useEmpresa, useUpdateEmpresa } from '../../lib/queries/empresa';
 import {
   WEEKDAY_LABELS,
@@ -358,6 +357,8 @@ export function AgendamentoOnlinePage() {
   const updateHours = useUpdateBusinessHours();
   const empresa = useEmpresa();
   const updateEmpresa = useUpdateEmpresa();
+  // Grava a foto do serviço sem sair da tela — ver estudo 149.
+  const updateService = useUpdateService();
 
   const profile = useWebProfile();
   const updateProfile = useUpdateWebProfile();
@@ -728,17 +729,24 @@ export function AgendamentoOnlinePage() {
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
-              {empresa.data?.logoUrl ? (
-                <img
-                  src={empresa.data.logoUrl}
-                  alt="Logo"
-                  className="h-16 w-16 rounded-xl object-cover"
-                />
-              ) : (
-                <span className="grid h-16 w-16 place-items-center rounded-xl bg-canvas text-muted-ink">
-                  <IconHome size={22} />
-                </span>
-              )}
+              {/* LOGO EDITÁVEL AQUI (estudo 149). Esta seção se apresenta como
+                  "Defina a logo, o endereço, a descrição..." mas só EXIBIA a
+                  imagem — o campo de verdade vivia em Configurações, noutra
+                  área do menu, e quem vinha montar a página pública não tinha
+                  como adivinhar. Pior: a capa logo abaixo TEM upload, então a
+                  tela parecia oferecer e não oferecia.
+
+                  Mesmo `Company.logoUrl` que Configurações grava: um dado só,
+                  editável nos dois lugares. Grava na hora, como lá — quem envia
+                  e sai sem salvar deixaria o arquivo órfão e perderia a logo. */}
+              <ImageUpload
+                value={empresa.data?.logoUrl ?? null}
+                onChange={(url) => updateEmpresa.mutate({ logoUrl: url })}
+                kind="logo"
+                shape="square"
+                size={64}
+                placeholder="Logo"
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">{empresa.data?.name ?? '—'}</p>
                 <p className="truncate text-xs text-muted-ink">
@@ -1149,18 +1157,41 @@ export function AgendamentoOnlinePage() {
               {onlineCount} de {serviceRows.length} serviço{serviceRows.length === 1 ? '' : 's'} disponível
               {onlineCount === 1 ? '' : 'is'} online.
             </p>
+            {/* FOTO DO SERVIÇO AQUI (estudo 149). Esta aba se descreve como
+                "...com seus respectivos tempos, valores, descrições, FOTOS e
+                profissionais", mas só tinha o switch: para trocar a foto era
+                preciso sair da tela e ir em Cadastros → Serviços.
+
+                Mesmo `Service.imageUrl` do cadastro — um dado só, sem foto
+                duplicada. A Galeria ao lado continua sendo outra coisa: são as
+                fotos DO SALÃO, sem vínculo com serviço, que aparecem na
+                primeira etapa do agendamento. */}
             {serviceRows.map((s) => (
-              <Switch
+              <div
                 key={s.id}
-                isSelected={s.onlineBookable}
-                onChange={(v: boolean) => onToggleService(s.id, v)}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3"
+                className="flex w-full items-center gap-3 rounded-xl border border-line bg-card px-4 py-3"
               >
-                <span className="min-w-0 truncate text-sm text-ink">{s.name}</span>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch>
+                <ImageUpload
+                  value={s.imageUrl ?? null}
+                  onChange={(url) =>
+                    updateService.mutate({ id: s.id, body: { imageUrl: url } })
+                  }
+                  kind="service"
+                  shape="square"
+                  size={44}
+                  placeholder="Foto"
+                />
+                <Switch
+                  isSelected={s.onlineBookable}
+                  onChange={(v: boolean) => onToggleService(s.id, v)}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3"
+                >
+                  <span className="min-w-0 truncate text-sm text-ink">{s.name}</span>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
+              </div>
             ))}
             <div className="flex justify-end pt-1">
               <Button variant="ghost" onClick={() => navigate('/servicos')}>
