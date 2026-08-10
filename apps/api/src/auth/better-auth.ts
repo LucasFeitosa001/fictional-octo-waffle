@@ -42,6 +42,19 @@ const socialProviders = googleEnabled
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID as string,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+        /**
+         * SELETOR DE CONTAS SEMPRE (estudo 148).
+         *
+         * `signOut()` encerra a sessão do SalonPass, não a do Google. Sem este
+         * parâmetro, "Sair e entrar com outra conta" mandava para o Google, que
+         * reconectava sozinho na mesma conta que já estava ativa no navegador —
+         * o botão parecia não fazer nada, e não havia como trocar.
+         *
+         * Custa um toque a mais para quem só tem uma conta. É o preço de o
+         * botão funcionar. `select_account` e não `consent`: consent repetiria
+         * a autorização dos escopos a cada entrada sem resolver mais nada.
+         */
+        prompt: 'select_account' as const,
         // Mark Google sign-ups as customers so the user.create hook skips
         // Company provisioning (they just book at salons).
         mapProfileToUser: () => ({ accountType: 'customer' as const }),
