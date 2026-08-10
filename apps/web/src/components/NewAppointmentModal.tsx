@@ -32,7 +32,14 @@ import {
   useProfessionals,
   useServices,
 } from '../lib/queries';
-import { useProfessionalDetail } from '../lib/queries/profissionais';
+import {
+  useProfessionalDetail,
+  useSetProfessionalServices,
+} from '../lib/queries/profissionais';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCan } from '../lib/queries/permissions';
+import { useProductCategories } from '../lib/queries/catalogo';
+import { ServiceDrawer } from '../pages/ServicosPage';
 // Repetição e conferência de expediente vivem em lib/ porque são lógica pura
 // com teste (tests/agendamento-datas.test.ts) — o jest não importa este
 // componente, HeroUI é ESM.
@@ -306,6 +313,16 @@ export function NewAppointmentModal({
   const profissionalDoHorario = useProfessionalDetail(primary.professionalId || null);
   const expedientes = profissionalDoHorario.data?.schedules;
   const createAppointmentSeries = useCreateAppointmentSeries();
+  const qc = useQueryClient();
+  const { can } = useCan();
+  const vincularServico = useSetProfessionalServices();
+  const [erroVinculo, setErroVinculo] = useState<string | null>(null);
+  const [serviceDrawerOpen, setServiceDrawerOpen] = useState(false);
+  const categoriasDeServicoQ = useProductCategories();
+  const categoriasDeServico = useMemo(
+    () => (categoriasDeServicoQ.data ?? []).map((c) => ({ id: c.id, name: c.name })),
+    [categoriasDeServicoQ.data],
+  );
   const createCustomer = useCreateCustomer();
   const createOrder = useCreateOrder();
   const confirm = useConfirm();
@@ -314,6 +331,37 @@ export function NewAppointmentModal({
   const professionalItems = professionals.data?.data ?? [];
   const customerItems = customers.data?.data ?? [];
   const slots = availability.data?.slots ?? [];
+
+  /**
+   * Vincula o serviço escolhido à profissional do horário, sem sair da tela.
+   *
+   * O endpoint SUBSTITUI a lista inteira de serviços dela — por isso manda a
+   * UNIÃO com os vínculos atuais. Mandar só o novo apagaria todos os outros, um
+   * estrago que só apareceria dias depois, com a agenda dela recusando serviços
+   * que ela sempre fez. Ver estudo 155.
+   */
+  async function vincularServicoAoProfissional() {
+    const atuais = profissionalDoHorario.data?.services;
+    if (!primary.professionalId || !primary.serviceId || atuais === undefined) return;
+    setErroVinculo(null);
+    try {
+      const ids = new Set(atuais.map((s) => s.serviceId));
+      ids.add(primary.serviceId);
+      await vincularServico.mutateAsync({
+        id: primary.professionalId,
+        serviceIds: Array.from(ids),
+      });
+      // A mutation invalida `professionals`, não a disponibilidade — sem isto a
+      // caixa amarela continuaria na tela, como se nada tivesse acontecido.
+      await qc.invalidateQueries({ queryKey: ['availability'] });
+    } catch (err) {
+      setErroVinculo(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível vincular o serviço a esta profissional.',
+      );
+    }
+  }
 
   function updateItem(idx: number, patch: Partial<ApptItem>) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -1029,6 +1077,20 @@ export function NewAppointmentModal({
                         </ListBox>
                       </Select.Popover>
                     </Select>
+                    {/* Serviço que ainda não existe no catálogo obrigava a sair
+                        da tela e recomeçar o agendamento. O ServiceDrawer já é
+                        reutilizável e sobe por cima (z-80 > z-70). Permissão
+                        SEPARADA da de vincular: quem cadastra serviço pode não
+                        poder mexer na equipe. Ver estudo 155. */}
+                    {idx === 0 && can('catalogo:manage') && (
+                      <button
+                        type="button"
+                        onClick={() => setServiceDrawerOpen(true)}
+                        className="mt-1 self-start text-xs font-medium text-gold-strong hover:underline"
+                      >
+                        + Novo serviço
+                      </button>
+                    )}
                   </Field>
 
                   <Field label="Profissional" className="lg:col-span-3">
@@ -1087,10 +1149,43 @@ export function NewAppointmentModal({
                               (appointments.service.ts:71), nenhuma profissional
                               vai executá-lo. */}
                           {availability.data?.motivo === 'profissional_nao_vinculado' && (
-                            <span className="text-xs text-muted">
-                              Trocar a data não resolve — escolha outra profissional ou
-                              vincule este serviço a ela.
-                            </span>
+                            <>
+                              <span className="text-xs text-muted">
+                                Trocar a data não resolve — escolha outra profissional ou
+                                vincule este serviço a ela.
+                              </span>
+                              {/* A tela dizia "vincule" e não deixava vincular:
+                                  era preciso sair para Equipe e recomeçar o
+                                  agendamento. Ver estudo 155. */}
+                              {can('equipe:manage') && (
+                                <button
+                                  type="button"
+                                  // Desabilitado enquanto os vínculos atuais não
+                                  // chegaram: o PUT SUBSTITUI a lista inteira
+                                  // (professionals.service.ts:99-106), então
+                                  // enviar sem ela apagaria todos os serviços
+                                  // da profissional.
+                                  disabled={
+                                    vincularServico.isPending ||
+                                    profissionalDoHorario.isLoading ||
+                                    profissionalDoHorario.data?.services === undefined
+                                  }
+                                  onClick={() => void vincularServicoAoProfissional()}
+                                  className="mt-1.5 self-start rounded-lg border border-warning/50 bg-white px-2.5 py-1 text-xs font-medium text-foreground hover:bg-warning/10 disabled:opacity-50"
+                                >
+                                  {vincularServico.isPending
+                                    ? 'Vinculando…'
+                                    : `Vincular a ${
+                                        professionalItems.find(
+                                          (p) => p.id === primary.professionalId,
+                                        )?.name ?? 'esta profissional'
+                                      }`}
+                                </button>
+                              )}
+                              {erroVinculo && (
+                                <span className="text-xs text-danger">{erroVinculo}</span>
+                              )}
+                            </>
                           )}
                           {availability.data?.motivo === 'servico_desconhecido' && (
                             <span className="text-xs text-muted">
@@ -1503,6 +1598,19 @@ export function NewAppointmentModal({
           </div>
         </div>
       )}
+
+      {/* Cadastro de serviço por cima do agendamento (FullDrawer z-80 sobre o
+          z-70 daqui). Ao fechar, a lista de serviços é recarregada para o
+          recém-criado já aparecer no seletor. Ver estudo 155. */}
+      <ServiceDrawer
+        mode="create"
+        isOpen={serviceDrawerOpen}
+        onClose={() => {
+          setServiceDrawerOpen(false);
+          void qc.invalidateQueries({ queryKey: ['services'] });
+        }}
+        categories={categoriasDeServico}
+      />
     </Drawer>
   );
 }

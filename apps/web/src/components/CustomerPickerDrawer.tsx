@@ -57,10 +57,20 @@ export function CustomerPickerDrawer({
   isOpen,
   onClose,
   onSelect,
+  onCreateNew,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (customer: PickedCustomer) => void;
+  /**
+   * Abre o cadastro de cliente por cima, sem sair de onde a pessoa está —
+   * recebe o que ela já digitou na busca para não fazer digitar de novo.
+   *
+   * Opcional de propósito: quem não passa segue exatamente como antes. Como o
+   * picker é compartilhado (comanda, pacotes, IA), ligar aqui resolve os três
+   * lugares. Ver estudo 155.
+   */
+  onCreateNew?: (nomeDigitado: string) => void;
 }) {
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -117,9 +127,31 @@ export function CustomerPickerDrawer({
           </div>
         )}
 
+        {onCreateNew && (
+          <button
+            type="button"
+            onClick={() => onCreateNew(search.trim())}
+            className="self-start text-xs font-medium text-gold-strong hover:underline"
+          >
+            + Novo cliente
+          </button>
+        )}
+
         {!loading && items.length === 0 && (
           <div className="rounded-lg border border-dashed border-default-200 px-3 py-8 text-center text-sm text-muted">
             {debounced ? 'Nenhum cliente encontrado.' : 'Digite para buscar um cliente.'}
+            {/* A busca sem resultado é justamente quando a pessoa descobre que
+                a cliente não existe — é aqui que o cadastro tem de estar, já
+                com o nome digitado. */}
+            {onCreateNew && debounced && (
+              <button
+                type="button"
+                onClick={() => onCreateNew(debounced)}
+                className="mt-3 block w-full rounded-lg border border-default-200 bg-white px-3 py-2 text-sm font-medium text-gold-strong hover:bg-canvas"
+              >
+                + Cadastrar “{debounced}”
+              </button>
+            )}
           </div>
         )}
 

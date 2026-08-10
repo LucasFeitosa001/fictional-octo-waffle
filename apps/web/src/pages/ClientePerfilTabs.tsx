@@ -48,7 +48,7 @@ import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { useCustomers, useCreateOrder } from '../lib/queries';
 import { useFeatures } from '../lib/queries/features';
 import { useEnviarArquivoNoWhatsapp } from '../lib/queries/whatsappMedia';
-import type { CustomerFileView } from '../lib/queries/clientes';
+import type { CustomerCreated, CustomerFileView } from '../lib/queries/clientes';
 import {
   useAdjustCashback,
   useCreateAnamnesis,
@@ -140,11 +140,18 @@ function CustomerForm({
   customer,
   onDone,
   onCancel,
+  initialName,
 }: {
   mode: 'create' | 'edit';
   customer?: CustomerFull | null;
-  onDone: () => void;
+  /**
+   * Recebe o cliente recém-criado quando `mode === 'create'`. Quem só quer
+   * fechar (o uso antigo) ignora o argumento e nada muda. Ver estudo 155.
+   */
+  onDone: (criado?: CustomerCreated) => void;
   onCancel?: () => void;
+  /** Nome já digitado na busca que trouxe a pessoa até aqui. */
+  initialName?: string;
 }) {
   const create = useCreateCustomer();
   const update = useUpdateCustomer();
@@ -236,7 +243,9 @@ function CustomerForm({
   }
 
   useEffect(() => {
-    setName(customer?.name ?? '');
+    // Em `create`, aproveita o nome que a pessoa já digitou na busca — ela não
+    // deve ter de escrever de novo o que acabou de procurar. Ver estudo 155.
+    setName(customer?.name ?? initialName ?? '');
     setNickname(customer?.nickname ?? '');
     setPhone(customer?.phone ?? '');
     setSecondaryPhone(customer?.secondaryPhone ?? '');
@@ -293,7 +302,7 @@ function CustomerForm({
     );
     setCepLoading(false);
     setError(null);
-  }, [customer]);
+  }, [customer, initialName]);
 
   const referralOptions = useMemo(
     () => (customersQ.data?.data ?? []).filter((c) => c.id !== customer?.id),
@@ -406,10 +415,13 @@ function CustomerForm({
     try {
       if (mode === 'edit' && customer) {
         await update.mutateAsync({ id: customer.id, body });
-      } else {
-        await create.mutateAsync(body);
+        onDone();
+        return;
       }
-      onDone();
+      // Devolve quem foi criado para quem abriu o cadastro já sair com a
+      // cliente selecionada, sem ter de buscá-la de novo. Ver estudo 155.
+      const criado = await create.mutateAsync(body);
+      onDone(criado);
     } catch (err) {
       setError(
         err instanceof ApiClientError ? err.message : 'Não foi possível salvar o cliente.',
@@ -2237,9 +2249,21 @@ function AnswerField({
 export function CustomerCreateModal({
   isOpen,
   onClose,
+  onCreated,
+  initialName,
+  zClass,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  /** Avisa quem abriu, para ele já sair com a cliente selecionada. Estudo 155. */
+  onCreated?: (criado: CustomerCreated) => void;
+  /** Nome já digitado na busca que trouxe a pessoa até aqui. */
+  initialName?: string;
+  /**
+   * Empilhamento: aberto de dentro da comanda, precisa subir acima do picker
+   * (z-[90]). O padrão do Drawer serve para quem abre pelo menu "Novo".
+   */
+  zClass?: string;
 }) {
   return (
     <Drawer
@@ -2247,6 +2271,7 @@ export function CustomerCreateModal({
       onClose={onClose}
       title="Novo cliente"
       widthClass="sm:w-[760px]"
+      zClass={zClass}
       fullscreen
     >
       {isOpen && (
@@ -2256,7 +2281,15 @@ export function CustomerCreateModal({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
           <PerfilMenuLateral ativo="cadastro" somenteCadastro />
           <div className="min-w-0 flex-1">
-            <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />
+            <CustomerForm
+              mode="create"
+              initialName={initialName}
+              onDone={(criado) => {
+                if (criado) onCreated?.(criado);
+                onClose();
+              }}
+              onCancel={onClose}
+            />
           </div>
         </div>
       )}
