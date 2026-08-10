@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { toastSuccess } from '../toast';
+import { TOAST_TIMEOUT_ERRO, toast, toastSuccess } from '../toast';
 import type {
   CustomerCreditsResponse,
   CustomerDebt,
@@ -18,18 +18,27 @@ export interface CustomerSocialProfileInput {
   url: string;
 }
 
+/**
+ * Corpo de POST /customers e PATCH /customers/:id.
+ *
+ * Os campos apagáveis são `string | null` porque o PATCH tem TRÊS estados
+ * (estudo 141): chave ausente = "não mexa", `null` = "APAGUE", texto = grave.
+ * Enquanto o formulário mandava `undefined` para campo vazio, o `JSON.stringify`
+ * omitia a chave e o backend entendia "não mexa" — não havia como tirar do
+ * cadastro um telefone que era de outra pessoa.
+ */
 export interface CustomerBody {
   name: string;
-  nickname?: string;
-  phone?: string;
-  secondaryPhone?: string;
-  email?: string;
-  birthday?: string;
-  cpf?: string;
-  cnpj?: string;
+  nickname?: string | null;
+  phone?: string | null;
+  secondaryPhone?: string | null;
+  email?: string | null;
+  birthday?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
   active?: boolean;
   // Cliente — profundidade (P0)
-  rg?: string;
+  rg?: string | null;
   avatarUrl?: string | null;
   referredById?: string;
   defaultDiscountPercent?: number;
@@ -41,14 +50,24 @@ export interface CustomerBody {
   dependents?: CustomerDependentInput[];
   socialProfiles?: CustomerSocialProfileInput[];
   // Endereço embutido + observações livres (Wave 2/3)
-  cep?: string;
-  street?: string;
-  number?: string;
-  district?: string;
-  city?: string;
-  state?: string;
-  complement?: string;
-  observations?: string;
+  cep?: string | null;
+  street?: string | null;
+  number?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+  complement?: string | null;
+  observations?: string | null;
+}
+
+/** Resposta do POST /customers. */
+export interface CustomerCreated extends CustomerFull {
+  /**
+   * Já existe ficha com este telefone na empresa. O cadastro FOI criado assim
+   * mesmo — bloquear é decisão do dono (mãe e filha dividem celular). Quem
+   * chama mostra o aviso.
+   */
+  avisoDuplicidade?: string;
 }
 
 export interface CreateDebtBody {
@@ -181,10 +200,17 @@ export interface UpdateAnamnesisBody {
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: CustomerBody) => api.post<CustomerFull>('/customers', body),
-    onSuccess: () => {
+    mutationFn: (body: CustomerBody) => api.post<CustomerCreated>('/customers', body),
+    onSuccess: (cliente) => {
       qc.invalidateQueries({ queryKey: ['customers'] });
       toastSuccess('Cliente cadastrado');
+      // Possível duplicata: fica MUITO mais tempo na tela que o "cadastrado",
+      // porque é instrução ("confira se não é a mesma pessoa"), não confirmação.
+      // Vale para o cadastro completo e para o "+ Novo cliente" do agendamento,
+      // que passam pelo mesmo POST.
+      if (cliente?.avisoDuplicidade) {
+        toast.warning(cliente.avisoDuplicidade, { timeout: TOAST_TIMEOUT_ERRO });
+      }
     },
   });
 }

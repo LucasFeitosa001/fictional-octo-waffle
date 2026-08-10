@@ -45,7 +45,7 @@ import { useSelectMode, buildSelectActions, type BulkAction } from '../../hooks/
 import { FilterAside } from '../../components/FilterAside';
 import { AppSwitch } from '../../components/SwitchRow';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { formatDate, formatMoney, isoDate } from '../../lib/format';
+import { formatDate, formatMoney, isoDate, isoDateUtc } from '../../lib/format';
 import { useCustomers, useProfessionals } from '../../lib/queries';
 import { useSuppliers } from '../../lib/queries/catalogo';
 import {
@@ -1553,15 +1553,29 @@ export function LancamentoModal({
       setAccountId(editing.accountId ?? '');
       setPartyId(editing.partyId ?? '');
       setStatus(editing.status === 'reversed' ? 'paid' : editing.status);
+      // `isoDateUtc` (e não `isoDate`) ao RELER o que já está gravado. O que este
+      // modal manda é data pura: o backend faz `new Date('2026-08-09')`
+      // (financial.service.ts:761 e :784-787) e guarda meia-noite UTC. Lido em
+      // horário local (UTC−3) isso voltaria 08/08 — reabrir a despesa só para
+      // trocar o valor puxaria o vencimento um dia para trás e salvar gravaria o
+      // erro. O padrão de lançamento novo continua em `isoDate`, que é "hoje".
+      //
+      // Ressalva honesta (estudo 143): a coluna NÃO é homogênea. A transação
+      // nascida de comanda grava as três datas com carimbo real
+      // (orders.service.ts:1337-1339 e :2033-2035), e para essas o certo seria o
+      // dia local — uma comanda paga às 21:30 abre aqui mostrando amanhã. É o
+      // comportamento que já existia; unificar exige decidir no schema se
+      // data-only vira `@db.Date`. Não trocar por `isoDate` para "consertar" só
+      // esse caso: quebraria o vencimento digitado à mão, que é o caminho comum.
       setDueDate(
-        editing.dueDate ? isoDate(new Date(editing.dueDate)) : isoDate(new Date()),
+        editing.dueDate ? isoDateUtc(new Date(editing.dueDate)) : isoDate(new Date()),
       );
       // Sem semear a baixa, reabrir um lançamento já pago mostrava o campo vazio
       // e salvar sobrescrevia a data real pela de hoje.
-      setPaidAt(editing.paidAt ? isoDate(new Date(editing.paidAt)) : '');
+      setPaidAt(editing.paidAt ? isoDateUtc(new Date(editing.paidAt)) : '');
       setIsOrganizational(Boolean(editing.isOrganizational));
       setCompetenceDate(
-        editing.competenceDate ? isoDate(new Date(editing.competenceDate)) : '',
+        editing.competenceDate ? isoDateUtc(new Date(editing.competenceDate)) : '',
       );
     } else {
       setAmount('');

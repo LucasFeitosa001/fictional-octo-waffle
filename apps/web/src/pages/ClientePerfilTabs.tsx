@@ -342,19 +342,37 @@ function CustomerForm({
     }
   }
 
+  /**
+   * Campo de texto que a pessoa pode APAGAR.
+   *
+   * Vazio na EDIÇÃO vira `null` — que o backend lê como "apague este campo"
+   * (estudo 141). Antes ia `undefined`, o `JSON.stringify` omitia a chave e o
+   * PATCH entendia "não mexa": a recepcionista limpava o Celular, recebia
+   * "Cliente salvo" em verde e o número antigo — às vezes o de OUTRA pessoa —
+   * continuava no cadastro, recebendo as confirmações da cliente.
+   *
+   * Na CRIAÇÃO continua `undefined`: campo em branco de cadastro novo é
+   * "não informado", e mandar `null` só encheria o corpo de chaves vazias.
+   */
+  function apagavel(valor: string): string | null | undefined {
+    const limpo = valor.trim();
+    if (limpo) return limpo;
+    return mode === 'edit' ? null : undefined;
+  }
+
   async function handleSave() {
     setError(null);
     const discountNum = discount.trim() ? Number(discount) : undefined;
     const body: CustomerBody = {
       name: name.trim(),
-      nickname: nickname.trim() || undefined,
-      phone: phone.trim() || undefined,
-      secondaryPhone: secondaryPhone.trim() || undefined,
-      email: email.trim() || undefined,
-      birthday: birthday || undefined,
-      cpf: cpf.trim() || undefined,
-      cnpj: cnpj.trim() || undefined,
-      rg: rg.trim() || undefined,
+      nickname: apagavel(nickname),
+      phone: apagavel(phone),
+      secondaryPhone: apagavel(secondaryPhone),
+      email: apagavel(email),
+      birthday: apagavel(birthday),
+      cpf: apagavel(cpf),
+      cnpj: apagavel(cnpj),
+      rg: apagavel(rg),
       avatarUrl: avatarUrl.trim() || undefined,
       defaultDiscountPercent:
         discountNum != null && Number.isFinite(discountNum) ? discountNum : undefined,
@@ -376,14 +394,14 @@ function CustomerForm({
         if (url) acc.push({ platform: p.key, url });
         return acc;
       }, []),
-      cep: cep.trim() || undefined,
-      street: street.trim() || undefined,
-      number: number.trim() || undefined,
-      district: district.trim() || undefined,
-      city: city.trim() || undefined,
-      state: state.trim() || undefined,
-      complement: complement.trim() || undefined,
-      observations: observations.trim() || undefined,
+      cep: apagavel(cep),
+      street: apagavel(street),
+      number: apagavel(number),
+      district: apagavel(district),
+      city: apagavel(city),
+      state: apagavel(state),
+      complement: apagavel(complement),
+      observations: apagavel(observations),
     };
     try {
       if (mode === 'edit' && customer) {
@@ -803,7 +821,21 @@ function CustomerForm({
         </div>
       )}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      {/* Barra de ações GRUDADA no rodapé, com a mesma cara do rodapé do Drawer.
+          No celular o formulário são seis blocos (Cadastro, Configuração,
+          Relacionamento, Redes sociais, Endereço, Observações) e o Salvar ficava
+          no fim de uma rolagem longa — a dona digitava nome e telefone e não
+          achava o botão. É o único cadastro do painel sem rodapé fixo ('Novo
+          profissional' tem). Não uso a prop `footer` do Drawer porque quem tem
+          `canSave`/`pending`/`handleSave` é este formulário, e passar dois botões
+          para o Drawer exigiria içar o estado inteiro para os dois chamadores
+          (criação e perfil) — refatoração grande para um ajuste de ergonomia.
+          O `-mx-4 px-4` sangra até a borda no celular, onde o respiro lateral é
+          do corpo do Drawer; no desktop a coluna já tem a largura certa. */}
+      <div
+        className="sticky bottom-0 z-10 -mx-4 mt-1 flex flex-col-reverse gap-2 border-t border-[var(--color-soft-border)] bg-warm-white px-4 pt-3 sm:flex-row sm:justify-end md:mx-0 md:px-0"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
         {onCancel && (
           <Button variant="outline" className="w-full sm:w-auto" onClick={onCancel}>
             Cancelar

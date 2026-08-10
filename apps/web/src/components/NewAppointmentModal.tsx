@@ -32,6 +32,16 @@ import {
   useProfessionals,
   useServices,
 } from '../lib/queries';
+import { useProfessionalDetail } from '../lib/queries/profissionais';
+// Repetição e conferência de expediente vivem em lib/ porque são lógica pura
+// com teste (tests/agendamento-datas.test.ts) — o jest não importa este
+// componente, HeroUI é ESM.
+import {
+  FMT_DATA_SERIE,
+  nextDate,
+  problemaDeExpediente,
+  type Freq,
+} from '../lib/agendamentoDatas';
 import { useNotificationSettings } from '../lib/queries/notificationSettings';
 import { AvisosDoCliente, type CampoDeAviso } from './AvisosDoCliente';
 import { variaveisDoAgendamento } from '../lib/queries/messageTemplates';
@@ -90,21 +100,12 @@ const STATUS_COLOR: Record<AppointmentStatus, string> = {
   canceled: '#ff6b68',
 };
 
-type Freq = 'none' | 'weekly' | 'biweekly' | 'monthly';
 const FREQ_OPTIONS: { id: Freq; label: string }[] = [
   { id: 'none', label: 'Não repete' },
   { id: 'weekly', label: 'Semanal' },
   { id: 'biweekly', label: 'Quinzenal' },
   { id: 'monthly', label: 'Mensal' },
 ];
-
-function nextDate(base: Date, freq: Freq, times: number): Date {
-  const d = new Date(base);
-  if (freq === 'weekly') d.setDate(d.getDate() + 7 * times);
-  else if (freq === 'biweekly') d.setDate(d.getDate() + 14 * times);
-  else if (freq === 'monthly') d.setMonth(d.getMonth() + times);
-  return d;
-}
 
 // ── "Avisar o cliente" (aviso personalizado no drawer) ─────────────────────
 // Espelha a UX do FollowUpConfigCard (Configurações → Notificações): unidades de
@@ -278,11 +279,32 @@ export function NewAppointmentModal({
   const services = useServices();
   const professionals = useProfessionals();
   const customers = useCustomers(customerSearch);
+  // Duração REAL do agendamento: soma de TODOS os itens (cada um já com a
+  // duração que a pessoa escolheu no campo "Duração"), com o serviço do
+  // primeiro item como rede. É esta janela que o agendamento vai ocupar na
+  // agenda — e é ela que a busca de horários precisa usar para marcar
+  // "(ocupado)", senão a grade diz "livre" num horário que o segundo serviço
+  // vai engolir. O `end` enviado no submit sai daqui também, para os dois
+  // números nunca divergirem.
+  const duracaoTotalMin = useMemo(() => {
+    const soma = items
+      .filter((it) => it.serviceId)
+      .reduce((total, it) => total + (it.durationMin || 0), 0);
+    if (soma) return soma;
+    const svc = services.data?.data?.find((s) => s.id === primary.serviceId);
+    return svc?.durationMin || 60;
+  }, [items, services.data, primary.serviceId]);
   const availability = useAvailability(
     primary.serviceId || undefined,
     primary.professionalId || undefined,
     date || undefined,
+    duracaoTotalMin,
   );
+  // Expediente da profissional do horário — usado só para AVISAR quais datas da
+  // repetição o backend vai recusar (e nada mais). Carrega apenas depois de
+  // escolher a profissional.
+  const profissionalDoHorario = useProfessionalDetail(primary.professionalId || null);
+  const expedientes = profissionalDoHorario.data?.schedules;
   const createAppointmentSeries = useCreateAppointmentSeries();
   const createCustomer = useCreateCustomer();
   const createOrder = useCreateOrder();
@@ -357,7 +379,15 @@ export function NewAppointmentModal({
       setSuccess(false);
       setCreatedOrderId(null);
     }
-  }, [isOpen, initialDate, initialCustomer]);
+    // Dependemos do ID do cliente, NÃO do objeto: quem abre o agendamento pela
+    // ficha da cliente passa um literal recriado a cada render
+    // (ClientePerfilTabs.tsx:2848), e como o React compara por identidade este
+    // efeito voltava a rodar a cada render do perfil — três serviços montados,
+    // horário escolhido e observação digitada sumiam sozinhos, e a dona achava
+    // que "a tela bugou". Nome/telefone/foto são lidos do mesmo objeto dentro do
+    // efeito; se o id não mudou, é a mesma cliente e não há o que resetar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialDate, initialCustomer?.id]);
 
   // Sincroniza o toggle com o default da config quando ela carrega DEPOIS de o
   // modal já estar aberto — só enquanto a dona não mexeu manualmente (não trava a
@@ -421,12 +451,52 @@ export function NewAppointmentModal({
     return [...set].sort((a, b) => a - b);
   }, [serviceItems, items]);
 
+  /**
+   * TODAS as datas que o Salvar vai criar — a primeira mais as repetições.
+   *
+   * Sem esta lista a repetição é às cegas: a dona marca "Semanal, 11 vezes",
+   * vê a grade de UM dia e as outras onze nascem sem ninguém olhar. Pior, o
+   * backend valida ocorrência por ocorrência antes de gravar
+   * (appointments.service.ts:942-952): se UMA data não couber, ele recusa a
+   * SÉRIE inteira e a mensagem não diz qual data é. Aqui a pessoa vê as datas
+   * e, quando o expediente já está carregado, qual delas vai derrubar tudo.
+   *
+   * As datas são calculadas com o MESMO `nextDate` do envio (:503-508), então a
+   * lista é exatamente o que vai ser criado — não uma aproximação.
+   */
+  const datasDaSerie = useMemo(() => {
+    if (!slotStart) return [];
+    const base = instanteDoSlot(date, slotStart);
+    if (Number.isNaN(base.getTime())) return [];
+    const repeticoes =
+      freq !== 'none' && repeatMore > 0
+        ? Array.from({ length: repeatMore }, (_unused, index) =>
+            nextDate(base, freq, index + 1),
+          )
+        : [];
+    return [base, ...repeticoes].map((quando) => ({
+      rotulo: `${FMT_DATA_SERIE.format(quando)} ${formatSlotTime(quando.toISOString())}`,
+      problema: problemaDeExpediente(quando, duracaoTotalMin, expedientes),
+    }));
+  }, [slotStart, date, freq, repeatMore, duracaoTotalMin, expedientes]);
+  const datasComProblema = datasDaSerie.filter((d) => d.problema);
+
   const canPickSlot = Boolean(primary.serviceId && primary.professionalId && date);
   const isBusy =
     createAppointmentSeries.isPending ||
     createCustomer.isPending ||
     createOrder.isPending;
-  const canConfirm = Boolean(primary.serviceId && primary.professionalId && slotStart) && !isBusy;
+  // `availability.isFetching` entra aqui porque a duração real agora faz parte
+  // da CHAVE da busca de horários: adicionar um segundo serviço (ou trocar a
+  // "Duração") troca a chave, e enquanto a nova lista não chega `slots` fica
+  // vazia — mas o horário JÁ escolhido continua marcado, porque quem limpa a
+  // escolha só olha serviço/profissional/data. Sem esta trava, um clique em
+  // Salvar nesse intervalo caía no `slots.find` vazio de submit() e cuspia
+  // "Selecione um horário disponível." com o horário selecionado na tela.
+  const canConfirm =
+    Boolean(primary.serviceId && primary.professionalId && slotStart) &&
+    !isBusy &&
+    !availability.isFetching;
 
   const selectedCustomerName =
     selectedCustomer?.name ?? customerItems.find((c) => c.id === customerId)?.name;
@@ -439,6 +509,21 @@ export function NewAppointmentModal({
     selectedCustomer?.avatarUrl ??
     customerItems.find((c) => c.id === customerId)?.avatarUrl ??
     undefined;
+
+  /**
+   * Texto que acompanha o erro de validação quando o Salvar era uma SÉRIE.
+   * Fora da série (uma data só) devolve string vazia — a mensagem do backend já
+   * basta e não há qual data apontar.
+   */
+  function detalheDaSerieNoErro(): string {
+    if (datasDaSerie.length <= 1) return '';
+    const culpadas = datasComProblema.map((d) => `${d.rotulo} (${d.problema})`);
+    return (
+      ` Nenhum dos ${datasDaSerie.length} agendamentos foi criado: a repetição é tudo ou nada.` +
+      ` Datas pedidas: ${datasDaSerie.map((d) => d.rotulo).join(' · ')}.` +
+      (culpadas.length ? ` Provável causa: ${culpadas.join(' · ')}.` : '')
+    );
+  }
 
   // Create the appointment(s) and apply the chosen status. Returns the primary
   // appointment (+ resolved customer) so callers can chain a comanda, or null on
@@ -467,16 +552,28 @@ export function NewAppointmentModal({
           phone: newPhone.trim() || undefined,
         });
         resolvedCustomerId = created.id;
+        // A cliente JÁ está no cadastro a partir daqui — o agendamento é que
+        // ainda pode falhar (o 400 de "fora do expediente" é comum). Promovendo
+        // a recém-criada a cliente ESCOLHIDA, a próxima tentativa de Salvar
+        // reusa o id em vez de cadastrar outra: era assim que nasciam três
+        // "Maria Silva", uma por clique em Salvar, com o histórico e o cashback
+        // repartidos entre elas.
+        setCustomerId(created.id);
+        setSelectedCustomer({
+          id: created.id,
+          name: created.name,
+          phone: created.phone ?? null,
+          avatarUrl: created.avatarUrl ?? null,
+        });
+        setCreatingNew(false);
       }
 
       const combinedNotes = notes.trim() || undefined;
-      // Duração total = soma das durações dos itens (o start é único).
-      const dur =
-        validItems.reduce((sum, it) => sum + (it.durationMin || 0), 0) ||
-        primaryService?.durationMin ||
-        60;
+      // Duração total = soma das durações dos itens (o start é único). É o mesmo
+      // número que a busca de horários usou para marcar "(ocupado)" — se as duas
+      // contas divergirem, a grade volta a dizer "livre" onde não está.
       const endFor = (startIso: string) =>
-        new Date(new Date(startIso).getTime() + dur * 60000).toISOString();
+        new Date(new Date(startIso).getTime() + duracaoTotalMin * 60000).toISOString();
 
       const apptProfessionalId = primary.professionalId || undefined;
       const itemsPayload = validItems.map((it) => ({
@@ -544,7 +641,15 @@ export function NewAppointmentModal({
           return null;
         }
         if (err.statusCode === 400) {
-          setFormError(err.message || 'Horário fora do horário de trabalho do profissional.');
+          // A recusa é all-or-nothing: o backend valida cada ocorrência antes de
+          // gravar e, se uma não couber, NADA é criado — mas a mensagem dele não
+          // diz qual data. Anexamos as datas da série e, quando o expediente
+          // está em mãos, apontamos a culpada. Sem isso a dona refaz do zero sem
+          // saber o que mudar.
+          setFormError(
+            (err.message || 'Horário fora do horário de trabalho do profissional.') +
+              detalheDaSerieNoErro(),
+          );
           return null;
         }
         setFormError(err.message || 'Não foi possível criar o agendamento.');
@@ -664,7 +769,7 @@ export function NewAppointmentModal({
       {/* Dica de validação mobile — só quando Salvar tá disabled */}
       {!canConfirm && !isBusy && (
         <span className="mr-auto w-full text-[11px] text-muted-ink md:hidden">
-          {!primary.serviceId ? 'Escolha um serviço' : !primary.professionalId ? 'Escolha um profissional' : !slotStart ? 'Escolha um horário' : ''}
+          {!primary.serviceId ? 'Escolha um serviço' : !primary.professionalId ? 'Escolha um profissional' : !slotStart ? 'Escolha um horário' : availability.isFetching ? 'Aguarde os horários recarregarem' : ''}
         </span>
       )}
       <Button variant="outline" className="flex-1 md:flex-none" onClick={() => onOpenChange(false)}>
@@ -964,8 +1069,34 @@ export function NewAppointmentModal({
                           <Spinner size="sm" /> Buscando horários…
                         </span>
                       ) : slots.length === 0 ? (
-                        <div className="flex min-h-[44px] items-center rounded-lg border border-warning/40 bg-warning/5 px-3 text-sm text-foreground">
-                          Nenhum horário disponível nesta data.
+                        /* O backend manda o MOTIVO pronto da lista vazia
+                           (motivoTexto — appointments.service.ts:69-75). A frase
+                           fixa que ficava aqui servia para os cinco casos: a
+                           dona trocava a data cinco vezes sem descobrir que a
+                           profissional simplesmente não executa aquele serviço,
+                           e nenhuma data ia funcionar. */
+                        <div className="flex min-h-[44px] flex-col justify-center gap-0.5 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
+                          <span>
+                            {availability.data?.motivoTexto ??
+                              'Nenhum horário disponível nesta data.'}
+                          </span>
+                          {/* A saída é DIFERENTE em cada motivo. Mandar quem caiu
+                              em `servico_desconhecido` "escolher outra
+                              profissional" é mandar procurar erro onde não tem: o
+                              serviço não existe mais no catálogo do salão
+                              (appointments.service.ts:71), nenhuma profissional
+                              vai executá-lo. */}
+                          {availability.data?.motivo === 'profissional_nao_vinculado' && (
+                            <span className="text-xs text-muted">
+                              Trocar a data não resolve — escolha outra profissional ou
+                              vincule este serviço a ela.
+                            </span>
+                          )}
+                          {availability.data?.motivo === 'servico_desconhecido' && (
+                            <span className="text-xs text-muted">
+                              Trocar a data não resolve — escolha outro serviço na lista.
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div
@@ -1299,6 +1430,59 @@ export function NewAppointmentModal({
                 </Field>
               )}
             </div>
+
+            {/* ── Datas que serão criadas ────────────────────────────────
+                A repetição criava tudo às cegas: a pessoa vê a grade de UM dia e
+                as outras N datas nascem sem ninguém olhar — inclusive por cima
+                de quem já estava marcado, e inclusive em dia sem expediente, o
+                que faz o backend recusar a série INTEIRA sem dizer qual data
+                quebrou. Aqui as datas ficam à vista antes de salvar, com a
+                marca de qual não cabe. Aparece também sem repetição quando a
+                ÚNICA data já não cabe (o segundo serviço esticou o atendimento
+                para além do expediente) — que é justamente o erro que fazia a
+                recepção clicar em Salvar de novo e de novo. */}
+            {(datasDaSerie.length > 1 || datasComProblema.length > 0) && (
+              <div className="flex flex-col gap-2 rounded-xl border border-default-200 bg-cream/40 p-3">
+                <p className="text-[13px] font-semibold text-foreground">
+                  {datasDaSerie.length > 1
+                    ? `Serão criados ${datasDaSerie.length} agendamentos`
+                    : 'Data deste agendamento'}
+                </p>
+                <ul className="flex flex-wrap gap-1.5">
+                  {datasDaSerie.map((d) => (
+                    <li
+                      key={d.rotulo}
+                      title={d.problema ?? undefined}
+                      className={
+                        'rounded-md border px-2 py-1 text-xs ' +
+                        (d.problema
+                          ? 'border-warning/60 bg-warning/10 font-medium text-foreground'
+                          : 'border-default-200 bg-white text-muted')
+                      }
+                    >
+                      {d.rotulo}
+                      {/* Não basta a cor: quem não distingue o âmbar precisa ler
+                          que aquela data é a que derruba o salvamento. */}
+                      {d.problema ? ' · não cabe' : ''}
+                    </li>
+                  ))}
+                </ul>
+                {datasComProblema.length > 0 && (
+                  <div className="flex flex-col gap-0.5 text-xs text-foreground">
+                    {datasComProblema.map((d) => (
+                      <span key={`aviso-${d.rotulo}`}>
+                        <strong>{d.rotulo}</strong>: {d.problema}.
+                      </span>
+                    ))}
+                    <span className="text-muted">
+                      {datasDaSerie.length > 1
+                        ? 'O sistema recusa a repetição inteira quando uma data não cabe — nada é criado. Ajuste o horário, a duração ou o número de repetições.'
+                        : 'O sistema vai recusar este horário. Ajuste o horário ou a duração.'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Observações ──────────────────────────────────────────── */}
             <Field label="Observações">

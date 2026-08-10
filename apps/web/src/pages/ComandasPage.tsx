@@ -528,6 +528,26 @@ export function ComandasPage() {
   const ids = useMemo(() => pageRows.map((o) => o.id), [pageRows]);
   const sel = useSelectMode(ids);
 
+  /**
+   * Trocou o recorte (qualquer filtro OU a página) → sai do modo e limpa a
+   * seleção. Mesmo padrão do ContasPage.tsx:662-666 ao trocar de aba.
+   *
+   * Sem isto o `Set` do useSelectMode é acumulativo e sobrevive à troca de
+   * tela: marcar 20 comandas de julho, mudar o período para agosto e clicar
+   * "Excluir selecionadas" CANCELAVA as 20 de julho — que nem estavam na lista.
+   * E é irreversível: o backend grava status 'canceled' e só comanda
+   * 'finished' pode ser reaberta. Entre páginas era pior de perceber, porque
+   * `allSelected`/`selectAll` do hook só enxergam os ids VISÍVEIS: o checkbox
+   * do cabeçalho voltava DESMARCADO com 20 comandas ainda marcadas por baixo.
+   *
+   * A seleção agora vale só para o que está na tela — que é exatamente o que a
+   * barra "Ações (N)" e o "Selecionar todos" prometem.
+   */
+  useEffect(() => {
+    sel.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showExcluidas, range.from, range.to, customerId, payFilter, payMethods, search, page]);
+
   async function handleRemove(o: OrderRow) {
     const ok = await confirm({
       title: `Excluir comanda #${o.number}?`,
@@ -546,9 +566,49 @@ export function ComandasPage() {
   async function handleRemoveSelected() {
     const idsToDelete = [...sel.selected];
     if (idsToDelete.length === 0) return;
+    /**
+     * O diálogo LISTA o que vai ser cancelado (número, cliente, data e valor) e
+     * soma o total. Confirmar uma contagem — "Excluir 20 comanda(s)?" — não dá
+     * ao dono nenhuma chance de perceber que marcou a comanda errada, e aqui
+     * não há desfazer: excluir grava status 'canceled' e só comanda
+     * 'finished' pode ser reaberta. Ação destrutiva em dinheiro se confirma
+     * olhando o dinheiro.
+     */
+    const alvos = idsToDelete
+      .map((id) => allRows.find((o) => o.id === id))
+      .filter((o): o is OrderRow => Boolean(o));
+    const somaAlvos = alvos.reduce((soma, o) => soma + Number(o.netTotal ?? 0), 0);
     const ok = await confirm({
       title: `Excluir ${idsToDelete.length} comanda(s) selecionada(s)?`,
-      message: 'Essa ação não pode ser desfeita.',
+      message: (
+        <div className="flex flex-col gap-2">
+          <span>Essa ação não pode ser desfeita. Serão excluídas:</span>
+          <ul className="max-h-48 overflow-y-auto rounded-lg border border-line bg-canvas px-2 py-1.5">
+            {alvos.map((o) => (
+              <li key={o.id} className="flex items-baseline justify-between gap-3 py-0.5">
+                <span className="min-w-0 truncate">
+                  #{o.number} · {o.customer?.name ?? 'Avulso'} · {formatDate(o.date)}
+                </span>
+                <span className="shrink-0 tabular-nums">{formatMoney(o.netTotal)}</span>
+              </li>
+            ))}
+          </ul>
+          {/* Não deveria acontecer (a seleção é limpa a cada troca de recorte),
+              mas se algum id selecionado não estiver mais na lista carregada é
+              melhor dizer do que sumir com a linha e mostrar um total menor do
+              que o que será excluído. */}
+          {alvos.length < idsToDelete.length && (
+            <span>
+              E mais {idsToDelete.length - alvos.length} comanda(s) que não estão
+              na lista carregada.
+            </span>
+          )}
+          <span className="font-semibold text-ink">
+            {alvos.length < idsToDelete.length ? 'Total das listadas' : 'Total'}:{' '}
+            {formatMoney(somaAlvos)}
+          </span>
+        </div>
+      ),
       confirmLabel: 'Excluir',
       danger: true,
     });

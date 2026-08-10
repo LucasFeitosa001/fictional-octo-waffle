@@ -17,9 +17,101 @@ import {
 // Prisma Decimal | number | null -> number (0 when nullish).
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
 
+/**
+ * Aniversário é DATA, não instante — grava sempre à MEIA-NOITE UTC.
+ *
+ * `new Date('1990-05-10')` já dá meia-noite UTC (a spec manda ler data pura como
+ * UTC), e é essa a convenção que o painel espera na volta (`toDateInput` lê em
+ * UTC de propósito, format.ts). O problema é o outro formato: um ISO COM hora e
+ * SEM fuso ("1990-05-10T00:00:00", que qualquer cliente da API pode mandar e o
+ * `@IsISO8601` aceita) o Node interpreta no fuso do CONTAINER — num servidor a
+ * leste de Greenwich isso grava 1990-05-09T22:00Z e a data de nascimento nasce
+ * um dia atrás, para sempre. Aqui o dia escolhido é o dia gravado, dê no que der
+ * o fuso da máquina.
+ */
+function dataDeAniversario(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return new Date(iso);
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+}
+
 @Injectable()
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * IDs de clientes da empresa cujo TELEFONE/2º telefone/CPF/CNPJ casam com
+   * `padrao` comparando **só os dígitos**.
+   *
+   * Existe porque a base não guarda um formato só: a mesma pessoa aparece como
+   * '(89) 98129-1426', '89981291426' e '+55 89 99457-2834'. Um `contains` do
+   * Prisma compara a STRING, então quem digita o número sem máscara não acha o
+   * cadastro com máscara (e vice-versa) — foi assim que nasceram as duplicatas
+   * confirmadas na base. `regexp_replace` normaliza no banco, que é o único
+   * lugar onde dá para comparar sem trazer a tabela inteira para a aplicação.
+   *
+   * Devolve lista vazia (nunca lança) quando não há `$queryRaw`: os fixtures de
+   * teste montam um Prisma falso, e a busca não pode deixar de funcionar por
+   * causa da passada extra. Mesma guarda de commissions.service.ts:516.
+   */
+  private async idsPorDigitos(companyId: string, padrao: string): Promise<string[]> {
+    const client = this.prisma.client as unknown as { $queryRaw?: unknown };
+    if (typeof client.$queryRaw !== 'function') return [];
+    try {
+      const linhas = await this.prisma.client.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "Customer"
+        WHERE "companyId" = ${companyId}
+          AND "deletedAt" IS NULL
+          AND (
+            regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') LIKE ${padrao}
+            OR regexp_replace(COALESCE("secondaryPhone", ''), '[^0-9]', '', 'g') LIKE ${padrao}
+            OR regexp_replace(COALESCE("cpf", ''), '[^0-9]', '', 'g') LIKE ${padrao}
+            OR regexp_replace(COALESCE("cnpj", ''), '[^0-9]', '', 'g') LIKE ${padrao}
+          )
+        LIMIT 200
+      `;
+      return linhas.map((l) => l.id);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Onde a busca da tela de Clientes procura.
+   *
+   * Antes era SÓ o nome. A atendente pergunta o telefone à cliente, digita
+   * "98129-1426", recebe "Nenhum cliente encontrado" e cadastra de novo — é o
+   * gerador nº 1 de ficha duplicada (histórico, cashback e débito partidos em
+   * duas). Agora procura nome, apelido, e-mail e — por dígitos — telefone,
+   * segundo telefone, CPF e CNPJ.
+   */
+  private async condicoesDeBusca(
+    companyId: string,
+    termo: string,
+  ): Promise<Prisma.CustomerWhereInput[]> {
+    const contem = { contains: termo, mode: 'insensitive' as const };
+    const condicoes: Prisma.CustomerWhereInput[] = [
+      { name: contem },
+      { nickname: contem },
+      { email: contem },
+      // O texto CRU também casa com a base legada, que gravou o telefone com
+      // máscara ('(89) 98129-1426').
+      { phone: { contains: termo } },
+    ];
+    const digitos = termo.replace(/\D/g, '');
+    // Menos de 4 dígitos ("11") casaria com meia base e não ajuda ninguém.
+    if (digitos.length >= 4) {
+      condicoes.push(
+        { phone: { contains: digitos } },
+        { secondaryPhone: { contains: digitos } },
+        { cpf: { contains: digitos } },
+        { cnpj: { contains: digitos } },
+      );
+      const ids = await this.idsPorDigitos(companyId, `%${digitos}%`);
+      if (ids.length) condicoes.push({ id: { in: ids } });
+    }
+    return condicoes;
+  }
 
   async list(
     companyId: string,
@@ -28,6 +120,8 @@ export class CustomersService {
     pageSize = 20,
     filters?: { active?: boolean; hasDebt?: boolean },
   ) {
+    const termo = (search ?? '').trim();
+    const busca = termo ? await this.condicoesDeBusca(companyId, termo) : null;
     const where: Prisma.CustomerWhereInput = {
       companyId,
       deletedAt: null,
@@ -37,7 +131,7 @@ export class CustomersService {
         : filters?.hasDebt === false
           ? { debts: { none: { status: 'open' } } }
           : {}),
-      ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+      ...(busca ? { OR: busca } : {}),
     };
     const [data, total] = await Promise.all([
       this.prisma.client.customer.findMany({
@@ -102,14 +196,49 @@ export class CustomersService {
     if (!referrer) throw new NotFoundException('Cliente indicador não encontrado');
   }
 
+  /**
+   * AVISA que já existe ficha com este telefone — e deixa criar assim mesmo.
+   *
+   * A duplicata é real e frequente (na base: 'Adriana Araújo' e 'Mãe Adriana'
+   * com o mesmo 89994008076; 'Scheila' e 'Sheila' com o mesmo número em
+   * formatos diferentes), e cada uma parte histórico, cashback e débito em duas
+   * fichas. Mas BLOQUEAR é decisão do dono, não minha: mãe e filha usando o
+   * mesmo celular é caso legítimo, e o mesmo POST atende a criação em linha do
+   * agendamento, onde travar deixaria a recepção sem saída no meio do
+   * atendimento. Então o cadastro nasce e o aviso vai junto na resposta.
+   *
+   * Compara pelos ÚLTIMOS 8 dígitos — mesma convenção de `listInteractions` e do
+   * WhatsappService — para casar variações de +55, DDD e nono dígito.
+   */
+  private async avisoDeDuplicidade(
+    companyId: string,
+    telefone: string | null | undefined,
+  ): Promise<string | undefined> {
+    const digitos = String(telefone ?? '').replace(/\D/g, '');
+    if (digitos.length < 8) return undefined;
+    const ids = await this.idsPorDigitos(companyId, `%${digitos.slice(-8)}`);
+    if (!ids.length) return undefined;
+    const iguais = await this.prisma.client.customer.findMany({
+      where: { id: { in: ids }, companyId, deletedAt: null },
+      select: { name: true },
+      orderBy: { name: 'asc' },
+      take: 3,
+    });
+    if (!iguais.length) return undefined;
+    const nomes = iguais.map((c) => c.name).join(', ');
+    return `Atenção: já existe cadastro com este telefone (${nomes}). O cliente foi criado assim mesmo — confira se não é a mesma pessoa.`;
+  }
+
   async create(companyId: string, dto: CreateCustomerDto) {
     await this.assertValidReferral(companyId, dto.referredById);
+    // ANTES de gravar, senão o próprio cadastro recém-criado entraria na conta.
+    const avisoDuplicidade = await this.avisoDeDuplicidade(companyId, dto.phone);
     const { birthday, tags, dependents, socialProfiles, ...rest } = dto;
-    return this.prisma.client.customer.create({
+    const criado = await this.prisma.client.customer.create({
       data: {
         ...rest,
         companyId,
-        ...(birthday ? { birthday: new Date(birthday) } : {}),
+        ...(birthday ? { birthday: dataDeAniversario(birthday) } : {}),
         ...(tags
           ? {
               tags: {
@@ -137,6 +266,10 @@ export class CustomersService {
       },
       include: { tags: true, dependents: true, socialProfiles: true },
     });
+    // O aviso viaja junto com o cliente criado: quem chamou decide como mostrar
+    // (o painel levanta um toque amarelo). Sem campo extra quando não há nada a
+    // avisar — resposta honesta, sem chave morta.
+    return avisoDuplicidade ? { ...criado, avisoDuplicidade } : criado;
   }
 
   async update(companyId: string, id: string, dto: UpdateCustomerDto) {
@@ -146,8 +279,13 @@ export class CustomersService {
     return this.prisma.client.customer.update({
       where: { id },
       data: {
+        // `...rest` carrega os NULOS de propósito: no PATCH, chave ausente é
+        // "não mexa" e `null` é "apague" (estudo 141). É o que finalmente
+        // permite tirar do cadastro um telefone que é de outra pessoa.
         ...rest,
-        ...(birthday !== undefined ? { birthday: birthday ? new Date(birthday) : null } : {}),
+        ...(birthday !== undefined
+          ? { birthday: birthday ? dataDeAniversario(birthday) : null }
+          : {}),
         // Tags: replace the whole set with the provided names (connectOrCreate).
         ...(tags
           ? {

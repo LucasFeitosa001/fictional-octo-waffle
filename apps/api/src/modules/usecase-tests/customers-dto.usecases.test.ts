@@ -54,9 +54,14 @@ describe('normalizarTelefone (o bug de 05/08)', () => {
     assert.throws(() => normalizarTelefone('1234567890123456'), BadRequestException);
   });
 
-  it('undefined e null passam como ausência (campo opcional)', () => {
+  it('undefined é ausência; null é "APAGUE" e precisa sobreviver ao Transform', () => {
+    // Mudou no estudo 141, de propósito: enquanto `null` virava `undefined`
+    // aqui, o PATCH lia "não mexa" e NÃO HAVIA COMO apagar o telefone de um
+    // cliente — a tela dava "Cliente salvo" em verde e o número antigo, às vezes
+    // o de outra pessoa, voltava na próxima abertura. Como o `@Transform` roda
+    // antes da validação, o conserto tinha que ser nesta linha.
     assert.equal(normalizarTelefone(undefined), undefined);
-    assert.equal(normalizarTelefone(null), undefined);
+    assert.equal(normalizarTelefone(null), null);
   });
 
   it('não-string é 400 (o pipe do Nest não deveria mandar isto, mas trava aqui)', () => {
@@ -92,10 +97,11 @@ describe('normalizarCpf', () => {
     assert.equal(normalizarCpf('52998224725'), '52998224725');
   });
 
-  it('ausência (undefined/null/vazio) volta como undefined', () => {
+  it('ausência (undefined/vazio) volta como undefined; null é "apague"', () => {
     assert.equal(normalizarCpf(undefined), undefined);
     assert.equal(normalizarCpf(''), undefined);
     assert.equal(normalizarCpf('   '), undefined);
+    assert.equal(normalizarCpf(null), null);
   });
 });
 

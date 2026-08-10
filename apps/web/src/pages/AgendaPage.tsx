@@ -445,6 +445,11 @@ export function AgendaPage() {
   const apptsByDay = useMemo(() => {
     const m = new Map<string, AppointmentRow[]>();
     for (const r of rows) {
+      // A chave é o dia LOCAL do início, o mesmo que as células do calendário
+      // usam para buscar aqui (`isoDate(célula)` em MonthView e no DayPeek).
+      // Com `isoDate` em UTC as duas pontas discordavam depois das 21h: um
+      // agendamento das 21:30 recebia a chave de amanhã e sumia da célula de
+      // hoje na visão de mês.
       const key = isoDate(new Date(r.start));
       (m.get(key) ?? m.set(key, []).get(key)!).push(r);
     }
@@ -859,6 +864,12 @@ export function AgendaPage() {
     confirmationTouched,
     cancellationTouched,
   ]);
+  // Data e hora do reagendamento TÊM de sair do mesmo fuso. `isoDate` devolve o
+  // dia LOCAL (ver format.ts) e o `getHours()` abaixo também é local; enquanto
+  // `isoDate` era UTC, um agendamento das 21:30 abria este drawer em "amanhã
+  // 21:30" e `confirmReschedule` remonta o instante com `new Date(y, mo, d, h, m)`
+  // — local — e faz PATCH. Confirmar sem editar nada empurrava o agendamento um
+  // dia para frente. Não trocar por toISOString aqui.
   function openReschedule(a: AppointmentRow) {
     const d = new Date(a.start);
     setReDate(isoDate(d));

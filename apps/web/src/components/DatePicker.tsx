@@ -159,10 +159,69 @@ const cellBase =
   'relative grid h-9 w-full min-w-9 place-items-center rounded-lg text-sm outline-none transition-colors ' +
   'focus-visible:ring-2 focus-visible:ring-gold/40';
 
+// ── Cabeçalho: mês e ano escolhíveis ──────────────────────────────────────────
+
+/**
+ * Quantos anos a lista do cabeçalho oferece.
+ *
+ * Para trás cobre data de NASCIMENTO (o campo Aniversário do cliente usa este
+ * mesmo componente); para frente cobre validade de lote e vencimento, que são
+ * os outros usos do modo single.
+ */
+const ANOS_PARA_TRAS = 120;
+const ANOS_PARA_FRENTE = 10;
+
+/**
+ * Seletor de mês/ano do cabeçalho — `<select>` NATIVO de propósito.
+ *
+ * Antes o cabeçalho era um `<div>` com o nome do mês e só duas setas de um mês
+ * por vez: para cadastrar alguém nascido em 1985 eram ~490 toques, e na prática
+ * a atendente desistia e deixava o Aniversário em branco (0 de 38 clientes do
+ * Studio Borboletas têm a data preenchida). No celular o select nativo abre a
+ * roda do sistema, que é o caminho mais curto até 1985; no desktop vira uma
+ * lista que aceita digitar o ano. Um popover próprio custaria três telas
+ * (dia → mês → década) para o mesmo resultado.
+ *
+ * As setas continuam onde estavam: escolher um dia perto de hoje segue sendo um
+ * clique só.
+ */
+function SeletorCabecalho({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: number;
+  onChange: (valor: number) => void;
+  children: ReactNode;
+}) {
+  return (
+    <span className="relative inline-flex items-center">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={
+          'cursor-pointer appearance-none rounded-lg border-0 bg-transparent py-1 pl-2 pr-6 text-sm ' +
+          'font-semibold text-foreground outline-none transition-colors hover:bg-black/5 ' +
+          'focus-visible:ring-2 focus-visible:ring-gold/40'
+        }
+      >
+        {children}
+      </select>
+      <span className="pointer-events-none absolute right-1 text-muted-ink" aria-hidden>
+        <IconChevron size={14} />
+      </span>
+    </span>
+  );
+}
+
 // ── Calendário (grade) ────────────────────────────────────────────────────────
 
 function Calendar({
   viewMonth,
+  onViewMonth,
   onPrev,
   onNext,
   isSelected,
@@ -173,6 +232,8 @@ function Calendar({
   onPick,
 }: {
   viewMonth: Date;
+  /** Salto direto para outro mês/ano (os seletores do cabeçalho). */
+  onViewMonth: (mes: Date) => void;
   onPrev: () => void;
   onNext: () => void;
   isSelected: (d: Date) => boolean;
@@ -184,35 +245,62 @@ function Calendar({
 }) {
   const grid = useMemo(() => buildGrid(viewMonth), [viewMonth]);
 
+  // Anos oferecidos no cabeçalho. O ano que está em tela entra na lista mesmo
+  // se cair fora da faixa (data importada de 1890, vencimento longe), senão o
+  // seletor apareceria vazio justamente na data que a pessoa quer conferir.
+  const anos = useMemo(() => {
+    const atual = new Date().getFullYear();
+    const emTela = viewMonth.getFullYear();
+    const inicio = Math.min(atual - ANOS_PARA_TRAS, emTela);
+    const fim = Math.max(atual + ANOS_PARA_FRENTE, emTela);
+    return Array.from({ length: fim - inicio + 1 }, (_, i) => fim - i);
+  }, [viewMonth]);
+
   return (
     <div className="select-none">
-      {/* Header: "Julho de 2026" + navegação */}
-      <div className="mb-2 flex items-center justify-between px-1">
+      {/* Header: mês e ano escolhíveis + navegação de um mês */}
+      <div className="mb-2 flex items-center justify-between gap-1 px-1">
         <button
           type="button"
           onClick={onPrev}
           aria-label="Mês anterior"
-          className="grid h-8 w-8 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-black/5 hover:text-foreground"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-black/5 hover:text-foreground"
         >
           <span className="rotate-90">
             <IconChevron size={18} />
           </span>
         </button>
-        <div
-          aria-live="polite"
-          className="text-sm font-semibold text-foreground"
-        >
-          {/* "Julho de 2026", não "2026 Jul": o formato antigo era leitura de
-              máquina. A forma correta já existia no aria-label logo abaixo — só
-              não era a que aparecia na tela. */}
-          <span>{MONTHS_LONG[viewMonth.getMonth()]} de </span>
-          <span className="tabular-nums">{viewMonth.getFullYear()}</span>
+        <div className="flex min-w-0 items-center justify-center gap-0.5">
+          {/* Mês por extenso, não "Jul": o formato abreviado era leitura de
+              máquina. Agora além de legível é clicável — ver SeletorCabecalho. */}
+          <SeletorCabecalho
+            label="Mês"
+            value={viewMonth.getMonth()}
+            onChange={(mes) => onViewMonth(new Date(viewMonth.getFullYear(), mes, 1))}
+          >
+            {MONTHS_LONG.map((nome, i) => (
+              <option key={nome} value={i}>
+                {nome}
+              </option>
+            ))}
+          </SeletorCabecalho>
+          <SeletorCabecalho
+            label="Ano"
+            value={viewMonth.getFullYear()}
+            onChange={(ano) => onViewMonth(new Date(ano, viewMonth.getMonth(), 1))}
+          >
+            {anos.map((ano) => (
+              <option key={ano} value={ano}>
+                {ano}
+              </option>
+            ))}
+          </SeletorCabecalho>
         </div>
         <button
           type="button"
           onClick={onNext}
           aria-label="Próximo mês"
-          className="grid h-8 w-8 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-black/5 hover:text-foreground"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-black/5 hover:text-foreground"
         >
           <span className="-rotate-90">
             <IconChevron size={18} />
@@ -299,6 +387,7 @@ function SingleBody({
   return (
     <Calendar
       viewMonth={viewMonth}
+      onViewMonth={setViewMonth}
       onPrev={() => setViewMonth((m) => addMonths(m, -1))}
       onNext={() => setViewMonth((m) => addMonths(m, 1))}
       isSelected={(d) => sameDay(d, selected)}
@@ -388,6 +477,7 @@ function RangeBody({
       <div className="min-w-0 flex-1">
         <Calendar
           viewMonth={viewMonth}
+          onViewMonth={setViewMonth}
           onPrev={() => setViewMonth((m) => addMonths(m, -1))}
           onNext={() => setViewMonth((m) => addMonths(m, 1))}
           isSelected={() => false}

@@ -893,6 +893,37 @@ h1, h2, h3, h4, h5, h6,
   }
 }
 
+/* ── Barras de ação `fixed inset-x-0 bottom-0` que convivem com a BottomNav ──
+   Mesma conta do .fab-above-nav, mas para uma BARRA full-bleed (o rodapé de
+   /comandas/:id com Voltar / "Finalizar comanda" / "Reabrir comanda" e a
+   mensagem de erro do faturamento).
+
+   Por que padding e não `bottom:`: subir a barra inteira, como se faz com um
+   FAB, abriria uma fresta entre ela e o fundo com o conteúdo da página passando
+   por baixo. A barra continua ENCOSTADA no fundo e reserva por dentro o espaço
+   da nav flutuante — botão e mensagem nascem ACIMA dela e a nav pousa sobre a
+   faixa reservada.
+
+   Caminho de dor que isso conserta: no celular a nav (z-40, opaca, ocupando
+   ~8..80px do fundo) cobria os botões da barra (z-20, ~0..64px). O toque em
+   "Finalizar comanda" abria Menu/Agenda/Criar, e o texto que explicava o
+   bloqueio ("Registre o pagamento completo antes de faturar. Restante: …")
+   ficava escondido atrás da nav — a comanda não fechava por esse caminho e a
+   tela não dizia por quê.
+
+   Breakpoint: a BottomNav é `lg:hidden` (1024px), NÃO `md`. Entre 768 e 1023px
+   ela ainda está na tela, então a reserva só pode cair em `lg`. */
+.bar-above-nav {
+  padding-bottom: calc(max(0.5rem, env(safe-area-inset-bottom)) + 4.5rem + 0.75rem);
+}
+
+@media (min-width: 1024px) {
+  /* >= lg: sem BottomNav, a barra volta ao respiro normal (= o pb-3 do rodapé). */
+  .bar-above-nav {
+    padding-bottom: 0.75rem;
+  }
+}
+
 /* A nav do sidebar continua rolável, mas sua barra NUNCA deve ocupar espaço
    visual (desktop + mobile). Uma barra visível no sidebar parece um "segundo
    scroll" ao lado da barra do conteúdo — é o que o usuário percebia. Cobre

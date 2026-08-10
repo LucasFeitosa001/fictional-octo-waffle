@@ -21,7 +21,7 @@ import {
   IconTrash,
 } from '../../components/icons';
 import { useSetPageActions } from '../../layout/PageActions';
-import { formatDate, formatMoney, formatNumber, isoDate } from '../../lib/format';
+import { formatDate, formatMoney, formatNumber, isoDate, isoDateUtc } from '../../lib/format';
 import {
   useCreatePurchase,
   useDeletePurchase,
@@ -809,7 +809,11 @@ function PurchaseDrawer({
     if (!isOpen || mode !== 'edit' || !detailData) return;
     setNumber(detailData.number ?? null);
     setSupplierId(detailData.supplierId ?? '');
-    setDate(isoDate(new Date(detailData.date)));
+    // `isoDateUtc` ao RELER a compra gravada: `Purchase.date` é data-only e o
+    // backend a cria com `new Date('2026-08-09')` (purchases.service.ts:133 e
+    // :221), ou seja, meia-noite UTC. Em horário local (UTC−3) voltaria 08/08 e
+    // reabrir a compra para corrigir um item mudaria a data da nota sozinho.
+    setDate(isoDateUtc(new Date(detailData.date)));
     setItems(
       detailData.items.length
         ? detailData.items.map((it) => ({

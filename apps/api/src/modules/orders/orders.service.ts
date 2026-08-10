@@ -223,6 +223,7 @@ export class OrdersService {
         const unitPrice = await this.resolveUnitPrice(companyId, item);
         const grossValue = unitPrice.mul(quantity);
         const discount = new Prisma.Decimal(item.discount ?? 0);
+        this.assertDescontoDoItem(discount, grossValue);
         return { item, quantity, unitPrice, grossValue, discount };
       }),
     );
@@ -231,8 +232,17 @@ export class OrdersService {
     // os descontos DA COMANDA (que na criação ainda não existem). Antes create()
     // usava outra definição e os campos "Total bruto"/"Descontos" mudavam de
     // significado sozinhos no primeiro recalculate.
+    // O clamp por ITEM (e não só no total) é a mesma defesa do recalculate:
+    // item com desconto maior que o próprio bruto não pode entrar negativo e
+    // comer o valor dos outros itens da comanda.
     const grossTotal = preparedItems.reduce(
-      (sum, current) => sum.add(current.grossValue).sub(current.discount),
+      (sum, current) =>
+        sum.add(
+          Prisma.Decimal.max(
+            current.grossValue.sub(current.discount),
+            new Prisma.Decimal(0),
+          ),
+        ),
       new Prisma.Decimal(0),
     );
     const discountTotal = new Prisma.Decimal(0);
@@ -410,6 +420,15 @@ export class OrdersService {
     // catálogo quando o campo NÃO vem. O ref é validado pertencer à empresa.
     const unitPrice = await this.resolveUnitPrice(companyId, dto);
     const grossValue = unitPrice.mul(quantity);
+    this.assertDescontoDoItem(new Prisma.Decimal(dto.discount ?? 0), grossValue);
+    if (dto.kind === 'product') {
+      await this.assertEstoqueParaVenda(
+        companyId,
+        id,
+        dto.refId,
+        new Prisma.Decimal(quantity),
+      );
+    }
     await this.prisma.client.orderItem.create({
       data: {
         orderId: id,
@@ -460,6 +479,105 @@ export class OrdersService {
   }
 
   /**
+   * Teto do desconto DO ITEM — espelha o teto que o desconto DA COMANDA já tem
+   * em addDiscount().
+   *
+   * Sem isto, a recepção que digita "200" no lugar de "20" num item de R$ 100
+   * grava o item com valor NEGATIVO. O negativo não fica preso no item: no
+   * recalculate ele comia o preço dos outros (o Shampoo de R$ 50 sumia do
+   * total), a comanda inteira ia a líquido R$ 0 e o "Faturar" passava — porque
+   * `paidTotal.equals(netTotal)` é verdade com 0 == 0 e a exigência de caixa
+   * aberto só vale para `netTotal > 0`. Resultado: venda de R$ 0,00 no
+   * Financeiro, sem pagamento, sem caixa, e o estoque baixado assim mesmo.
+   *
+   * Fica no service (não no DTO) porque o bruto é `unitPrice × quantity` e o
+   * unitPrice pode vir do catálogo, que o DTO não consulta.
+   */
+  private assertDescontoDoItem(discount: Prisma.Decimal, grossValue: Prisma.Decimal) {
+    if (discount.lessThan(0)) {
+      throw new BadRequestException('Desconto do item não pode ser negativo.');
+    }
+    // O teto é o bruto ARREDONDADO em 2 casas — que é o valor que o banco de
+    // fato guarda (OrderItem.grossValue é Decimal(12,2), enquanto `quantity` é
+    // Decimal(12,3), então `unitPrice × quantity` pode ter até 5 casas).
+    // Comparar com o bruto exato recusava a cortesia de 100% em item com
+    // quantidade fracionada: produto de R$ 3,25 × 1,5 tem bruto exato 4,875 e
+    // gravado 4,88; o painel manda 4,88 de desconto e a trava respondia
+    // "Desconto de R$ 4,88 maior que o valor do item (R$ 4,88)" — contradição
+    // na cara do operador, sem nada para corrigir. Ver estudo 141.
+    const teto = grossValue.toDecimalPlaces(2);
+    if (discount.greaterThan(teto)) {
+      throw new BadRequestException(
+        `Desconto de R$ ${discount.toFixed(2)} maior que o valor do item (R$ ${teto.toFixed(2)}).`,
+      );
+    }
+  }
+
+  /**
+   * Estoque na VENDA de produto (item kind='product' da comanda).
+   *
+   * Antes disto, vender 3 de um produto com 1 em estoque passava liso e o
+   * `decrementSoldStock` do faturamento deixava o saldo em −2, sem aviso em
+   * momento nenhum — enquanto o MESMO produto lançado como "produto consumido"
+   * no serviço levava "Estoque insuficiente para este consumo"
+   * (addConsumedProduct) e a saída manual levava "Estoque insuficiente para
+   * esta saída" (products.service). Duas regras opostas para o mesmo saldo.
+   *
+   * A regra unificada é `trackStock`: só barra quando o salão DECLAROU que
+   * controla o estoque daquele produto. O default do campo é `false` e o
+   * catálogo importado do Belasis está quase todo com saldo 0 — barrar sem essa
+   * condição impediria o salão de vender qualquer coisa. Onde o saldo é
+   * palpite, ele não pode travar a operação; onde é verdade, não pode furar.
+   *
+   * Roda no ADICIONAR/EDITAR item, nunca no faturar: no faturamento o dinheiro
+   * já entrou e recusar ali deixaria a cliente paga com a comanda aberta.
+   */
+  private async assertEstoqueParaVenda(
+    companyId: string,
+    orderId: string,
+    productId: string,
+    quantity: Prisma.Decimal,
+    // Item que está sendo EDITADO: a quantidade atual dele não conta como
+    // reserva, senão editar 2 → 3 somaria os 2 antigos e recusaria sem motivo.
+    ignorarItemId?: string,
+  ) {
+    if (quantity.lessThanOrEqualTo(0)) return;
+    const product = await this.prisma.client.product.findFirst({
+      where: { id: productId, companyId, deletedAt: null },
+      select: { name: true, unit: true, stock: true, trackStock: true },
+    });
+    // Produto inexistente/de outra empresa é erro de resolveUnitPrice, não daqui.
+    if (!product || !product.trackStock) return;
+
+    // O que ESTA comanda já reservou do mesmo produto ainda não saiu do estoque
+    // (a baixa acontece no finish). Sem somar, dois itens de 1 un passavam um a
+    // um com saldo 1 e o faturamento deixava o produto em −1.
+    const jaNaComanda = await this.prisma.client.orderItem.findMany({
+      where: {
+        orderId,
+        kind: 'product',
+        refId: productId,
+        ...(ignorarItemId ? { id: { not: ignorarItemId } } : {}),
+      },
+      select: { quantity: true },
+    });
+    const reservado = jaNaComanda.reduce(
+      (acc, it) => acc.add(it.quantity),
+      new Prisma.Decimal(0),
+    );
+    const disponivel = Prisma.Decimal.max(
+      new Prisma.Decimal(product.stock).sub(reservado),
+      new Prisma.Decimal(0),
+    );
+    if (quantity.greaterThan(disponivel)) {
+      const unidade = product.unit ? ` ${product.unit}` : '';
+      throw new BadRequestException(
+        `Estoque insuficiente de ${product.name}: restam ${disponivel.toString()}${unidade} e esta comanda está pedindo ${quantity.toString()}${unidade}.`,
+      );
+    }
+  }
+
+  /**
    * PATCH /orders/:id/items/:itemId — aba "Dados" (Salvar) + set de batchId (aba "Lote").
    * Recalcula grossValue com base nos novos unitPrice/quantity e chama recalculate().
    */
@@ -489,10 +607,30 @@ export class OrdersService {
       }
     }
 
+    const grossValue = unitPrice.mul(quantity);
+    // Teto do desconto sobre o bruto RESULTANTE do partial update: quem baixa o
+    // preço de um item que já tinha desconto também pode deixá-lo negativo.
+    const discount =
+      dto.discount !== undefined
+        ? new Prisma.Decimal(dto.discount)
+        : new Prisma.Decimal(item.discount);
+    this.assertDescontoDoItem(discount, grossValue);
+
+    // Estoque só quando a quantidade AUMENTA: corrigir o preço de um item antigo
+    // não pode quebrar porque o saldo do produto mudou depois (mesmo critério do
+    // `requireActive` do profissional, acima).
+    if (
+      item.kind === 'product' &&
+      dto.quantity !== undefined &&
+      quantity.greaterThan(item.quantity)
+    ) {
+      await this.assertEstoqueParaVenda(companyId, id, item.refId, quantity, itemId);
+    }
+
     const data: Prisma.OrderItemUpdateInput = {
       unitPrice,
       quantity,
-      grossValue: unitPrice.mul(quantity),
+      grossValue,
     };
     if (dto.professionalId !== undefined) {
       data.professional = dto.professionalId
@@ -1081,7 +1219,13 @@ export class OrdersService {
       }
       // Vai junto na resposta para a tela AVISAR. Antes o item sem percentual
       // era pulado em silêncio e o salão faturava esperando comissão.
-      return Object.assign(atualizada, { commissionSkipped: comissoes.semPercentual });
+      // `commissionMissingProfessional` é o irmão do mesmo problema: item que
+      // nem profissional tem. São duas listas porque a saída é diferente —
+      // uma pede percentual, a outra pede atribuir alguém ao item.
+      return Object.assign(atualizada, {
+        commissionSkipped: comissoes.semPercentual,
+        commissionMissingProfessional: comissoes.semProfissional,
+      });
     });
 
     // Event-driven: closing the comanda schedules the post-service follow-up
@@ -1259,11 +1403,68 @@ export class OrdersService {
   }
 
   /**
+   * Rateio do desconto DA COMANDA entre os itens, proporcional à base de cada um.
+   *
+   * O desconto do PDV (botão "Adicionar desconto" → OrderDiscount →
+   * Order.discountTotal) é do TOTAL: ele mora no cabeçalho e nunca voltava para
+   * os itens. Como a comissão é calculada item a item, ela nascia sobre o valor
+   * CHEIO — serviço de R$ 200 com 40% e 50% de desconto na comanda: a cliente
+   * pagava R$ 100 e o salão devia R$ 80 de comissão. O desconto do ITEM (aba
+   * "Dados") já era respeitado; os dois caminhos se contradiziam.
+   *
+   * Método acumulado: a cota de cada item é a diferença entre dois acumulados já
+   * arredondados. É isso que faz `soma(cotas) == desconto` fechar na unha — no
+   * último item o acumulado é o desconto inteiro. Ratear item a item e arredondar
+   * cada um perderia (ou duplicaria) centavo, e centavo perdido em comissão é
+   * reclamação de profissional no fim do mês.
+   */
+  private ratearDescontoDaComanda(
+    bases: Prisma.Decimal[],
+    descontoDaComanda: Prisma.Decimal,
+  ): Prisma.Decimal[] {
+    const zero = new Prisma.Decimal(0);
+    const total = bases.reduce((acc, b) => acc.add(b), zero);
+    if (total.lessThanOrEqualTo(0) || descontoDaComanda.lessThanOrEqualTo(0)) {
+      return bases.map(() => zero);
+    }
+    // Descontos somados podem passar do bruto (o teto do addDiscount é por
+    // desconto, não acumulado) e o recalculate trava o líquido em 0. O rateio
+    // segue a mesma regra: no máximo zera a base, nunca a deixa negativa.
+    const desconto = Prisma.Decimal.min(descontoDaComanda, total);
+
+    const cotas: Prisma.Decimal[] = [];
+    let baseAcumulada = zero;
+    let cotaAcumulada = zero;
+    for (const base of bases) {
+      baseAcumulada = baseAcumulada.add(base);
+      const ateAqui = desconto.mul(baseAcumulada).div(total).toDecimalPlaces(2);
+      cotas.push(ateAqui.sub(cotaAcumulada));
+      cotaAcumulada = ateAqui;
+    }
+    return cotas;
+  }
+
+  /** Nome do serviço/produto do item — usado nos avisos do faturamento. */
+  private async nomeDoItem(
+    tx: Prisma.TransactionClient,
+    item: { kind: string; refId: string },
+  ): Promise<string> {
+    const nome =
+      item.kind === 'service'
+        ? (await tx.service.findUnique({ where: { id: item.refId }, select: { name: true } }))
+            ?.name
+        : (await tx.product.findUnique({ where: { id: item.refId }, select: { name: true } }))
+            ?.name;
+    return nome ?? (item.kind === 'service' ? 'serviço' : 'produto');
+  }
+
+  /**
    * Comissão → CommissionEntry por OrderItem com profissional que recebe comissão.
-   * baseAmount = grossValue − discount do item. Percentual resolvido pela regra
-   * aplicável (ProfessionalCommissionRule: item específico → categoria → all),
-   * com fallback em Product.defaultCommissionPercent para produtos.
-   * Idempotência: se a comanda já tem entries, não recria.
+   * baseAmount = grossValue − discount do item − cota do desconto DA COMANDA
+   * (rateada proporcionalmente; ver ratearDescontoDaComanda). Percentual
+   * resolvido pela regra aplicável (ProfessionalCommissionRule: item específico →
+   * categoria → all), com fallback em Product.defaultCommissionPercent para
+   * produtos. Idempotência: se a comanda já tem entries, não recria.
    */
   private async generateCommissionEntries(
     tx: Prisma.TransactionClient,
@@ -1271,6 +1472,9 @@ export class OrdersService {
     order: {
       id: string;
       date: Date;
+      // Desconto DA COMANDA (soma dos OrderDiscount, escrita pelo recalculate).
+      // O finish carrega a comanda inteira, então o campo já vem preenchido.
+      discountTotal: Prisma.Decimal;
       items: {
         kind: string;
         refId: string;
@@ -1293,7 +1497,10 @@ export class OrdersService {
      * construção.
      */
     disponivelEm?: Date,
-  ): Promise<{ semPercentual: { profissional: string; item: string }[] }> {
+  ): Promise<{
+    semPercentual: { profissional: string; item: string }[];
+    semProfissional: { item: string }[];
+  }> {
     // Idempotência por ESTADO ATIVO: só não recria se já houver lançamentos ativos
     // (open/paid) para esta comanda. Entries `reversed` de um reopen anterior são
     // ignoradas, permitindo gerar novas comissões neste re-finish.
@@ -1301,7 +1508,7 @@ export class OrdersService {
       where: { companyId, orderId: order.id, status: { not: 'reversed' } },
       select: { id: true },
     });
-    if (activeEntry) return { semPercentual: [] };
+    if (activeEntry) return { semPercentual: [], semProfissional: [] };
 
     const now = new Date();
     const liberaEm = disponivelEm ?? now;
@@ -1309,9 +1516,27 @@ export class OrdersService {
     // Sem isto o item era pulado em silêncio e o salão faturava esperando
     // comissão que nunca apareceu.
     const semPercentual: { profissional: string; item: string }[] = [];
+    // Itens SEM profissional nenhum: não há a quem pagar. Lista separada porque
+    // a causa é outra — ver o ramo `!professionalId` mais abaixo.
+    const semProfissional: { item: string }[] = [];
 
-    for (const item of order.items) {
-      const baseAmount = new Prisma.Decimal(item.grossValue).sub(item.discount);
+    // Base de cada item (bruto − desconto DO ITEM), clampada em 0 pelo mesmo
+    // motivo do recalculate: comanda gravada antes do teto de desconto pode ter
+    // item negativo, e um negativo aqui distorceria o rateio dos outros.
+    const basesDosItens = order.items.map((item) =>
+      Prisma.Decimal.max(
+        new Prisma.Decimal(item.grossValue).sub(item.discount),
+        new Prisma.Decimal(0),
+      ),
+    );
+    // ...e o desconto DA COMANDA rateado por cima delas.
+    const cotasDoDesconto = this.ratearDescontoDaComanda(
+      basesDosItens,
+      new Prisma.Decimal(order.discountTotal ?? 0),
+    );
+
+    for (const [indice, item] of order.items.entries()) {
+      const baseAmount = basesDosItens[indice].sub(cotasDoDesconto[indice]);
       if (baseAmount.lessThanOrEqualTo(0)) continue;
 
       // ---------------------- Rateio de auxiliares ----------------------
@@ -1356,20 +1581,29 @@ export class OrdersService {
 
       // ---------------------- Comissão do principal ----------------------
       const professionalId = item.professionalId;
-      if (!professionalId) continue;
+      if (!professionalId) {
+        // Item órfão: venda de balcão numa comanda sem profissional no
+        // cabeçalho, ou herança que não aconteceu. Saía daqui em SILÊNCIO,
+        // enquanto o caso vizinho (com profissional e sem percentual) já
+        // avisava — a profissional esperava a comissão e só descobria abrindo
+        // item a item da comanda fechada. Lista separada de propósito: dizer
+        // "está sem percentual" para um item que nem profissional tem mandaria
+        // o dono configurar a coisa errada.
+        semProfissional.push({ item: await this.nomeDoItem(tx, item) });
+        continue;
+      }
       if (!item.professional?.receivesCommission) continue;
 
-      const percent = await this.resolveCommissionPercent(tx, professionalId, item);
+      const percent = await this.resolveCommissionPercent(
+        tx,
+        professionalId,
+        item,
+        baseAmount,
+      );
       if (percent.lessThanOrEqualTo(0)) {
-        const nome =
-          item.kind === 'service'
-            ? (await tx.service.findUnique({ where: { id: item.refId }, select: { name: true } }))
-                ?.name
-            : (await tx.product.findUnique({ where: { id: item.refId }, select: { name: true } }))
-                ?.name;
         semPercentual.push({
           profissional: item.professional?.name ?? 'profissional',
-          item: nome ?? (item.kind === 'service' ? 'serviço' : 'produto'),
+          item: await this.nomeDoItem(tx, item),
         });
         continue;
       }
@@ -1398,7 +1632,7 @@ export class OrdersService {
       });
     }
 
-    return { semPercentual };
+    return { semPercentual, semProfissional };
   }
 
 
@@ -1603,9 +1837,18 @@ export class OrdersService {
     tx: Prisma.TransactionClient,
     professionalId: string,
     item: { kind: string; refId: string; grossValue: Prisma.Decimal; discount: Prisma.Decimal },
+    /**
+     * Base EFETIVA do item (bruto − desconto do item − cota do desconto da
+     * comanda). Vem de fora porque o rateio do desconto da comanda é calculado
+     * uma vez para a comanda inteira. Precisa ser a mesma base usada no cálculo
+     * final: uma regra `fixed` é convertida em percentual dividindo pela base, e
+     * converter com uma base para aplicar em outra faria a comissão FIXA de
+     * R$ 30 virar R$ 15 numa comanda com 50% de desconto.
+     */
+    baseEfetiva?: Prisma.Decimal,
   ): Promise<Prisma.Decimal> {
     const scopeType = item.kind === 'service' ? 'service' : 'product';
-    const base = new Prisma.Decimal(item.grossValue).sub(item.discount);
+    const base = baseEfetiva ?? new Prisma.Decimal(item.grossValue).sub(item.discount);
 
     const rules = await tx.professionalCommissionRule.findMany({
       where: {
@@ -1749,6 +1992,10 @@ export class OrdersService {
    * — CashMovement(in, refType='order') da comanda → CashMovement(out) contrário;
    * — Estoque vendido: InventoryMovement(in) + devolve Product.stock/ProductBatch.
    * Idempotente: se já estornado, não duplica.
+   *
+   * Devolve as comissões que já estavam PAGAS e sobreviveram ao estorno — ver o
+   * bloco 2. Quem chama (reopen/remove) repassa isso na resposta para a tela
+   * poder avisar que já saiu dinheiro.
    */
   private async reverseFinishReconciliation(
     tx: Prisma.TransactionClient,
@@ -1756,7 +2003,7 @@ export class OrdersService {
     // `customerId` entrou para o estorno do cashback ganho: sem ele, reabrir uma
     // comanda deixaria o cliente com saldo de uma venda que voltou a ficar aberta.
     order: { id: string; number: number; customerId: string | null },
-  ) {
+  ): Promise<{ comissoesPagas: { profissional: string; valor: Prisma.Decimal }[] }> {
     const now = new Date();
 
     // 1. Transactions (income) — estorna as ativas (não estornadas) da comanda.
@@ -1801,6 +2048,22 @@ export class OrdersService {
     }
 
     // 2. Comissões — entries em aberto viram reversed (some dos totais).
+    //
+    // A entry `paid` NÃO é revertida de propósito: aquele dinheiro já saiu do
+    // bolso do salão na folha de comissões, e apagar o lançamento aqui criaria
+    // um passivo invisível (o salão pagou e o sistema passa a dizer que nunca
+    // pagou). O defeito era o SILÊNCIO: cancelar a venda estornava receita,
+    // caixa, estoque e cashback, e ninguém ficava sabendo que já tinha saído
+    // comissão sobre uma venda que deixou de existir. Devolvemos a lista para o
+    // reopen/remove avisarem quem cancelou. Virar vale/desconto na próxima
+    // folha é decisão do dono, não deste método.
+    const pagas = await tx.commissionEntry.findMany({
+      where: { companyId, orderId: order.id, status: 'paid' },
+      select: {
+        commissionAmount: true,
+        professional: { select: { name: true } },
+      },
+    });
     await tx.commissionEntry.updateMany({
       where: { companyId, orderId: order.id, status: 'open' },
       data: { status: 'reversed' },
@@ -1889,6 +2152,13 @@ export class OrdersService {
         });
       }
     }
+
+    return {
+      comissoesPagas: pagas.map((entry) => ({
+        profissional: entry.professional?.name ?? 'profissional',
+        valor: entry.commissionAmount,
+      })),
+    };
   }
 
   /**
@@ -1937,14 +2207,20 @@ export class OrdersService {
     }
     await this.assertClosedCashAllowsOrderEdit(companyId, id);
     return this.prisma.client.$transaction(async (tx) => {
-      await this.reverseFinishReconciliation(tx, companyId, order);
-      return tx.order.update({
+      const estorno = await this.reverseFinishReconciliation(tx, companyId, order);
+      const reaberta = await tx.order.update({
         where: { id },
         data: {
           status: 'open',
           statusHistory: { create: { fromStatus: 'finished', toStatus: 'open', byUserId } },
         },
         include: { items: true, payments: true },
+      });
+      // Vai junto na resposta para a tela AVISAR: comissão já PAGA não é
+      // estornada (o dinheiro saiu), e quem reabre precisa saber disso antes de
+      // refaturar com outro valor.
+      return Object.assign(reaberta, {
+        commissionAlreadyPaid: estorno.comissoesPagas,
       });
     });
   }
@@ -1979,13 +2255,22 @@ export class OrdersService {
    */
   async remove(companyId: string, id: string) {
     const order = await this.loadOrder(companyId, id);
-    if (order.status === 'canceled') return order; // idempotente
+
+    // Comissão já PAGA sobrevive ao estorno (ver reverseFinishReconciliation):
+    // quem cancela precisa saber que já saiu dinheiro para a profissional sobre
+    // uma venda que deixou de existir. Sai na resposta SEMPRE (inclusive no
+    // caminho idempotente), para a tela não ter dois formatos de retorno.
+    let comissoesPagas: { profissional: string; valor: Prisma.Decimal }[] = [];
+    if (order.status === 'canceled') {
+      return Object.assign(order, { commissionAlreadyPaid: comissoesPagas }); // idempotente
+    }
 
     // Se estava finalizada, estorna primeiro os lançamentos do finish (atômico).
     if (order.status === 'finished') {
       await this.assertClosedCashAllowsOrderEdit(companyId, id);
       await this.prisma.client.$transaction(async (tx) => {
-        await this.reverseFinishReconciliation(tx, companyId, order);
+        const estorno = await this.reverseFinishReconciliation(tx, companyId, order);
+        comissoesPagas = estorno.comissoesPagas;
       });
     }
 
@@ -2010,10 +2295,11 @@ export class OrdersService {
       });
     }
 
-    return this.prisma.client.order.update({
+    const cancelada = await this.prisma.client.order.update({
       where: { id },
       data: { status: 'canceled', creditUsed: 0, cashbackUsed: 0 },
     });
+    return Object.assign(cancelada, { commissionAlreadyPaid: comissoesPagas });
   }
 
   private async recalculate(id: string) {
@@ -2021,8 +2307,20 @@ export class OrdersService {
       where: { id },
       include: { items: true, discounts: true },
     });
+    // Clamp por ITEM, não só no total. Comanda GRAVADA antes do teto de desconto
+    // do item (assertDescontoDoItem) pode ter desconto maior que o próprio
+    // bruto; sem o clamp esse valor negativo comia o preço dos OUTROS itens — a
+    // Escova com "200" de desconto fazia o Shampoo de R$ 50 sumir do total e a
+    // comanda inteira ia a R$ 0. O desconto gravado não é reescrito aqui:
+    // corrigir dado histórico é decisão do dono, isolar o estrago não é.
     const gross = order.items.reduce(
-      (acc, it) => acc.add(it.grossValue).sub(it.discount),
+      (acc, it) =>
+        acc.add(
+          Prisma.Decimal.max(
+            new Prisma.Decimal(it.grossValue).sub(it.discount),
+            new Prisma.Decimal(0),
+          ),
+        ),
       new Prisma.Decimal(0),
     );
     let discountTotal = new Prisma.Decimal(0);

@@ -5,6 +5,24 @@
  * SalonPayService (mesmos formatos, mesmos riscos). Cada função devolve o valor
  * "limpo" ou lança `BadRequestException` — o `@Transform` do DTO chama, e o
  * PipeValidation devolve 400 antes de o service ver o lixo.
+ *
+ * TRÊS ENTRADAS, TRÊS SIGNIFICADOS (estudo 141). O PATCH parcial precisa
+ * distinguir "não mexa" de "apague", e antes não distinguia:
+ *
+ *   - AUSENTE (`undefined`) → `undefined`: não mexa neste campo.
+ *   - `null` EXPLÍCITO      → `null`: APAGUE este campo.
+ *   - texto                 → dígitos limpos, ou 400.
+ *
+ * O `null` é novo. Antes ele virava `undefined` já na primeira linha, e por isso
+ * NÃO HAVIA COMO apagar o telefone de um cliente: a recepcionista limpava o
+ * campo, recebia "Cliente salvo" em verde e o número antigo — às vezes o de
+ * outra pessoa — continuava lá na próxima abertura. Como o `@Transform` roda
+ * ANTES da validação, o conserto tinha que ser aqui: nem mandando `null` o
+ * front conseguia limpar.
+ *
+ * Texto SEM dígito ("", "   ", "(  )  -") continua virando `undefined`, e não
+ * `null`: é o que os importadores e o SalonPay mandam para dizer "não informado",
+ * e transformar isso em "apague" mudaria o comportamento de quem não pediu nada.
  */
 import { BadRequestException } from '@nestjs/common';
 
@@ -26,8 +44,9 @@ import { BadRequestException } from '@nestjs/common';
  * `voltr-forwarder`, `whatsapp.service`, `notifications`. Mudar isso aqui
  * seria quebrar todos.
  */
-export function normalizarTelefone(bruto: unknown): string | undefined {
-  if (bruto == null) return undefined;
+export function normalizarTelefone(bruto: unknown): string | null | undefined {
+  if (bruto === null) return null;
+  if (bruto === undefined) return undefined;
   if (typeof bruto !== 'string') {
     throw new BadRequestException('Telefone precisa ser texto.');
   }
@@ -55,8 +74,9 @@ export function normalizarTelefone(bruto: unknown): string | undefined {
  * Devolve o CPF em "só dígitos" para o banco não guardar duas formatações
  * diferentes do mesmo documento.
  */
-export function normalizarCpf(bruto: unknown): string | undefined {
-  if (bruto == null) return undefined;
+export function normalizarCpf(bruto: unknown): string | null | undefined {
+  if (bruto === null) return null;
+  if (bruto === undefined) return undefined;
   if (typeof bruto !== 'string') {
     throw new BadRequestException('CPF precisa ser texto.');
   }
@@ -89,8 +109,9 @@ export function normalizarCpf(bruto: unknown): string | undefined {
  * Valida CNPJ pelo algoritmo dos dois DVs. Mesma filosofia do CPF: rejeita
  * texto solto e repetição óbvia. Devolve só dígitos.
  */
-export function normalizarCnpj(bruto: unknown): string | undefined {
-  if (bruto == null) return undefined;
+export function normalizarCnpj(bruto: unknown): string | null | undefined {
+  if (bruto === null) return null;
+  if (bruto === undefined) return undefined;
   if (typeof bruto !== 'string') {
     throw new BadRequestException('CNPJ precisa ser texto.');
   }
@@ -119,8 +140,9 @@ export function normalizarCnpj(bruto: unknown): string | undefined {
 /**
  * Aceita CPF (11) OU CNPJ (14). Usado no SalonPay (`taxId` é PF ou PJ).
  */
-export function normalizarDocumento(bruto: unknown): string | undefined {
-  if (bruto == null) return undefined;
+export function normalizarDocumento(bruto: unknown): string | null | undefined {
+  if (bruto === null) return null;
+  if (bruto === undefined) return undefined;
   if (typeof bruto !== 'string') {
     throw new BadRequestException('Documento precisa ser texto.');
   }
@@ -138,8 +160,9 @@ export function normalizarDocumento(bruto: unknown): string | undefined {
  * local). Devolve só dígitos para não guardar "01310-000" e "01310000" como
  * dois CEPs distintos.
  */
-export function normalizarCep(bruto: unknown): string | undefined {
-  if (bruto == null) return undefined;
+export function normalizarCep(bruto: unknown): string | null | undefined {
+  if (bruto === null) return null;
+  if (bruto === undefined) return undefined;
   if (typeof bruto !== 'string') {
     throw new BadRequestException('CEP precisa ser texto.');
   }
@@ -156,8 +179,9 @@ export function normalizarCep(bruto: unknown): string | undefined {
  * chave aleatória (UUID). Sem validação de existência no BC — só de FORMATO,
  * que já barra "não é uma chave", que era o cenário do SalonPay.
  */
-export function normalizarChavePix(bruto: unknown): string | undefined {
-  if (bruto == null) return undefined;
+export function normalizarChavePix(bruto: unknown): string | null | undefined {
+  if (bruto === null) return null;
+  if (bruto === undefined) return undefined;
   if (typeof bruto !== 'string') {
     throw new BadRequestException('Chave PIX precisa ser texto.');
   }

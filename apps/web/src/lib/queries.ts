@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import { toast } from './toast';
-import { toastSuccess } from './toast';
+import { TOAST_TIMEOUT_ERRO, toastSuccess } from './toast';
 import type {
   AppointmentRow,
   AvailabilityResponse,
@@ -123,12 +123,32 @@ export function useCustomers(
   });
 }
 
+/**
+ * Cadastro em linha do "+ Novo cliente" (agendamento).
+ *
+ * ATENÇÃO: este NÃO é o mesmo hook de `lib/queries/clientes.ts` — são dois
+ * `useCreateCustomer` no painel, e o `NewAppointmentModal` importa ESTE. Por
+ * isso o aviso de duplicidade precisa ser repetido aqui: a recepção que não
+ * achou a cliente na busca é exatamente quem cadastra de novo no meio do
+ * agendamento, e é ali que nasce a ficha repetida (histórico, cashback e
+ * débito partidos em duas). O backend cria o cliente do mesmo jeito e devolve
+ * `avisoDuplicidade` junto — bloquear é decisão do dono (mãe e filha dividem
+ * celular), avisar não é.
+ */
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { name: string; phone?: string }) =>
-      api.post<Customer>('/customers', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+      api.post<Customer & { avisoDuplicidade?: string }>('/customers', body),
+    onSuccess: (cliente) => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      // Fica bem mais tempo na tela que uma confirmação: é instrução
+      // ("confira se não é a mesma pessoa"), e a pessoa está no meio de outra
+      // tarefa (montando o agendamento).
+      if (cliente?.avisoDuplicidade) {
+        toast.warning(cliente.avisoDuplicidade, { timeout: TOAST_TIMEOUT_ERRO });
+      }
+    },
   });
 }
 
@@ -175,23 +195,115 @@ export function useAppointments(filters: {
   });
 }
 
+/**
+ * Resposta de GET /availability como ela REALMENTE chega.
+ *
+ * `motivo`/`motivoTexto` só vêm quando `slots` está vazio e dizem POR QUE
+ * ("Este profissional não executa este serviço", "Este profissional não atende
+ * neste dia" — appointments.service.ts:69-75). O tipo compartilhado
+ * (lib/types.ts:388) ainda não declara os dois campos, e por isso a tela
+ * imprimia a mesma frase muda nos cinco casos: a dona trocava de data cinco
+ * vezes sem descobrir que a profissional nem executa aquele serviço. Declarado
+ * aqui para a tela poder ler; mover para `AvailabilityResponse` fica pendente.
+ */
+export type AvailabilityComMotivo = AvailabilityResponse & {
+  motivo?: string;
+  motivoTexto?: string;
+};
+
+/**
+ * Recalcula a marca `busy` da grade com a duração REAL do agendamento.
+ *
+ * O endpoint monta a grade com a duração do `serviceId` que recebeu — um só. Se
+ * o agendamento tem dois serviços (ou a pessoa editou o campo "Duração"), a
+ * janela testada pelo backend é MENOR que a janela que o agendamento vai
+ * ocupar: a Laila atende a Joana das 14:30 às 15:30, a recepção marca "Escova"
+ * (30min) às 14:00 + "Hidratação" (60min), o chip das 14:00 aparece BRANCO e o
+ * agendamento nasce 14:00→15:30 por cima da Joana. Como não dá para pedir a
+ * duração ao endpoint hoje, buscamos os agendamentos do dia daquela
+ * profissional e refazemos o teste de sobreposição com a duração certa.
+ *
+ * Só gasta a requisição extra quando a duração real difere da duração da grade
+ * (que dá para inferir de `slot.end - slot.start`) — o caso comum, de um
+ * serviço só sem edição, não paga nada.
+ */
+async function marcarOcupadosPelaDuracaoReal(
+  grade: AvailabilityComMotivo,
+  professionalId: string,
+  duracaoRealMin?: number,
+): Promise<AvailabilityComMotivo> {
+  const slots = grade.slots ?? [];
+  if (!duracaoRealMin || slots.length === 0) return grade;
+
+  const duracaoDaGrade =
+    (new Date(slots[0].end).getTime() - new Date(slots[0].start).getTime()) / 60000;
+  if (!Number.isFinite(duracaoDaGrade) || duracaoDaGrade <= 0) return grade;
+  if (duracaoRealMin === duracaoDaGrade) return grade;
+
+  // Janela folgada de 12h para cada lado: o filtro do backend é pelo START do
+  // agendamento (appointments.service.ts:154-159), então quem começou antes do
+  // primeiro horário da grade ainda pode estar ocupando ele.
+  const primeiro = new Date(slots[0].start).getTime();
+  const ultimo = new Date(slots[slots.length - 1].start).getTime();
+  const folga = 12 * 60 * 60000;
+
+  let ocupacoes: { ini: number; fim: number }[];
+  try {
+    const agenda = await api.get<Paginated<AppointmentRow>>('/appointments', {
+      from: new Date(primeiro - folga).toISOString(),
+      to: new Date(ultimo + folga).toISOString(),
+      professionalId,
+    });
+    ocupacoes = (agenda.data ?? [])
+      // `canceled` não ocupa a agenda — mesma regra do ACTIVE_STATUSES do
+      // backend (appointments.service.ts:95-103).
+      .filter((appt) => appt.status !== 'canceled')
+      .map((appt) => ({
+        ini: new Date(appt.start).getTime(),
+        fim: new Date(appt.end).getTime(),
+      }));
+  } catch {
+    // Sem a agenda do dia (permissão, rede) é melhor devolver a grade como veio
+    // do que inventar "livre" ou "ocupado" — a marca continua a do backend.
+    return grade;
+  }
+
+  return {
+    ...grade,
+    slots: slots.map((slot) => {
+      const ini = new Date(slot.start).getTime();
+      const fim = ini + duracaoRealMin * 60000;
+      return { ...slot, busy: ocupacoes.some((o) => o.ini < fim && o.fim > ini) };
+    }),
+  };
+}
+
 export function useAvailability(
   serviceId: string | undefined,
   professionalId: string | undefined,
   date: string | undefined,
+  /**
+   * Duração REAL do agendamento em minutos: soma de TODOS os itens, já com o
+   * campo "Duração" que a pessoa editou. Entra na queryKey de propósito —
+   * adicionar um segundo serviço ou trocar a duração precisa refazer a busca,
+   * senão a marca "(ocupado)" fica congelada no tamanho do primeiro serviço.
+   */
+  duracaoRealMin?: number,
 ) {
   const enabled = Boolean(serviceId && professionalId && date);
   return useQuery({
-    queryKey: ['availability', serviceId, professionalId, date],
+    queryKey: ['availability', serviceId, professionalId, date, duracaoRealMin ?? null],
     enabled,
-    queryFn: () =>
+    queryFn: async () => {
       // O painel recebe a grade COMPLETA: horários ocupados vêm com `busy` e
       // podem ser escolhidos (encaixe). Quem limita é o endpoint público.
-      api.get<AvailabilityResponse>('/availability', {
+      const grade = await api.get<AvailabilityComMotivo>('/availability', {
         serviceId: serviceId!,
         professionalId: professionalId!,
         date: date!,
-      }),
+      });
+      return marcarOcupadosPelaDuracaoReal(grade, professionalId!, duracaoRealMin);
+    },
   });
 }
 
