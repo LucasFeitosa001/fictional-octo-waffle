@@ -133,46 +133,11 @@ function resolveAuthSecret(): string {
 /** Log das falhas de autenticação — ver `onAPIError` abaixo. */
 const logAuth = new Logger('BetterAuth');
 
-/**
- * Onde o portal de agendamento monta a própria auth. Precisa ser DIFERENTE de
- * `/api/v1/auth` (o painel) — é o que dá a cada um a sua sessão. O `web-club`
- * aponta para cá, e este é o caminho a registrar no Google Cloud Console:
- *   https://agenda.salonpass.com.br/api/v1/auth-club/callback/google
- */
-export const CLUB_AUTH_BASE_PATH = '/api/v1/auth-club';
-
-/**
- * DUAS INSTÂNCIAS, DUAS SESSÕES — ver estudo 120.
- *
- * O painel (app.) e o portal de agendamento (agenda.) dividiam UM cookie, no
- * domínio `.salonpass.com.br`. Como Better Auth tem uma sessão por cookie, os
- * dois produtos disputavam a mesma: entrar no painel trocava quem estava
- * logado no portal, e vice-versa. Foi o que o dono viu — abrir o link de
- * agendamento de um salão qualquer e receber "esta conta é de administrador",
- * com o e-mail do painel, mesmo achando que estava em outra conta.
- *
- * O compartilhamento não foi um acidente: ele existia para o login com Google,
- * que completa no host de `BETTER_AUTH_URL`. A saída não é desligá-lo, é dar ao
- * portal uma instância própria — com `basePath`, `cookiePrefix` e baseURL
- * dele. Aí cada produto tem a sua sessão e o Google de cada um volta para casa.
- *
- * `cookiePrefix` é o que garante o isolamento em DESENVOLVIMENTO, onde os dois
- * apps falam com o mesmo `localhost:3333` e o domínio não separa nada.
- */
-function configDeAuth(opcoes: {
-  baseURL: string;
-  basePath: string;
-  /** `undefined` = cookie host-only (não vaza para os irmãos do domínio). */
-  dominioCompartilhado: string | undefined;
-  cookiePrefix?: string;
-  /** OAuth precisa voltar para a MESMA origem que abriu o fluxo. */
-  redirectURIdoGoogle?: string;
-}) {
-  return {
+export const auth = betterAuth({
   appName: 'Beautypass',
   secret: resolveAuthSecret(),
-  baseURL: opcoes.baseURL,
-  basePath: opcoes.basePath,
+  baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3333',
+  basePath: '/api/v1/auth',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   trustedOrigins: [
     'http://localhost:5173',
@@ -186,18 +151,7 @@ function configDeAuth(opcoes: {
     // No email verification gate in this product (admin/staff accounts).
     requireEmailVerification: false,
   },
-  // O callback do Google tem que cair na origem que ABRIU o fluxo, senão o
-  // cookie nasce no host errado e a sessão "some" ao voltar para o app.
-  socialProviders: socialProviders
-    ? {
-        google: {
-          ...socialProviders.google,
-          ...(opcoes.redirectURIdoGoogle
-            ? { redirectURI: opcoes.redirectURIdoGoogle }
-            : {}),
-        },
-      }
-    : undefined,
+  socialProviders,
   /**
    * VÍNCULO DE CONTA — sem isto, "Continuar com Google" era um beco sem saída
    * para quem já tinha conta com senha.
@@ -248,23 +202,18 @@ function configDeAuth(opcoes: {
       logAuth.warn(`falha: ${codigo} ${detalhe}`.trim());
     },
   },
-  // O painel compartilha o cookie entre os subdomínios de salonpass.com.br; o
-  // portal NÃO — ele recebe `dominioCompartilhado: undefined` e fica host-only,
-  // que é justamente o que impede as duas sessões de se atropelarem.
+  // Share the session cookie across salonpass.com.br subdomains so a Google
+  // login that completes on app.salonpass.com.br is recognized on the club
+  // (agenda.salonpass.com.br). Disabled when we can't derive a base domain.
   advanced: {
     crossSubDomainCookies: {
-      enabled: Boolean(opcoes.dominioCompartilhado),
-      domain: opcoes.dominioCompartilhado,
+      enabled: Boolean(sharedCookieDomain),
+      domain: sharedCookieDomain,
     },
-    ...(opcoes.cookiePrefix ? { cookiePrefix: opcoes.cookiePrefix } : {}),
   },
   // Domain fields kept on the Better Auth `user` model. `input: false` means
   // clients cannot set these at signup; the databaseHook fills companyId.
   user: {
-    // `as const` no bloco: a config saiu de dentro do `betterAuth({...})` para
-    // uma fábrica (duas instâncias) e, sem o contexto do parâmetro, o TS alarga
-    // os literais — 'string' vira string (não casa com DBFieldType) e
-    // `required: false` vira boolean, que passa a exigir os campos no signUp.
     additionalFields: {
       companyId: { type: 'string', required: false, input: false },
       phone: { type: 'string', required: false, input: true },
@@ -273,7 +222,7 @@ function configDeAuth(opcoes: {
       // 'staff' = salon owner/employee (gets a Company on signup).
       // 'customer' = public-portal booker (no Company; books at salons).
       accountType: { type: 'string', required: false, input: true, defaultValue: 'staff' },
-    } as const,
+    },
     // Enable POST /api/v1/auth/change-email. Staff accounts have
     // emailVerified=false (we don't run a verification gate here), and Better
     // Auth v1.6 refuses to touch the email unless one of three flows is
@@ -329,39 +278,6 @@ function configDeAuth(opcoes: {
     },
   },
   plugins: [bearer(), expo()],
-  };
-}
-
-/** PAINEL (app.salonpass.com.br) — cookie compartilhado entre os subdomínios. */
-export const auth = betterAuth(
-  configDeAuth({
-    baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3333',
-    basePath: '/api/v1/auth',
-    dominioCompartilhado: sharedCookieDomain,
-  }),
-);
-
-/**
- * PORTAL DE AGENDAMENTO (agenda.salonpass.com.br) — sessão só dele.
- *
- * `CLUB_AUTH_URL` define onde o OAuth do portal volta. Sem a env, cai no mesmo
- * host do painel: em desenvolvimento é o certo (um `localhost:3333` só), e em
- * produção o `cookiePrefix` já mantém as sessões separadas mesmo que o domínio
- * coincida — o portal continua funcionando, só o login com Google dele é que
- * precisa da env apontando para `agenda.` (e do redirect registrado no Google).
- */
-const clubBaseURL =
-  process.env.CLUB_AUTH_URL ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:3333';
-
-export const authClub = betterAuth(
-  configDeAuth({
-    baseURL: clubBaseURL,
-    basePath: CLUB_AUTH_BASE_PATH,
-    // host-only de propósito: é isto que separa a sessão do portal da do painel.
-    dominioCompartilhado: undefined,
-    cookiePrefix: 'salonpass-club',
-    redirectURIdoGoogle: `${clubBaseURL.replace(/\/$/, '')}${CLUB_AUTH_BASE_PATH}/callback/google`,
-  }),
-);
+});
 
 export type AuthSession = typeof auth.$Infer.Session;
