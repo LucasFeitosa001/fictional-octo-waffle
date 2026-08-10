@@ -365,6 +365,29 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     return list;
   }, [services.data, categoryFilter, favoritesOnly, favorites.ids]);
 
+  // A lista já filtrada, quebrada em seções por categoria — o backend devolve
+  // na ordem de exibição, então basta preservar a ordem de aparição. Serviço
+  // sem categoria cai num "Outros" no fim, em vez de sumir da lista.
+  const secoesDeServico = useMemo(() => {
+    const secoes = new Map<string, { titulo: string; servicos: typeof visibleServices }>();
+    visibleServices.forEach((s) => {
+      const chave = s.categoryId ?? s.categoryName ?? '__sem-categoria';
+      const titulo = s.categoryName ?? 'Outros';
+      const secao = secoes.get(chave);
+      if (secao) secao.servicos.push(s);
+      else secoes.set(chave, { titulo, servicos: [s] });
+    });
+    const lista = Array.from(secoes, ([chave, secao]) => ({ chave, ...secao }));
+    // "Outros" por último: é o resto, não uma categoria de verdade.
+    return lista.sort((a, b) =>
+      a.chave === '__sem-categoria' ? 1 : b.chave === '__sem-categoria' ? -1 : 0,
+    );
+  }, [visibleServices]);
+
+  // Com uma seção só (salão pequeno, ou filtro de categoria ativo) o cabeçalho
+  // vira ruído: diria "Unhas" numa tela em que tudo é unhas.
+  const mostrarSecoes = secoesDeServico.length > 1;
+
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
   function resetFlow() {
@@ -669,25 +692,40 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                   )
                 ) : (
                   <div className="flex flex-col gap-2.5">
-                    {visibleServices.map((s) => (
-                      <ServiceCard
-                        key={s.id}
-                        service={s}
-                        selected={selectedServices.some((sel) => sel.id === s.id)}
-                        isFavorite={favorites.ids.has(s.id)}
-                        onToggleFavorite={() => favorites.toggle(s.id)}
-                        onSelect={() => {
-                          setSelectedServices((prev) => {
-                            const exists = prev.some((sel) => sel.id === s.id);
-                            const next = exists
-                              ? prev.filter((sel) => sel.id !== s.id)
-                              : [...prev, s];
-                            setProfessional(null);
-                            setSlot(null);
-                            return next;
-                          });
-                        }}
-                      />
+                    {secoesDeServico.map((secao) => (
+                      <section key={secao.chave} className="flex flex-col gap-2.5">
+                        {mostrarSecoes && (
+                          // Sticky: a cliente sabe em que seção está enquanto
+                          // desliza a lista — o "ao passar da lista" do pedido.
+                          <h3 className="sticky top-0 z-10 -mx-1 bg-[var(--club-bg,theme(colors.background))]/95 px-1 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted backdrop-blur-sm">
+                            {secao.titulo}
+                            <span className="ml-1.5 font-normal normal-case tracking-normal">
+                              ({secao.servicos.length})
+                            </span>
+                          </h3>
+                        )}
+                        {secao.servicos.map((s) => (
+                          <ServiceCard
+                            key={s.id}
+                            service={s}
+                            selected={selectedServices.some((sel) => sel.id === s.id)}
+                            ocultarCategoria={mostrarSecoes}
+                            isFavorite={favorites.ids.has(s.id)}
+                            onToggleFavorite={() => favorites.toggle(s.id)}
+                            onSelect={() => {
+                              setSelectedServices((prev) => {
+                                const exists = prev.some((sel) => sel.id === s.id);
+                                const next = exists
+                                  ? prev.filter((sel) => sel.id !== s.id)
+                                  : [...prev, s];
+                                setProfessional(null);
+                                setSlot(null);
+                                return next;
+                              });
+                            }}
+                          />
+                        ))}
+                      </section>
                     ))}
                   </div>
                 ))}
@@ -1366,12 +1404,15 @@ function ServiceCard({
   isFavorite,
   onToggleFavorite,
   onSelect,
+  ocultarCategoria = false,
 }: {
   service: Service;
   selected: boolean;
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onSelect: () => void;
+  /** Sob um cabeçalho de seção a etiqueta repetiria a categoria em cada cartão. */
+  ocultarCategoria?: boolean;
 }) {
   const badge = service.favorite
     ? { label: 'Mais pedido', icon: <Star width={12} height={12} />, cls: 'bg-[var(--booking-accent-soft)] text-[var(--booking-accent-ink)]' }
@@ -1441,7 +1482,7 @@ function ServiceCard({
             <Clock width={13} height={13} />
             {durationLabel(service.durationMin)}
           </span>
-          {service.categoryName && (
+          {service.categoryName && !ocultarCategoria && (
             <span className="flex items-center gap-1">
               <Tag width={13} height={13} />
               {service.categoryName}
