@@ -34,11 +34,30 @@ escrevi formulário novo. O que faltava era encadear:
 Dois pontos de entrada, porque são dois momentos diferentes: um link discreto
 sempre visível, e um botão **"+ Cadastrar «nome digitado»"** dentro do vazio da
 busca — que é exatamente quando a pessoa descobre que a cliente não existe. O
-nome digitado vai junto para o formulário; ninguém deve escrever de novo o que
-acabou de procurar.
+nome digitado vai junto; ninguém deve escrever de novo o que acabou de procurar.
 
-Ao salvar, a cliente entra **já selecionada** na comanda e os dois drawers
-fecham. `z-[95]` para o cadastro ficar acima do picker (`z-[90]`).
+### Só nome e telefone (correção pedida pelo dono)
+
+A primeira versão abria o cadastro COMPLETO (`CustomerCreateModal`: apelido,
+e-mail, CPF, CNPJ, RG, aniversário, desconto, endereço…). O dono corrigiu:
+
+> "faça ser igual aparece em criar no agendamento, colocando somente o nome e o
+> número"
+
+Ele está certo, e o argumento é o contexto: quem está montando uma comanda com
+a cliente na frente não vai preencher CPF e endereço — quer o nome, o telefone,
+e voltar para a comanda. O agendamento já resolvia assim
+(`NewAppointmentModal.tsx:958-967`: `TextField` de nome + `PhoneField`), e ter
+dois padrões diferentes para a mesma tarefa é o que confunde.
+
+Agora o picker mostra os **dois campos ali mesmo**, sem abrir outro drawer.
+Salva com `useCreateCustomer` (`{ name, phone }`), a cliente entra já
+selecionada e o picker fecha.
+
+O cadastro completo continua alcançável por um link **"Preencher cadastro
+completo"** abaixo dos campos, levando o que já foi digitado — quem precisa de
+CPF na hora não fica sem caminho. Por isso `initialName`/`onCreated`/`zClass`
+seguem em uso, e não viraram código morto.
 
 ## Parte 2 — o serviço no agendamento
 

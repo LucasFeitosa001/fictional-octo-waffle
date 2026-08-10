@@ -1477,14 +1477,16 @@ export function NovoComandaDrawer({
         isOpen={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={(c) => setSelectedCustomer(c)}
-        onCreateNew={(nome) => {
+        // Cadastro rápido (nome + telefone) dentro do próprio picker, igual ao
+        // agendamento — o dono recusou o cadastro completo aqui. Estudo 155.
+        permitirCadastro
+        onCadastroCompleto={(nome) => {
           setNovoClienteNome(nome);
           setNovoClienteOpen(true);
         }}
       />
-      {/* Sobe acima do picker (z-[90]) para o cadastro não ficar atrás dele.
-          Ao salvar, a cliente já entra escolhida e os dois drawers fecham —
-          a pessoa volta para a comanda pronta para continuar. Estudo 155. */}
+      {/* Escape para quem precisa de CPF/endereço na hora: sobe acima do picker
+          (z-[90]) e, ao salvar, a cliente já entra escolhida. Estudo 155. */}
       <CustomerCreateModal
         isOpen={novoClienteOpen}
         zClass="z-[95]"
