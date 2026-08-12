@@ -30,6 +30,14 @@ packages/db/src/generated/
 *.env.backup-*
 apps/api/.secrets/
 
+# Pacote de envs capturadas, movido para dentro do repo em 07/08/2026 a pedido.
+# Contém PRODUÇÃO em texto puro: senha do RDS, BETTER_AUTH_SECRET, chaves
+# AWS/Google e os segredos VOLTR_* da ponte com o CRM.
+# Atenção: as regras `.env` acima NÃO cobrem estes arquivos — eles se chamam
+# `apps_api_.env`, `beautypass-api.env`, `beautypass-api.env.json`. Esta linha
+# é a única coisa entre eles e o github.com/p-lacerda/salonpass. Não remover.
+/.envs-backup/
+
 # Fila de WhatsApp salva para diagnóstico: tem telefone e texto de mensagem de
 # cliente real. Fica no disco para investigar, nunca no repositório.
 belasis-reference/_backup-fila-*/
