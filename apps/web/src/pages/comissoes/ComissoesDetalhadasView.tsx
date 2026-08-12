@@ -159,6 +159,31 @@ export function ComissoesDetalhadasView({
   // janela é como o salão esquece de pagar alguém.
   const [showPrevious, setShowPrevious] = useState(false);
 
+  // FILTRO DE EXIBIÇÃO (estudo 156). Começa com tudo marcado para a tela abrir
+  // como sempre abriu. Estornado fica de fora porque a consulta padrão já os
+  // exclui — marcá-lo não traria nada até alguém pedir esse recorte.
+  const [situacoes, setSituacoes] = useState<Record<string, boolean>>({
+    open: true,
+    paid: true,
+    reversed: false,
+  });
+  const [origens, setOrigens] = useState<Record<string, boolean>>({
+    service: true,
+    product: true,
+  });
+
+  /** Alterna sem deixar a dimensão inteira desmarcada — a tabela ficaria vazia
+   *  sem explicação, e a pessoa não saberia que foi ela quem escondeu tudo. */
+  function alternar(
+    mapa: Record<string, boolean>,
+    set: (v: Record<string, boolean>) => void,
+    chave: string,
+  ) {
+    const proximo = { ...mapa, [chave]: !mapa[chave] };
+    if (!Object.values(proximo).some(Boolean)) return;
+    set(proximo);
+  }
+
   const professionals = useProfessionals();
   const lista = useMemo(
     () => (professionals.data?.data ?? []).filter((p) => p.active !== false),
@@ -188,6 +213,32 @@ export function ComissoesDetalhadasView({
     .reduce((s, it) => s + it.commissionAmount + it.bonusAmount, 0);
   const liquido = Math.max(0, comissoes + bonificacoes - vales);
   const podePagar = emAberto.length > 0 && liquido > 0;
+
+  // A tabela mostra o recorte escolhido; os totais acima e o pagamento seguem
+  // sobre o PERÍODO INTEIRO de propósito — se o filtro mexesse neles, o botão
+  // "Pagar" quitaria só a fatia visível e deixaria o resto para trás. Estudo 156.
+  const todosItens = d?.items ?? [];
+  const itensVisiveis = useMemo(
+    () =>
+      todosItens.filter((it) => {
+        if (!situacoes[it.status]) return false;
+        const kinds = (it.orderItems ?? []).map((oi) => oi.kind);
+        // Lançamento sem item detalhado (import antigo) não pode sumir por um
+        // filtro de origem que ele não tem como satisfazer.
+        if (kinds.length === 0) return true;
+        return kinds.some((k) => origens[k]);
+      }),
+    [todosItens, situacoes, origens],
+  );
+  const filtroAtivo =
+    itensVisiveis.length !== todosItens.length ||
+    Object.values(situacoes).some((v) => !v) ||
+    Object.values(origens).some((v) => !v);
+
+  function limparFiltro() {
+    setSituacoes({ open: true, paid: true, reversed: true });
+    setOrigens({ service: true, product: true });
+  }
 
   const escolhido = lista.find((p) => p.id === professionalId);
 
@@ -350,6 +401,72 @@ export function ComissoesDetalhadasView({
             label="Mostrar comissões anteriores"
           />
         </div>
+
+        {/* Tipos de comissão — filtro de EXIBIÇÃO. Ver estudo 156: os totais e o
+            pagamento continuam sobre o período inteiro, e a tela avisa isso
+            quando algo está escondido. */}
+        <div className={CARD_CLASS}>
+          <span className="mb-2 block text-xs font-medium text-muted">
+            Tipos de comissão
+          </span>
+
+          <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-muted">
+            Situação
+          </span>
+          <div className="flex flex-col gap-1.5">
+            {[
+              { id: 'open', label: 'Em aberto' },
+              { id: 'paid', label: 'Pagas' },
+              { id: 'reversed', label: 'Estornadas' },
+            ].map((op) => (
+              <label
+                key={op.id}
+                className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+              >
+                <input
+                  type="checkbox"
+                  checked={situacoes[op.id] ?? false}
+                  onChange={() => alternar(situacoes, setSituacoes, op.id)}
+                  className="h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+                />
+                {op.label}
+              </label>
+            ))}
+          </div>
+
+          <span className="mb-1.5 mt-3 block text-[11px] font-medium uppercase tracking-wide text-muted">
+            Origem
+          </span>
+          <div className="flex flex-col gap-1.5">
+            {[
+              { id: 'service', label: 'Serviços' },
+              { id: 'product', label: 'Produtos' },
+            ].map((op) => (
+              <label
+                key={op.id}
+                className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+              >
+                <input
+                  type="checkbox"
+                  checked={origens[op.id] ?? false}
+                  onChange={() => alternar(origens, setOrigens, op.id)}
+                  className="h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+                />
+                {op.label}
+              </label>
+            ))}
+          </div>
+
+          {filtroAtivo && (
+            <button
+              type="button"
+              onClick={limparFiltro}
+              className="mt-3 text-xs font-medium text-primary hover:underline"
+            >
+              Mostrar todas
+            </button>
+          )}
+        </div>
       </aside>
 
       {/* Tabela item a item + rodapé de totais */}
@@ -359,19 +476,48 @@ export function ComissoesDetalhadasView({
             <LoadingState />
           ) : detail.isError ? (
             <ErrorState onRetry={() => detail.refetch()} />
-          ) : (d?.items ?? []).length === 0 ? (
+          ) : todosItens.length === 0 ? (
             <EmptyState
               icon={<IconReceipt size={32} />}
               title="Nenhum item encontrado"
               description="Não há lançamentos de comissão para este profissional no período escolhido."
             />
-          ) : (
-            <DataTable
-              aria-label={`Comissões detalhadas de ${escolhido?.name ?? ''}`}
-              columns={COLUMNS}
-              rows={d?.items ?? []}
-              getKey={(it) => it.id}
+          ) : itensVisiveis.length === 0 ? (
+            /* Diferente do vazio acima: aqui HÁ lançamentos, o filtro é que
+               escondeu todos. Dizer "nenhum item encontrado" mandaria a pessoa
+               procurar erro no período. Estudo 156. */
+            <EmptyState
+              icon={<IconReceipt size={32} />}
+              title="Nenhum lançamento neste filtro"
+              description={`Há ${todosItens.length} lançamento(s) no período, mas nenhum do tipo escolhido. Use "Mostrar todas" para ver tudo.`}
             />
+          ) : (
+            <>
+              {filtroAtivo && (
+                <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--color-soft-border)] bg-cream/50 px-3 py-2 text-xs text-muted-ink">
+                  <span>
+                    Mostrando <strong>{itensVisiveis.length}</strong> de{' '}
+                    <strong>{todosItens.length}</strong> lançamentos.
+                  </span>
+                  {/* Sem esta frase o filtro vira pegadinha: a tabela mostra uma
+                      coisa e o total abaixo mostra outra. */}
+                  <span>Os totais e o pagamento continuam sobre o período inteiro.</span>
+                  <button
+                    type="button"
+                    onClick={limparFiltro}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Mostrar todas
+                  </button>
+                </div>
+              )}
+              <DataTable
+                aria-label={`Comissões detalhadas de ${escolhido?.name ?? ''}`}
+                columns={COLUMNS}
+                rows={itensVisiveis}
+                getKey={(it) => it.id}
+              />
+            </>
           )}
         </div>
 
