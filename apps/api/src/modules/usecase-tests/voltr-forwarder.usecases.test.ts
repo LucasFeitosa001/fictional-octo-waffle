@@ -275,7 +275,8 @@ describe('Recibo da Voltr casa pela chave que a Voltr conhece (estudo 100)', () 
  */
 describe('Par id-do-WhatsApp ↔ externalId da Voltr (estudo 100)', () => {
   function whatsappService() {
-    return new WhatsappService({} as never);
+    // 2º argumento: o cliente da uazapi (estudo 158). Não é usado neste teste.
+    return new WhatsappService({} as never, { configurado: false } as never);
   }
 
   function interno(service: WhatsappService) {

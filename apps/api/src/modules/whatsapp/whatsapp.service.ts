@@ -17,6 +17,7 @@ import { useDbAuthState } from './whatsapp-auth';
 import { RETRY_COUNTER_CACHE } from './retry-cache';
 import { escolherJidConhecido } from './jid-escolha';
 import { UploadsService } from '../uploads/uploads.service';
+import { UazapiClient } from './uazapi.client';
 import {
   autorizacaoAindaVale,
   expirouNaFila,
@@ -66,6 +67,8 @@ const CONFIG_SESSION_ID = 'config';
 const CONFIG_CATEGORY = 'owner';
 const RUNTIME_CATEGORY = 'runtime';
 const CONNECTION_LEASE_ITEM_ID = 'connection-lease';
+/** Chave da Setting que escolhe o transporte de WhatsApp da empresa (estudo 158). */
+export const WHATSAPP_PROVIDER_KEY = 'whatsapp.provider';
 const CONNECTION_LEASE_TTL_MS = 45_000;
 const CONNECTION_LEASE_HEARTBEAT_MS = 15_000;
 /**
@@ -213,6 +216,8 @@ const MAX_INBOUND_MEDIA_BYTES = 16 * 1024 * 1024;
 // disso é peso morto na tabela. Ver estudo 69.
 const RETENCAO_COPIA_MS = 14 * 24 * 60 * 60 * 1000;
 const LIMPEZA_COPIAS_TICK_MS = 6 * 60 * 60 * 1000;
+/** De quanto em quanto tempo relemos quem está na uazapi (estudo 158). */
+const UAZAPI_RELOAD_TICK_MS = 60_000;
 
 // Minimal pino-compatible logger so Baileys stays quiet (it logs verbosely).
 function silentLogger(): any {
@@ -294,6 +299,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly deliveryHandlers = new Set<WhatsappDeliveryHandler>();
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private limpezaTimer: ReturnType<typeof setInterval> | null = null;
+  private uazapiTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
   private readonly instanceId = randomUUID();
@@ -313,8 +319,48 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly uazapi: UazapiClient,
     private readonly uploads?: UploadsService,
   ) {}
+
+  /**
+   * Qual transporte esta empresa usa. `Setting` `whatsapp.provider` com
+   * `{ "provider": "uazapi" }` manda pela uazapi; ausência da linha, JSON
+   * estranho ou qualquer outro valor cai no Baileys, que é o comportamento de
+   * sempre. Mesmo mecanismo de `notifications.automation` — sem tabela nova.
+   *
+   * Cache curto porque isto é lido a cada mensagem drenada da fila.
+   * Ver estudo 158.
+   */
+  private readonly provedorCache = new Map<string, { valor: 'baileys' | 'uazapi'; ate: number }>();
+
+  async provedorDaEmpresa(companyId: string): Promise<'baileys' | 'uazapi'> {
+    const agora = Date.now();
+    const cache = this.provedorCache.get(companyId);
+    if (cache && cache.ate > agora) return cache.valor;
+    let valor: 'baileys' | 'uazapi' = 'baileys';
+    try {
+      const row = await this.prisma.client.setting.findUnique({
+        where: { companyId_key: { companyId, key: WHATSAPP_PROVIDER_KEY } },
+      });
+      const json = row?.valueJson as { provider?: unknown } | null;
+      // Só ativa se o cliente estiver realmente configurado: sem as variáveis
+      // de ambiente, apontar para uazapi deixaria a empresa MUDA.
+      if (json?.provider === 'uazapi' && this.uazapi.configurado) valor = 'uazapi';
+      else if (json?.provider === 'uazapi') {
+        this.logger.error(
+          `Empresa ${companyId} está marcada para uazapi, mas o cliente não está ` +
+            'configurado (UAZAPI_BASE_URL / UAZAPI_INSTANCE_TOKEN). Usando Baileys.',
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao ler o provedor de WhatsApp (company=${companyId}): ${(err as Error).message}`,
+      );
+    }
+    this.provedorCache.set(companyId, { valor, ate: agora + 30_000 });
+    return valor;
+  }
 
   private getCurrentWaVersion(): Promise<WAVersion | undefined> {
     if (!this.waVersionPromise) {
@@ -340,9 +386,14 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('WhatsApp desabilitado (defina WHATSAPP_ENABLED=true para ativar).');
       return;
     }
-    // Fire-and-forget: nunca bloqueia o boot da API nos sockets do WhatsApp.
-    // Reconecta cada empresa que já tem credenciais salvas.
-    void this.reconnectSavedSessions();
+    // Quem usa uazapi precisa estar conhecido ANTES de reconectar sessões: uma
+    // empresa migrada não pode subir socket Baileys, senão dois clientes
+    // disputam o mesmo número e o WhatsApp derruba um. Ver estudo 158.
+    void this.recarregarEmpresasUazapi().then(() => this.reconnectSavedSessions());
+    this.uazapiTimer = setInterval(
+      () => void this.recarregarEmpresasUazapi(),
+      UAZAPI_RELOAD_TICK_MS,
+    );
     // Drena o outbox num timer; no-op enquanto nenhum socket estiver aberto.
     this.outboxTimer = setInterval(() => void this.drainOutbox(), OUTBOX_TICK_MS);
     // A cópia para reenvio só serve na janela em que o aparelho ainda pode
@@ -376,6 +427,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     if (this.outboxTimer) clearInterval(this.outboxTimer);
     if (this.limpezaTimer) clearInterval(this.limpezaTimer);
+    if (this.uazapiTimer) clearInterval(this.uazapiTimer);
     for (const session of this.sessions.values()) {
       if (session.connectTimeout) clearTimeout(session.connectTimeout);
       if (session.leaseHeartbeat) clearInterval(session.leaseHeartbeat);
@@ -721,6 +773,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   ): { status: WaStatus; hasQr: boolean; phone: string | null } {
     if (!this.enabled) {
       return { status: 'disabled', hasQr: false, phone: null };
+    }
+    // Empresa na uazapi não tem socket: sem isto a tela mostraria "desconectado"
+    // com o WhatsApp dela funcionando perfeitamente pelo provedor. O estado vem
+    // do cache alimentado junto com a lista de empresas. Ver estudo 158.
+    if (this.empresasUazapi.has(companyId)) {
+      const u = this.statusUazapi;
+      return {
+        status: u?.connected ? 'open' : 'connecting',
+        hasQr: Boolean(u?.qrcode),
+        phone: u?.phone ?? null,
+      };
     }
     const session = this.sessions.get(companyId);
     if (!session) {
@@ -1265,7 +1328,48 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         ids.push(session.companyId);
       }
     }
-    return ids;
+    // Empresas que usam uazapi não têm socket Baileys — a sessão delas vive no
+    // provedor. Sem isto a fila delas nunca seria drenada: o filtro abaixo
+    // exige `status === 'open'`, que nunca acontece. Ver estudo 158.
+    for (const companyId of this.empresasUazapi) {
+      const session = this.sessions.get(companyId);
+      if (!session || session.nextSendAt <= readyAt) ids.push(companyId);
+    }
+    return [...new Set(ids)];
+  }
+
+  /**
+   * Empresas com `whatsapp.provider = uazapi`, recarregadas periodicamente.
+   * Precisa ser SÍNCRONO no `openCompanyIds` (chamado no laço de drenagem), por
+   * isso é um Set em memória alimentado por `recarregarEmpresasUazapi`.
+   */
+  private empresasUazapi = new Set<string>();
+  /** Último estado lido da instância uazapi, para o `getStatus` síncrono. */
+  private statusUazapi: import('./uazapi.client').UazapiStatus | null = null;
+
+  private async recarregarEmpresasUazapi(): Promise<void> {
+    if (!this.uazapi.configurado) {
+      this.empresasUazapi = new Set();
+      return;
+    }
+    try {
+      const rows = await this.prisma.client.setting.findMany({
+        where: { key: WHATSAPP_PROVIDER_KEY },
+        select: { companyId: true, valueJson: true },
+      });
+      const set = new Set<string>();
+      for (const r of rows) {
+        const json = r.valueJson as { provider?: unknown } | null;
+        if (json?.provider === 'uazapi') set.add(r.companyId);
+      }
+      this.empresasUazapi = set;
+      // Estado da instância para a tela responder sem ir na rede a cada clique.
+      if (set.size > 0) this.statusUazapi = await this.uazapi.status();
+    } catch (err) {
+      // Mantém o conjunto anterior: zerar aqui silenciaria as empresas que já
+      // estavam na uazapi por causa de uma falha momentânea de leitura.
+      this.logger.warn(`Falha ao recarregar empresas da uazapi: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -1340,8 +1444,14 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }): Promise<void> {
     const db = this.prisma.client;
     const session = msg.companyId ? this.sessions.get(msg.companyId) : undefined;
+    // Empresa na uazapi não tem socket: a sessão vive no provedor, e exigir
+    // `status === 'open'` deixaria a fila dela parada para sempre. O envio dela
+    // é tratado mais abaixo, antes de qualquer uso de `session.sock`.
+    const viaUazapi = msg.companyId
+      ? (await this.provedorDaEmpresa(msg.companyId)) === 'uazapi'
+      : false;
     // Sem company ou sem socket aberto → não há por onde enviar; deixa pendente.
-    if (!session || session.status !== 'open' || !session.sock) return;
+    if (!viaUazapi && (!session || session.status !== 'open' || !session.sock)) return;
     try {
       // TRAVA 2 (estudo 60): o que envelheceu na fila não sai. Lembrete de 1h
       // atrás ainda faz sentido; de ontem, não — e foi exatamente isso que
@@ -1389,6 +1499,56 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       }
 
       if (await this.deferIfRateLimited(msg)) return;
+
+      // ── TRANSPORTE uazapi ────────────────────────────────────────────────
+      // Sai ANTES da resolução de JID: a uazapi endereça por telefone, e o
+      // `resolveJid` depende de um socket Baileys que esta empresa não tem.
+      // Tudo acima (autorização, idempotência, pacing) e o tratamento de erro
+      // do `catch` valem igual para os dois transportes.
+      //
+      // Sem cair para o Baileys em caso de falha: a mensagem volta para a fila
+      // e tenta de novo pela uazapi. Trocar de transporte no meio duplicaria
+      // uma mensagem cujo resultado da primeira tentativa é incerto — e
+      // duplicada para cliente real é dano. Ver estudo 158.
+      if (viaUazapi) {
+        if (msg.mediaUrl) {
+          // Mídia ainda não mapeada no cliente da uazapi. Falhar alto é melhor
+          // que mandar só o texto: a cliente receberia a mensagem sem a foto ou
+          // o documento que ERA o conteúdo.
+          throw new Error('Envio de mídia pela uazapi ainda não implementado.');
+        }
+        const envio = await this.uazapi.enviarTexto(msg.toPhone, msg.text);
+        await db.whatsappOutbox.update({
+          where: { id: msg.id },
+          data: {
+            status: 'sent',
+            sentAt: new Date(),
+            attempts: msg.attempts + 1,
+            lastError: null,
+            whatsappMessageId: envio.messageId,
+            sentMessageJson: envio.raw
+              ? (JSON.parse(JSON.stringify(envio.raw)) as Prisma.InputJsonValue)
+              : Prisma.DbNull,
+          },
+        });
+        if (msg.inboxMessageId) {
+          await db.whatsappInboxMessage.updateMany({
+            where: { id: msg.inboxMessageId },
+            data: {
+              status: 'sent',
+              sentAt: new Date(),
+              ...(envio.messageId ? { whatsappMessageId: envio.messageId } : {}),
+            },
+          });
+        }
+        if (session) session.nextSendAt = Date.now() + this.nextPacingDelay(msg.kind);
+        this.logger.log(
+          `Outbox ${msg.id}: enviado via uazapi para ${msg.toPhone} (company=${msg.companyId}).`,
+        );
+        return;
+      }
+      // Daqui para baixo é o caminho Baileys, que exige socket vivo.
+      if (!session || session.status !== 'open' || !session.sock) return;
       // Ordem: JID da própria linha > JID já conhecido da conversa > telefone.
       //
       // O do meio é o que faltava. A automação de agendamento nasce sem toJid,
@@ -1981,6 +2141,14 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    */
   private async connect(companyId: string): Promise<void> {
     if (!this.enabled) return;
+    // Empresa migrada para a uazapi NÃO abre socket Baileys. Dois clientes no
+    // mesmo número fazem o WhatsApp derrubar um deles — e seria justamente a
+    // sessão boa (a da uazapi) que cairia, já que o Baileys ficaria pedindo QR
+    // novo. Ver estudo 158.
+    if (this.empresasUazapi.has(companyId)) {
+      this.logger.debug(`Conexão Baileys ignorada: empresa ${companyId} usa uazapi.`);
+      return;
+    }
     const session = this.getSession(companyId);
     if (session.connecting || session.status === 'open') return;
     session.connecting = true;

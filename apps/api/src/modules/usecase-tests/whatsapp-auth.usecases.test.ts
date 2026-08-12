@@ -78,7 +78,8 @@ describe('Persistência criptográfica do WhatsApp', () => {
           return [{ data: {} }];
         },
       },
-    } as any);
+      // 2º argumento: o cliente da uazapi (estudo 158). Não é usado aqui.
+    } as any, { configurado: false } as any);
 
     const acquired = await (service as any).acquireConnectionLease('company-a');
     const generation = (service as any).instanceStartedAt as number;
