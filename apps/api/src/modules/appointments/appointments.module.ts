@@ -4,9 +4,11 @@ import { AppointmentsController } from './appointments.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { EmailModule } from '../email/email.module';
+import { QueuesModule } from '../queues/queues.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [NotificationsModule, WhatsappModule, EmailModule],
+  imports: [AuthModule, NotificationsModule, WhatsappModule, EmailModule, QueuesModule],
   controllers: [AppointmentsController],
   providers: [AppointmentsService],
   exports: [AppointmentsService],

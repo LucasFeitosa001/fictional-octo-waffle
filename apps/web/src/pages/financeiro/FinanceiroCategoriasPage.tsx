@@ -7,6 +7,7 @@ import { Button, Card, Chip, Input, ListBox, Select, TextField } from '@heroui/r
 import { PageHeader } from '../../components/PageHeader';
 import { EmptyState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
+import { FilterCheckbox } from '../../components/FilterCheckbox';
 import { useConfirm } from '../../components/ConfirmDialog';
 import {
   IconCheck,
@@ -323,7 +324,9 @@ function CategoriaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={initial ? 'Editar categoria' : 'Nova categoria'}
+      widthClass="sm:w-[480px]"
       footer={
         <>
           {initial ? (
@@ -372,15 +375,9 @@ function CategoriaDrawer({
             </Select.Popover>
           </Select>
         </div>
-        <label className="inline-flex w-fit items-center gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-[var(--sp-primary)]"
-            checked={active}
-            onChange={(e) => setActive(e.target.checked)}
-          />
+        <FilterCheckbox checked={active} onChange={setActive} className="w-fit">
           Categoria ativa
-        </label>
+        </FilterCheckbox>
       </div>
     </Drawer>
   );

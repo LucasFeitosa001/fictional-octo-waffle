@@ -17,5 +17,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis backs BullMQ (message automations: reminders, follow-ups, campaigns).
+  # Host port 6381 to avoid clashing with other local projects (6379/6399 taken).
+  # AOF persistence so delayed/repeatable jobs survive a container restart.
+  redis:
+    image: redis:7-alpine
+    container_name: beautypass-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6381:6379"
+    volumes:
+      - beautypass_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   beautypass_pgdata:
+  beautypass_redisdata:

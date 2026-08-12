@@ -88,6 +88,7 @@ export function CaixaPage() {
         <KpiCard
           icon={<IconClock size={18} />}
           label="Caixa aberto"
+          tone="balance"
           loading={open.isLoading}
         >
           {openCash ? (
@@ -105,14 +106,14 @@ export function CaixaPage() {
           )}
         </KpiCard>
 
-        <KpiCard icon={<IconCash size={18} />} label="Caixas no período">
+        <KpiCard icon={<IconCash size={18} />} label="Caixas no período" tone="stock">
           <div className="text-2xl font-bold text-foreground">{rows.length}</div>
           <div className="mt-1 text-sm text-muted">
             de {history.data?.total ?? allRows.length} no histórico
           </div>
         </KpiCard>
 
-        <KpiCard icon={<IconWallet size={18} />} label="Total conferido no período">
+        <KpiCard icon={<IconWallet size={18} />} label="Total conferido no período" tone="income">
           <div className="text-2xl font-bold text-foreground">{formatMoney(countedTotal)}</div>
           <div className="mt-1 text-sm text-muted">Somatório dos saldos conferidos</div>
         </KpiCard>
@@ -172,11 +173,13 @@ export function CaixaPage() {
 function KpiCard({
   icon,
   label,
+  tone,
   loading,
   children,
 }: {
   icon: React.ReactNode;
   label: string;
+  tone: 'balance' | 'stock' | 'income';
   loading?: boolean;
   children: React.ReactNode;
 }) {
@@ -184,7 +187,13 @@ function KpiCard({
     <Card className="border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]">
       <Card.Content className="p-5">
         <div className="mb-2 flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gold/15 text-gold-strong">
+          <span
+            className="grid h-9 w-9 place-items-center rounded-xl"
+            style={{
+              background: `var(--sp-data-${tone}-soft)`,
+              color: `var(--sp-data-${tone})`,
+            }}
+          >
             {icon}
           </span>
           <span className="text-sm font-medium text-muted">{label}</span>

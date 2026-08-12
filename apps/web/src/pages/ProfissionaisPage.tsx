@@ -1,26 +1,44 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Card, Chip, Input, Switch, TextField } from '@heroui/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Avatar, Button, Checkbox, Chip, Input, ListBox, Select, Spinner, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { useConfirm } from '../components/ConfirmDialog';
+import { PhoneField } from '../components/PhoneField';
+import { DatePicker } from '../components/DatePicker';
 import { Drawer } from '../components/Drawer';
+import { TemporaryAccessCard } from '../components/TemporaryAccessCard';
+import { InlineSearch } from '../components/InlineSearch';
 import { ImageUpload } from '../components/ImageUpload';
+import { PermissionsEditor } from '../components/PermissionsEditor';
+import { AppTabs } from '../components/AppTabs';
 import {
   IconCheck,
+  IconCalendar,
+  IconCopy,
+  IconDollar,
   IconDownload,
-  IconInfo,
+  IconExternalLink,
+  IconLayers,
+  IconLink,
+  IconLock,
   IconPencil,
   IconPlus,
+  IconRefresh,
   IconScissors,
   IconSearch,
+  IconSettings,
   IconTrash,
   IconUser,
   IconUserMinus,
   IconUserPlus,
+  IconWhatsApp,
+  IconX,
 } from '../components/icons';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { AnimatedSelectionCell } from '../components/AnimatedSelectionCell';
 import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { SwitchRow } from '../components/SwitchRow';
 import { useSelectMode, buildSelectActions, type BulkAction } from '../hooks/useSelectMode';
 import { useSetPageActions } from '../layout/PageActions';
 import { downloadCsv } from '../lib/csv';
@@ -28,26 +46,58 @@ import { useProfessionals, useServices } from '../lib/queries';
 import {
   useCreateProfessional,
   useDeleteProfessional,
+  useInviteProfessional,
   useProfessionalDetail,
   useSetProfessionalCommissionRules,
   useSetProfessionalSchedules,
   useSetProfessionalServices,
   useUpdateProfessional,
+  type InviteResult,
   type ProfessionalBody,
   type ProfessionalCommissionRuleRow,
 } from '../lib/queries/profissionais';
+import {
+  useCreateProfessionalAccess,
+  useRoles,
+  useUpdateUsuarioRole,
+} from '../lib/queries/usuarios';
+import { useWhatsappStatus } from '../lib/queries/whatsapp';
 import { initials, toDateInput } from '../lib/format';
+import { generateTemporaryPassword } from '../lib/password';
 import type { Professional } from '../lib/types';
+import { toast } from '../lib/toast';
 import { useAutoCreate } from '../lib/useAutoCreate';
+
+/**
+ * O row de /professionals carrega `userId` (scalar) e — quando linkado — o
+ * `email` do usuário. O tipo compartilhado não os declara, então estendemos
+ * localmente. `userId` nulo = profissional SEM login (sem acesso ao Salonpass).
+ */
+export type ProfessionalWithAccess = Professional & {
+  userId?: string | null;
+  email?: string | null;
+};
+
+function accessOf(p: Professional): ProfessionalWithAccess {
+  return p as ProfessionalWithAccess;
+}
 
 // O Belasis abre a lista em "Ativos" (não há um estado "Todos" na tela real).
 type StatusFilter = 'active' | 'inactive';
 
+const STATUS_TABS = [
+  { id: 'active', label: 'Ativos', icon: <IconUserPlus size={16} /> },
+  { id: 'inactive', label: 'Inativos', icon: <IconUserMinus size={16} /> },
+] satisfies { id: StatusFilter; label: string; icon: React.ReactNode }[];
+
+const EMPTY_PROFESSIONALS: Professional[] = [];
+
 export function ProfissionaisPage() {
   const confirm = useConfirm();
-  const professionals = useProfessionals();
+  // Tela de gestão: precisa dos inativos, é ela quem tem a aba "Inativos".
+  const professionals = useProfessionals(1, 50, { status: 'all' });
   const remove = useDeleteProfessional();
-  const allRows = professionals.data?.data ?? [];
+  const allRows = professionals.data?.data ?? EMPTY_PROFESSIONALS;
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Professional | null>(null);
@@ -75,7 +125,7 @@ export function ProfissionaisPage() {
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
   const sel = useSelectMode(ids);
 
-  function exportCsv() {
+  const exportCsv = useCallback(() => {
     downloadCsv<Professional>(
       'profissionais',
       [
@@ -87,7 +137,7 @@ export function ProfissionaisPage() {
       ],
       rows,
     );
-  }
+  }, [rows]);
 
   async function handleRemove(p: Professional) {
     const ok = await confirm({
@@ -102,71 +152,90 @@ export function ProfissionaisPage() {
 
   // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
   // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
-  const bulkActions: BulkAction[] = [
-    {
-      key: 'delete',
-      label: 'Excluir selecionados',
-      danger: true,
-      icon: <IconTrash size={18} />,
-      disabled: remove.isPending,
-      onClick: async () => {
-        const ok = await confirm({
-          title: `Remover ${sel.count} profissional(is)?`,
-          message: 'Essa ação não pode ser desfeita.',
-          confirmLabel: 'Remover',
-          danger: true,
-        });
-        if (!ok) return;
-        try {
-          await Promise.all([...sel.selected].map((id) => remove.mutateAsync(id)));
-          setActionsOpen(false);
-          sel.cancel();
-        } catch (err) {
-          window.alert(
-            err instanceof ApiClientError
-              ? err.message
-              : 'Não foi possível remover os profissionais.',
-          );
-        }
+  const bulkActions = useMemo<BulkAction[]>(
+    () => [
+      {
+        key: 'delete',
+        label: 'Excluir selecionados',
+        danger: true,
+        icon: <IconTrash size={18} />,
+        disabled: remove.isPending,
+        onClick: async () => {
+          const ok = await confirm({
+            title: `Remover ${sel.count} profissional(is)?`,
+            message: 'Essa ação não pode ser desfeita.',
+            confirmLabel: 'Remover',
+            danger: true,
+          });
+          if (!ok) return;
+          try {
+            await Promise.all([...sel.selected].map((id) => remove.mutateAsync(id)));
+            setActionsOpen(false);
+            sel.cancel();
+          } catch (err) {
+            window.alert(
+              err instanceof ApiClientError
+                ? err.message
+                : 'Não foi possível remover os profissionais.',
+            );
+          }
+        },
       },
-    },
-  ];
+    ],
+    [confirm, remove.isPending, remove.mutateAsync, sel.cancel, sel.count, sel.selected],
+  );
+
+  const openBulkActions = useCallback(() => setActionsOpen(true), []);
 
   // Mobile: enquanto selectMode ativo, a barra vira [Cancelar · Selecionar
   // todos · Ações] (buildSelectActions); senão, [Selecionar · Novo · Exportar].
-  useSetPageActions(
-    sel.selectMode
-      ? buildSelectActions({
-          onCancel: sel.cancel,
-          onSelectAll: sel.selectAll,
-          allSelected: sel.allSelected,
-          bulkActions,
-          onOpenActions: () => setActionsOpen(true),
-          count: sel.count,
-        })
-      : [
-          {
-            key: 'selecionar',
-            label: 'Selecionar',
-            icon: <IconCheck size={22} />,
-            onClick: sel.enter,
-          },
-          {
-            key: 'novo',
-            label: 'Novo',
-            icon: <IconPlus size={22} />,
-            onClick: () => setCreateOpen(true),
-          },
-          {
-            key: 'exportar',
-            label: 'Exportar',
-            icon: <IconDownload size={22} />,
-            onClick: () => exportCsv(),
-            disabled: rows.length === 0,
-          },
-        ],
-    [sel.selectMode, sel.allSelected, sel.count, rows],
+  const pageActions = useMemo(
+    () =>
+      sel.selectMode
+        ? buildSelectActions({
+            onCancel: sel.cancel,
+            onSelectAll: sel.selectAll,
+            allSelected: sel.allSelected,
+            bulkActions,
+            onOpenActions: openBulkActions,
+            count: sel.count,
+          })
+        : [
+            {
+              key: 'selecionar',
+              label: 'Selecionar',
+              icon: <IconCheck size={22} />,
+              onClick: sel.enter,
+            },
+            {
+              key: 'novo',
+              label: 'Novo',
+              icon: <IconPlus size={22} />,
+              onClick: () => setCreateOpen(true),
+            },
+            {
+              key: 'exportar',
+              label: 'Exportar',
+              icon: <IconDownload size={22} />,
+              onClick: exportCsv,
+              disabled: rows.length === 0,
+            },
+          ],
+    [
+      bulkActions,
+      exportCsv,
+      openBulkActions,
+      rows.length,
+      sel.allSelected,
+      sel.cancel,
+      sel.count,
+      sel.enter,
+      sel.selectAll,
+      sel.selectMode,
+    ],
   );
+
+  useSetPageActions(pageActions, [pageActions]);
 
   const totalLoaded = professionals.data?.total ?? allRows.length;
   const subtitle = professionals.isLoading
@@ -175,10 +244,10 @@ export function ProfissionaisPage() {
 
   return (
     <div>
-      {/* ── Cabeçalho: título (+ tutorial) à esquerda, Buscar/Novo à direita (Belasis) ── */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      {/* ── Cabeçalho padronizado das listagens ── */}
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink">Profissionais</h1>
+          <h1 className="text-xl font-semibold text-ink sm:text-2xl">Profissionais</h1>
           {/* Botão tutorial (círculo com play) — decorativo, como no Belasis */}
           <button
             type="button"
@@ -190,140 +259,170 @@ export function ProfissionaisPage() {
             </svg>
           </button>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
-          <Button variant="outline" onClick={() => setSearchOpen((v) => !v)}>
-            <IconSearch size={16} /> Buscar
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => (sel.selectMode ? sel.cancel() : sel.enter())}
+        <div className="flex items-center gap-1.5">
+          <InlineSearch
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
+            value={search}
+            onValueChange={setSearch}
+            onClose={() => setSearch('')}
+            placeholder="Buscar profissional"
+          />
+          {sel.selectMode ? (
+            <div className="hidden items-center md:inline-flex">
+              <button
+                type="button"
+                onClick={() => (sel.count > 0 ? setActionsOpen(true) : sel.selectAll())}
+                className={[
+                  'btn-ghost-hover inline-flex h-9 items-center gap-1.5 rounded-l-lg border px-3 text-sm font-medium transition-colors',
+                  sel.count > 0
+                    ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'border-line bg-card text-ink hover:bg-canvas',
+                ].join(' ')}
+              >
+                <IconLayers size={16} />
+                <span>{sel.count > 0 ? `Ações (${sel.count})` : 'Selecionar todos'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={sel.cancel}
+                aria-label="Sair do modo seleção"
+                className="btn-ghost-hover inline-flex h-9 items-center justify-center rounded-r-lg border border-l-0 border-line bg-card px-2 text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={sel.enter}
+              className="btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink transition-colors hover:bg-canvas md:inline-flex"
+            >
+              <IconLayers size={16} />
+              <span>Ações</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="btn-primary-hover hidden h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 md:inline-flex"
           >
-            <IconCheck size={16} /> {sel.selectMode ? 'Cancelar' : 'Selecionar'}
-          </Button>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <IconPlus size={16} /> Novo
-          </Button>
+            <IconPlus size={16} />
+            <span>Novo</span>
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Busca: sempre visível no mobile (Belasis "Digite para buscar"),
-          antes das tabs. Desktop revela via botão "Buscar". */}
-      <div className="mb-3 md:hidden">
+      {/* Mobile: busca sempre visível, igual às demais listagens. */}
+      <div className="relative mb-4 md:hidden">
+        <IconSearch
+          size={18}
+          className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-ink"
+        />
         <TextField value={search} onChange={setSearch} aria-label="Buscar profissional">
-          <Input placeholder="Digite para buscar" />
+          <Input
+            placeholder="Digite para buscar"
+            className="pl-9 focus:border-primary focus:ring-2 focus:ring-primary/25"
+          />
         </TextField>
       </div>
-      {searchOpen && (
-        <div className="mb-3 hidden max-w-md md:block">
-          <TextField value={search} onChange={setSearch} aria-label="Buscar profissional">
-            <Input placeholder="Digite para buscar" />
-          </TextField>
-        </div>
-      )}
 
-      {/* ── Abas Ativos / Inativos (underline, como no Belasis) ── */}
-      <div className="mb-3 flex items-center gap-6 border-b border-line">
-        <TabButton
-          active={status === 'active'}
-          onClick={() => setStatus('active')}
-          icon={<IconUserPlus size={22} />}
-        >
-          Ativos
-        </TabButton>
-        <TabButton
-          active={status === 'inactive'}
-          onClick={() => setStatus('inactive')}
-          icon={<IconUserMinus size={22} />}
-        >
-          Inativos
-        </TabButton>
-        {subtitle && <span className="ml-auto pb-2 text-xs text-muted-ink">{subtitle}</span>}
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <AppTabs
+          items={STATUS_TABS}
+          selectedKey={status}
+          onSelectionChange={setStatus}
+          ariaLabel="Status dos profissionais"
+          className="min-w-0"
+        />
+        {subtitle && <span className="text-xs text-muted-ink sm:ml-auto">{subtitle}</span>}
       </div>
 
-      {/* Barra de ações da seleção — desktop (no mobile isso vive na BottomNav) */}
-      {sel.selectMode && (
-        <div className="mb-3 hidden flex-wrap items-center gap-2 md:flex">
-          <Button variant="outline" size="sm" onClick={() => sel.selectAll()}>
-            <IconCheck size={14} /> {sel.allSelected ? 'Limpar seleção' : 'Selecionar todos'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-danger"
-            isDisabled={remove.isPending || sel.count === 0}
-            onClick={() => void bulkActions[0].onClick()}
-          >
-            <IconTrash size={14} /> Excluir selecionados ({sel.count})
-          </Button>
-          <Button variant="ghost" size="sm" onClick={sel.cancel}>
-            Cancelar
-          </Button>
-        </div>
-      )}
-
-      {/* DESKTOP: Card com cabeçalho de colunas + lista tabular */}
+      {/* DESKTOP: tabela padronizada com seleção animada. */}
       <div className="hidden md:block">
-        <Card>
-          <Card.Content className="p-4">
-            {professionals.isLoading ? (
-              <LoadingState />
-            ) : professionals.isError ? (
-              <ErrorState onRetry={() => professionals.refetch()} />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                icon={<IconScissors size={32} />}
-                title={
-                  hasFilters
-                    ? 'Nenhum profissional encontrado'
-                    : status === 'inactive'
-                      ? 'Nenhum profissional inativo'
-                      : 'Nenhum profissional cadastrado'
-                }
-                description={
-                  hasFilters
-                    ? 'Ajuste a busca para ver mais resultados.'
-                    : 'Cadastre profissionais e vincule seus serviços e horários.'
-                }
-                action={
-                  hasFilters ? (
-                    <Button variant="outline" onClick={() => setSearch('')}>
-                      Limpar busca
-                    </Button>
-                  ) : (
-                    <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                      <IconPlus size={16} /> Novo
-                    </Button>
-                  )
-                }
-              />
-            ) : (
-              <>
-                {/* Cabeçalho de colunas — ⓘ · Nome · Celular · E-mail, como no Belasis */}
-                <div className="flex items-center gap-3 border-b border-line pb-2 text-sm font-semibold text-ink">
-                  <IconInfo size={16} className="w-5 shrink-0 text-primary" />
-                  <span className="w-10 shrink-0" />
-                  <span className="min-w-0 flex-1">Nome</span>
-                  <span className="w-52 shrink-0">Celular</span>
-                  <span className="min-w-0 flex-1">E-mail</span>
-                  <span className="w-20 shrink-0" />
-                </div>
-                <ul>
-                  {rows.map((p) => (
-                    <ProfessionalDesktopRow
-                      key={p.id}
-                      professional={p}
-                      selectMode={sel.selectMode}
-                      selected={sel.isSelected(p.id)}
-                      onToggle={() => sel.toggle(p.id)}
-                      onEdit={() => setEditing(p)}
-                      onRemove={() => handleRemove(p)}
-                    />
-                  ))}
-                </ul>
-              </>
-            )}
-          </Card.Content>
-        </Card>
+        {professionals.isLoading ? (
+          <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
+            <LoadingState />
+          </div>
+        ) : professionals.isError ? (
+          <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
+            <ErrorState onRetry={() => professionals.refetch()} />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-xl border border-line bg-card p-6 shadow-[var(--shadow-card)]">
+            <EmptyState
+              icon={<IconScissors size={32} />}
+              title={
+                hasFilters
+                  ? 'Nenhum profissional encontrado'
+                  : status === 'inactive'
+                    ? 'Nenhum profissional inativo'
+                    : 'Nenhum profissional cadastrado'
+              }
+              description={
+                hasFilters
+                  ? 'Ajuste a busca para ver mais resultados.'
+                  : 'Cadastre profissionais e vincule seus serviços e horários.'
+              }
+              action={
+                hasFilters ? (
+                  <Button variant="outline" onClick={() => setSearch('')}>
+                    Limpar busca
+                  </Button>
+                ) : (
+                  <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                    <IconPlus size={16} /> Novo
+                  </Button>
+                )
+              }
+            />
+          </div>
+        ) : (
+          <div className="overflow-clip rounded-xl border border-line bg-card shadow-[var(--shadow-card)]">
+            <table className="w-full border-collapse text-sm" aria-label="Profissionais">
+              <thead className="sticky top-0 z-20 bg-card">
+                <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  <AnimatedSelectionCell
+                    active={sel.selectMode}
+                    header
+                    className="py-3 pl-4 pr-2"
+                  >
+                    <Checkbox
+                      isSelected={sel.allSelected}
+                      onChange={() => sel.selectAll()}
+                      aria-label="Selecionar todos os profissionais"
+                      className="shrink-0"
+                    >
+                      <Checkbox.Content>
+                        <Checkbox.Control>
+                          <Checkbox.Indicator />
+                        </Checkbox.Control>
+                      </Checkbox.Content>
+                    </Checkbox>
+                  </AnimatedSelectionCell>
+                  <th className="px-4 py-3 font-semibold">Profissional</th>
+                  <th className="px-4 py-3 font-semibold">Celular</th>
+                  <th className="px-4 py-3 font-semibold">E-mail</th>
+                  <th className="w-36 px-4 py-3 font-semibold">Acesso</th>
+                  <th className="w-24 px-4 py-3 text-center font-semibold">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((professional) => (
+                  <ProfessionalDesktopRow
+                    key={professional.id}
+                    professional={professional}
+                    selectMode={sel.selectMode}
+                    selected={sel.isSelected(professional.id)}
+                    onToggle={() => sel.toggle(professional.id)}
+                    onEdit={() => setEditing(professional)}
+                    onRemove={() => handleRemove(professional)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* MOBILE: lista direto no fluxo, SEM Card wrapper (regra do projeto).
@@ -398,37 +497,22 @@ export function ProfissionaisPage() {
   );
 }
 
-// Aba underline Ativos/Inativos (texto azul + traço inferior no ativo — themeable).
-function TabButton({
-  active,
-  onClick,
-  icon,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        '-mb-px flex flex-col items-center gap-1 border-b-2 pb-2 text-sm font-medium transition-colors',
-        active
-          ? 'border-primary text-primary'
-          : 'border-transparent text-muted-ink hover:text-ink',
-      ].join(' ')}
-    >
-      {icon}
-      <span>{children}</span>
-    </button>
+// Chip de acesso — "Com acesso" (verde) se o profissional tem login vinculado
+// (userId != null), senão "Sem acesso" (neutro).
+function AccessChip({ hasAccess }: { hasAccess: boolean }) {
+  return hasAccess ? (
+    <Chip color="success" variant="soft" size="sm" className="gap-1">
+      <IconCheck size={12} /> Com acesso
+    </Chip>
+  ) : (
+    <Chip color="default" variant="soft" size="sm" className="gap-1">
+      <IconLock size={12} /> Sem acesso
+    </Chip>
   );
 }
 
 // ---------------------------------------------------------------------
-// Linha desktop — espelha o Belasis: avatar · Nome(+tag) · Celular · E-mail.
+// Linha desktop — tabela padrão: seleção animada · profissional · contato · acesso.
 function ProfessionalDesktopRow({
   professional: p,
   selectMode,
@@ -445,76 +529,84 @@ function ProfessionalDesktopRow({
   onRemove: () => void;
 }) {
   return (
-    <li
+    <tr
+      onClick={() => (selectMode ? onToggle() : onEdit())}
       className={[
-        'group flex items-center gap-3 border-b border-line py-2.5 last:border-0 transition-colors',
-        selected ? 'bg-primary/5 ring-1 ring-inset ring-primary/40' : 'hover:bg-canvas',
+        'group cursor-pointer border-b border-line/60 transition-colors last:border-0',
+        selected
+          ? 'bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)]'
+          : 'hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]',
       ].join(' ')}
     >
-      {selectMode ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          className="ml-0.5 shrink-0"
-          aria-label={`Selecionar ${p.name}`}
-        >
-          <AnimatedCheckbox checked={selected} />
-        </button>
-      ) : (
-        <span className="w-5 shrink-0" />
-      )}
-      <Avatar size="sm" className="shrink-0">
-        {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
-        <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
-      </Avatar>
-
-      <button
-        type="button"
-        onClick={() => (selectMode ? onToggle() : onEdit())}
-        className="min-w-0 flex-1 text-left"
-        aria-label={selectMode ? `Selecionar ${p.name}` : `Editar ${p.name}`}
+      <AnimatedSelectionCell
+        active={selectMode}
+        className="py-2.5 pl-4 pr-2"
+        onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium uppercase text-primary">{p.name}</span>
-          {p.profession && (
-            <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
-              {p.profession}
-            </span>
-          )}
-          {!p.active && (
-            <Chip color="default" variant="soft" size="sm" className="shrink-0">
-              Inativo
-            </Chip>
-          )}
-        </div>
-        {p.nickname && (
-          <div className="truncate text-xs text-muted-ink">{p.nickname}</div>
-        )}
-      </button>
-
-      <div className="w-52 shrink-0 truncate text-sm text-ink">{p.phone ?? '—'}</div>
-
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
-        <IconUser size={15} className="shrink-0 text-primary" />
-        {/* TODO: adicionar `email` ao Professional para preencher esta coluna */}
-        <span className="truncate text-muted-ink">—</span>
-      </div>
-
-      <div className="flex w-20 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-danger"
-          aria-label={`Remover ${p.name}`}
-          onClick={onRemove}
+        <Checkbox
+          isSelected={selected}
+          onChange={onToggle}
+          aria-label={`Selecionar ${p.name}`}
+          className="shrink-0"
         >
-          <IconTrash size={16} />
-        </Button>
-        <Button variant="ghost" size="sm" aria-label={`Editar ${p.name}`} onClick={onEdit}>
-          <IconPencil size={16} />
-        </Button>
-      </div>
-    </li>
+          <Checkbox.Content>
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+          </Checkbox.Content>
+        </Checkbox>
+      </AnimatedSelectionCell>
+      <td className="px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar size="sm" className="shrink-0">
+            {p.avatarUrl ? <Avatar.Image src={p.avatarUrl} /> : null}
+            <Avatar.Fallback>{initials(p.name)}</Avatar.Fallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-medium text-primary hover:underline">{p.name}</span>
+              {p.profession && (
+                <span className="shrink-0 rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] px-2 py-0.5 text-[10px] font-medium text-primary">
+                  {p.profession}
+                </span>
+              )}
+              {!p.active && (
+                <Chip color="default" variant="soft" size="sm" className="shrink-0">
+                  Inativo
+                </Chip>
+              )}
+            </div>
+            {p.nickname && <div className="truncate text-xs text-muted-ink">{p.nickname}</div>}
+          </div>
+        </div>
+      </td>
+      <td className="whitespace-nowrap px-4 py-2.5 text-ink">{p.phone ?? '—'}</td>
+      <td className="max-w-[260px] px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <IconUser size={15} className="shrink-0 text-primary" />
+          <span className="truncate text-muted-ink">{accessOf(p).email ?? '—'}</span>
+        </div>
+      </td>
+      <td className="px-4 py-2.5">
+        <AccessChip hasAccess={Boolean(accessOf(p).userId)} />
+      </td>
+      <td className="px-4 py-2.5" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-danger"
+            aria-label={`Remover ${p.name}`}
+            onClick={onRemove}
+          >
+            <IconTrash size={16} />
+          </Button>
+          <Button variant="ghost" size="sm" aria-label={`Editar ${p.name}`} onClick={onEdit}>
+            <IconPencil size={16} />
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -564,16 +656,19 @@ function ProfessionalMobileCard({
               </span>
             )}
           </div>
-          {/* linha 2: telefone + status pill (se inativo) */}
+          {/* linha 2: telefone + acesso/status */}
           <div className="flex items-center justify-between gap-2">
             <span className="min-w-0 truncate text-[12px] text-muted-ink">
               {p.phone ?? '—'}
             </span>
-            {!p.active && (
-              <Chip color="default" variant="soft" size="sm" className="shrink-0">
-                Inativo
-              </Chip>
-            )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <AccessChip hasAccess={Boolean(accessOf(p).userId)} />
+              {!p.active && (
+                <Chip color="default" variant="soft" size="sm" className="shrink-0">
+                  Inativo
+                </Chip>
+              )}
+            </div>
           </div>
         </div>
       </button>
@@ -613,19 +708,24 @@ function pickAllScopeRule(rules?: ProfessionalCommissionRuleRow[]): CommissionSt
 // Abas verticais do drawer — ordem e rótulos EXATOS do Belasis (new-open.html).
 // As abas `disabled` dependem de módulos que o backend web ainda não expõe;
 // ficam listadas e esmaecidas (como no Belasis) para manter a paridade visual.
-const DRAWER_TABS = [
-  { id: 'cadastro', label: 'Cadastro', disabled: false },
-  { id: 'endereco', label: 'Endereço', disabled: false },
-  { id: 'usuario', label: 'Usuário', disabled: true },
-  { id: 'assinatura', label: 'Assinatura digital', disabled: true },
-  { id: 'expediente', label: 'Expediente', disabled: false },
-  { id: 'servicos', label: 'Personalizar serviços', disabled: false },
-  { id: 'comissoes', label: 'Configurar comissões', disabled: false },
-  { id: 'comissoes-aux', label: 'Comissões e Auxiliares', disabled: true },
-  { id: 'salario', label: 'Pagar salário/comissão', disabled: true },
-  { id: 'vales', label: 'Vales e Bonificações', disabled: true },
-  { id: 'permissoes', label: 'Permissões', disabled: true },
-  { id: 'contas', label: 'Contas de banco', disabled: true },
+// Abas do drawer. "Acesso" e "Permissões" (gerar login + editor granular) só
+// existem no modo edição — não faz sentido antes do profissional existir.
+const CREATE_TABS = [
+  { id: 'cadastro', label: 'Cadastro', icon: <IconUser size={16} />, disabled: false },
+  { id: 'endereco', label: 'Endereço', icon: <IconLink size={16} />, disabled: false },
+  { id: 'expediente', label: 'Expediente', icon: <IconCalendar size={16} />, disabled: false },
+  { id: 'servicos', label: 'Personalizar serviços', icon: <IconScissors size={16} />, disabled: false },
+  { id: 'comissoes', label: 'Configurar comissões', icon: <IconDollar size={16} />, disabled: false },
+] as const;
+
+const EDIT_TABS = [
+  { id: 'cadastro', label: 'Cadastro', icon: <IconUser size={16} />, disabled: false },
+  { id: 'endereco', label: 'Endereço', icon: <IconLink size={16} />, disabled: false },
+  { id: 'acesso', label: 'Acesso', icon: <IconLock size={16} />, disabled: false },
+  { id: 'permissoes', label: 'Permissões', icon: <IconSettings size={16} />, disabled: false },
+  { id: 'expediente', label: 'Expediente', icon: <IconCalendar size={16} />, disabled: false },
+  { id: 'servicos', label: 'Personalizar serviços', icon: <IconScissors size={16} />, disabled: false },
+  { id: 'comissoes', label: 'Configurar comissões', icon: <IconDollar size={16} />, disabled: false },
 ] as const;
 
 export function ProfessionalDrawer({
@@ -648,6 +748,15 @@ export function ProfessionalDrawer({
   const detail = useProfessionalDetail(mode === 'edit' && isOpen ? professional?.id : null);
   const servicesQuery = useServices();
   const serviceOptions = servicesQuery.data?.data ?? [];
+
+  // Login vinculado (userId) — prioriza o detalhe (fresco) e cai pro row da lista.
+  const linkedUserId =
+    (detail.data as ProfessionalWithAccess | undefined)?.userId ??
+    (professional ? accessOf(professional).userId : null) ??
+    null;
+  const hasAccess = Boolean(linkedUserId);
+
+  const tabs = mode === 'edit' ? EDIT_TABS : CREATE_TABS;
 
   const [tab, setTab] = useState<string>('cadastro');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -841,8 +950,14 @@ export function ProfessionalDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'edit' ? 'Editar profissional' : 'Novo profissional'}
-      widthClass="sm:w-[min(1040px,calc(100vw-3rem))]"
+      fullscreen
+      title={
+        mode === 'edit'
+          ? `Editar profissional${professional?.name ? ` — ${professional.name}` : ''}`
+          : 'Novo profissional'
+      }
+      widthClass="sm:w-[760px]"
+      mobileBackLabel="Voltar"
       footer={
         <>
           <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
@@ -859,32 +974,63 @@ export function ProfessionalDrawer({
         </>
       }
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-        {/* Navegação de abas — vertical no desktop (como no Belasis), scroll horizontal no mobile.
-            Abas não implementadas ficam esmaecidas e inativas, preservando a lista completa. */}
-        <nav className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1 pb-2 sm:mx-0 sm:w-52 sm:shrink-0 sm:flex-col sm:gap-0.5 sm:border-b-0 sm:border-r sm:px-0 sm:pb-0 sm:pr-4">
-          {DRAWER_TABS.map((t) => {
-            const isActive = tab === t.id;
+      {/* Menu VERTICAL no desktop, como no drawer de Serviços e no do cliente —
+          o drawer é tela cheia e a coluna à esquerda deixa as 6 seções visíveis
+          de uma vez. No celular continua o carrossel do AppTabs. */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+        <nav
+          aria-label="Seções do profissional"
+          className="hidden shrink-0 flex-col gap-0.5 border-r border-line pr-3 md:flex md:w-[210px]"
+        >
+          {tabs.map((item) => {
+            const ativo = tab === item.id;
             return (
               <button
-                key={t.id}
+                key={item.id}
                 type="button"
-                disabled={t.disabled}
-                onClick={() => !t.disabled && setTab(t.id)}
+                onClick={() => setTab(item.id)}
+                aria-current={ativo ? 'page' : undefined}
                 className={[
-                  'whitespace-nowrap border-l-2 px-3 py-2 text-left text-sm transition-colors',
-                  t.disabled
-                    ? 'cursor-not-allowed border-transparent text-muted-ink/40'
-                    : isActive
-                      ? 'border-primary font-semibold text-primary'
-                      : 'border-transparent font-medium text-muted-ink hover:text-ink',
+                  'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                  ativo
+                    ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] font-medium text-primary'
+                    : 'text-muted-ink hover:bg-canvas hover:text-ink',
                 ].join(' ')}
               >
-                {t.label}
+                <span className={ativo ? 'text-primary' : 'text-muted-ink'}>{item.icon}</span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.id === 'acesso' && (
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      hasAccess ? 'bg-success' : 'bg-muted-ink/40'
+                    }`}
+                  />
+                )}
               </button>
             );
           })}
         </nav>
+
+        <div className="md:hidden">
+          <AppTabs
+            items={tabs.map((item) => ({
+              ...item,
+              badge:
+                item.id === 'acesso' ? (
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      hasAccess ? 'bg-success' : 'bg-muted-ink/40'
+                    }`}
+                  />
+                ) : undefined,
+            }))}
+            selectedKey={tab}
+            onSelectionChange={setTab}
+            ariaLabel="Seções do profissional"
+          />
+        </div>
 
         {/* Painel */}
         <div className="min-w-0 flex-1">
@@ -926,9 +1072,9 @@ export function ProfessionalDrawer({
                   </TextField>
                 </Field>
                 <Field label="Celular" required>
-                  <TextField value={phone} onChange={setPhone} aria-label="Celular">
-                    <Input placeholder="(00) 00000-0000" />
-                  </TextField>
+                  {/* País + número: o DDI era digitado na unha e metade da base
+                      ficou sem ele — e o WhatsApp precisa. Ver estudo 57. */}
+                  <PhoneField value={phone} onChange={setPhone} ariaLabel="Celular" />
                 </Field>
                 <Field label="Profissão">
                   <TextField value={profession} onChange={setProfession} aria-label="Profissão">
@@ -936,13 +1082,7 @@ export function ProfessionalDrawer({
                   </TextField>
                 </Field>
                 <Field label="Aniversário">
-                  <input
-                    type="date"
-                    value={birthday}
-                    onChange={(e) => setBirthday(e.target.value)}
-                    aria-label="Aniversário"
-                    className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
-                  />
+                  <DatePicker value={birthday} onChange={setBirthday} ariaLabel="Aniversário" />
                 </Field>
                 <Field label="CPF/CNPJ">
                   <TextField
@@ -978,33 +1118,33 @@ export function ProfessionalDrawer({
 
               <div className="flex flex-col gap-1 border-t border-line pt-4">
                 <h3 className="mb-1 text-sm font-semibold text-ink">Configurações</h3>
-                <ToggleRow
+                <SwitchRow
                   label="Ativo"
-                  hint="Um profissional desativado não será listado para realizar agendamentos, comandas etc."
+                  description="Um profissional desativado não será listado para realizar agendamentos, comandas etc."
                   checked={active}
                   onChange={setActive}
                 />
-                <ToggleRow
+                <SwitchRow
                   label="Disponível para agendamento online"
-                  hint="Clientes podem escolher esse profissional para fazer agendamentos online."
+                  description="Clientes podem escolher esse profissional para fazer agendamentos online."
                   checked={onlineBookable}
                   onChange={setOnlineBookable}
                 />
-                <ToggleRow
+                <SwitchRow
                   label="Gerar agenda"
-                  hint="Caso esteja desativado não será gerada agenda para este profissional."
+                  description="Caso esteja desativado não será gerada agenda para este profissional."
                   checked={generateSchedule}
                   onChange={setGenerateSchedule}
                 />
-                <ToggleRow
+                <SwitchRow
                   label="Recebe comissão"
-                  hint="Desmarque se o profissional não recebe comissão."
+                  description="Desmarque se o profissional não recebe comissão."
                   checked={receivesCommission}
                   onChange={setReceivesCommission}
                 />
-                <ToggleRow
+                <SwitchRow
                   label="Notificações por WhatsApp"
-                  hint="Recebe avisos de novos agendamentos e lembretes."
+                  description="Recebe avisos de novos agendamentos e lembretes."
                   checked={notifyWhatsapp}
                   onChange={setNotifyWhatsapp}
                 />
@@ -1058,6 +1198,22 @@ export function ProfessionalDrawer({
             </div>
           )}
 
+          {/* ---- Acesso (gerar login / status) ---- */}
+          {tab === 'acesso' && mode === 'edit' && professional && (
+            <AccessTab
+              professionalId={professional.id}
+              professionalName={name || professional.name}
+              professionalPhone={phone || professional.phone || null}
+              userId={linkedUserId}
+              onGoToPermissions={() => setTab('permissoes')}
+            />
+          )}
+
+          {/* ---- Permissões (editor granular) ---- */}
+          {tab === 'permissoes' && mode === 'edit' && (
+            <PermissionsEditor userId={linkedUserId} onGoToAccess={() => setTab('acesso')} />
+          )}
+
           {/* ---- Personalizar serviços ---- */}
           {tab === 'servicos' && (
             <div className="flex flex-col gap-3">
@@ -1092,17 +1248,19 @@ export function ProfessionalDrawer({
               ) : (
                 <div className="grid gap-1.5 sm:grid-cols-2">
                   {serviceOptions.map((svc) => (
-                    <label
+                    <Checkbox
                       key={svc.id}
-                      className="flex items-center gap-2 rounded-lg px-1 py-1 text-sm text-ink"
+                      isSelected={serviceIds.has(svc.id)}
+                      onChange={() => toggleService(svc.id)}
+                      className="w-full items-center gap-2 rounded-lg px-1 py-1 text-sm text-ink"
                     >
-                      <input
-                        type="checkbox"
-                        checked={serviceIds.has(svc.id)}
-                        onChange={() => toggleService(svc.id)}
-                      />
-                      <span className="truncate">{svc.name}</span>
-                    </label>
+                      <Checkbox.Content className="items-center gap-2">
+                        <Checkbox.Control>
+                          <Checkbox.Indicator />
+                        </Checkbox.Control>
+                        <span className="truncate">{svc.name}</span>
+                      </Checkbox.Content>
+                    </Checkbox>
                   ))}
                 </div>
               )}
@@ -1124,8 +1282,8 @@ export function ProfessionalDrawer({
                 </button>
               </div>
               <p className="text-xs text-muted-ink">
-                Marque os dias em que atende e defina o horário. É o que libera os encaixes no
-                agendamento online.
+                Marque os dias em que atende e defina o horário. O agendamento só libera
+                horários para os serviços também marcados em “Personalizar serviços”.
               </p>
               {detailLoading ? (
                 <p className="text-sm text-muted-ink">Carregando horários…</p>
@@ -1136,14 +1294,18 @@ export function ProfessionalDrawer({
                       key={idx}
                       className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-1 py-1"
                     >
-                      <label className="flex w-28 shrink-0 items-center gap-2 text-sm text-ink">
-                        <input
-                          type="checkbox"
-                          checked={day.enabled}
-                          onChange={(e) => updateDay(idx, { enabled: e.target.checked })}
-                        />
-                        {WEEKDAY_LABELS[idx]}
-                      </label>
+                      <Checkbox
+                        isSelected={day.enabled}
+                        onChange={(v) => updateDay(idx, { enabled: v })}
+                        className="w-28 shrink-0 items-center gap-2 text-sm text-ink"
+                      >
+                        <Checkbox.Content className="items-center gap-2">
+                          <Checkbox.Control>
+                            <Checkbox.Indicator />
+                          </Checkbox.Control>
+                          {WEEKDAY_LABELS[idx]}
+                        </Checkbox.Content>
+                      </Checkbox>
                       {day.enabled ? (
                         <div className="flex items-center gap-2 text-sm">
                           <input
@@ -1184,7 +1346,7 @@ export function ProfessionalDrawer({
                 <p className="text-sm text-muted-ink">Carregando comissão…</p>
               ) : (
                 <>
-                  <ToggleRow
+                  <SwitchRow
                     label="Usar comissão individual"
                     checked={commission.enabled}
                     onChange={(v) => setCommission((c) => ({ ...c, enabled: v }))}
@@ -1255,33 +1417,376 @@ function commTypeClass(active: boolean): string {
   ].join(' ');
 }
 
-function ToggleRow({
-  label,
-  hint,
-  checked,
-  onChange,
+// ---------------------------------------------------------------------
+// Aba "Acesso" — gera o link de login (POST /professionals/:id/invite) quando o
+// profissional ainda não tem userId; senão mostra que já acessa + seletor de
+// papel/template (PATCH /users/:userId/role).
+function AccessTab({
+  professionalId,
+  professionalName,
+  professionalPhone,
+  userId,
+  onGoToPermissions,
 }: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
+  professionalId: string;
+  professionalName: string;
+  professionalPhone: string | null;
+  userId: string | null;
+  onGoToPermissions: () => void;
 }) {
+  const invite = useInviteProfessional();
+  const createAccess = useCreateProfessionalAccess();
+  const roles = useRoles();
+  const updateRole = useUpdateUsuarioRole();
+  const [link, setLink] = useState<InviteResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [accessEmail, setAccessEmail] = useState('');
+  const [accessPassword, setAccessPassword] = useState('');
+  const [createdAccess, setCreatedAccess] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
+  // Só habilita "Enviar por WhatsApp" quando o profissional tem telefone E o
+  // WhatsApp do salão está conectado (status 'open'). Sem isso, o envio não sai.
+  const whatsapp = useWhatsappStatus(!userId);
+  const hasPhone = Boolean(professionalPhone && professionalPhone.trim());
+  const whatsappConnected = whatsapp.data?.status === 'open';
+  const canSendWhatsapp = hasPhone && whatsappConnected;
+  const canCreateAccess =
+    /.+@.+\..+/.test(accessEmail.trim()) &&
+    accessPassword.length >= 8 &&
+    !createAccess.isPending;
+
+  async function handleCreateAccess() {
+    setError(null);
+    try {
+      const saved = await createAccess.mutateAsync({
+        professionalId,
+        email: accessEmail.trim(),
+        password: accessPassword,
+      });
+      setCreatedAccess({
+        email: saved.email,
+        password: saved.temporaryPassword ?? accessPassword,
+      });
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível criar o acesso.',
+      );
+    }
+  }
+
+  // "Gerar link de acesso" APENAS gera o link — nunca envia WhatsApp (opt-in).
+  async function handleGenerate() {
+    setError(null);
+    try {
+      const res = await invite.mutateAsync({ id: professionalId, sendWhatsapp: false });
+      setLink(res);
+      toast.success('Link de acesso gerado');
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível gerar o link de acesso.',
+      );
+    }
+  }
+
+  // Botão explícito: gera o convite E pede o envio pelo WhatsApp conectado do salão.
+  async function handleSendWhatsapp() {
+    setError(null);
+    setSending(true);
+    try {
+      const res = await invite.mutateAsync({ id: professionalId, sendWhatsapp: true });
+      setLink(res);
+      if (res.whatsappSent) {
+        toast.success('Convite enviado por WhatsApp');
+      } else {
+        toast.danger('Não foi possível enviar pelo WhatsApp — use o link gerado.');
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível enviar o convite.',
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // ── Já tem acesso ──
+  if (createdAccess) {
+    return (
+      <div className="flex flex-col gap-4">
+        <TemporaryAccessCard
+          email={createdAccess.email}
+          password={createdAccess.password}
+        />
+        <Button
+          variant="outline"
+          className="self-start"
+          onClick={onGoToPermissions}
+        >
+          <IconLock size={16} /> Configurar permissões
+        </Button>
+      </div>
+    );
+  }
+
+  if (userId) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success/10 px-4 py-3">
+          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-success/20 text-success">
+            <IconCheck size={16} />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-ink">
+              Este profissional já acessa o Salonpass
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-ink">
+              Ele entra com o próprio login. Configure o que ele pode ver e fazer na aba
+              "Permissões".
+            </p>
+          </div>
+        </div>
+
+        {/* Seletor de papel/template — aplica um papel padrão ao usuário. */}
+        <div className="rounded-xl border border-line bg-card p-4">
+          <h4 className="mb-1 text-sm font-semibold text-ink">Papel (modelo de permissões)</h4>
+          <p className="mb-3 text-xs text-muted-ink">
+            Trocar o papel redefine o conjunto de permissões herdado. Você ainda pode ajustar item a
+            item na aba "Permissões".
+          </p>
+          <Select
+            aria-label="Papel do profissional"
+            selectedKey={null}
+            isDisabled={updateRole.isPending || roles.isLoading}
+            onSelectionChange={(k) => {
+              if (k) updateRole.mutate({ id: userId, roleId: String(k) });
+            }}
+            className="min-w-52"
+          >
+            <Select.Trigger>
+              <Select.Value>
+                {({ isPlaceholder, selectedText }) =>
+                  isPlaceholder ? 'Selecionar papel' : selectedText
+                }
+              </Select.Value>
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {(roles.data ?? []).map((r) => (
+                  <ListBox.Item key={r.id} id={r.id} textValue={r.name}>
+                    {r.name}
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </div>
+
+        <Button variant="outline" className="self-start" onClick={onGoToPermissions}>
+          <IconLock size={16} /> Configurar permissões
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Sem acesso: criar agora ou manter o convite como alternativa ──
   return (
-    <Switch
-      isSelected={checked}
-      onChange={onChange}
-      className="flex w-full items-center justify-between gap-3 py-1.5"
-    >
-      <span className="min-w-0 text-sm text-ink">
-        {label}
-        {hint && <span className="block text-xs text-muted-ink">{hint}</span>}
-      </span>
-      <Switch.Control>
-        <Switch.Thumb />
-      </Switch.Control>
-    </Switch>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start gap-3 rounded-xl border border-line bg-primary/5 px-4 py-3">
+        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+          <IconUserPlus size={16} />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-ink">
+            Criar acesso agora
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-ink">
+            O login de {professionalName || 'este profissional'} fica pronto
+            imediatamente, sem precisar abrir convite ou preencher cadastro.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 rounded-xl border border-line bg-card p-4">
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-ink">E-mail</span>
+          <input
+            type="email"
+            value={accessEmail}
+            onChange={(event) => setAccessEmail(event.target.value)}
+            placeholder="profissional@exemplo.com"
+            autoComplete="off"
+            className="h-11 rounded-lg border border-line bg-canvas px-3 text-sm text-ink outline-none focus:border-primary"
+          />
+        </label>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-ink">
+            Senha temporária
+          </span>
+          <input
+            type="text"
+            value={accessPassword}
+            onChange={(event) => setAccessPassword(event.target.value)}
+            placeholder="Mínimo 8 caracteres"
+            autoComplete="new-password"
+            className="h-11 rounded-lg border border-line bg-canvas px-3 font-mono text-sm text-ink outline-none focus:border-primary"
+          />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() =>
+              setAccessPassword(generateTemporaryPassword())
+            }
+          >
+            <IconRefresh size={14} /> Gerar senha
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            className="gap-1.5"
+            isDisabled={!canCreateAccess}
+            onClick={handleCreateAccess}
+          >
+            {createAccess.isPending ? (
+              <Spinner size="sm" />
+            ) : (
+              <IconUserPlus size={15} />
+            )}
+            Criar acesso
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 py-1">
+        <span className="h-px flex-1 bg-line" />
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
+          ou enviar convite
+        </span>
+        <span className="h-px flex-1 bg-line" />
+      </div>
+
+      <p className="text-xs leading-relaxed text-muted-ink">
+        Se preferir, gere um link para a própria pessoa escolher e confirmar a
+        senha. Nada é enviado automaticamente.
+      </p>
+
+      {!link ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            variant="primary"
+            className="self-start"
+            isDisabled={invite.isPending || sending}
+            onClick={handleGenerate}
+          >
+            {invite.isPending && !sending ? <Spinner size="sm" /> : <IconUserPlus size={16} />}
+            Gerar link de acesso
+          </Button>
+          <Button
+            variant="outline"
+            className="self-start gap-1.5"
+            isDisabled={invite.isPending || sending || !canSendWhatsapp}
+            onClick={handleSendWhatsapp}
+          >
+            {sending ? <Spinner size="sm" /> : <IconWhatsApp size={16} />}
+            Enviar por WhatsApp
+          </Button>
+        </div>
+      ) : (
+        <>
+          <InviteLinkBox link={link.link} name={professionalName} />
+          {link.whatsappSent ? (
+            <div className="flex items-center gap-1.5 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-xs text-success">
+              <IconWhatsApp size={14} /> Convite enviado pelo WhatsApp do salão.
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="self-start gap-1.5"
+              isDisabled={invite.isPending || sending || !canSendWhatsapp}
+              onClick={handleSendWhatsapp}
+            >
+              {sending ? <Spinner size="sm" /> : <IconWhatsApp size={16} />}
+              Enviar por WhatsApp
+            </Button>
+          )}
+        </>
+      )}
+
+      {!link && !canSendWhatsapp && (
+        <p className="text-xs text-muted-ink">
+          {!hasPhone
+            ? 'Cadastre o celular do profissional para poder enviar o convite por WhatsApp.'
+            : 'Conecte o WhatsApp do salão (em Configurações) para enviar o convite por WhatsApp.'}
+        </p>
+      )}
+
+      {error && (
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </div>
+      )}
+    </div>
   );
 }
+
+/** Caixa com o link gerado + ações de copiar / abrir / WhatsApp (reusa a lógica da Convidar). */
+function InviteLinkBox({ link, name }: { link: string; name: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      toast.success('Link copiado');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.danger('Não foi possível copiar o link.');
+    }
+  }
+
+  function shareWhatsApp() {
+    const text = `Olá, ${name}! Crie seu acesso ao Salonpass por este link: ${link}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+  }
+
+  return (
+    <div className="rounded-xl border border-dashed border-line bg-card p-3">
+      <p className="mb-2 text-xs text-muted-ink">
+        Convite gerado. Envie este link — ele expira em 7 dias.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <code className="min-w-0 flex-1 truncate rounded-lg bg-canvas px-3 py-2 text-xs text-ink ring-1 ring-inset ring-line">
+          {link}
+        </code>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={copy}>
+            {copied ? <IconCheck size={15} /> : <IconCopy size={15} />}
+            {copied ? 'Copiado' : 'Copiar'}
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={shareWhatsApp}>
+            <IconWhatsApp size={15} /> WhatsApp
+          </Button>
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink transition-colors hover:bg-canvas"
+          >
+            <IconExternalLink size={15} /> Abrir
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function Field({
   label,

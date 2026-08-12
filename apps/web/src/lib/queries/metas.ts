@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 
 export type GoalKind = 'sales' | 'appointments' | 'customers' | 'commission';
 export type ScopeType = 'service' | 'product' | 'category' | 'all';
@@ -46,7 +47,10 @@ export function useCreateGoal() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateGoalBody) => api.post<Goal>('/goals', body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toastSuccess('Meta criada');
+    },
   });
 }
 
@@ -55,7 +59,10 @@ export function useUpdateGoal() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateGoalBody }) =>
       api.patch<Goal>(`/goals/${id}`, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toastSuccess('Meta salva');
+    },
   });
 }
 
@@ -63,6 +70,9 @@ export function useDeleteGoal() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<{ id: string; deleted: boolean }>(`/goals/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toastSuccess('Meta excluída');
+    },
   });
 }

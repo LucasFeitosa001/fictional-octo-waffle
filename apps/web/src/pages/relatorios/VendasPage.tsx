@@ -13,23 +13,27 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { DateRangePicker } from '../../components/DatePicker';
 import { Drawer } from '../../components/Drawer';
 import {
-  IconCalendar,
-  IconChevron,
   IconDollar,
   IconDownload,
-  IconHome,
-  IconInfo,
   IconReceipt,
-  IconStar,
   IconTrendUp,
 } from '../../components/icons';
+import {
+  ReportCategoriesBar,
+  ReportSubmenu,
+  SALES_REPORTS,
+} from './reportNav';
 import { formatMoney, formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsSales } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { getCategoricalColor } from '../../theme/dataColors';
 import { BackToReports, shortDay } from './reportShared';
+import { ErrorState } from '../../components/States';
+import { requestReportPdf } from './ReportPdfButton';
 
 // ── card no estilo Belasis (branco + sombra suave), 100% themeable ────────────
 const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
@@ -37,55 +41,37 @@ const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]'
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
 // Categorias de relatório (topo do módulo Relatórios no Belasis). "Financeiro"
 // é a categoria ativa desta página.
-const CATEGORIES = [
-  'Favoritos',
-  'Financeiro',
-  'Agendamentos',
-  'Clientes',
-  'Vendas',
-  'Estoque',
-  'Notas Fiscais',
-  'Ranking',
-  'Mensagens',
-];
-
 // Submenu vertical de relatórios financeiros (coluna esquerda do Belasis).
 // "Resultado Líquido de Serviços" (rota service-revenue) é o item selecionado.
-const FIN_REPORTS: { label: string; home?: boolean; current?: boolean }[] = [
-  { label: 'Início', home: true },
-  { label: 'Resultados Financeiros' },
-  { label: 'Resultado Líquido de Serviços', current: true },
-  { label: 'Resultado Líquido de Produtos' },
-  { label: 'Projeção de Faturamento' },
-  { label: 'Fluxo de Caixa' },
-  { label: 'Recebimentos' },
-  { label: 'Despesas' },
-  { label: 'Extrato de Contas' },
-  { label: 'Extrato de Movimentações' },
-  { label: 'Histórico de caixa' },
-];
-
 function Kpi({
   icon,
   title,
   value,
   hint,
+  tone,
 }: {
   icon: React.ReactNode;
   title: string;
   value: string;
   hint?: string;
+  tone: 'sales' | 'orders';
 }) {
   return (
     <div className={`${CARD} p-5`}>
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          style={{
+            background: `var(--sp-data-${tone}-soft)`,
+            color: `var(--sp-data-${tone})`,
+          }}
+        >
           {icon}
         </span>
         <span className="text-sm font-medium text-ink">{title}</span>
@@ -112,14 +98,22 @@ export function VendasPage() {
   const byCategory = d?.byCategory ?? [];
   const byProfessional = d?.byProfessional ?? [];
   const ticketMedio = d && d.ordersCount > 0 ? d.salesTotal / d.ordersCount : 0;
-  const hasData = !!d && (byDay.length > 0 || byCategory.length > 0 || byProfessional.length > 0);
+  // Uma venda válida pode não ter itens vinculados (comanda importada ou
+  // serviço removido do cadastro). Nesse caso os agrupamentos ficam vazios,
+  // mas o total e a quantidade de comandas continuam sendo dados reais e não
+  // podem transformar a tela em "Nenhum item encontrado".
+  const hasData = !!d && (
+    d.salesTotal !== 0 || d.ordersCount > 0 ||
+    byDay.length > 0 || byCategory.length > 0 || byProfessional.length > 0
+  );
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    // refetch() garante feedback (loading + dados) mesmo quando o período não
-    // mudou — senão o React Query vê a mesma queryKey e não faz nada, dando a
-    // sensação de "botão morto".
-    void query.refetch();
+    // Quando o período muda, a queryKey nova dispara a busca automaticamente.
+    // Refetchar aqui também buscava a janela ANTIGA e podia deixar a tela em
+    // "Não há dados" mesmo havendo vendas no período escolhido.
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {
@@ -148,63 +142,15 @@ export function VendasPage() {
       {/* Cabeçalho do módulo Relatórios */}
       <h1 className="text-xl font-semibold text-ink">Relatórios</h1>
 
-      {/* Barra de categorias (Financeiro ativa) */}
-      <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {CATEGORIES.map((c) => {
-          const active = c === 'Financeiro';
-          return (
-            <button
-              key={c}
-              type="button"
-              className={[
-                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
-                active
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-line bg-card text-muted-ink hover:text-ink',
-              ].join(' ')}
-            >
-              {c}
-            </button>
-          );
-        })}
-      </div>
+      {/* Barra de categorias e submenu passam a NAVEGAR. Antes eram <button>
+          sem onClick e <div> — clicar não fazia nada, e o dono relatou como
+          "clico entre os itens e não alterna". Fonte única: reportNav.
+          Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Vendas" />
 
       {/* Conteúdo em 2 colunas: submenu de relatórios + card do relatório */}
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* Coluna esquerda: submenu de relatórios financeiros */}
-        <aside className={`${CARD} shrink-0 overflow-hidden p-1.5 lg:w-72`}>
-          <ul className="flex flex-col">
-            {FIN_REPORTS.map((r) => (
-              <li key={r.label}>
-                <div
-                  className={[
-                    'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors',
-                    r.current
-                      ? 'bg-primary/10 font-semibold text-primary'
-                      : 'text-ink hover:bg-primary/5',
-                  ].join(' ')}
-                >
-                  <span
-                    className={r.current ? 'text-primary' : 'text-muted-ink'}
-                    aria-hidden
-                  >
-                    {r.home ? <IconHome size={17} /> : <IconDollar size={17} />}
-                  </span>
-                  <span className="flex-1 truncate">{r.label}</span>
-                  {!r.home && (
-                    <span className="flex items-center gap-1.5 text-muted-ink">
-                      <IconInfo size={15} className="opacity-70" />
-                      <IconStar
-                        size={15}
-                        className={r.current ? 'text-primary' : 'opacity-70'}
-                      />
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <ReportSubmenu items={SALES_REPORTS} activeKey="vendas" />
 
         {/* Coluna direita: filtro + resultados */}
         <div className="min-w-0 flex-1">
@@ -220,27 +166,12 @@ export function VendasPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-ink">Período</label>
-                  {/* Range picker no estilo ant-picker-range */}
-                  <div className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-3 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 sm:h-10">
-                    <input
-                      type="date"
-                      value={pending.from}
-                      max={pending.to || undefined}
-                      onChange={(e) => setPending((p) => ({ ...p, from: e.target.value }))}
-                      aria-label="Data inicial"
-                      className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                    />
-                    <IconChevron size={14} className="-rotate-90 shrink-0 text-muted-ink" aria-hidden />
-                    <input
-                      type="date"
-                      value={pending.to}
-                      min={pending.from || undefined}
-                      onChange={(e) => setPending((p) => ({ ...p, to: e.target.value }))}
-                      aria-label="Data final"
-                      className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                    />
-                    <IconCalendar size={16} className="shrink-0 text-muted-ink" aria-hidden />
-                  </div>
+                  <DateRangePicker
+                    from={pending.from}
+                    to={pending.to}
+                    onChange={setPending}
+                    ariaLabel="Período"
+                  />
                 </div>
               </div>
 
@@ -272,6 +203,10 @@ export function VendasPage() {
             <div className={`${CARD} mt-4 flex h-64 items-center justify-center text-sm text-muted-ink`}>
               Carregando…
             </div>
+          ) : query.isError ? (
+            <div className={`${CARD} mt-4`}>
+              <ErrorState onRetry={() => query.refetch()} />
+            </div>
           ) : !hasData ? (
             <div className={`${CARD} mt-4 flex h-64 flex-col items-center justify-center gap-1 text-center`}>
               <p className="text-sm font-medium text-ink">Não há dados</p>
@@ -287,16 +222,19 @@ export function VendasPage() {
                   icon={<IconDollar size={18} />}
                   title="Vendas no período"
                   value={formatMoney(d?.salesTotal ?? 0)}
+                  tone="sales"
                 />
                 <Kpi
                   icon={<IconReceipt size={18} />}
                   title="Comandas finalizadas"
                   value={formatNumber(d?.ordersCount ?? 0)}
+                  tone="orders"
                 />
                 <Kpi
                   icon={<IconTrendUp size={18} />}
                   title="Ticket médio"
                   value={formatMoney(ticketMedio)}
+                  tone="sales"
                 />
               </div>
 
@@ -332,9 +270,9 @@ export function VendasPage() {
                         <Line
                           type="monotone"
                           dataKey="total"
-                          stroke={colors.primary}
+                          stroke={colors.sales}
                           strokeWidth={2.5}
-                          dot={{ r: 3, fill: colors.primary }}
+                          dot={{ r: 3, fill: colors.sales }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -364,8 +302,8 @@ export function VendasPage() {
                               outerRadius={80}
                               innerRadius={40}
                             >
-                              {byCategory.map((_, i) => (
-                                <Cell key={i} fill={colors.palette[i % colors.palette.length]} />
+                              {byCategory.map((category) => (
+                                <Cell key={category.category} fill={getCategoricalColor(category.category)} />
                               ))}
                             </Pie>
                             <Tooltip formatter={(v: number) => formatMoney(v)} />
@@ -373,11 +311,11 @@ export function VendasPage() {
                         </ResponsiveContainer>
                       </div>
                       <ul className="mt-3 flex flex-col divide-y divide-[var(--color-soft-border)]">
-                        {byCategory.map((c, i) => (
+                        {byCategory.map((c) => (
                           <li key={c.category} className="flex items-center gap-3 py-2">
                             <span
                               className="h-3 w-3 shrink-0 rounded-full"
-                              style={{ background: colors.palette[i % colors.palette.length] }}
+                              style={{ background: getCategoricalColor(c.category) }}
                             />
                             <span className="flex-1 truncate text-sm text-ink">{c.category}</span>
                             <span className="text-sm font-semibold text-ink">
@@ -416,7 +354,7 @@ export function VendasPage() {
                             axisLine={false}
                           />
                           <Tooltip formatter={(v: number) => formatMoney(v)} />
-                          <Bar dataKey="v" fill={colors.primary} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                          <Bar dataKey="v" fill={colors.sales} radius={[4, 4, 0, 0]} maxBarSize={36} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -450,7 +388,7 @@ export function VendasPage() {
                           return (
                             <tr
                               key={p.id}
-                              className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                              className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                             >
                               <td className="px-5 py-3 text-ink">{p.name}</td>
                               <td className="px-5 py-3 text-right font-medium text-ink">
@@ -464,7 +402,7 @@ export function VendasPage() {
                         })}
                       </tbody>
                       <tfoot>
-                        <tr className="bg-primary/5 font-semibold text-ink">
+                        <tr className="bg-ink/5 font-semibold text-ink">
                           <td className="px-5 py-3">Total</td>
                           <td className="px-5 py-3 text-right">{formatMoney(d?.salesTotal ?? 0)}</td>
                           <td className="px-5 py-3 text-right">100%</td>
@@ -504,18 +442,17 @@ export function VendasPage() {
               <span className="text-xs font-normal text-muted-ink">Planilha com o resumo do período</span>
             </span>
           </button>
-          {/* TODO: exportação em Excel/PDF depende de endpoint dedicado no backend */}
           <button
             type="button"
-            disabled
-            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-muted-ink opacity-60"
+            onClick={() => { setExportOpen(false); requestReportPdf(); }}
+            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-ink transition-colors hover:bg-primary/5"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <IconDownload size={18} />
             </span>
             <span className="flex flex-col">
               <span>Exportar PDF</span>
-              <span className="text-xs font-normal text-muted-ink">Em breve</span>
+              <span className="text-xs font-normal text-muted-ink">Abre o PDF com campo de assinatura</span>
             </span>
           </button>
         </div>

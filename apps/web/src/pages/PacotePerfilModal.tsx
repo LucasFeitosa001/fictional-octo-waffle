@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Chip, Input, TextField } from '@heroui/react';
 import { FullDrawer } from '../components/FullDrawer';
+import { AppTabs } from '../components/AppTabs';
+import { PacoteClienteAside } from '../components/PacoteClienteAside';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { ApiClientError } from '@beautypass/shared';
@@ -90,15 +92,8 @@ export function PacotePerfilModal({
     <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
-      title={
-        <div className="flex flex-col">
-          <span>Itens do pacote</span>
-          <span className="text-xs font-normal text-muted-ink">
-            {pkg ? `#${pkg.number}` : '—'}
-          </span>
-        </div>
-      }
-      widthClass="md:w-[720px] lg:w-[900px]"
+      // Título do Belasis (f_0149) — "Itens do pacote" é o nome da TABELA lá dentro, não do drawer.
+      title={pkg ? `Visualizando pacote #${pkg.number}` : 'Visualizando pacote'}
     >
       {detail.isLoading ? (
         <LoadingState />
@@ -198,99 +193,98 @@ function PackageEditor({
 
   return (
     <>
-      <div className="flex flex-col gap-4">
-        {/* Header summary */}
-        <div className="rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="truncate text-base font-semibold text-foreground">
-                {pkg.customerName ?? pkg.customer?.name ?? '—'}
-              </div>
-              <div className="text-xs text-muted-ink">Pacote #{pkg.number}</div>
-            </div>
-            <Chip color={STATUS_COLOR[status]} variant="soft" size="sm">
-              {STATUS_LABELS[status]}
-            </Chip>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div>
-              <div className="text-xs text-muted-ink">Valor</div>
-              <div className="font-medium text-ink">{formatMoney(pkg.price)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-ink">Validade</div>
-              <div className="font-medium text-ink">
-                {pkg.expiresAt ? formatDate(pkg.expiresAt) : 'Não expira'}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-ink">Sessões usadas</div>
-              <div className="font-medium text-ink">
-                {pkg.sessionsUsed} de {pkg.sessionsTotal}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-ink">Restantes</div>
-              <div className="font-medium text-ink">{pkg.sessionsRemaining}</div>
-            </div>
-          </div>
-        </div>
+      {/* Duas colunas no desktop, igual ao Belasis (f_0148: coluna do cliente à esquerda,
+          pacote à direita). Classes iguais às dos drawers irmãos de comanda
+          (ComandaDrawer.tsx:346) e agendamento — INCLUSIVE a inversão por `order` no
+          mobile: o aside vem depois (o `order-2 lg:order-1` mora no próprio
+          PacoteClienteAside.tsx:64) para o celular abrir direto no pacote. */}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
+        <PacoteClienteAside
+          customerId={pkg.customerId}
+          // O detalhe já traz o nome; passar aqui evita a coluna nascer sem título enquanto o
+          // GET /customers/:id (que só existe pelo telefone e pela foto) não volta.
+          nome={pkg.customerName ?? pkg.customer?.name ?? null}
+        />
 
-        {expired && (
-          <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-            <IconInfo size={16} />
-            <span>Pacote vencido. Não é possível consumir novas sessões.</span>
+        {/* `order-1 lg:order-2`: par do `order-2 lg:order-1` do aside — no mobile o
+            pacote vem primeiro; no desktop a ordem visual volta a ser cliente | pacote. */}
+        <div className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2">
+          {/* Header summary */}
+          <div className="rounded-xl border border-[var(--color-soft-border)] bg-warm-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-base font-semibold text-foreground">
+                  {pkg.customerName ?? pkg.customer?.name ?? '—'}
+                </div>
+                <div className="text-xs text-muted-ink">Pacote #{pkg.number}</div>
+              </div>
+              <Chip color={STATUS_COLOR[status]} variant="soft" size="sm">
+                {STATUS_LABELS[status]}
+              </Chip>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <div className="text-xs text-muted-ink">Valor</div>
+                <div className="font-medium text-ink">{formatMoney(pkg.price)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-ink">Validade</div>
+                <div className="font-medium text-ink">
+                  {pkg.expiresAt ? formatDate(pkg.expiresAt) : 'Não expira'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-ink">Sessões usadas</div>
+                <div className="font-medium text-ink">
+                  {pkg.sessionsUsed} de {pkg.sessionsTotal}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-ink">Restantes</div>
+                <div className="font-medium text-ink">{pkg.sessionsRemaining}</div>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Tabs */}
-        <nav
-          aria-label="Seções do pacote"
-          className="flex gap-1 border-b border-line"
-        >
-          {(
-            [
-              { id: 'itens', label: 'Itens' },
-              { id: 'sessoes', label: 'Sessões' },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              aria-current={tab === t.id ? 'page' : undefined}
-              className={`whitespace-nowrap rounded-t-lg px-3 py-2 text-sm transition-colors ${
-                tab === t.id
-                  ? 'border-b-2 border-gold font-medium text-ink'
-                  : 'text-muted-ink hover:text-ink'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+          {expired && (
+            <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <IconInfo size={16} />
+              <span>Pacote vencido. Não é possível consumir novas sessões.</span>
+            </div>
+          )}
 
-        {tab === 'itens' ? (
-          <ItensTab
-            pkg={pkg}
-            bruto={bruto}
-            total={total}
-            discount={discount}
-            setDiscount={setDiscount}
-            credit={credit}
-            setCredit={setCredit}
-            cashback={cashback}
-            setCashback={setCashback}
+          <AppTabs
+            items={[
+              { id: 'itens', label: 'Itens', icon: <IconLayers size={16} /> },
+              { id: 'sessoes', label: 'Sessões', icon: <IconClock size={16} /> },
+            ]}
+            selectedKey={tab}
+            onSelectionChange={setTab}
+            ariaLabel="Seções do pacote"
           />
-        ) : (
-          <SessoesTab pkg={pkg} expired={expired} />
-        )}
 
-        {error && (
-          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-            {error}
-          </div>
-        )}
+          {tab === 'itens' ? (
+            <ItensTab
+              pkg={pkg}
+              bruto={bruto}
+              total={total}
+              discount={discount}
+              setDiscount={setDiscount}
+              credit={credit}
+              setCredit={setCredit}
+              cashback={cashback}
+              setCashback={setCashback}
+            />
+          ) : (
+            <SessoesTab pkg={pkg} expired={expired} />
+          )}
+
+          {error && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="sticky bottom-0 -mx-6 mt-2 flex flex-col-reverse gap-2 border-t border-line bg-warm-white px-6 py-3 sm:flex-row sm:justify-between">

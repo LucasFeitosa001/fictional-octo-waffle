@@ -112,7 +112,14 @@ export function BottomNav({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
       <nav
         aria-label="Navegação principal"
-        className="sp-navbar-surface club-bottomnav fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg rounded-[24px] border border-white/10 shadow-[0_18px_55px_rgba(0,0,0,0.32)] lg:hidden"
+        // Barra FLUTUANTE: afastada da borda inferior segura, mas JUNTO ao fundo.
+        // No Safari (com URL bar) a inset é 0 → cai no piso de 0.5rem (respiro
+        // enxuto). Em standalone a inset (~34px do home indicator) É o próprio
+        // afastamento — a barra fica logo ACIMA do home indicator SEM o +0.5rem
+        // extra que antes deixava um gap grande. O padding interno vem só do
+        // py-2 dos botões (o padding-bottom duplicado da .club-bottomnav foi
+        // removido no CSS).
+        className="sp-navbar-surface club-bottomnav fixed inset-x-3 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg rounded-[24px] border border-white/10 shadow-[0_18px_55px_rgba(0,0,0,0.32)] lg:hidden"
       >
         {contextual ? (
           // Contextual bar: Menu first, followed only by the current page actions.

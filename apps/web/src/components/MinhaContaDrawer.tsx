@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { Button, Input, ListBox, Select, Spinner, Switch, TextField } from '@heroui/react';
+import { Button, Input, ListBox, Select, Spinner, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from './Drawer';
+import { SwitchRow } from './SwitchRow';
 import { useSession } from '../lib/auth';
 import { api } from '../lib/api';
 import { useUploadImage } from '../hooks/useUploadImage';
+import { TOAST_TIMEOUT_ERRO } from '../lib/toast';
 
 interface MinhaContaDrawerProps {
   isOpen: boolean;
@@ -112,7 +114,8 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
   const [passwordValidationError, setPasswordValidationError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -184,13 +187,28 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
     } catch (err) {
       const msg = errorMessage(err, 'Não foi possível enviar a foto.');
       setAvatarError(msg);
-      showToast(msg);
+      showToast(msg, 'erro');
     }
   }
 
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  /**
+   * Aviso do drawer. Mesma correção da Agenda — ver estudo 138: o timer não era
+   * guardado (duas mensagens seguidas dividiam o prazo da primeira) e erro
+   * durava o mesmo que sucesso, mesmo quando o servidor explica o que fazer
+   * (senha fraca, e-mail em uso).
+   */
+  function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast({ msg, tipo });
+    toastTimer.current = window.setTimeout(
+      () => setToast(null),
+      tipo === 'erro' ? TOAST_TIMEOUT_ERRO : 3000,
+    );
+  }
+
+  function fecharToast() {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast(null);
   }
 
   function errorMessage(err: unknown, fallback: string): string {
@@ -327,7 +345,7 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
       // Enfatiza o erro específico no toast (não só "algumas não salvaram") —
       // 90% dos casos é "senha atual incorreta"; sem isso o usuário fecha o
       // drawer achando que salvou e depois não consegue logar.
-      showToast(errorMessages[0]);
+      showToast(errorMessages[0], 'erro');
       return;
     }
 
@@ -344,6 +362,7 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
       onClose={onClose}
       title="Minha conta"
       widthClass="sm:w-[480px]"
+      fullscreen
       footer={
         <>
           <Button
@@ -557,17 +576,19 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
           <SectionTitle status={notifState.status === 'success' ? 'Notif ✓' : undefined}>
             Notificações{prefsLoading && ' (carregando…)'}
           </SectionTitle>
-          <ToggleRow
+          <SwitchRow
             label="Receber notificações por e-mail"
-            hint="Confirmações, lembretes e resumos semanais."
+            description="Confirmações, lembretes e resumos semanais."
             checked={notifyEmail}
             onChange={setNotifyEmail}
+            className="py-2"
           />
-          <ToggleRow
+          <SwitchRow
             label="Receber notificações por SMS"
-            hint="Alertas rápidos no celular (podem ter custo)."
+            description="Alertas rápidos no celular (podem ter custo)."
             checked={notifySms}
             onChange={setNotifySms}
+            className="py-2"
           />
           {notifState.status === 'error' && notifState.error && (
             <span className="text-xs text-red-500">{notifState.error}</span>
@@ -575,10 +596,25 @@ export function MinhaContaDrawer({ isOpen, onClose }: MinhaContaDrawerProps) {
         </section>
       </div>
 
-      {/* Toast local — mesmo padrão do PerfilAdicionaisPage. */}
+      {/* Toast local — erro fica mais tempo, com cor própria e X. Estudo 138. */}
       {toast && (
-        <div className="fixed bottom-24 left-1/2 z-[80] -translate-x-1/2 rounded-xl bg-ink/90 px-4 py-2 text-sm font-medium text-white shadow-lg">
-          {toast}
+        <div
+          role={toast.tipo === 'erro' ? 'alert' : 'status'}
+          className={`fixed bottom-24 left-1/2 z-[80] flex max-w-[min(90vw,30rem)] -translate-x-1/2 items-start gap-3 rounded-xl px-4 py-2 text-sm font-medium text-white shadow-lg ${
+            toast.tipo === 'erro' ? 'bg-danger' : 'bg-ink/90'
+          }`}
+        >
+          <span className="flex-1">{toast.msg}</span>
+          {toast.tipo === 'erro' && (
+            <button
+              type="button"
+              onClick={fecharToast}
+              aria-label="Fechar aviso"
+              className="-mr-1 shrink-0 rounded px-1 leading-none opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
     </Drawer>
@@ -611,33 +647,5 @@ function Field({
       </label>
       {children}
     </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <Switch
-      isSelected={checked}
-      onChange={onChange}
-      className="flex w-full items-center justify-between gap-3 py-2"
-    >
-      <span className="min-w-0 text-sm text-ink">
-        {label}
-        {hint && <span className="block text-xs text-muted-ink">{hint}</span>}
-      </span>
-      <Switch.Control>
-        <Switch.Thumb />
-      </Switch.Control>
-    </Switch>
   );
 }

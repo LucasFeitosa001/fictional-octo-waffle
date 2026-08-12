@@ -16,7 +16,7 @@
  * Rodar (prod):   DATABASE_URL="<rds>" pnpm --filter @beautypass/api exec tsx src/auth/seed-fatima.ts
  */
 import { prisma } from '@beautypass/db';
-import { auth } from './better-auth';
+import { auth, ensureOwnerProfessional } from './better-auth';
 
 const COMPANY_NAME = 'Fátima Cabelos';
 const OWNER_EMAIL = 'contato@fatimacabelos.com.br';
@@ -91,12 +91,57 @@ async function ensureCompany(): Promise<string> {
 }
 
 async function ensureProfessional(companyId: string) {
+  // O owner do salão (contato@fatimacabelos.com.br) É a Fátima Lacerda. Quando a
+  // empresa nasce via signUpEmail, o hook já cria um Professional vinculado ao dono
+  // (nome "Proprietário(a)"). Aqui reaproveitamos esse Professional do dono como a
+  // "Fátima Lacerda" — evita duplicar profissional pra mesma pessoa.
+  const owner = await prisma.user.findUnique({
+    where: { email: OWNER_EMAIL },
+    select: { id: true },
+  });
+
+  // Já existe um Professional vinculado ao dono (criado pelo hook)? Renomeia pro
+  // nome real e garante notifyWhatsapp=false. Idempotente.
+  if (owner) {
+    const ownerPro = await prisma.professional.findFirst({
+      where: { companyId, userId: owner.id },
+    });
+    if (ownerPro) {
+      if (ownerPro.name !== PROFESSIONAL_NAME) {
+        await prisma.professional.update({
+          where: { id: ownerPro.id },
+          data: { name: PROFESSIONAL_NAME, profession: 'Cabeleireira', notifyWhatsapp: false },
+        });
+        console.log(`Profissional do dono renomeada para "${PROFESSIONAL_NAME}".`);
+      }
+      return;
+    }
+  }
+
   const existing = await prisma.professional.findFirst({
     where: { companyId, name: PROFESSIONAL_NAME },
   });
-  if (existing) return;
+  if (existing) {
+    // Existe a "Fátima Lacerda" mas sem vínculo com o dono: vincula (idempotente).
+    if (owner && !existing.userId) {
+      await prisma.professional.update({
+        where: { id: existing.id },
+        data: { userId: owner.id, notifyWhatsapp: false },
+      });
+      console.log(`Profissional "${PROFESSIONAL_NAME}" vinculada ao dono.`);
+    }
+    return;
+  }
+
+  // Não existe ainda: cria já vinculada ao dono (helper garante idempotência e
+  // notifyWhatsapp=false).
+  if (owner) {
+    await ensureOwnerProfessional(companyId, owner.id, PROFESSIONAL_NAME);
+    console.log(`Profissional "${PROFESSIONAL_NAME}" criada (vinculada ao dono).`);
+    return;
+  }
   await prisma.professional.create({
-    data: { companyId, name: PROFESSIONAL_NAME, profession: 'Cabeleireira' },
+    data: { companyId, name: PROFESSIONAL_NAME, profession: 'Cabeleireira', notifyWhatsapp: false },
   });
   console.log(`Profissional "${PROFESSIONAL_NAME}" criada.`);
 }

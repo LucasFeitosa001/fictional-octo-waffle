@@ -24,6 +24,23 @@ packages/db/src/generated/
 .env
 .env.local
 .env.*.local
+# backups de .env feitos à mão — carregam JWT_SECRET e a senha do banco
+.env.bak*
+.env.bak-*
+*.env.backup-*
+apps/api/.secrets/
+
+# Pacote de envs capturadas, movido para dentro do repo em 07/08/2026 a pedido.
+# Contém PRODUÇÃO em texto puro: senha do RDS, BETTER_AUTH_SECRET, chaves
+# AWS/Google e os segredos VOLTR_* da ponte com o CRM.
+# Atenção: as regras `.env` acima NÃO cobrem estes arquivos — eles se chamam
+# `apps_api_.env`, `beautypass-api.env`, `beautypass-api.env.json`. Esta linha
+# é a única coisa entre eles e o github.com/p-lacerda/salonpass. Não remover.
+/.envs-backup/
+
+# Fila de WhatsApp salva para diagnóstico: tem telefone e texto de mensagem de
+# cliente real. Fica no disco para investigar, nunca no repositório.
+belasis-reference/_backup-fila-*/
 
 # misc
 .DS_Store
@@ -38,3 +55,9 @@ belasis-reference/.auth-profile*
 
 # local uploads (dev fallback when S3 is not configured)
 apps/api/uploads/
+
+# Artefatos de raspagem do Belasis (399 MB): HTML capturado, frames de vídeo e
+# estado de navegador. Ficam no disco para consulta, mas NUNCA no repositório —
+# `_out/agenda-belasis-scrape/belasis-auth.json` guarda cookies de sessão do
+# belasis.app, e credencial em git é permanente mesmo depois de apagada.
+belasis-reference/_out/

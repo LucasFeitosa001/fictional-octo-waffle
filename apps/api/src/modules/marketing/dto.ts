@@ -71,6 +71,10 @@ export class UpdatePromotionDto {
 export type ThemePreferenceDto = 'light' | 'dark' | 'auto';
 export type SchedulingFlowDto = 'service' | 'professional';
 
+// Cor de destaque (marca) do agendamento online: "#RRGGBB" ou string vazia
+// (limpa a cor → volta ao padrão da casa).
+const HEX_COLOR = /^#([0-9a-fA-F]{6})$/;
+
 export class UpdateWebProfileDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() website?: string;
@@ -84,6 +88,43 @@ export class UpdateWebProfileDto {
   @IsOptional() @IsIn(['light', 'dark', 'auto']) themePreference?: ThemePreferenceDto;
   @IsOptional() @IsIn(['service', 'professional']) schedulingFlow?: SchedulingFlowDto;
   @IsOptional() @IsBoolean() requiredLogin?: boolean;
+  @IsOptional()
+  @IsString()
+  @Matches(/^(#([0-9a-fA-F]{6}))?$/, {
+    message: 'accentColor deve ser um hex "#RRGGBB" ou vazio',
+  })
+  accentColor?: string;
+}
+
+export { HEX_COLOR };
+
+// ---- aparência do agendamento online (Setting key `booking.appearance`) ----
+// Cada cor é um hex "#RRGGBB" ou string vazia (limpa → volta ao default do
+// web-club). `hideNavbar` esconde a barra preta do topo da página pública.
+const HEX_OR_EMPTY = /^(#([0-9a-fA-F]{6}))?$/;
+
+export class UpdateBookingAppearanceDto {
+  @IsOptional() @IsBoolean() hideNavbar?: boolean;
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'primaryColor deve ser um hex "#RRGGBB" ou vazio' })
+  primaryColor?: string;
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'accentColor deve ser um hex "#RRGGBB" ou vazio' })
+  accentColor?: string;
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'backgroundColor deve ser um hex "#RRGGBB" ou vazio' })
+  backgroundColor?: string;
+  // Fundo da foto do serviço sem imagem (estudo 66).
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'photoColor deve ser um hex "#RRGGBB" ou vazio' })
+  photoColor?: string;
+  // Capa do topo da página pública (estudo 67). "" remove a capa.
+  @IsOptional() @IsString() coverUrl?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(80) coverOverlay?: number;
 }
 
 // ---- galeria de fotos do perfil público (GalleryPhoto, onda 7) ----

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Button, Checkbox, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { HelpTooltip, LabelWithHelp } from '../../components/HelpTooltip';
+import { AppTabs } from '../../components/AppTabs';
 import { useSetPageActions } from '../../layout/PageActions';
 import {
   IconChevron,
@@ -44,10 +45,10 @@ type CashbackTab = 'items' | 'clients' | 'settings';
 // primeira está ligada aos dados (regras de cashback); as demais não têm
 // wiring no back-end atual — mostram placeholder. // TODO: ligar quando houver
 // endpoints de cashback por cliente e de configuração global.
-const TABS: { key: CashbackTab; label: string; icon: typeof IconPencil }[] = [
-  { key: 'items', label: 'Produtos e Serviços', icon: IconPencil },
-  { key: 'clients', label: 'Clientes', icon: IconUser },
-  { key: 'settings', label: 'Configurações', icon: IconSettings },
+const TABS: { id: CashbackTab; label: string; icon: ReactNode }[] = [
+  { id: 'items', label: 'Produtos e Serviços', icon: <IconPencil size={16} /> },
+  { id: 'clients', label: 'Clientes', icon: <IconUser size={16} /> },
+  { id: 'settings', label: 'Configurações', icon: <IconSettings size={16} /> },
 ];
 
 function fmtPercent(percent: string) {
@@ -214,28 +215,13 @@ export function CashbackPage() {
         </div>
       </div>
 
-      {/* ── Abas (Produtos e Serviços / Clientes / Configurações) ──────── */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        {TABS.map(({ key, label, icon: Icon }) => {
-          const isActive = tab === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={[
-                'inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-[var(--shadow-gold)]'
-                  : 'border border-[var(--color-soft-border)] bg-warm-white text-muted-ink hover:text-ink',
-              ].join(' ')}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      <AppTabs
+        items={TABS}
+        selectedKey={tab}
+        onSelectionChange={(key) => setTab(key as CashbackTab)}
+        ariaLabel="Áreas de cashback"
+        className="mb-4"
+      />
 
       {tab === 'settings' ? (
         <CashbackSettings />
@@ -387,13 +373,20 @@ export function CashbackPage() {
                     ].join(' ')}
                   >
                     {selectMode && (
-                      <input
-                        type="checkbox"
-                        checked={selected.has(r.id)}
+                      <Checkbox
+                        isSelected={selected.has(r.id)}
                         onChange={() => toggleSelect(r.id)}
                         aria-label={`Selecionar ${SCOPE_LABEL[r.scopeType]}`}
-                        className="h-4 w-4 shrink-0 accent-[var(--sp-primary)]"
-                      />
+                        className="shrink-0"
+                      >
+                        {/* padding no Content (o <label> clicável) aumenta o alvo
+                            de toque; -m-2 compensa para não deslocar o layout. */}
+                        <Checkbox.Content className="-m-2 p-2">
+                          <Checkbox.Control>
+                            <Checkbox.Indicator />
+                          </Checkbox.Control>
+                        </Checkbox.Content>
+                      </Checkbox>
                     )}
 
                     {/* Avatar quadrado */}
@@ -407,10 +400,13 @@ export function CashbackPage() {
                       <IconGift size={20} />
                     </span>
 
-                    {/* Nome + subline (tipo | valor) */}
+                    {/* Nome + subline (tipo | valor). Em modo de seleção o corpo
+                        do card alterna a seleção (junto com o checkbox); fora
+                        dele abre a edição. */}
                     <button
                       type="button"
-                      onClick={() => openEdit(r)}
+                      onClick={() => (selectMode ? toggleSelect(r.id) : openEdit(r))}
+                      aria-pressed={selectMode ? selected.has(r.id) : undefined}
                       className="min-w-0 flex-1 text-left"
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -435,26 +431,29 @@ export function CashbackPage() {
                       </div>
                     </button>
 
-                    {/* Ações da linha */}
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(r)}
-                        aria-label="Editar regra"
-                        className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-gold/15 hover:text-gold-strong"
-                      >
-                        <IconPencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={del.isPending}
-                        onClick={() => handleRemove(r)}
-                        aria-label="Remover regra"
-                        className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
-                      >
-                        <IconTrash size={16} />
-                      </button>
-                    </div>
+                    {/* Ações da linha — ocultas no modo de seleção para o card
+                        inteiro virar alvo de toque limpo. */}
+                    {!selectMode && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(r)}
+                          aria-label="Editar regra"
+                          className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-gold/15 hover:text-gold-strong"
+                        >
+                          <IconPencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={del.isPending}
+                          onClick={() => handleRemove(r)}
+                          aria-label="Remover regra"
+                          className="grid h-9 w-9 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+                        >
+                          <IconTrash size={16} />
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -526,25 +525,24 @@ function CashbackSettings() {
     <div className="max-w-xl rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-4 shadow-[var(--shadow-card)]">
       <div className="flex flex-col gap-5">
         {/* Ativar programa */}
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={active}
-            onChange={(e) => setActive(e.target.checked)}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--sp-primary)]"
-          />
-          <span>
-            <span className="flex items-center text-sm font-medium text-ink">
-              Ativar programa de cashback
-              <HelpTooltip>
-                Quando ativo, o cashback padrão é aplicado nas vendas conforme as regras.
-              </HelpTooltip>
+        <Checkbox isSelected={active} onChange={setActive} className="items-start gap-3">
+          <Checkbox.Content className="items-start gap-3">
+            <Checkbox.Control className="mt-0.5 shrink-0">
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            <span>
+              <span className="flex items-center text-sm font-medium text-ink">
+                Ativar programa de cashback
+                <HelpTooltip>
+                  Quando ativo, o cashback padrão é aplicado nas vendas conforme as regras.
+                </HelpTooltip>
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-ink">
+                Devolve parte do valor pago como crédito para próximas compras.
+              </span>
             </span>
-            <span className="mt-0.5 block text-xs text-muted-ink">
-              Devolve parte do valor pago como crédito para próximas compras.
-            </span>
-          </span>
-        </label>
+          </Checkbox.Content>
+        </Checkbox>
 
         {/* Valor padrão + tipo */}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -599,25 +597,24 @@ function CashbackSettings() {
         </div>
 
         {/* Permitir resgate */}
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={canRedeem}
-            onChange={(e) => setCanRedeem(e.target.checked)}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--sp-primary)]"
-          />
-          <span>
-            <span className="flex items-center text-sm font-medium text-ink">
-              Permitir resgate de cashback
-              <HelpTooltip>
-                Se desligado, o saldo continua acumulando mas não pode ser usado para abater compras.
-              </HelpTooltip>
+        <Checkbox isSelected={canRedeem} onChange={setCanRedeem} className="items-start gap-3">
+          <Checkbox.Content className="items-start gap-3">
+            <Checkbox.Control className="mt-0.5 shrink-0">
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            <span>
+              <span className="flex items-center text-sm font-medium text-ink">
+                Permitir resgate de cashback
+                <HelpTooltip>
+                  Se desligado, o saldo continua acumulando mas não pode ser usado para abater compras.
+                </HelpTooltip>
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-ink">
+                Clientes podem usar o saldo acumulado como desconto.
+              </span>
             </span>
-            <span className="mt-0.5 block text-xs text-muted-ink">
-              Clientes podem usar o saldo acumulado como desconto.
-            </span>
-          </span>
-        </label>
+          </Checkbox.Content>
+        </Checkbox>
 
         {formError && (
           <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -700,6 +697,7 @@ function CashbackDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={editing ? 'Editar regra' : 'Nova regra de cashback'}
+      fullscreen
       footer={
         success ? (
           <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
@@ -792,16 +790,15 @@ function CashbackDrawer({
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
-              className="h-4 w-4 accent-[var(--sp-primary)]"
-            />
-            Regra ativa
-            <HelpTooltip>Se desligado, a regra fica salva mas não é aplicada.</HelpTooltip>
-          </label>
+          <Checkbox isSelected={active} onChange={setActive} className="w-fit text-sm text-ink">
+            <Checkbox.Content className="items-center gap-2">
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              Regra ativa
+              <HelpTooltip>Se desligado, a regra fica salva mas não é aplicada.</HelpTooltip>
+            </Checkbox.Content>
+          </Checkbox>
 
           {formError && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">

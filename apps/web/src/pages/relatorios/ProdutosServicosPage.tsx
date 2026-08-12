@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
+import { ReportPdfOption } from './ReportPdfButton';
 import { LoadingState } from '../../components/States';
 import { IconChevron, IconDownload } from '../../components/icons';
 import { formatMoney, formatNumber } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useProductCategories, useProducts } from '../../lib/queries/catalogo';
-import { useServiceCategories, useServices } from '../../lib/queries';
+import { useServices } from '../../lib/queries';
 import { InventoryReportShell } from './reportNav';
 
 /* -------------------------------------------------------------------------- */
@@ -79,13 +80,12 @@ export function ProdutosServicosPage() {
   const productsQuery = useProducts();
   const servicesQuery = useServices();
   const productCategories = useProductCategories();
-  const serviceCategories = useServiceCategories();
 
-  const serviceCatName = useMemo(() => {
+  const categoryName = useMemo(() => {
     const map = new Map<string, string>();
-    (serviceCategories.data ?? []).forEach((c) => map.set(c.id, c.name));
+    (productCategories.data ?? []).forEach((c) => map.set(c.id, c.name));
     return map;
-  }, [serviceCategories.data]);
+  }, [productCategories.data]);
 
   const allRows = useMemo<Row[]>(() => {
     const products: Row[] = (productsQuery.data?.data ?? []).map((p) => ({
@@ -101,24 +101,19 @@ export function ProdutosServicosPage() {
       id: `s-${s.id}`,
       name: s.name,
       type: 'service',
-      category: (s.categoryId ? serviceCatName.get(s.categoryId) : undefined) ?? '—',
+      category: (s.categoryId ? categoryName.get(s.categoryId) : undefined) ?? '—',
       price: s.price,
       stock: null,
       active: s.active ?? true,
     }));
     return [...products, ...services].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  }, [productsQuery.data, servicesQuery.data, serviceCatName]);
+  }, [productsQuery.data, servicesQuery.data, categoryName]);
 
-  // Opções de categoria dependem do tipo selecionado (produtos × serviços).
+  // Produtos e serviços compartilham as mesmas categorias.
   const categoryOptions = useMemo(() => {
-    if (type === 'product') {
-      return (productCategories.data ?? []).map((c) => ({ id: c.name, name: c.name }));
-    }
-    if (type === 'service') {
-      return (serviceCategories.data ?? []).map((c) => ({ id: c.name, name: c.name }));
-    }
-    return [];
-  }, [type, productCategories.data, serviceCategories.data]);
+    if (type === 'all') return [];
+    return (productCategories.data ?? []).map((c) => ({ id: c.name, name: c.name }));
+  }, [type, productCategories.data]);
 
   const rows = useMemo(
     () =>
@@ -193,14 +188,19 @@ export function ProdutosServicosPage() {
             </div>
           )}
           <div className="sm:ml-auto">
-            <button
-              type="button"
-              onClick={exportCsv}
-              disabled={rows.length === 0}
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
-            >
-              <IconDownload size={16} /> Exportar CSV
-            </button>
+            <>
+              {/* Mesma acao compartilhada dos demais relatorios: este era um dos
+                  quatro que so ofereciam CSV. Ver estudo 97. */}
+              <ReportPdfOption />
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={rows.length === 0}
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
+              >
+                <IconDownload size={16} /> Exportar CSV
+              </button>
+            </>
           </div>
         </div>
       </div>
@@ -236,7 +236,7 @@ export function ProdutosServicosPage() {
                   {rows.map((r) => (
                     <tr
                       key={r.id}
-                      className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                      className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                     >
                       <td className="px-5 py-3 font-medium text-ink">{r.name}</td>
                       <td className="px-5 py-3">
@@ -244,8 +244,8 @@ export function ProdutosServicosPage() {
                           className={[
                             'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
                             r.type === 'product'
-                              ? 'bg-gold/15 text-gold-strong'
-                              : 'bg-primary/10 text-primary',
+                              ? 'bg-[var(--sp-data-products-soft)] text-data-products'
+                              : 'bg-[var(--sp-data-services-soft)] text-data-services',
                           ].join(' ')}
                         >
                           {r.type === 'product' ? 'Produto' : 'Serviço'}

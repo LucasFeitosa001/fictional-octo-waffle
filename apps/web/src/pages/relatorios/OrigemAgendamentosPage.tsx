@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   IconCalendar,
-  IconChevron,
   IconDownload,
   IconLink,
   IconReceipt,
@@ -10,8 +9,10 @@ import {
 import { formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsOrigemAgendamentos } from '../../lib/queries/relatorios';
-import { useThemeColors } from '../../theme/useThemeColors';
+import { DateRangePicker } from '../../components/DatePicker';
+import { getCategoricalColor } from '../../theme/dataColors';
 import { CalendarReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Relatório real "Origem dos Agendamentos" (/reports/calendars/origin).     */
@@ -24,7 +25,7 @@ const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]'
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -42,7 +43,7 @@ function Kpi({
   return (
     <div className={`${CARD} p-5`}>
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--sp-data-appointments-soft)] text-data-appointments">
           {icon}
         </span>
         <span className="text-sm font-medium text-ink">{title}</span>
@@ -54,8 +55,6 @@ function Kpi({
 }
 
 export function OrigemAgendamentosPage() {
-  const colors = useThemeColors();
-
   const [range, setRange] = useState(defaultRange);
   const [pending, setPending] = useState(range);
 
@@ -70,8 +69,9 @@ export function OrigemAgendamentosPage() {
   const hasData = !!d && (total > 0 || byOrigin.length > 0);
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {
@@ -107,30 +107,17 @@ export function OrigemAgendamentosPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-ink">Período</label>
-              <div className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-3 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 sm:h-10">
-                <input
-                  type="date"
-                  value={pending.from}
-                  max={pending.to || undefined}
-                  onChange={(e) => setPending((p) => ({ ...p, from: e.target.value }))}
-                  aria-label="Data inicial"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                />
-                <IconChevron size={14} className="-rotate-90 shrink-0 text-muted-ink" aria-hidden />
-                <input
-                  type="date"
-                  value={pending.to}
-                  min={pending.from || undefined}
-                  onChange={(e) => setPending((p) => ({ ...p, to: e.target.value }))}
-                  aria-label="Data final"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-                />
-                <IconCalendar size={16} className="shrink-0 text-muted-ink" aria-hidden />
-              </div>
+              <DateRangePicker
+                from={pending.from}
+                to={pending.to}
+                onChange={setPending}
+                ariaLabel="Período"
+              />
             </div>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            <ReportPdfOption />
             <button
               type="submit"
               disabled={query.isFetching}
@@ -206,8 +193,8 @@ export function OrigemAgendamentosPage() {
                         outerRadius={80}
                         innerRadius={40}
                       >
-                        {byOrigin.map((_, i) => (
-                          <Cell key={i} fill={colors.palette[i % colors.palette.length]} />
+                        {byOrigin.map((origin) => (
+                          <Cell key={origin.source} fill={getCategoricalColor(origin.source)} />
                         ))}
                       </Pie>
                       <Tooltip formatter={(v: number) => [formatNumber(v), 'Agendamentos']} />
@@ -232,18 +219,18 @@ export function OrigemAgendamentosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {byOrigin.map((o, i) => {
+                    {byOrigin.map((o) => {
                       const share = total > 0 ? (o.count / total) * 100 : 0;
                       return (
                         <tr
                           key={o.source}
-                          className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                          className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                         >
                           <td className="px-5 py-3 text-ink">
                             <span className="flex items-center gap-2.5">
                               <span
                                 className="h-3 w-3 shrink-0 rounded-full"
-                                style={{ background: colors.palette[i % colors.palette.length] }}
+                                style={{ background: getCategoricalColor(o.source) }}
                               />
                               {o.label}
                             </span>
@@ -259,7 +246,7 @@ export function OrigemAgendamentosPage() {
                     })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-primary/5 font-semibold text-ink">
+                    <tr className="bg-ink/5 font-semibold text-ink">
                       <td className="px-5 py-3">Total</td>
                       <td className="px-5 py-3 text-right">{formatNumber(total)}</td>
                       <td className="px-5 py-3 text-right">100%</td>

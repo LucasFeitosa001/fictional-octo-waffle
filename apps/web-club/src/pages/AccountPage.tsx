@@ -12,7 +12,9 @@ import {
 } from '@gravity-ui/icons';
 import { signOut, useCustomerSession } from '../lib/auth';
 import { AppointmentListSkeleton } from '../components/Skeletons';
+import { SalonBrand } from '../components/SalonBrand';
 import {
+  useBookingAccent,
   useCancelAppointment,
   useMyAppointments,
   useMyProfile,
@@ -37,6 +39,7 @@ function readPermission(): PermState {
  */
 export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) {
   const navigate = useNavigate();
+  useBookingAccent(slug);
   const { data: session, isPending } = useCustomerSession();
   const isLoggedIn = !!session;
 
@@ -73,11 +76,7 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
         <header className="club-topbar sticky top-0 z-40 shadow-sm">
           <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-4 py-2.5 md:py-3">
             <span className="h-11 w-11 rounded-full bg-white/10" />
-            <img
-              src="/brand/salonpass-wordmark-white.svg"
-              alt="Salonpass"
-              className="h-6 w-auto sm:h-7"
-            />
+            <SalonBrand slug={slug} />
           </div>
         </header>
         <main className="club-page-main mx-auto w-full max-w-xl flex-1 py-6 sm:py-8">
@@ -105,11 +104,7 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
           >
             <ArrowLeft width={22} height={22} />
           </button>
-          <img
-            src="/brand/salonpass-wordmark-white.svg"
-            alt="Salonpass"
-            className="h-6 w-auto sm:h-7"
-          />
+          <SalonBrand slug={slug} />
         </div>
       </header>
 

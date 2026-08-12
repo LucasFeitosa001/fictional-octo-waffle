@@ -74,7 +74,7 @@ function shiftPeriod(p: string, delta: number) {
 }
 
 const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
-const PROGRESS_TRACK = 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)]';
+const PROGRESS_TRACK = 'bg-[var(--sp-data-balance-soft)]';
 
 function fmtValue(kind: GoalKind, n: number) {
   return KIND_IS_MONEY[kind] ? formatMoney(n) : formatNumber(n);
@@ -92,7 +92,7 @@ function ProgressCell({ goal }: { goal: Goal }) {
       <div className={`flex items-center gap-2`}>
         <div className={`h-2 w-full overflow-hidden rounded-full ${PROGRESS_TRACK}`}>
           <div
-            className={`h-full rounded-full transition-all ${done ? 'bg-success' : 'bg-primary'}`}
+            className={`h-full rounded-full transition-all ${done ? 'bg-status-success' : 'bg-data-balance'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -100,8 +100,8 @@ function ProgressCell({ goal }: { goal: Goal }) {
           className={[
             'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
             done
-              ? 'bg-success/15 text-success'
-              : 'bg-[color-mix(in_oklab,var(--sp-primary)_14%,transparent)] text-primary',
+              ? 'bg-status-success-soft text-status-success-fg'
+              : 'bg-[var(--sp-data-balance-soft)] text-data-balance',
           ].join(' ')}
         >
           {pct}%
@@ -121,11 +121,14 @@ export function MetasPage() {
   // Seleção em lote das metas (ids).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const goals = useGoals(period || undefined);
-  const professionals = useProfessionals(1, 100);
+  // Lista COMPLETA só para resolver o nome de metas antigas de quem já foi
+  // desativado; os seletores abaixo usam `profOptions` (só ativos).
+  const professionals = useProfessionals(1, 100, { status: 'all' });
   const del = useDeleteGoal();
   const confirm = useConfirm();
 
   const profList = professionals.data?.data ?? [];
+  const profOptions = useMemo(() => profList.filter((p) => p.active), [profList]);
   const profName = useMemo(() => {
     const map = new Map<string, string>();
     for (const p of profList) map.set(p.id, p.name);
@@ -287,7 +290,7 @@ export function MetasPage() {
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-muted-ink">Profissionais</span>
               <ProfessionalMultiSelect
-                options={profList}
+                options={profOptions}
                 selected={profFilter}
                 onChange={setProfFilter}
                 loading={professionals.isLoading}
@@ -354,7 +357,7 @@ export function MetasPage() {
                         onClick={() => openEdit(g)}
                         className="flex w-full items-center gap-2.5 text-left"
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--sp-data-balance-soft)] text-data-balance">
                           <IconTarget size={16} />
                         </span>
                         <span className="min-w-0">
@@ -400,7 +403,7 @@ export function MetasPage() {
                       onClick={() => openEdit(g)}
                       className="flex min-w-0 items-center gap-2.5 text-left"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--sp-data-balance-soft)] text-data-balance">
                         <IconTarget size={18} />
                       </span>
                       <span className="min-w-0">
@@ -447,7 +450,7 @@ export function MetasPage() {
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         editing={editing}
-        professionals={profList}
+        professionals={profOptions}
       />
     </div>
   );
@@ -464,29 +467,35 @@ function Checkbox({
   ariaLabel: string;
 }) {
   return (
+    // Alvo de toque de 44px (acessibilidade/mobile): o padding cria a área
+    // clicável e o -m-2.5 mantém o quadrado visível de 16px sem deslocar o layout.
     <button
       type="button"
       aria-label={ariaLabel}
       aria-pressed={checked}
       onClick={onChange}
-      className={[
-        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-        checked
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-line bg-card hover:border-primary',
-      ].join(' ')}
+      className="-m-2.5 grid shrink-0 place-items-center p-2.5"
     >
-      {checked && (
-        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-          <path
-            d="M2.5 6.5l2.5 2.5 4.5-5"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )}
+      <span
+        className={[
+          'flex h-4 w-4 items-center justify-center rounded border transition-colors',
+          checked
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-line bg-card hover:border-primary',
+        ].join(' ')}
+      >
+        {checked && (
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 6.5l2.5 2.5 4.5-5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </span>
     </button>
   );
 }
@@ -763,6 +772,7 @@ function MetaDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={editing ? 'Editar meta' : 'Nova meta'}
+      fullscreen
       footer={
         success ? (
           <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>

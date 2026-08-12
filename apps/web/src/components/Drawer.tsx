@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { IconX } from './icons';
+import { IconChevron, IconX } from './icons';
+import { IconTip } from './IconTip';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useCloseStyle } from '../theme/closeStyle';
 
 interface DrawerProps {
   isOpen: boolean;
@@ -20,6 +22,13 @@ interface DrawerProps {
    * higher one like `z-[90]`.
    */
   zClass?: string;
+  /**
+   * Desktop: ocupa a tela inteira (para drawers de CRIAR/EDITAR entidade).
+   * Ignora `widthClass` no desktop. Não afeta mobile/bottom-sheet.
+   */
+  fullscreen?: boolean;
+  /** Mobile only: replaces the close icon with a contextual back action. */
+  mobileBackLabel?: string;
 }
 
 // Keep the panel mounted long enough for the horizontal exit slide to finish.
@@ -43,8 +52,11 @@ export function Drawer({
   widthClass = 'sm:w-[440px]',
   placement = 'right',
   zClass = 'z-[70]',
+  fullscreen = false,
+  mobileBackLabel,
 }: DrawerProps) {
   const isMobile = useIsMobile();
+  const closeStyle = useCloseStyle();
   const effectivePlacement: 'right' | 'bottom' =
     placement === 'bottom' ? 'bottom' : (isMobile ? 'bottom' : 'right');
   // `mounted` keeps the drawer in the DOM through the exit animation; `show`
@@ -127,29 +139,73 @@ export function Drawer({
         aria-label={title}
         tabIndex={-1}
         className={[
-          'absolute flex w-full flex-col border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-pop)] outline-none',
+          // `sp-drawer-panel`: âncora usada pelo index.css para dar bordas/altura
+          // de toque a inputs/selects dentro de qualquer drawer (mobile-first).
+          'sp-drawer-panel absolute flex w-full flex-col border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-pop)] outline-none',
           'transform-gpu transition-transform duration-[380ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] will-change-transform',
           effectivePlacement === 'right'
-            ? `bottom-0 right-0 top-0 h-dvh border-l ${widthClass} ${show ? 'translate-x-0' : 'translate-x-full'}`
+            ? `bottom-0 right-0 top-0 h-dvh ${fullscreen ? 'w-full' : `border-l ${widthClass}`} ${show ? 'translate-x-0' : 'translate-x-full'}`
             : `inset-0 h-dvh border-t ${show ? 'translate-y-0' : 'translate-y-full'}`,
         ].join(' ')}
       >
         {/* Header (sticky) */}
+        {/* padding-top do topo:
+            - painel `bottom` (mobile bottom-sheet/fullscreen `inset-0 h-dvh`,
+              ancorado no topo físico) → reserva `var(--sp-safe-top)` pra o
+              título/botão não ficar sob o notch/Dynamic Island no PWA instalado
+              (standalone). Igual ao MobileBackHeader das páginas internas.
+            - painel `right` (desktop, desliza da direita) → topo já abaixo do
+              notch; mantém a folga histórica. No Safari com URL bar a inset é 0
+              e ambos caem no piso normal (nada regride). */}
         <div className={[
-          'sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-soft-border)] bg-warm-white px-4 pb-3.5',
-          effectivePlacement === 'right' ? 'pt-[max(0.875rem,env(safe-area-inset-top))]' : 'pt-3.5',
+          'sticky top-0 z-10 border-b border-[var(--color-soft-border)] bg-warm-white px-4 pb-3.5',
+          isMobile && mobileBackLabel
+            ? 'grid grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center'
+            : 'flex items-center justify-between gap-3',
+          effectivePlacement === 'right'
+            ? 'pt-[max(0.875rem,env(safe-area-inset-top))]'
+            : 'pt-[max(0.875rem,var(--sp-safe-top))]',
         ].join(' ')}>
-          <h2 className="min-w-0 truncate text-base font-semibold text-foreground">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            title="Fechar"
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#5f5a54] shadow-sm transition-colors hover:border-black/20 hover:bg-cream"
-          >
-            <IconX size={16} />
-            <span>Fechar</span>
-          </button>
+          {isMobile && mobileBackLabel ? (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={mobileBackLabel}
+                className="inline-flex min-h-11 items-center gap-1 rounded-lg text-sm font-semibold text-primary"
+              >
+                <span className="rotate-90">
+                  <IconChevron size={18} />
+                </span>
+                {mobileBackLabel}
+              </button>
+              <h2 className="min-w-0 truncate px-2 text-center text-sm font-semibold text-foreground">
+                {title}
+              </h2>
+              <span aria-hidden />
+            </>
+          ) : (
+            <>
+              <h2 className="min-w-0 truncate text-base font-semibold text-foreground">{title}</h2>
+              <IconTip label="Fechar" placement="bottom" className="shrink-0">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Fechar"
+                  className={
+                    closeStyle === 'label'
+                      ? 'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#5f5a54] shadow-sm transition-colors hover:border-black/20 hover:bg-cream'
+                      : closeStyle === 'round'
+                        ? 'grid h-9 w-9 shrink-0 place-items-center rounded-full border border-black/10 bg-white text-[#5f5a54] shadow-sm transition-colors hover:border-black/20 hover:bg-cream'
+                        : 'grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-ink transition-colors hover:bg-black/5 hover:text-foreground'
+                  }
+                >
+                  <IconX size={16} />
+                  {closeStyle === 'label' && <span>Fechar</span>}
+                </button>
+              </IconTip>
+            </>
+          )}
         </div>
 
         {/* Body (the scroller) */}

@@ -4,9 +4,12 @@ import { DateField } from '../../components/DateRangeFilter';
 import { LoadingState } from '../../components/States';
 import { IconChevron, IconDownload, IconFilter, IconStar } from '../../components/icons';
 import { formatMoney, formatNumber, isoDate } from '../../lib/format';
+import { downloadCsv } from '../../lib/csv';
 import { useReportsOverview } from '../../lib/queries/relatorios';
 import { useSetPageActions } from '../../layout/PageActions';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clone fiel da página "RelatorioRanking" do Belasis (/reports/clients/rank).
@@ -30,7 +33,7 @@ interface Filters {
 function defaultFilters(): Filters {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { saleType: 'both', from: isoDate(from), to: isoDate(to), orderBy: 'total' };
 }
 
@@ -170,6 +173,21 @@ export function RankingPage() {
     setApplied(pending);
   }
 
+  function handleExport() {
+    const exportRows = rows.map((row, index) => ({ ...row, position: index + 1 }));
+    downloadCsv(
+      `ranking-${applied.from}-${applied.to}`,
+      [
+        { header: 'Posição', value: (row) => row.position },
+        { header: 'Nome', value: (row) => row.name },
+        { header: 'Tipo', value: (row) => row.tipo },
+        { header: 'Quantidade', value: (row) => row.count },
+        { header: 'Valor', value: (row) => row.total },
+      ],
+      exportRows,
+    );
+  }
+
   // Mobile: as ações do card (Gerar / Exportar) vivem na BottomNav (padrão
   // Belasis). No desktop os botões inline continuam visíveis (ver `hidden md:flex`).
   useSetPageActions(
@@ -184,16 +202,19 @@ export function RankingPage() {
         key: 'exportar',
         label: 'Exportar',
         icon: <IconDownload size={22} />,
-        // TODO: menu de exportação (PDF/Excel) — mesmo comportamento do botão desktop (ainda sem handler).
-        onClick: () => {},
+        onClick: handleExport,
+        disabled: rows.length === 0,
       },
     ],
-    [pending],
+    [pending, rows, applied],
   );
 
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Ranking" />
       <PageHeader
         title="Ranking"
         subtitle="Itens que mais venderam no período, por valor ou quantidade"
@@ -239,7 +260,8 @@ export function RankingPage() {
 
         {/* Ação: Gerar relatório + export (Belasis: botão primário + dropdown).
             Desktop-only: no mobile essas ações ficam na BottomNav (useSetPageActions). */}
-        <div className="mt-4 hidden justify-end md:flex">
+        <div className="mt-4 hidden justify-end gap-2 md:flex">
+          <ReportPdfOption />
           <div className="inline-flex overflow-hidden rounded-lg">
             <button
               type="button"
@@ -250,10 +272,11 @@ export function RankingPage() {
             </button>
             <button
               type="button"
-              // TODO: menu de exportação (PDF/Excel) — não capturado no Belasis.
+              onClick={handleExport}
+              disabled={rows.length === 0}
               aria-label="Exportar"
-              title="Exportar"
-              className="flex h-10 items-center border-l border-[color-mix(in_oklab,var(--sp-primary-fg)_25%,transparent)] bg-primary px-3 text-primary-foreground transition-colors hover:bg-primary-strong"
+              title="Exportar CSV"
+              className="flex h-10 items-center border-l border-[color-mix(in_oklab,var(--sp-primary-fg)_25%,transparent)] bg-primary px-3 text-primary-foreground transition-colors hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-50"
             >
               <IconDownload size={16} />
             </button>
@@ -289,14 +312,40 @@ export function RankingPage() {
                     className="border-b border-line last:border-0 transition-colors hover:bg-canvas"
                   >
                     <td className="px-4 py-3">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_15%,transparent)] text-xs font-semibold text-primary-strong">
+                      <span
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
+                        style={{
+                          background:
+                            i === 0
+                              ? '#fef3c7'
+                              : i === 1
+                                ? '#f1f5f9'
+                                : i === 2
+                                  ? '#ffedd5'
+                                  : '#f8fafc',
+                          color:
+                            i === 0
+                              ? '#92400e'
+                              : i === 1
+                                ? '#475569'
+                                : i === 2
+                                  ? '#9a3412'
+                                  : '#64748b',
+                        }}
+                      >
                         {i + 1}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-medium text-ink">{r.name}</td>
                     {showTipo && (
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] px-2.5 py-0.5 text-xs font-medium text-primary-strong">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            r.tipo === 'Produto'
+                              ? 'bg-[var(--sp-data-products-soft)] text-data-products'
+                              : 'bg-[var(--sp-data-services-soft)] text-data-services'
+                          }`}
+                        >
                           {r.tipo}
                         </span>
                       </td>

@@ -1,20 +1,33 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { fromNodeHeaders } from 'better-auth/node';
+import { prisma } from '@beautypass/db';
 import { auth } from '../auth/better-auth';
+import { PERSONIFICACAO_DURACAO_MS as IMPERSONACAO_MAX_MS } from '../modules/platform/platform.constants';
 
 /**
- * BetterAuthGuard — validates the Better Auth session from either the session
- * cookie (web) or the `Authorization: Bearer <token>` header (mobile/Expo),
- * then populates `request.user` with { userId, companyId, email }, preserving
- * the exact shape the domain controllers + CurrentUser decorator expect.
+ * BetterAuthGuard — valida a sessão Better Auth (cookie no web ou
+ * `Authorization: Bearer <token>` no mobile/Expo) e popula `request.user` com
+ * { userId, companyId, email, roleCode, professionalId } — onde `companyId` é a
+ * EMPRESA ATIVA da sessão (multi-conta), não necessariamente a última do User.
  *
- * Exported as `JwtAuthGuard` too so existing `@UseGuards(JwtAuthGuard)` usages
- * across the domain modules keep working without edits.
+ * Resolução da empresa ativa (multi-conta):
+ *   1. Session.activeCompanyId (empresa escolhida via /session/switch-company);
+ *   2. fallback User.companyId (empresa "principal"/última usada).
+ * O activeCompanyId é lido do banco (fonte de verdade), pois não faz parte dos
+ * additionalFields expostos por getSession.
+ *
+ * Segurança multi-tenant: com o switch, o tenant ativo TEM que ser autorizado —
+ * exigimos uma UserCompany { userId, companyId ativo }. Sem membership → 403.
+ * (O owner sempre tem UserCompany, então o login admin nunca é bloqueado.)
+ *
+ * Exportado como `JwtAuthGuard` também, para os `@UseGuards(JwtAuthGuard)`
+ * existentes seguirem funcionando sem edição.
  */
 @Injectable()
 export class BetterAuthGuard implements CanActivate {
@@ -30,17 +43,79 @@ export class BetterAuthGuard implements CanActivate {
     }
 
     const user = session.user as typeof session.user & { companyId?: string | null };
+    // O token identifica a Session; usamos para ler activeCompanyId e gravar o
+    // switch de empresa. `id` é opcional no shape inferido, então caímos no token.
+    const sessionToken = session.session.token;
+    const sessionId = (session.session as { id?: string }).id;
 
-    if (!user.companyId) {
+    // Empresa ativa: activeCompanyId da sessão (lido do banco) ?? User.companyId.
+    let activeCompanyId: string | null | undefined = user.companyId;
+    const sessionRow = await prisma.session.findUnique({
+      where: { token: sessionToken },
+      select: {
+        id: true,
+        activeCompanyId: true,
+        impersonatedByStaffId: true,
+        createdAt: true,
+      },
+    });
+    if (sessionRow?.activeCompanyId) {
+      activeCompanyId = sessionRow.activeCompanyId;
+    }
+
+    // Teto do "entrar como" do console de suporte. Ver estudo 135.6.1.
+    //
+    // A conta é feita sobre `createdAt`, NUNCA sobre `expiresAt`: o Better Auth
+    // reescreve a expiração ao ler a sessão, e medimos isso — uma sessão criada
+    // com 30 min de prazo virava 7 dias na primeira requisição. `createdAt` ele
+    // não toca, então é o único relógio confiável aqui.
+    //
+    // Inerte para login normal: só entra quando impersonatedByStaffId existe.
+    if (sessionRow?.impersonatedByStaffId) {
+      const idadeMs = Date.now() - sessionRow.createdAt.getTime();
+      if (idadeMs > IMPERSONACAO_MAX_MS) {
+        await prisma.session.delete({ where: { id: sessionRow.id } }).catch(() => undefined);
+        throw new UnauthorizedException(
+          'A sessão de suporte expirou. Abra outra pelo console.',
+        );
+      }
+    }
+
+    if (!activeCompanyId) {
       throw new UnauthorizedException('Usuário sem empresa associada');
     }
 
+    // Valida membership na empresa ativa (fecha o buraco do switch): sem
+    // UserCompany autorizada, nega. O owner sempre tem UserCompany.
+    const membership = await prisma.userCompany.findUnique({
+      where: { userId_companyId: { userId: user.id, companyId: activeCompanyId } },
+      include: { role: { select: { code: true } } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('Sem acesso a esta empresa');
+    }
+
+    // professionalId: perfil de profissional do usuário NESTA empresa (se existir).
+    const professional = await prisma.professional.findFirst({
+      where: { userId: user.id, companyId: activeCompanyId, deletedAt: null },
+      select: { id: true },
+    });
+
     request.user = {
       userId: user.id,
-      companyId: user.companyId,
+      companyId: activeCompanyId,
       email: user.email,
+      roleCode: membership.role?.code ?? null,
+      professionalId: professional?.id ?? null,
     };
+    // Não-nulo ⇒ esta sessão nasceu de um "entrar como" do suporte. Exposto para
+    // o painel do salão poder avisar quem está do outro lado da tela.
+    request.impersonatedByStaffId = sessionRow?.impersonatedByStaffId ?? null;
     request.session = session.session;
+    // Guardado para o endpoint de switch-company gravar Session.activeCompanyId.
+    request.sessionId = sessionRow?.id ?? sessionId ?? null;
+    request.sessionToken = sessionToken;
 
     return true;
   }

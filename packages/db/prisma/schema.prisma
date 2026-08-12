@@ -151,6 +151,13 @@ enum CommissionClosingStatus {
   closed
 }
 
+// Vale (adiantamento). `open` = concedido, ainda não descontado de um pagamento;
+// `deducted` = já abatido no cálculo de um CommissionPayment.
+enum CommissionAdvanceStatus {
+  open
+  deducted
+}
+
 enum InvoiceType {
   nfse
   nfe
@@ -197,82 +204,96 @@ enum GoalKind {
 // =====================================================================
 
 model Company {
-  id                String   @id @default(cuid())
-  name              String
-  legalName         String?
-  cnpj              String?
-  logoUrl           String?
-  timezone          String   @default("America/Sao_Paulo")
-  currency          String   @default("BRL")
-  addressJson       Json?
-  businessHoursJson Json?
-  active            Boolean  @default(true)
+  id                    String   @id @default(cuid())
+  name                  String
+  legalName             String?
+  cnpj                  String?
+  logoUrl               String?
+  // Personalização visual COMPARTILHADA por toda a empresa (Configurações →
+  // Personalizar): tema de cores, formato dos botões, sidebar, botão fechar e
+  // atalho do CRM. JSON para evoluir o editor sem uma coluna por opção. É a
+  // fonte da verdade para TODOS os logins da empresa, em qualquer dispositivo;
+  // antes vivia por-usuário em User.appearancePreferences. Só quem tem
+  // config:manage altera; qualquer usuário autenticado lê para aplicar o tema.
+  appearancePreferences Json?
+  timezone              String   @default("America/Sao_Paulo")
+  currency              String   @default("BRL")
+  addressJson           Json?
+  businessHoursJson     Json?
+  active                Boolean  @default(true)
   // Cashback — programa global do estabelecimento (Belasis "Programa de Cashback").
   // Config única por empresa; o saldo por cliente vive no ledger CustomerCashback.
-  cashbackActive    Boolean  @default(false)
-  cashbackValueType String? // 'percent' | 'value'
-  cashbackValue     Decimal? @db.Decimal(12, 2)
-  cashbackCanRedeem Boolean  @default(true)
-  cashbackMinimum   Decimal  @default(0) @db.Decimal(12, 2)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  cashbackActive        Boolean  @default(false)
+  cashbackValueType     String? // 'percent' | 'value'
+  cashbackValue         Decimal? @db.Decimal(12, 2)
+  cashbackCanRedeem     Boolean  @default(true)
+  cashbackMinimum       Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  branches            Branch[]
-  users               User[]
-  roles               Role[]
-  userCompanies       UserCompany[]
-  subscriptions       Subscription[]
-  featureFlags        FeatureFlag[]
-  customers           Customer[]
-  customerFiles       CustomerFile[]
-  customerTags        CustomerTag[]
-  customerDebts       CustomerDebt[]
-  professionals       Professional[]
-  professionalInvites ProfessionalInvite[]
-  serviceCategories   ServiceCategory[]
-  services            Service[]
-  productCategories   ProductCategory[]
-  brands              Brand[]
-  products            Product[]
-  productBatches      ProductBatch[]
-  suppliers           Supplier[]
-  purchases           Purchase[]
-  appointments        Appointment[]
-  orders              Order[]
-  packageTemplates    PackageTemplate[]
-  customerPackages    CustomerPackage[]
-  membershipPlans     MembershipPlan[]
-  customerMemberships CustomerMembership[]
-  financialAccounts   FinancialAccount[]
-  paymentMethods      PaymentMethod[]
-  financialCategories FinancialCategory[]
-  transactions        Transaction[]
-  cashRegisters       CashRegister[]
-  commissionRules     CommissionRule[]
-  commissionEntries   CommissionEntry[]
-  commissionPayments  CommissionPayment[]
-  commissionClosings  CommissionClosing[]
-  fiscalSettings      FiscalSettings?
-  invoices            Invoice[]
-  taxProfiles         TaxProfile[]
-  bookingLinks        BookingLink[]
-  campaigns           Campaign[]
-  promotions          Promotion[]
-  coupons             Coupon[]
-  reviews             Review[]
-  cashbackRules       CashbackRule[]
-  notifications       Notification[]
-  auditLogs           AuditLog[]
-  files               File[]
-  documents           Document[]
-  documentTemplates   DocumentTemplate[]
-  settings            Setting[]
-  goals               Goal[]
-  reportsCache        ReportCache[]
-  importedXmls        ImportedXml[]
-  salonWebProfile     SalonWebProfile?
-  galleryPhotos       GalleryPhoto[]
-  anamnesisTemplates  AnamnesisTemplate[]
+  branches              Branch[]
+  users                 User[]
+  roles                 Role[]
+  userCompanies         UserCompany[]
+  subscriptions         Subscription[]
+  featureFlags          FeatureFlag[]
+  customers             Customer[]
+  customerFiles         CustomerFile[]
+  customerTags          CustomerTag[]
+  customerDebts         CustomerDebt[]
+  professionals         Professional[]
+  professionalInvites   ProfessionalInvite[]
+  serviceCategories     ServiceCategory[]
+  services              Service[]
+  productCategories     ProductCategory[]
+  brands                Brand[]
+  products              Product[]
+  productBatches        ProductBatch[]
+  suppliers             Supplier[]
+  purchases             Purchase[]
+  appointments          Appointment[]
+  orders                Order[]
+  packageTemplates      PackageTemplate[]
+  customerPackages      CustomerPackage[]
+  membershipPlans       MembershipPlan[]
+  customerMemberships   CustomerMembership[]
+  financialAccounts     FinancialAccount[]
+  paymentMethods        PaymentMethod[]
+  financialCategories   FinancialCategory[]
+  transactions          Transaction[]
+  cashRegisters         CashRegister[]
+  commissionRules       CommissionRule[]
+  commissionEntries     CommissionEntry[]
+  commissionPayments    CommissionPayment[]
+  commissionAdvances    CommissionAdvance[]
+  commissionClosings    CommissionClosing[]
+  fiscalSettings        FiscalSettings?
+  invoices              Invoice[]
+  taxProfiles           TaxProfile[]
+  bookingLinks          BookingLink[]
+  campaigns             Campaign[]
+  promotions            Promotion[]
+  coupons               Coupon[]
+  reviews               Review[]
+  cashbackRules         CashbackRule[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  files                 File[]
+  documents             Document[]
+  documentTemplates     DocumentTemplate[]
+  settings              Setting[]
+  goals                 Goal[]
+  reportsCache          ReportCache[]
+  importedXmls          ImportedXml[]
+  salonWebProfile       SalonWebProfile?
+  galleryPhotos         GalleryPhoto[]
+  anamnesisTemplates    AnamnesisTemplate[]
+  whatsappOutbox        WhatsappOutbox[]
+  whatsappConversations WhatsappConversation[]
+  whatsappInboxMessages WhatsappInboxMessage[]
+  aiAttendantConfig     AiAttendantConfig?
+  salonPayAccount       SalonPayAccount?
+  salonPayTransfers     SalonPayTransfer[]
 }
 
 model Branch {
@@ -299,63 +320,81 @@ model Branch {
 // row first; a Better Auth `databaseHook` (user.create.after) then provisions a
 // Company and links it, preserving one-company-per-user multi-tenancy.
 model User {
-  id            String       @id @default(cuid())
-  companyId     String?
+  id                    String       @id @default(cuid())
+  companyId             String?
   // 'staff' = salon owner/employee (gets a Company on signup); 'customer' = a
   // person booking through the public portal (no Company, links to Customer rows).
-  accountType   String       @default("staff")
-  name          String
-  email         String       @unique
-  emailVerified Boolean      @default(false)
-  image         String?
-  phone         String?
-  passwordHash  String?
-  avatarUrl     String?
-  provider      AuthProvider @default(local)
-  active        Boolean      @default(true)
+  accountType           String       @default("staff")
+  name                  String
+  email                 String       @unique
+  emailVerified         Boolean      @default(false)
+  image                 String?
+  phone                 String?
+  passwordHash          String?
+  avatarUrl             String?
+  provider              AuthProvider @default(local)
+  active                Boolean      @default(true)
   // Per-user notification preferences (Perfil → Notificações). Default ON so
   // legacy accounts keep receiving mail; SMS opt-in stays off until the user
   // wires up their number.
-  notifyEmail   Boolean      @default(true)
-  notifySms     Boolean      @default(false)
+  notifyEmail           Boolean      @default(true)
+  notifySms             Boolean      @default(false)
   // Preferência de tema de cores (Personalizar → Tema). Nullable: null → o
   // cliente aplica o default 'salonpass'. Persiste por-usuário na nuvem para
   // sincronizar entre dispositivos.
-  themePreference String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  themePreference       String?
+  // Preferências completas da interface interna (tema, formato dos botões,
+  // sidebar, botão fechar e atalho do CRM). JSON permite evoluir o editor sem
+  // criar uma coluna nova para cada opção visual; themePreference continua
+  // preenchido por compatibilidade com clientes anteriores.
+  appearancePreferences Json?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
-  company              Company?                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sessions             Session[]
-  accounts             Account[]
-  userCompanies        UserCompany[]
-  professional         Professional?
-  customerProfiles     Customer[]
-  customerNotes        CustomerNote[]
-  appointmentHistory   AppointmentStatusHistory[]
-  orderHistory         OrderStatusHistory[]
-  cashRegisters        CashRegister[]             @relation("CashRegisterResponsible")
-  closedCashRegisters  CashRegister[]             @relation("CashRegisterCloser")
-  reversedTransactions Transaction[]              @relation("TransactionReversedBy")
-  auditLogs            AuditLog[]
-  notifications        Notification[]
+  company                Company?                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions               Session[]
+  accounts               Account[]
+  userCompanies          UserCompany[]
+  professional           Professional?
+  customerProfiles       Customer[]
+  customerNotes          CustomerNote[]
+  appointmentHistory     AppointmentStatusHistory[]
+  orderHistory           OrderStatusHistory[]
+  cashRegisters          CashRegister[]             @relation("CashRegisterResponsible")
+  closedCashRegisters    CashRegister[]             @relation("CashRegisterCloser")
+  reversedTransactions   Transaction[]              @relation("TransactionReversedBy")
+  commissionPaymentsPaid CommissionPayment[]        @relation("CommissionPaymentPaidBy")
+  auditLogs              AuditLog[]
+  notifications          Notification[]
 
   @@index([companyId])
 }
 
 // Better Auth core models. Field set per Better Auth v1 schema.
 model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  expiresAt       DateTime
+  token           String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  ipAddress       String?
+  userAgent       String?
+  userId          String
+  // Empresa ativa DESTA sessão (multi-conta). String simples, sem FK, para não
+  // acoplar cascades — o valor referencia Company.id e é validado na aplicação.
+  activeCompanyId String?
+  // Preenchido quando a sessão nasceu de um "entrar como" do console de suporte:
+  // guarda o PlatformStaff.id do técnico. Sem FK pelo mesmo motivo acima, e para
+  // o registro sobreviver à exclusão do técnico.
+  //
+  // Existe para que uma sessão personificada NUNCA seja indistinguível de um
+  // login legítimo do dono do salão: é o que permite listar, auditar e revogar
+  // essas sessões, e o que uma faixa de aviso no painel do salão vai ler.
+  impersonatedByStaffId String?
+  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([impersonatedByStaffId])
 }
 
 model Account {
@@ -391,7 +430,12 @@ model Verification {
 model Role {
   id        String   @id @default(cuid())
   companyId String
+  // Código estável do papel (owner|manager|receptionist|finance|professional…).
+  // É a chave usada pelo resolver de permissões e pelo seed — o `name` é só label.
+  code      String
   name      String
+  // Papéis padrão semeados pelo sistema (não editáveis/deletáveis pela UI).
+  isSystem  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -399,6 +443,7 @@ model Role {
   rolePermissions RolePermission[]
   userCompanies   UserCompany[]
 
+  @@unique([companyId, code])
   @@index([companyId])
 }
 
@@ -421,11 +466,16 @@ model RolePermission {
 }
 
 model UserCompany {
-  id        String   @id @default(cuid())
-  userId    String
-  companyId String
-  roleId    String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  companyId   String
+  roleId      String?
+  // Permissões GRANULARES concedidas a ESTE funcionário NESTA empresa (estilo
+  // Belasis). Quando não-vazio, sobrescreve o papel: o resolver retorna a UNIÃO
+  // dessas chaves + as coarse expandidas (GRANULAR_TO_ENFORCED) para os guards.
+  // Vazio ([]) = herda do papel (comportamento legado).
+  permissions String[] @default([])
+  createdAt   DateTime @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -437,7 +487,7 @@ model UserCompany {
 
 model Plan {
   id           String   @id @default(cuid())
-  name         String   @unique // free|basic|pro|premium
+  name         String   @unique // starter|pro|max (legacy: free|basic|premium may linger, unreferenced)
   priceMonthly Decimal  @default(0) @db.Decimal(10, 2)
   featuresJson Json?
   createdAt    DateTime @default(now())
@@ -529,26 +579,28 @@ model Customer {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  company             Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user                User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  referredBy          Customer?               @relation("CustomerReferral", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals           Customer[]              @relation("CustomerReferral")
-  addresses           CustomerAddress[]
-  credits             CustomerCredit[]
-  cashback            CustomerCashback[]
-  anamnesis           CustomerAnamnesis[]
-  notes               CustomerNote[]
-  files               CustomerFile[]
-  dependents          CustomerDependent[]
-  socialProfiles      CustomerSocialProfile[]
-  debts               CustomerDebt[]
-  tags                CustomerTag[]
-  appointments        Appointment[]
-  orders              Order[]
-  customerPackages    CustomerPackage[]
-  customerMemberships CustomerMembership[]
-  campaignMessages    CampaignMessage[]
-  reviews             Review[]
+  company               Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                  User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  referredBy            Customer?               @relation("CustomerReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals             Customer[]              @relation("CustomerReferral")
+  addresses             CustomerAddress[]
+  credits               CustomerCredit[]
+  cashback              CustomerCashback[]
+  anamnesis             CustomerAnamnesis[]
+  notes                 CustomerNote[]
+  files                 CustomerFile[]
+  dependents            CustomerDependent[]
+  socialProfiles        CustomerSocialProfile[]
+  debts                 CustomerDebt[]
+  tags                  CustomerTag[]
+  appointments          Appointment[]
+  orders                Order[]
+  customerPackages      CustomerPackage[]
+  customerMemberships   CustomerMembership[]
+  campaignMessages      CampaignMessage[]
+  whatsappOutbox        WhatsappOutbox[]
+  whatsappConversations WhatsappConversation[]
+  reviews               Review[]
 
   @@unique([companyId, userId])
   @@unique([companyId, legacyId])
@@ -782,20 +834,26 @@ model Professional {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  company            Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user               User?                        @relation(fields: [userId], references: [id])
-  schedules          ProfessionalSchedule[]
-  services           ProfessionalService[]
-  commissionRules    ProfessionalCommissionRule[]
-  appointments       Appointment[]
-  appointmentItems   AppointmentItem[]
-  orders             Order[]
-  orderItems         OrderItem[]
+  company              Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                 User?                        @relation(fields: [userId], references: [id])
+  invites              ProfessionalInvite[]
+  schedules            ProfessionalSchedule[]
+  services             ProfessionalService[]
+  commissionRules      ProfessionalCommissionRule[]
+  appointments         Appointment[]
+  appointmentItems     AppointmentItem[]
+  orders               Order[]
+  orderItems           OrderItem[]
   orderItemAuxiliaries OrderItemAuxiliary[]
-  commissionEntries  CommissionEntry[]
-  commissionPayments CommissionPayment[]
-  reviews            Review[]
-  goals              Goal[]
+  commissionEntries    CommissionEntry[]
+  commissionPayments   CommissionPayment[]
+  commissionAdvances   CommissionAdvance[]
+  reviews              Review[]
+  goals                Goal[]
+  /// Chave PIX para receber pelo SalonPay. Vazia = usa o `document` (CPF é
+  /// chave válida); sem nenhum dos dois não há para onde transferir.
+  pixKey               String?
+  salonPayTransfers    SalonPayTransfer[]
 
   @@unique([companyId, legacyId])
   @@index([companyId])
@@ -841,18 +899,25 @@ model ProfessionalCommissionRule {
 }
 
 model ProfessionalInvite {
-  id        String       @id @default(cuid())
-  companyId String
-  email     String?
-  phone     String?
-  status    InviteStatus @default(pending)
-  token     String       @unique
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  companyId      String
+  // Profissional que o convite vincula: ao aceitar, seta Professional.userId = novo
+  // User staff. Nullable para convites genéricos (sem profissional pré-cadastrado).
+  professionalId String?
+  email          String?
+  phone          String?
+  status         InviteStatus @default(pending)
+  token          String       @unique
+  // Validade do convite (link expira). Nullable = sem expiração.
+  expiresAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
+  @@index([professionalId])
 }
 
 // =====================================================================
@@ -868,43 +933,45 @@ model ServiceCategory {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  services Service[]
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
 }
 
 model Service {
-  id              String    @id @default(cuid())
-  companyId       String
-  categoryId      String?
-  name            String
-  price           Decimal   @db.Decimal(12, 2)
+  id                       String    @id @default(cuid())
+  companyId                String
+  categoryId               String?
+  name                     String
+  price                    Decimal   @db.Decimal(12, 2)
   // Wave 2/3: tipo de preço (fixo|a_partir_de) e tipo de custo adicional (percent|value).
-  priceType          String? // fixo|a_partir_de
-  additionalCostType String? // percent|value
-  durationMin     Int       @default(30)
-  description     String?
-  imageUrl        String?
-  imageUrls       String[]  @default([])
-  additionalCost  Decimal   @default(0) @db.Decimal(12, 2)
-  cashbackPercent Decimal   @default(0) @db.Decimal(5, 2)
-  onlineBookable  Boolean   @default(true)
-  favorite        Boolean   @default(false)
-  visible         Boolean   @default(true)
-  displayOrder    Int       @default(0)
-  active          Boolean   @default(true)
+  priceType                String? // fixo|a_partir_de
+  additionalCostType       String? // percent|value
+  durationMin              Int       @default(30)
+  description              String?
+  imageUrl                 String?
+  imageUrls                String[]  @default([])
+  additionalCost           Decimal   @default(0) @db.Decimal(12, 2)
+  cashbackPercent          Decimal   @default(0) @db.Decimal(5, 2)
+  // Comissão padrão (%) do serviço. Pode ser sobrescrita pela regra individual
+  // do profissional (ProfessionalCommissionRule).
+  defaultCommissionPercent Decimal   @default(0) @db.Decimal(5, 2)
+  onlineBookable           Boolean   @default(true)
+  favorite                 Boolean   @default(false)
+  visible                  Boolean   @default(true)
+  displayOrder             Int       @default(0)
+  active                   Boolean   @default(true)
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
-  legacyId        String?
-  legacySource    String?
+  legacyId                 String?
+  legacySource             String?
   // Soft-delete marker (see Customer.deletedAt). Hidden everywhere when set;
   // `active`/`visible` remain independent toggles.
-  deletedAt       DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  deletedAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category             ServiceCategory?      @relation(fields: [categoryId], references: [id])
+  category             ProductCategory?      @relation(fields: [categoryId], references: [id])
   professionals        ProfessionalService[]
   appointmentItems     AppointmentItem[]
   packageTemplateItems PackageTemplateItem[]
@@ -931,6 +998,7 @@ model ProductCategory {
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   products Product[]
+  services Service[]
 
   @@index([companyId])
 }
@@ -993,9 +1061,9 @@ model Product {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category           ProductCategory?    @relation(fields: [categoryId], references: [id])
-  brand              Brand?              @relation(fields: [brandId], references: [id])
+  company            Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category           ProductCategory?           @relation(fields: [categoryId], references: [id])
+  brand              Brand?                     @relation(fields: [brandId], references: [id])
   inventoryMovements InventoryMovement[]
   purchaseItems      PurchaseItem[]
   batches            ProductBatch[]
@@ -1104,22 +1172,28 @@ model PurchaseItem {
 // =====================================================================
 
 model Appointment {
-  id             String            @id @default(cuid())
-  companyId      String
-  customerId     String?
-  professionalId String?
-  status         AppointmentStatus @default(scheduled)
-  start          DateTime
-  end            DateTime
-  notes          String?
+  id                 String            @id @default(cuid())
+  companyId          String
+  customerId         String?
+  professionalId     String?
+  status             AppointmentStatus @default(scheduled)
+  start              DateTime
+  end                DateTime
+  notes              String?
+  remindClient       Boolean?
+  // Overrides por agendamento. NULL mantém compatibilidade com registros
+  // antigos e faz o backend usar o padrão da empresa em
+  // notifications.automation; true/false fixa a decisão para este horário.
+  notifyConfirmation Boolean?
+  notifyCancellation Boolean?
   // Onda 7: cor de exibição do agendamento na agenda.
-  color          String?
-  source         AppointmentSource @default(admin)
+  color              String?
+  source             AppointmentSource @default(admin)
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
-  legacyId       String?
-  legacySource   String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  legacyId           String?
+  legacySource       String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   company       Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer      Customer?                  @relation(fields: [customerId], references: [id])
@@ -1128,6 +1202,7 @@ model Appointment {
   statusHistory AppointmentStatusHistory[]
   notifications AppointmentNotification[]
   review        Review?
+  order         Order?
 
   @@unique([companyId, legacyId])
   @@index([companyId])
@@ -1173,6 +1248,9 @@ model AppointmentNotification {
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
+  // Business idempotency: the same automation/kind cannot be handled twice for
+  // one appointment, even during an App Runner blue/green overlap.
+  @@unique([appointmentId, type, channel])
   @@index([appointmentId])
 }
 
@@ -1194,6 +1272,11 @@ model Order {
   netTotal       Decimal     @default(0) @db.Decimal(12, 2)
   notes          String?
   date           DateTime    @default(now())
+  // Agendamento que originou esta comanda. UNIQUE: é o que garante, no banco,
+  // uma comanda por agendamento — o botão "Acessar comanda" criava uma nova a
+  // cada clique porque não havia esse vínculo. SetNull: apagar o agendamento
+  // não pode levar a comanda junto. Ver estudo 52.
+  appointmentId  String?     @unique
   // Legacy import reconciliation (Belasis). See Customer.legacyId.
   legacyId       String?
   legacySource   String?
@@ -1203,6 +1286,7 @@ model Order {
   company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer      Customer?            @relation(fields: [customerId], references: [id])
   professional  Professional?        @relation(fields: [professionalId], references: [id])
+  appointment   Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   items         OrderItem[]
   discounts     OrderDiscount[]
   payments      OrderPayment[]
@@ -1458,7 +1542,7 @@ model MembershipPlan {
 model MembershipService {
   membershipPlanId String
   serviceId        String
-  quantityPerCycle Int    @default(1)
+  quantityPerCycle Int      @default(1)
   // Wave 4: grid de itens do plano editável — preço/desconto/quantidade por item.
   unitPrice        Decimal? @db.Decimal(12, 2)
   discount         Decimal? @db.Decimal(12, 2)
@@ -1519,11 +1603,12 @@ model FinancialAccount {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  company               Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company               Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   transactions          Transaction[]
   orderPayments         OrderPayment[]
   purchases             Purchase[]
-  paymentMethodsDefault PaymentMethod[] @relation("PaymentMethodDefaultAccount")
+  paymentMethodsDefault PaymentMethod[]     @relation("PaymentMethodDefaultAccount")
+  commissionPayments    CommissionPayment[]
 
   @@index([companyId])
 }
@@ -1544,12 +1629,13 @@ model PaymentMethod {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  defaultAccount FinancialAccount? @relation("PaymentMethodDefaultAccount", fields: [defaultAccountId], references: [id])
-  transactions   Transaction[]
-  orderPayments  OrderPayment[]
-  purchases      Purchase[]
-  cashMovements  CashMovement[]
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  defaultAccount     FinancialAccount?   @relation("PaymentMethodDefaultAccount", fields: [defaultAccountId], references: [id])
+  transactions       Transaction[]
+  orderPayments      OrderPayment[]
+  purchases          Purchase[]
+  cashMovements      CashMovement[]
+  commissionPayments CommissionPayment[]
 
   @@index([companyId])
 }
@@ -1584,6 +1670,14 @@ model Transaction {
   grossAmount      Decimal         @db.Decimal(12, 2)
   dueDate          DateTime?
   paidAt           DateTime?
+  // Data de COMPETÊNCIA: o período a que o fato econômico pertence, independente
+  // de quando vence ou é pago. Nula por padrão — não retroalimentamos o histórico
+  // com dueDate porque seria inventar um dado contábil que ninguém informou.
+  competenceDate   DateTime?
+  // "É uma receita organizacional?" — despesa/receita da própria empresa
+  // (aluguel, imposto, aporte) que NÃO passa pelo caixa da recepção. Quando true,
+  // dispensa a exigência de caixa aberto em assertTransactionPolicy.
+  isOrganizational Boolean         @default(false)
   status           PaymentStatus   @default(pending)
   recurrenceJson   Json?
   attachmentUrl    String?
@@ -1680,41 +1774,103 @@ model CommissionRule {
 }
 
 model CommissionEntry {
-  id               String                @id @default(cuid())
-  companyId        String
-  professionalId   String
-  orderId          String?
-  baseAmount       Decimal               @db.Decimal(12, 2)
-  commissionAmount Decimal               @db.Decimal(12, 2)
-  bonusAmount      Decimal               @default(0) @db.Decimal(12, 2)
-  status           CommissionEntryStatus @default(open)
-  competenceDate   DateTime?
-  availableDate    DateTime?
-  signed           Boolean               @default(false)
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  id                String                @id @default(cuid())
+  companyId         String
+  professionalId    String
+  orderId           String?
+  baseAmount        Decimal               @db.Decimal(12, 2)
+  commissionAmount  Decimal               @db.Decimal(12, 2)
+  bonusAmount       Decimal               @default(0) @db.Decimal(12, 2)
+  // Quanto desta comissão foi repassado a AUXILIARES do item (coluna "Desconto
+  // de Auxiliares"). Só é maior que zero quando o auxiliar foi cadastrado com
+  // discountFrom = 'professional' — se sai do estabelecimento, o principal não
+  // é afetado e este campo fica 0.
+  auxiliaryDiscount Decimal               @default(0) @db.Decimal(12, 2)
+  status            CommissionEntryStatus @default(open)
+  competenceDate    DateTime?
+  availableDate     DateTime?
+  signed            Boolean               @default(false)
+  // Pagamento que quitou este lançamento (null enquanto `open`). Preenchido no
+  // pagamento (single/bulk) e zerado no estorno — permite saber quais entries
+  // um CommissionPayment cobriu.
+  paymentId         String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
-  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  professional Professional @relation(fields: [professionalId], references: [id])
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  professional Professional       @relation(fields: [professionalId], references: [id])
+  payment      CommissionPayment? @relation(fields: [paymentId], references: [id])
+
+  @@index([companyId])
+  @@index([professionalId])
+  @@index([paymentId])
+}
+
+model CommissionPayment {
+  id              String                @id @default(cuid())
+  companyId       String
+  professionalId  String
+  // amount = commissionTotal + bonusTotal − advancesTotal (nunca negativo).
+  amount          Decimal               @db.Decimal(12, 2)
+  // Quebra do pagamento (fórmula Belasis: Comissões − Vales + Bonificações).
+  commissionTotal Decimal               @default(0) @db.Decimal(12, 2)
+  bonusTotal      Decimal               @default(0) @db.Decimal(12, 2)
+  advancesTotal   Decimal               @default(0) @db.Decimal(12, 2) // vales descontados
+  paidAt          DateTime              @default(now())
+  closingId       String?
+  // Usuário que efetuou o pagamento (auditoria). Nullable p/ compat legado.
+  paidByUserId    String?
+  note            String?
+  // COMO e DE ONDE saiu o dinheiro. Sem isto o pagamento de comissão não tinha
+  // como virar despesa no Financeiro — saía dinheiro do salão e o módulo
+  // financeiro nunca ficava sabendo. Nullable por compatibilidade com os
+  // pagamentos já registrados antes desta mudança.
+  paymentMethodId String?
+  accountId       String?
+  // Despesa gerada por este pagamento; permite estornar junto no delete.
+  transactionId   String?
+  // Trilho usado: 'manual' (dinheiro/PIX do próprio salão) ou 'salonpay'.
+  rail            CommissionPaymentRail @default(manual)
+  // Quando o pagamento foi REGISTRADO no sistema — a coluna "Data" da
+  // referência. Diferente de `paidAt`, que é o dia em que o dinheiro saiu e
+  // pode ser retroativo; na captura do Belasis as duas aparecem com valores
+  // distintos na mesma linha (18/07 e 17/07).
+  createdAt       DateTime              @default(now())
+
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  professional      Professional        @relation(fields: [professionalId], references: [id])
+  closing           CommissionClosing?  @relation(fields: [closingId], references: [id])
+  paidByUser        User?               @relation("CommissionPaymentPaidBy", fields: [paidByUserId], references: [id])
+  paymentMethod     PaymentMethod?      @relation(fields: [paymentMethodId], references: [id])
+  account           FinancialAccount?   @relation(fields: [accountId], references: [id])
+  entries           CommissionEntry[]
+  advances          CommissionAdvance[]
+  salonPayTransfers SalonPayTransfer[]
 
   @@index([companyId])
   @@index([professionalId])
 }
 
-model CommissionPayment {
-  id             String   @id @default(cuid())
+// Vale (adiantamento dado ao profissional). Concedido em `open` e descontado
+// quando a comissão é paga (vira `deducted` e aponta pro CommissionPayment).
+model CommissionAdvance {
+  id             String                  @id @default(cuid())
   companyId      String
   professionalId String
-  amount         Decimal  @db.Decimal(12, 2)
-  paidAt         DateTime @default(now())
-  closingId      String?
+  amount         Decimal                 @db.Decimal(12, 2)
+  date           DateTime                @default(now())
+  note           String?
+  status         CommissionAdvanceStatus @default(open)
+  paymentId      String?
+  createdAt      DateTime                @default(now())
 
   company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   professional Professional       @relation(fields: [professionalId], references: [id])
-  closing      CommissionClosing? @relation(fields: [closingId], references: [id])
+  payment      CommissionPayment? @relation(fields: [paymentId], references: [id])
 
   @@index([companyId])
   @@index([professionalId])
+  @@index([paymentId])
 }
 
 model CommissionClosing {
@@ -2019,6 +2175,84 @@ model Setting {
   @@index([companyId])
 }
 
+/// Configuração real da recepcionista virtual por empresa. A conexão do canal
+/// NÃO é duplicada aqui: vem sempre da sessão Baileys em WhatsappAuthState.
+model AiAttendantConfig {
+  id              String   @id @default(cuid())
+  companyId       String   @unique
+  enabled         Boolean  @default(false)
+  agentName       String   @default("Duda")
+  greeting        String   @default("Olá! Sou a assistente virtual do salão. Como posso ajudar?")
+  tone            String   @default("simpatico")
+  autoReply       Boolean  @default(true)
+  bookingViaChat  Boolean  @default(true)
+  handoffEnabled  Boolean  @default(true)
+  knowledgeBase   String?
+  faqJson         Json?
+  automationsJson Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+/// Um chat individual do número conectado. `remoteJid` é único dentro da
+/// empresa, pois cada salão mantém sua própria sessão WhatsApp.
+model WhatsappConversation {
+  id              String    @id @default(cuid())
+  companyId       String
+  remoteJid       String
+  phone           String
+  displayName     String?
+  customerId      String?
+  handledByAi     Boolean   @default(true)
+  resolved        Boolean   @default(false)
+  unreadCount     Int       @default(0)
+  lastMessageText String?
+  lastMessageAt   DateTime  @default(now())
+  lastInboundAt   DateTime?
+  lastOutboundAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company  Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  messages WhatsappInboxMessage[]
+
+  @@unique([companyId, remoteJid])
+  @@index([companyId, lastMessageAt])
+  @@index([companyId, resolved])
+  @@index([customerId])
+}
+
+/// Histórico durável do inbox. Mensagens recebidas entram pelo events.upsert do
+/// Baileys; mensagens de IA/atendente são ligadas à outbox até serem enviadas.
+model WhatsappInboxMessage {
+  id                String    @id @default(cuid())
+  companyId         String
+  conversationId    String
+  whatsappMessageId String?
+  direction         String // inbound | outbound
+  sender            String // customer | ai | agent | system
+  text              String
+  status            String    @default("received") // received | pending | sent | delivered | read | failed
+  kind              String?
+  metadataJson      Json?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  receivedAt        DateTime?
+  createdAt         DateTime  @default(now())
+
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversation WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  outbox       WhatsappOutbox?
+
+  @@index([companyId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([companyId, whatsappMessageId])
+}
+
 model Goal {
   id         String              @id @default(cuid())
   companyId  String
@@ -2076,17 +2310,69 @@ model WhatsappAuthState {
 /// means messages survive a redeploy or a "not connected yet" window instead of
 /// being lost by a fire-and-forget send.
 model WhatsappOutbox {
-  id            String    @id @default(cuid())
-  toPhone       String
-  text          String
-  status        String    @default("pending") // pending | sent | failed
-  attempts      Int       @default(0)
-  lastError     String?
-  nextAttemptAt DateTime  @default(now())
-  sentAt        DateTime?
-  createdAt     DateTime  @default(now())
+  id             String    @id @default(cuid())
+  toPhone        String
+  // JID resolvido/observado no WhatsApp. Necessário para conversas LID, nas
+  // quais o número pode não estar disponível no evento, e também evita uma
+  // segunda resolução de destinatário em respostas do inbox.
+  toJid          String?
+  text           String
+  // Mídia opcional do chat. O arquivo é salvo pelo módulo de uploads antes de
+  // entrar na fila; assim imagem/áudio têm a mesma durabilidade, pacing e retry
+  // dos textos. `mediaType`: image | audio.
+  mediaUrl       String?
+  mediaType      String?
+  mediaMimeType  String?
+  mediaFileName  String?
+  mediaPtt       Boolean   @default(false)
+  status         String    @default("pending") // pending | sent | delivered | read | failed | expired
+  attempts       Int       @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime  @default(now())
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  // Contexto da INTERAÇÃO (histórico de mensagens por cliente — feature "Interações"
+  // do Belasis). Nullable p/ retrocompatibilidade: sends antigos/sem contexto (ex.:
+  // resposta ao gestor por telefone avulso) continuam válidos sem esses campos.
+  // `kind`: reminder | confirmation | cancellation | followup | campaign | invite |
+  // manager | manual — texto livre p/ não travar em enum e permitir novos tipos.
+  companyId      String?
+  customerId     String?
+  // Confirmações manuais/automáticas ficam vinculadas ao horário que as originou.
+  // Isso permite histórico por agendamento e bloqueio de duplicidade sem tentar
+  // inferir o vínculo pelo telefone/texto.
+  appointmentId  String?
+  kind           String?
+  // Identidade da ação no cliente. Retry HTTP com a mesma chave devolve a mesma
+  // linha em vez de criar outra mensagem; nullable mantém envios legados válidos.
+  requestKey     String?
+  // Quando o envio nasceu no inbox (atendente ou IA), permite refletir
+  // pending/sent/failed e o id definitivo do WhatsApp na conversa.
+  inboxMessageId String?   @unique
+  // Uma PESSOA autorizou este envio específico (botão "Enviar confirmação",
+  // sugestão de horário). É o que isenta a linha da revalidação de automação na
+  // entrega e permite enfileirar com o canal fechado. NULL = automação, que é
+  // revalidada na hora de entregar. Ver estudo 60.
+  authorizedAt   DateTime?
+  // Cópia PERSISTENTE do que foi enviado, para responder ao "retry receipt" do
+  // WhatsApp. Quando o aparelho do destinatário não consegue decifrar, ele pede
+  // o reenvio e o Baileys chama `getMessage(key)`; sem esta cópia (o cache é de
+  // memória e morre em todo deploy) a mensagem fica em "Aguardando mensagem"
+  // para sempre. `sentMessageJson` guarda o proto inteiro — remontar só o texto
+  // não serve para imagem/áudio. Ver estudo 69.
+  whatsappMessageId String?
+  sentMessageJson   Json?
+
+  company      Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  customer     Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  inboxMessage WhatsappInboxMessage? @relation(fields: [inboxMessageId], references: [id], onDelete: SetNull)
 
   @@index([status, nextAttemptAt])
+  @@index([companyId])
+  @@index([companyId, toJid])
+  @@index([customerId])
+  @@index([appointmentId])
+  @@unique([companyId, requestKey])
 }
 
 // =====================================================================
@@ -2130,6 +2416,9 @@ model SalonWebProfile {
   themePreference String?
   schedulingFlow  String?
   requiredLogin   Boolean  @default(false)
+  // Cor de destaque (marca) aplicada no agendamento público (web-club): hex
+  // "#RRGGBB". Null → o cliente usa a cor padrão (rosa da casa).
+  accentColor     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -2168,4 +2457,262 @@ model HelpArticle {
 
   @@index([category])
   @@index([faq])
+}
+
+/// Trilho pelo qual a comissão foi paga.
+/// `manual` = o salão pagou por fora (dinheiro, PIX próprio, transferência) e
+/// apenas registrou aqui. `salonpay` = pago pelo SalonPay, o meio de
+/// recebimento/repasse do próprio produto.
+enum CommissionPaymentRail {
+  manual
+  salonpay
+}
+
+/// Cadastro de recebimento do SalonPay (KYC de subadquirência) — um por empresa.
+///
+/// É o formulário "Informe alguns dados para começar a receber os pagamentos
+/// online": identifica quem recebe, onde, e por quais meios. Guardar isto NÃO
+/// significa que há liquidação: enquanto não houver credencial de um adquirente
+/// de verdade, `status` fica em `pending` e nada de dinheiro se move. Fingir o
+/// contrário num módulo financeiro é o pior defeito possível — o salão fecha o
+/// mês em cima destes números.
+model SalonPayAccount {
+  id        String         @id @default(cuid())
+  companyId String         @unique
+  status    SalonPayStatus @default(pending)
+
+  personType SalonPayPersonType @default(company)
+
+  // Pessoa jurídica
+  legalName   String? // Razão Social
+  companyType String? // Tipo da empresa (LTDA, MEI, SA...)
+  taxId       String? // CNPJ (PJ) ou CPF (PF) — só dígitos
+  revenue     Decimal? @db.Decimal(14, 2) // Faturamento declarado
+
+  // Responsável / contato
+  ownerName String?
+  email     String?
+  phone     String?
+
+  // Endereço
+  zipCode    String?
+  street     String?
+  number     String?
+  district   String?
+  city       String?
+  state      String?
+  complement String?
+
+  // "Receber pagamentos por"
+  acceptPix  Boolean @default(true)
+  acceptCard Boolean @default(true)
+
+  /// Preenchido quando (e se) um adquirente real for conectado. Enquanto for
+  /// null, o cadastro está completo mas não liquida nada.
+  providerAccountId String?
+  /// Motivo da recusa/pendência devolvido pelo adquirente, para a tela explicar.
+  statusReason      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+enum SalonPayPersonType {
+  individual
+  company
+}
+
+enum SalonPayStatus {
+  /// Cadastro salvo, aguardando conexão com o adquirente.
+  pending
+  /// Habilitado a receber/repassar.
+  active
+  /// Recusado — `statusReason` explica.
+  rejected
+}
+
+/// Transferência do SalonPay para uma profissional (pagamento de comissão).
+///
+/// Colunas espelhadas da tela "Transferências" do Belasis: Solicitação,
+/// Transferência, Operação, Status, Nome, CPF/CNPJ, Valor.
+///
+/// `nome` e `documento` são SNAPSHOT de propósito: se a profissional trocar de
+/// CPF ou for renomeada depois, o extrato tem que continuar mostrando para quem
+/// o dinheiro foi enviado na época.
+model SalonPayTransfer {
+  id             String  @id @default(cuid())
+  companyId      String
+  professionalId String
+  /// Pagamento de comissão que originou a transferência.
+  paymentId      String?
+
+  /// "Solicitação" — quando a transferência foi pedida.
+  requestedAt DateTime  @default(now())
+  /// "Transferência" — quando foi efetivada. Null enquanto não liquidar.
+  settledAt   DateTime?
+
+  operation    SalonPayOperation      @default(commission)
+  status       SalonPayTransferStatus @default(pending)
+  /// Motivo da falha devolvido pelo provedor, para a tela explicar.
+  statusReason String?
+
+  /// Snapshot de quem recebeu.
+  recipientName     String
+  recipientDocument String?
+  /// Chave PIX usada. Null quando a profissional não tinha nenhuma cadastrada —
+  /// a transferência fica pendente de destino em vez de sumir.
+  pixKey            String?
+
+  amount Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  professional Professional       @relation(fields: [professionalId], references: [id])
+  payment      CommissionPayment? @relation(fields: [paymentId], references: [id])
+
+  @@index([companyId])
+  @@index([professionalId])
+  @@index([paymentId])
+}
+
+enum SalonPayOperation {
+  /// Repasse de comissão a uma profissional.
+  commission
+  /// Saque do saldo para a conta do salão.
+  withdrawal
+}
+
+enum SalonPayTransferStatus {
+  /// Registrada, ainda NÃO enviada a provedor nenhum.
+  pending
+  /// Enviada, aguardando confirmação do provedor.
+  processing
+  /// Confirmada pelo provedor.
+  paid
+  /// Recusada — `statusReason` explica.
+  failed
+}
+
+// =====================================================================
+// PLATAFORMA — console de suporte da SalonPass (admin.salonpass.com.br)
+//
+// Identidade SEPARADA do tenant, de propósito. O técnico da SalonPass não é um
+// `User`: o BetterAuthGuard exige companyId + UserCompany em toda requisição, e
+// um técnico não pertence a salão nenhum. Empurrá-lo para dentro de `User` com
+// uma flag obrigaria a afrouxar aquele guard — o caminho mais curto para um
+// login de salão virar acesso à plataforma inteira.
+//
+// A separação também vale na direção contrária: a senha de um dono de salão não
+// abre o console, e a credencial do console não entra em nenhum painel de salão.
+// São dois espaços de credencial sem interseção.
+// =====================================================================
+
+enum PlatformStaffRole {
+  /// Consulta e correções do dia a dia: trocar e-mail, resetar senha, encerrar
+  /// sessão. NÃO desativa conta nem entra como usuário.
+  support
+  /// Tudo do suporte + desativar/reativar contas e salões + entrar como usuário.
+  engineer
+  /// Tudo + gerir os próprios técnicos da SalonPass.
+  owner
+}
+
+model PlatformStaff {
+  id           String            @id @default(cuid())
+  name         String
+  email        String            @unique
+  /// scrypt do Better Auth (mesmo hasher do login de salão), NUNCA texto puro.
+  passwordHash String
+  role         PlatformStaffRole @default(support)
+  active       Boolean           @default(true)
+
+  /// Trava de força bruta. `lockedUntil` no futuro recusa o login mesmo com a
+  /// senha certa — sem isso o console vira alvo de tentativa em massa, e ele dá
+  /// acesso a TODOS os salões de uma vez.
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+
+  /// Conta criada por outro técnico nasce com senha temporária: o primeiro
+  /// login é obrigado a trocar. Enquanto for true, só a rota de troca responde.
+  mustChangePassword Boolean @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  createdBy    PlatformStaff?     @relation("PlatformStaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff PlatformStaff[]    @relation("PlatformStaffCreatedBy")
+  sessions     PlatformSession[]
+  auditLogs    PlatformAuditLog[]
+
+  @@index([email])
+}
+
+model PlatformSession {
+  id String @id @default(cuid())
+
+  staffId String
+  /// SHA-256 do token, nunca o token. Um dump do banco não entrega sessão viva
+  /// para ninguém — é a mesma razão de não guardar senha em texto puro.
+  tokenHash String @unique
+
+  /// Prazo ABSOLUTO: a sessão morre nesta hora mesmo com uso contínuo. O idle
+  /// timeout é calculado sobre `lastSeenAt` na validação.
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  ipAddress  String?
+  userAgent  String?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  staff PlatformStaff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([expiresAt])
+}
+
+model PlatformAuditLog {
+  id String @id @default(cuid())
+
+  /// SetNull na exclusão do técnico — por isso `staffEmail` fica desnormalizado:
+  /// o registro tem que sobreviver à saída de quem agiu, senão a trilha some
+  /// justamente no caso em que ela mais importa.
+  staffId    String?
+  staffEmail String
+
+  /// Verbo estável (`usuario.email.alterado`, `salao.desativado`…). Ver
+  /// PLATFORM_ACTIONS em platform.constants.ts.
+  action      String
+  targetType  String
+  targetId    String?
+  /// Rótulo legível no momento do fato (e-mail, nome do salão): a trilha
+  /// continua compreensível mesmo depois de o alvo mudar ou sumir.
+  targetLabel String?
+  companyId   String?
+
+  /// Justificativa. Obrigatória nas ações destrutivas (ver requerJustificativa).
+  reason String?
+
+  /// Estado antes/depois, já sem campo sensível (ver sanitizar()).
+  beforeJson Json?
+  afterJson  Json?
+
+  ipAddress String?
+  userAgent String?
+  at        DateTime @default(now())
+
+  staff PlatformStaff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([at])
+  @@index([staffId])
+  @@index([targetType, targetId])
+  @@index([companyId])
+  @@index([action])
 }

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 import type { CashRegisterRow, Paginated } from '../types';
 
 // ===================== Tipos =====================
@@ -47,6 +48,8 @@ export interface CashRegisterDetail extends CashRegisterRow {
 
 export interface CashHistoryRow extends CashRegisterRow {
   responsibleUser?: CashUser | null;
+  /** Quem FECHOU o caixa. Pode ser diferente de quem abriu. */
+  closedByUser?: CashUser | null;
 }
 
 export interface OpenCashBody {
@@ -107,16 +110,38 @@ export function useOpenCashRegister() {
   return useMutation({
     mutationFn: (body: OpenCashBody) =>
       api.post<CashRegisterRow>('/cash-registers/open', body),
-    onSuccess: () => invalidateCash(qc),
+    onSuccess: () => {
+      invalidateCash(qc);
+      toastSuccess('Caixa aberto');
+    },
   });
 }
 
 export function useCloseCashRegister() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, countedBalance, note }: { id: string; countedBalance: number; note?: string }) =>
-      api.post<CloseCashResult>(`/cash-registers/${id}/close`, { countedBalance, note }),
-    onSuccess: () => invalidateCash(qc),
+    mutationFn: ({
+      id,
+      countedBalance,
+      note,
+      // Fechamento costuma ser feito no dia seguinte — sem isso o backend grava
+      // sempre a data/hora do request.
+      closedAt,
+    }: {
+      id: string;
+      countedBalance: number;
+      note?: string;
+      closedAt?: string;
+    }) =>
+      api.post<CloseCashResult>(`/cash-registers/${id}/close`, {
+        countedBalance,
+        note,
+        ...(closedAt ? { closedAt } : {}),
+      }),
+    onSuccess: () => {
+      invalidateCash(qc);
+      toastSuccess('Caixa fechado');
+    },
   });
 }
 
@@ -125,6 +150,9 @@ export function useCashMovement() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: MovementBody }) =>
       api.post<CashMovementRow>(`/cash-registers/${id}/movements`, body),
-    onSuccess: () => invalidateCash(qc),
+    onSuccess: () => {
+      invalidateCash(qc);
+      toastSuccess('Movimentação registrada');
+    },
   });
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ReportPdfOption } from './ReportPdfButton';
 import {
   Bar,
   BarChart,
@@ -13,14 +14,13 @@ import { LoadingState } from '../../components/States';
 import {
   IconArrowDown,
   IconArrowUp,
-  IconCalendar,
-  IconChevron,
   IconDownload,
   IconWallet,
 } from '../../components/icons';
 import { formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useFinancialSummary } from '../../lib/queries/financeiro';
+import { DateRangePicker } from '../../components/DatePicker';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { FinancialReportShell } from './reportNav';
 import { COLOR_GREEN, COLOR_RED, shortDay } from './reportShared';
@@ -33,7 +33,8 @@ import { COLOR_GREEN, COLOR_RED, shortDay } from './reportShared';
 
 function defaultRange() {
   const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1); // início do mês
+  const from = new Date(to);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -90,39 +91,31 @@ export function FluxoCaixaPage() {
       title="Fluxo de Caixa"
       subtitle="Entradas, saídas e saldo acumulado por dia no período"
       actions={
-        <button
-          type="button"
-          onClick={exportCsv}
-          disabled={rows.length === 0}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
-        >
-          <IconDownload size={16} /> Exportar CSV
-        </button>
+        <>
+          {/* Mesma acao compartilhada dos demais relatorios: este era um dos
+              quatro que so ofereciam CSV. Ver estudo 97. */}
+          <ReportPdfOption />
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={rows.length === 0}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
+          >
+            <IconDownload size={16} /> Exportar CSV
+          </button>
+        </>
       }
     >
       {/* Período */}
       <div className="mb-4 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
         <span className="mb-1.5 block text-sm text-ink">Período</span>
-        <div className="flex h-11 w-full max-w-md items-center gap-2 rounded-xl border border-line bg-card px-3 text-sm text-ink focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/30">
-          <input
-            type="date"
-            value={range.from}
-            max={range.to || undefined}
-            onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-            aria-label="Data inicial"
-            className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-          />
-          <IconChevron size={14} className="shrink-0 -rotate-90 text-muted-ink" />
-          <input
-            type="date"
-            value={range.to}
-            min={range.from || undefined}
-            onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-            aria-label="Data final"
-            className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-          />
-          <IconCalendar size={16} className="shrink-0 text-muted-ink" />
-        </div>
+        <DateRangePicker
+          from={range.from}
+          to={range.to}
+          onChange={setRange}
+          ariaLabel="Período"
+          className="max-w-md"
+        />
       </div>
 
       {query.isLoading ? (
@@ -155,7 +148,7 @@ export function FluxoCaixaPage() {
             </div>
             <div className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
               <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/15 text-gold-strong">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--sp-data-balance-soft)] text-data-balance">
                   <IconWallet size={18} />
                 </span>
                 <span className="text-sm font-medium text-ink">Saldo</span>
@@ -168,6 +161,28 @@ export function FluxoCaixaPage() {
                 {formatMoney(d?.balance ?? 0)}
               </div>
             </div>
+          </div>
+
+          {/* Recebimentos separados por forma: o backend já agrupa pelas
+              transações pagas; aqui deixamos Pix, dinheiro e cartão visíveis
+              sem misturar com o saldo geral. */}
+          <div className="mt-4 rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="m-0 text-sm font-semibold text-ink">Recebimentos por forma de pagamento</h3>
+              <span className="text-xs text-muted-ink">Somente entradas pagas no período</span>
+            </div>
+            {(d?.byPaymentMethod ?? []).length === 0 ? (
+              <p className="m-0 text-sm text-muted-ink">Nenhum recebimento no período.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {(d?.byPaymentMethod ?? []).map((m) => (
+                  <div key={m.paymentMethodId ?? 'none'} className="rounded-xl border border-line/70 bg-canvas/40 px-4 py-3">
+                    <div className="truncate text-xs font-medium text-muted-ink">{m.paymentMethodName}</div>
+                    <div className="mt-1 text-xl font-bold text-success">{formatMoney(m.total)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Gráfico */}
@@ -237,7 +252,7 @@ export function FluxoCaixaPage() {
                     {rows.map((r) => (
                       <tr
                         key={r.date}
-                        className="border-b border-line/70 last:border-0 hover:bg-primary/5"
+                        className="border-b border-line/70 last:border-0 hover:bg-ink/5"
                       >
                         <td className="px-5 py-3 font-medium text-ink">{shortDay(r.date)}</td>
                         <td className="px-5 py-3 text-right text-success">

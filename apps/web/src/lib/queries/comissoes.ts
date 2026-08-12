@@ -1,5 +1,40 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiClientError } from '@beautypass/shared';
 import { api } from '../api';
+import { API_BASE_URL } from '../config';
+import { toastSuccess } from '../toast';
+
+/**
+ * DELETE com corpo JSON. O `api` compartilhado não envia body em DELETE (só
+ * query), mas `DELETE /commission-payments/:id` exige `{ justification }` no
+ * corpo. Reproduzimos aqui o mesmo contrato (credentials + ApiClientError) só
+ * para esse caso, sem tocar no client compartilhado.
+ */
+async function deleteWithBody<T>(path: string, body: unknown): Promise<T> {
+  const res = await window.fetch(`${API_BASE_URL}${path}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = text ? JSON.parse(text) : undefined;
+  } catch {
+    json = text;
+  }
+  if (!res.ok) {
+    const errBody = json as { message?: string | string[] } | undefined;
+    const message = errBody
+      ? Array.isArray(errBody.message)
+        ? errBody.message.join(', ')
+        : errBody.message ?? res.statusText
+      : res.statusText;
+    throw new ApiClientError(res.status, message, errBody as never);
+  }
+  return json as T;
+}
 
 // =====================================================================
 // Types — COMISSÕES. Money/decimal fields are Decimal strings from the API,
@@ -16,7 +51,17 @@ export interface CommissionSummaryRow {
   valorVendido: number;
   comissao: number;
   bonus: number;
+  /** Vales (adiantamentos) em aberto do profissional — descontados no pagamento. */
+  vales: number;
   total: number;
+  /** Só o que está EM ABERTO — é o subconjunto que o botão "Pagar" registra. */
+  comissaoAberta: number;
+  bonusAberto: number;
+  totalAberto: number;
+  /** Em aberto + bônus − vales, nunca negativo. É o que o botão paga. */
+  liquido: number;
+  /** Líquido do PERÍODO inteiro (inclui o já pago) — só para leitura. */
+  liquidoPeriodo: number;
   entryCount: number;
   openCount: number;
   paidCount: number;
@@ -27,7 +72,17 @@ export interface CommissionSummaryRow {
 
 export interface CommissionSummary {
   data: CommissionSummaryRow[];
-  totals: { valorVendido: number; comissao: number; bonus: number; total: number };
+  totals: {
+    valorVendido: number;
+    comissao: number;
+    bonus: number;
+    vales: number;
+    total: number;
+    comissaoAberta: number;
+    bonusAberto: number;
+    totalAberto: number;
+    liquido: number;
+  };
 }
 
 export interface CommissionEntry {
@@ -56,6 +111,8 @@ export interface CommissionRuleSettings {
   basis?: 'competence' | 'availability';
   consider?: 'all' | 'finished';
   consumedProducts?: 'deduct' | 'ignore';
+  consumedPriceBy?: 'none' | 'cost' | 'price' | 'professional';
+  showGrossValue?: boolean;
   receiptText?: string;
 }
 
@@ -87,15 +144,25 @@ export interface CommissionDetailItem {
   baseAmount: number;
   commissionAmount: number;
   bonusAmount: number;
+  /** Parcela desta comissão repassada a auxiliares do item (0 quando o desconto sai do salão). */
+  auxiliaryDiscount: number;
   status: CommissionEntryStatus;
   signed: boolean;
+  availableDate: string | null;
   orderItems: CommissionDetailOrderItem[];
 }
 
 export interface CommissionDetail {
   professional: { id: string; name: string };
   period: { from: string | null; to: string | null };
-  totals: { base: number; comissao: number; bonus: number; total: number; pago: number };
+  totals: {
+    base: number;
+    comissao: number;
+    bonus: number;
+    auxiliares: number;
+    total: number;
+    pago: number;
+  };
   signed: boolean;
   count: number;
   items: CommissionDetailItem[];
@@ -132,9 +199,97 @@ export type UpdateCommissionRuleBody = Partial<CreateCommissionRuleBody>;
 
 export interface CommissionPaymentBody {
   professionalId: string;
-  amount: number;
   entryIds?: string[];
+  advanceIds?: string[];
   closingId?: string;
+  note?: string;
+}
+
+// ---- Vales (adiantamentos) ----
+export type CommissionAdvanceStatus = 'open' | 'deducted';
+
+export interface CommissionAdvance {
+  id: string;
+  professional: { id: string; name: string };
+  amount: number;
+  date: string;
+  note: string | null;
+  status: CommissionAdvanceStatus;
+  paymentId: string | null;
+}
+
+export interface CreateAdvanceBody {
+  professionalId: string;
+  amount: number;
+  date?: string;
+  note?: string;
+}
+
+export interface AdvanceFilters {
+  professionalId?: string;
+  status?: CommissionAdvanceStatus | '';
+}
+
+// ---- Pagamento em lote ----
+export interface BulkPaymentItem {
+  professionalId: string;
+  entryIds?: string[];
+  advanceIds?: string[];
+  note?: string;
+}
+
+export interface BulkPaymentBody {
+  items: BulkPaymentItem[];
+  closingId?: string;
+  /** Obrigatórios na tela: sem eles o pagamento não vira despesa no Financeiro. */
+  paymentMethodId?: string;
+  accountId?: string;
+  /** Data do pagamento (ISO). Default do backend = agora. */
+  paidAt?: string;
+  /** Trilho usado: manual (padrão) ou SalonPay. */
+  rail?: 'manual' | 'salonpay';
+  /** Período da tela — o backend quita só os lançamentos desse recorte. */
+  from?: string;
+  to?: string;
+}
+
+export interface CommissionPaymentRecord {
+  id: string;
+  professionalId: string;
+  commissionTotal: string;
+  bonusTotal: string;
+  advancesTotal: string;
+  amount: string;
+  entriesCount: number;
+}
+
+export interface BulkPaymentResult {
+  count: number;
+  payments: CommissionPaymentRecord[];
+}
+
+// ---- Histórico de pagamentos ----
+export interface CommissionPayment {
+  id: string;
+  /** Data em que o dinheiro saiu (escolhida pelo operador). */
+  paidAt: string;
+  /** Quando o pagamento foi registrado no sistema. */
+  createdAt: string;
+  professional: { id: string; name: string };
+  paidByUser: { id: string; name: string } | null;
+  commissionTotal: number;
+  bonusTotal: number;
+  advancesTotal: number;
+  amount: number;
+  closingId: string | null;
+  note: string | null;
+  entriesCount: number;
+}
+
+export interface PaymentFilters {
+  professionalId?: string;
+  from?: string;
+  to?: string;
 }
 
 // =====================================================================
@@ -221,6 +376,106 @@ export function useCreateCommissionPayment() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['commission-entries'] });
       qc.invalidateQueries({ queryKey: ['commission-summary'] });
+      qc.invalidateQueries({ queryKey: ['commission-overview'] });
+      qc.invalidateQueries({ queryKey: ['commission-advances'] });
+      qc.invalidateQueries({ queryKey: ['commission-payments'] });
+      toastSuccess('Pagamento de comissão registrado');
+    },
+  });
+}
+
+// =====================================================================
+// Vales (adiantamentos)
+// =====================================================================
+
+export function useCommissionAdvances(filters: AdvanceFilters = {}) {
+  return useQuery({
+    queryKey: ['commission-advances', filters],
+    queryFn: () =>
+      api.get<CommissionAdvance[]>('/commission-advances', {
+        professionalId: filters.professionalId || undefined,
+        status: filters.status || undefined,
+      }),
+  });
+}
+
+export function useCreateAdvance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateAdvanceBody) =>
+      api.post<CommissionAdvance>('/commission-advances', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-advances'] });
+      toastSuccess('Vale registrado');
+    },
+  });
+}
+
+export function useDeleteAdvance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<{ id: string; deleted: boolean }>(`/commission-advances/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-advances'] });
+      toastSuccess('Vale excluído');
+    },
+  });
+}
+
+// =====================================================================
+// Pagamento em lote (fórmula Belasis: Comissões − Vales + Bônus)
+// =====================================================================
+
+export function usePayCommissionsBulk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkPaymentBody) =>
+      api.post<BulkPaymentResult>('/commission-payments/bulk', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-entries'] });
+      qc.invalidateQueries({ queryKey: ['commission-summary'] });
+      qc.invalidateQueries({ queryKey: ['commission-overview'] });
+      qc.invalidateQueries({ queryKey: ['commission-advances'] });
+      qc.invalidateQueries({ queryKey: ['commission-payments'] });
+      qc.invalidateQueries({ queryKey: ['commission-detail'] });
+    },
+  });
+}
+
+// =====================================================================
+// Histórico de pagamentos
+// =====================================================================
+
+export function useCommissionPayments(filters: PaymentFilters = {}, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['commission-payments', filters],
+    enabled: options?.enabled ?? true,
+    queryFn: () =>
+      api.get<CommissionPayment[]>('/commission-payments', {
+        professionalId: filters.professionalId || undefined,
+        from: filters.from || undefined,
+        to: filters.to || undefined,
+      }),
+  });
+}
+
+export function useDeleteCommissionPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, justification }: { id: string; justification: string }) =>
+      deleteWithBody<{ id: string; deleted: boolean }>(
+        `/commission-payments/${id}`,
+        { justification },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-entries'] });
+      qc.invalidateQueries({ queryKey: ['commission-summary'] });
+      qc.invalidateQueries({ queryKey: ['commission-overview'] });
+      qc.invalidateQueries({ queryKey: ['commission-advances'] });
+      qc.invalidateQueries({ queryKey: ['commission-payments'] });
+      qc.invalidateQueries({ queryKey: ['commission-detail'] });
+      toastSuccess('Pagamento estornado');
     },
   });
 }
@@ -237,7 +492,10 @@ export function useCreateCommissionRule() {
   return useMutation({
     mutationFn: (body: CreateCommissionRuleBody) =>
       api.post<CommissionRule>('/commission-rules', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['commission-rules'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-rules'] });
+      toastSuccess('Regra de comissão criada');
+    },
   });
 }
 
@@ -246,7 +504,10 @@ export function useUpdateCommissionRule() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateCommissionRuleBody }) =>
       api.patch<CommissionRule>(`/commission-rules/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['commission-rules'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-rules'] });
+      toastSuccess('Regra de comissão salva');
+    },
   });
 }
 
@@ -255,6 +516,9 @@ export function useDeleteCommissionRule() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<{ id: string; deleted: boolean }>(`/commission-rules/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['commission-rules'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-rules'] });
+      toastSuccess('Regra de comissão excluída');
+    },
   });
 }

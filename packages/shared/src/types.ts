@@ -56,6 +56,11 @@ export interface Customer {
   phone?: string | null;
   email?: string | null;
   cpf?: string | null;
+  // A API sempre devolveu a foto (coluna Customer.avatarUrl), mas o tipo a
+  // escondia — e cada tela que precisava dela repetia um remendo local
+  // (`Customer & { avatarUrl?: string | null }`). Declarar aqui é o que impede o
+  // próximo consumidor de desenhar a inicial achando que a foto não existe.
+  avatarUrl?: string | null;
   active: boolean;
 }
 
@@ -81,6 +86,7 @@ export interface Service {
   description?: string | null;
   imageUrl?: string | null;
   imageUrls?: string[];
+  defaultCommissionPercent?: string; // Decimal serialized
   onlineBookable: boolean;
   active: boolean;
 }

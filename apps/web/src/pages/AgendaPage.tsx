@@ -5,6 +5,14 @@ import { APPOINTMENT_STATUS_LABELS, ApiClientError, type AppointmentStatus } fro
 import { ErrorState, LoadingState } from '../components/States';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
+import { ComandaDrawer } from '../components/ComandaDrawer';
+import { AppointmentConfirmationDrawer } from '../components/AppointmentConfirmationDrawer';
+import {
+  ClienteBlocosLaterais,
+  COLUNA_CLIENTE_W,
+  NovaAnotacaoInline,
+} from '../components/ClienteBlocosLaterais';
+import { DatePicker } from '../components/DatePicker';
 import { DropdownButton } from '../components/DropdownButton';
 import { Drawer } from '../components/Drawer';
 import { HelpTooltip } from '../components/HelpTooltip';
@@ -17,10 +25,16 @@ import { layoutDay, START_HOUR, END_HOUR, isToday } from '../components/AgendaGr
 import { IconCalendar, IconChevron, IconEye, IconPlus, IconScissors, IconTrash, IconUser, IconX } from '../components/icons';
 import { useProfessionals, useServices, useSetAppointmentStatus, useCreateOrder } from '../lib/queries';
 import { useAgendaAppointments } from '../lib/queries/agenda';
+import { useNotificationSettings } from '../lib/queries/notificationSettings';
+import { useCan } from '../lib/queries/permissions';
+import { AvisosDoCliente } from '../components/AvisosDoCliente';
+import { variaveisDoAgendamento } from '../lib/queries/messageTemplates';
+import { useEmpresa } from '../lib/queries/empresa';
 import { useAutoCreate } from '../lib/useAutoCreate';
 import { formatMoney, formatTime, isoDate } from '../lib/format';
 import { api } from '../lib/api';
-import type { AppointmentRow } from '../lib/types';
+import { apiErrorMessage, TOAST_TIMEOUT_ERRO } from '../lib/toast';
+import type { AppointmentRow, OrderRow } from '../lib/types';
 
 const STATUS_ORDER: AppointmentStatus[] = [
   'scheduled',
@@ -48,10 +62,25 @@ const STATUS_DOT_COLOR: Record<AppointmentStatus, string> = {
   canceled: '#ff6b68',
 };
 
+// Bloqueios de agenda ("Ocupar horários") são Appointments sem cliente/itens,
+// marcados no campo notes com o prefixo "[Bloqueio]". Detectamos por esse
+// prefixo para exibi-los como indisponibilidade (cor "ocupado" cinza + rótulo).
+const BLOCK_PREFIX = '[Bloqueio]';
+function isBlock(a: AppointmentRow): boolean {
+  return !a.customerId && !a.customer && (a.notes ?? '').startsWith(BLOCK_PREFIX);
+}
+// Texto exibido no evento de bloqueio: o motivo (sem o prefixo) ou "Bloqueado".
+function blockLabel(a: AppointmentRow): string {
+  const reason = (a.notes ?? '').slice(BLOCK_PREFIX.length).trim();
+  return reason || 'Bloqueado';
+}
+
 /** Belasis colore cada evento pela cor do status (fundo sólido, texto branco).
  * Fallback é tokenizado (--sp-event-bg) para status desconhecidos — cores dos
- * status conhecidos continuam fixas (paleta Belasis). */
+ * status conhecidos continuam fixas (paleta Belasis). Bloqueios usam o cinza
+ * "ocupado" (#CED4DA) da paleta Belasis. */
 function eventColor(a: AppointmentRow): string {
+  if (isBlock(a)) return '#adb5bd';
   return STATUS_DOT_COLOR[a.status] ?? 'var(--sp-event-bg, #6b7280)';
 }
 
@@ -194,6 +223,18 @@ export function AgendaPage() {
   const [newApptDate, setNewApptDate] = useState<string | undefined>(undefined);
   const agendaScrollerRef = useRef<HTMLDivElement>(null);
 
+  // ── "Ocupar horários" (bloqueio de agenda) ────────────────────────────────
+  // Drawer que cria um bloqueio de indisponibilidade: profissional + data +
+  // intervalo + motivo. Persiste via POST /appointments/block e ocupa a agenda
+  // do profissional (o backend rejeita agendamentos por cima).
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockProfessionalId, setBlockProfessionalId] = useState('');
+  const [blockDate, setBlockDate] = useState(() => isoDate(new Date()));
+  const [blockStartTime, setBlockStartTime] = useState('09:00');
+  const [blockEndTime, setBlockEndTime] = useState('10:00');
+  const [blockReason, setBlockReason] = useState('');
+  const [blockSaving, setBlockSaving] = useState(false);
+
   const activeFilterCount =
     professionalIds.length + statuses.length + (serviceFilter ? 1 : 0) + (customerQuery.trim() ? 1 : 0);
 
@@ -215,11 +256,23 @@ export function AgendaPage() {
     setIsNewOpen(true);
   }
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
+  const [confirmationDrawerTab, setConfirmationDrawerTab] = useState<
+    'message' | 'followup' | 'logs' | null
+  >(null);
+  const [comandaOrder, setComandaOrder] = useState<OrderRow | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestion, setSuggestion] = useState('');
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  /**
+   * Recusa da última ação sobre ESTE agendamento (cancelar, excluir, salvar).
+   * Fica FIXA no drawer porque é instrução, não aviso: some quando a pessoa
+   * fecha, tenta de novo ou troca de agendamento. Ver estudo 138.
+   */
+  const [erroAcao, setErroAcao] = useState<string | null>(null);
+
   useAutoCreate(() => openNew());
 
   // Keep the same daily/weekly/monthly interval at every breakpoint. The
@@ -271,9 +324,38 @@ export function AgendaPage() {
 
   const professionals = useProfessionals();
   const services = useServices();
+  const notificationSettings = useNotificationSettings();
+  const reminderDefault = notificationSettings.data?.reminder ?? false;
+  // O padrão de confirmação DEPENDE DA ORIGEM, igual ao backend decide em
+  // notifications.service.ts (estudo 153): pedido feito pela internet usa
+  // `onlineBooking`; agendamento marcado na recepção usa `confirmation`. Sem
+  // esta distinção o drawer mostrava o toggle desligado para um agendamento
+  // online que o servidor iria avisar — a tela dizia o contrário do que ia
+  // acontecer.
+  const confirmationDefault =
+    (selected?.source === 'online'
+      ? notificationSettings.data?.onlineBooking
+      : notificationSettings.data?.confirmation) ?? false;
+  const cancellationDefault = notificationSettings.data?.cancellation ?? false;
   const serviceById = useMemo(
     () => new Map((services.data?.data ?? []).map((s) => [s.id, s.name])),
     [services.data],
+  );
+  // Prévia das mensagens do agendamento aberto (estudo 64): as mesmas variáveis
+  // que o backend usa, para o dono ver o texto que vai sair antes de ligar.
+  const empresaAtual = useEmpresa();
+  const variaveisDaPrevia = useMemo(
+    () =>
+      variaveisDoAgendamento({
+        estabelecimento: empresaAtual.data?.name ?? 'seu salão',
+        cliente: selected?.customer?.name ?? null,
+        profissional: selected?.professional?.name ?? null,
+        servicos: (selected?.items ?? [])
+          .map((it) => serviceById.get(it.serviceId))
+          .filter((n): n is string => Boolean(n)),
+        inicio: selected?.start ? new Date(selected.start) : new Date(),
+      }),
+    [empresaAtual.data?.name, selected, serviceById],
   );
   const statusMutation = useSetAppointmentStatus();
   const createOrder = useCreateOrder();
@@ -339,7 +421,7 @@ export function AgendaPage() {
           appts.refetch();
           flash(`${targets.length} agendamento(s) excluído(s).`);
         } catch (err) {
-          flash(err instanceof ApiClientError ? err.message : 'Não foi possível excluir os agendamentos.');
+          flash(apiErrorMessage(err), 'erro');
         }
       },
     },
@@ -372,6 +454,11 @@ export function AgendaPage() {
   const apptsByDay = useMemo(() => {
     const m = new Map<string, AppointmentRow[]>();
     for (const r of rows) {
+      // A chave é o dia LOCAL do início, o mesmo que as células do calendário
+      // usam para buscar aqui (`isoDate(célula)` em MonthView e no DayPeek).
+      // Com `isoDate` em UTC as duas pontas discordavam depois das 21h: um
+      // agendamento das 21:30 recebia a chave de amanhã e sumia da célula de
+      // hoje na visão de mês.
       const key = isoDate(new Date(r.start));
       (m.get(key) ?? m.set(key, []).get(key)!).push(r);
     }
@@ -443,22 +530,113 @@ export function AgendaPage() {
           ? 'Mensal'
           : 'Anual';
 
-  function flash(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  /**
+   * Aviso na faixa inferior. Ver estudo 138.
+   *
+   * Três coisas que faltavam:
+   *
+   * 1. O timer NÃO era guardado. Duas mensagens seguidas dividiam o destino da
+   *    primeira — `flash(A)` em t=0 agenda o apagamento para t=3s, e um
+   *    `flash(B)` em t=2,5s era apagado meio segundo depois. É literalmente o
+   *    "aparece muito rápido e some" que o dono descreveu.
+   * 2. Erro durava o mesmo que sucesso. Erro aqui é instrução ("cancele a
+   *    comanda antes"), não confirmação.
+   * 3. Erro não tinha como ser mantido na tela nem se distinguia do sucesso.
+   */
+  function flash(msg: string, tipo: 'ok' | 'erro' = 'ok') {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast({ msg, tipo });
+    toastTimer.current = window.setTimeout(
+      () => setToast(null),
+      tipo === 'erro' ? TOAST_TIMEOUT_ERRO : 3000,
+    );
   }
 
-  async function changeStatus(a: AppointmentRow, status: AppointmentRow['status']) {
+  /** Fecha o aviso na hora (o X do erro), sem deixar o timer órfão. */
+  function fecharToast() {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast(null);
+  }
+
+  // Abre o drawer de bloqueio já apontando para a data em foco na agenda.
+  function openBlock() {
+    const focus = days[0] ?? new Date();
+    setBlockDate(isoDate(focus));
+    setBlockStartTime('09:00');
+    setBlockEndTime('10:00');
+    setBlockReason('');
+    setBlockProfessionalId((prev) => prev || profList[0]?.id || '');
+    setBlockOpen(true);
+  }
+
+  // Cria o bloqueio de agenda (POST /appointments/block). Monta os instantes
+  // start/end a partir da data + horários locais e refaz a busca da agenda.
+  async function submitBlock() {
+    if (!blockProfessionalId || !blockDate || !blockStartTime || !blockEndTime) return;
+    const [sh, sm] = blockStartTime.split(':').map(Number);
+    const [eh, em] = blockEndTime.split(':').map(Number);
+    const [y, mo, d] = blockDate.split('-').map(Number);
+    const start = new Date(y, (mo ?? 1) - 1, d ?? 1, sh ?? 0, sm ?? 0);
+    const end = new Date(y, (mo ?? 1) - 1, d ?? 1, eh ?? 0, em ?? 0);
+    if (end <= start) {
+      flash('O término do bloqueio deve ser depois do início.');
+      return;
+    }
+    setBlockSaving(true);
     try {
-      await statusMutation.mutateAsync({ id: a.id, status });
+      await api.post('/appointments/block', {
+        professionalId: blockProfessionalId,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        reason: blockReason.trim() || undefined,
+      });
+      setBlockOpen(false);
+      appts.refetch();
+      flash('Horário bloqueado na agenda.');
+    } catch (err) {
+      flash(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível bloquear o horário.',
+      );
+    } finally {
+      setBlockSaving(false);
+    }
+  }
+
+  async function changeStatus(
+    a: AppointmentRow,
+    status: AppointmentRow['status'],
+    reason?: string,
+  ): Promise<boolean> {
+    // Tentativa nova zera a recusa anterior — senão a pessoa lê um erro velho.
+    setErroAcao(null);
+    try {
+      // Se o status for alterado dentro do drawer, persiste ANTES os toggles
+      // desse agendamento. Assim "desligar cancelamento" + cancelar em seguida
+      // nunca dispara usando o valor antigo do banco.
+      if (selected?.id === a.id) {
+        const saved = await persistAppointmentEdits();
+        if (!saved.ok) return false;
+      }
+      await statusMutation.mutateAsync({ id: a.id, status, reason });
       setSelected((s) => (s && s.id === a.id ? { ...s, status } : s));
       flash(
-        status === 'confirmed' ? 'Confirmado. Cliente notificado.'
-          : status === 'canceled' ? 'Cancelado. Cliente notificado.'
+        status === 'confirmed' ? 'Agendamento confirmado.'
+          : status === 'canceled' ? 'Agendamento cancelado.'
           : 'Status atualizado.',
       );
-    } catch {
-      flash('Erro ao atualizar.');
+      return true;
+    } catch (err) {
+      // A frase do servidor é a única que diz o que fazer — qual comanda
+      // cancelar antes, por exemplo. "Erro ao atualizar." jogava isso fora.
+      //
+      // E vai para o aviso FIXO do drawer, não para um toast: medindo o vídeo
+      // do dono, o toast do HeroUI ficou ~0,3s na tela nesta ação. Aqui a
+      // instrução permanece até ele fechar, tentar de novo ou trocar de
+      // agendamento. Ver estudo 138.
+      setErroAcao(apiErrorMessage(err));
+      return false;
     }
   }
 
@@ -476,9 +654,15 @@ export function AgendaPage() {
 
   async function confirmCancel() {
     if (!selected) return;
-    await changeStatus(selected, 'canceled');
-    setShowCancel(false);
-    setCancelReason('');
+    const changed = await changeStatus(
+      selected,
+      'canceled',
+      cancelReason.trim() || undefined,
+    );
+    if (changed) {
+      setShowCancel(false);
+      setCancelReason('');
+    }
   }
 
   // ── Batch actions on the current selection ────────────────────────────────
@@ -503,54 +687,317 @@ export function AgendaPage() {
   }
 
   // ── Per-appointment: create a comanda (order) from the appointment ────────
-  async function createComanda(a: AppointmentRow) {
+  // Cria order + serviços atomicamente antes de abrir a comanda para faturar.
+  /**
+   * Exclui o agendamento (definitivo). Diferente de cancelar, que mantém o
+   * registro na agenda. A API recusa com 409 quando existe comanda viva — a
+   * mensagem dela é mostrada como está, porque explica o que fazer.
+   */
+  async function excluirAgendamento(a: AppointmentRow) {
+    const ok = await confirm({
+      title: `Excluir o agendamento de ${a.customer?.name ?? 'sem cliente'}?`,
+      message:
+        'O agendamento some da agenda e do histórico do cliente. Para manter o registro do que foi desmarcado, use "Cancelar agendamento".',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
     try {
-      await createOrder.mutateAsync({
-        customerId: a.customer?.id ?? a.customerId ?? undefined,
-        professionalId: a.professionalId ?? a.professional?.id ?? undefined,
-        notes: a.notes ?? undefined,
+      await api.delete(`/appointments/${a.id}`);
+      setSelected(null);
+      appts.refetch();
+      flash('Agendamento excluído.');
+    } catch (err) {
+      // Mesmo caminho do cancelar: é aqui que a recusa por comanda aparece.
+      setErroAcao(apiErrorMessage(err));
+    }
+  }
+
+  /**
+   * Salva UM aviso na hora, com retorno na tela.
+   *
+   * Antes os três toggles só eram gravados quando o drawer fechava, e em
+   * silêncio: quem ligava "avisar ao marcar" não tinha como saber se pegou —
+   * daí o "não tá dando de salvar". Agora cada clique vai para a API, avisa, e
+   * volta ao estado anterior se falhar. Ver estudo 59.
+   */
+  async function salvarAviso(
+    campo: 'remindClient' | 'notifyConfirmation' | 'notifyCancellation',
+    valor: boolean,
+  ) {
+    if (!selected) return;
+    const anterior = selected[campo] ?? null;
+    // Otimista: o toggle já mostra o novo estado.
+    setSelected((s) => (s && s.id === selected.id ? { ...s, [campo]: valor } : s));
+    try {
+      const salvo = await api.patch<AppointmentRow>(`/appointments/${selected.id}`, {
+        [campo]: valor,
       });
-      flash('Comanda criada. Abra em Comandas para faturar.');
+      setSelected((s) => (s && s.id === salvo.id ? { ...s, [campo]: salvo[campo] } : s));
+      appts.refetch();
+      const nome =
+        campo === 'remindClient'
+          ? 'Lembrete'
+          : campo === 'notifyConfirmation'
+            ? 'Aviso de agendamento'
+            : 'Aviso de cancelamento';
+      flash(`${nome} ${valor ? 'ligado' : 'desligado'} para este agendamento.`);
+    } catch (err) {
+      setSelected((s) => (s && s.id === selected.id ? { ...s, [campo]: anterior } : s));
+      flash(apiErrorMessage(err), 'erro');
+    }
+  }
+
+  /** Carrega a comanda existente para o drawer (sem criar nada). */
+  async function buscarComanda(id: string): Promise<OrderRow | null> {
+    try {
+      return await api.get<OrderRow>(`/orders/${id}`);
     } catch {
-      flash('Erro ao criar comanda.');
+      return null;
+    }
+  }
+
+  async function createComanda(a: AppointmentRow) {
+    // Comanda que já existe: ABRE, sem POST. Antes toda visita passava pela
+    // criação — o que exigia `comandas:create` só para consultar e ainda
+    // reenviava os itens. Ver estudo 56.
+    if (a.order && a.order.status !== 'canceled') {
+      const existente = await buscarComanda(a.order.id);
+      if (existente) {
+        setSelected(null);
+        setComandaOrder(existente);
+        return;
+      }
+    }
+    try {
+      // Salva a observação editada no drawer antes de gerar a comanda, e usa o
+      // texto já persistido como notes da order (senão a edição se perderia).
+      const savedNotes = await persistNotes();
+      const professionalId = a.professionalId ?? a.professional?.id ?? undefined;
+      const order = await createOrder.mutateAsync({
+        // Vínculo com o agendamento: se já existe comanda dele, a API devolve
+        // a MESMA em vez de criar outra. Sem isto, cada clique em "Acessar
+        // comanda" abria uma comanda nova. Ver estudo 52.
+        appointmentId: a.id,
+        customerId: a.customer?.id ?? a.customerId ?? undefined,
+        professionalId,
+        notes: savedNotes ?? a.notes ?? undefined,
+        items: (a.items ?? []).map((it) => ({
+          kind: 'service',
+          refId: it.serviceId,
+          professionalId: it.professionalId ?? professionalId,
+          quantity: 1,
+          unitPrice: Number(it.price),
+        })),
+      });
+      setSelected(null);
+      setComandaOrder(order);
+    } catch (err) {
+      // A mensagem da API dizia o motivo (403 de permissão, 409 de caixa
+      // fechado) e era trocada por um genérico. Ver estudo 56.
+      flash(err instanceof ApiClientError ? err.message : 'Erro ao criar comanda.');
     }
   }
 
   // ── Per-appointment: reschedule (keeps duration, moves start) ─────────────
   const [showReschedule, setShowReschedule] = useState(false);
+  // Os formulários de Reagendar/Sugerir/Cancelar são renderizados NO FIM da coluna
+  // de detalhes. Com o drawer full-screen em duas colunas, essa coluna é longa e o
+  // formulário nasce fora da área visível — o usuário clicava em "Cancelar
+  // agendamento" no menu Outros e parecia que nada acontecia. Traz o bloco para a
+  // tela assim que ele aparece.
+  const inlineFormRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!showReschedule && !showSuggest && !showCancel) return;
+    const el = inlineFormRef.current;
+    if (!el) return;
+    const frame = requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showReschedule, showSuggest, showCancel]);
   const [reDate, setReDate] = useState('');
   const [reTime, setReTime] = useState('');
   // Toggles/textarea do drawer "Visualizando agendamento" (padrão Belasis).
-  // sendReminder/squeezeIn ficam locais até o backend expor os campos.
-  const [sendReminder, setSendReminder] = useState(true);
-  const [squeezeIn, setSqueezeIn] = useState(false);
+  const [sendReminder, setSendReminder] = useState(reminderDefault);
+  const [sendConfirmation, setSendConfirmation] = useState(confirmationDefault);
+  const [sendCancellation, setSendCancellation] = useState(cancellationDefault);
+  const [reminderTouched, setReminderTouched] = useState(false);
+  const [confirmationTouched, setConfirmationTouched] = useState(false);
+  const [cancellationTouched, setCancellationTouched] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  // Sub-drawer do "+ Adicionar" das Anotações do CLIENTE (coluna esquerda) — não
+  // confundir com o textarea "Observação", que é a nota DO AGENDAMENTO.
+  const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
+  // POST /customers/:id/notes exige `clientes:manage`; sem a permissão o link
+  // "+ Adicionar" nem aparece (o componente esconde quando não recebe callback).
+  const { can } = useCan();
   const routerNavigate = useNavigate();
   // Sincroniza campos locais quando um novo agendamento é selecionado.
   useEffect(() => {
     setNotesDraft(selected?.notes ?? '');
+    setSendReminder(selected?.remindClient ?? reminderDefault);
+    setSendConfirmation(selected?.notifyConfirmation ?? confirmationDefault);
+    setSendCancellation(selected?.notifyCancellation ?? cancellationDefault);
+    setReminderTouched(false);
+    setConfirmationTouched(false);
+    setCancellationTouched(false);
     setMoreMenuOpen(false);
-  }, [selected?.id]);
+    setNoteDrawerOpen(false);
+  }, [
+    selected?.id,
+    selected?.remindClient,
+    selected?.notifyConfirmation,
+    selected?.notifyCancellation,
+  ]);
+  useEffect(() => {
+    if (selected?.remindClient == null && !reminderTouched) {
+      setSendReminder(reminderDefault);
+    }
+    if (selected?.notifyConfirmation == null && !confirmationTouched) {
+      setSendConfirmation(confirmationDefault);
+    }
+    if (selected?.notifyCancellation == null && !cancellationTouched) {
+      setSendCancellation(cancellationDefault);
+    }
+  }, [
+    selected?.id,
+    selected?.remindClient,
+    selected?.notifyConfirmation,
+    selected?.notifyCancellation,
+    reminderDefault,
+    confirmationDefault,
+    cancellationDefault,
+    reminderTouched,
+    confirmationTouched,
+    cancellationTouched,
+  ]);
+  // Data e hora do reagendamento TÊM de sair do mesmo fuso. `isoDate` devolve o
+  // dia LOCAL (ver format.ts) e o `getHours()` abaixo também é local; enquanto
+  // `isoDate` era UTC, um agendamento das 21:30 abria este drawer em "amanhã
+  // 21:30" e `confirmReschedule` remonta o instante com `new Date(y, mo, d, h, m)`
+  // — local — e faz PATCH. Confirmar sem editar nada empurrava o agendamento um
+  // dia para frente. Não trocar por toISOString aqui.
   function openReschedule(a: AppointmentRow) {
     const d = new Date(a.start);
     setReDate(isoDate(d));
     setReTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
     setShowReschedule(true);
   }
+
+  // Persiste a Observação do drawer no backend quando o texto foi editado.
+  // Compara o rascunho com o que veio do backend (normalizando null/'' para
+  // '') e só dispara o PATCH quando há mudança real, evitando requests à toa.
+  // Retorna o valor salvo (ou null quando não há agendamento) para que quem
+  // chama (ex.: criar comanda) use a nota já atualizada.
+  async function persistAppointmentEdits(): Promise<{
+    ok: boolean;
+    notes: string | null;
+  }> {
+    if (!selected) return { ok: true, notes: null };
+    const next = notesDraft.trim();
+    const prev = (selected.notes ?? '').trim();
+    if (
+      next === prev &&
+      !reminderTouched &&
+      !confirmationTouched &&
+      !cancellationTouched
+    ) {
+      return { ok: true, notes: selected.notes ?? null };
+    }
+    // Backend interpreta undefined como "não mexer"; string vazia limpa o campo.
+    const notesValue = next.length > 0 ? next : '';
+    try {
+      const saved = await api.patch<AppointmentRow>(`/appointments/${selected.id}`, {
+        notes: notesValue,
+        ...(reminderTouched ? { remindClient: sendReminder } : {}),
+        ...(confirmationTouched
+          ? { notifyConfirmation: sendConfirmation }
+          : {}),
+        ...(cancellationTouched
+          ? { notifyCancellation: sendCancellation }
+          : {}),
+      });
+      // Reflete localmente e no cache da agenda para o dado não "voltar".
+      setSelected((s) =>
+        s && s.id === saved.id
+          ? {
+              ...s,
+              notes: saved.notes ?? null,
+              ...(reminderTouched ? { remindClient: saved.remindClient } : {}),
+              ...(confirmationTouched
+                ? { notifyConfirmation: saved.notifyConfirmation }
+                : {}),
+              ...(cancellationTouched
+                ? { notifyCancellation: saved.notifyCancellation }
+                : {}),
+            }
+          : s,
+      );
+      setReminderTouched(false);
+      setConfirmationTouched(false);
+      setCancellationTouched(false);
+      appts.refetch();
+      return { ok: true, notes: saved.notes ?? null };
+    } catch (err) {
+      // Mesma razão do `changeStatus`: a recusa do servidor costuma explicar o
+      // que travou (conflito de horário, comanda aberta). Ver estudo 138.
+      flash(apiErrorMessage(err), 'erro');
+      return { ok: false, notes: selected.notes ?? null };
+    }
+  }
+
+  async function persistNotes(): Promise<string | null> {
+    return (await persistAppointmentEdits()).notes;
+  }
+
+  // Fecha o drawer de detalhe salvando a observação antes de limpar o estado.
+  // Usado por TODOS os caminhos de fechamento (X, backdrop, Esc, "Ver cliente").
+  async function closeDetail() {
+    await persistNotes();
+    setConfirmationDrawerTab(null);
+    setSelected(null);
+    setShowSuggest(false);
+    setShowCancel(false);
+    setShowReschedule(false);
+    setMoreMenuOpen(false);
+    setErroAcao(null);
+    setNoteDrawerOpen(false);
+  }
   async function confirmReschedule() {
     if (!selected || !reDate || !reTime) return;
     const [h, m] = reTime.split(':').map(Number);
     const [y, mo, d] = reDate.split('-').map(Number);
     const newStart = new Date(y, (mo ?? 1) - 1, d ?? 1, h ?? 0, m ?? 0);
+    // Se a observação também mudou, envia junto no mesmo PATCH — assim o texto
+    // não se perde ao reagendar (o drawer fecha sem passar por closeDetail).
+    const notesChanged = notesDraft.trim() !== (selected.notes ?? '').trim();
+    const body: {
+      start: string;
+      notes?: string;
+      remindClient?: boolean;
+      notifyConfirmation?: boolean;
+      notifyCancellation?: boolean;
+    } = { start: newStart.toISOString() };
+    if (notesChanged) body.notes = notesDraft.trim();
+    if (reminderTouched) body.remindClient = sendReminder;
+    if (confirmationTouched) body.notifyConfirmation = sendConfirmation;
+    if (cancellationTouched) body.notifyCancellation = sendCancellation;
     try {
-      await api.patch(`/appointments/${selected.id}`, { start: newStart.toISOString() });
+      await api.patch(`/appointments/${selected.id}`, body);
       setShowReschedule(false);
       setSelected(null);
       appts.refetch();
       flash('Agendamento reagendado.');
-    } catch {
-      flash('Não foi possível reagendar (horário indisponível).');
+    } catch (err) {
+      // A mensagem da API diz QUAL é o problema (horário ocupado x fora do
+      // expediente). Engolir tudo num texto genérico deixava a recepção sem
+      // saber que bastava ligar "Encaixar agendamento".
+      const motivo = apiErrorMessage(err);
+      // Mostra o motivo REAL (fora do expediente, data inválida...). O 409 por
+      // horário ocupado não acontece mais pelo painel — encaixar é o padrão.
+      flash(motivo || 'Não foi possível reagendar.');
     }
   }
 
@@ -561,6 +1008,7 @@ export function AgendaPage() {
     setShowCancel(false);
     setCancelReason('');
     setShowReschedule(false);
+    setErroAcao(null);
   }
 
   // Consome ?appointmentId=<id> vindo do sino de notificações. Busca o
@@ -602,9 +1050,30 @@ export function AgendaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkApptId]);
 
-  // In selection mode a block toggles selection; otherwise it opens the detail.
+  // Clique num bloqueio de agenda: fora do modo seleção, oferece remover a
+  // indisponibilidade (o drawer de "agendamento" não faz sentido sem cliente).
+  async function removeBlock(a: AppointmentRow) {
+    const ok = await confirm({
+      title: 'Remover bloqueio?',
+      message: `Liberar o horário bloqueado (${formatTime(a.start)}–${formatTime(a.end)})?`,
+      confirmLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/appointments/${a.id}`);
+      appts.refetch();
+      flash('Bloqueio removido.');
+    } catch (err) {
+      flash(err instanceof ApiClientError ? err.message : 'Não foi possível remover o bloqueio.');
+    }
+  }
+
+  // In selection mode a block toggles selection; otherwise it opens the detail
+  // (ou remove a indisponibilidade, quando o evento é um bloqueio de agenda).
   function onBlockClick(a: AppointmentRow) {
     if (sel.selectMode) sel.toggle(a.id);
+    else if (isBlock(a)) void removeBlock(a);
     else openDetail(a);
   }
 
@@ -777,11 +1246,11 @@ export function AgendaPage() {
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Selecionar agendamentos
       </button>
-      <button type="button" onClick={() => { close(); flash('O bloqueio de horários será aberto nas configurações da agenda.'); }}
+      <button type="button" onClick={() => { close(); openBlock(); }}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Ocupar horários
       </button>
-      <button type="button" onClick={() => { close(); flash('Selecione agendamentos para agrupá-los.'); }}
+      <button type="button" onClick={() => { close(); sel.enter(); flash('Selecione os agendamentos que deseja agrupar.'); }}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground hover:bg-cream">
         Agrupar agendamentos
       </button>
@@ -871,7 +1340,7 @@ export function AgendaPage() {
             {filterBtn}
             {actionsBtn}
             <button type="button" aria-label="Configurações da agenda" title="Configurações da agenda"
-              onClick={() => flash('Configurações da agenda disponíveis em Configurações.')}
+              onClick={() => routerNavigate('/configuracoes')}
               className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--color-soft-border)] text-muted-ink hover:bg-cream">
               <IconSettings size={15} />
             </button>
@@ -1024,8 +1493,9 @@ export function AgendaPage() {
                       const color = eventColor(a);
                       const canceled = a.status === 'canceled';
                       const width = 100 / cols;
-                      const customerName = a.customer?.name ?? 'Sem cliente';
-                      const serviceNames = (a.items ?? [])
+                      const block = isBlock(a);
+                      const customerName = block ? blockLabel(a) : (a.customer?.name ?? 'Sem cliente');
+                      const serviceNames = block ? '' : (a.items ?? [])
                         .map((item) => serviceById.get(item.serviceId))
                         .filter((name): name is string => Boolean(name))
                         .join(', ');
@@ -1105,10 +1575,26 @@ export function AgendaPage() {
         count={sel.count}
       />
 
-      {/* Toast */}
+      {/* Aviso — erro tem cor própria, mais largura para o texto respirar e um
+          X para sair na hora. Ver estudo 138. */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">
-          {toast}
+        <div
+          role={toast.tipo === 'erro' ? 'alert' : 'status'}
+          className={`fixed bottom-6 left-1/2 z-50 flex max-w-[min(90vw,32rem)] -translate-x-1/2 items-start gap-3 rounded-xl px-5 py-3 text-sm font-medium shadow-lg ${
+            toast.tipo === 'erro' ? 'bg-danger text-white' : 'bg-ink text-white'
+          }`}
+        >
+          <span className="flex-1">{toast.msg}</span>
+          {toast.tipo === 'erro' && (
+            <button
+              type="button"
+              onClick={fecharToast}
+              aria-label="Fechar aviso"
+              className="-mr-1 shrink-0 rounded px-1 leading-none opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 
@@ -1119,6 +1605,7 @@ export function AgendaPage() {
         initialDate={newApptDate}
         onCreated={() => appts.refetch()}
       />
+      <ComandaDrawer order={comandaOrder} onClose={() => setComandaOrder(null)} />
 
       <Drawer
         isOpen={dateDrawerOpen}
@@ -1199,6 +1686,103 @@ export function AgendaPage() {
         </div>
       </Drawer>
 
+      {/* "Ocupar horários": drawer de bloqueio de agenda (indisponibilidade). */}
+      <Drawer
+        isOpen={blockOpen}
+        onClose={() => setBlockOpen(false)}
+        title="Ocupar horários"
+        widthClass="sm:w-[440px]"
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setBlockOpen(false)}>Cancelar</Button>
+            <Button
+              variant="primary"
+              isDisabled={!blockProfessionalId || !blockStartTime || !blockEndTime || blockSaving}
+              onClick={submitBlock}
+            >
+              {blockSaving ? 'Bloqueando…' : 'Bloquear horário'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted-ink">
+            Bloqueie um intervalo na agenda de um profissional (folga, almoço,
+            reunião). Nenhum agendamento poderá ser marcado por cima.
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Profissional
+            </span>
+            <Select
+              aria-label="Profissional"
+              selectedKey={blockProfessionalId || null}
+              onSelectionChange={(k) => setBlockProfessionalId(k ? String(k) : '')}
+            >
+            <Select.Trigger className="min-h-[44px] touch-manipulation rounded-lg border border-black/10 bg-white shadow-none">
+                <Select.Value>
+                  {({ isPlaceholder, selectedText }) =>
+                    isPlaceholder ? 'Selecionar profissional' : selectedText
+                  }
+                </Select.Value>
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {profList.map((p) => (
+                    <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                      {p.name}
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+            {profList.length === 0 && (
+              <span className="text-xs text-muted">Cadastre um profissional para bloquear horários.</span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Data</span>
+            <DatePicker
+              value={blockDate}
+              onChange={setBlockDate}
+              ariaLabel="Data do bloqueio"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <label className="flex flex-1 flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Início
+              <input
+                type="time"
+                value={blockStartTime}
+                onChange={(e) => setBlockStartTime(e.target.value)}
+                className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-primary/50"
+              />
+            </label>
+            <label className="flex flex-1 flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Término
+              <input
+                type="time"
+                value={blockEndTime}
+                onChange={(e) => setBlockEndTime(e.target.value)}
+                className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-primary/50"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+              Motivo (opcional)
+            </span>
+            <TextField value={blockReason} onChange={setBlockReason} aria-label="Motivo do bloqueio">
+              <Input className="rounded-lg border border-black/10 bg-white shadow-none" placeholder="Ex: almoço, reunião, folga" />
+            </TextField>
+          </div>
+        </div>
+      </Drawer>
+
       {/* Mobile: the contextual bottom-nav opens Filtros / Ações as bottom-sheet
           drawers reusing the same controls (and shared state) as the header. */}
       <Drawer isOpen={mobileViewOpen} onClose={() => setMobileViewOpen(false)} title="Visualização" placement="bottom">
@@ -1218,9 +1802,10 @@ export function AgendaPage() {
 
       <Drawer
         isOpen={!!selected}
-        onClose={() => { setSelected(null); setShowSuggest(false); setShowCancel(false); setShowReschedule(false); setMoreMenuOpen(false); }}
+        onClose={() => { void closeDetail(); }}
         title="Visualizando agendamento"
-        widthClass="sm:w-[520px]"
+        widthClass="sm:w-[min(1180px,94vw)]"
+        fullscreen
         footer={selected ? (
           <div className="relative flex w-full items-center justify-between gap-2">
             <div className="relative">
@@ -1243,65 +1828,190 @@ export function AgendaPage() {
                     className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-canvas">
                     Cancelar agendamento
                   </button>
+                  {/* Excluir só existia na seleção múltipla da agenda — para um
+                      agendamento só ninguém achava. Cancelar mantém o registro;
+                      excluir apaga. Ver estudo 57. */}
+                  <button type="button" onClick={() => { setMoreMenuOpen(false); void excluirAgendamento(selected); }}
+                    className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-canvas">
+                    Excluir agendamento
+                  </button>
                 </div>
               )}
             </div>
-            <Button variant="primary" isDisabled={createOrder.isPending}
-              className="bg-[#25a244] hover:!bg-[#1e8438]"
-              onClick={() => createComanda(selected)}>
-              Acessar comanda
-            </Button>
+            {/* O rótulo diz o que o clique FAZ. Enquanto o agendamento não tem
+                comanda, "Acessar comanda" era promessa falsa — não havia o que
+                acessar, e o clique criava uma (outra a cada vez). Depois de
+                criada, o mesmo botão abre a MESMA comanda, com o número à
+                vista. Ver estudo 52. */}
+            {/* Sem `comandas:create` o botão de ABRIR some (criar é o que ele
+                faz). ACESSAR uma comanda que já existe continua para todo mundo
+                que enxerga a agenda — é leitura. Ver estudo 56. */}
+            <div className="flex items-end gap-2">
+              {selected.order && selected.order.status !== 'canceled' ? (
+                <Button variant="primary" isDisabled={createOrder.isPending}
+                  className="bg-[#25a244] hover:!bg-[#1e8438]"
+                  onClick={() => createComanda(selected)}>
+                  {`Acessar comanda #${selected.order.number}`}
+                </Button>
+              ) : can('comandas:create') ? (
+                <Button variant="primary" isDisabled={createOrder.isPending}
+                  className="bg-[#25a244] hover:!bg-[#1e8438]"
+                  onClick={() => createComanda(selected)}>
+                  {createOrder.isPending ? 'Abrindo comanda…' : 'Abrir comanda'}
+                </Button>
+              ) : null}
+
+              {/* Confirmar não tinha botão nenhum — para um pedido do
+                  agendamento online, que nasce `unconfirmed`, é a ação mais
+                  frequente do dia e era a mais escondida. Ver estudo 152.
+
+                  ATENÇÃO: em `unconfirmed` este clique MANDA WhatsApp para uma
+                  pessoa real (appointments.service.ts:1276-1279); em
+                  `scheduled` não manda nada. Por isso a linha de baixo diz o
+                  que vai sair, em vez de deixar o dono descobrir depois. */}
+              {can('agenda:manage')
+                && (selected.status === 'unconfirmed' || selected.status === 'scheduled') && (
+                <div className="flex flex-col items-end gap-0.5">
+                  <Button variant="primary" isDisabled={statusMutation.isPending}
+                    onClick={() => { void changeStatus(selected, 'confirmed'); }}>
+                    {statusMutation.isPending ? 'Confirmando…' : 'Confirmar agendamento'}
+                  </Button>
+                  {selected.status === 'unconfirmed' && (
+                    <span className="max-w-[15rem] text-right text-[11px] leading-tight text-muted-ink">
+                      {sendConfirmation
+                        ? 'A cliente recebe a confirmação no WhatsApp.'
+                        : 'A cliente não será avisada (aviso desligado neste agendamento).'}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
       >
         {selected && (
-          <div className="flex flex-col gap-5">
-            {/* HEADER: avatar + nome + fone + [Conversar] [Ver cliente] */}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
-                  style={{ backgroundColor: eventColor(selected) }}
-                  aria-hidden>
-                  {(selected.customer?.name ?? 'A').trim().charAt(0).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-base font-semibold text-foreground">
+          // No MOBILE a ordem é invertida por `order`, igual ao drawer irmão da
+          // comanda (ComandaDrawer.tsx:360): quem abre o agendamento no celular
+          // veio da grade da agenda (já sabe de quem é) e quer DETALHES — data,
+          // status, serviços e os botões. Com o aside como primeiro filho a tela
+          // começava com 96px de avatar + "Não há pacotes disponíveis" e o que
+          // interessa só aparecia depois de rolar. O DOM mantém o aside antes
+          // (leitor de tela ouve o cliente primeiro, que é o contexto).
+          <div className="flex flex-col gap-8 lg:flex-row lg:gap-10 lg:items-start">
+            {/* ── COLUNA DO CLIENTE (esquerda) — ocupa a coluna inteira ───── */}
+            {/* `max-lg:contents`: no CELULAR o aside deixa de ser caixa e seus
+                filhos entram direto no flex do pai, cada um com seu `order`. Isso
+                dá a ordem certa — cartão do cliente, DETALHES, blocos — sem
+                duplicar markup. Mandar o aside inteiro para o fim (order-2)
+                empurrava foto, nome e os botões Conversar/Ver cliente para depois
+                de tudo, e o título deste drawer é só "Visualizando agendamento":
+                a pessoa não saberia de quem é o agendamento sem rolar até o fim.
+                No desktop volta a ser a coluna normal da esquerda. */}
+            <aside className={`max-lg:contents lg:flex lg:shrink-0 lg:flex-col lg:gap-3 ${COLUNA_CLIENTE_W}`}>
+              <div className="order-1 flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-5 text-center lg:order-none">
+                {/* FOTO do cliente quando existe; só cai na inicial colorida por
+                    status quando não há. Antes desenhava sempre a inicial e ignorava
+                    o avatarUrl — o mesmo cliente aparecia com foto no "Selecionar
+                    cliente" e virava uma bolinha com a letra aqui. O dado já vem:
+                    a lista de agendamentos traz o cliente inteiro
+                    (appointments.service.ts:109). */}
+                {selected.customer?.avatarUrl ? (
+                  <img
+                    src={selected.customer.avatarUrl}
+                    alt=""
+                    className="h-24 w-24 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full text-2xl font-semibold text-white"
+                    style={{ backgroundColor: eventColor(selected) }}
+                    aria-hidden>
+                    {(selected.customer?.name ?? 'A').trim().charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="truncate text-lg font-semibold text-foreground">
                     {selected.customer?.name ?? 'Sem cliente'}
                   </div>
                   {selected.customer?.phone && (
                     <div className="truncate text-sm text-muted-ink">{selected.customer.phone}</div>
                   )}
                 </div>
-              </div>
-              <div className="flex items-stretch gap-2">
-                {selected.customer?.phone ? (
-                  <a
-                    href={`https://wa.me/${selected.customer.phone.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                <div className="mt-1 flex w-full flex-col gap-2">
+                  {selected.customer?.phone ? (
+                    <a
+                      href={`https://wa.me/${selected.customer.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                    >
+                      <IconWhatsApp size={16} />
+                      Conversar
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm text-muted-ink opacity-60">
+                      <IconWhatsApp size={16} />
+                      Sem telefone
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!selected.customer?.id}
+                    onClick={() => { const id = selected.customer?.id; if (id) { void persistNotes().then(() => { setSelected(null); routerNavigate(`/clientes/${id}`); }); } }}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <IconWhatsApp size={16} />
-                    Conversar
-                  </a>
-                ) : (
-                  <span className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm text-muted-ink opacity-60">
-                    <IconWhatsApp size={16} />
-                    Sem telefone
-                  </span>
-                )}
-                <button
-                  type="button"
-                  disabled={!selected.customer?.id}
-                  onClick={() => { const id = selected.customer?.id; if (id) { setSelected(null); routerNavigate(`/clientes/${id}`); } }}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <IconUser size={16} />
-                  Ver cliente
-                </button>
+                    <IconUser size={16} />
+                    Ver cliente
+                  </button>
+                </div>
               </div>
-            </div>
 
+              {/* Blocos do cliente — mesma coluna do Belasis em f_0062. Nesta
+                  superfície só Anotações tem "+ Adicionar": Pacotes e Assinaturas
+                  só ganham o link no drawer da COMANDA (f_0090), que é ponto de
+                  venda. O componente busca os próprios dados e some sozinho
+                  quando o agendamento não tem cliente (bloqueio de horário). */}
+              <div className="order-3 flex flex-col gap-3 lg:order-none lg:contents">
+              <ClienteBlocosLaterais
+                customerId={selected.customer?.id}
+                onAbrirFicha={
+                  selected.customer?.id
+                    ? (aba) => {
+                        const cid = selected.customer!.id;
+                        // Salva a observação antes de sair, como o "Ver cliente"
+                        // logo abaixo já faz — senão o rascunho se perde.
+                        void persistNotes().then(() => {
+                          setSelected(null);
+                          routerNavigate(`/clientes/${cid}?tab=${aba}`);
+                        });
+                      }
+                    : undefined
+                }
+                onAdicionarAnotacao={
+                  selected.customer?.id && can('clientes:manage')
+                    ? () => setNoteDrawerOpen(true)
+                    : undefined
+                }
+              />
+
+              {/* Caixa de nova anotação — DENTRO da coluna do cliente, logo abaixo
+                  do bloco "Anotações" que a abriu, igual ao ComandaDrawer.tsx:385 e
+                  ao PacoteClienteAside.tsx:117. Antes era irmã das duas colunas: no
+                  desktop nascia como uma TERCEIRA coluna à direita dos detalhes e no
+                  mobile caía no fim de todo o scroll, telas abaixo do "+ Adicionar" —
+                  sem scrollIntoView, tocar no link não parecia fazer nada.
+                  Continua dentro do `{selected && ...}` de propósito: ao trocar de
+                  agendamento desmonta e o rascunho não vaza para o cliente seguinte. */}
+              {selected.customer?.id && noteDrawerOpen && (
+                <NovaAnotacaoInline
+                  customerId={selected.customer.id}
+                  onDone={() => setNoteDrawerOpen(false)}
+                />
+              )}
+              </div>
+            </aside>
+
+            {/* ── COLUNA DE DETALHES (direita): data, serviços, switches ──── */}
+            <div className="order-2 flex min-w-0 flex-1 flex-col gap-5 lg:order-none">
             {/* DATA + CHIPS: status + tipo de agendamento */}
             <div className="flex flex-col gap-2">
               <div className="text-sm capitalize text-muted-ink">
@@ -1347,23 +2057,78 @@ export function AgendaPage() {
               )}
             </section>
 
-            {/* AÇÕES: toggles */}
+            {/* MENSAGENS PARA O CLIENTE — mesmo bloco da criação (estudo 64).
+                Antes eram três toggles "Avisar…" que não diziam o que ia sair;
+                agora cada linha mostra quando sai e o texto do modelo em uso. O
+                gravar continua no clique (estudo 59). */}
+            <AvisosDoCliente
+              valores={{
+                notifyConfirmation: sendConfirmation,
+                notifyCancellation: sendCancellation,
+                remindClient: sendReminder,
+              }}
+              onChange={(campo, valor) => {
+                if (campo === 'notifyConfirmation') {
+                  setSendConfirmation(valor);
+                  setConfirmationTouched(true);
+                } else if (campo === 'notifyCancellation') {
+                  setSendCancellation(valor);
+                  setCancellationTouched(true);
+                } else {
+                  setSendReminder(valor);
+                  setReminderTouched(true);
+                }
+                void salvarAviso(campo, valor);
+              }}
+              variaveis={variaveisDaPrevia}
+              podeConfigurar={can('config:manage')}
+            />
+
             <section className="flex flex-col gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">Ações</h3>
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>Enviar lembrete</span>
-                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', sendReminder ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
-                  <input type="checkbox" checked={sendReminder} onChange={(e) => setSendReminder(e.target.checked)} className="sr-only" />
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', sendReminder ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-foreground">
-                <span>Encaixar agendamento</span>
-                <span className={['relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors', squeezeIn ? 'bg-primary' : 'bg-[#d0cec9]'].join(' ')}>
-                  <input type="checkbox" checked={squeezeIn} onChange={(e) => setSqueezeIn(e.target.checked)} className="sr-only" />
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', squeezeIn ? 'translate-x-4' : 'translate-x-1'].join(' ')} />
-                </span>
-              </label>
+              <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+                {can('agenda:manage') && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setConfirmationDrawerTab('message')}
+                  >
+                    Enviar confirmação agora
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={can('agenda:manage') ? undefined : 'sm:col-span-2'}
+                  onClick={() => setConfirmationDrawerTab('logs')}
+                >
+                  Ver logs de envio
+                </Button>
+                  {/* ACOMPANHAMENTO: abre a aba do drawer com modelo, prévia e
+                      autorização. Antes este botão DISPARAVA direto, sem prévia
+                      e sem autorização — contra o que a linha abaixo promete.
+                      Ver estudo 86. */}
+                  {can('agenda:manage') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="sm:col-span-2"
+                      onClick={() => setConfirmationDrawerTab('followup')}
+                    >
+                      Enviar acompanhamento
+                    </Button>
+                  )}
+                  {/* O atalho "Escrever mensagem para a cliente" saiu daqui a
+                      pedido do dono: três botões de envio empilhados nesta
+                      coluna pesavam a visualização do agendamento. A mensagem
+                      livre continua existindo — é a aba "Livre" dentro do
+                      próprio drawer de confirmação
+                      (AppointmentConfirmationDrawer.tsx:485), alcançável por
+                      qualquer um dos dois botões acima. Ver estudo 87. */}
+              </div>
+              <p className="text-xs text-muted-ink">
+                O envio manual exige autorização explícita e não cria cópia se a
+                mesma solicitação for repetida.
+              </p>
             </section>
 
             {/* OBSERVAÇÃO */}
@@ -1384,7 +2149,7 @@ export function AgendaPage() {
               <Select aria-label="Status" selectedKey={selected.status}
                 onSelectionChange={(k) => changeStatus(selected, String(k) as AppointmentRow['status'])}
                 isDisabled={statusMutation.isPending}>
-                <Select.Trigger><Select.Value /></Select.Trigger>
+                <Select.Trigger className="min-h-[44px] touch-manipulation"><Select.Value /></Select.Trigger>
                 <Select.Popover>
                   <ListBox>
                     {Object.entries(APPOINTMENT_STATUS_LABELS).map(([id, name]) => (
@@ -1395,16 +2160,18 @@ export function AgendaPage() {
               </Select>
             </section>
 
-            {/* Formulários inline expandíveis (via "Outros" no rodapé) */}
+            {/* Formulários inline expandíveis (via "Outros" no rodapé).
+                O ref é a âncora do scrollIntoView — sem ele o bloco abre fora da
+                área visível na coluna longa do drawer full-screen. */}
+            <div ref={inlineFormRef} className="scroll-mt-4" />
             {showReschedule && (
               <div className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-cream p-3">
                 <span className="text-xs font-semibold text-gold-strong">Reagendar</span>
                 <div className="flex flex-wrap gap-2">
-                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                  <div className="flex flex-col gap-1 text-xs font-medium text-muted">
                     Data
-                    <input type="date" value={reDate} onChange={(e) => setReDate(e.target.value)}
-                      className="rounded-lg border border-default-200 bg-transparent px-2 py-1.5 text-sm text-foreground outline-none" />
-                  </label>
+                    <DatePicker value={reDate} onChange={setReDate} ariaLabel="Data do reagendamento" />
+                  </div>
                   <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                     Horário
                     <input type="time" value={reTime} onChange={(e) => setReTime(e.target.value)}
@@ -1435,6 +2202,26 @@ export function AgendaPage() {
               </div>
             )}
 
+            {/* Recusa da última ação — FIXA. Ver estudo 138: o toast do HeroUI
+                sumia em ~0,3s nesta tela, e esta mensagem é instrução (diz qual
+                comanda resolver antes), não um aviso de passagem. */}
+            {erroAcao && (
+              <div
+                role="alert"
+                className="flex items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger"
+              >
+                <span className="flex-1">{erroAcao}</span>
+                <button
+                  type="button"
+                  onClick={() => setErroAcao(null)}
+                  aria-label="Fechar aviso"
+                  className="shrink-0 rounded px-1 leading-none opacity-70 hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {showCancel && (
               <div className="flex flex-col gap-2 rounded-lg border border-danger/30 bg-white p-3">
                 <TextField value={cancelReason} onChange={setCancelReason}>
@@ -1450,12 +2237,30 @@ export function AgendaPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
       </Drawer>
+      <AppointmentConfirmationDrawer
+        appointmentId={selected?.id ?? null}
+        isOpen={confirmationDrawerTab !== null}
+        initialTab={confirmationDrawerTab ?? 'message'}
+        canSendConfirmation={can('agenda:manage')}
+        canManageTemplates={can('config:manage')}
+        onClose={() => setConfirmationDrawerTab(null)}
+        onAuthorized={() => {
+          setSendConfirmation(true);
+          setConfirmationTouched(false);
+          setSelected((current) =>
+            current ? { ...current, notifyConfirmation: true } : current,
+          );
+          void appts.refetch();
+        }}
+      />
     </div>
   );
 }
+
 
 /** Belasis month view: days are the columns/cells and events stay visible as cards. */
 function MonthView({
@@ -1562,10 +2367,13 @@ function MonthView({
                 {visible.map((appointment) => {
                   const color = eventColor(appointment);
                   const canceled = appointment.status === 'canceled';
-                  const customer = appointment.customer?.name ?? 'Sem cliente';
-                  const service = appointment.items?.[0]
-                    ? serviceById.get(appointment.items[0].serviceId)
-                    : undefined;
+                  const block = isBlock(appointment);
+                  const customer = block ? blockLabel(appointment) : (appointment.customer?.name ?? 'Sem cliente');
+                  const service = block
+                    ? undefined
+                    : appointment.items?.[0]
+                      ? serviceById.get(appointment.items[0].serviceId)
+                      : undefined;
                   const picked = selectMode && isSelected(appointment.id);
                   return (
                     <button
@@ -1573,7 +2381,7 @@ function MonthView({
                       type="button"
                       onClick={(event) => { event.stopPropagation(); onActivate(appointment); }}
                       style={{ backgroundColor: color }}
-                      title={`${formatTime(appointment.start)} · ${customer} · ${service ?? 'Sem serviço'}`}
+                      title={block ? `${formatTime(appointment.start)} · ${customer}` : `${formatTime(appointment.start)} · ${customer} · ${service ?? 'Sem serviço'}`}
                       className={[
                         'relative flex h-[46px] min-w-0 flex-col items-start justify-center overflow-hidden rounded-md px-1 py-1 text-left leading-none text-white transition-shadow hover:shadow-md lg:h-[50px] lg:rounded-lg lg:px-1.5',
                         canceled ? 'opacity-60' : '',
@@ -1586,9 +2394,11 @@ function MonthView({
                       <span className="mt-0.5 block w-full truncate text-[8px] font-semibold lg:text-[10px]">
                         {customer}
                       </span>
-                      <span className="mt-0.5 block w-full truncate text-[7px] text-white/85 lg:text-[9px]">
-                        {service ?? 'Sem serviço'}
-                      </span>
+                      {!block && (
+                        <span className="mt-0.5 block w-full truncate text-[7px] text-white/85 lg:text-[9px]">
+                          {service ?? 'Sem serviço'}
+                        </span>
+                      )}
                       {selectMode && (
                         <span className="absolute right-0.5 top-0.5">
                           <AnimatedCheckbox checked={picked} />
@@ -1661,10 +2471,13 @@ function MonthView({
               {list.map((appointment) => {
                 const color = eventColor(appointment);
                 const canceled = appointment.status === 'canceled';
-                const customer = appointment.customer?.name ?? 'Sem cliente';
-                const service = appointment.items?.[0]
-                  ? serviceById.get(appointment.items[0].serviceId)
-                  : undefined;
+                const block = isBlock(appointment);
+                const customer = block ? blockLabel(appointment) : (appointment.customer?.name ?? 'Sem cliente');
+                const service = block
+                  ? undefined
+                  : appointment.items?.[0]
+                    ? serviceById.get(appointment.items[0].serviceId)
+                    : undefined;
                 const picked = selectMode && isSelected(appointment.id);
                 return (
                   <button

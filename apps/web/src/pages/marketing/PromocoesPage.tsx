@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
+import { Button, Checkbox, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
+import { FilterAside } from '../../components/FilterAside';
+import { FilterCheckbox } from '../../components/FilterCheckbox';
+import { SwitchRow } from '../../components/SwitchRow';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
 import { DateField } from '../../components/DateRangeFilter';
 import {
@@ -246,8 +249,7 @@ export function PromocoesPage() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* ── Rail de filtros (Aplicação) ── */}
-        {showFilters && (
-          <aside className="w-full shrink-0 rounded-2xl border border-line bg-card p-4 lg:w-60">
+        <FilterAside open={showFilters} width="lg:w-60">
             <FilterGroup title="Aplicação">
               <CheckRow
                 label="Todas"
@@ -284,8 +286,7 @@ export function PromocoesPage() {
                 Limpar filtros
               </button>
             )}
-          </aside>
-        )}
+        </FilterAside>
 
         {/* ── Conteúdo (tabela desktop / cards mobile + paginação) ── */}
         <div className="min-w-0 flex-1">
@@ -498,10 +499,9 @@ function CheckRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
-      <Check checked={checked} onChange={onChange} />
-      <span className="truncate">{label}</span>
-    </label>
+    <FilterCheckbox checked={checked} onChange={onChange}>
+      {label}
+    </FilterCheckbox>
   );
 }
 
@@ -513,13 +513,15 @@ function Check({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className="h-4 w-4 shrink-0 cursor-pointer rounded border-line"
-      style={{ accentColor: 'var(--sp-primary)' }}
-    />
+    // Alvo de toque maior (mobile/acessibilidade): o padding no Content — que é
+    // o <label> clicável — amplia a área sem afetar o layout (-m-2 compensa).
+    <Checkbox isSelected={checked} onChange={onChange} className="shrink-0">
+      <Checkbox.Content className="-m-2 p-2">
+        <Checkbox.Control>
+          <Checkbox.Indicator />
+        </Checkbox.Control>
+      </Checkbox.Content>
+    </Checkbox>
   );
 }
 
@@ -683,6 +685,7 @@ function PromocaoDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar promoção' : 'Nova promoção'}
+      fullscreen
       footer={
         <>
           <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
@@ -758,7 +761,7 @@ function PromocaoDrawer({
           </TextField>
         </Field>
 
-        <Toggle
+        <SwitchRow
           label="Aplica no agendamento online"
           checked={appliesOnline}
           onChange={setAppliesOnline}
@@ -780,22 +783,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="text-xs font-medium text-muted-ink">{label}</label>
       {children}
     </div>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-foreground">
-      <Check checked={checked} onChange={onChange} />
-      {label}
-    </label>
   );
 }

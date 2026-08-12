@@ -35,12 +35,13 @@ function whatsappHref(number: string, salonName?: string): string {
 }
 
 /**
- * Black navbar (salonpass feminino) — compact and sticky on mobile so the
+ * Black navbar (salão feminino) — compact and sticky on mobile so the
  * customer never loses navigation during a long service list.
  * Paints into the iOS status-bar safe area (black), so the notification bar is
- * never a bare white strip. Holds the
- * brand, section links, and the login button (logged out) or the account button
- * + notification bell (logged in).
+ * never a bare white strip. The brand shown is the SALON's own (logo + name),
+ * never the SalonPass wordmark — the public booking flow is the salon's face.
+ * Holds the salon brand, section links, and the login button (logged out) or
+ * the account button + notification bell (logged in).
  */
 export function TopBar({
   slug,
@@ -50,6 +51,7 @@ export function TopBar({
   onHome,
   whatsapp,
   salonName,
+  logoUrl,
 }: {
   slug: string;
   isLoggedIn: boolean;
@@ -60,7 +62,11 @@ export function TopBar({
   /** Salon WhatsApp (digits) — when present, a "WhatsApp" link is shown. */
   whatsapp?: string | null;
   salonName?: string;
+  /** Salon logo URL — shown in the navbar; falls back to the salon initial. */
+  logoUrl?: string | null;
 }) {
+  const displayName = salonName?.trim() || 'Salão';
+  const initial = displayName[0]?.toUpperCase() ?? 'S';
   const [menuOpen, setMenuOpen] = useState(false);
 
   function handleLogout() {
@@ -89,14 +95,27 @@ export function TopBar({
         <button
           type="button"
           onClick={() => handleNav('inicio')}
-          aria-label="Salonpass — início"
-          className="club-touch flex min-w-0 items-center text-left"
+          aria-label={`${displayName} — início`}
+          className="club-touch flex min-w-0 items-center gap-2.5 text-left"
         >
-          <img
-            src="/brand/salonpass-wordmark-white.svg"
-            alt="Salonpass"
-            className="h-6 w-auto shrink-0 sm:h-7"
-          />
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={displayName}
+              className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/15 sm:h-10 sm:w-10"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full font-brand text-base text-[#1a1a1a] sm:h-10 sm:w-10"
+              style={{ backgroundImage: 'linear-gradient(160deg, #f2b33d 0%, #e59a1f 100%)' }}
+            >
+              {initial}
+            </span>
+          )}
+          <span className="min-w-0 truncate font-brand text-base font-semibold leading-tight text-white sm:text-lg">
+            {displayName}
+          </span>
         </button>
 
         {/* Desktop nav links */}

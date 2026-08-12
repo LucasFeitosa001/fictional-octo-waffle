@@ -1,13 +1,11 @@
-import { authBaseUrl, DEFAULT_API_ORIGIN } from '@beautypass/shared';
+import { clubAuthBaseUrl, DEFAULT_API_ORIGIN } from '@beautypass/shared';
 
 const CONFIGURED_ORIGIN =
-  (import.meta.env.VITE_API_ORIGIN as string | undefined) ?? DEFAULT_API_ORIGIN;
+  (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim();
 
-// An empty VITE_API_ORIGIN means "same origin as the current host": every tenant
-// subdomain ({slug}.salonpass.com.br) then calls its own /api (no CORS). Better
-// Auth's createAuthClient rejects a relative baseURL ("Invalid base URL"), so we
-// must resolve the empty origin to the absolute window.location.origin at runtime
-// instead of emitting a relative "/api/v1/auth".
+// An absent or empty VITE_API_ORIGIN means "same origin as the current host":
+// every tenant subdomain ({slug}.salonpass.com.br) then calls its own /api (no
+// CORS). Better Auth requires an absolute baseURL, so use window.location.origin.
 const API_ORIGIN =
   CONFIGURED_ORIGIN ||
   (typeof window !== 'undefined' ? window.location.origin : DEFAULT_API_ORIGIN);
@@ -15,8 +13,30 @@ const API_ORIGIN =
 /** REST data API base, e.g. http://localhost:3333/api/v1 */
 export const API_BASE_URL = `${API_ORIGIN.replace(/\/$/, '')}/api/v1`;
 
-/** Better Auth base URL, e.g. http://localhost:3333/api/v1/auth */
-export const AUTH_BASE_URL = authBaseUrl(API_ORIGIN);
+/**
+ * Auth DO PORTAL, e.g. http://localhost:3333/api/v1/auth-club.
+ *
+ * Caminho separado de propósito: é a instância com cookie próprio, que dá ao
+ * portal uma sessão independente da do painel. Ver estudo 120.
+ */
+export const AUTH_BASE_URL = clubAuthBaseUrl(API_ORIGIN);
+
+function resolveAdminOrigin(): string {
+  const configured = (import.meta.env.VITE_ADMIN_ORIGIN as string | undefined)?.trim();
+  if (configured) return configured.replace(/\/$/, '');
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'agenda.salonpass.com.br') {
+      return 'https://app.salonpass.com.br';
+    }
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return `${window.location.protocol}//${window.location.hostname}:5173`;
+    }
+  }
+  return 'https://app.salonpass.com.br';
+}
+
+/** Painel administrativo que hospeda o aceite público de convites profissionais. */
+export const ADMIN_ORIGIN = resolveAdminOrigin();
 
 /**
  * The salon being booked. The club app is per-salon (addressed by its
@@ -44,6 +64,11 @@ export function getSubdomainSlug(): string | null {
   const sub = host.slice(0, -suffix.length);
   if (!sub || sub.includes('.') || RESERVED_SUBDOMAINS.has(sub)) return null;
   return sub;
+}
+
+/** Link compartilhado (starter): agenda.salonpass.com.br/<slug>. */
+export function sharedBookingUrl(slug: string): string {
+  return `https://agenda.${ROOT_DOMAIN}/${slug}`;
 }
 
 export const APP_VERSION = 'v0.1.0';

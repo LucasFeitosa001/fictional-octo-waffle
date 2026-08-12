@@ -10,18 +10,48 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
-import { CreateAppointmentDto, UpdateAppointmentDto, StatusDto, SuggestDto } from './dto';
+import {
+  CreateAppointmentDto,
+  CreateAppointmentSeriesDto,
+  UpdateAppointmentDto,
+  StatusDto,
+  SuggestDto,
+  BlockTimeDto,
+  ResendAppointmentMessageDto,
+  SendAppointmentFollowUpDto,
+  SendAppointmentMessageDto,
+  SendAppointmentConfirmationDto,
+} from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
+import { PermissionGuard } from '../../common/permission.guard';
+import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import { AuthService } from '../auth/auth.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller()
 export class AppointmentsController {
-  constructor(private readonly service: AppointmentsService) {}
+  constructor(
+    private readonly service: AppointmentsService,
+    private readonly auth: AuthService,
+  ) {}
+
+  private async professionalScope(companyId: string, userId: string) {
+    const { permissions } = await this.auth.permissions(userId, companyId);
+    if (
+      permissions.includes('*') ||
+      permissions.includes('agenda:view_all')
+    ) {
+      return undefined;
+    }
+    return this.service.professionalForUser(companyId, userId);
+  }
 
   @Get('appointments')
-  list(
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async list(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('professionalId') professionalId?: string,
@@ -29,64 +59,230 @@ export class AppointmentsController {
     @Query('serviceId') serviceId?: string,
     @Query('q') q?: string,
   ) {
-    return this.service.list(companyId, { from, to, professionalId, status, serviceId, q });
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.list(
+      companyId,
+      { from, to, professionalId, status, serviceId, q },
+      scope,
+    );
   }
 
   @Get('appointments/calendar')
-  calendar(@CurrentUser('companyId') companyId: string, @Query('month') month?: string) {
-    return this.service.calendar(companyId, month);
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async calendar(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Query('month') month?: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.calendar(companyId, month, scope);
   }
 
   @Get('availability')
-  availability(
+  @RequirePermission('agenda:view', 'agenda:view_all', 'agenda:manage')
+  async availability(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Query('serviceId') serviceId: string,
     @Query('professionalId') professionalId?: string,
     @Query('date') date?: string,
   ) {
-    return this.service.availability(companyId, serviceId, professionalId, date);
+    const scope = await this.professionalScope(companyId, userId);
+    // PAINEL: a recepção vê a agenda INTEIRA — inclusive horário já ocupado
+    // (marcado com `busy`) e horário passado. Quem está atrás do balcão sabe o
+    // que está fazendo; esconder o horário só impedia o encaixe, que é o caso
+    // real do salão (a mesma profissional atende duas clientes no mesmo
+    // horário, uma com a tinta agindo).
+    //
+    // O agendamento ONLINE do cliente continua sem nada disso — ele chama este
+    // mesmo método sem `opts` (public-booking.service.ts:446) e por isso segue
+    // vendo só horário livre e futuro.
+    return this.service.availability(
+      companyId,
+      serviceId,
+      scope ?? professionalId,
+      date,
+      undefined,
+      { includePast: true, includeBusy: true },
+    );
   }
 
   @Get('appointments/:id')
-  findOne(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
-    return this.service.findOne(companyId, id);
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async findOne(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.findOne(companyId, id, scope);
+  }
+
+  @Get('appointments/:id/confirmation')
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async confirmationSetup(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.confirmationSetup(companyId, id, scope);
+  }
+
+  @Post('appointments/:id/confirmation')
+  @RequirePermission('agenda:manage')
+  async sendConfirmation(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentConfirmationDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.sendConfirmation(companyId, id, dto, scope);
+  }
+
+  /** Reenvia um aviso que não saiu (ex.: recusado com o WhatsApp fora do ar). */
+  @Post('appointments/:id/messages/:messageId/resend')
+  @RequirePermission('agenda:manage')
+  async resendMessage(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: ResendAppointmentMessageDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.reenviarMensagem(
+      companyId,
+      id,
+      messageId,
+      dto.requestKey,
+      scope,
+    );
+  }
+
+  /** Envia o acompanhamento pós-atendimento agora, por decisão de uma pessoa. */
+  @Post('appointments/:id/followup')
+  @RequirePermission('agenda:manage')
+  async sendFollowUp(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentFollowUpDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.enviarAcompanhamento(
+      companyId,
+      id,
+      dto.requestKey,
+      { templateId: dto.templateId, message: dto.message },
+      scope,
+    );
+  }
+
+  /** Envia uma mensagem livre para a cliente deste agendamento. */
+  @Post('appointments/:id/message')
+  @RequirePermission('agenda:manage')
+  async sendFreeMessage(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentMessageDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.enviarMensagemLivre(
+      companyId,
+      id,
+      dto.requestKey,
+      dto.message,
+      scope,
+    );
   }
 
   @Post('appointments')
-  create(@CurrentUser('companyId') companyId: string, @Body() dto: CreateAppointmentDto) {
-    return this.service.create(companyId, dto);
+  @RequirePermission('agenda:manage')
+  async create(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: CreateAppointmentDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    // PAINEL: a grade mostra os horários ocupados, então escolher um deles é
+    // decisão consciente da recepção — não pode voltar 409. É o pedido da
+    // Fátima: mesma profissional, mesmo horário, trocando só a cliente.
+    return this.service.create(companyId, dto, { allowOverlap: true }, scope);
+  }
+
+  @Post('appointments/series')
+  @RequirePermission('agenda:manage')
+  async createSeries(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: CreateAppointmentSeriesDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.createSeries(companyId, dto, scope, { allowOverlap: true });
+  }
+
+  // "Ocupar horários": cria um bloqueio de agenda (indisponibilidade) que ocupa
+  // o horário do profissional sem cliente/serviços associados.
+  @Post('appointments/block')
+  @RequirePermission('agenda:manage')
+  async block(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: BlockTimeDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.block(companyId, dto, scope);
   }
 
   @Patch('appointments/:id')
-  update(
+  @RequirePermission('agenda:manage')
+  async update(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: UpdateAppointmentDto,
   ) {
-    return this.service.update(companyId, id, dto);
+    const scope = await this.professionalScope(companyId, userId);
+    // Reagendar para um horário ocupado é o caso mais comum do encaixe: a
+    // cliente já está marcada e a recepção quer movê-la para cima de outra.
+    return this.service.update(companyId, id, dto, scope, { allowOverlap: true });
   }
 
   @Patch('appointments/:id/status')
-  setStatus(
+  @RequirePermission('agenda:manage')
+  async setStatus(
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: StatusDto,
   ) {
-    return this.service.setStatus(companyId, id, dto, userId);
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.setStatus(companyId, id, dto, userId, scope);
   }
 
   @Post('appointments/:id/suggest')
-  suggest(
+  @RequirePermission('agenda:manage')
+  async suggest(
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() dto: SuggestDto,
   ) {
-    return this.service.suggestTime(companyId, id, dto.suggestion);
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.suggestTime(companyId, id, dto.suggestion, scope);
   }
 
   @Delete('appointments/:id')
-  remove(@CurrentUser('companyId') companyId: string, @Param('id') id: string) {
-    return this.service.remove(companyId, id);
+  @RequirePermission('agenda:manage')
+  async remove(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.remove(companyId, id, scope);
   }
 }

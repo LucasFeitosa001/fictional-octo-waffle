@@ -5,20 +5,34 @@ import { BottomNav } from './BottomNav';
 import { CreateSheetProvider, PageActionsProvider } from './PageActions';
 import { CreateDrawerHost, CreateDrawerProvider } from './CreateDrawer';
 import { ConfirmProvider } from '../components/ConfirmDialog';
-import { ChatSupportDrawer } from '../components/ChatSupportDrawer';
-import { IconMessage } from '../components/icons';
+import { NotificationToaster } from '../components/NotificationToaster';
 import { useThemeSync } from '../theme/useThemeSync';
+import { useSidebarStyle } from '../theme/sidebarStyle';
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   // Pull the account's theme once the session is available (localStorage stays
   // the fast pre-paint cache; the account is the cross-device source of truth).
   useThemeSync();
+  const sidebarStyle = useSidebarStyle();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const { pathname } = useLocation();
   // Full-bleed pages manage their own height + scroll (no page padding,
   // no max-width, no main scroll). The agenda is one big internal scroller.
-  const fullBleed = pathname === '/agenda';
+  // As telas da Voltr entram aqui porque são um iframe: qualquer padding ou
+  // max-width do painel vira faixa vazia em volta do CRM do parceiro.
+  // Lista, não encadeamento de ||: toda tela nova da Voltr é um iframe e PRECISA
+  // entrar aqui. Esquecer uma faz ela cair no ramo com padding e SEM altura
+  // definida — o iframe encolhe para uns poucos pixels e a tela parece quebrada,
+  // que foi o que aconteceu com o Kanban e a IA. Ver estudo 82.
+  const TELA_CHEIA = [
+    '/agenda',
+    '/voltr-crm',
+    '/voltr-chat',
+    '/voltr-boards',
+    '/voltr-tarefas',
+    '/voltr-ia',
+  ];
+  const fullBleed = TELA_CHEIA.includes(pathname);
 
   return (
     <PageActionsProvider>
@@ -26,8 +40,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     <CreateDrawerProvider>
     <ConfirmProvider>
     <div className="flex h-dvh w-full overflow-hidden">
-      {/* Desktop static sidebar */}
-      <div className="hidden lg:block">
+      {/* Desktop static sidebar (sólida encostada, ou flutuante com margem) */}
+      <div className={`hidden lg:block ${sidebarStyle === 'floating' ? 'p-2.5' : ''}`}>
         <Sidebar />
       </div>
 
@@ -50,10 +64,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           onClick={() => setDrawerOpen(false)}
           aria-hidden="true"
         />
-        {/* Panel slides from the left */}
+        {/* Panel slides from the left. No mobile o menu é SEMPRE sólido/encostado
+            — a personalização flutuante do sidebar só vale no desktop. */}
         <div
           className={[
-            'absolute inset-y-0 left-0 shadow-[var(--shadow-pop)] transition-transform duration-300 ease-out will-change-transform',
+            'absolute shadow-[var(--shadow-pop)] transition-transform duration-300 ease-out will-change-transform',
+            'inset-y-0 left-0',
             drawerOpen ? 'translate-x-0' : '-translate-x-full',
           ].join(' ')}
         >
@@ -65,12 +81,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {fullBleed ? (
-          <main className="db-canvas flex min-h-0 flex-1 flex-col overflow-hidden">
+          // Full-bleed (agenda): gerencia a própria altura/scroll. Só reservamos
+          // a safe-area do topo no mobile (o header interno da agenda não pode
+          // ficar sob o notch); no desktop (lg:) não há notch e o topbar cobre.
+          <main className="db-canvas flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden pt-[var(--sp-safe-top)] lg:pt-0">
             {children}
           </main>
         ) : (
           <main className="db-canvas min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
-            <div className="mobile-page-content mx-auto min-w-0 max-w-[1560px] px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 sm:pt-5 lg:px-5 lg:py-6 lg:pb-6">
+            {/* pt: no mobile reserva o notch/dynamic island via env(safe-area-inset-top)
+                — telas SEM MobileBackHeader não podem começar sob o notch. Telas
+                COM MobileBackHeader cancelam esse padding com a classe .has-back-header
+                (o próprio header assume a safe-area). No desktop (lg:) volta ao py-6. */}
+            <div className="mobile-page-content mx-auto min-w-0 max-w-[1560px] px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-[max(1rem,var(--sp-safe-top))] sm:px-4 lg:px-5 lg:py-6 lg:pb-6 lg:pt-6">
               {children}
             </div>
           </main>
@@ -80,25 +103,15 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar (same style as the club) */}
       <BottomNav onMenuOpen={() => setDrawerOpen(true)} />
 
-      {/* Chat FAB global — visível em todas as páginas exceto Agenda
-          (Belasis /calendar não tem FAB nesta rota). */}
-      {!fullBleed && (
-        <button
-          type="button"
-          aria-label="Abrir chat de suporte"
-          onClick={() => setChatOpen(true)}
-          className="fixed bottom-24 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow-pop)] transition-transform active:scale-95 md:bottom-6 md:right-6"
-        >
-          <IconMessage size={22} />
-        </button>
-      )}
-
-      {/* Drawer do chat de suporte — POST /help/chat (Claude Haiku). */}
-      <ChatSupportDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
 
       {/* Create-in-place host — abre o drawer da entidade direto (Sidebar/BottomNav
           "Novo") sem navegar. Uma única instância global, dentro do provider. */}
       <CreateDrawerHost />
+
+      {/* Notification watcher (sem UI): observa a lista de notificações e dispara
+          toasts no canto inferior direito para agendamentos novos/confirmados/
+          cancelados. Montado aqui pois só existe logado. */}
+      <NotificationToaster />
     </div>
     </ConfirmProvider>
     </CreateDrawerProvider>

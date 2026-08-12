@@ -13,12 +13,14 @@
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm --filter @beautypass/db generate",
     "db:migrate": "pnpm --filter @beautypass/db migrate",
-    "db:seed": "pnpm --filter @beautypass/db seed"
+    "db:seed": "pnpm --filter @beautypass/db seed",
+    "db:seed:staging": "pnpm --filter @beautypass/db seed:staging"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
     "playwright": "^1.60.0",
     "turbo": "^2.5.4",
     "typescript": "^5.7.3"
-  }
+  },
+  "description": "SaaS de gestão para salão / estética / barbearia (mobile admin + web booking público + API)."
 }

@@ -1,15 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-function buildRange(from?: string, to?: string) {
-  const range = {
-    ...(from ? { gte: new Date(from) } : {}),
-    ...(to ? { lte: new Date(to) } : {}),
-  };
-  const hasRange = Boolean(from || to);
-  return { range, hasRange };
-}
-
 /** Data válida ou undefined. */
 function toDate(iso?: string): Date | undefined {
   if (!iso) return undefined;
@@ -46,7 +37,7 @@ export class ReportsService {
 
   // GET /reports/overview?from&to — ranking-style aggregations from real tables.
   async overview(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const dateWhere = hasRange ? { date: range } : {};
     const startWhere = hasRange ? { start: range } : {};
 
@@ -260,7 +251,7 @@ export class ReportsService {
   // GET /reports/dre?from&to — Demonstrativo de Resultado (regime de caixa:
   // transações liquidadas/paid no período, agrupadas por FinancialCategory).
   async dre(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const paidWhere = hasRange ? { paidAt: range } : {};
     const orderDateWhere = hasRange ? { date: range } : {};
 
@@ -397,10 +388,10 @@ export class ReportsService {
   }
 
   // GET /reports/messages?from&to — mensagens enviadas por canal e por tipo.
-  // Fontes: WhatsappOutbox (global — sem companyId no schema), CampaignMessage
+  // Fontes: WhatsappOutbox (agora company-scoped via companyId), CampaignMessage
   // (via Campaign.channel) e AppointmentNotification/Notification (por tipo).
   async messages(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const sentWhere = hasRange ? { sentAt: range } : {};
     const createdWhere = hasRange ? { createdAt: range } : {};
 
@@ -410,9 +401,10 @@ export class ReportsService {
       apptNotifications,
       notifications,
     ] = await Promise.all([
-      // WhatsappOutbox não possui companyId no schema — contagem global honesta.
+      // WhatsappOutbox agora tem companyId — conta só os desta empresa. Registros
+      // antigos sem companyId ficam de fora do agregado (contagem honesta por tenant).
       this.prisma.client.whatsappOutbox.count({
-        where: { status: 'sent', ...(hasRange ? { sentAt: range } : {}) },
+        where: { companyId, status: 'sent', ...(hasRange ? { sentAt: range } : {}) },
       }),
       this.prisma.client.campaignMessage.findMany({
         where: {
@@ -532,7 +524,221 @@ export class ReportsService {
     };
   }
 
+  // GET /reports/messages/rows?from&to&status&kind — LINHAS por mensagem do
+  // relatório de mensagens (company-scoped). Fonte: WhatsappOutbox onde
+  // companyId = empresa ativa OU o telefone casa com o de algum Customer da
+  // empresa (registros antigos/sem companyId). Filtros: from/to (por sentAt OU
+  // createdAt), status (sent|failed|pending), kind.
+  async messagesRows(
+    companyId: string,
+    opts: {
+      from?: string;
+      to?: string;
+      status?: string;
+      kind?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) {
+    const { from, to, status, kind } = opts;
+    const limit = opts.limit && opts.limit > 0 ? opts.limit : 100;
+    const offset = opts.offset && opts.offset > 0 ? opts.offset : 0;
+    const { range, hasRange } = dateRange(from, to);
+
+    // Telefones dos clientes da empresa → últimos 8 dígitos, p/ casar com o
+    // outbox mesmo em registros antigos que não têm companyId gravado.
+    const customers = await this.prisma.client.customer.findMany({
+      where: { companyId, phone: { not: null } },
+      select: { id: true, name: true, phone: true },
+    });
+    const tailToCustomer = new Map<string, { id: string; name: string }>();
+    const phoneTails: string[] = [];
+    for (const c of customers) {
+      const digits = (c.phone ?? '').replace(/\D/g, '');
+      if (digits.length < 8) continue;
+      const tail = digits.slice(-8);
+      phoneTails.push(tail);
+      // Primeiro cliente vence em caso de colisão de tail (raro).
+      if (!tailToCustomer.has(tail)) tailToCustomer.set(tail, { id: c.id, name: c.name });
+    }
+
+    // Período: casa por sentAt OU createdAt (mensagem pode estar pendente).
+    const dateFilter = hasRange
+      ? { OR: [{ sentAt: range }, { createdAt: range }] }
+      : {};
+
+    const rows = await this.prisma.client.whatsappOutbox.findMany({
+      where: {
+        AND: [
+          // O ramo por telefone casa pelo FINAL do número (8 dígitos), que
+          // colide entre DDDs diferentes. Solto num OR ao lado de `companyId`,
+          // ele trazia mensagem de OUTRO salão para o relatório, com prévia do
+          // texto. Ele existe para alcançar registros ÓRFÃOS (companyId é
+          // nullable), então fica restrito a esses. Estudo 151; irmã da correção
+          // em customers.service.ts:998-1013.
+          {
+            OR: [
+              { companyId },
+              ...(phoneTails.length
+                ? [
+                    {
+                      AND: [
+                        { companyId: null },
+                        { OR: phoneTails.map((t) => ({ toPhone: { endsWith: t } })) },
+                      ],
+                    },
+                  ]
+                : []),
+            ],
+          },
+          ...(status ? [{ status }] : []),
+          ...(kind ? [{ kind }] : []),
+          dateFilter,
+        ],
+      },
+      orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+      skip: offset,
+    });
+
+    // Nome do cliente: prioriza customerId direto; senão casa pelo tail do telefone.
+    const directIds = Array.from(
+      new Set(rows.map((r) => r.customerId).filter((v): v is string => Boolean(v))),
+    );
+    const directNames = directIds.length
+      ? await this.prisma.client.customer.findMany({
+          where: { id: { in: directIds }, companyId },
+          select: { id: true, name: true },
+        })
+      : [];
+    const nameById = new Map<string, string>(
+      directNames.map((c) => [c.id, c.name] as [string, string]),
+    );
+
+    const data = rows
+      // Defesa em profundidade (espelha customers.service.ts:1046): uma regressão
+      // futura na query não pode transformar o relatório numa janela para as
+      // mensagens de outro salão. Órfã (companyId null) segue permitida.
+      .filter((r) => r.companyId === null || r.companyId === companyId)
+      .map((r) => {
+        const tail = (r.toPhone ?? '').replace(/\D/g, '').slice(-8);
+        const customerName =
+          (r.customerId ? nameById.get(r.customerId) : undefined) ??
+          tailToCustomer.get(tail)?.name ??
+          null;
+        return {
+          id: r.id,
+          at: r.sentAt ?? r.createdAt,
+          toPhone: r.toPhone,
+          customerName,
+          kind: r.kind ?? null,
+          status: r.status,
+          textPreview: r.text.length > 140 ? `${r.text.slice(0, 140)}…` : r.text,
+        };
+      });
+
+    return {
+      period: { from: from ?? null, to: to ?? null },
+      rows: data,
+      limit,
+      offset,
+      totals: { count: data.length },
+    };
+  }
+
   // GET /reports/birthdays?month — aniversariantes do mês (1-12).
+
+  /**
+   * Relatório de CLIENTES — a lista completa, com as colunas que a tela oferece.
+   *
+   * Existe porque a tela puxava `overview.newCustomers` (clientes NOVOS no
+   * período do dashboard) e prometia "a lista completa": num salão que não
+   * cadastrou ninguém nos dias escolhidos, a lista vinha vazia e o botão
+   * "Gerar relatório" ficava desabilitado — parecia quebrado, e estava.
+   *
+   * `from`/`to` recortam por data de CRIAÇÃO do cliente, que é o rótulo da tela
+   * ("Criado em"). Sem intervalo, traz todos.
+   *
+   * As contagens e somas saem de `_count` e das relações incluídas no mesmo
+   * `findMany` — nunca uma consulta por cliente, senão um salão com 3 mil
+   * clientes derruba o relatório.
+   */
+  async customers(
+    companyId: string,
+    opts: {
+      from?: string;
+      to?: string;
+      status?: string;
+      balance?: string;
+      tags?: string;
+    },
+  ) {
+    const from = opts.from ? new Date(opts.from) : undefined;
+    const to = opts.to ? new Date(`${opts.to.slice(0, 10)}T23:59:59.999Z`) : undefined;
+    const tags = (opts.tags ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const rows = await this.prisma.client.customer.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        ...(opts.status === 'active'
+          ? { active: true }
+          : opts.status === 'inactive'
+            ? { active: false }
+            : {}),
+        ...(from || to
+          ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+          : {}),
+        ...(tags.length ? { tags: { some: { name: { in: tags } } } } : {}),
+      },
+      orderBy: { name: 'asc' },
+      include: {
+        tags: { select: { name: true } },
+        credits: { select: { amount: true } },
+        customerPackages: { select: { price: true } },
+        orders: {
+          where: { status: 'finished' },
+          select: { netTotal: true },
+        },
+      },
+    });
+
+    const soma = (list: { [k: string]: unknown }[], campo: string) =>
+      list.reduce((acc, r) => acc + Number(r[campo] ?? 0), 0);
+
+    const data = rows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone ?? null,
+      email: c.email ?? null,
+      cpf: c.cpf ?? null,
+      rg: c.rg ?? null,
+      birthday: c.birthday ? c.birthday.toISOString() : null,
+      street: c.street ?? null,
+      number: c.number ?? null,
+      district: c.district ?? null,
+      city: c.city ?? null,
+      state: c.state ?? null,
+      active: c.active,
+      createdAt: c.createdAt.toISOString(),
+      tags: c.tags.map((t) => t.name),
+      creditBalance: soma(c.credits, 'amount'),
+      packagesCount: c.customerPackages.length,
+      packagesTotal: soma(c.customerPackages, 'price'),
+      ordersCount: c.orders.length,
+      ordersTotal: soma(c.orders, 'netTotal'),
+    }));
+
+    // "Com saldo" é filtro sobre um valor CALCULADO (soma do ledger de crédito),
+    // então não dá para expressar no `where` — fica aqui, depois do mapa.
+    return opts.balance === 'with_balance'
+      ? data.filter((c) => c.creditBalance > 0)
+      : data;
+  }
+
   async birthdays(companyId: string, month?: string) {
     const parsed = month ? Number(month) : new Date().getMonth() + 1;
     const targetMonth =
@@ -570,7 +776,7 @@ export class ReportsService {
   // GET /reports/sales?from&to — vendas por dia + por profissional + por
   // categoria (serviço/produto). Reusa a lógica de comandas do overview.
   async sales(companyId: string, from?: string, to?: string) {
-    const { range, hasRange } = buildRange(from, to);
+    const { range, hasRange } = dateRange(from, to);
     const dateWhere = hasRange ? { date: range } : {};
 
     const finishedOrders = await this.prisma.client.order.findMany({

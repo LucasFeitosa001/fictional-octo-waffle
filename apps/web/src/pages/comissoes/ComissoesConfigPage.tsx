@@ -1,15 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { ErrorState, LoadingState } from '../../components/States';
 import { HelpTooltip } from '../../components/HelpTooltip';
+import { AppSwitch } from '../../components/SwitchRow';
+import { AppTabs } from '../../components/AppTabs';
+import { COMMISSION_TABS, commissionTabPath } from './tabs';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import {
-  IconChart,
-  IconCircleCheck,
-  IconHome,
   IconInfo,
-  IconSettings,
 } from '../../components/icons';
 import {
   useCommissionRules,
@@ -31,14 +31,8 @@ import {
 
 const CARD_CLASS = 'rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]';
 
-// Abas do topo do módulo Comissões (Belasis: Resumo / Em aberto / Pagas /
-// Configurações). As de relatório levam ao Resumo; "Configurações" é a atual.
-const TABS: { label: string; icon: ReactNode; to?: string }[] = [
-  { label: 'Resumo', icon: <IconHome size={15} />, to: '/commissions/summary' },
-  { label: 'Comissões em aberto', icon: <IconChart size={15} />, to: '/commissions/summary' },
-  { label: 'Comissões pagas', icon: <IconCircleCheck size={15} />, to: '/commissions/summary' },
-  { label: 'Configurações', icon: <IconSettings size={15} /> },
-];
+// As abas vêm de `./tabs` — a cópia local ficou para trás quando as abas
+// mudaram, e clicar aqui mostrava "Resumo / Comissões em aberto" de novo.
 
 const YESNO_PAYER: { value: CommissionPayer; label: string }[] = [
   { value: 'proportional', label: 'Proporcional ao comissionamento' },
@@ -46,16 +40,17 @@ const YESNO_PAYER: { value: CommissionPayer; label: string }[] = [
   { value: 'professional', label: 'Profissional arca com 100%' },
 ];
 
-// Campo sem backing no modelo atual — estado local + // TODO.
-type ConsumedPriceBy = 'i' | 'cost' | 'price' | 'pro';
+type ConsumedPriceBy = 'none' | 'cost' | 'price' | 'professional';
 const CONSUMED_PRICE_OPTS: { value: ConsumedPriceBy; label: string }[] = [
-  { value: 'i', label: 'Não descontar' },
+  { value: 'none', label: 'Não descontar' },
   { value: 'cost', label: 'Preço de custo' },
   { value: 'price', label: 'Preço de venda' },
-  { value: 'pro', label: 'Preço para profissional' },
+  { value: 'professional', label: 'Preço para profissional' },
 ];
 
 export function ComissoesConfigPage() {
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const rules = useCommissionRules();
   const allRules = rules.data ?? [];
   // A regra scope="all" carrega a configuração padrão/global editada aqui.
@@ -69,28 +64,18 @@ export function ComissoesConfigPage() {
         </h1>
       </header>
 
-      {/* Abas do módulo (segmented) */}
-      <nav className="mb-5 -mx-1 flex gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1">
-        {TABS.map((t) => {
-          const active = !t.to;
-          const cls =
-            'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
-            (active
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-ink hover:bg-[color-mix(in_oklab,var(--sp-primary)_8%,transparent)] hover:text-ink');
-          return active ? (
-            <span key={t.label} className={cls} aria-current="page">
-              {t.icon}
-              {t.label}
-            </span>
-          ) : (
-            <Link key={t.label} to={t.to as string} className={cls}>
-              {t.icon}
-              {t.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* No celular a régua NÃO aparece aqui: "Configurações" não faz parte das
+          abas do mobile (chega-se pelo menu lateral), e mostrar três abas com
+          nenhuma ativa — ou com a errada acesa — seria mentira de estado. */}
+      {!isMobile && (
+        <AppTabs
+          items={[...COMMISSION_TABS]}
+          selectedKey="settings"
+          onSelectionChange={(key) => navigate(commissionTabPath(String(key)))}
+          ariaLabel="Áreas de comissões"
+          className="mb-5"
+        />
+      )}
 
       {rules.isLoading ? (
         <LoadingState />
@@ -126,9 +111,8 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
   const [consumedProducts, setConsumedProducts] = useState<'deduct' | 'ignore'>('deduct');
   const [receiptText, setReceiptText] = useState('');
 
-  // Campos do Belasis sem backing no modelo atual — estado local + // TODO.
-  const [consumedPriceBy, setConsumedPriceBy] = useState<ConsumedPriceBy>('i'); // TODO: persistir
-  const [showGrossValue, setShowGrossValue] = useState(false); // TODO: persistir
+  const [consumedPriceBy, setConsumedPriceBy] = useState<ConsumedPriceBy>('none');
+  const [showGrossValue, setShowGrossValue] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -143,6 +127,8 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
     setDiscountPaidBy(s?.discountPaidBy ?? 'company');
     setConsidersAdditionalCost((s?.additionalCostPaidBy ?? 'company') !== 'company');
     setConsumedProducts(s?.consumedProducts ?? 'deduct');
+    setConsumedPriceBy(s?.consumedPriceBy ?? 'none');
+    setShowGrossValue(s?.showGrossValue ?? false);
     setReceiptText(s?.receiptText ?? '');
     setSaved(false);
   }, [rule]);
@@ -165,6 +151,8 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
       // on→proportional (considera custo adicional) / off→company (ignora).
       additionalCostPaidBy: considersAdditionalCost ? 'proportional' : 'company',
       consumedProducts,
+      consumedPriceBy,
+      showGrossValue,
       receiptText: receiptText || undefined,
     };
     try {
@@ -296,10 +284,10 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
             </>
           }
         >
-          <Switch
+          <AppSwitch
             checked={considersAdditionalCost}
             onChange={setConsidersAdditionalCost}
-            label="Custo adicional dos serviços"
+            aria-label="Custo adicional dos serviços"
           />
         </SettingRow>
 
@@ -372,10 +360,10 @@ function SettingsForm({ rule }: { rule: CommissionRule | null }) {
             </>
           }
         >
-          <Switch
+          <AppSwitch
             checked={showGrossValue}
             onChange={setShowGrossValue}
-            label="Exibir valor bruto no relatório de comissões"
+            aria-label="Exibir valor bruto no relatório de comissões"
           />
         </SettingRow>
 
@@ -518,38 +506,5 @@ function RadioGroup<T extends string>({
         );
       })}
     </div>
-  );
-}
-
-function Switch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ' +
-        (checked
-          ? 'bg-primary'
-          : 'bg-[color-mix(in_oklab,var(--sp-ink)_20%,transparent)]')
-      }
-    >
-      <span
-        className={
-          'absolute h-5 w-5 rounded-full bg-white shadow transition-all ' +
-          (checked ? 'left-[22px]' : 'left-0.5')
-        }
-      />
-    </button>
   );
 }

@@ -56,6 +56,56 @@ export interface ReportsOverview {
   birthdays: BirthdayItem[];
 }
 
+/** Uma linha do relatório de clientes (GET /reports/customers). */
+export interface RelatorioClienteRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  cpf: string | null;
+  rg: string | null;
+  birthday: string | null;
+  street: string | null;
+  number: string | null;
+  district: string | null;
+  city: string | null;
+  state: string | null;
+  active: boolean;
+  createdAt: string;
+  tags: string[];
+  creditBalance: number;
+  packagesCount: number;
+  packagesTotal: number;
+  ordersCount: number;
+  ordersTotal: number;
+}
+
+/**
+ * Relatório de clientes. `from`/`to` recortam por data de CRIAÇÃO (é o rótulo
+ * "Criado em" da tela). A página antes lia `overview.newCustomers`, que é outra
+ * coisa — clientes novos do dashboard — e por isso vinha vazia e o botão de
+ * gerar ficava desabilitado.
+ */
+export function useRelatorioClientes(filtros: {
+  from?: string;
+  to?: string;
+  status?: string;
+  balance?: string;
+  tags?: string;
+}) {
+  return useQuery({
+    queryKey: ['relatorio-clientes', filtros],
+    queryFn: () =>
+      api.get<RelatorioClienteRow[]>('/reports/customers', {
+        from: filtros.from || undefined,
+        to: filtros.to || undefined,
+        status: filtros.status && filtros.status !== 'all' ? filtros.status : undefined,
+        balance: filtros.balance && filtros.balance !== 'all' ? filtros.balance : undefined,
+        tags: filtros.tags || undefined,
+      }),
+  });
+}
+
 export function useReportsOverview(from: string, to: string) {
   return useQuery({
     queryKey: ['reports-overview', from, to],
@@ -159,6 +209,60 @@ export function useReportsMessages(from: string, to: string) {
       api.get<ReportsMessages>('/reports/messages', {
         from: from || undefined,
         to: to || undefined,
+      }),
+  });
+}
+
+/* ------------------------------- mensagens: linhas por mensagem ---------- */
+
+export interface MessageRowItem {
+  id: string;
+  /** ISO — quando a mensagem foi enviada (ou criada, se ainda pendente). */
+  at: string;
+  toPhone: string;
+  customerName: string | null;
+  kind: string | null;
+  status: string;
+  textPreview: string;
+}
+
+export interface ReportsMessagesRows {
+  period: { from: string | null; to: string | null };
+  rows: MessageRowItem[];
+  limit: number;
+  offset: number;
+  totals: { count: number };
+}
+
+export interface ReportsMessagesRowsFilters {
+  from?: string;
+  to?: string;
+  status?: string;
+  kind?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function useReportsMessagesRows(filters: ReportsMessagesRowsFilters) {
+  const { from, to, status, kind, limit, offset } = filters;
+  return useQuery({
+    queryKey: [
+      'reports-messages-rows',
+      from ?? null,
+      to ?? null,
+      status ?? null,
+      kind ?? null,
+      limit ?? null,
+      offset ?? null,
+    ],
+    queryFn: () =>
+      api.get<ReportsMessagesRows>('/reports/messages/rows', {
+        from: from || undefined,
+        to: to || undefined,
+        status: status || undefined,
+        kind: kind || undefined,
+        limit: limit ?? undefined,
+        offset: offset ?? undefined,
       }),
   });
 }

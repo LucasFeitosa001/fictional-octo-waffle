@@ -1,10 +1,10 @@
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Button, Card, Separator, Typography } from 'heroui-native';
+import { Button, Card, Separator, Typography } from 'heroui-native';
 import type { Company } from '@beautypass/shared';
 import { useFetch } from '../../lib/use-fetch';
 import { useAuth } from '../../lib/auth-context';
-import { initials } from '../../lib/format';
+import { PersonAvatar } from '../../components/PersonAvatar';
 import { LoadingState, ErrorState } from '../../components/ScreenStates';
 
 export default function ConfiguracoesScreen() {
@@ -56,9 +56,10 @@ export default function ConfiguracoesScreen() {
             Conta
           </Typography>
           <View className="flex-row items-center gap-3">
-            <Avatar size="md" color="accent">
-              <Avatar.Fallback>{initials(user?.name ?? 'Usuário')}</Avatar.Fallback>
-            </Avatar>
+            {/* A foto do usuário logado mora em `image` (campo nativo do Better
+                Auth), não em `avatarUrl` — é o mesmo campo que o web lê/grava em
+                MinhaContaDrawer.tsx. Sem foto, cai nas iniciais. */}
+            <PersonAvatar name={user?.name ?? 'Usuário'} avatarUrl={user?.image} />
             <View className="flex-1">
               <Typography className="font-semibold text-foreground">
                 {user?.name ?? '—'}

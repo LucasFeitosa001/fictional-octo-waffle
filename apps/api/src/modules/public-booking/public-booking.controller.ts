@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { fromNodeHeaders } from 'better-auth/node';
-import { auth } from '../../auth/better-auth';
+import { auth, authClub } from '../../auth/better-auth';
 import { PublicBookingService, type BookingUser } from './public-booking.service';
 import { CreateBookingDto, CreateReviewDto, UpdateMyProfileDto } from './dto';
 
@@ -162,18 +162,38 @@ export class PublicBookingController {
     return user;
   }
 
+  /**
+   * Quem está agendando, segundo a sessão DO PORTAL.
+   *
+   * Duas mudanças aqui, e uma depende da outra (ver estudo 120):
+   *
+   * 1. Lê `authClub` primeiro. O portal tem instância própria desde que as
+   *    sessões foram separadas; `auth` (o painel) fica como segunda tentativa
+   *    para não deslogar quem já estava usando o portal com o cookie antigo.
+   *
+   * 2. NÃO exige mais `accountType === 'customer'`. Essa trava existia porque
+   *    painel e portal dividiam um cookie: sem ela, o dono logado na Gestão
+   *    aparecia logado no portal sem nunca ter entrado ali. Com as sessões
+   *    separadas, estar logado aqui virou um ato explícito — e barrar por
+   *    `accountType` passou a só atrapalhar, porque o e-mail é único no
+   *    sistema: quem é staff de um salão não conseguia agendar em NENHUM outro,
+   *    nem criar conta de cliente com o mesmo endereço.
+   *
+   * Agendar não dá acesso a nada do salão: `Customer` é por empresa
+   * (`{ companyId, userId }`) e `resolveLoggedCustomer` cria a linha na empresa
+   * visitada. Ser staff em uma não vira permissão em outra.
+   */
   private async resolveSessionUser(req: Request): Promise<BookingUser | null> {
-    try {
-      const session = await auth.api.getSession({
-        headers: fromNodeHeaders(req.headers),
-      });
-      const u = session?.user as
-        | (BookingUser & { accountType?: string | null })
-        | undefined;
-      if (!u || u.accountType !== 'customer') return null;
-      return { id: u.id, name: u.name, email: u.email, phone: u.phone };
-    } catch {
-      return null;
+    const headers = fromNodeHeaders(req.headers);
+    for (const instancia of [authClub, auth]) {
+      try {
+        const session = await instancia.api.getSession({ headers });
+        const u = session?.user as BookingUser | undefined;
+        if (u) return { id: u.id, name: u.name, email: u.email, phone: u.phone };
+      } catch {
+        // tenta a próxima instância
+      }
     }
+    return null;
   }
 }

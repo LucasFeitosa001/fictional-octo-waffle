@@ -49,6 +49,42 @@ export function LoginPage() {
     try { localStorage.setItem(EMAIL_KEY, email); } catch { /* ignore */ }
   }, [email]);
 
+  /**
+   * Conta de AGENDAMENTO tentando entrar na gestão.
+   *
+   * As contas criadas no portal do salão (`accountType: 'customer'`) usam a
+   * mesma tabela e o mesmo cookie de `.salonpass.com.br`. Elas nunca tiveram
+   * acesso a dado nenhum — a API responde 401 em todas as rotas do salão —, mas
+   * conseguiam ATRAVESSAR a porta e montar o painel vazio. Pior: a sessão delas
+   * substituía a do dono, que era despejado num "Acesso restrito" mandando
+   * falar com o responsável pela conta, sendo ele o responsável.
+   *
+   * Quem barra e encerra a sessão é o `ContaDeAgendamento` (App.tsx) — ele
+   * deixa o motivo em `sessionStorage` antes de sair. Aqui só EXIBIMOS o
+   * recado, porque a tela de lá vive apenas o tempo do `signOut` e a pessoa
+   * chegaria neste login sem entender por que foi expulsa.
+   *
+   * O motivo não vai na URL (`?conta=…`): a rota `/login` devolve quem tem
+   * sessão para `/` (App.tsx:642-643), e como o `signOut` é assíncrono isso
+   * produzia um pingue-pongue infinito `/ ↔ /login`, medido no navegador.
+   * Ver estudo 120.
+   */
+  useEffect(() => {
+    let motivo: string | null = null;
+    try {
+      motivo = sessionStorage.getItem('sp:motivo-saida');
+      if (motivo) sessionStorage.removeItem('sp:motivo-saida');
+    } catch {
+      return;
+    }
+    if (!motivo?.startsWith('agendamento')) return;
+    const email = motivo.includes(':') ? motivo.slice(motivo.indexOf(':') + 1) : '';
+    setError(
+      `${email ? `${email} é uma conta` : 'Esta é uma conta'} de agendamento, usada para marcar ` +
+        'horário como cliente. Ela não abre a gestão do salão — entre com a conta do salão.',
+    );
+  }, []);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitted(true);
@@ -81,20 +117,27 @@ export function LoginPage() {
     <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
       {/* ── Brand panel (desktop only) — floating rounded card ───────────── */}
       <aside className="relative m-4 hidden overflow-hidden rounded-[28px] bg-gradient-to-b from-[#2a2a30] via-[#222226] to-[#1b1b1f] ring-1 ring-white/5 lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-14">
-        {/* Atmosphere: soft gold + pink glow over the dark gray */}
-        <div
+        {/* Imagem de ambiente (gerada via Higgsfield) + overlay escuro para a
+            legibilidade do texto branco por cima. */}
+        <img
+          src="/brand/login-hero.png"
+          alt=""
           aria-hidden
-          className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-gold/20 blur-[110px]"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-36 -right-10 h-96 w-96 rounded-full bg-pink/15 blur-[120px]"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0e0e24]/72 via-[#14143a]/50 to-[#08081c]/88"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-36 -right-10 h-96 w-96 rounded-full bg-primary/25 blur-[120px]"
         />
 
         <div className="relative">
           <img
             src="/brand/salonpass-wordmark-white.svg"
-            alt="Salonpass Gestão"
+            alt="Salonpass Pro"
             className="h-9 w-auto object-contain"
           />
         </div>

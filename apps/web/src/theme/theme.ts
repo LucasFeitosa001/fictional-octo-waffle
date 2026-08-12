@@ -8,7 +8,14 @@ import { useSyncExternalStore } from 'react';
  * To add a salon-specific palette: add a `[data-theme="…"]` block in index.css
  * and one entry here — nothing else needs to change.
  */
-export type ThemeId = 'salonpass' | 'belasis';
+export type ThemeId =
+  | 'salonpass'
+  | 'belasis'
+  | 'esmeralda'
+  | 'blush'
+  | 'violeta'
+  | 'grafite'
+  | 'coral';
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -27,14 +34,47 @@ export const THEMES: ThemeMeta[] = [
   },
   {
     id: 'belasis',
-    label: 'Belasis',
-    description: 'Índigo/roxo com fundo claro (estilo Belasis).',
-    swatches: ['#ffffff', '#f7f7fb', '#505afb'],
+    label: 'Azul',
+    description: 'Azul índigo (#545AF5) com fundo claro.',
+    swatches: ['#545af5', '#f7f7fb', '#545AF5'],
+  },
+  {
+    id: 'esmeralda',
+    label: 'Esmeralda',
+    description: 'Verde esmeralda fresco com fundo claro.',
+    swatches: ['#0b7c5c', '#f5faf8', '#0f9d6f'],
+  },
+  {
+    id: 'blush',
+    label: 'Blush',
+    description: 'Rosa/magenta suave e feminino.',
+    swatches: ['#b83a72', '#fdf6f9', '#e5478b'],
+  },
+  {
+    id: 'violeta',
+    label: 'Violeta',
+    description: 'Roxo vibrante e elegante.',
+    swatches: ['#6b28c9', '#f9f6fd', '#8b3ff0'],
+  },
+  {
+    id: 'grafite',
+    label: 'Grafite',
+    description: 'Slate escuro sóbrio e minimalista.',
+    swatches: ['#2b3444', '#f6f7f9', '#475569'],
+  },
+  {
+    id: 'coral',
+    label: 'Coral',
+    description: 'Laranja coral quente e acolhedor.',
+    swatches: ['#c2410c', '#fdf8f5', '#f2711c'],
   },
 ];
 
 const STORAGE_KEY = 'sp-theme';
-const DEFAULT_THEME: ThemeId = 'salonpass';
+// Identidade do produto: preto/dourado/creme. Durante a clonagem do Belasis o
+// padrão tinha virado 'belasis' (o tema "Azul"), o que fazia dispositivos novos
+// — e empresas sem tema salvo — abrirem em azul sem ninguém ter escolhido.
+export const DEFAULT_THEME: ThemeId = 'salonpass';
 
 export function isThemeId(v: unknown): v is ThemeId {
   return typeof v === 'string' && THEMES.some((t) => t.id === v);

@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
+import { Button, Checkbox, Input, ListBox, Select, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { Drawer } from '../../components/Drawer';
+import { FilterAside } from '../../components/FilterAside';
+import { FilterCheckbox } from '../../components/FilterCheckbox';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
+import { SwitchRow } from '../../components/SwitchRow';
 import { BulkActionsSheet } from '../../components/BulkActionsSheet';
 import {
   buildSelectActions,
@@ -21,6 +25,7 @@ import {
   IconPlus,
   IconSearch,
   IconTrash,
+  IconX,
 } from '../../components/icons';
 import { formatDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
@@ -58,6 +63,7 @@ type StatusFilter = 'all' | 'active' | 'inactive';
 
 export function AnamnesesPage() {
   const confirm = useConfirm();
+  const isMobile = useIsMobile();
   const templatesQ = useAnamnesisTemplates();
   const deleteTemplate = useDeleteAnamnesisTemplate();
   const templates = templatesQ.data ?? [];
@@ -265,8 +271,30 @@ export function AnamnesesPage() {
         <ErrorState onRetry={() => templatesQ.refetch()} />
       ) : (
         <>
-          {/* ── DESKTOP: tabela antd-like + paginação ── */}
-          <div className="hidden md:block">
+          {/* ── DESKTOP: filtro lateral (desliza da esquerda) + tabela antd-like ── */}
+          <div className="md:flex md:items-start md:gap-4">
+            <FilterAside open={showFilters} desktopOnly breakpoint="md">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">Filtros</span>
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  aria-label="Fechar filtros"
+                  className="rounded-md p-1 text-muted-ink transition-colors hover:text-foreground"
+                >
+                  <IconX size={16} />
+                </button>
+              </div>
+              <FilterBody
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                setPage={setPage}
+              />
+              <div className="mt-4 flex flex-col gap-2">
+                {filterFooter(resetFilters, hasFilters, () => setShowFilters(false))}
+              </div>
+            </FilterAside>
+            <div className="hidden min-w-0 flex-1 md:block">
             {rows.length === 0 ? (
               <EmptyState
                 icon={<IconMessage size={32} />}
@@ -360,6 +388,7 @@ export function AnamnesesPage() {
                 />
               </>
             )}
+            </div>
           </div>
 
           {/* ── MOBILE: cards compactos (~70-80px, 2 linhas) sem wrapper Card ──
@@ -444,58 +473,22 @@ export function AnamnesesPage() {
         </>
       )}
 
-      {/* Filtrar: Drawer (bottom-sheet no mobile, direita no desktop). */}
-      <Drawer
-        isOpen={showFilters}
-        onClose={() => setShowFilters(false)}
-        title="Filtros"
-        footer={
-          <>
-            <Button
-              variant="ghost"
-              className="mr-auto text-muted-ink"
-              onClick={() => {
-                resetFilters();
-              }}
-              isDisabled={!hasFilters}
-            >
-              Limpar
-            </Button>
-            <Button variant="primary" onClick={() => setShowFilters(false)}>
-              Aplicar
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-4">
-          <FilterGroup title="Status">
-            <CheckRow
-              label="Todos"
-              checked={statusFilter === 'all'}
-              onChange={() => {
-                setStatusFilter('all');
-                setPage(1);
-              }}
-            />
-            <CheckRow
-              label="Ativos"
-              checked={statusFilter === 'active'}
-              onChange={() => {
-                setStatusFilter('active');
-                setPage(1);
-              }}
-            />
-            <CheckRow
-              label="Inativos"
-              checked={statusFilter === 'inactive'}
-              onChange={() => {
-                setStatusFilter('inactive');
-                setPage(1);
-              }}
-            />
-          </FilterGroup>
-        </div>
-      </Drawer>
+      {/* Filtrar mobile: bottom-sheet (no desktop é o FilterAside lateral acima). */}
+      {isMobile && (
+        <Drawer
+          isOpen={showFilters}
+          onClose={() => setShowFilters(false)}
+          title="Filtros"
+          placement="bottom"
+          footer={filterFooter(resetFilters, hasFilters, () => setShowFilters(false))}
+        >
+          <FilterBody
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            setPage={setPage}
+          />
+        </Drawer>
+      )}
 
       <AnamneseDrawer
         mode="create"
@@ -559,6 +552,68 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
+/** Corpo do filtro "Status" — compartilhado entre o painel lateral desktop
+ * (FilterAside) e o bottom-sheet mobile (Drawer). */
+function FilterBody({
+  statusFilter,
+  setStatusFilter,
+  setPage,
+}: {
+  statusFilter: StatusFilter;
+  setStatusFilter: (v: StatusFilter) => void;
+  setPage: (v: number) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <FilterGroup title="Status">
+        <CheckRow
+          label="Todos"
+          checked={statusFilter === 'all'}
+          onChange={() => {
+            setStatusFilter('all');
+            setPage(1);
+          }}
+        />
+        <CheckRow
+          label="Ativos"
+          checked={statusFilter === 'active'}
+          onChange={() => {
+            setStatusFilter('active');
+            setPage(1);
+          }}
+        />
+        <CheckRow
+          label="Inativos"
+          checked={statusFilter === 'inactive'}
+          onChange={() => {
+            setStatusFilter('inactive');
+            setPage(1);
+          }}
+        />
+      </FilterGroup>
+    </div>
+  );
+}
+
+/** Footer do filtro (Limpar / Aplicar) — compartilhado entre desktop e mobile. */
+function filterFooter(resetFilters: () => void, hasFilters: boolean, onApply: () => void) {
+  return (
+    <>
+      <Button
+        variant="ghost"
+        className="mr-auto text-muted-ink"
+        onClick={resetFilters}
+        isDisabled={!hasFilters}
+      >
+        Limpar
+      </Button>
+      <Button variant="primary" onClick={onApply}>
+        Aplicar
+      </Button>
+    </>
+  );
+}
+
 function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-4 last:mb-0">
@@ -578,10 +633,9 @@ function CheckRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
-      <Check checked={checked} onChange={onChange} />
-      <span className="truncate">{label}</span>
-    </label>
+    <FilterCheckbox checked={checked} onChange={onChange}>
+      {label}
+    </FilterCheckbox>
   );
 }
 
@@ -593,13 +647,13 @@ function Check({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className="h-4 w-4 shrink-0 cursor-pointer rounded border-line"
-      style={{ accentColor: 'var(--sp-primary)' }}
-    />
+    <Checkbox isSelected={checked} onChange={onChange} className="shrink-0">
+      <Checkbox.Content>
+        <Checkbox.Control>
+          <Checkbox.Indicator />
+        </Checkbox.Control>
+      </Checkbox.Content>
+    </Checkbox>
   );
 }
 
@@ -759,6 +813,7 @@ function AnamneseDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'edit' ? 'Editar modelo' : 'Novo modelo de anamnese'}
+      fullscreen
       footer={
         <>
           <Button variant="outline" className="w-full sm:w-auto" onClick={onClose}>
@@ -782,7 +837,7 @@ function AnamneseDrawer({
           </TextField>
         </Field>
 
-        <Toggle label="Modelo ativo" checked={active} onChange={setActive} />
+        <SwitchRow label="Modelo ativo" checked={active} onChange={setActive} />
 
         {/* Construtor de perguntas — persiste em questionsJson. */}
         <div className="flex flex-col gap-2">
@@ -874,22 +929,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="text-xs font-medium text-muted-ink">{label}</label>
       {children}
     </div>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-foreground">
-      <Check checked={checked} onChange={onChange} />
-      {label}
-    </label>
   );
 }

@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
   MinLength,
 } from 'class-validator';
@@ -23,6 +24,7 @@ export class CreateServiceDto {
   @IsOptional() @IsArray() @IsString({ each: true }) imageUrls?: string[];
   // Cashback próprio do serviço — separado da comissão do profissional (ground-truth Belasis).
   @IsOptional() @IsNumber() @Min(0) cashbackPercent?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) defaultCommissionPercent?: number;
   @IsOptional() @IsBoolean() onlineBookable?: boolean;
   @IsOptional() @IsBoolean() favorite?: boolean;
   @IsOptional() @IsBoolean() visible?: boolean;
@@ -43,6 +45,7 @@ export class UpdateServiceDto {
   @IsOptional() @IsArray() @IsString({ each: true }) imageUrls?: string[];
   // Cashback próprio do serviço — separado da comissão do profissional (ground-truth Belasis).
   @IsOptional() @IsNumber() @Min(0) cashbackPercent?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) defaultCommissionPercent?: number;
   @IsOptional() @IsBoolean() onlineBookable?: boolean;
   @IsOptional() @IsBoolean() favorite?: boolean;
   @IsOptional() @IsBoolean() visible?: boolean;

@@ -1,14 +1,16 @@
 import type { ReactNode } from 'react';
+import { DateRangePicker } from '../../components/DatePicker';
 import { Drawer } from '../../components/Drawer';
-import { IconCalendar, IconChevron, IconDownload } from '../../components/icons';
+import { IconDownload } from '../../components/icons';
 import { isoDate } from '../../lib/format';
+import { requestReportPdf, ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Kit compartilhado dos GERADORES de relatório do módulo Financeiro.         */
 /*  Mesma casca/estilo do Belasis (VendasPage / DrePage): card de filtro com   */
 /*  Período + "Gerar relatório" (split "…" abre o drawer de exportação),       */
-/*  KPIs, estados de loading/vazio e drawer de export CSV. Cores 100%          */
-/*  themeable via tokens (--sp-*). Mobile-first.                               */
+/*  KPIs, estados de loading/vazio e drawer de export CSV. Interações seguem   */
+/*  o tema; dados e estados usam papéis fixos. Mobile-first.                   */
 /* -------------------------------------------------------------------------- */
 
 /** Card no estilo Belasis (branco + sombra suave), 100% themeable. */
@@ -23,7 +25,11 @@ export interface DateRange {
 export function rangeLastDays(days: number): DateRange {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - days);
+  // O padrão de todos os relatórios é um mês corrido até hoje. Mantemos o
+  // parâmetro para chamadas específicas que realmente pedem outra quantidade
+  // de dias.
+  if (days === 30) from.setMonth(from.getMonth() - 1);
+  else from.setDate(from.getDate() - days);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -40,11 +46,25 @@ export function shortMonth(m: string): string {
   return mo ? `${mo}/${(y ?? '').slice(2)}` : m;
 }
 
-const TONE: Record<string, string> = {
-  primary: 'bg-primary/10 text-primary',
-  success: 'bg-success/12 text-success',
-  danger: 'bg-danger/12 text-danger',
-  gold: 'bg-gold/15 text-gold-strong',
+const TONE = {
+  sales: 'bg-[var(--sp-data-sales-soft)] text-data-sales',
+  appointments: 'bg-[var(--sp-data-appointments-soft)] text-data-appointments',
+  orders: 'bg-[var(--sp-data-orders-soft)] text-data-orders',
+  customers: 'bg-[var(--sp-data-customers-soft)] text-data-customers',
+  services: 'bg-[var(--sp-data-services-soft)] text-data-services',
+  products: 'bg-[var(--sp-data-products-soft)] text-data-products',
+  stock: 'bg-[var(--sp-data-stock-soft)] text-data-stock',
+  messages: 'bg-[var(--sp-data-messages-soft)] text-data-messages',
+  reviews: 'bg-[var(--sp-data-reviews-soft)] text-data-reviews',
+  income: 'bg-[var(--sp-data-income-soft)] text-data-income',
+  expense: 'bg-[var(--sp-data-expense-soft)] text-data-expense',
+  receivable: 'bg-[var(--sp-data-receivable-soft)] text-data-receivable',
+  payable: 'bg-[var(--sp-data-payable-soft)] text-data-payable',
+  balance: 'bg-[var(--sp-data-balance-soft)] text-data-balance',
+  success: 'bg-status-success-soft text-status-success-fg',
+  danger: 'bg-status-danger-soft text-status-danger-fg',
+  warning: 'bg-status-warning-soft text-status-warning-fg',
+  neutral: 'bg-status-neutral-soft text-status-neutral-fg',
 };
 
 /** Cartão de KPI (mesmo layout das outras páginas de relatório). */
@@ -53,21 +73,21 @@ export function Kpi({
   title,
   value,
   hint,
-  tone = 'primary',
+  tone,
   valueTone,
 }: {
   icon: ReactNode;
   title: string;
   value: string;
   hint?: string;
-  tone?: keyof typeof TONE;
+  tone: keyof typeof TONE;
   valueTone?: 'success' | 'danger';
 }) {
   const valueClass =
     valueTone === 'success'
-      ? 'text-success'
+      ? 'text-status-success-fg'
       : valueTone === 'danger'
-        ? 'text-danger'
+        ? 'text-status-danger-fg'
         : 'text-ink';
   return (
     <div className={`${CARD} p-5`}>
@@ -114,32 +134,19 @@ export function FinancialFilterCard({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-ink">Período</label>
-            <div className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-3 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 sm:h-10">
-              <input
-                type="date"
-                value={range.from}
-                max={range.to || undefined}
-                onChange={(e) => onRange({ ...range, from: e.target.value })}
-                aria-label="Data inicial"
-                className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-              />
-              <IconChevron size={14} className="-rotate-90 shrink-0 text-muted-ink" aria-hidden />
-              <input
-                type="date"
-                value={range.to}
-                min={range.from || undefined}
-                onChange={(e) => onRange({ ...range, to: e.target.value })}
-                aria-label="Data final"
-                className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none [color-scheme:light]"
-              />
-              <IconCalendar size={16} className="shrink-0 text-muted-ink" aria-hidden />
-            </div>
+            <DateRangePicker
+              from={range.from}
+              to={range.to}
+              onChange={onRange}
+              ariaLabel="Período"
+            />
           </div>
           {children}
         </div>
 
         {/* Botão split: Gerar relatório + "…" (opções de exportação) */}
-        <div className="flex w-full items-stretch sm:w-auto sm:self-end">
+        <div className="flex w-full items-stretch gap-2 sm:w-auto sm:self-end">
+          <ReportPdfOption />
           <button
             type="submit"
             disabled={isFetching}
@@ -191,7 +198,7 @@ export function ReportEmpty({
   );
 }
 
-/** Drawer de exportação (CSV agora; PDF marcado "Em breve"). */
+/** Drawer de exportação: CSV e PDF imprimível com assinatura. */
 export function ExportDrawer({
   open,
   onClose,
@@ -226,15 +233,15 @@ export function ExportDrawer({
         {/* TODO: exportação em Excel/PDF depende de endpoint dedicado no backend */}
         <button
           type="button"
-          disabled
-          className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-muted-ink opacity-60"
+          onClick={() => { onClose(); requestReportPdf(); }}
+          className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-ink transition-colors hover:bg-primary/5"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <IconDownload size={18} />
           </span>
           <span className="flex flex-col">
             <span>Exportar PDF</span>
-            <span className="text-xs font-normal text-muted-ink">Em breve</span>
+            <span className="text-xs font-normal text-muted-ink">Abre o PDF com campo de assinatura</span>
           </span>
         </button>
       </div>
@@ -249,10 +256,10 @@ export function StatusBadge({ status }: { status: string }) {
   const settled =
     s.includes('paid') || s.includes('received') || s.includes('pago') || s.includes('receb');
   const cls = overdue
-    ? 'bg-danger/12 text-danger'
+    ? 'bg-status-danger-soft text-status-danger-fg'
     : settled
-      ? 'bg-success/12 text-success'
-      : 'bg-gold/15 text-gold-strong';
+      ? 'bg-status-success-soft text-status-success-fg'
+      : 'bg-status-warning-soft text-status-warning-fg';
   const label = overdue ? 'Vencido' : settled ? 'Liquidado' : 'Em aberto';
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>

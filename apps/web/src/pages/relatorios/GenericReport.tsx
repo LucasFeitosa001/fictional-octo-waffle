@@ -2,7 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { formatMoney, isoDate } from '../../lib/format';
+import { DateRangePicker } from '../../components/DatePicker';
 import { LoadingState } from '../../components/States';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Relatório genérico sobre um endpoint /reports/<x> que devolve             */
@@ -26,7 +28,8 @@ interface ReportPayload {
 
 function defaultRange() {
   const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1);
+  const from = new Date(to);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -80,9 +83,9 @@ export function GenericReport({
   const totals = query.data?.totals ?? {};
 
   function gerar() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    // refetch garante feedback (loading + dados) mesmo com filtro igual.
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   const gridCols = columns
@@ -101,27 +104,17 @@ export function GenericReport({
           className="flex flex-col gap-3 sm:flex-row sm:items-end"
         >
           {hasRange && (
-            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="font-medium text-ink">De</span>
-                <input
-                  type="date"
-                  value={pending.from}
-                  onChange={(e) => setPending((r) => ({ ...r, from: e.target.value }))}
-                  className="h-10 rounded-lg border border-[var(--color-soft-border)] bg-white px-3 text-sm"
-                />
-              </label>
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="font-medium text-ink">Até</span>
-                <input
-                  type="date"
-                  value={pending.to}
-                  onChange={(e) => setPending((r) => ({ ...r, to: e.target.value }))}
-                  className="h-10 rounded-lg border border-[var(--color-soft-border)] bg-white px-3 text-sm"
-                />
-              </label>
+            <div className="flex flex-1 flex-col gap-1.5">
+              <span className="text-sm font-medium text-ink">Período</span>
+              <DateRangePicker
+                from={pending.from}
+                to={pending.to}
+                onChange={setPending}
+                ariaLabel="Período"
+              />
             </div>
           )}
+          <ReportPdfOption />
           <button
             type="submit"
             className="h-10 shrink-0 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"

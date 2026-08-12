@@ -22,7 +22,7 @@ export interface AgendaFilters {
  * Appointments for the agenda, honoring the full filter set. Keyed under the
  * shared `['appointments']` prefix so status mutations invalidate it too.
  */
-export function useAgendaAppointments(filters: AgendaFilters) {
+export function useAgendaAppointments(filters: AgendaFilters, opts?: { enabled?: boolean }) {
   const professionalId = filters.professionalIds?.length
     ? filters.professionalIds.join(',')
     : undefined;
@@ -41,5 +41,6 @@ export function useAgendaAppointments(filters: AgendaFilters) {
         serviceId,
         q,
       }),
+    enabled: opts?.enabled ?? true,
   });
 }

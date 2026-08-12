@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiClientError } from '@beautypass/shared';
 import { Button } from '@heroui/react';
 import { Drawer } from './Drawer';
-import { IconPlus, IconTrash } from './icons';
+import { AppTabs } from './AppTabs';
+import { IconBox, IconInfo, IconLayers, IconPlus, IconTrash, IconUsers } from './icons';
 import { formatMoney } from '../lib/format';
 import type { OrderItemDetail } from '../lib/types';
 import {
@@ -17,8 +18,11 @@ import { useProducts } from '../lib/queries/catalogo';
 
 type Professional = { id: string; name: string };
 
+// Borda mais visível (border-black/15) que o `default-200` pálido do HeroUI —
+// o usuário reclamava de não enxergar "onde clicar" no mobile. min-h-11 garante
+// alvo de toque; o index.css reforça altura/anel de foco dentro do drawer.
 const inputCls =
-  'h-11 w-full rounded-lg border border-default-200 bg-white px-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary disabled:cursor-not-allowed disabled:opacity-60';
+  'h-11 min-h-11 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary disabled:cursor-not-allowed disabled:opacity-60';
 
 /** Parse "12,50"/"12.50" → finite number, or 0. */
 function parseNum(value: string): number {
@@ -48,36 +52,6 @@ function FormError({ message }: { message: string }) {
   return (
     <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
       {message}
-    </div>
-  );
-}
-
-function TabBar({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: { id: string; label: string }[];
-  active: string;
-  onChange: (id: string) => void;
-}) {
-  return (
-    <div className="inline-flex gap-1 self-start rounded-lg border border-[var(--color-soft-border)] bg-canvas p-0.5 text-sm">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          onClick={() => onChange(t.id)}
-          className={[
-            'rounded-md px-3 py-1.5 font-medium transition-colors',
-            active === t.id
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-ink hover:text-foreground',
-          ].join(' ')}
-        >
-          {t.label}
-        </button>
-      ))}
     </div>
   );
 }
@@ -113,13 +87,13 @@ export function ItemEditDrawer({
     () =>
       isProduct
         ? [
-            { id: 'dados', label: 'Dados' },
-            { id: 'lote', label: 'Lote' },
+            { id: 'dados', label: 'Dados', icon: <IconInfo size={16} /> },
+            { id: 'lote', label: 'Lote', icon: <IconLayers size={16} /> },
           ]
         : [
-            { id: 'dados', label: 'Dados' },
-            { id: 'auxiliares', label: 'Auxiliares' },
-            { id: 'consumidos', label: 'Produtos consumidos' },
+            { id: 'dados', label: 'Dados', icon: <IconInfo size={16} /> },
+            { id: 'auxiliares', label: 'Auxiliares', icon: <IconUsers size={16} /> },
+            { id: 'consumidos', label: 'Produtos consumidos', icon: <IconBox size={16} /> },
           ],
     [isProduct],
   );
@@ -171,7 +145,10 @@ export function ItemEditDrawer({
       await update.mutateAsync({
         itemId: item.id,
         body: {
-          professionalId: professionalId || undefined,
+          // null (não undefined): "Sem profissional" precisa LIMPAR o vínculo.
+          // Com undefined o campo sumia do JSON e o backend nem entrava no if,
+          // então nunca dava para desatribuir o profissional de um item.
+          professionalId: professionalId || null,
           unitPrice: priceN,
           quantity: qtyN,
           discount: Math.round(effectiveDiscount * 100) / 100,
@@ -193,6 +170,7 @@ export function ItemEditDrawer({
       onClose={onClose}
       title={item?.itemName ?? 'Editar item'}
       widthClass="sm:w-[520px]"
+      fullscreen
       zClass="z-[90]"
       footer={
         <>
@@ -209,7 +187,12 @@ export function ItemEditDrawer({
     >
       {item && (
         <div className="flex flex-col gap-4">
-          <TabBar tabs={tabs} active={tab} onChange={setTab} />
+          <AppTabs
+            items={tabs}
+            selectedKey={tab}
+            onSelectionChange={setTab}
+            ariaLabel="Seções do item"
+          />
 
           {/* ---------------- Dados ---------------- */}
           {tab === 'dados' && (
@@ -261,7 +244,7 @@ export function ItemEditDrawer({
                     onChange={(e) => setDiscountType(e.target.value as 'value' | 'percent')}
                     aria-label="Tipo de desconto"
                     disabled={!editable}
-                    className="h-11 w-20 shrink-0 rounded-lg border border-default-200 bg-white px-2 text-sm text-foreground outline-none focus:border-primary disabled:opacity-60"
+                    className="h-11 min-h-11 w-20 shrink-0 rounded-lg border border-black/15 bg-white px-2 text-sm text-foreground outline-none focus:border-primary disabled:opacity-60"
                   >
                     <option value="value">R$</option>
                     <option value="percent">%</option>
@@ -471,7 +454,7 @@ function AuxiliariesTab({
               value={valueType}
               onChange={(e) => setValueType(e.target.value as 'percent' | 'value')}
               aria-label="Tipo do valor"
-              className="h-11 w-20 shrink-0 rounded-lg border border-default-200 bg-white px-2 text-sm text-foreground outline-none focus:border-primary"
+              className="h-11 min-h-11 w-20 shrink-0 rounded-lg border border-black/15 bg-white px-2 text-sm text-foreground outline-none focus:border-primary"
             >
               <option value="percent">%</option>
               <option value="value">R$</option>
@@ -507,6 +490,18 @@ function AuxiliariesTab({
 // ---------------------------------------------------------------------------
 // Aba Produtos consumidos — Produto + Valor + Lote + Unidade/Extra + Total.
 // Baixa estoque (add) / estorna (remove). Fora do total da comanda.
+//
+// REGRA DE NEGÓCIO (confirmada ponta-a-ponta):
+//   Produto CONSUMIDO ≠ produto VENDIDO.
+//   - Consumido = insumo gasto na execução do serviço. É CUSTO: baixa estoque,
+//     NÃO entra no total da comanda (orders.service NÃO chama recalculate) e é
+//     agregado como "custo" no relatório de consumo (reports.service usa
+//     unitValue como custo). O schema documenta unitValue como "custo unitário".
+//     → por isso o "Valor" pré-preenche com p.costPrice (custo).
+//   - Vendido (ItemPickerDrawer) = receita: entra no total → usa p.salePrice.
+//   Trocar aqui para salePrice inflaria o custo do serviço e distorceria os
+//   relatórios de margem/consumo. Mantemos costPrice; o label deixa claro que
+//   é CUSTO para o operador não confundir com preço de venda.
 // ---------------------------------------------------------------------------
 
 function ConsumedTab({ orderId, item }: { orderId: string; item: OrderItemDetail }) {
@@ -527,7 +522,9 @@ function ConsumedTab({ orderId, item }: { orderId: string; item: OrderItemDetail
   const batchesQ = useProductBatches(productId || undefined);
   const batches = useMemo(() => batchesQ.data ?? [], [batchesQ.data]);
 
-  // Ao trocar o produto, herda o custo como "Valor" e limpa o lote.
+  // Ao trocar o produto, herda o CUSTO (costPrice) como "Valor" e limpa o lote.
+  // Consumido é custo de insumo (fora do total, agregado como custo nos
+  // relatórios), então usa costPrice — e não salePrice como no item vendido.
   useEffect(() => {
     if (!productId) return;
     const p = products.find((x) => x.id === productId);
@@ -643,14 +640,18 @@ function ConsumedTab({ orderId, item }: { orderId: string; item: OrderItemDetail
           </select>
         </Field>
 
-        <Field label="Valor (R$)">
+        <Field label="Custo unit. (R$)">
           <input
             inputMode="decimal"
             value={unitValue}
             onChange={(e) => setUnitValue(e.target.value)}
-            aria-label="Valor"
+            aria-label="Custo unitário"
             className={inputCls}
           />
+          <p className="text-xs text-muted">
+            Custo do insumo (pré-preenchido com o custo do produto). Não entra no
+            total da comanda — só baixa estoque e conta como custo nos relatórios.
+          </p>
         </Field>
 
         <Field label="Lote">
@@ -693,7 +694,7 @@ function ConsumedTab({ orderId, item }: { orderId: string; item: OrderItemDetail
         </div>
 
         <div className="flex items-center justify-between border-t border-[var(--color-soft-border)] pt-3">
-          <span className="text-sm text-muted-ink">Total</span>
+          <span className="text-sm text-muted-ink">Custo total</span>
           <span className="text-base font-bold tabular-nums text-foreground">
             {formatMoney(total)}
           </span>

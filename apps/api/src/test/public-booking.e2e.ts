@@ -201,6 +201,17 @@ async function run() {
     check('salon company provisioned', !!companyId);
     check('customer account got a token (no company needed)', !!customer.token);
 
+    // Este tenant propositalmente não cria Subscription para continuar
+    // cobrindo os fallbacks de plano do portal. Habilita apenas o add-on que a
+    // suíte exercita, como faria um override comercial real.
+    await prisma.featureFlag.upsert({
+      where: {
+        companyId_key: { companyId, key: 'online_booking' },
+      },
+      create: { companyId, key: 'online_booking', enabled: true },
+      update: { enabled: true },
+    });
+
     // The public portal is addressed by the BookingLink slug; GET auto-creates it.
     const linkRes = await api('GET', '/booking-link', { token: salon.token });
     const slug: string = linkRes.body?.slug;
@@ -226,15 +237,48 @@ async function run() {
       update: { data: { managerPhone: MANAGER_PHONE } },
     });
 
+    // Two identical enqueue calls racing each other must result in ONE durable
+    // outbox row. This protects every producer (booking, cancellation, queues,
+    // campaigns) from accidental double dispatch.
+    const { WhatsappService } = await import(
+      '../modules/whatsapp/whatsapp.service.js'
+    );
+    const whatsapp = app.get(WhatsappService);
+    const dedupProbe = `probe-dedup-${Date.now()}`;
+    await Promise.all([
+      whatsapp.enqueueText(MANAGER_PHONE, dedupProbe, {
+        companyId,
+        kind: 'manager',
+      }),
+      whatsapp.enqueueText(MANAGER_PHONE, dedupProbe, {
+        companyId,
+        kind: 'manager',
+      }),
+    ]);
+    const dedupRows = await prisma.whatsappOutbox.count({
+      where: { companyId, toPhone: MANAGER_PHONE, text: dedupProbe },
+    });
+    check('WhatsApp outbox discards concurrent duplicate message', dedupRows === 1);
+
+    // Automatic WhatsApp is OPT-IN (everything OFF by default). This suite asserts
+    // that the client confirmation and the manager heads-ups ARE enqueued, so we
+    // explicitly opt this throwaway salon in. Without this the sends are correctly
+    // suppressed and those assertions would (rightly) fail.
+    const optIn = await api('PATCH', '/notification-settings', {
+      token: salon.token,
+      body: { confirmation: true, cancellation: true, notifyProfessional: true },
+    });
+    check('opt-in notification toggles (confirmation + notifyProfessional)', optIn.status === 200);
+
     // ====================================================================
     // 1. Catalog: services with mixed visibility + a category
     // ====================================================================
-    const catRes = await api('POST', '/service-categories', {
+    const catRes = await api('POST', '/product-categories', {
       token: salon.token,
       body: { name: 'Cabelo' },
     });
     const categoryId: string = catRes.body?.id;
-    check('service-category created', !!categoryId);
+    check('product-category created', !!categoryId);
 
     async function mkService(body: Record<string, unknown>): Promise<string> {
       const r = await api('POST', '/services', { token: salon.token, body });
@@ -335,6 +379,8 @@ async function run() {
       'plan',
       'whatsapp',
       'googleEnabled',
+      'accentColor',
+      'appearance',
     ]);
     check('portal slug echoes request', portal.body?.slug === slug);
     check('portal name === "Salão de Studio Borboletas"', portal.body?.name === 'Salão de Studio Borboletas');
@@ -344,8 +390,44 @@ async function run() {
     check('portal plan null (no subscription)', portal.body?.plan === null);
     check('portal whatsapp null (no address)', portal.body?.whatsapp === null);
     check('portal googleEnabled is boolean', typeof portal.body?.googleEnabled === 'boolean');
+    check('portal accentColor null (not customized)', portal.body?.accentColor === null);
+    // Appearance always present with sensible defaults when the salon has no
+    // booking.appearance Setting (never breaks salons without config).
+    check(
+      'portal appearance defaults (no Setting)',
+      portal.body?.appearance?.hideNavbar === false &&
+        portal.body?.appearance?.primaryColor === null &&
+        portal.body?.appearance?.accentColor === null &&
+        portal.body?.appearance?.backgroundColor === null,
+    );
     check('portal open === true (all-day schedule)', portal.body?.open === true);
     check('portal todayHours.start === 00:00', portal.body?.todayHours?.start === '00:00');
+
+    const savedAppearance = await api('PUT', '/booking-link/appearance', {
+      token: salon.token,
+      body: {
+        hideNavbar: true,
+        primaryColor: '#123456',
+        accentColor: '#ABCDEF',
+        backgroundColor: '#F4F1EC',
+      },
+    });
+    check('admin salva personalização do agendamento online', savedAppearance.status === 200);
+    check(
+      'personalização normaliza e devolve todas as opções',
+      savedAppearance.body?.hideNavbar === true &&
+        savedAppearance.body?.primaryColor === '#123456' &&
+        savedAppearance.body?.accentColor === '#ABCDEF' &&
+        savedAppearance.body?.backgroundColor === '#F4F1EC',
+    );
+    const customizedPortal = await api('GET', `/public/booking/${slug}`);
+    check(
+      'portal público recebe personalização do salão',
+      customizedPortal.body?.appearance?.hideNavbar === true &&
+        customizedPortal.body?.appearance?.primaryColor === '#123456' &&
+        customizedPortal.body?.appearance?.accentColor === '#ABCDEF' &&
+        customizedPortal.body?.appearance?.backgroundColor === '#F4F1EC',
+    );
 
     // Unknown slug → 404 on every public GET.
     const unknown = await api('GET', `/public/booking/nao-existe-${Date.now()}`);
@@ -511,11 +593,17 @@ async function run() {
     const readAllNoTok = await api('POST', `/public/booking/${slug}/my-notifications/read-all`);
     check('POST read-all without token → 401', readAllNoTok.status === 401);
 
-    // A STAFF token is not a customer session → still 401 (accountType guard).
+    // Conta de SALÃO agenda como qualquer pessoa — ver estudo 136.
+    //
+    // Este caso exigia 401: o portal barrava `accountType !== 'customer'`. A
+    // trava existia porque painel e portal dividiam UM cookie, então o dono
+    // logado na Gestão aparecia logado no portal sem nunca ter entrado ali.
+    // Agora o portal tem sessão própria e a trava só atrapalhava — o e-mail é
+    // único no sistema, então staff de um salão não agendava em NENHUM outro.
     const staffOnMine = await api('GET', `/public/booking/${slug}/my-appointments`, {
       token: salon.token,
     });
-    check('staff token on my-appointments → 401 (not a customer)', staffOnMine.status === 401);
+    check('conta de salão acessa my-appointments (estudo 136)', staffOnMine.status === 200);
 
     // ====================================================================
     // 9. BOOKING — POST /:slug/appointments (validation + guest + customer)
@@ -567,6 +655,66 @@ async function run() {
     checkKeys('booking result', guestBook.body, ['id', 'status', 'payment']);
     check('booking payment === pay_at_salon', guestBook.body?.payment === 'pay_at_salon');
     check('booking returns an id', typeof guestBook.body?.id === 'string');
+
+    // A disponibilidade precisa excluir a janela recém-ocupada. Esta regressão
+    // também protege o agendamento via IA, que usa o mesmo serviço.
+    const availabilityAfterGuest = await api(
+      'GET',
+      `/public/booking/${slug}/availability?serviceId=${sVisible}&professionalId=${pMain}&date=${tomorrow}`,
+    );
+    const slotsAfterGuest = availabilityAfterGuest.body?.slots ?? [];
+    const guestStartMs = new Date(`${tomorrow}T16:00:00-03:00`).getTime();
+    const guestEndMs = guestStartMs + 30 * 60_000;
+    check(
+      'availability excludes slot occupied by existing appointment',
+      !slotsAfterGuest.some(
+        (slot: { start: string; end: string }) =>
+          new Date(slot.start).getTime() < guestEndMs &&
+          new Date(slot.end).getTime() > guestStartMs,
+      ),
+    );
+
+    // Confirmation/cancellation are company defaults SNAPSHOTTED into each new
+    // appointment. This lets the salon change one appointment without changing
+    // every other appointment. This tenant opted both defaults in above.
+    const guestNotificationPrefs = await prisma.appointment.findUnique({
+      where: { id: guestBook.body?.id },
+      select: {
+        notifyConfirmation: true,
+        notifyCancellation: true,
+      },
+    });
+    check(
+      'new booking inherits confirmation notification default',
+      guestNotificationPrefs?.notifyConfirmation === true,
+    );
+    check(
+      'new booking inherits cancellation notification default',
+      guestNotificationPrefs?.notifyCancellation === true,
+    );
+
+    // A single appointment can override both defaults through the regular
+    // appointment PATCH used by the agenda drawer.
+    const notificationOverride = await api(
+      'PATCH',
+      `/appointments/${guestBook.body?.id}`,
+      {
+        token: salon.token,
+        body: {
+          notifyConfirmation: false,
+          notifyCancellation: false,
+        },
+      },
+    );
+    check('per-booking notification override → 200', notificationOverride.status === 200);
+    check(
+      'per-booking confirmation override persisted',
+      notificationOverride.body?.notifyConfirmation === false,
+    );
+    check(
+      'per-booking cancellation override persisted',
+      notificationOverride.body?.notifyCancellation === false,
+    );
 
     // Guest booking now occupies the public agenda (privacy-safe block).
     const agenda2 = await api('GET', `/public/booking/${slug}/agenda?from=${from}&to=${to}`);
@@ -752,11 +900,13 @@ async function run() {
     });
     check('update profile with 1-char name → 400', profBad.status === 400);
 
-    // Staff token cannot touch a customer profile.
+    // Conta de salão tem o próprio perfil de cliente NESTE salão — estudo 136.
+    // `Customer` é por empresa (`{ companyId, userId }`), então ser staff em uma
+    // não vira acesso a outra: o que ela enxerga aqui é só o cadastro dela.
     const profStaff = await api('GET', `/public/booking/${slug}/my-profile`, {
       token: salon.token,
     });
-    check('staff token on my-profile → 401', profStaff.status === 401);
+    check('conta de salão acessa my-profile (estudo 136)', profStaff.status === 200);
 
     // ====================================================================
     // 11c. REVIEW — customer rates a FINISHED appointment

@@ -14,20 +14,18 @@ import {
   YAxis,
 } from 'recharts';
 import { PageHeader } from '../../components/PageHeader';
-import { LoadingState } from '../../components/States';
+import { ErrorState, LoadingState } from '../../components/States';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
 import { Drawer } from '../../components/Drawer';
 import { IconChevron, IconFilter } from '../../components/icons';
 import { useSetPageActions } from '../../layout/PageActions';
 import { useFinancialSummary } from '../../lib/queries/financeiro';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { BUSINESS_COLORS } from '../../theme/dataColors';
 import { formatMoney, isoDate } from '../../lib/format';
 
-// ── Cores de data-viz FIXAS do Belasis (SVG recharts, independentes do tema) ──
-// Entrada = verde, Saída = vermelho; a linha de saldo e as barras de vendas
-// seguem a cor primária do Belasis (via useThemeColors).
-const CASH_IN = '#5cb85c';
-const CASH_OUT = '#c73d3d';
+const CASH_IN = BUSINESS_COLORS.income;
+const CASH_OUT = BUSINESS_COLORS.expense;
 
 // Card branco genérico (mesma superfície/sombra do Belasis, themeable).
 const SHADOW = 'shadow-[var(--shadow-soft)]';
@@ -81,7 +79,7 @@ function SummaryRow({
   tone: 'success' | 'danger';
   onClick?: () => void;
 }) {
-  const color = tone === 'success' ? 'text-success' : 'text-danger';
+  const color = tone === 'success' ? 'text-data-income' : 'text-data-expense';
   return (
     <button
       type="button"
@@ -111,13 +109,8 @@ function AccountTile({
   balance: number;
 }) {
   const bg =
-    balance === 0 ? 'bg-warning' : balance > 0 ? 'bg-success' : 'bg-danger';
-  const fg =
-    balance === 0
-      ? 'text-warning-foreground'
-      : balance > 0
-        ? 'text-success-foreground'
-        : 'text-danger-foreground';
+    balance === 0 ? 'bg-data-stock' : balance > 0 ? 'bg-data-income' : 'bg-data-expense';
+  const fg = 'text-white';
   return (
     <div className={`rounded-xl p-2.5 ${bg} ${fg} ${SHADOW}`}>
       <span className="block truncate text-lg font-medium leading-tight opacity-95">
@@ -170,8 +163,6 @@ export function FinanceiroPainelPage() {
   const [range, setRange] = useState(defaultRange);
 
   // Navega para a lista de transações com filtros pré-aplicados via querystring.
-  // TODO: a TransacoesPage ainda não lê estes params — plugar useSearchParams lá
-  // para hidratar `statusFilter`, `from`, `to`, `kind` (income/expense).
   function goToTransacoes(params: Record<string, string>) {
     const qs = new URLSearchParams(params).toString();
     navigate(`/financeiro/transacoes${qs ? `?${qs}` : ''}`);
@@ -226,6 +217,8 @@ export function FinanceiroPainelPage() {
 
       {summary.isLoading ? (
         <LoadingState />
+      ) : summary.isError ? (
+        <ErrorState onRetry={() => summary.refetch()} />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr] lg:items-start">
           {/* ── Coluna esquerda: Resumo + Contas ── */}
@@ -298,8 +291,8 @@ export function FinanceiroPainelPage() {
                 <TotalTile
                   label="Recebidos"
                   value={formatMoney(d?.totals.received ?? 0)}
-                  bg="bg-success"
-                  fg="text-success-foreground"
+                  bg="bg-data-income"
+                  fg="text-white"
                   onClick={() =>
                     goToTransacoes({
                       kind: 'income',
@@ -312,8 +305,8 @@ export function FinanceiroPainelPage() {
                 <TotalTile
                   label="A Receber"
                   value={formatMoney(d?.totals.toReceive ?? 0)}
-                  bg="bg-primary"
-                  fg="text-primary-foreground"
+                  bg="bg-data-receivable"
+                  fg="text-white"
                   onClick={() =>
                     goToTransacoes({
                       kind: 'income',
@@ -326,8 +319,8 @@ export function FinanceiroPainelPage() {
                 <TotalTile
                   label="Pagos"
                   value={formatMoney(d?.totals.paid ?? 0)}
-                  bg="bg-warning"
-                  fg="text-warning-foreground"
+                  bg="bg-data-expense"
+                  fg="text-white"
                   onClick={() =>
                     goToTransacoes({
                       kind: 'expense',
@@ -340,8 +333,8 @@ export function FinanceiroPainelPage() {
                 <TotalTile
                   label="A Pagar"
                   value={formatMoney(d?.totals.toPay ?? 0)}
-                  bg="bg-danger"
-                  fg="text-danger-foreground"
+                  bg="bg-data-payable"
+                  fg="text-white"
                   onClick={() =>
                     goToTransacoes({
                       kind: 'expense',
@@ -417,7 +410,7 @@ export function FinanceiroPainelPage() {
                       <Line
                         type="monotone"
                         dataKey="balance"
-                        stroke={colors.primary}
+                        stroke={colors.balance}
                         strokeWidth={2}
                         dot={false}
                       />
@@ -464,7 +457,7 @@ export function FinanceiroPainelPage() {
                       />
                       <Bar
                         dataKey="total"
-                        fill={colors.primary}
+                        fill={colors.sales}
                         fillOpacity={0.75}
                         radius={[8, 8, 0, 0]}
                         maxBarSize={40}

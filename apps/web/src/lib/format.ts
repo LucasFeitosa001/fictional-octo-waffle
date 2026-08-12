@@ -37,11 +37,57 @@ export function formatTime(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' }).format(d);
 }
 
+/**
+ * "YYYY-MM-DD" do dia em que esse instante cai no fuso de QUEM ESTÁ OLHANDO.
+ *
+ * Antes isto era `d.toISOString().slice(0, 10)`, que imprime o dia em UTC. Em
+ * America/Sao_Paulo (UTC−3) isso quebrava todo dia das 21:00 em diante: são
+ * 21:30, a cliente pede para marcar "hoje mesmo, mais tarde", a recepção abre
+ * o "Novo +" e o campo Data já vem com AMANHÃ — e ela não confere, porque não
+ * foi ela que escolheu. O agendamento nasce um dia inteiro fora. Medido:
+ * `new Date('2026-08-09T21:30-03:00')` → UTC "2026-08-10", local "2026-08-09".
+ * O mesmo escorregão atingia o "hoje" do fechamento de caixa, das comandas,
+ * das compras e do pagamento de comissão — a função é usada em 95 lugares.
+ *
+ * Para um Date à meia-noite LOCAL (toda célula de calendário do painel, criada
+ * com `new Date(ano, mês, dia)`) o resultado é idêntico ao de antes: 00:00 em
+ * São Paulo é 03:00Z do MESMO dia. Quem muda de valor é só quem passa um Date
+ * com hora — que é exatamente onde estava o erro.
+ *
+ * É a mesma conta do `toISO` do DatePicker, que já documenta a convenção do
+ * projeto: data trafega como "YYYY-MM-DD" em horário local, sem fuso.
+ *
+ * Se o Date veio de um campo data-only que o backend gravou como MEIA-NOITE
+ * UTC (Transaction.dueDate/paidAt/competenceDate, Purchase.date), use
+ * `isoDateUtc` — aqui ele voltaria um dia.
+ */
 export function isoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * "YYYY-MM-DD" do dia em UTC — o comportamento antigo do `isoDate`, mantido só
+ * para os campos data-only que o backend cria com `new Date('2026-08-09')` e
+ * portanto guarda como `2026-08-09T00:00:00.000Z` (financial.service.ts:761 e
+ * :784-787, purchases.service.ts:133 e :221). Ler esses valores em horário
+ * local devolveria 08/08 — reabrir a despesa para editar puxaria a data um dia
+ * para trás e salvar gravaria o erro. Para "que dia é hoje" ou para um instante
+ * de verdade (início de agendamento), use `isoDate`.
+ */
+export function isoDateUtc(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** ISO datetime -> "YYYY-MM-DD" for <input type="date">. */
+/**
+ * ISO datetime -> "YYYY-MM-DD" for <input type="date">.
+ *
+ * Fica em UTC de propósito, como o `isoDateUtc`: só alimenta campos data-only
+ * gravados à meia-noite UTC (birthday do cliente e do profissional, validade e
+ * fabricação do lote). Em horário local todos apareceriam um dia antes.
+ */
 export function toDateInput(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -95,6 +141,28 @@ export function formatPhone(raw: string | null | undefined): string {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   }
   return raw;
+}
+
+/**
+ * Tempo relativo curto em pt-BR a partir de um timestamp em ms (ex.: o
+ * `dataUpdatedAt` do react-query v5). Usado no indicador "Atualizado há X"
+ * do Painel. Re-chame periodicamente (setInterval) p/ manter o texto vivo.
+ *
+ * 0 ou inválido → "—". <45s → "agora mesmo". Depois: "há N min" / "há N h" /
+ * "há N d".
+ */
+export function timeAgo(ts: number | null | undefined): string {
+  if (!ts || !Number.isFinite(ts)) return '—';
+  const diffMs = Date.now() - ts;
+  if (diffMs < 0) return 'agora mesmo';
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return 'agora mesmo';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `há ${min} min`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `há ${days} d`;
 }
 
 export function initials(name: string | null | undefined): string {

@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateCashbackRuleDto,
   CreateGalleryPhotoDto,
   CreatePromotionDto,
+  HEX_COLOR,
+  UpdateBookingAppearanceDto,
   UpdateBookingLinkDto,
   UpdateBusinessHoursDto,
   UpdateCashbackConfigDto,
@@ -23,6 +25,62 @@ export interface BusinessHoursDay {
 }
 
 const REVIEW_SETTINGS_KEY = 'review_config';
+
+// Setting key that stores each salon's public booking-page appearance.
+export const BOOKING_APPEARANCE_KEY = 'booking.appearance';
+
+// Aparência da página pública de agendamento. Cores em hex "#RRGGBB" (ou null
+// quando não definidas → o web-club aplica seus defaults). `hideNavbar` esconde
+// a barra preta do topo. Defaults sensatos: navbar visível, cores nulas (o
+// front cai no tema da casa).
+export interface BookingAppearance {
+  hideNavbar: boolean;
+  primaryColor: string | null;
+  accentColor: string | null;
+  backgroundColor: string | null;
+  /**
+   * Fundo do espaço da FOTO do serviço quando ele não tem imagem. Era rosa
+   * fixo no web-club, sem passar por nenhuma variável — o dono pediu para
+   * poder trocar. `null` = o rosa da casa. Ver estudo 66.
+   */
+  photoColor: string | null;
+  /** Capa (banner) do topo da página pública. URL do upload ou null. Estudo 67. */
+  coverUrl: string | null;
+  /** Véu escuro sobre a capa, 0–80 (%), para o texto continuar legível. */
+  coverOverlay: number;
+}
+
+export const BOOKING_APPEARANCE_DEFAULTS: BookingAppearance = {
+  hideNavbar: false,
+  primaryColor: null,
+  accentColor: null,
+  backgroundColor: null,
+  photoColor: null,
+  coverUrl: null,
+  coverOverlay: 35,
+};
+
+// Coerce whatever is stored in the Setting JSON into a well-formed appearance,
+// so a partial/legacy blob never breaks the public page. Exported so the public
+// booking endpoint can reuse the exact same normalization.
+export function coerceBookingAppearance(raw: unknown): BookingAppearance {
+  const v = (raw ?? {}) as Record<string, unknown>;
+  const hex = (x: unknown): string | null =>
+    typeof x === 'string' && HEX_COLOR.test(x.trim()) ? x.trim().toUpperCase() : null;
+  return {
+    hideNavbar: v.hideNavbar === true,
+    primaryColor: hex(v.primaryColor),
+    accentColor: hex(v.accentColor),
+    backgroundColor: hex(v.backgroundColor),
+    photoColor: hex(v.photoColor),
+    coverUrl:
+      typeof v.coverUrl === 'string' && v.coverUrl.trim() ? v.coverUrl.trim() : null,
+    coverOverlay:
+      typeof v.coverOverlay === 'number' && Number.isFinite(v.coverOverlay)
+        ? Math.min(80, Math.max(0, Math.round(v.coverOverlay)))
+        : 35,
+  };
+}
 
 // Salonpass defaults for the review-request texts (generic salon copy — no
 // third-party branding). Placeholders %NOME% / %LINK% are filled at send time.
@@ -160,6 +218,9 @@ export class MarketingService {
       themePreference: p?.themePreference ?? 'auto',
       schedulingFlow: p?.schedulingFlow ?? 'service',
       requiredLogin: p?.requiredLogin ?? false,
+      // Cor de destaque do agendamento online (hex "#RRGGBB") ou "" quando não
+      // definida — o web-club cai no rosa padrão da casa.
+      accentColor: p?.accentColor ?? '',
     };
   }
 
@@ -177,6 +238,10 @@ export class MarketingService {
       ...(dto.themePreference !== undefined ? { themePreference: dto.themePreference } : {}),
       ...(dto.schedulingFlow !== undefined ? { schedulingFlow: dto.schedulingFlow } : {}),
       ...(dto.requiredLogin !== undefined ? { requiredLogin: dto.requiredLogin } : {}),
+      // "" limpa a cor (volta ao padrão); um hex normalizado em maiúsculas é persistido.
+      ...(dto.accentColor !== undefined
+        ? { accentColor: dto.accentColor.trim() ? dto.accentColor.trim().toUpperCase() : null }
+        : {}),
     };
     await this.prisma.client.salonWebProfile.upsert({
       where: { companyId },
@@ -231,7 +296,24 @@ export class MarketingService {
     });
   }
 
-  createPromotion(companyId: string, dto: CreatePromotionDto) {
+  private validatePromotionPeriod(
+    validFrom?: string | Date | null,
+    validTo?: string | Date | null,
+  ): void {
+    if (!validFrom || !validTo) return;
+    const from = validFrom instanceof Date ? validFrom : new Date(validFrom);
+    const to = validTo instanceof Date ? validTo : new Date(validTo);
+    if (
+      Number.isNaN(from.getTime()) ||
+      Number.isNaN(to.getTime()) ||
+      to.getTime() < from.getTime()
+    ) {
+      throw new BadRequestException('Período de validade da promoção inválido.');
+    }
+  }
+
+  async createPromotion(companyId: string, dto: CreatePromotionDto) {
+    this.validatePromotionPeriod(dto.validFrom, dto.validTo);
     return this.prisma.client.promotion.create({
       data: {
         companyId,
@@ -251,6 +333,10 @@ export class MarketingService {
   async updatePromotion(companyId: string, id: string, dto: UpdatePromotionDto) {
     const found = await this.prisma.client.promotion.findFirst({ where: { id, companyId } });
     if (!found) throw new NotFoundException('Promoção não encontrada');
+    this.validatePromotionPeriod(
+      dto.validFrom !== undefined ? dto.validFrom : found.validFrom,
+      dto.validTo !== undefined ? dto.validTo : found.validTo,
+    );
     return this.prisma.client.promotion.update({
       where: { id },
       data: {
@@ -281,9 +367,13 @@ export class MarketingService {
   // ---- reviews ----
   async listReviews(companyId: string, from?: string, to?: string) {
     const hasRange = Boolean(from || to);
+    const toDate = to ? new Date(to) : undefined;
+    if (toDate && to && to.length <= 10) {
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
     const range = {
       ...(from ? { gte: new Date(from) } : {}),
-      ...(to ? { lte: new Date(to) } : {}),
+      ...(toDate ? { lte: toDate } : {}),
     };
     const where = { companyId, ...(hasRange ? { createdAt: range } : {}) };
     const reviews = await this.prisma.client.review.findMany({
@@ -377,6 +467,9 @@ export class MarketingService {
   async getReviewsDashboard(companyId: string, from?: string, to?: string) {
     const fromD = from ? new Date(from) : undefined;
     const toD = to ? new Date(to) : undefined;
+    if (toD && to && to.length <= 10) {
+      toD.setUTCHours(23, 59, 59, 999);
+    }
     const current = await this.fetchReviewsForRange(companyId, fromD, undefined, toD);
 
     // Comparativo com o período anterior de mesma duração (só quando há intervalo).
@@ -423,6 +516,56 @@ export class MarketingService {
       where: { companyId_key: { companyId, key: REVIEW_SETTINGS_KEY } },
       create: { companyId, key: REVIEW_SETTINGS_KEY, valueJson: merged },
       update: { valueJson: merged },
+    });
+    return merged;
+  }
+
+  // ---- aparência do agendamento online (Setting `booking.appearance`) ----
+  // Lida/gravada exatamente como review_config: Setting por (companyId, key),
+  // com defaults sensatos quando não há linha — nunca quebra salões sem config.
+  async getBookingAppearance(companyId: string): Promise<BookingAppearance> {
+    const row = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: BOOKING_APPEARANCE_KEY } },
+    });
+    if (!row) return { ...BOOKING_APPEARANCE_DEFAULTS };
+    return coerceBookingAppearance(row.valueJson);
+  }
+
+  async updateBookingAppearance(
+    companyId: string,
+    dto: UpdateBookingAppearanceDto,
+  ): Promise<BookingAppearance> {
+    const current = await this.getBookingAppearance(companyId);
+    // "" limpa a cor (volta ao default do web-club); um hex é normalizado em
+    // maiúsculas. Campos ausentes no DTO preservam o valor atual.
+    const hex = (v: string | undefined, fallback: string | null): string | null => {
+      if (v === undefined) return fallback;
+      const t = v.trim();
+      if (!t) return null;
+      return HEX_COLOR.test(t) ? t.toUpperCase() : fallback;
+    };
+    const merged: BookingAppearance = {
+      hideNavbar: dto.hideNavbar !== undefined ? dto.hideNavbar : current.hideNavbar,
+      primaryColor: hex(dto.primaryColor, current.primaryColor),
+      accentColor: hex(dto.accentColor, current.accentColor),
+      backgroundColor: hex(dto.backgroundColor, current.backgroundColor),
+      photoColor: hex(dto.photoColor, current.photoColor),
+      coverUrl:
+        dto.coverUrl === undefined
+          ? current.coverUrl
+          : dto.coverUrl.trim()
+            ? dto.coverUrl.trim()
+            : null,
+      coverOverlay:
+        dto.coverOverlay === undefined
+          ? current.coverOverlay
+          : Math.min(80, Math.max(0, Math.round(dto.coverOverlay))),
+    };
+    const valueJson = merged as unknown as Prisma.InputJsonValue;
+    await this.prisma.client.setting.upsert({
+      where: { companyId_key: { companyId, key: BOOKING_APPEARANCE_KEY } },
+      create: { companyId, key: BOOKING_APPEARANCE_KEY, valueJson },
+      update: { valueJson },
     });
     return merged;
   }

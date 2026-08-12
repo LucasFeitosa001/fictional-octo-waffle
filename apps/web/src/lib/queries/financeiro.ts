@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 
 // ===================== Types =====================
 export type TransactionKind = 'income' | 'expense';
@@ -60,6 +61,8 @@ export interface TransactionRow {
   grossAmount: string;
   dueDate?: string | null;
   paidAt?: string | null;
+  competenceDate?: string | null;
+  isOrganizational?: boolean;
   status: PaymentStatus;
   createdAt: string;
   account?: { id: string; name: string } | null;
@@ -108,6 +111,13 @@ export interface FinancialCategory {
   active: boolean;
 }
 
+export interface FinanceSettings {
+  allowRetroactive: boolean;
+  allowEditAfterCashClose: boolean;
+  allowTransactionsWithClosedCash: boolean;
+  allowMultipleCash: boolean;
+}
+
 export interface TransactionFilters {
   type?: TransactionKind;
   status?: PaymentStatus;
@@ -116,6 +126,21 @@ export interface TransactionFilters {
   categoryId?: string;
   from?: string;
   to?: string;
+  /** Sobre qual data o período incide. Padrão do servidor: vencimento. */
+  dateType?: 'due' | 'paid' | 'competence';
+  /**
+   * Versões MULTI, separadas por vírgula. Quando vêm, ganham dos campos
+   * singulares acima (que continuam existindo para os links já espalhados pelo
+   * app, como o Painel que navega com ?status=paid).
+   * `statuses` aceita 'overdue' junto dos outros — o servidor resolve como ramo OR.
+   */
+  types?: string;
+  statuses?: string;
+  accountIds?: string;
+  categoryIds?: string;
+  paymentMethodIds?: string;
+  /** Só as atrasadas (em aberto e já vencidas) — status derivado no servidor. */
+  overdue?: boolean;
   page?: number;
   pageSize?: number;
   includeReversed?: boolean;
@@ -136,6 +161,10 @@ export interface CreateTransactionBody {
   description?: string;
   dueDate?: string;
   paidAt?: string;
+  /** Data de competência — coluna criada na migração 20260727230000. */
+  competenceDate?: string;
+  /** "É uma receita organizacional?": dispensa a exigência de caixa aberto. */
+  isOrganizational?: boolean;
   status?: PaymentStatus;
 }
 
@@ -204,6 +233,25 @@ export function useFinancialSummary(from?: string, to?: string) {
   });
 }
 
+export function useFinanceSettings() {
+  return useQuery({
+    queryKey: ['finance-settings'],
+    queryFn: () => api.get<FinanceSettings>('/financial/settings'),
+  });
+}
+
+export function useUpdateFinanceSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<FinanceSettings>) =>
+      api.patch<FinanceSettings>('/financial/settings', body),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['finance-settings'], data);
+      toastSuccess('Configuração financeira salva');
+    },
+  });
+}
+
 // ===================== Transactions =====================
 export function useTransactions(filters: TransactionFilters = {}) {
   return useQuery({
@@ -217,6 +265,13 @@ export function useTransactions(filters: TransactionFilters = {}) {
         categoryId: filters.categoryId,
         from: filters.from,
         to: filters.to,
+        dateType: filters.dateType,
+        overdue: filters.overdue ? 'true' : undefined,
+        types: filters.types,
+        statuses: filters.statuses,
+        accountIds: filters.accountIds,
+        categoryIds: filters.categoryIds,
+        paymentMethodIds: filters.paymentMethodIds,
         page: filters.page,
         pageSize: filters.pageSize,
         includeReversed: filters.includeReversed ? 'true' : undefined,
@@ -239,6 +294,13 @@ export async function fetchAllTransactions(
     categoryId: filters.categoryId,
     from: filters.from,
     to: filters.to,
+    dateType: filters.dateType,
+    overdue: filters.overdue ? 'true' : undefined,
+    types: filters.types,
+    statuses: filters.statuses,
+    accountIds: filters.accountIds,
+    categoryIds: filters.categoryIds,
+    paymentMethodIds: filters.paymentMethodIds,
     includeReversed: filters.includeReversed ? 'true' : undefined,
     pageSize: 100000,
   });
@@ -253,6 +315,7 @@ export function useCreateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento criado');
     },
   });
 }
@@ -265,6 +328,7 @@ export function useUpdateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento salvo');
     },
   });
 }
@@ -276,6 +340,7 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento excluído');
     },
   });
 }
@@ -292,6 +357,7 @@ export function useReverseTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Lançamento estornado');
     },
   });
 }
@@ -308,6 +374,7 @@ export function useCreateTransfer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      toastSuccess('Transferência realizada');
     },
   });
 }
@@ -327,6 +394,7 @@ export function useCreateFinancialAccount() {
       api.post<FinancialAccount>('/financial-accounts', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+      toastSuccess('Conta criada');
     },
   });
 }
@@ -338,6 +406,7 @@ export function useUpdateFinancialAccount() {
       api.patch<FinancialAccount>(`/financial-accounts/${id}`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+      toastSuccess('Conta salva');
     },
   });
 }
@@ -348,6 +417,7 @@ export function useDeleteFinancialAccount() {
     mutationFn: (id: string) => api.delete<Deleted>(`/financial-accounts/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-accounts'] });
+      toastSuccess('Conta excluída');
     },
   });
 }
@@ -367,6 +437,7 @@ export function useCreatePaymentMethod() {
       api.post<PaymentMethod>('/payment-methods', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+      toastSuccess('Forma de pagamento criada');
     },
   });
 }
@@ -378,6 +449,7 @@ export function useUpdatePaymentMethod() {
       api.patch<PaymentMethod>(`/payment-methods/${id}`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+      toastSuccess('Forma de pagamento salva');
     },
   });
 }
@@ -388,6 +460,7 @@ export function useDeletePaymentMethod() {
     mutationFn: (id: string) => api.delete<Deleted>(`/payment-methods/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+      toastSuccess('Forma de pagamento excluída');
     },
   });
 }
@@ -407,6 +480,7 @@ export function useCreateFinancialCategory() {
       api.post<FinancialCategory>('/financial-categories', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+      toastSuccess('Categoria criada');
     },
   });
 }
@@ -418,6 +492,7 @@ export function useUpdateFinancialCategory() {
       api.patch<FinancialCategory>(`/financial-categories/${id}`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+      toastSuccess('Categoria salva');
     },
   });
 }
@@ -428,6 +503,7 @@ export function useDeleteFinancialCategory() {
     mutationFn: (id: string) => api.delete<Deleted>(`/financial-categories/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial-categories'] });
+      toastSuccess('Categoria excluída');
     },
   });
 }

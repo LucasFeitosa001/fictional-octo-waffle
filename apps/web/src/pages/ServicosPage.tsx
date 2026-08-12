@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Input, ListBox, Select, Spinner, TextField } from "@heroui/react";
+import { Autocomplete, Button, Checkbox, Input, ListBox, Popover, SearchField, Select, Spinner, TextField } from "@heroui/react";
 import { ApiClientError } from "@beautypass/shared";
 import { Drawer } from "../components/Drawer";
+import { FilterAside } from "../components/FilterAside";
 import { FullDrawer } from "../components/FullDrawer";
-import { EmptyState, ErrorState, LoadingState } from "../components/States";
+import { EmptyState, ErrorState } from "../components/States";
+import { TableSkeleton } from "../components/Skeletons";
 import { useUploadImage } from "../hooks/useUploadImage";
+import { InlineSearch } from "../components/InlineSearch";
+import { IconTip } from "../components/IconTip";
 import {
   IconChevron,
   IconCircleCheck,
   IconFilter,
+  IconLayers,
   IconPencil,
   IconPlus,
   IconScissors,
@@ -16,21 +21,25 @@ import {
   IconSettings,
   IconStar,
   IconTrash,
+  IconX,
 } from "../components/icons";
 import {
   useCreateService,
   useDeleteService,
-  useServiceCategories,
   useServices,
   useUpdateService,
   type ServiceBody,
   type ServiceRow,
 } from "../lib/queries";
+import { useProductCategories } from "../lib/queries/catalogo";
 import { formatMoney } from "../lib/format";
 import { useAutoCreate } from "../lib/useAutoCreate";
 import { useSetPageActions } from "../layout/PageActions";
 import { useConfirm } from "../components/ConfirmDialog";
 import { AnimatedCheckbox } from "../components/AnimatedCheckbox";
+import { SwitchRow } from "../components/SwitchRow";
+import { AnimatedSelectionCell } from "../components/AnimatedSelectionCell";
+import { FilterCheckbox } from "../components/FilterCheckbox";
 import { BulkActionsSheet } from "../components/BulkActionsSheet";
 import {
   useSelectMode,
@@ -53,8 +62,7 @@ type SortKey = "name" | "price" | "commission" | "duration" | "site";
 
 type ServiceBelasisFields = ServiceRow & {
   additionalCost?: string | number | null;
-  commission?: string | number | null;
-  commissionPercent?: string | number | null;
+  defaultCommissionPercent?: string | number | null;
   priceType?: string | null;
   additionalCostType?: string | null;
 };
@@ -72,7 +80,7 @@ function formatMobileDuration(min: number): string {
 
 function commissionOf(service: ServiceRow): number | null {
   const extra = service as ServiceBelasisFields;
-  const raw = extra.commissionPercent ?? extra.commission;
+  const raw = extra.defaultCommissionPercent;
   return raw == null || raw === "" ? null : Number(raw);
 }
 
@@ -84,10 +92,67 @@ function formatPercent(value: number | null): string {
   })}`;
 }
 
+// ── Colunas ocultáveis (T7) ─────────────────────────────────────────
+// Colunas de dados que o usuário pode mostrar/ocultar pelo gear. A
+// coluna-título ("Nome") e a de ações NÃO entram aqui — são sempre fixas.
+const TOGGLE_COLS = [
+  { key: "price", label: "Valor" },
+  { key: "commission", label: "Comissão" },
+  { key: "duration", label: "Duração" },
+  { key: "category", label: "Categoria" },
+  { key: "site", label: "Mostra no site" },
+] as const;
+type ColKey = (typeof TOGGLE_COLS)[number]["key"];
+
+const COLS_STORAGE_KEY = "sp-cols-servicos";
+
+function readHiddenCols(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLS_STORAGE_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr)
+      ? new Set(arr.filter((x): x is string => typeof x === "string"))
+      : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Visibilidade de colunas persistida em localStorage (chave `sp-cols-servicos`).
+ * Guarda o conjunto de colunas OCULTAS; `isVisible` responde por coluna.
+ */
+function useColumnVisibility() {
+  const [hidden, setHidden] = useState<Set<string>>(() => readHiddenCols());
+
+  const toggle = (key: ColKey) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* localStorage indisponível — segue sem persistir. */
+      }
+      return next;
+    });
+  };
+
+  const isVisible = (key: ColKey) => !hidden.has(key);
+  const hiddenCount = TOGGLE_COLS.filter((c) => hidden.has(c.key)).length;
+
+  return { toggle, isVisible, hiddenCount };
+}
+
 export function ServicosPage() {
   const [search, setSearch] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
+  // Campo de busca desktop: revelado pelo botão "Buscar" do header (InlineSearch).
+  const [searchOpen, setSearchOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
+  // Visibilidade de colunas (gear — T7), persistida em localStorage.
+  const cols = useColumnVisibility();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -100,12 +165,12 @@ export function ServicosPage() {
   const [editing, setEditing] = useState<ServiceRow | null>(null);
   // Belasis: banner de assinatura condicional no topo. Mock por ora — no
   // futuro virá do endpoint de billing/plano (só aplicável ao tenant).
-  const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(true);
+  const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(false);
   useAutoCreate(() => setCreateOpen(true));
   const confirm = useConfirm();
 
   const services = useServices();
-  const categories = useServiceCategories();
+  const categories = useProductCategories();
   const deleteService = useDeleteService();
   const updateService = useUpdateService();
 
@@ -397,7 +462,7 @@ export function ServicosPage() {
   return (
     <div className="pb-6 lg:pb-0">
       {/* ── Cabeçalho / toolbar (título + Buscar / Filtrar / Novo) ── */}
-      <header className="mb-4 hidden flex-wrap items-center justify-between gap-3 lg:flex">
+      <header className="mb-4 hidden flex-wrap items-center justify-between gap-2 lg:flex">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink">Serviços</h1>
           <button
@@ -441,22 +506,79 @@ export function ServicosPage() {
             </svg>
           </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ToolbarButton
-            active={showSearch}
-            onClick={() => setShowSearch((v) => !v)}
-            icon={<IconSearch size={16} />}
-            label="Buscar"
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Busca inline (componente único de toolbar — ver InlineSearch). */}
+          <InlineSearch
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
+            value={search}
+            onValueChange={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            onClose={() => setPage(1)}
+            breakpoint="lg"
+            placeholder="Buscar serviço"
           />
-          <ToolbarButton
-            active={showFilters}
+          <button
+            type="button"
             onClick={() => setShowFilters((v) => !v)}
-            icon={<IconFilter size={16} />}
-            label="Filtrar"
-          />
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <IconPlus size={16} /> Novo
-          </Button>
+            className={`btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors lg:inline-flex ${
+              showFilters
+                ? "border-gold bg-gold text-primary-foreground"
+                : "border-line bg-card text-ink hover:bg-canvas"
+            }`}
+          >
+            <IconFilter size={16} />
+            <span className="hidden sm:inline">Filtrar</span>
+          </button>
+          {/* Ações em massa (T3): SEMPRE visível no desktop, à esquerda de "Novo".
+              Fora do modo seleção → ativa o selectMode (checkboxes nas linhas).
+              Em seleção → mostra a contagem e abre a BulkActionsSheet; um X ao
+              lado sai do modo. NÃO existe barra "N selecionados" acima da tabela. */}
+          {sel.selectMode ? (
+            <div className="hidden items-center lg:inline-flex">
+              <button
+                type="button"
+                onClick={() =>
+                  sel.count > 0 ? setActionsOpen(true) : sel.selectAll()
+                }
+                className={`inline-flex h-9 items-center gap-1.5 rounded-l-lg border px-3 text-sm font-medium transition-colors ${
+                  sel.count > 0
+                    ? "btn-primary-hover border-gold bg-gold text-primary-foreground hover:bg-gold-strong"
+                    : "btn-ghost-hover border-line bg-card text-ink hover:bg-canvas"
+                }`}
+              >
+                <IconLayers size={16} />
+                <span>{sel.count > 0 ? `Ações (${sel.count})` : "Selecionar todos"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={sel.cancel}
+                aria-label="Sair do modo seleção"
+                className="btn-ghost-hover inline-flex h-9 items-center justify-center rounded-r-lg border border-l-0 border-line bg-card px-2 text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={sel.enter}
+              className="btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink transition-colors hover:bg-canvas lg:inline-flex"
+            >
+              <IconLayers size={16} />
+              <span>Ações</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="btn-primary-hover hidden h-9 items-center gap-1.5 rounded-lg bg-gold px-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-gold)] transition-colors hover:bg-gold-strong lg:inline-flex"
+          >
+            <IconPlus size={16} />
+            <span>Novo</span>
+          </button>
         </div>
       </header>
 
@@ -507,33 +629,11 @@ export function ServicosPage() {
         </label>
       </section>
 
-      {/* ── Campo de busca (revelado pelo botão Buscar) ── */}
-      {showSearch && (
-        <div className="mb-4 hidden lg:block">
-          <TextField
-            value={search}
-            onChange={(v) => {
-              setSearch(v);
-              setPage(1);
-            }}
-            className="w-full max-w-sm"
-            aria-label="Buscar serviço"
-          >
-            <Input
-              placeholder="Buscar serviço…"
-              className="focus:border-gold focus:ring-2 focus:ring-gold/25"
-            />
-          </TextField>
-        </div>
-      )}
-
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* ── Rail de filtros (Status / Favoritos / Categorias) ── */}
-        {showFilters && (
-          <aside className="hidden w-60 shrink-0 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:block">
-            {filterControls}
-          </aside>
-        )}
+        <FilterAside open={showFilters} width="lg:w-60" className="hidden lg:block">
+          {filterControls}
+        </FilterAside>
 
         {/* ── Conteúdo (tabela desktop / cards mobile + paginação) ── */}
         <div className="min-w-0 flex-1">
@@ -552,25 +652,8 @@ export function ServicosPage() {
             </button>
           </div>
 
-          {sel.count > 0 && (
-            <div
-              className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm text-foreground"
-              style={{ background: primaryTint(8) }}
-            >
-              <span>{sel.count} selecionado(s)</span>
-              <button
-                type="button"
-                onClick={bulkDeleteSelected}
-                disabled={deleteService.isPending}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-danger hover:underline disabled:opacity-50"
-              >
-                <IconTrash size={14} /> Excluir
-              </button>
-            </div>
-          )}
-
           {services.isLoading ? (
-            <LoadingState />
+            <TableSkeleton columns={6} />
           ) : services.isError ? (
             <ErrorState onRetry={() => services.refetch()} />
           ) : rows.length === 0 ? (
@@ -592,16 +675,19 @@ export function ServicosPage() {
           ) : (
             <>
               {/* Desktop: tabela antd-like */}
-              <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] lg:block">
+              <div className="hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] lg:block">
+                <div className="overflow-clip rounded-t-xl">
                 <table className="w-full table-fixed border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line bg-canvas text-left text-sm font-semibold text-muted-ink">
-                      <th className="w-10 px-3 py-3.5">
+                  {/* T8: thead sticky no topo do scroll do <main>. Fundo sólido
+                      (bg-card) + z-20 pra cobrir as linhas ao rolar. */}
+                  <thead className="sticky top-0 z-20 bg-card">
+                    <tr className="border-b border-line text-left text-sm font-semibold text-muted-ink">
+                      <AnimatedSelectionCell active={sel.selectMode} header className="px-3 py-3.5">
                         <Check
                           checked={allChecked}
                           onChange={toggleSelectPage}
                         />
-                      </th>
+                      </AnimatedSelectionCell>
                       <SortableTh
                         className="w-[28%]"
                         label="Nome"
@@ -610,48 +696,97 @@ export function ServicosPage() {
                         asc={sortAsc}
                         onSort={toggleSort}
                       />
-                      <SortableTh
-                        className="w-[12%]"
-                        align="right"
-                        label="Valor"
-                        sortKey="price"
-                        activeKey={sortKey}
-                        asc={sortAsc}
-                        onSort={toggleSort}
-                      />
-                      <SortableTh
-                        className="w-[12%]"
-                        align="right"
-                        label="Comissão"
-                        sortKey="commission"
-                        activeKey={sortKey}
-                        asc={sortAsc}
-                        onSort={toggleSort}
-                      />
-                      <SortableTh
-                        className="w-[10%]"
-                        label="Duração"
-                        sortKey="duration"
-                        activeKey={sortKey}
-                        asc={sortAsc}
-                        onSort={toggleSort}
-                      />
-                      <th className="w-[16%] px-3 py-3.5 font-semibold">
-                        Categoria
-                      </th>
-                      <SortableTh
-                        className="w-[11%]"
-                        align="center"
-                        label="Mostra no site"
-                        sortKey="site"
-                        activeKey={sortKey}
-                        asc={sortAsc}
-                        onSort={toggleSort}
-                      />
+                      {cols.isVisible("price") && (
+                        <SortableTh
+                          className="w-[12%]"
+                          align="right"
+                          label="Valor"
+                          sortKey="price"
+                          activeKey={sortKey}
+                          asc={sortAsc}
+                          onSort={toggleSort}
+                        />
+                      )}
+                      {cols.isVisible("commission") && (
+                        <SortableTh
+                          className="w-[12%]"
+                          align="right"
+                          label="Comissão"
+                          sortKey="commission"
+                          activeKey={sortKey}
+                          asc={sortAsc}
+                          onSort={toggleSort}
+                        />
+                      )}
+                      {cols.isVisible("duration") && (
+                        <SortableTh
+                          className="w-[10%]"
+                          label="Duração"
+                          sortKey="duration"
+                          activeKey={sortKey}
+                          asc={sortAsc}
+                          onSort={toggleSort}
+                        />
+                      )}
+                      {cols.isVisible("category") && (
+                        <th className="w-[16%] px-3 py-3.5 font-semibold">
+                          Categoria
+                        </th>
+                      )}
+                      {cols.isVisible("site") && (
+                        <SortableTh
+                          className="w-[11%]"
+                          align="center"
+                          label="Mostra no site"
+                          sortKey="site"
+                          activeKey={sortKey}
+                          asc={sortAsc}
+                          onSort={toggleSort}
+                        />
+                      )}
                       <th className="w-[114px] px-3 py-3.5 text-right">
-                        <span className="inline-grid h-7 w-7 place-items-center text-muted-ink">
-                          <IconSettings size={16} />
-                        </span>
+                        {/* T7: gear abre Popover pra mostrar/ocultar colunas. */}
+                        <Popover>
+                          <Popover.Trigger>
+                            <button
+                              type="button"
+                              aria-label="Configurar colunas"
+                              className="relative inline-grid h-7 w-7 place-items-center rounded-md text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+                            >
+                              <IconSettings size={16} />
+                              {cols.hiddenCount > 0 && (
+                                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gold" />
+                              )}
+                            </button>
+                          </Popover.Trigger>
+                          <Popover.Content className="w-60">
+                            <Popover.Dialog className="flex flex-col gap-1 p-1">
+                              <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                                Colunas visíveis
+                              </div>
+                              <ul className="flex flex-col">
+                                {TOGGLE_COLS.map((col) => (
+                                  <li key={col.key}>
+                                    <Checkbox
+                                      isSelected={cols.isVisible(col.key)}
+                                      onChange={() => cols.toggle(col.key)}
+                                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink hover:bg-canvas"
+                                    >
+                                      <Checkbox.Content className="flex min-w-0 items-center gap-2">
+                                        <Checkbox.Control>
+                                          <Checkbox.Indicator />
+                                        </Checkbox.Control>
+                                        <span className="min-w-0 truncate">
+                                          {col.label}
+                                        </span>
+                                      </Checkbox.Content>
+                                    </Checkbox>
+                                  </li>
+                                ))}
+                              </ul>
+                            </Popover.Dialog>
+                          </Popover.Content>
+                        </Popover>
                       </th>
                     </tr>
                   </thead>
@@ -661,12 +796,12 @@ export function ServicosPage() {
                         key={s.id}
                         className="border-b border-line/70 last:border-0 transition-colors hover:bg-canvas"
                       >
-                        <td className="px-3 py-2.5">
+                        <AnimatedSelectionCell active={sel.selectMode} className="px-3 py-2.5">
                           <Check
                             checked={sel.isSelected(s.id)}
                             onChange={() => sel.toggle(s.id)}
                           />
-                        </td>
+                        </AnimatedSelectionCell>
                         <td className="px-3 py-2.5">
                           <button
                             type="button"
@@ -679,27 +814,37 @@ export function ServicosPage() {
                             </span>
                           </button>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right text-ink">
-                          {formatMoney(s.price)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right text-muted-ink">
-                          {formatPercent(commissionOf(s))}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-ink">
-                          {formatHm(s.durationMin)}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {s.categoryId ? (
-                            <span className="truncate text-muted-ink">
-                              {catName.get(s.categoryId) ?? "—"}
-                            </span>
-                          ) : (
-                            <span className="text-muted-ink">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-center text-muted-ink">
-                          {(s.visible ?? s.onlineBookable) ? "Sim" : "Não"}
-                        </td>
+                        {cols.isVisible("price") && (
+                          <td className="whitespace-nowrap px-3 py-2.5 text-right text-ink">
+                            {formatMoney(s.price)}
+                          </td>
+                        )}
+                        {cols.isVisible("commission") && (
+                          <td className="px-3 py-2.5 text-right text-muted-ink">
+                            {formatPercent(commissionOf(s))}
+                          </td>
+                        )}
+                        {cols.isVisible("duration") && (
+                          <td className="whitespace-nowrap px-3 py-2.5 text-ink">
+                            {formatHm(s.durationMin)}
+                          </td>
+                        )}
+                        {cols.isVisible("category") && (
+                          <td className="px-3 py-2.5">
+                            {s.categoryId ? (
+                              <span className="truncate text-muted-ink">
+                                {catName.get(s.categoryId) ?? "—"}
+                              </span>
+                            ) : (
+                              <span className="text-muted-ink">—</span>
+                            )}
+                          </td>
+                        )}
+                        {cols.isVisible("site") && (
+                          <td className="px-3 py-2.5 text-center text-muted-ink">
+                            {(s.visible ?? s.onlineBookable) ? "Sim" : "Não"}
+                          </td>
+                        )}
                         <td className="px-3 py-2.5">
                           <RowActions
                             favorite={Boolean(s.favorite)}
@@ -714,6 +859,7 @@ export function ServicosPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 <Pagination
                   total={rows.length}
                   page={page}
@@ -744,7 +890,7 @@ export function ServicosPage() {
                         <Avatar url={s.imageUrl} size={44} />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-2">
-                            <span className="truncate font-medium text-foreground">
+                            <span className="truncate font-medium text-primary hover:underline">
                               {s.name}
                             </span>
                             <IconStar
@@ -824,29 +970,6 @@ export function ServicosPage() {
 }
 
 /* ───────────────────────── UI building blocks ───────────────────────── */
-
-function ToolbarButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5 text-sm font-medium text-muted-ink transition-colors hover:border-primary hover:text-primary"
-    >
-      {icon} {label}
-    </button>
-  );
-}
 
 // Cabeçalho ordenável estilo antd: rótulo + par de setas (▲▼) com a direção
 // ativa destacada em --sp-primary. Belasis usa este controle em cada coluna.
@@ -939,10 +1062,9 @@ function CheckRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
-      <Check checked={checked} onChange={onChange} />
-      <span className="truncate">{label}</span>
-    </label>
+    <FilterCheckbox checked={checked} onChange={onChange}>
+      {label}
+    </FilterCheckbox>
   );
 }
 
@@ -954,13 +1076,13 @@ function Check({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className="h-4 w-4 shrink-0 cursor-pointer rounded border-line"
-      style={{ accentColor: "var(--sp-primary)" }}
-    />
+    <Checkbox isSelected={checked} onChange={onChange} className="shrink-0">
+      <Checkbox.Content>
+        <Checkbox.Control>
+          <Checkbox.Indicator />
+        </Checkbox.Control>
+      </Checkbox.Content>
+    </Checkbox>
   );
 }
 
@@ -998,38 +1120,45 @@ function RowActions({
   onDelete: () => void;
   deleteDisabled: boolean;
 }) {
+  const starLabel = favorite ? "Remover dos favoritos" : "Marcar como favorito";
   return (
     <div className="flex items-center justify-end gap-1 text-muted-ink">
-      <button
-        type="button"
-        aria-label={favorite ? "Remover dos favoritos" : "Marcar como favorito"}
-        onClick={onStar}
-        disabled={starDisabled}
-        className={`rounded p-1 transition-colors disabled:opacity-50 ${
-          favorite ? "text-gold" : "hover:text-gold"
-        }`}
-      >
-        <IconStar size={16} />
-      </button>
+      <IconTip label={starLabel}>
+        <button
+          type="button"
+          aria-label={starLabel}
+          onClick={onStar}
+          disabled={starDisabled}
+          className={`rounded p-1 transition-colors disabled:opacity-50 ${
+            favorite ? "text-gold" : "hover:text-gold"
+          }`}
+        >
+          <IconStar size={16} />
+        </button>
+      </IconTip>
       <span className="h-4 w-px bg-line" aria-hidden />
-      <button
-        type="button"
-        aria-label="Editar"
-        onClick={onEdit}
-        className="rounded p-1 transition-colors hover:text-gold"
-      >
-        <IconPencil size={16} />
-      </button>
+      <IconTip label="Editar serviço">
+        <button
+          type="button"
+          aria-label="Editar serviço"
+          onClick={onEdit}
+          className="rounded p-1 transition-colors hover:text-gold"
+        >
+          <IconPencil size={16} />
+        </button>
+      </IconTip>
       <span className="h-4 w-px bg-line" aria-hidden />
-      <button
-        type="button"
-        aria-label="Remover"
-        onClick={onDelete}
-        disabled={deleteDisabled}
-        className="rounded p-1 text-danger transition-colors hover:opacity-80 disabled:opacity-50"
-      >
-        <IconTrash size={16} />
-      </button>
+      <IconTip label="Excluir serviço">
+        <button
+          type="button"
+          aria-label="Excluir serviço"
+          onClick={onDelete}
+          disabled={deleteDisabled}
+          className="rounded p-1 text-danger transition-colors hover:opacity-80 disabled:opacity-50"
+        >
+          <IconTrash size={16} />
+        </button>
+      </IconTip>
     </div>
   );
 }
@@ -1052,7 +1181,7 @@ function Pagination({
   for (let i = from; i <= to; i++) pages.push(i);
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-card px-3 py-3 text-sm text-muted-ink">
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-card px-3 pt-3 pb-6 text-sm text-muted-ink lg:sticky lg:bottom-0 lg:z-20 lg:rounded-b-xl">
       <span className="mr-auto">{total} no total</span>
       <button
         type="button"
@@ -1188,7 +1317,6 @@ export function ServiceDrawer({
   const [visible, setVisible] = useState(true);
   const [active, setActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   // Upload de foto do serviço (multipart /api/v1/uploads).
   const photoInputRef = useRef<HTMLInputElement>(null);
   const uploadImage = useUploadImage();
@@ -1311,6 +1439,7 @@ export function ServiceDrawer({
       imageUrls,
       cashbackPercent:
         cashbackEnabled && cashbackPercent ? Number(cashbackPercent) : 0,
+      defaultCommissionPercent: commission ? Number(commission) : 0,
       onlineBookable,
       favorite,
       visible,
@@ -1331,7 +1460,7 @@ export function ServiceDrawer({
     }
   }
 
-  // Belasis: drawer quase fullscreen (1200px) com menu vertical de seções.
+  // Belasis: drawer de registro em TELA CHEIA no desktop, com menu vertical de seções.
   // Seções sem implementação ficam desabilitadas mas visíveis (paridade visual).
   const sections = drawerTabs.map((item) => ({
     key: item.id,
@@ -1343,11 +1472,17 @@ export function ServiceDrawer({
       ? `Editando serviço${service?.name ? ` — ${service.name}` : ""}`
       : "Novo serviço";
 
+  // NÃO passar `widthClass` aqui: no FullDrawer essa prop é justamente o que
+  // transforma o painel numa faixa lateral no desktop (FullDrawer.tsx:196).
+  // Omitindo, cai em `inset-0 h-dvh` (FullDrawer.tsx:197) = tela cheia.
+  // Mobile é ramo independente (FullDrawer.tsx:193) e não muda.
   return (
     <FullDrawer
       isOpen={isOpen}
       onClose={onClose}
       title={title}
+      orientation="vertical"
+      sidebarWidth="md:w-[180px]"
       sections={sections}
       activeSection={tab}
       onSectionChange={(key) => setTab(key as DrawerTab)}
@@ -1440,30 +1575,40 @@ export function ServiceDrawer({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Categoria" required>
-              <Select
+              <Autocomplete
                 aria-label="Categoria"
                 selectedKey={categoryId || null}
                 onSelectionChange={(k) =>
                   setCategoryId(k ? String(k) : NONE)
                 }
               >
-                <Select.Trigger>
-                  <Select.Value>
+                <Autocomplete.Trigger>
+                  <Autocomplete.Value>
                     {({ isPlaceholder, selectedText }) =>
                       isPlaceholder ? "Selecione" : selectedText
                     }
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {categories.map((c) => (
-                      <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
-                        {c.name}
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
+                  </Autocomplete.Value>
+                  <Autocomplete.Indicator />
+                </Autocomplete.Trigger>
+                <Autocomplete.Popover>
+                  <Autocomplete.Filter
+                    filter={(textValue, inputValue) =>
+                      textValue.toLowerCase().includes(inputValue.trim().toLowerCase())
+                    }
+                  >
+                    <SearchField aria-label="Buscar Categoria" autoFocus className="mb-1">
+                      <SearchField.Input placeholder="Buscar" />
+                    </SearchField>
+                    <ListBox>
+                      {categories.map((c) => (
+                        <ListBox.Item key={c.id} id={c.id} textValue={c.name}>
+                          {c.name}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Autocomplete.Filter>
+                </Autocomplete.Popover>
+              </Autocomplete>
             </Field>
             <Field label="Preço de venda">
               <div className="flex min-w-0 items-stretch">
@@ -1589,23 +1734,23 @@ export function ServiceDrawer({
 
       {tab === "config" && (
         <div className="flex flex-col gap-3">
-          <Toggle
+          <SwitchRow
             label="Agendamento online"
             checked={onlineBookable}
             onChange={setOnlineBookable}
           />
-          <Toggle
+          <SwitchRow
             label="Favorito"
             checked={favorite}
             onChange={setFavorite}
           />
-          <Toggle
+          <SwitchRow
             label="Visível no catálogo"
             checked={visible}
             onChange={setVisible}
           />
           {mode === "edit" && (
-            <Toggle label="Ativo" checked={active} onChange={setActive} />
+            <SwitchRow label="Ativo" checked={active} onChange={setActive} />
           )}
         </div>
       )}
@@ -1616,7 +1761,7 @@ export function ServiceDrawer({
             O cashback é próprio do serviço e independente da comissão do
             profissional.
           </div>
-          <Toggle
+          <SwitchRow
             label="Ativar cashback neste serviço"
             checked={cashbackEnabled}
             onChange={setCashbackEnabled}
@@ -1671,22 +1816,5 @@ function Field({
       </label>
       {children}
     </div>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-foreground">
-      <Check checked={checked} onChange={onChange} />
-      {label}
-    </label>
   );
 }

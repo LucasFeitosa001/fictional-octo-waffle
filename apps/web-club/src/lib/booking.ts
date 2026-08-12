@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   useMutation,
   useQuery,
@@ -23,7 +24,61 @@ import { api } from './api';
 // The booking API contract lives in @beautypass/shared (single source of truth
 // across every client). These aliases keep the local, app-friendly names while
 // pointing at the shared types.
-export type Portal = BookingPortal;
+
+/**
+ * Per-salon appearance for the public booking page. Returned by the portal
+ * endpoint (Setting `booking.appearance` on the API side), always present with
+ * sensible defaults so the client never has to handle its absence.
+ *   - `hideNavbar`  → hide the black top bar on the booking page.
+ *   - `primaryColor`/`accentColor`/`backgroundColor` → "#RRGGBB" or null; null
+ *      means "use the house default".
+ */
+export interface BookingAppearance {
+  hideNavbar: boolean;
+  primaryColor: string | null;
+  accentColor: string | null;
+  backgroundColor: string | null;
+  /** Fundo do espaço da foto do serviço sem imagem (estudo 66). */
+  photoColor: string | null;
+  /** Capa (banner) do topo da página. Estudo 67. */
+  coverUrl: string | null;
+  /** Véu escuro sobre a capa (0–80%), para o texto ficar legível. */
+  coverOverlay: number;
+}
+
+// The portal payload plus the appearance block. Declared locally (the shared
+// BookingPortal type doesn't yet carry `appearance`) so the app is typed even
+// though the field is optional on older API builds.
+export type Portal = BookingPortal & {
+  appearance?: BookingAppearance;
+  /** Texto e redes do salão — antes ficavam só no painel (estudo 67). */
+  about?: {
+    description: string | null;
+    website: string | null;
+    instagram: string | null;
+    facebook: string | null;
+  };
+  /** Fotos do salão (galeria do painel). */
+  gallery?: { url: string; caption: string | null }[];
+  /**
+   * pro/max: o salão pode ser servido em <slug>.salonpass.com.br. Starter: false
+   * — o app redireciona para o link compartilhado agenda.salonpass.com.br/<slug>.
+   * Resolvido no servidor (o portal é público e não tem sessão).
+   */
+  customSubdomain?: boolean;
+};
+
+// Defaults applied when the salon hasn't customized (or an older API omits the
+// block): navbar visible, no color overrides (house theme).
+export const DEFAULT_APPEARANCE: BookingAppearance = {
+  hideNavbar: false,
+  primaryColor: null,
+  accentColor: null,
+  backgroundColor: null,
+  photoColor: null,
+  coverUrl: null,
+  coverOverlay: 35,
+};
 export type Service = BookingService;
 export type Professional = BookingProfessional;
 export type AvailabilitySlot = BookingAvailability['slots'][number];
@@ -45,6 +100,118 @@ export function usePortal(slug: string) {
     queryFn: () => api.get<Portal>(paths.portal),
     enabled: !!slug,
   });
+}
+
+// A valid "#RRGGBB" (case-insensitive), or null.
+const HEX_COLOR = /^#([0-9a-fA-F]{6})$/;
+
+function validHex(value: string | null | undefined): string | null {
+  return value && HEX_COLOR.test(value) ? value : null;
+}
+
+/**
+ * O editor administrativo abre o portal em um iframe com estes parâmetros para
+ * que o rascunho seja visto antes de salvar. Eles só alteram a renderização
+ * daquela aba/iframe; nunca persistem configuração nem mudam o portal normal.
+ */
+function bookingPreviewAppearance(): BookingAppearance | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('spPreview') !== '1') return null;
+  return {
+    hideNavbar: params.get('hideNavbar') === '1',
+    primaryColor: validHex(params.get('primaryColor')),
+    accentColor: validHex(params.get('accentColor')),
+    backgroundColor: validHex(params.get('backgroundColor')),
+    photoColor: validHex(params.get('photoColor')),
+    coverUrl: params.get('coverUrl') || null,
+    coverOverlay: Number(params.get('coverOverlay') ?? 35) || 0,
+  };
+}
+
+/**
+ * Resolves the salon's appearance for the booking page from the portal payload,
+ * always returning a fully-populated object (falls back to DEFAULT_APPEARANCE).
+ * The primary color prefers `appearance.primaryColor`, then the legacy
+ * `accentColor`, then the house default.
+ */
+export function useBookingAppearance(slug: string): BookingAppearance {
+  const portal = usePortal(slug);
+  const preview = bookingPreviewAppearance();
+  if (preview) return preview;
+  const a = portal.data?.appearance;
+  const primary =
+    validHex(a?.primaryColor) ?? validHex(portal.data?.accentColor) ?? null;
+  return {
+    hideNavbar: a?.hideNavbar ?? DEFAULT_APPEARANCE.hideNavbar,
+    primaryColor: primary,
+    accentColor: validHex(a?.accentColor),
+    backgroundColor: validHex(a?.backgroundColor),
+    photoColor: validHex(a?.photoColor),
+    coverUrl: a?.coverUrl ?? null,
+    coverOverlay:
+      typeof a?.coverOverlay === 'number' ? a.coverOverlay : DEFAULT_APPEARANCE.coverOverlay,
+  };
+}
+
+/**
+ * Themes the whole booking flow with the salon's appearance. Writes the salon's
+ * colors as CSS variables onto <html>:
+ *   - `--booking-accent`     ← primary color (buttons, active chips, highlights;
+ *                               every derived tone recomputes from it).
+ *   - `--booking-accent-2`   ← accent color (optional secondary highlight).
+ *   - `--club-bg`            ← page background wash.
+ * Falls back to the house defaults when the salon hasn't customized a value, and
+ * restores the defaults on unmount so a slug switch never leaks the previous
+ * salon's colors.
+ */
+/**
+ * Luminância relativa de um hex (#RRGGBB). Usada para decidir se o fundo
+ * escolhido pelo salão é ESCURO — nesse caso o texto e as superfícies precisam
+ * inverter, senão título e filtros somem no escuro (foi o que o dono viu ao
+ * escolher preto). Ver estudo 66.
+ */
+function ehEscuro(hex: string | null): boolean {
+  if (!hex) return false;
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  const canal = (v: number) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const lum =
+    0.2126 * canal((n >> 16) & 255) +
+    0.7152 * canal((n >> 8) & 255) +
+    0.0722 * canal(n & 255);
+  return lum < 0.45;
+}
+
+export function useBookingAccent(slug: string) {
+  const { primaryColor, accentColor, backgroundColor, photoColor } =
+    useBookingAppearance(slug);
+  useEffect(() => {
+    const root = document.documentElement;
+    const setOrClear = (name: string, value: string | null) => {
+      if (value) root.style.setProperty(name, value);
+      else root.style.removeProperty(name);
+    };
+    setOrClear('--booking-accent', primaryColor);
+    setOrClear('--booking-accent-2', accentColor);
+    setOrClear('--club-bg', backgroundColor);
+    setOrClear('--booking-photo', photoColor);
+    // Fundo escuro → o CSS inverte texto e superfícies (bloco
+    // `:root[data-club-dark]` em index.css).
+    if (ehEscuro(backgroundColor)) root.dataset.clubDark = '1';
+    else delete root.dataset.clubDark;
+    return () => {
+      root.style.removeProperty('--booking-accent');
+      root.style.removeProperty('--booking-accent-2');
+      root.style.removeProperty('--club-bg');
+      root.style.removeProperty('--booking-photo');
+      delete root.dataset.clubDark;
+    };
+  }, [primaryColor, accentColor, backgroundColor, photoColor]);
 }
 
 export function useServices(slug: string) {

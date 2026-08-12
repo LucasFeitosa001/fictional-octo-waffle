@@ -9,23 +9,26 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { Checkbox } from '@heroui/react';
+import { AppSwitch } from '../../components/SwitchRow';
 import { LoadingState } from '../../components/States';
 import { Drawer } from '../../components/Drawer';
 import {
   IconArrowDown,
   IconArrowUp,
-  IconCalendar,
   IconChevron,
   IconDownload,
   IconInfo,
   IconWallet,
 } from '../../components/icons';
+import { DateRangePicker } from '../../components/DatePicker';
 import { formatMoney, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsDre, type DreLinha } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { COLOR_GREEN, COLOR_RED } from './reportShared';
 import { FinancialReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Clone 100% fiel da página "Resultados Financeiros" (DRE) do Belasis        */
@@ -39,7 +42,8 @@ import { FinancialReportShell } from './reportNav';
 
 function defaultRange() {
   const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1); // início do mês
+  const from = new Date(to);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -74,8 +78,8 @@ function FieldLabel({ children, tooltip }: { children: React.ReactNode; tooltip?
   );
 }
 
-// ---- Switch "ant-switch" (Sim / Ambas) — themeable -------------------------
-function Switch({
+// ---- Switch "Sim / Ambas" (HeroUI Switch + rótulo do estado ao lado) -------
+function LabeledSwitch({
   checked,
   onChange,
   onLabel,
@@ -87,24 +91,14 @@ function Switch({
   offLabel: string;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={[
-        'relative inline-flex h-7 min-w-[68px] items-center rounded-full px-2 text-xs font-medium transition-colors',
-        checked ? 'justify-start bg-primary text-primary-foreground' : 'justify-end bg-muted-ink/40 text-white',
-      ].join(' ')}
-    >
-      <span className={checked ? 'pr-6' : 'pl-6'}>{checked ? onLabel : offLabel}</span>
-      <span
-        className={[
-          'absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all',
-          checked ? 'right-1' : 'left-1',
-        ].join(' ')}
+    <span className="inline-flex items-center gap-2.5">
+      <AppSwitch
+        checked={checked}
+        onChange={onChange}
+        aria-label={checked ? onLabel : offLabel}
       />
-    </button>
+      <span className="text-sm font-medium text-ink">{checked ? onLabel : offLabel}</span>
+    </span>
   );
 }
 
@@ -282,26 +276,12 @@ export function DrePage() {
               {/* Período */}
               <div>
                 <FieldLabel>Período</FieldLabel>
-                <div className="flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-card px-3 text-sm text-ink focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/30">
-                  <input
-                    type="date"
-                    value={range.from}
-                    max={range.to || undefined}
-                    onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-                    aria-label="Data inicial"
-                    className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-                  />
-                  <IconChevron size={14} className="shrink-0 -rotate-90 text-muted-ink" />
-                  <input
-                    type="date"
-                    value={range.to}
-                    min={range.from || undefined}
-                    onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-                    aria-label="Data final"
-                    className="min-w-0 flex-1 bg-transparent outline-none [color-scheme:light]"
-                  />
-                  <IconCalendar size={16} className="shrink-0 text-muted-ink" />
-                </div>
+                <DateRangePicker
+                  from={range.from}
+                  to={range.to}
+                  onChange={setRange}
+                  ariaLabel="Período"
+                />
               </div>
 
               {/* Conta */}
@@ -327,7 +307,7 @@ export function DrePage() {
               {/* Somente contas ativas? */}
               <div>
                 <FieldLabel>Somente contas ativas?</FieldLabel>
-                <Switch
+                <LabeledSwitch
                   checked={onlyActive}
                   onChange={setOnlyActive}
                   onLabel="Sim"
@@ -343,24 +323,26 @@ export function DrePage() {
               </FieldLabel>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 md:grid-cols-3">
                 {PLAN_OPTIONS.map((p, i) => (
-                  <label
+                  <Checkbox
                     key={`${p}-${i}`}
-                    className="flex cursor-pointer items-center gap-2 text-sm text-ink"
+                    isSelected={plans.has(p)}
+                    onChange={() => togglePlan(p)}
+                    className="w-full cursor-pointer items-center gap-2 text-sm text-ink"
                   >
-                    <input
-                      type="checkbox"
-                      checked={plans.has(p)}
-                      onChange={() => togglePlan(p)}
-                      className="h-4 w-4 shrink-0 rounded border-line accent-[var(--sp-primary)]"
-                    />
-                    <span className="min-w-0 truncate">{p}</span>
-                  </label>
+                    <Checkbox.Content className="min-w-0 items-center gap-2">
+                      <Checkbox.Control>
+                        <Checkbox.Indicator />
+                      </Checkbox.Control>
+                      <span className="min-w-0 truncate">{p}</span>
+                    </Checkbox.Content>
+                  </Checkbox>
                 ))}
               </div>
             </div>
 
             {/* Ação: Gerar relatório (botão primário + split de export) */}
             <div className="mt-6 flex justify-end gap-1.5">
+              <ReportPdfOption />
               <button
                 type="submit"
                 disabled={query.isFetching}
@@ -392,36 +374,42 @@ export function DrePage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-success/12 text-success">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--sp-data-income-soft)] text-data-income">
                           <IconArrowUp size={18} />
                         </span>
                         <span className="text-sm font-medium text-ink">Total de receitas</span>
                       </div>
-                      <div className="mt-3 text-2xl font-bold text-success sm:text-3xl">
+                      <div className="mt-3 text-2xl font-bold text-data-income sm:text-3xl">
                         {formatMoney(d?.totalReceitas ?? 0)}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/12 text-danger">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--sp-data-expense-soft)] text-data-expense">
                           <IconArrowDown size={18} />
                         </span>
                         <span className="text-sm font-medium text-ink">Total de despesas</span>
                       </div>
-                      <div className="mt-3 text-2xl font-bold text-danger sm:text-3xl">
+                      <div className="mt-3 text-2xl font-bold text-data-expense sm:text-3xl">
                         {formatMoney(d?.totalDespesas ?? 0)}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/15 text-gold-strong">
+                        <span
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                            resultadoPositivo
+                              ? 'bg-[var(--sp-data-income-soft)] text-data-income'
+                              : 'bg-[var(--sp-data-expense-soft)] text-data-expense'
+                          }`}
+                        >
                           <IconWallet size={18} />
                         </span>
                         <span className="text-sm font-medium text-ink">Resultado</span>
                       </div>
                       <div
                         className={`mt-3 text-2xl font-bold sm:text-3xl ${
-                          resultadoPositivo ? 'text-success' : 'text-danger'
+                          resultadoPositivo ? 'text-data-income' : 'text-data-expense'
                         }`}
                       >
                         {formatMoney(d?.resultado ?? 0)}
@@ -529,6 +517,7 @@ export function DrePage() {
       <Drawer
         isOpen={detail !== null}
         onClose={() => setDetail(null)}
+        fullscreen
         title={detail?.categoria ?? 'Detalhe da categoria'}
       >
         {detail && (

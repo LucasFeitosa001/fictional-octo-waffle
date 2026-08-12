@@ -13,6 +13,7 @@ import { useFetch } from '../../lib/use-fetch';
 import { formatTime } from '../../lib/format';
 import { StatusChip } from '../../components/StatusChip';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ScreenStates';
+import { PersonAvatar } from '../../components/PersonAvatar';
 import { NewAppointmentModal } from '../../components/NewAppointmentModal';
 
 interface AppointmentWithRelations extends Appointment {
@@ -101,6 +102,13 @@ export default function AgendaScreen() {
                       {formatTime(item.end)}
                     </Typography>
                   </View>
+                  {/* GET /appointments faz include do customer, então a foto já
+                      chega junto — mesmo tratamento que o web dá ao cliente. */}
+                  <PersonAvatar
+                    name={item.customer?.name}
+                    avatarUrl={item.customer?.avatarUrl}
+                    size="sm"
+                  />
                   <View className="flex-1">
                     <Typography type="h5" className="text-foreground">
                       {item.customer?.name ?? 'Cliente'}

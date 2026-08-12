@@ -40,12 +40,41 @@ export enum PartyTypeDto {
 }
 
 // ---- Transactions ----
+/**
+ * Qual data o período filtra — as três do Belasis: Venc/Disponibilidade,
+ * Competência e Pagamento. A coluna de competência entrou na migração
+ * 20260727230000; antes dela só existiam `dueDate` e `paidAt`.
+ */
+export enum TransactionDateTypeDto {
+  due = 'due',
+  paid = 'paid',
+  // Competência: o período a que o fato pertence. A coluna passou a existir na
+  // migração 20260727230000; até alguém preencher, filtrar por ela não traz o
+  // histórico — e isso é correto, não um bug.
+  competence = 'competence',
+}
+
 export class ListTransactionsQueryDto {
   @IsOptional() @IsEnum(TransactionKindDto) type?: TransactionKindDto;
   @IsOptional() @IsEnum(PaymentStatusDto) status?: PaymentStatusDto;
+  // Sobre qual data o [from, to] incide. Padrão: vencimento.
+  @IsOptional() @IsEnum(TransactionDateTypeDto) dateType?: TransactionDateTypeDto;
+  // 'true' = só as ATRASADAS: em aberto com vencimento já passado. É um status
+  // derivado (não existe no enum do banco), por isso vem em separado.
+  @IsOptional() @IsString() overdue?: string;
   @IsOptional() @IsString() paymentMethodId?: string;
   @IsOptional() @IsString() accountId?: string;
   @IsOptional() @IsString() categoryId?: string;
+  // Versões MULTI dos filtros acima, separadas por vírgula ("a,b,c"). O painel
+  // de filtros do Belasis marca várias contas e vários status ao mesmo tempo.
+  // Os campos singulares continuam existindo porque links antigos ainda os usam
+  // (o Painel financeiro navega para /financeiro/transacoes?status=paid).
+  // Quando a lista vem, ela ganha do singular.
+  @IsOptional() @IsString() accountIds?: string;
+  @IsOptional() @IsString() categoryIds?: string;
+  @IsOptional() @IsString() paymentMethodIds?: string;
+  @IsOptional() @IsString() statuses?: string;
+  @IsOptional() @IsString() types?: string;
   @IsOptional() @IsString() from?: string;
   @IsOptional() @IsString() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
@@ -77,6 +106,9 @@ export class CreateTransactionDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() dueDate?: string;
   @IsOptional() @IsString() paidAt?: string;
+  @IsOptional() @IsString() competenceDate?: string;
+  // "É uma receita organizacional?": dispensa a exigência de caixa aberto.
+  @IsOptional() @IsBoolean() isOrganizational?: boolean;
   @IsOptional() @IsEnum(PaymentStatusDto) status?: PaymentStatusDto;
 }
 
@@ -91,6 +123,8 @@ export class UpdateTransactionDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() dueDate?: string;
   @IsOptional() @IsString() paidAt?: string;
+  @IsOptional() @IsString() competenceDate?: string;
+  @IsOptional() @IsBoolean() isOrganizational?: boolean;
   @IsOptional() @IsEnum(PaymentStatusDto) status?: PaymentStatusDto;
 }
 
@@ -159,4 +193,11 @@ export class UpdateFinancialCategoryDto {
 export class SummaryQueryDto {
   @IsOptional() @IsString() from?: string;
   @IsOptional() @IsString() to?: string;
+}
+
+export class UpdateFinanceSettingsDto {
+  @IsOptional() @IsBoolean() allowRetroactive?: boolean;
+  @IsOptional() @IsBoolean() allowEditAfterCashClose?: boolean;
+  @IsOptional() @IsBoolean() allowTransactionsWithClosedCash?: boolean;
+  @IsOptional() @IsBoolean() allowMultipleCash?: boolean;
 }

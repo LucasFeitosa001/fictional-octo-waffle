@@ -50,6 +50,7 @@ export interface CustomerFull extends Customer {
   tags?: CustomerTag[];
   dependents?: CustomerDependent[];
   socialProfiles?: CustomerSocialProfile[];
+  debtBalance?: number;
   // Endereço embutido + observações livres (Wave 2/3)
   cep?: string | null;
   street?: string | null;
@@ -83,6 +84,10 @@ export interface CustomerPanel {
   creditosSaldo: number;
   cashbackSaldo: number;
   pacotesEmAberto: number;
+  /** Quantidade de comandas em aberto — bloco "Informações" da coluna do cliente. */
+  comandasEmAberto: number;
+  /** Quantidade de débitos em aberto. `debitosTotal` é a SOMA; este é a contagem. */
+  pagamentosEmAberto: number;
   ultimosServicos: PanelServiceItem[];
 }
 
@@ -175,12 +180,31 @@ export interface AppointmentRow {
   customerId?: string | null;
   professionalId?: string | null;
   status: AppointmentStatus;
+  /**
+   * Como o agendamento entrou. `online` é o pedido feito pela cliente na página
+   * pública — ele tem padrão de aviso PRÓPRIO (`onlineBooking`), diferente do
+   * marcado na recepção. Ver estudo 153.
+   */
+  source?: 'admin' | 'online' | null;
   start: string;
   end: string;
   notes?: string | null;
+  remindClient?: boolean | null;
+  notifyConfirmation?: boolean | null;
+  notifyCancellation?: boolean | null;
   customer?: Customer | null;
   professional?: Professional | null;
-  items?: { id: string; serviceId: string; price: string }[];
+  items?: {
+    id: string;
+    serviceId: string;
+    professionalId?: string | null;
+    price: string;
+  }[];
+  /**
+   * Comanda já gerada por este agendamento (um por um). Quando existe, o botão
+   * do drawer ACESSA; quando não, ele ABRE. Ver estudo 52.
+   */
+  order?: { id: string; number: number; status: OrderStatus } | null;
 }
 
 /** Order as returned by the list endpoint (includes customer). */
@@ -195,6 +219,7 @@ export interface OrderRow {
   netTotal: string;
   date: string;
   customer?: Customer | null;
+  payments?: { paymentMethodId: string }[];
 }
 
 /**
@@ -358,6 +383,12 @@ export interface CompanyInfo {
 export interface AvailabilitySlot {
   start: string;
   end: string;
+  /**
+   * Horário já ocupado por outro agendamento. Só volta na lista quando a busca
+   * pediu `squeezeIn` ("Encaixar agendamento") — aí ele é oferecido, porém
+   * marcado, para quem escolhe saber que está marcando em cima de alguém.
+   */
+  busy?: boolean;
 }
 
 export interface AvailabilityResponse {
@@ -367,14 +398,41 @@ export interface AvailabilityResponse {
   slots: AvailabilitySlot[];
 }
 
+/**
+ * Aviso PERSONALIZADO ao cliente agendado a partir do drawer ("Avisar o
+ * cliente"). Distinto do lembrete fixo 24h/2h: mensagem/template + tempo + link
+ * configuráveis. O tempo é `delayValue` + `delayUnit` (segundos → dias), ancorado
+ * por `when` (from_now = agora+delay; before = início−delay; after = fim+delay).
+ */
+export interface AppointmentFollowUpInput {
+  enabled: boolean;
+  message?: string;
+  templateId?: string;
+  delayValue: number;
+  delayUnit: 'seconds' | 'minutes' | 'hours' | 'days';
+  when?: 'before' | 'after' | 'from_now';
+  includeLink?: boolean;
+}
+
 /** Body for POST /appointments. The backend computes end + pricing. */
 export interface CreateAppointmentBody {
+  /** Encaixe: permite marcar em cima de horário já ocupado do mesmo profissional. */
+  squeezeIn?: boolean;
   customerId?: string;
   professionalId?: string;
   start: string;
   end?: string;
   notes?: string;
+  remindClient?: boolean;
+  notifyConfirmation?: boolean;
+  notifyCancellation?: boolean;
   items?: { serviceId: string; professionalId?: string }[];
+  followUp?: AppointmentFollowUpInput;
+}
+
+export interface CreateAppointmentSeriesBody extends CreateAppointmentBody {
+  additionalStarts: string[];
+  status?: AppointmentRow['status'];
 }
 
 // =====================================================================
@@ -390,6 +448,8 @@ export interface PackageUsage {
   id: string;
   usedAt: string;
   orderId: string | null;
+  /** Número da comanda que consumiu a sessão — vira "Comanda #2951" na coluna "Utilizados". */
+  orderNumber?: number | null;
 }
 
 /** One item of the package detail, with computed saldo + usages. */

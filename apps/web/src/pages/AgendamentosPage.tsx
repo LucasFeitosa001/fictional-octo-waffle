@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -9,6 +9,7 @@ import {
   TextField,
 } from '@heroui/react';
 import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@beautypass/shared';
+import { apiErrorMessage, TOAST_TIMEOUT_ERRO } from '../lib/toast';
 import { PageHeader } from '../components/PageHeader';
 import { AppointmentStatusChip } from '../components/StatusChip';
 import { Drawer } from '../components/Drawer';
@@ -64,7 +65,8 @@ export function AgendamentosPage() {
   const [suggestion, setSuggestion] = useState('');
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null);
+  const toastTimer = useRef<number | null>(null);
   // Mobile: the contextual BottomNav opens the status filter as a bottom sheet
   // (Belasis keeps filters/ações in the bottom nav on small screens).
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -119,9 +121,25 @@ export function AgendamentosPage() {
     return Array.from(map.entries());
   }, [rows]);
 
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  /**
+   * Aviso na faixa inferior. Mesma correção da AgendaPage — ver estudo 138.
+   *
+   * O timer não era guardado, então duas mensagens seguidas dividiam o prazo da
+   * primeira e a segunda sumia antes da hora; e erro durava o mesmo que
+   * sucesso, embora aqui erro seja instrução ("cancele a comanda antes").
+   */
+  function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast({ msg, tipo });
+    toastTimer.current = window.setTimeout(
+      () => setToast(null),
+      tipo === 'erro' ? TOAST_TIMEOUT_ERRO : 3000,
+    );
+  }
+
+  function fecharToast() {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast(null);
   }
 
   async function changeStatus(a: AppointmentRow, status: AppointmentStatus) {
@@ -135,8 +153,10 @@ export function AgendamentosPage() {
             ? 'Agendamento cancelado. Cliente notificado.'
             : 'Status atualizado.',
       );
-    } catch {
-      showToast('Erro ao atualizar o agendamento.');
+    } catch (err) {
+      // A frase do servidor é a única que diz o que travou e o que fazer (ex.:
+      // qual comanda cancelar antes). Ver estudo 138.
+      showToast(apiErrorMessage(err), 'erro');
     }
   }
 
@@ -149,8 +169,8 @@ export function AgendamentosPage() {
       setSuggestion('');
       setShowSuggest(false);
       showToast('Sugestao de horario enviada ao cliente.');
-    } catch {
-      showToast('Erro ao enviar sugestao.');
+    } catch (err) {
+      showToast(apiErrorMessage(err), 'erro');
     }
   }
 
@@ -274,9 +294,26 @@ export function AgendamentosPage() {
       )}
 
       {/* Toast */}
+      {/* Erro tem cor própria, largura para o texto e X para sair na hora.
+          Ver estudo 138. */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-[var(--shadow-pop)]">
-          {toast}
+        <div
+          role={toast.tipo === 'erro' ? 'alert' : 'status'}
+          className={`fixed bottom-6 left-1/2 z-50 flex max-w-[min(90vw,32rem)] -translate-x-1/2 items-start gap-3 rounded-xl px-5 py-3 text-sm font-medium text-white shadow-[var(--shadow-pop)] ${
+            toast.tipo === 'erro' ? 'bg-danger' : 'bg-ink'
+          }`}
+        >
+          <span className="flex-1">{toast.msg}</span>
+          {toast.tipo === 'erro' && (
+            <button
+              type="button"
+              onClick={fecharToast}
+              aria-label="Fechar aviso"
+              className="-mr-1 shrink-0 rounded px-1 leading-none opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 
@@ -289,6 +326,7 @@ export function AgendamentosPage() {
         }}
         title="Detalhes do agendamento"
         widthClass="sm:w-[520px]"
+        fullscreen
         footer={<Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>}
       >
               {selected && (

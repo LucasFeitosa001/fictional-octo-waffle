@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Input, Modal, TextField } from '@heroui/react';
+import { Button, Card, Input, TextField } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { Drawer } from '../components/Drawer';
 import { PageHeader } from '../components/PageHeader';
 import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { ActiveChip } from '../components/StatusChip';
+import { FilterCheckbox } from '../components/FilterCheckbox';
 import { SegBtn } from '../components/SegBtn';
 import {
   IconDownload,
@@ -404,62 +406,54 @@ export function CategoryModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
-      <Modal.Container size="md" placement="center">
-        <Modal.Dialog className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
-          <Modal.Header>
-            <Modal.Heading>
-              {mode === 'edit' ? 'Editar categoria' : 'Nova categoria'}
-            </Modal.Heading>
-          </Modal.Header>
-          <Modal.Body className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted">Nome</label>
-              <TextField value={name} onChange={setName} aria-label="Nome">
-                <Input placeholder="Nome da categoria" />
-              </TextField>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-              />
-              Ativa
-            </label>
-            {error && (
-              <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                {error}
-              </div>
-            )}
-          </Modal.Body>
-          <Modal.Footer className="flex flex-wrap items-center justify-end gap-2">
-            {mode === 'edit' && category && onDelete && (
-              <Button
-                variant="ghost"
-                className="h-11 shrink-0 text-danger mr-auto"
-                isDisabled={deletePending || pending}
-                onClick={() => onDelete(category)}
-              >
-                <IconTrash size={16} /> Excluir
-              </Button>
-            )}
-            <Button variant="outline" className="h-11 shrink-0" onClick={onClose}>
-              Cancelar
-            </Button>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={mode === 'edit' ? 'Editar categoria' : 'Nova categoria'}
+      widthClass="sm:w-[480px]"
+      fullscreen
+      footer={
+        <>
+          {mode === 'edit' && category && onDelete && (
             <Button
-              variant="primary"
-              className="h-11 shrink-0"
-              isDisabled={!canSave}
-              onClick={handleSave}
+              variant="ghost"
+              className="h-11 shrink-0 text-danger mr-auto"
+              isDisabled={deletePending || pending}
+              onClick={() => onDelete(category)}
             >
-              {pending ? 'Salvando…' : 'Salvar'}
+              <IconTrash size={16} /> Excluir
             </Button>
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+          )}
+          <Button variant="outline" className="h-11 shrink-0" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            className="h-11 shrink-0"
+            isDisabled={!canSave}
+            onClick={handleSave}
+          >
+            {pending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted">Nome</label>
+          <TextField value={name} onChange={setName} aria-label="Nome">
+            <Input placeholder="Nome da categoria" />
+          </TextField>
+        </div>
+        <FilterCheckbox checked={active} onChange={setActive} className="w-fit">
+          Ativa
+        </FilterCheckbox>
+        {error && (
+          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            {error}
+          </div>
+        )}
+      </div>
+    </Drawer>
   );
 }

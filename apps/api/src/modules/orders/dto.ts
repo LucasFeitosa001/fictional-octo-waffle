@@ -1,17 +1,32 @@
 import {
+  IsArray,
   IsDateString,
   IsIn,
   IsNumber,
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateOrderDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsDateString() date?: string;
+  /**
+   * Agendamento de origem. Com ele a criação vira IDEMPOTENTE: se aquele
+   * agendamento já tem comanda, o endpoint devolve a existente em vez de abrir
+   * outra — era assim que "Acessar comanda" criava uma comanda por clique.
+   * Ver estudo 52.
+   */
+  @IsOptional() @IsString() appointmentId?: string;
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AddItemDto)
+  items?: AddItemDto[];
 }
 
 export class UpdateOrderDto {
@@ -24,7 +39,15 @@ export class AddItemDto {
   @IsString() refId: string;
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsNumber() @Min(0.001) quantity?: number;
-  @IsNumber() @Min(0) unitPrice: number;
+  // Opcional: quando ausente/0, o backend resolve o preço pelo catálogo
+  // (Service.price / Product.salePrice). Ver OrdersService.resolveUnitPrice.
+  @IsOptional() @IsNumber() @Min(0) unitPrice?: number;
+  // Teto do desconto NÃO cabe aqui: o bruto do item é `unitPrice × quantity` e o
+  // unitPrice pode nem vir no corpo (o backend resolve pelo catálogo em
+  // OrdersService.resolveUnitPrice). Quem recusa desconto maior que o item é o
+  // service — ver OrdersService.assertDescontoDoItem, chamado no addItem, no
+  // updateItem e no create. Sem essa trava, "200" no lugar de "20" num item de
+  // R$ 100 zerava a comanda inteira e o Faturar passava sem pagamento nenhum.
   @IsOptional() @IsNumber() @Min(0) discount?: number;
 }
 
@@ -36,6 +59,8 @@ export class UpdateOrderItemDto {
   @IsOptional() @IsString() professionalId?: string;
   @IsOptional() @IsNumber() @Min(0) unitPrice?: number;
   @IsOptional() @IsNumber() @Min(0.001) quantity?: number;
+  // Idem AddItemDto.discount: o teto (não passar do bruto do item) é aplicado no
+  // service, que é quem conhece unitPrice × quantity depois do partial update.
   @IsOptional() @IsNumber() @Min(0) discount?: number;
   // Lote (aba "Lote"). Enviar null limpa o lote.
   @IsOptional() @IsString() batchId?: string | null;

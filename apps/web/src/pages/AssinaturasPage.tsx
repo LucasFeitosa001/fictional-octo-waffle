@@ -8,15 +8,20 @@ import { Drawer } from '../components/Drawer';
 import { FullDrawer } from '../components/FullDrawer';
 import { ItemPickerDrawer, type PickedItem } from '../components/ItemPickerDrawer';
 import { useConfirm } from '../components/ConfirmDialog';
+import { FilterCheckbox } from '../components/FilterCheckbox';
+import { AppTabs } from '../components/AppTabs';
 import {
   IconCheck,
   IconDownload,
   IconFilter,
+  IconLayers,
   IconPlus,
   IconRepeat,
   IconScissors,
   IconSearch,
+  IconSettings,
   IconTrash,
+  IconUsers,
 } from '../components/icons';
 import { formatDate, formatMoney } from '../lib/format';
 import { downloadCsv } from '../lib/csv';
@@ -84,45 +89,11 @@ function subCode(m: CustomerMembership): string {
 // ---------------------------------------------------------------------------
 
 type MainTab = 'subscribers' | 'plans' | 'settings';
-const MAIN_TABS: { id: MainTab; label: string; shortLabel?: string }[] = [
-  { id: 'subscribers', label: 'Assinantes' },
-  { id: 'plans', label: 'Modelos de assinatura', shortLabel: 'Modelos' },
-  { id: 'settings', label: 'Configurações' },
+const MAIN_TABS: { id: MainTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'subscribers', label: 'Assinantes', icon: <IconUsers size={16} /> },
+  { id: 'plans', label: 'Modelos de assinatura', icon: <IconLayers size={16} /> },
+  { id: 'settings', label: 'Configurações', icon: <IconSettings size={16} /> },
 ];
-
-function TabBar({ tab, onTab }: { tab: MainTab; onTab: (t: MainTab) => void }) {
-  return (
-    <div className="mb-4 -mx-1 overflow-x-auto px-1">
-      <div className="inline-flex min-w-max gap-1 border-b border-[var(--color-soft-border)]">
-        {MAIN_TABS.map((t) => {
-          const active = t.id === tab;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onTab(t.id)}
-              className={[
-                'relative whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors',
-                active
-                  ? 'text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary'
-                  : 'text-muted-ink hover:text-foreground',
-              ].join(' ')}
-            >
-              {t.shortLabel ? (
-                <>
-                  <span className="md:hidden">{t.shortLabel}</span>
-                  <span className="hidden md:inline">{t.label}</span>
-                </>
-              ) : (
-                t.label
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Pagination (Belasis "N no total … 20 / página")
@@ -201,16 +172,10 @@ function Pagination({
 }
 
 // ---------------------------------------------------------------------------
-// Filters panel — Vencimento (range) · Status · Forma de pagamento
+// Filters panel — Vencimento · Status
 // ---------------------------------------------------------------------------
 
 const STATUS_FILTER_ORDER: MembershipStatus[] = ['active', 'overdue', 'canceled'];
-type PayType = 'automatic' | 'manual';
-const PAY_OPTIONS: { id: PayType; label: string }[] = [
-  { id: 'automatic', label: 'Automático' },
-  { id: 'manual', label: 'Manual' },
-];
-
 function CheckRow({
   checked,
   onChange,
@@ -221,15 +186,9 @@ function CheckRow({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 py-1 text-sm">
-      <input
-        type="checkbox"
-        className="h-4 w-4 accent-[var(--sp-primary)]"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+    <FilterCheckbox checked={checked} onChange={onChange} className="py-1">
       {children}
-    </label>
+    </FilterCheckbox>
   );
 }
 
@@ -253,7 +212,6 @@ export function AssinaturasPage() {
   const [search, setSearch] = useState('');
   const [range, setRange] = useState({ from: '', to: '' });
   const [statusSet, setStatusSet] = useState<Set<MembershipStatus>>(new Set());
-  const [paySet, setPaySet] = useState<Set<PayType>>(new Set());
   const [page, setPage] = useState(1);
 
   // Modelos tab: search + filter
@@ -284,8 +242,6 @@ export function AssinaturasPage() {
       const due = m.nextDueDate?.slice(0, 10) ?? '';
       if (range.from && due && due < range.from) return false;
       if (range.to && due && due > range.to) return false;
-      // TODO: filtrar por forma de pagamento (automatic/manual) quando o
-      // endpoint expuser esse campo na assinatura. `paySet` fica pronto p/ uso.
       if (term) {
         const inName = (m.customer?.name ?? '').toLowerCase().includes(term);
         const inPlan = (m.membershipPlan?.name ?? '').toLowerCase().includes(term);
@@ -298,7 +254,7 @@ export function AssinaturasPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [tab, search, range.from, range.to, statusSet, paySet]);
+  }, [tab, search, range.from, range.to, statusSet]);
 
   const pageRows = useMemo(
     () => subRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -340,15 +296,6 @@ export function AssinaturasPage() {
       return next;
     });
   }
-  function togglePay(p: PayType, on: boolean) {
-    setPaySet((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(p);
-      else next.delete(p);
-      return next;
-    });
-  }
-
   function openCreatePlan() {
     setEditingPlan(null);
     setPlanDrawerOpen(true);
@@ -409,7 +356,13 @@ export function AssinaturasPage() {
     <div>
       <PageHeader title="Vendas por Assinatura" actions={headerActions} />
 
-      <TabBar tab={tab} onTab={setTab} />
+      <AppTabs
+        items={MAIN_TABS}
+        selectedKey={tab}
+        onSelectionChange={setTab}
+        ariaLabel="Áreas de vendas por assinatura"
+        className="mb-4"
+      />
 
       {tab === 'subscribers' && (
         <Card className="!border-0 !bg-transparent !shadow-none md:!border md:!border-[var(--color-soft-border)] md:!bg-warm-white md:!shadow-[var(--shadow-card)]">
@@ -430,7 +383,7 @@ export function AssinaturasPage() {
             )}
 
             {showFilters && (
-              <div className="mb-4 grid gap-4 rounded-xl border border-[var(--color-soft-border)] bg-white p-4 sm:grid-cols-3">
+              <div className="mb-4 grid gap-4 rounded-xl border border-[var(--color-soft-border)] bg-white p-4 sm:grid-cols-2">
                 {/* Vencimento */}
                 <div className="flex flex-col gap-2">
                   <span className="text-xs font-semibold text-muted-ink">Vencimento</span>
@@ -470,29 +423,6 @@ export function AssinaturasPage() {
                   ))}
                 </div>
 
-                {/* Forma de pagamento */}
-                <div className="flex flex-col gap-1">
-                  <span className="mb-1 text-xs font-semibold text-muted-ink">
-                    Forma de pagamento
-                  </span>
-                  <CheckRow
-                    checked={paySet.size === PAY_OPTIONS.length}
-                    onChange={(on) =>
-                      setPaySet(on ? new Set(PAY_OPTIONS.map((p) => p.id)) : new Set())
-                    }
-                  >
-                    <span className="text-muted-ink">Selecionar tudo</span>
-                  </CheckRow>
-                  {PAY_OPTIONS.map((p) => (
-                    <CheckRow
-                      key={p.id}
-                      checked={paySet.has(p.id)}
-                      onChange={(on) => togglePay(p.id, on)}
-                    >
-                      <span className="text-foreground">{p.label}</span>
-                    </CheckRow>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -565,8 +495,7 @@ export function AssinaturasPage() {
                             <StatusTag status={m.status} />
                           </td>
                           <td className={`${td} text-muted-ink`}>
-                            {/* TODO: forma de renovação (Automático/Manual) quando disponível. */}
-                            —
+                            Manual
                           </td>
                           <td className={`${td} text-right font-semibold tabular-nums`}>
                             {formatMoney(m.membershipPlan?.recurringPrice)}
@@ -743,7 +672,7 @@ export function AssinaturasPage() {
           type="button"
           aria-label="Nova assinatura"
           onClick={() => setCreateSubOpen(true)}
-          className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+          className="fab-above-nav fixed right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
         >
           <IconPlus size={22} />
         </button>
@@ -753,7 +682,7 @@ export function AssinaturasPage() {
           type="button"
           aria-label="Novo modelo"
           onClick={openCreatePlan}
-          className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
+          className="fab-above-nav fixed right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:hidden"
         >
           <IconPlus size={22} />
         </button>
@@ -981,15 +910,14 @@ function TotalLine({
 // Drawer: Nova assinatura (Belasis "Novo")
 // ---------------------------------------------------------------------------
 
-type NovaSection = 'cliente' | 'data' | 'itens' | 'recorrencia' | 'observacoes';
+type NovaSection = 'cliente' | 'data' | 'itens' | 'recorrencia';
 
-function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const create = useCreateCustomerMembership();
   const customers = useCustomers('');
   const plans = useMembershipPlans();
   const [customerId, setCustomerId] = useState('');
   const [membershipPlanId, setMembershipPlanId] = useState('');
-  const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<NovaSection>('cliente');
 
@@ -1002,7 +930,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
     if (isOpen) {
       setCustomerId('');
       setMembershipPlanId('');
-      setNotes('');
       setError(null);
       setSection('cliente');
     }
@@ -1013,7 +940,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
   async function handleSave() {
     setError(null);
     try {
-      // TODO: enviar data/observações/itens quando o endpoint aceitar.
       await create.mutateAsync({ customerId, membershipPlanId });
       onClose();
     } catch (err) {
@@ -1030,12 +956,12 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
       isOpen={isOpen}
       onClose={onClose}
       title="Nova assinatura"
+      mobileBackLabel="Voltar"
       sections={[
         { key: 'cliente', label: 'Cliente' },
         { key: 'data', label: 'Data' },
         { key: 'itens', label: 'Itens da assinatura' },
         { key: 'recorrencia', label: 'Recorrência' },
-        { key: 'observacoes', label: 'Observações' },
       ]}
       activeSection={section}
       onSectionChange={(k) => setSection(k as NovaSection)}
@@ -1045,7 +971,7 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
             Cancelar
           </Button>
           <Button variant="primary" isDisabled={!canSave || create.isPending} onClick={handleSave}>
-            <IconCheck size={16} /> {create.isPending ? 'Salvando…' : 'Faturar'}
+            <IconCheck size={16} /> {create.isPending ? 'Criando…' : 'Criar assinatura'}
           </Button>
         </>
       }
@@ -1162,14 +1088,6 @@ function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: (
           </div>
         )}
 
-        {section === 'observacoes' && (
-          <Field label="Observações">
-            <TextField value={notes} onChange={setNotes} aria-label="Observações">
-              <Input placeholder="Escreva aqui" />
-            </TextField>
-          </Field>
-        )}
-
         {error && <FormError message={error} />}
       </div>
     </FullDrawer>
@@ -1227,7 +1145,9 @@ function EditarAssinaturaDrawer({
       isOpen={membership != null}
       onClose={onClose}
       title={membership ? `Editar assinatura ${subCode(membership)}` : 'Editar assinatura'}
+      mobileBackLabel="Voltar"
       widthClass="sm:w-[520px]"
+      fullscreen
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -1424,7 +1344,9 @@ function PlanDrawer({
         isOpen={isOpen}
         onClose={onClose}
         title={editing ? 'Editar modelo de assinatura' : 'Novo modelo de assinatura'}
+        mobileBackLabel="Voltar"
         widthClass="sm:w-[620px]"
+        fullscreen
         footer={
           <>
             <Button variant="outline" onClick={onClose}>
@@ -1512,6 +1434,7 @@ function PlanDrawer({
         onClose={() => setItemPickerOpen(false)}
         onSelect={addItem}
         servicesOnly
+        mobileBackLabel="Voltar"
       />
     </>
   );

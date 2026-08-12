@@ -85,6 +85,28 @@ async function main() {
   const itensAll = load('comanda-itens.json');
   const itemsByNum = new Map<number, any[]>();
   for (const it of itensAll) { if (!itemsByNum.has(it.num)) itemsByNum.set(it.num, []); itemsByNum.get(it.num)!.push(it); }
+  // O export de Recebimentos/Fluxo de Caixa traz a forma e o valor, enquanto
+  // Vendas-Comandas-Pacotes traz apenas o total da comanda. Relacionamos pelo
+  // número da comanda para que o histórico antigo também tenha OrderPayment.
+  const pagamentosPorComanda = new Map<number, any[]>();
+  for (const f of fin) {
+    const match = String(f.historico ?? '').match(/comanda\s*#\s*(\d+)/i);
+    if (!match || !f.valor || f.kind !== 'income') continue;
+    const num = Number(match[1]);
+    const amount = Number(f.pago ?? f.valor);
+    if (amount <= 0) continue;
+    const rows = pagamentosPorComanda.get(num) ?? [];
+    rows.push({
+      amount,
+      paymentMethodId: f.forma ? pmMap.get(norm(f.forma)) ?? null : null,
+      accountId: f.conta ? accMap.get(norm(f.conta)) ?? null : null,
+      paidAt: f.baixa ? new Date(f.baixa) : null,
+      dueDate: f.vencimento ? new Date(f.vencimento) : null,
+      status: (f.pago ?? 0) >= (f.valor ?? 0) ? 'paid' : 'pending',
+      description: f.forma ? `Importado do Belasis · ${f.forma}` : 'Importado do Belasis',
+    });
+    pagamentosPorComanda.set(num, rows);
+  }
   let ordN = 0, ordSkip = 0, itmN = 0;
   for (const c of comandas) {
     const legacyId = `cmd:${c.num}`;
@@ -98,6 +120,7 @@ async function main() {
         quantity: D(it.qtd || 1), unitPrice: D(unit), grossValue: D(it.total) };
     }).filter(Boolean) as any[];
     try {
+      const pagamentos = pagamentosPorComanda.get(c.num) ?? [];
       await prisma.order.create({
         data: {
           companyId, number: c.num, customerId: c.cliente ? custMap.get(norm(c.cliente)) ?? null : null,
@@ -105,12 +128,29 @@ async function main() {
           creditUsed: D(c.credito), cashbackUsed: D(c.cashback), netTotal: D(c.total),
           date: c.date ? new Date(c.date) : new Date(), legacyId, legacySource: 'belasis-xls',
           ...(its.length ? { items: { create: its } } : {}),
+          ...(pagamentos.length ? { payments: { create: pagamentos } } : {}),
         },
       });
       ordN++; itmN += its.length;
     } catch (e: any) { if (!/Unique constraint/i.test(e.message)) throw e; ordSkip++; }
   }
   console.log(`Comandas: ${ordN} criadas (${itmN} itens), ${ordSkip} puladas`);
+
+  // Corrige comandas que foram importadas por uma versão anterior do script:
+  // não duplica pagamentos e não altera valores já registrados.
+  let payN = 0;
+  const antigas = await prisma.order.findMany({
+    where: { companyId, legacySource: 'belasis-xls', legacyId: { startsWith: 'cmd:' } },
+    select: { id: true, number: true, payments: { select: { id: true } } },
+  });
+  for (const o of antigas) {
+    if (o.payments.length) continue;
+    const pagamentos = pagamentosPorComanda.get(o.number) ?? [];
+    if (!pagamentos.length) continue;
+    await prisma.orderPayment.createMany({ data: pagamentos.map((p) => ({ ...p, orderId: o.id })) });
+    payN += pagamentos.length;
+  }
+  console.log(`Pagamentos de comandas: ${payN} criados/regularizados`);
 
   // ---- PACOTES ----
   const pacotes = load('pacotes.json');

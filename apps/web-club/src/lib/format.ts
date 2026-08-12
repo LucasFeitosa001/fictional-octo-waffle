@@ -1,3 +1,5 @@
+import type { AppointmentStatus } from '@beautypass/shared';
+
 const dtf = new Intl.DateTimeFormat('pt-BR', {
   weekday: 'short',
   day: '2-digit',
@@ -44,17 +46,36 @@ export function toDateInput(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-const STATUS_LABELS: Record<string, string> = {
+/**
+ * Situação do agendamento, na tela da CLIENTE. Ver estudo 137.
+ *
+ * `Record<AppointmentStatus, …>` de propósito: o TS passa a EXIGIR uma frase
+ * para cada valor do enum, então um status novo quebra o build em vez de vazar
+ * cru na tela. Era exatamente o que acontecia — o mapa era
+ * `Record<string, string>`, não tinha `unconfirmed` nem `waiting`, e o fallback
+ * `?? status` mostrava "unconfirmed" em inglês no cartão de "Meus
+ * agendamentos". E não era caso raro: é o estado NORMAL de quem agenda pelo
+ * portal quando o salão confirma primeiro (`public-booking.service`,
+ * `salonConfirms`). De quebra o mapa tinha dois rótulos órfãos (`arrived`,
+ * `no_show`) que nem existem no enum.
+ *
+ * `unconfirmed` aqui não é o "Não confirmado" do painel: quem lê é a cliente, e
+ * para ela isso soaria como problema. O que de fato acontece é o que
+ * `notifications.service` descreve — "pedido online que ainda aguarda o salão".
+ */
+const STATUS_LABELS: Record<AppointmentStatus, string> = {
   scheduled: 'Agendado',
   confirmed: 'Confirmado',
-  arrived: 'Chegou',
+  unconfirmed: 'Aguardando confirmação',
+  waiting: 'Aguardando',
   in_progress: 'Em atendimento',
   done: 'Concluído',
   finished: 'Finalizado',
   canceled: 'Cancelado',
-  no_show: 'Não compareceu',
 };
 
 export function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  // Sem eco do valor cru: status fora do enum é defeito de dado, e mostrar
+  // "unconfirmed" para a cliente é pior do que não mostrar selo nenhum.
+  return STATUS_LABELS[status as AppointmentStatus] ?? '';
 }

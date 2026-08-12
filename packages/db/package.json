@@ -8,6 +8,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./rbac": {
+      "types": "./dist/rbac.d.ts",
+      "default": "./dist/rbac.js"
     }
   },
   "scripts": {
@@ -17,6 +21,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "push": "prisma db push",
     "seed": "tsx prisma/seed.ts",
+    "bootstrap:barbearia-paulista": "tsx prisma/bootstrap-barbearia-paulista.ts",
+    "seed:staging": "tsx prisma/seed-staging.ts && tsx prisma/seed-staging-comandas.ts && tsx prisma/seed-staging-caixa.ts && tsx prisma/seed-staging-financeiro.ts && tsx prisma/seed-staging-pacotes.ts && tsx prisma/seed-staging-fornecedores.ts && tsx prisma/seed-staging-marketing.ts && tsx prisma/seed-staging-detalhes.ts && tsx prisma/seed-staging-transacoes.ts",
     "studio": "prisma studio",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json"

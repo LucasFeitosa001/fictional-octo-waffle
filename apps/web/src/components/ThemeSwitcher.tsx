@@ -6,7 +6,7 @@ import { saveThemeToCloud } from '../theme/useThemeSync';
  * and persists the choice. Every brand color in the product follows from the
  * chosen palette (see the --sp-* tokens in index.css).
  */
-export function ThemeSwitcher() {
+export function ThemeSwitcher({ disabled = false }: { disabled?: boolean } = {}) {
   const [current, setTheme] = useTheme();
 
   return (
@@ -17,13 +17,15 @@ export function ThemeSwitcher() {
           <button
             key={t.id}
             type="button"
+            disabled={disabled}
             onClick={() => {
               setTheme(t.id); // instant local apply + localStorage cache
-              saveThemeToCloud(t.id); // mirror to the account (cross-device)
+              saveThemeToCloud(t.id); // publica no tema da EMPRESA (todos os logins)
             }}
             aria-pressed={active}
             className={[
               'flex items-center gap-3 rounded-2xl border p-3 text-left transition',
+              'disabled:cursor-not-allowed disabled:opacity-60',
               active
                 ? 'border-primary ring-2 ring-primary/40 bg-primary/5'
                 : 'border-line hover:border-muted-ink/40',

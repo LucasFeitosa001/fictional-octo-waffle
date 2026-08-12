@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { toastSuccess } from '../toast';
 
 // =====================================================================
 // Types — PACOTES. Money/decimal fields are Decimal strings from the API.
@@ -95,7 +96,10 @@ export function useCreatePackageTemplate() {
   return useMutation({
     mutationFn: (body: CreatePackageTemplateBody) =>
       api.post<PackageTemplate>('/package-templates', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['package-templates'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['package-templates'] });
+      toastSuccess('Pacote criado');
+    },
   });
 }
 
@@ -104,7 +108,10 @@ export function useUpdatePackageTemplate() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdatePackageTemplateBody }) =>
       api.patch<PackageTemplate>(`/package-templates/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['package-templates'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['package-templates'] });
+      toastSuccess('Pacote salvo');
+    },
   });
 }
 
@@ -113,7 +120,10 @@ export function useDeletePackageTemplate() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<{ id: string; deleted: boolean }>(`/package-templates/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['package-templates'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['package-templates'] });
+      toastSuccess('Pacote excluído');
+    },
   });
 }
 
@@ -145,7 +155,10 @@ export function useSellPackage() {
   return useMutation({
     mutationFn: (body: CreateCustomerPackageBody) =>
       api.post<CustomerPackage>('/customer-packages', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-packages'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-packages'] });
+      toastSuccess('Pacote vendido');
+    },
   });
 }
 
@@ -154,6 +167,9 @@ export function useDeleteCustomerPackage() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<{ id: string; deleted: boolean }>(`/customer-packages/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer-packages'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-packages'] });
+      toastSuccess('Pacote removido');
+    },
   });
 }

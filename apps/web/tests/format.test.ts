@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatTime,
   isoDate,
+  isoDateUtc,
   toDateInput,
   formatSlotTime,
   formatDuration,
@@ -168,17 +169,64 @@ describe('formatSlotTime (America/Sao_Paulo)', () => {
   });
 });
 
-describe('isoDate', () => {
+/**
+ * `isoDate` devolve o dia LOCAL (a suíte roda com TZ=America/Sao_Paulo, ver
+ * package.json). Antes devolvia o dia em UTC, e das 21:00 em diante o "hoje" do
+ * painel virava amanhã: a recepção abria o "Novo +" às 21:30 e o campo Data já
+ * vinha com o dia seguinte. Dois casos deste bloco gravavam a convenção antiga
+ * (00:00Z esperando o dia UTC) e foram reescritos para o dia local.
+ */
+describe('isoDate (dia LOCAL)', () => {
   const cases: [Date, string][] = [
     [new Date(Date.UTC(2026, 5, 7, 12)), '2026-06-07'],
-    [new Date(Date.UTC(2026, 0, 1, 0)), '2026-01-01'],
+    // 00:00Z é 21:00 do dia ANTERIOR em São Paulo — inclusive na virada do ano.
+    [new Date(Date.UTC(2026, 0, 1, 0)), '2025-12-31'],
+    [new Date(Date.UTC(2026, 5, 7, 0, 0)), '2026-06-06'],
+    // 23:00Z ainda é 20:00 do mesmo dia: o corte é às 21:00, não à meia-noite.
     [new Date(Date.UTC(2026, 11, 31, 23)), '2026-12-31'],
     [new Date(Date.UTC(2024, 1, 29, 12)), '2024-02-29'],
     [new Date(Date.UTC(2026, 5, 7, 23, 59)), '2026-06-07'],
-    [new Date(Date.UTC(2026, 5, 7, 0, 0)), '2026-06-07'],
   ];
   it.each(cases)('formats %p as %p', (input, expected) => {
     expect(isoDate(input)).toBe(expected);
+  });
+
+  // O caso do laudo, escrito em horário local para não depender de aritmética de
+  // fuso na leitura: 21:30 de 09/08 continua sendo 09/08. Com o `isoDate` antigo
+  // (`toISOString().slice(0, 10)`) isto devolvia '2026-08-10' e falhava.
+  it('mantém o dia às 21:30, quando o UTC já virou', () => {
+    expect(isoDate(new Date(2026, 7, 9, 21, 30))).toBe('2026-08-09');
+  });
+
+  // Toda célula de calendário do painel nasce assim (`new Date(ano, mês, dia)`).
+  // Precisa continuar valendo o dia da própria célula — é o que garante que a
+  // mudança não mexeu na grade da agenda nem nos date pickers.
+  it('não muda para um Date à meia-noite local (célula de calendário)', () => {
+    expect(isoDate(new Date(2026, 7, 9))).toBe('2026-08-09');
+    expect(isoDate(new Date(2026, 0, 1))).toBe('2026-01-01');
+  });
+});
+
+/**
+ * `isoDateUtc` é o corpo ANTIGO do `isoDate`, preservado para reler campos que o
+ * backend grava à meia-noite UTC a partir de "YYYY-MM-DD"
+ * (Transaction.dueDate/paidAt/competenceDate, Purchase.date). Lidos em horário
+ * local voltariam um dia — reabrir a despesa só para trocar o valor puxaria o
+ * vencimento para trás e salvar gravaria o erro.
+ */
+describe('isoDateUtc (dia em UTC, p/ campos data-only)', () => {
+  it('devolve o dia gravado para um vencimento à meia-noite UTC', () => {
+    expect(isoDateUtc(new Date('2026-08-09T00:00:00.000Z'))).toBe('2026-08-09');
+  });
+  it('não escorrega na virada do ano', () => {
+    expect(isoDateUtc(new Date('2026-01-01T00:00:00.000Z'))).toBe('2026-01-01');
+  });
+  // É justamente onde ele difere do `isoDate`: mesmo instante, respostas
+  // diferentes de propósito. Se um dia as duas baterem, alguém unificou errado.
+  it('difere do isoDate num instante das 21:30 locais', () => {
+    const noite = new Date(2026, 7, 9, 21, 30);
+    expect(isoDate(noite)).toBe('2026-08-09');
+    expect(isoDateUtc(noite)).toBe('2026-08-10');
   });
 });
 

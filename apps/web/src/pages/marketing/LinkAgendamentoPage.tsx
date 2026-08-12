@@ -16,6 +16,7 @@ import {
 } from '../../components/icons';
 import { useBookingLink, useUpdateBookingLink } from '../../lib/queries/marketing';
 import { CLUB_ORIGIN } from '../../lib/config';
+import { AppSwitch } from '../../components/SwitchRow';
 
 // The public booking portal is served by the dedicated club app (apps/web-club)
 // at `${CLUB_ORIGIN}/:slug`, not by this admin app.
@@ -238,23 +239,12 @@ export function LinkAgendamentoPage() {
                     Quando inativo, clientes não conseguem agendar online.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={active}
+                <AppSwitch
+                  checked={active}
+                  onChange={() => toggleActive()}
+                  isDisabled={update.isPending}
                   aria-label="Ativar link"
-                  onClick={toggleActive}
-                  disabled={update.isPending}
-                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
-                    active ? 'bg-gold' : 'bg-default-300'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
-                      active ? 'left-6' : 'left-1'
-                    }`}
-                  />
-                </button>
+                />
               </div>
 
               {error && (

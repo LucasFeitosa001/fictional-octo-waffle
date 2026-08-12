@@ -13,6 +13,14 @@ const ALLOWED = new Set([
   'image/webp',
   'image/gif',
   'image/svg+xml',
+  'audio/ogg',
+  'audio/opus',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/aac',
+  'audio/webm',
+  'audio/wav',
+  'audio/x-wav',
 ]);
 
 export interface StoredUpload {
@@ -41,6 +49,17 @@ export class UploadsService {
 
   get provider(): 's3' | 'local' {
     return this.s3Enabled ? 's3' : 'local';
+  }
+
+  /**
+   * Só permite que o chat envie arquivos criados pelo nosso próprio endpoint de
+   * upload. Isso impede que uma URL arbitrária faça o worker Baileys buscar
+   * conteúdo de rede controlado pelo usuário (SSRF).
+   */
+  isTrustedUploadUrl(value: string): boolean {
+    if (/^\/api\/v1\/uploads\/file\/[A-Za-z0-9._-]+$/.test(value)) return true;
+    const base = this.publicBase.replace(/\/$/, '');
+    return Boolean(base) && value.startsWith(`${base}/uploads/`);
   }
 
   /**
@@ -138,9 +157,12 @@ export class UploadsService {
    * Absolute path on disk for a stored local file, or null when the name is
    * unsafe or the file does not exist. Only used by GET /uploads/file/:name.
    */
-  async resolveLocalFile(name: string): Promise<string | null> {
+  async resolveLocalFile(name: string, companyId: string): Promise<string | null> {
     // Path traversal guard: only allow basename characters we generated.
     if (!/^[A-Za-z0-9._-]+$/.test(name)) return null;
+    // O nome local incorpora o tenant. URL conhecida não autoriza uma sessão
+    // de outra empresa a ler foto, anamnese ou documento de cliente.
+    if (!name.startsWith(`${companyId}__`)) return null;
     const full = path.join(this.localRoot, name);
     // Extra safety: make sure the resolved path stays inside localRoot.
     if (!full.startsWith(this.localRoot + path.sep)) return null;
@@ -155,7 +177,15 @@ export class UploadsService {
 }
 
 function normalizeKind(kind: string | undefined): string {
-  const allowed = new Set(['logo', 'professional', 'product', 'service', 'customer', 'misc']);
+  const allowed = new Set([
+    'logo',
+    'professional',
+    'product',
+    'service',
+    'customer',
+    'whatsapp',
+    'misc',
+  ]);
   if (kind && allowed.has(kind)) return kind;
   return 'misc';
 }
@@ -173,6 +203,14 @@ function extFromMime(mime: string): string | undefined {
     'image/webp': 'webp',
     'image/gif': 'gif',
     'image/svg+xml': 'svg',
+    'audio/ogg': 'ogg',
+    'audio/opus': 'opus',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/aac': 'aac',
+    'audio/webm': 'webm',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
   };
   return map[mime.toLowerCase()];
 }

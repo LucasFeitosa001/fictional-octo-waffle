@@ -18,6 +18,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
+import { SalonPayModule } from './modules/salonpay/salonpay.module';
 import { PackagesModule } from './modules/packages/packages.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -25,8 +26,17 @@ import { MarketingModule } from './modules/marketing/marketing.module';
 import { GoalsModule } from './modules/goals/goals.module';
 import { AnamnesisTemplatesModule } from './modules/anamnesis-templates/anamnesis-templates.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { VoltrModule } from './modules/voltr/voltr.module';
+import { WhatsappInboxModule } from './modules/whatsapp-inbox/whatsapp-inbox.module';
 import { HelpModule } from './modules/help/help.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { QueuesModule } from './modules/queues/queues.module';
+import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
+import { InvitesModule } from './modules/invites/invites.module';
+import { PlatformModule } from './modules/platform/platform.module';
 
 @Module({
   imports: [
@@ -49,6 +59,7 @@ import { HelpModule } from './modules/help/help.module';
     SuppliersModule,
     PurchasesModule,
     CommissionsModule,
+    SalonPayModule,
     PackagesModule,
     MembershipsModule,
     ReportsModule,
@@ -56,8 +67,19 @@ import { HelpModule } from './modules/help/help.module';
     GoalsModule,
     AnamnesisTemplatesModule,
     UploadsModule,
+    DocumentsModule,
     WhatsappModule,
+    VoltrModule,
+    WhatsappInboxModule,
     HelpModule,
+    NotificationsModule,
+    QueuesModule,
+    CampaignsModule,
+    FeatureFlagsModule,
+    InvitesModule,
+    // Console de suporte da SalonPass (admin.salonpass.com.br). Caminho de
+    // autenticação próprio, sem interseção com o do tenant — ver estudo 135.
+    PlatformModule,
   ],
 })
 export class AppModule {}

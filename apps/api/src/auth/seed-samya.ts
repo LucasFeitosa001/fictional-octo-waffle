@@ -29,7 +29,7 @@ import {
   MembershipStatus,
   DiscountType,
 } from '@beautypass/db';
-import { auth } from './better-auth';
+import { auth, ensureOwnerProfessional } from './better-auth';
 
 const SAMYA_EMAIL = 'samya@beautypass.dev';
 const SAMYA_PASSWORD = 'samya123';
@@ -104,6 +104,10 @@ async function ensureSamyaUser(): Promise<{ userId: string; companyId: string }>
 async function main() {
   const { userId, companyId } = await ensureSamyaUser();
 
+  // A dona Samya também é uma Professional (aparece na agenda). Idempotente e
+  // fora do guard de demo, pra valer mesmo quando a demo já foi semeada antes.
+  await ensureOwnerProfessional(companyId, userId, SAMYA_NAME);
+
   // Idempotency guard for the heavy demo data.
   const existingServices = await prisma.service.count({ where: { companyId } });
   if (existingServices > 0) {
@@ -113,18 +117,18 @@ async function main() {
     return;
   }
 
-  // ===== SERVICE CATEGORIES & SERVICES ==================================
-  const catCabelo = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Cabelo', displayOrder: 0 },
+  // ===== PRODUCT CATEGORIES & SERVICES ==================================
+  const catCabelo = await prisma.productCategory.create({
+    data: { companyId, name: 'Cabelo' },
   });
-  const catUnhas = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Unhas', displayOrder: 1 },
+  const catUnhas = await prisma.productCategory.create({
+    data: { companyId, name: 'Unhas' },
   });
-  const catEstetica = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Estética', displayOrder: 2 },
+  const catEstetica = await prisma.productCategory.create({
+    data: { companyId, name: 'Estética' },
   });
-  const catSobrancelha = await prisma.serviceCategory.create({
-    data: { companyId, name: 'Sobrancelha & Cílios', displayOrder: 3 },
+  const catSobrancelha = await prisma.productCategory.create({
+    data: { companyId, name: 'Sobrancelha & Cílios' },
   });
 
   const serviceDefs = [
@@ -220,8 +224,8 @@ async function main() {
   const brandLoreal = await prisma.brand.create({ data: { companyId, name: "L'Oréal" } });
   const brandOPI = await prisma.brand.create({ data: { companyId, name: 'OPI' } });
 
-  const pcCabelo = await prisma.productCategory.create({ data: { companyId, name: 'Cabelo' } });
-  const pcUnhas = await prisma.productCategory.create({ data: { companyId, name: 'Unhas' } });
+  const pcCabelo = catCabelo;
+  const pcUnhas = catUnhas;
   const pcRevenda = await prisma.productCategory.create({ data: { companyId, name: 'Revenda' } });
 
   const supplier1 = await prisma.supplier.create({

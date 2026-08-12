@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
   Button,
@@ -8,12 +9,15 @@ import {
   ListBox,
   Select,
   Spinner,
-  Switch,
   TextField,
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
+import { DatePicker } from '../components/DatePicker';
+import { PhoneField } from '../components/PhoneField';
 import { Drawer } from '../components/Drawer';
+import { SwitchRow } from '../components/SwitchRow';
 import { HelpTooltip } from '../components/HelpTooltip';
+import { AppTabs } from '../components/AppTabs';
 import { useConfirm } from '../components/ConfirmDialog';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import {
@@ -28,17 +32,23 @@ import {
   IconInfo,
   IconLayers,
   IconLink,
+  IconMegaphone,
   IconMessage,
   IconPencil,
   IconPlus,
   IconReceipt,
   IconTrash,
   IconWallet,
+  IconWhatsApp,
   IconX,
 } from '../components/icons';
 import { formatDate, formatDateTime, formatMoney, initials, toDateInput } from '../lib/format';
 import { useUploadImage } from '../hooks/useUploadImage';
-import { useCustomers } from '../lib/queries';
+import { NewAppointmentModal } from '../components/NewAppointmentModal';
+import { useCustomers, useCreateOrder } from '../lib/queries';
+import { useFeatures } from '../lib/queries/features';
+import { useEnviarArquivoNoWhatsapp } from '../lib/queries/whatsappMedia';
+import type { CustomerCreated, CustomerFileView } from '../lib/queries/clientes';
 import {
   useAdjustCashback,
   useCreateAnamnesis,
@@ -72,6 +82,7 @@ import {
   type AnamnesisQuestion,
   type AnamnesisTemplate,
 } from '../lib/queries/anamnese';
+import { useCustomerInteractions } from '../lib/queries/interacoes';
 import type { CustomerDebt, CustomerFull } from '../lib/types';
 
 // =====================================================================
@@ -108,39 +119,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ToggleRow({
-  label,
-  hint,
-  help,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  help?: React.ReactNode;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <Switch
-      isSelected={checked}
-      onChange={onChange}
-      className="flex w-full items-center justify-between gap-3 py-1.5"
-    >
-      <span className="min-w-0 text-sm text-foreground">
-        <span className="inline-flex items-center">
-          {label}
-          {help && <HelpTooltip>{help}</HelpTooltip>}
-        </span>
-        {hint && <span className="block text-xs text-muted">{hint}</span>}
-      </span>
-      <Switch.Control>
-        <Switch.Thumb />
-      </Switch.Control>
-    </Switch>
-  );
-}
-
 // Redes sociais suportadas na UI. `key` é o valor gravado em
 // CustomerSocialProfileInput.platform; `label`/`placeholder` são só apresentação.
 const SOCIAL_PLATFORMS: { key: string; label: string; placeholder: string }[] = [
@@ -162,11 +140,18 @@ function CustomerForm({
   customer,
   onDone,
   onCancel,
+  initialName,
 }: {
   mode: 'create' | 'edit';
   customer?: CustomerFull | null;
-  onDone: () => void;
+  /**
+   * Recebe o cliente recém-criado quando `mode === 'create'`. Quem só quer
+   * fechar (o uso antigo) ignora o argumento e nada muda. Ver estudo 155.
+   */
+  onDone: (criado?: CustomerCreated) => void;
   onCancel?: () => void;
+  /** Nome já digitado na busca que trouxe a pessoa até aqui. */
+  initialName?: string;
 }) {
   const create = useCreateCustomer();
   const update = useUpdateCustomer();
@@ -258,7 +243,9 @@ function CustomerForm({
   }
 
   useEffect(() => {
-    setName(customer?.name ?? '');
+    // Em `create`, aproveita o nome que a pessoa já digitou na busca — ela não
+    // deve ter de escrever de novo o que acabou de procurar. Ver estudo 155.
+    setName(customer?.name ?? initialName ?? '');
     setNickname(customer?.nickname ?? '');
     setPhone(customer?.phone ?? '');
     setSecondaryPhone(customer?.secondaryPhone ?? '');
@@ -315,7 +302,7 @@ function CustomerForm({
     );
     setCepLoading(false);
     setError(null);
-  }, [customer]);
+  }, [customer, initialName]);
 
   const referralOptions = useMemo(
     () => (customersQ.data?.data ?? []).filter((c) => c.id !== customer?.id),
@@ -364,19 +351,37 @@ function CustomerForm({
     }
   }
 
+  /**
+   * Campo de texto que a pessoa pode APAGAR.
+   *
+   * Vazio na EDIÇÃO vira `null` — que o backend lê como "apague este campo"
+   * (estudo 141). Antes ia `undefined`, o `JSON.stringify` omitia a chave e o
+   * PATCH entendia "não mexa": a recepcionista limpava o Celular, recebia
+   * "Cliente salvo" em verde e o número antigo — às vezes o de OUTRA pessoa —
+   * continuava no cadastro, recebendo as confirmações da cliente.
+   *
+   * Na CRIAÇÃO continua `undefined`: campo em branco de cadastro novo é
+   * "não informado", e mandar `null` só encheria o corpo de chaves vazias.
+   */
+  function apagavel(valor: string): string | null | undefined {
+    const limpo = valor.trim();
+    if (limpo) return limpo;
+    return mode === 'edit' ? null : undefined;
+  }
+
   async function handleSave() {
     setError(null);
     const discountNum = discount.trim() ? Number(discount) : undefined;
     const body: CustomerBody = {
       name: name.trim(),
-      nickname: nickname.trim() || undefined,
-      phone: phone.trim() || undefined,
-      secondaryPhone: secondaryPhone.trim() || undefined,
-      email: email.trim() || undefined,
-      birthday: birthday || undefined,
-      cpf: cpf.trim() || undefined,
-      cnpj: cnpj.trim() || undefined,
-      rg: rg.trim() || undefined,
+      nickname: apagavel(nickname),
+      phone: apagavel(phone),
+      secondaryPhone: apagavel(secondaryPhone),
+      email: apagavel(email),
+      birthday: apagavel(birthday),
+      cpf: apagavel(cpf),
+      cnpj: apagavel(cnpj),
+      rg: apagavel(rg),
       avatarUrl: avatarUrl.trim() || undefined,
       defaultDiscountPercent:
         discountNum != null && Number.isFinite(discountNum) ? discountNum : undefined,
@@ -398,22 +403,25 @@ function CustomerForm({
         if (url) acc.push({ platform: p.key, url });
         return acc;
       }, []),
-      cep: cep.trim() || undefined,
-      street: street.trim() || undefined,
-      number: number.trim() || undefined,
-      district: district.trim() || undefined,
-      city: city.trim() || undefined,
-      state: state.trim() || undefined,
-      complement: complement.trim() || undefined,
-      observations: observations.trim() || undefined,
+      cep: apagavel(cep),
+      street: apagavel(street),
+      number: apagavel(number),
+      district: apagavel(district),
+      city: apagavel(city),
+      state: apagavel(state),
+      complement: apagavel(complement),
+      observations: apagavel(observations),
     };
     try {
       if (mode === 'edit' && customer) {
         await update.mutateAsync({ id: customer.id, body });
-      } else {
-        await create.mutateAsync(body);
+        onDone();
+        return;
       }
-      onDone();
+      // Devolve quem foi criado para quem abriu o cadastro já sair com a
+      // cliente selecionada, sem ter de buscá-la de novo. Ver estudo 155.
+      const criado = await create.mutateAsync(body);
+      onDone(criado);
     } catch (err) {
       setError(
         err instanceof ApiClientError ? err.message : 'Não foi possível salvar o cliente.',
@@ -485,19 +493,18 @@ function CustomerForm({
               <Input placeholder="Como é chamado(a)" />
             </TextField>
           </Field>
+          {/* País + número nos dois. Os placeholders antigos pediam formatos
+              DIFERENTES em cada campo (+1 num, +55 no outro), e o cadastro saía
+              metade com DDI e metade sem. Ver estudo 57. */}
           <Field label="Celular">
-            <TextField value={phone} onChange={setPhone} aria-label="Celular">
-              <Input placeholder="(00) 00000-0000" />
-            </TextField>
+            <PhoneField value={phone} onChange={setPhone} ariaLabel="Celular" />
           </Field>
           <Field label="Telefone">
-            <TextField
+            <PhoneField
               value={secondaryPhone}
               onChange={setSecondaryPhone}
-              aria-label="Telefone"
-            >
-              <Input placeholder="(00) 0000-0000" />
-            </TextField>
+              ariaLabel="Telefone"
+            />
           </Field>
           <Field label="E-mail">
             <TextField value={email} onChange={setEmail} aria-label="E-mail">
@@ -505,13 +512,7 @@ function CustomerForm({
             </TextField>
           </Field>
           <Field label="Aniversário">
-            <input
-              type="date"
-              value={birthday}
-              onChange={(e) => setBirthday(e.target.value)}
-              aria-label="Aniversário"
-              className="w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
-            />
+            <DatePicker value={birthday} onChange={setBirthday} ariaLabel="Aniversário" />
           </Field>
           <Field label="CPF">
             <TextField value={cpf} onChange={setCpf} aria-label="CPF">
@@ -545,21 +546,42 @@ function CustomerForm({
           </Field>
         </div>
         <div className="divide-y divide-[var(--color-soft-border)] rounded-lg border border-[var(--color-soft-border)] bg-white px-3">
-          <ToggleRow
+          <SwitchRow
             label="Receber notificações"
             checked={notificationsEnabled}
             onChange={setNotificationsEnabled}
+            className="py-1.5"
           />
-          <ToggleRow label="WhatsApp" checked={whatsappOptIn} onChange={setWhatsappOptIn} />
-          <ToggleRow label="SMS" checked={smsOptIn} onChange={setSmsOptIn} />
-          <ToggleRow
-            label="Bloquear acesso online"
-            hint="Impede login/agendamento online"
-            help="Cliente não consegue entrar no app nem agendar pela internet"
+          <SwitchRow
+            label="WhatsApp"
+            checked={whatsappOptIn}
+            onChange={setWhatsappOptIn}
+            className="py-1.5"
+          />
+          <SwitchRow
+            label="SMS"
+            checked={smsOptIn}
+            onChange={setSmsOptIn}
+            className="py-1.5"
+          />
+          <SwitchRow
+            label={
+              <span className="inline-flex items-center">
+                Bloquear acesso online
+                <HelpTooltip>Cliente não consegue entrar no app nem agendar pela internet</HelpTooltip>
+              </span>
+            }
+            description="Impede login/agendamento online"
             checked={onlineAccessBlocked}
             onChange={setOnlineAccessBlocked}
+            className="py-1.5"
           />
-          <ToggleRow label="Ativo" checked={active} onChange={setActive} />
+          <SwitchRow
+            label="Ativo"
+            checked={active}
+            onChange={setActive}
+            className="py-1.5"
+          />
         </div>
       </div>
 
@@ -811,7 +833,21 @@ function CustomerForm({
         </div>
       )}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      {/* Barra de ações GRUDADA no rodapé, com a mesma cara do rodapé do Drawer.
+          No celular o formulário são seis blocos (Cadastro, Configuração,
+          Relacionamento, Redes sociais, Endereço, Observações) e o Salvar ficava
+          no fim de uma rolagem longa — a dona digitava nome e telefone e não
+          achava o botão. É o único cadastro do painel sem rodapé fixo ('Novo
+          profissional' tem). Não uso a prop `footer` do Drawer porque quem tem
+          `canSave`/`pending`/`handleSave` é este formulário, e passar dois botões
+          para o Drawer exigiria içar o estado inteiro para os dois chamadores
+          (criação e perfil) — refatoração grande para um ajuste de ergonomia.
+          O `-mx-4 px-4` sangra até a borda no celular, onde o respiro lateral é
+          do corpo do Drawer; no desktop a coluna já tem a largura certa. */}
+      <div
+        className="sticky bottom-0 z-10 -mx-4 mt-1 flex flex-col-reverse gap-2 border-t border-[var(--color-soft-border)] bg-warm-white px-4 pt-3 sm:flex-row sm:justify-end md:mx-0 md:px-0"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
         {onCancel && (
           <Button variant="outline" className="w-full sm:w-auto" onClick={onCancel}>
             Cancelar
@@ -1068,13 +1104,7 @@ function DebitosTab({ customerId }: { customerId: string }) {
                 </TextField>
               </Field>
               <Field label="Vencimento" className="min-w-0">
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  aria-label="Vencimento"
-                  className="w-full min-w-0 rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-foreground"
-                />
+                <DatePicker value={dueDate} onChange={setDueDate} ariaLabel="Vencimento" />
               </Field>
             </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1591,6 +1621,7 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 };
 
 function VendasTab({ customerId }: { customerId: string }) {
+  const navigate = useNavigate();
   const q = useCustomerOrders(customerId);
 
   if (q.isLoading) return <LoadingState />;
@@ -1611,8 +1642,22 @@ function VendasTab({ customerId }: { customerId: string }) {
           {list.map((o) => {
             const canceled = o.status === 'canceled';
             const finished = o.status === 'finished';
+            const openOrder = () => navigate(`/comandas/${o.id}`);
             return (
-              <Card key={o.id} className="border border-[var(--color-soft-border)] bg-white">
+              <Card
+                key={o.id}
+                role="button"
+                tabIndex={0}
+                onClick={openOrder}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openOrder();
+                  }
+                }}
+                aria-label={`Abrir comanda #${o.number}`}
+                className="cursor-pointer border border-[var(--color-soft-border)] bg-white transition-colors hover:border-[var(--sp-primary)] hover:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sp-primary)]"
+              >
                 <Card.Content className="flex flex-col gap-2 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -1644,8 +1689,12 @@ function VendasTab({ customerId }: { customerId: string }) {
                           key={it.id}
                           className="flex items-center justify-between text-sm text-foreground"
                         >
+                          {/* Nome real do serviço/produto. Antes imprimia só a
+                              PALAVRA "Serviço", então uma comanda com cinco
+                              itens virava "Serviço · Serviço · Serviço". O
+                              backend passou a resolver `itemName`. Estudo 54. */}
                           <span className="min-w-0 truncate">
-                            {it.kind === 'product' ? 'Produto' : 'Serviço'}
+                            {it.itemName ?? (it.kind === 'product' ? 'Produto' : 'Serviço')}
                             {Number(it.quantity) > 1 ? ` ×${Number(it.quantity)}` : ''}
                           </span>
                           <span className="font-medium">{formatMoney(it.grossValue)}</span>
@@ -2174,16 +2223,12 @@ function AnswerField({
 
   if (question.type === 'boolean') {
     return (
-      <Switch
-        isSelected={value === true}
+      <SwitchRow
+        label={question.label}
+        checked={value === true}
         onChange={onChange}
-        className="flex w-full items-center justify-between gap-3 py-1"
-      >
-        <span className="min-w-0 text-sm text-foreground">{question.label}</span>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-      </Switch>
+        className="py-1"
+      />
     );
   }
 
@@ -2204,18 +2249,50 @@ function AnswerField({
 export function CustomerCreateModal({
   isOpen,
   onClose,
+  onCreated,
+  initialName,
+  zClass,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  /** Avisa quem abriu, para ele já sair com a cliente selecionada. Estudo 155. */
+  onCreated?: (criado: CustomerCreated) => void;
+  /** Nome já digitado na busca que trouxe a pessoa até aqui. */
+  initialName?: string;
+  /**
+   * Empilhamento: aberto de dentro da comanda, precisa subir acima do picker
+   * (z-[90]). O padrão do Drawer serve para quem abre pelo menu "Novo".
+   */
+  zClass?: string;
 }) {
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title="Novo cliente"
-      widthClass="sm:w-[83vw] sm:max-w-[1200px]"
+      widthClass="sm:w-[760px]"
+      zClass={zClass}
+      fullscreen
     >
-      {isOpen && <CustomerForm mode="create" onDone={onClose} onCancel={onClose} />}
+      {isOpen && (
+        // Mesma régua do perfil, com tudo desabilitado menos "Cadastro" — é
+        // como o Belasis abre "Novo cliente", e mostra de cara o que o cliente
+        // vai ter depois de salvo. Ver estudo 63.
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+          <PerfilMenuLateral ativo="cadastro" somenteCadastro />
+          <div className="min-w-0 flex-1">
+            <CustomerForm
+              mode="create"
+              initialName={initialName}
+              onDone={(criado) => {
+                if (criado) onCreated?.(criado);
+                onClose();
+              }}
+              onCancel={onClose}
+            />
+          </div>
+        </div>
+      )}
     </Drawer>
   );
 }
@@ -2249,9 +2326,50 @@ function ImagensTab({ customerId }: { customerId: string }) {
   const deleteFile = useDeleteCustomerFile(customerId);
   const uploadImage = useUploadImage();
   const confirm = useConfirm();
+  // MÓDULO "Envio de imagens e arquivos": a aba já guardava o arquivo; o que
+  // faltava era MANDAR para a cliente, que é o que o adicional promete. O botão
+  // só existe para quem tem o módulo — sem ele, a aba fica como sempre foi.
+  const features = useFeatures();
+  const podeEnviar = (features.data?.features ?? []).includes('media_messages');
+  const enviarArquivo = useEnviarArquivoNoWhatsapp();
+  const [enviando, setEnviando] = useState<CustomerFileView | null>(null);
+  const [recado, setRecado] = useState('');
+  const [envioOk, setEnvioOk] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function confirmarEnvio() {
+    if (!enviando) return;
+    setError(null);
+    setEnvioOk(null);
+    try {
+      const r = await enviarArquivo.mutateAsync({
+        customerId,
+        type: isImageFile(enviando) ? 'image' : 'document',
+        url: enviando.url,
+        mimeType: enviando.mimeType || (isImageFile(enviando) ? 'image/jpeg' : 'application/pdf'),
+        fileName: enviando.name,
+        caption: recado.trim() || undefined,
+        // Mesmo clique repetido não vira dois envios.
+        requestKey: `arquivo:${enviando.id}:${Date.now()}`,
+      });
+      // Status honesto: entrou na fila. "Entregue" só o ACK do WhatsApp diz.
+      setEnvioOk(
+        r.deduplicated
+          ? 'Esse arquivo já estava na fila para esta cliente.'
+          : 'Na fila para envio. O histórico de mensagens mostra quando sair.',
+      );
+      setEnviando(null);
+      setRecado('');
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível enviar o arquivo agora.',
+      );
+    }
+  }
 
   const busy = uploadImage.isPending || createFile.isPending;
 
@@ -2338,6 +2456,56 @@ function ImagensTab({ customerId }: { customerId: string }) {
         </div>
       )}
 
+      {envioOk && (
+        <div className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+          {envioOk}
+        </div>
+      )}
+
+      {/* Confirmação do envio: o recado é opcional e vai como legenda do
+          arquivo. Uma pessoa clica, lê o nome do arquivo e confirma — é essa
+          confirmação que autoriza o disparo. */}
+      <Drawer
+        isOpen={Boolean(enviando)}
+        onClose={() => setEnviando(null)}
+        title="Enviar para a cliente"
+      >
+        <div className="flex flex-col gap-4 p-4">
+          <div className="rounded-lg border border-[var(--color-soft-border)] bg-canvas p-3">
+            <div className="text-xs text-muted">Arquivo</div>
+            <div className="truncate text-sm font-medium text-foreground">
+              {enviando?.name}
+            </div>
+          </div>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted">Recado (opcional)</span>
+            <textarea
+              value={recado}
+              onChange={(e) => setRecado(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Ex.: segue a referência que combinamos."
+              className="w-full rounded-lg border border-[var(--color-soft-border)] bg-white p-2.5 text-sm outline-none focus:border-primary"
+            />
+          </label>
+          <p className="m-0 text-xs text-muted">
+            Vai pelo WhatsApp do salão, para o número do cadastro da cliente.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setEnviando(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              isDisabled={enviarArquivo.isPending}
+              onClick={() => void confirmarEnvio()}
+            >
+              {enviarArquivo.isPending ? 'Enviando…' : 'Enviar'}
+            </Button>
+          </div>
+        </div>
+      </Drawer>
+
       {filesQ.isLoading ? (
         <LoadingState />
       ) : filesQ.isError ? (
@@ -2388,6 +2556,20 @@ function ImagensTab({ customerId }: { customerId: string }) {
                         >
                           <IconDownload size={13} />
                         </a>
+                        {podeEnviar && (
+                          <button
+                            type="button"
+                            aria-label={`Enviar ${f.name} para a cliente`}
+                            title="Enviar para a cliente pelo WhatsApp"
+                            className="rounded-md bg-white/90 p-1 text-primary hover:bg-white"
+                            onClick={() => {
+                              setEnviando(f);
+                              setRecado('');
+                            }}
+                          >
+                            <IconMessage size={13} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Excluir ${f.name}`}
@@ -2444,6 +2626,20 @@ function ImagensTab({ customerId }: { customerId: string }) {
                         >
                           <IconDownload size={16} />
                         </a>
+                        {podeEnviar && (
+                          <button
+                            type="button"
+                            aria-label={`Enviar ${f.name} para a cliente`}
+                            title="Enviar para a cliente pelo WhatsApp"
+                            className="rounded-md p-1.5 text-primary hover:bg-primary/10"
+                            onClick={() => {
+                              setEnviando(f);
+                              setRecado('');
+                            }}
+                          >
+                            <IconMessage size={16} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Excluir ${f.name}`}
@@ -2466,62 +2662,307 @@ function ImagensTab({ customerId }: { customerId: string }) {
 }
 
 // =====================================================================
+// Aba Mensagens — timeline de interações (WhatsApp / campanhas)
+// =====================================================================
+
+// Rótulos legíveis do `kind` da mensagem (mesma convenção do backend/Belasis).
+const INTERACTION_KIND_LABEL: Record<string, string> = {
+  reminder: 'Lembrete',
+  confirmation: 'Confirmação',
+  cancellation: 'Cancelamento',
+  followup: 'Follow-up',
+  campaign: 'Campanha',
+  invite: 'Convite',
+  manager: 'Aviso à equipe',
+  manual: 'Manual',
+};
+
+function interactionKindLabel(kind: string | null): string {
+  if (!kind) return 'Mensagem';
+  return INTERACTION_KIND_LABEL[kind] ?? kind;
+}
+
+// Status de envio → rótulo + cor do Chip (outbox: pending/sent/failed; campanha:
+// queued/skipped/pending/sent/failed). Desconhecidos caem em "default".
+const INTERACTION_STATUS: Record<
+  string,
+  { label: string; color: 'success' | 'danger' | 'warning' | 'default' }
+> = {
+  sent: { label: 'Enviado', color: 'success' },
+  delivered: { label: 'Entregue', color: 'success' },
+  failed: { label: 'Falha', color: 'danger' },
+  pending: { label: 'Pendente', color: 'warning' },
+  queued: { label: 'Na fila', color: 'warning' },
+  skipped: { label: 'Ignorado', color: 'default' },
+};
+
+function interactionStatus(status: string): {
+  label: string;
+  color: 'success' | 'danger' | 'warning' | 'default';
+} {
+  return INTERACTION_STATUS[status] ?? { label: status, color: 'default' };
+}
+
+// Janela de paginação (offset). O backend ordena por data desc e pagina.
+const INTERACTIONS_PAGE = 50;
+
+function MensagensTab({ customerId }: { customerId: string }) {
+  const [limit, setLimit] = useState(INTERACTIONS_PAGE);
+  const q = useCustomerInteractions(customerId, { limit });
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return <ErrorState onRetry={() => q.refetch()} />;
+  const data = q.data;
+  const items = data?.data ?? [];
+  const total = data?.total ?? 0;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SectionTitle>Mensagens</SectionTitle>
+      {items.length === 0 ? (
+        <EmptyState
+          icon={<IconMessage size={28} />}
+          title="Nenhuma mensagem"
+          description="As mensagens enviadas a este cliente aparecerão aqui."
+        />
+      ) : (
+        <>
+          <div className="flex flex-col gap-2">
+            {items.map((m) => {
+              const st = interactionStatus(m.status);
+              const isCampaign = m.channel === 'campaign';
+              return (
+                <Card key={m.id} className="border border-[var(--color-soft-border)] bg-white">
+                  <Card.Content className="flex gap-3 p-3">
+                    <span
+                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fdf7e8] text-[#a97e18]"
+                      aria-hidden
+                    >
+                      {isCampaign ? (
+                        <IconMegaphone size={16} />
+                      ) : (
+                        <IconWhatsApp size={16} />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">
+                          {interactionKindLabel(m.kind)}
+                        </span>
+                        <Chip variant="soft" color={st.color} size="sm">
+                          {st.label}
+                        </Chip>
+                        <span className="ml-auto text-xs text-muted">
+                          {formatDateTime(m.at)}
+                        </span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
+                        {m.text}
+                      </p>
+                    </div>
+                  </Card.Content>
+                </Card>
+              );
+            })}
+          </div>
+          {items.length < total && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-center"
+              isDisabled={q.isFetching}
+              onClick={() => setLimit((l) => l + INTERACTIONS_PAGE)}
+            >
+              {q.isFetching ? 'Carregando…' : 'Carregar mais'}
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
 // Modal de perfil com abas
 // =====================================================================
 
 // Menu interno lateral do perfil — ordem e rótulos 1:1 com o Belasis.
-const PERFIL_MENU: { id: string; label: string }[] = [
-  { id: 'cadastro', label: 'Cadastro' },
-  { id: 'painel', label: 'Painel' },
-  { id: 'debitos', label: 'Débitos' },
-  { id: 'creditos', label: 'Créditos' },
-  { id: 'cashback', label: 'Cashback' },
-  { id: 'agendamentos', label: 'Agendamentos' },
-  { id: 'vendas', label: 'Vendas' },
-  { id: 'pacotes', label: 'Pacotes' },
-  { id: 'mensagens', label: 'Mensagens' },
-  { id: 'anotacoes', label: 'Anotações' },
-  { id: 'imagens', label: 'Imagens e Arquivos' },
-  { id: 'anamneses', label: 'Anamneses' },
-  { id: 'assinaturas', label: 'Vendas por Assinatura' },
+const PERFIL_MENU: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: 'cadastro', label: 'Cadastro', icon: <IconPencil size={16} /> },
+  { id: 'painel', label: 'Painel', icon: <IconInfo size={16} /> },
+  { id: 'debitos', label: 'Débitos', icon: <IconCash size={16} /> },
+  { id: 'creditos', label: 'Créditos', icon: <IconWallet size={16} /> },
+  { id: 'cashback', label: 'Cashback', icon: <IconGift size={16} /> },
+  { id: 'agendamentos', label: 'Agendamentos', icon: <IconCalendar size={16} /> },
+  { id: 'vendas', label: 'Vendas', icon: <IconReceipt size={16} /> },
+  { id: 'pacotes', label: 'Pacotes', icon: <IconLayers size={16} /> },
+  { id: 'mensagens', label: 'Mensagens', icon: <IconMessage size={16} /> },
+  { id: 'anotacoes', label: 'Anotações', icon: <IconPencil size={16} /> },
+  { id: 'imagens', label: 'Imagens e Arquivos', icon: <IconFolder size={16} /> },
+  { id: 'anamneses', label: 'Anamneses', icon: <IconInfo size={16} /> },
+  { id: 'assinaturas', label: 'Vendas por Assinatura', icon: <IconLayers size={16} /> },
 ];
+
+/**
+ * Régua vertical das seções do cliente — a mesma no PERFIL e na CRIAÇÃO.
+ *
+ * No Belasis, "Novo cliente" abre com essa régua à esquerda e todas as abas
+ * desabilitadas menos "Cadastro" (`belasis-reference/_structure/drawers/
+ * clients--drawer-1.txt`: `ant-tabs-left` + `ant-tabs-tab-disabled`). Nossa
+ * criação não tinha régua nenhuma — o dono cobrou. Ver estudo 63.
+ */
+function PerfilMenuLateral({
+  ativo,
+  onSelecionar,
+  somenteCadastro = false,
+}: {
+  ativo: string;
+  onSelecionar?: (id: string) => void;
+  /** Criação: só "Cadastro" clica; o resto existe, mas apagado. */
+  somenteCadastro?: boolean;
+}) {
+  return (
+    <nav
+      aria-label="Seções do cliente"
+      className="hidden shrink-0 flex-col gap-0.5 border-r border-line pr-3 md:flex md:w-[210px]"
+    >
+      {PERFIL_MENU.map((secao) => {
+        const bloqueada = somenteCadastro && secao.id !== 'cadastro';
+        const estaAtiva = ativo === secao.id;
+        return (
+          <button
+            key={secao.id}
+            type="button"
+            disabled={bloqueada}
+            onClick={() => !bloqueada && onSelecionar?.(secao.id)}
+            aria-current={estaAtiva ? 'page' : undefined}
+            title={
+              bloqueada
+                ? 'Disponível depois de salvar o cliente'
+                : undefined
+            }
+            className={[
+              'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+              bloqueada
+                ? 'cursor-not-allowed text-muted-ink/45'
+                : estaAtiva
+                  ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] font-medium text-primary'
+                  : 'text-muted-ink hover:bg-canvas hover:text-ink',
+            ].join(' ')}
+          >
+            <span
+              className={
+                bloqueada
+                  ? 'text-muted-ink/45'
+                  : estaAtiva
+                    ? 'text-primary'
+                    : 'text-muted-ink'
+              }
+            >
+              {secao.icon}
+            </span>
+            <span className="min-w-0 truncate">{secao.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
 
 export function ClientePerfilModal({
   customer,
   isOpen,
   onClose,
+  initialTab,
 }: {
   customer: CustomerFull | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Seção onde o perfil abre. Um dos ids de PERFIL_MENU. Padrão: 'cadastro'. */
+  initialTab?: string;
 }) {
-  const [tab, setTab] = useState('cadastro');
+  const navigate = useNavigate();
+  const [tab, setTab] = useState(initialTab ?? 'cadastro');
+  // Reposiciona quando o perfil é REABERTO por outro link (ex.: "R$ 0,00 em
+  // cashback" depois de já ter aberto em "crédito"). Sem isto o useState inicial
+  // congela na primeira aba e o segundo clique parece não fazer nada.
+  useEffect(() => {
+    if (isOpen && initialTab) setTab(initialTab);
+  }, [isOpen, initialTab, customer?.id]);
+  const [apptOpen, setApptOpen] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const createOrder = useCreateOrder();
   const panel = useCustomerPanel(isOpen && customer ? customer.id : null);
 
   useEffect(() => {
-    if (isOpen) setTab('cadastro');
-  }, [isOpen, customer?.id]);
+    if (isOpen) {
+      // `initialTab` MANDA: este efeito roda depois do de cima e voltava tudo
+      // para "Cadastro", então `?tab=vendas` (e o link "Ver vendas" do painel
+      // lateral da comanda) sempre caía na ficha. Ver estudo 54.
+      setTab(initialTab ?? 'cadastro');
+      setApptOpen(false);
+      setOrderError(null);
+    }
+  }, [isOpen, customer?.id, initialTab]);
 
   // Prefere o customer com relações (tags/dependentes) vindo do /panel.
   const full = panel.data?.customer ?? customer;
+
+  // Cliente pré-selecionado passado ao NewAppointmentModal — evita re-busca no
+  // picker: reaproveita os dados que já temos em mãos aqui no perfil.
+  const initialCustomer = customer
+    ? { id: customer.id, name: customer.name, phone: customer.phone ?? null }
+    : null;
+
+  // "Nova comanda" — abre uma comanda já vinculada ao cliente e navega direto
+  // para /comandas/:id (mesmo shell criado pelo CreateDrawer, só que com o
+  // customerId pré-preenchido). Fecha o perfil ao concluir.
+  async function handleNovaComanda() {
+    if (!customer || createOrder.isPending) return;
+    setOrderError(null);
+    try {
+      const order = await createOrder.mutateAsync({ customerId: customer.id });
+      onClose();
+      navigate(`/comandas/${order.id}`);
+    } catch (err) {
+      setOrderError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível abrir a comanda.',
+      );
+    }
+  }
 
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title={customer?.name ?? 'Cliente'}
-      widthClass="sm:w-[83vw] sm:max-w-[1200px]"
+      widthClass="sm:w-[760px]"
+      fullscreen
     >
+      {/* Fluxo cliente→agendamento: reaproveita o mesmo modal da Agenda, já com
+          o cliente pré-selecionado. Ao criar comanda por lá, navega e fecha. */}
+      <NewAppointmentModal
+        isOpen={apptOpen}
+        onOpenChange={setApptOpen}
+        initialCustomer={initialCustomer}
+        onCreatedOrder={(orderId) => {
+          setApptOpen(false);
+          onClose();
+          navigate(`/comandas/${orderId}`);
+        }}
+      />
       {customer && (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Avatar size="md">
               {customer.avatarUrl && (
                 <Avatar.Image src={customer.avatarUrl} alt={customer.name} />
               )}
               <Avatar.Fallback>{initials(customer.name ?? '?')}</Avatar.Fallback>
             </Avatar>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="truncate text-base font-semibold text-ink">
                 {customer.name}
               </div>
@@ -2530,30 +2971,53 @@ export function ClientePerfilModal({
               )}
             </div>
             {panel.isFetching && <Spinner size="sm" />}
+            {/* Ações rápidas: iniciar agendamento ou comanda já com o cliente. */}
+            <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+              <Button
+                variant="primary"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                onClick={() => {
+                  setOrderError(null);
+                  setApptOpen(true);
+                }}
+              >
+                <IconCalendar size={14} /> Agendar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                isDisabled={createOrder.isPending}
+                onClick={handleNovaComanda}
+              >
+                <IconReceipt size={14} />{' '}
+                {createOrder.isPending ? 'Abrindo…' : 'Nova comanda'}
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
-            {/* Menu interno lateral */}
-            <nav
-              aria-label="Seções do cliente"
-              className="flex shrink-0 gap-1 overflow-x-auto border-b border-line pb-2 sm:w-[173px] sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
-            >
-              {PERFIL_MENU.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setTab(m.id)}
-                  aria-current={tab === m.id ? 'page' : undefined}
-                  className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    tab === m.id
-                      ? 'bg-gold font-medium text-primary-foreground'
-                      : 'text-ink hover:bg-canvas'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </nav>
+          {orderError && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {orderError}
+            </div>
+          )}
+
+          {/* Menu VERTICAL à esquerda no desktop, como no Belasis — são 13 seções,
+              que em fileira horizontal viram um carrossel impossível de varrer.
+              No celular continua o carrossel do AppTabs: uma coluna de 13 itens
+              comeria a tela inteira antes do conteúdo. */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+            <PerfilMenuLateral ativo={tab} onSelecionar={setTab} />
+
+            <div className="md:hidden">
+              <AppTabs
+                items={PERFIL_MENU}
+                selectedKey={tab}
+                onSelectionChange={setTab}
+                ariaLabel="Seções do cliente"
+              />
+            </div>
 
             {/* Conteúdo da seção ativa */}
             <div className="min-w-0 flex-1">
@@ -2567,16 +3031,7 @@ export function ClientePerfilModal({
               {tab === 'agendamentos' && <AgendamentosTab customerId={customer.id} />}
               {tab === 'vendas' && <VendasTab customerId={customer.id} />}
               {tab === 'pacotes' && <PacotesTab customerId={customer.id} />}
-              {tab === 'mensagens' && (
-                <div className="flex flex-col gap-3">
-                  <SectionTitle>Mensagens</SectionTitle>
-                  <EmptyState
-                    icon={<IconMessage size={28} />}
-                    title="Nenhuma mensagem"
-                    description="As mensagens enviadas a este cliente aparecerão aqui."
-                  />
-                </div>
-              )}
+              {tab === 'mensagens' && <MensagensTab customerId={customer.id} />}
               {tab === 'anotacoes' && <AnotacoesTab customerId={customer.id} />}
               {tab === 'imagens' && <ImagensTab customerId={customer.id} />}
               {tab === 'anamneses' && <AnamnesesTab customerId={customer.id} />}

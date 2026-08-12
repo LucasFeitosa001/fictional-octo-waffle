@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
+import { toast } from './toast';
+import { TOAST_TIMEOUT_ERRO, toastSuccess } from './toast';
 import type {
   AppointmentRow,
   AvailabilityResponse,
@@ -7,6 +9,7 @@ import type {
   CompanyInfo,
   ConsumePackageItemBody,
   CreateAppointmentBody,
+  CreateAppointmentSeriesBody,
   Customer,
   CustomerPackageDetail,
   DashboardOverview,
@@ -29,6 +32,7 @@ export function useDashboard(from: string, to: string) {
 /** Service as returned by the API (extends shared type with extra fields). */
 export interface ServiceRow extends Service {
   cashbackPercent?: string;
+  defaultCommissionPercent?: string;
   favorite?: boolean;
   visible?: boolean;
 }
@@ -42,6 +46,7 @@ export interface ServiceBody {
   imageUrl?: string | null;
   imageUrls?: string[];
   cashbackPercent?: number;
+  defaultCommissionPercent?: number;
   onlineBookable?: boolean;
   favorite?: boolean;
   visible?: boolean;
@@ -68,7 +73,10 @@ export function useCreateService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ServiceBody) => api.post<ServiceRow>('/services', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['services'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['services'] });
+      toastSuccess('Serviço cadastrado');
+    },
   });
 }
 
@@ -77,7 +85,10 @@ export function useUpdateService() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<ServiceBody> }) =>
       api.patch<ServiceRow>(`/services/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['services'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['services'] });
+      toastSuccess('Serviço salvo');
+    },
   });
 }
 
@@ -85,36 +96,84 @@ export function useDeleteService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ServiceRow>(`/services/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['services'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['services'] });
+      toastSuccess('Serviço excluído');
+    },
   });
 }
 
-export function useCustomers(search: string, page = 1, pageSize = 20) {
+export function useCustomers(
+  search: string,
+  page = 1,
+  pageSize = 20,
+  filters?: { active?: boolean; hasDebt?: boolean },
+) {
+  const active = filters ? filters.active : true;
   return useQuery({
-    queryKey: ['customers', search, page, pageSize],
+    queryKey: ['customers', search, page, pageSize, active, filters?.hasDebt],
     queryFn: () =>
       api.get<Paginated<Customer>>('/customers', {
         search: search || undefined,
         page,
         pageSize,
+        active,
+        hasDebt: filters?.hasDebt,
       }),
   });
 }
 
+/**
+ * Cadastro em linha do "+ Novo cliente" (agendamento).
+ *
+ * ATENÇÃO: este NÃO é o mesmo hook de `lib/queries/clientes.ts` — são dois
+ * `useCreateCustomer` no painel, e o `NewAppointmentModal` importa ESTE. Por
+ * isso o aviso de duplicidade precisa ser repetido aqui: a recepção que não
+ * achou a cliente na busca é exatamente quem cadastra de novo no meio do
+ * agendamento, e é ali que nasce a ficha repetida (histórico, cashback e
+ * débito partidos em duas). O backend cria o cliente do mesmo jeito e devolve
+ * `avisoDuplicidade` junto — bloquear é decisão do dono (mãe e filha dividem
+ * celular), avisar não é.
+ */
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { name: string; phone?: string }) =>
-      api.post<Customer>('/customers', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+      api.post<Customer & { avisoDuplicidade?: string }>('/customers', body),
+    onSuccess: (cliente) => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      // Fica bem mais tempo na tela que uma confirmação: é instrução
+      // ("confira se não é a mesma pessoa"), e a pessoa está no meio de outra
+      // tarefa (montando o agendamento).
+      if (cliente?.avisoDuplicidade) {
+        toast.warning(cliente.avisoDuplicidade, { timeout: TOAST_TIMEOUT_ERRO });
+      }
+    },
   });
 }
 
-export function useProfessionals(page = 1, pageSize = 50) {
+/**
+ * Lista de profissionais.
+ *
+ * O padrão é `status: 'active'` — profissional DESATIVADO não aparece em nenhum
+ * seletor (agendamento, comanda, vale, meta, despesa...). Só passa `'all'` quem
+ * precisa mesmo dos inativos: a tela de gestão (abas Ativos/Inativos) e quem
+ * resolve o NOME de um registro histórico feito por alguém já desativado.
+ */
+export function useProfessionals(
+  page = 1,
+  pageSize = 50,
+  opts?: { status?: 'active' | 'inactive' | 'all' },
+) {
+  const status = opts?.status ?? 'active';
   return useQuery({
-    queryKey: ['professionals', page, pageSize],
+    queryKey: ['professionals', page, pageSize, status],
     queryFn: () =>
-      api.get<Paginated<Professional>>('/professionals', { page, pageSize }),
+      api.get<Paginated<Professional>>('/professionals', {
+        page,
+        pageSize,
+        active: status === 'active' ? 'true' : status === 'inactive' ? 'false' : 'all',
+      }),
   });
 }
 
@@ -136,21 +195,115 @@ export function useAppointments(filters: {
   });
 }
 
+/**
+ * Resposta de GET /availability como ela REALMENTE chega.
+ *
+ * `motivo`/`motivoTexto` só vêm quando `slots` está vazio e dizem POR QUE
+ * ("Este profissional não executa este serviço", "Este profissional não atende
+ * neste dia" — appointments.service.ts:69-75). O tipo compartilhado
+ * (lib/types.ts:388) ainda não declara os dois campos, e por isso a tela
+ * imprimia a mesma frase muda nos cinco casos: a dona trocava de data cinco
+ * vezes sem descobrir que a profissional nem executa aquele serviço. Declarado
+ * aqui para a tela poder ler; mover para `AvailabilityResponse` fica pendente.
+ */
+export type AvailabilityComMotivo = AvailabilityResponse & {
+  motivo?: string;
+  motivoTexto?: string;
+};
+
+/**
+ * Recalcula a marca `busy` da grade com a duração REAL do agendamento.
+ *
+ * O endpoint monta a grade com a duração do `serviceId` que recebeu — um só. Se
+ * o agendamento tem dois serviços (ou a pessoa editou o campo "Duração"), a
+ * janela testada pelo backend é MENOR que a janela que o agendamento vai
+ * ocupar: a Laila atende a Joana das 14:30 às 15:30, a recepção marca "Escova"
+ * (30min) às 14:00 + "Hidratação" (60min), o chip das 14:00 aparece BRANCO e o
+ * agendamento nasce 14:00→15:30 por cima da Joana. Como não dá para pedir a
+ * duração ao endpoint hoje, buscamos os agendamentos do dia daquela
+ * profissional e refazemos o teste de sobreposição com a duração certa.
+ *
+ * Só gasta a requisição extra quando a duração real difere da duração da grade
+ * (que dá para inferir de `slot.end - slot.start`) — o caso comum, de um
+ * serviço só sem edição, não paga nada.
+ */
+async function marcarOcupadosPelaDuracaoReal(
+  grade: AvailabilityComMotivo,
+  professionalId: string,
+  duracaoRealMin?: number,
+): Promise<AvailabilityComMotivo> {
+  const slots = grade.slots ?? [];
+  if (!duracaoRealMin || slots.length === 0) return grade;
+
+  const duracaoDaGrade =
+    (new Date(slots[0].end).getTime() - new Date(slots[0].start).getTime()) / 60000;
+  if (!Number.isFinite(duracaoDaGrade) || duracaoDaGrade <= 0) return grade;
+  if (duracaoRealMin === duracaoDaGrade) return grade;
+
+  // Janela folgada de 12h para cada lado: o filtro do backend é pelo START do
+  // agendamento (appointments.service.ts:154-159), então quem começou antes do
+  // primeiro horário da grade ainda pode estar ocupando ele.
+  const primeiro = new Date(slots[0].start).getTime();
+  const ultimo = new Date(slots[slots.length - 1].start).getTime();
+  const folga = 12 * 60 * 60000;
+
+  let ocupacoes: { ini: number; fim: number }[];
+  try {
+    const agenda = await api.get<Paginated<AppointmentRow>>('/appointments', {
+      from: new Date(primeiro - folga).toISOString(),
+      to: new Date(ultimo + folga).toISOString(),
+      professionalId,
+    });
+    ocupacoes = (agenda.data ?? [])
+      // `canceled` não ocupa a agenda — mesma regra do ACTIVE_STATUSES do
+      // backend (appointments.service.ts:95-103).
+      .filter((appt) => appt.status !== 'canceled')
+      .map((appt) => ({
+        ini: new Date(appt.start).getTime(),
+        fim: new Date(appt.end).getTime(),
+      }));
+  } catch {
+    // Sem a agenda do dia (permissão, rede) é melhor devolver a grade como veio
+    // do que inventar "livre" ou "ocupado" — a marca continua a do backend.
+    return grade;
+  }
+
+  return {
+    ...grade,
+    slots: slots.map((slot) => {
+      const ini = new Date(slot.start).getTime();
+      const fim = ini + duracaoRealMin * 60000;
+      return { ...slot, busy: ocupacoes.some((o) => o.ini < fim && o.fim > ini) };
+    }),
+  };
+}
+
 export function useAvailability(
   serviceId: string | undefined,
   professionalId: string | undefined,
   date: string | undefined,
+  /**
+   * Duração REAL do agendamento em minutos: soma de TODOS os itens, já com o
+   * campo "Duração" que a pessoa editou. Entra na queryKey de propósito —
+   * adicionar um segundo serviço ou trocar a duração precisa refazer a busca,
+   * senão a marca "(ocupado)" fica congelada no tamanho do primeiro serviço.
+   */
+  duracaoRealMin?: number,
 ) {
   const enabled = Boolean(serviceId && professionalId && date);
   return useQuery({
-    queryKey: ['availability', serviceId, professionalId, date],
+    queryKey: ['availability', serviceId, professionalId, date, duracaoRealMin ?? null],
     enabled,
-    queryFn: () =>
-      api.get<AvailabilityResponse>('/availability', {
+    queryFn: async () => {
+      // O painel recebe a grade COMPLETA: horários ocupados vêm com `busy` e
+      // podem ser escolhidos (encaixe). Quem limita é o endpoint público.
+      const grade = await api.get<AvailabilityComMotivo>('/availability', {
         serviceId: serviceId!,
         professionalId: professionalId!,
         date: date!,
-      }),
+      });
+      return marcarOcupadosPelaDuracaoReal(grade, professionalId!, duracaoRealMin);
+    },
   });
 }
 
@@ -162,6 +315,27 @@ export function useCreateAppointment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess('Agendamento criado');
+    },
+  });
+}
+
+export function useCreateAppointmentSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateAppointmentSeriesBody) =>
+      api.post<{ data: AppointmentRow[]; count: number }>(
+        '/appointments/series',
+        body,
+      ),
+    onSuccess: ({ count }) => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess(
+        count === 1
+          ? 'Agendamento criado'
+          : `${count} agendamentos criados`,
+      );
     },
   });
 }
@@ -169,8 +343,19 @@ export function useCreateAppointment() {
 export function useSetAppointmentStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: AppointmentRow['status'] }) =>
-      api.patch<AppointmentRow>(`/appointments/${id}/status`, { status }),
+    mutationFn: ({
+      id,
+      status,
+      reason,
+    }: {
+      id: string;
+      status: AppointmentRow['status'];
+      reason?: string;
+    }) =>
+      api.patch<AppointmentRow>(`/appointments/${id}/status`, {
+        status,
+        ...(reason ? { reason } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -189,9 +374,23 @@ export function useOrders(status?: string) {
 export interface CreateOrderBody {
   customerId?: string;
   professionalId?: string;
+  /**
+   * Agendamento de origem. Com ele o POST é idempotente: se o agendamento já
+   * tem comanda, o backend devolve a existente em vez de abrir outra — é o que
+   * faz "Acessar comanda" acessar de verdade. Ver estudo 52.
+   */
+  appointmentId?: string;
   /** ISO date/datetime for the comanda. Defaults to "today" server-side. */
   date?: string;
   notes?: string;
+  items?: {
+    kind: 'service' | 'product';
+    refId: string;
+    professionalId?: string;
+    quantity?: number;
+    unitPrice?: number;
+    discount?: number;
+  }[];
 }
 
 export interface UpdateOrderBody {
@@ -202,10 +401,21 @@ export interface UpdateOrderBody {
 export function useCreateOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreateOrderBody) => api.post<OrderRow>('/orders', body),
-    onSuccess: () => {
+    mutationFn: (body: CreateOrderBody) =>
+      api.post<OrderRow & { reused?: boolean }>('/orders', body),
+    onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      // A agenda precisa saber que aquele agendamento passou a ter comanda —
+      // senão o botão continua dizendo "Abrir comanda" para algo que já tem, e
+      // o próximo clique parece criar outra. Ver estudo 52.
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      // Só anuncia criação quando criou. Quando o agendamento já tinha comanda,
+      // o backend devolve a MESMA (`reused`) e dizer "Comanda aberta" fazia
+      // parecer que tinha nascido outra.
+      toastSuccess(
+        order?.reused ? `Abrindo a comanda #${order.number} deste agendamento` : 'Comanda aberta',
+      );
     },
   });
 }
@@ -218,6 +428,7 @@ export function useUpdateOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess('Comanda atualizada');
     },
   });
 }
@@ -229,6 +440,7 @@ export function useDeleteOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toastSuccess('Comanda excluída');
     },
   });
 }
@@ -246,7 +458,8 @@ export interface AddOrderItemBody {
   refId: string;
   professionalId?: string;
   quantity?: number;
-  unitPrice: number;
+  /** Opcional: se ausente/0, o backend usa o preço do catálogo (serviço/produto). */
+  unitPrice?: number;
   discount?: number;
 }
 
@@ -293,7 +506,8 @@ export function useRemoveOrderItem(id: string) {
 // =====================================================================
 
 export interface UpdateOrderItemBody {
-  professionalId?: string;
+  /** null limpa o profissional do item ("Sem profissional"); undefined não mexe. */
+  professionalId?: string | null;
   unitPrice?: number;
   quantity?: number;
   discount?: number;
@@ -449,11 +663,38 @@ export function useReverseOrderPayment(id: string) {
   });
 }
 
+/** Item que ficou SEM comissão por falta de percentual configurado. */
+export interface ComissaoPulada {
+  profissional: string;
+  item: string;
+}
+
 export function useFinishOrder(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<OrderRow>(`/orders/${id}/finish`, {}),
-    onSuccess: () => invalidateOrder(queryClient, id),
+    mutationFn: () =>
+      api.post<OrderRow & { commissionSkipped?: ComissaoPulada[] }>(`/orders/${id}/finish`, {}),
+    onSuccess: (order) => {
+      invalidateOrder(queryClient, id);
+      // Comissões mudam quando uma comanda fecha.
+      queryClient.invalidateQueries({ queryKey: ['commission-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['commission-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['commission-detail'] });
+
+      // AVISO: item com profissional comissionado que ficou sem comissão por
+      // não haver percentual. Antes isso era silencioso — o salão faturava,
+      // esperava a comissão e não tinha como descobrir que faltou configurar.
+      const pulados = order.commissionSkipped ?? [];
+      if (pulados.length > 0) {
+        const quem = [...new Set(pulados.map((x) => x.profissional))].join(', ');
+        const oque = [...new Set(pulados.map((x) => x.item))].join(', ');
+        toast.warning(
+          `Sem comissão para ${quem}: ${oque} está sem percentual. ` +
+            'Defina em Comissões → Configurações ou no cadastro do serviço.',
+          { timeout: 12_000 },
+        );
+      }
+    },
   });
 }
 

@@ -1,239 +1,311 @@
-// TODO(backend): billing_addons — persistir seleção do tenant, integrar com
-// cobrança do plano (bump no MRR + provisionar feature-flag) e listar
-// dinamicamente os add-ons disponíveis (categoria, preço, dependências).
-
-import { useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@heroui/react';
+import { useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
-import { SegBtn } from '../components/SegBtn';
-import {
-  IconChevron,
-  IconMail,
-  IconMegaphone,
-  IconMessage,
-  IconSparkles,
-  IconWhatsApp,
-} from '../components/icons';
+import { MobileBackHeader } from '../components/MobileBackHeader';
+import { LoadingState } from '../components/States';
+import { IconCheck, IconLock, IconSparkles, IconUsers } from '../components/icons';
+import { useFeatures } from '../lib/queries/features';
+import { usePlans, type Plan, type PlanFeature } from '../lib/queries/plans';
 
-type AddonCategory = 'comunicacao' | 'marketing';
+/**
+ * Adicionais da assinatura — os módulos do produto, o que já está ativo e o que
+ * falta contratar.
+ *
+ * ESTA TELA SUBSTITUIU UMA MAQUETE. A versão anterior tinha 22 "adicionais"
+ * escritos à mão no próprio arquivo (Anamneses, Assinatura Digital, …), carrinho,
+ * escolha entre cartão e boleto e três passos de checkout — sem UMA chamada de
+ * API. O "Confirmar adicionais" fazia
+ *
+ *   setActiveIds(prev => new Set([...prev, ...selectedIds]));  // só na memória
+ *
+ * e anunciava "Adicionais ativados com sucesso — seus novos recursos já foram
+ * incluídos na assinatura". Nada era cobrado nem ativado, e um F5 desfazia tudo.
+ * Pior: nenhum daqueles 22 itens existe no backend. Por isso a rota tinha sido
+ * trocada por um aviso de "contratação ainda não habilitada" — feio, mas
+ * honesto.
+ *
+ * Agora a tela usa os módulos REAIS: `GET /plans` (o catálogo de
+ * feature-catalog.ts, 12 chaves com label e descrição em pt-BR) cruzado com
+ * `GET /feature-flags` (o que a empresa tem de fato). Ver estudo 122.
+ *
+ * O botão NÃO ativa nada. Não existe cobrança integrada, e ligar um módulo pago
+ * daqui seria liberá-lo de graça — foi exatamente o pecado da maquete. Ele abre
+ * uma conversa com o suporte, com o módulo já escrito na mensagem; a ativação
+ * segue manual, depois do pagamento acertado. Decisão do dono.
+ */
 
-interface Addon {
-  id: string;
-  name: string;
-  description: string;
-  priceMonthly: number;
-  category: AddonCategory;
-  icon: (p: { size?: number; className?: string }) => ReactNode;
-}
+/** Ordem de exibição dos planos, do mais barato ao mais completo. */
+const ORDEM_PLANO: Record<string, number> = { starter: 0, pro: 1, max: 2 };
 
-const ADDONS: Addon[] = [
+/**
+ * Módulos do catálogo que AINDA NÃO funcionam — ficam na vitrine, nunca entre os
+ * contratáveis.
+ *
+ *  - `nfe`: não existe NADA no backend (grep por nfe/NotaFiscal em apps/api/src
+ *    não devolve módulo algum) e as duas telas — /financeiro/notas-fiscais e
+ *    /reports/invoices — já mostram "ainda não configurada".
+ *  - `custom_subdomain`: está vendido no plano Pro e a chave não é conferida em
+ *    lugar nenhum, nem no backend nem no menu. Vender como pronto o que não tem
+ *    gate é o mesmo tipo de mentira da maquete que esta tela substituiu.
+ *
+ * Ver estudo 122.
+ */
+const AINDA_NAO_FUNCIONA = new Set<string>(['nfe', 'custom_subdomain']);
+
+/**
+ * Vitrine: o que o produto pretende ter e ainda não tem. Sobreviveu da maquete
+ * antiga — de propósito, a pedido do dono: serve para o salão ver o caminho e
+ * dizer que tem interesse. Ficam SEM preço e sem promessa de data; o botão só
+ * abre o suporte.
+ *
+ * Só entram itens sem equivalente entre os módulos reais. Os da maquete que
+ * duplicavam módulos existentes (Cashback, Metas, Promoções, Pacotes, Vendas por
+ * assinatura, WhatsApp) saíram para não listar a mesma coisa duas vezes.
+ */
+const EM_BREVE: { label: string; description: string }[] = [
   {
-    id: 'assinatura-digital',
-    name: 'Assinatura Digital',
+    label: 'Assinatura digital',
     description:
-      'Colete assinaturas de termos, contratos e autorizações direto pelo celular do cliente, com validade jurídica.',
-    priceMonthly: 16.9,
-    category: 'comunicacao',
-    icon: IconMail,
+      'Assinatura com validade jurídica em comissões e documentos, aplicada também na impressão.',
   },
   {
-    id: 'automacao-marketing',
-    name: 'Automação para Marketing',
+    label: 'Contabilidade',
     description:
-      'Fluxos automáticos de aniversário, retorno e recuperação de clientes inativos disparados por gatilhos.',
-    priceMonthly: 99,
-    category: 'marketing',
-    icon: IconMegaphone,
+      'Envio automático do movimento financeiro para o seu contador, sem exportar planilha.',
   },
   {
-    id: 'sms-marketing',
-    name: 'SMS Marketing',
+    label: 'Envio de imagens e arquivos',
     description:
-      'Envie campanhas por SMS para clientes sem WhatsApp — ideal para lembretes e ofertas relâmpago.',
-    priceMonthly: 29.9,
-    category: 'marketing',
-    icon: IconMessage,
+      'Mandar fotos de referência e documentos para a cliente junto das mensagens do salão.',
   },
   {
-    id: 'ia-atendimento-plus',
-    name: 'IA Atendimento Plus',
+    label: 'Gerador de documentos',
     description:
-      'Aumenta o volume de mensagens da IA de atendimento e libera modelos avançados para respostas mais naturais.',
-    priceMonthly: 49.9,
-    category: 'comunicacao',
-    icon: IconSparkles,
+      'Contratos, termos e recibos preenchidos com os dados do cliente e do atendimento.',
   },
   {
-    id: 'whatsapp-api',
-    name: 'WhatsApp API',
+    label: 'Integração via API',
     description:
-      'Canal oficial WhatsApp Business API para disparo em massa, templates aprovados e múltiplos atendentes.',
-    priceMonthly: 79,
-    category: 'comunicacao',
-    icon: IconWhatsApp,
+      'Conectar o Salonpass a outros sistemas da sua operação por uma API própria.',
   },
 ];
 
-const CATEGORIES: { id: AddonCategory | 'todos'; label: string }[] = [
-  { id: 'todos', label: 'Todos' },
-  { id: 'comunicacao', label: 'Comunicação' },
-  { id: 'marketing', label: 'Marketing' },
-];
-
-function formatMoney(v: number): string {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+interface ModuloNaTela extends PlanFeature {
+  /** Plano mais barato que inclui este módulo. */
+  plano: Plan;
+  ativo: boolean;
 }
+
 
 export function PerfilAdicionaisPage() {
   const navigate = useNavigate();
-  const [category, setCategory] = useState<AddonCategory | 'todos'>('todos');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<string | null>(null);
+  const plansQuery = usePlans();
+  const featuresQuery = useFeatures();
 
-  function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  /**
+   * Cada módulo aparece UMA vez, no plano mais barato que o inclui. Os planos
+   * são cumulativos (max contém pro, que contém starter), então sem esta
+   * deduplicação o cashback apareceria em Pro e de novo em Max.
+   */
+  const modulos = useMemo<ModuloNaTela[]>(() => {
+    const planos = plansQuery.data;
+    if (!planos) return [];
+    const ativas = new Set(featuresQuery.data?.features ?? []);
+    const porChave = new Map<string, ModuloNaTela>();
 
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }
+    for (const plano of [...planos].sort(
+      (a, b) => (ORDEM_PLANO[a.name] ?? 99) - (ORDEM_PLANO[b.name] ?? 99),
+    )) {
+      for (const feature of plano.features) {
+        if (porChave.has(feature.key)) continue;
+        porChave.set(feature.key, { ...feature, plano, ativo: ativas.has(feature.key) });
+      }
+    }
+    return [...porChave.values()];
+  }, [plansQuery.data, featuresQuery.data]);
 
-  const visible = useMemo(
-    () => (category === 'todos' ? ADDONS : ADDONS.filter((a) => a.category === category)),
-    [category],
+  // Um módulo que ainda não funciona NUNCA aparece como ativo nem como
+  // contratável, mesmo que o plano da empresa o inclua no catálogo.
+  const ativos = modulos.filter((m) => m.ativo && !AINDA_NAO_FUNCIONA.has(m.key));
+  const disponiveis = modulos.filter((m) => !m.ativo && !AINDA_NAO_FUNCIONA.has(m.key));
+  const naoProntos = modulos.filter((m) => AINDA_NAO_FUNCIONA.has(m.key));
+  const planoAtual = featuresQuery.data?.plan ?? null;
+
+  /**
+   * Tudo o que dá para pedir, numa lista só.
+   *
+   * Montar isto FORA do JSX conserta um buraco: a seção era condicionada a
+   * `disponiveis.length > 0`, e no plano Max esse número é zero — o Max já
+   * inclui todos os módulos do catálogo. Resultado: quem mais paga era o único
+   * que não via o que ainda podia acrescentar (os sem integração e os da
+   * vitrine), embora o contador ao lado do título já os somasse.
+   */
+  const paraAcrescentar = useMemo(
+    () => [
+      ...disponiveis.map((m) => ({
+        chave: m.key,
+        label: m.label,
+        description: m.description,
+        aoClicar: () => pedirContratacao(m),
+      })),
+      // Os que ainda não têm integração entram na MESMA lista, sem selo
+      // "Em breve": o dono não quer duas seções nem promessa de data na tela.
+      // A diferença aparece quando a pessoa pede — o suporte é quem diz o que
+      // já dá para ligar hoje.
+      ...naoProntos.map((m) => ({
+        chave: m.key,
+        label: m.label,
+        description: m.description,
+        aoClicar: () => registrarInteresse(m.label),
+      })),
+      ...EM_BREVE.map((m) => ({
+        chave: m.label,
+        label: m.label,
+        description: m.description,
+        aoClicar: () => registrarInteresse(m.label),
+      })),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [modulos],
   );
 
-  const selectedList = ADDONS.filter((a) => selected.has(a.id));
-  const totalMonthly = selectedList.reduce((sum, a) => sum + a.priceMonthly, 0);
-
-  function handleContinue() {
-    // TODO(backend): POST /billing/addons { ids: selectedList.map(a => a.id) }
-    // eslint-disable-next-line no-console
-    console.log('[adicionais] continuar', {
-      ids: selectedList.map((a) => a.id),
-      totalMonthly,
-    });
-    showToast('Adicionais registrados (placeholder). Integração de cobrança em breve.');
+  /**
+   * Leva para o SUPORTE do painel, não para o WhatsApp.
+   *
+   * A primeira versão abria `wa.me/?text=…` — sem número de destino. O WhatsApp
+   * abre pedindo para escolher com quem falar, e o salão não tem como saber
+   * qual contato é o suporte do Salonpass: o pedido morria ali. Ainda não existe
+   * um número oficial de suporte (está para ser integrado); quando existir,
+   * basta trocar este destino por ele.
+   *
+   * O assunto vai na URL para a tela de suporte já abrir com o contexto do
+   * módulo, em vez de a pessoa ter de repetir o que queria.
+   */
+  function irParaSuporte(assunto: string) {
+    navigate(`/ajuda/suporte?assunto=${encodeURIComponent(assunto)}`);
   }
 
+  function pedirContratacao(modulo: ModuloNaTela) {
+    irParaSuporte(`Quero contratar o módulo ${modulo.label} (plano ${modulo.plano.label})`);
+  }
+
+  function registrarInteresse(label: string) {
+    irParaSuporte(`Tenho interesse no módulo ${label}`);
+  }
+
+  const carregando = plansQuery.isLoading || featuresQuery.isLoading;
+
   return (
-    <div className="pb-24">
-      <PageHeader
-        title="Adicionais"
-        subtitle="Amplie seu plano com recursos extras cobrados por mês."
-        actions={
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            <IconChevron size={16} className="rotate-90" /> Voltar
-          </Button>
-        }
-      />
+    <>
+      <MobileBackHeader title="Adicionais" onBack={() => window.history.back()} />
+      <div className="flex flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
+          title="Adicionais"
+          subtitle="Os módulos do Salonpass: o que já está no seu plano e o que dá para acrescentar."
+        />
 
-      {/* Segmented por categoria */}
-      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
-        {CATEGORIES.map((c) => (
-          <SegBtn key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
-            {c.label}
-          </SegBtn>
-        ))}
+        {carregando ? (
+          <LoadingState label="Carregando módulos…" />
+        ) : (
+          <>
+            {ativos.length > 0 && (
+              <section className="flex flex-col gap-3">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  No seu plano{planoAtual ? ` · ${planoAtual}` : ''} ({ativos.length})
+                </h2>
+                <ul className="grid list-none gap-3 p-0 sm:grid-cols-2">
+                  {ativos.map((m) => (
+                    <li
+                      key={m.key}
+                      className="flex gap-3 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
+                    >
+                      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-success/12 text-success">
+                        <IconCheck size={16} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="m-0 text-sm font-semibold text-foreground">{m.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-ink">{m.description}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {paraAcrescentar.length > 0 && (
+              <section className="flex flex-col gap-3">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                  Para acrescentar ({paraAcrescentar.length})
+                </h2>
+                <ul className="grid list-none gap-3 p-0 sm:grid-cols-2">
+                  {paraAcrescentar.map((m) => (
+                    <li
+                      key={m.chave}
+                      className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
+                    >
+                      <div className="flex gap-3">
+                        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                          <IconSparkles size={16} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="m-0 text-sm font-semibold text-foreground">{m.label}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-ink">{m.description}</p>
+                          {/* Antes dizia "Entra no plano Max · R$ 349/mês", o que
+                              obrigava a trocar de plano para ter UM módulo. O dono
+                              quer que quem está no Starter ou no Pro consiga
+                              habilitar o WhatsApp como adicional avulso — o preço
+                              de cada um é combinado no suporte. */}
+                          <p className="mt-2 text-xs text-muted-ink">
+                            Adicional · valor combinado no suporte
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={m.aoClicar}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                      >
+                        <IconUsers size={15} />
+                        Quero contratar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* "Já tem tudo" só quando NÃO sobrou nada para pedir. Antes este
+                aviso saía repetido (o mesmo bloco aparecia duas vezes) e
+                dependia de `disponiveis`, então o plano Max lia "já tem todos os
+                módulos" com sete itens ainda por acrescentar logo acima. */}
+            {paraAcrescentar.length === 0 && ativos.length > 0 && (
+              <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
+                Você já tem todos os módulos disponíveis.
+              </p>
+            )}
+
+            {modulos.length === 0 && (
+              <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted-ink">
+                Não foi possível carregar os módulos agora.{' '}
+                <Link to="/perfil/assinatura" className="font-semibold text-primary">
+                  Voltar para a assinatura
+                </Link>
+                .
+              </p>
+            )}
+
+            {/* Honestidade sobre o que o botão faz — foi a falta disso que
+                transformou a tela anterior numa vitrine mentirosa. */}
+            <p className="flex items-start gap-2 text-xs text-muted-ink">
+              <IconLock size={14} />
+              <span>
+                A contratação é combinada com o suporte. Nenhum módulo é ativado nem cobrado
+                por esta tela.
+              </span>
+            </p>
+          </>
+        )}
       </div>
-
-      {/* Grid de cards: 1 col mobile, 2 cols desktop */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {visible.map((addon) => {
-          const isSelected = selected.has(addon.id);
-          const Icon = addon.icon;
-          return (
-            <div
-              key={addon.id}
-              className={
-                'flex flex-col gap-3 rounded-2xl border bg-warm-white p-4 shadow-[var(--shadow-card)] transition-colors ' +
-                (isSelected ? 'border-gold-strong/60' : 'border-[var(--color-soft-border)]')
-              }
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={
-                    'grid h-11 w-11 shrink-0 place-items-center rounded-xl ' +
-                    (isSelected ? 'bg-gold/20 text-gold-strong' : 'bg-cream text-muted-ink')
-                  }
-                >
-                  <Icon size={22} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-foreground">{addon.name}</div>
-                  <div className="mt-0.5 text-sm font-bold text-ink">
-                    {formatMoney(addon.priceMonthly)}
-                    <span className="text-xs font-normal text-muted-ink">/mês</span>
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm leading-snug text-muted-ink">{addon.description}</p>
-              <div className="mt-auto">
-                {isSelected ? (
-                  <Button
-                    variant="outline"
-                    className="w-full !border-rose-300 !text-rose-600 hover:!bg-rose-50"
-                    onClick={() => toggle(addon.id)}
-                  >
-                    Remover
-                  </Button>
-                ) : (
-                  <Button variant="primary" className="w-full" onClick={() => toggle(addon.id)}>
-                    Selecionar
-                  </Button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {visible.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-[var(--color-soft-border)] bg-warm-white/60 p-8 text-center text-sm text-muted-ink">
-          Nenhum adicional nesta categoria.
-        </div>
-      )}
-
-      {/* Barra inferior fixa: "N adicionais selecionados · continuar >" */}
-      {selectedList.length > 0 && (
-        <div
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-soft-border)] bg-warm-white/95 px-3 py-3 shadow-[0_-6px_20px_-12px_rgba(0,0,0,0.15)] backdrop-blur"
-          style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
-        >
-          <div className="mx-auto flex max-w-[1560px] items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-foreground">
-                {selectedList.length}{' '}
-                {selectedList.length === 1
-                  ? 'adicional selecionado'
-                  : 'adicionais selecionados'}
-              </div>
-              <div className="text-xs text-muted-ink">
-                Total: <span className="font-medium text-ink">{formatMoney(totalMonthly)}</span>
-                <span className="text-muted-ink">/mês</span>
-              </div>
-            </div>
-            <Button variant="primary" onClick={handleContinue}>
-              Continuar <IconChevron size={16} className="-rotate-90" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink/90 px-4 py-2 text-sm font-medium text-white shadow-lg">
-          {toast}
-        </div>
-      )}
-    </div>
+    </>
   );
 }

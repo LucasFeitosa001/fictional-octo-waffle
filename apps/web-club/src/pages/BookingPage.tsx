@@ -1,3 +1,4 @@
+import { getSubdomainSlug, sharedBookingUrl } from '../lib/config';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -28,11 +29,14 @@ import {
   Xmark,
 } from '@gravity-ui/icons';
 import { TopBar } from '../components/TopBar';
-import { BottomNav } from '../components/BottomNav';
+import { NotificationBell } from '../components/NotificationBell';
+import { BottomNav, type BookingNavStep } from '../components/BottomNav';
 import { signIn, useCustomerSession } from '../lib/auth';
 import {
   useAvailability,
   useBook,
+  useBookingAccent,
+  useBookingAppearance,
   usePortal,
   useProfessionals,
   useServices,
@@ -66,6 +70,48 @@ function WhatsAppGlyph({ size = 16 }: { size?: number }) {
   );
 }
 
+// Compact floating access control shown instead of the full black TopBar when
+// the salon hides the navbar. Keeps essential auth navigation reachable (login
+// when logged out; account + notification bell when logged in) without the bar.
+function MinimalAccess({
+  slug,
+  isLoggedIn,
+  onLogin,
+  onAccount,
+}: {
+  slug: string;
+  isLoggedIn: boolean;
+  onLogin: () => void;
+  onAccount: () => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-40 flex items-center gap-1.5">
+      {isLoggedIn ? (
+        <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-[var(--color-soft-border)] bg-[var(--booking-surface)]/90 px-1 py-1 shadow-[var(--shadow-soft)] backdrop-blur-md">
+          <NotificationBell slug={slug} enabled={isLoggedIn} />
+          <button
+            type="button"
+            onClick={onAccount}
+            aria-label="Minha conta"
+            className="grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-black/5"
+          >
+            <Person width={20} height={20} />
+          </button>
+        </div>
+      ) : (
+        <Button
+          variant="primary"
+          size="sm"
+          onPress={onLogin}
+          className="pointer-events-auto min-h-9 rounded-full px-4 shadow-[var(--shadow-soft)]"
+        >
+          Entrar
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // Next 14 days as selectable chips.
 function nextDays(count = 14): Date[] {
   const out: Date[] = [];
@@ -79,24 +125,87 @@ function nextDays(count = 14): Date[] {
   return out;
 }
 
-type Step = 'service' | 'professional' | 'datetime' | 'confirm';
-const STEPS: { id: Step; label: string }[] = [
-  { id: 'service', label: 'Serviço' },
-  { id: 'professional', label: 'Profissional' },
-  { id: 'datetime', label: 'Horário' },
-  { id: 'confirm', label: 'Confirmar' },
+type Step = BookingNavStep;
+
+/**
+ * RASCUNHO do agendamento — o que sobrevive ao desvio pelo login com Google.
+ *
+ * O login social é uma navegação de página inteira: o navegador sai para o
+ * Google e volta, e todo `useState` do BookingPage morre no caminho. O dono
+ * escolhia serviço, profissional, dia e horário, vinculava a conta e voltava
+ * para o passo 1, tendo que refazer tudo. O dado nunca foi "perdido por bug" —
+ * ele nunca era guardado. Ver estudo 118.
+ *
+ * `sessionStorage`, não `localStorage`: rascunho pertence à aba e àquela visita.
+ * Em `localStorage` ele sobreviveria dias e ressuscitaria, na visita seguinte,
+ * um horário provavelmente já ocupado.
+ */
+interface RascunhoAgendamento {
+  slug: string;
+  step: Step;
+  services: Service[];
+  professional: Professional | null;
+  /** ISO do dia escolhido (só a data importa). */
+  date: string;
+  slot: string | null;
+  salvoEm: number;
+}
+
+/** Rascunho mais velho que isto é descartado: horário velho é pior que nenhum. */
+const RASCUNHO_VALIDADE_MS = 30 * 60 * 1000;
+
+const rascunhoKey = (slug: string) => `sp-club:rascunho:${slug}`;
+
+function lerRascunho(slug: string): RascunhoAgendamento | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cru = window.sessionStorage.getItem(rascunhoKey(slug));
+    if (!cru) return null;
+    const r = JSON.parse(cru) as RascunhoAgendamento;
+    const fresco = Date.now() - (r?.salvoEm ?? 0) < RASCUNHO_VALIDADE_MS;
+    // Confere o salão: a mesma aba pode ter passado por outro portal.
+    if (!fresco || r?.slug !== slug || !Array.isArray(r.services)) {
+      window.sessionStorage.removeItem(rascunhoKey(slug));
+      return null;
+    }
+    return r;
+  } catch {
+    return null;
+  }
+}
+
+function apagarRascunho(slug: string): void {
+  try {
+    window.sessionStorage.removeItem(rascunhoKey(slug));
+  } catch {
+    // Modo privado/quota: seguir sem rascunho é degradação aceitável.
+  }
+}
+
+const STEPS: { id: Step; label: string; icon: React.ReactNode }[] = [
+  { id: 'service', label: 'Serviços', icon: <Tag width={16} height={16} /> },
+  { id: 'professional', label: 'Profissional', icon: <Person width={16} height={16} /> },
+  { id: 'datetime', label: 'Dia e horário', icon: <Calendar width={16} height={16} /> },
+  { id: 'confirm', label: 'Confirmar', icon: <CircleCheck width={16} height={16} /> },
 ];
 
 export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: string }) {
   const navigate = useNavigate();
   const { data: session } = useCustomerSession();
   const isLoggedIn = !!session;
-  // First name for the hero greeting ("Olá, Maria 👋") when logged in.
-  const firstName = session?.user?.name?.trim().split(/\s+/)[0] ?? null;
-  // Phone already on the logged-in account (additional field on the auth user).
-  const userPhone = (session?.user as { phone?: string | null } | undefined)?.phone ?? null;
-  // Logged in but without a phone → we must collect one before booking.
-  const needsPhone = isLoggedIn && !userPhone;
+  /**
+   * SEMPRE pedir o telefone de quem agenda com conta — em branco, todas as vezes.
+   *
+   * Era `isLoggedIn && !userPhone`: havendo QUALQUER número na conta, ele entrava
+   * no agendamento sem sequer aparecer na tela. Esse número é o destino da
+   * confirmação e dos lembretes de WhatsApp; herdado de um cadastro antigo ou de
+   * outra pessoa que usou o mesmo aparelho, a mensagem do horário de alguém vai
+   * para o celular de outro — e na base havia o MESMO telefone em contas de
+   * pessoas diferentes. O campo também não vem preenchido: um valor já posto é
+   * confirmado no automático, que é o hábito que produziu o número errado.
+   * Ver estudo 121.
+   */
+  const needsPhone = isLoggedIn;
 
   // SPA navigation targets for the auth flows. `basePath` is "" on a tenant
   // subdomain (portal at "/") and "/:slug" under path-based routing.
@@ -114,15 +223,24 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     setShowFilters(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  // Navbar "Favoritos": jump to the service list filtered to hearted services.
-  const showFavorites = () => {
-    setStep('service');
-    setFavoritesOnly(true);
-    setShowFilters(true);
-    document.getElementById('servicos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const portal = usePortal(slug);
+
+  // Subdomínio próprio é exclusivo de pro/max. Se o salão for starter e alguém
+  // chegar por <slug>.salonpass.com.br, mandamos para o link compartilhado em
+  // vez de servir o portal — senão o recurso pago vazaria para o plano básico.
+  // Só age quando o portal já respondeu (customSubdomain === false explícito).
+  useEffect(() => {
+    if (!portal.data) return;
+    if (portal.data.customSubdomain !== false) return;
+    if (!getSubdomainSlug()) return; // chegou pelo link compartilhado: ok
+    window.location.replace(sharedBookingUrl(slug));
+  }, [portal.data, slug]);
+
+  // Theme the whole flow with the salon's customized colors (primary/accent/
+  // background), falling back to the house theme when the salon hasn't set them.
+  useBookingAccent(slug);
+  // Per-salon appearance: `hideNavbar` removes the black top bar entirely.
+  const appearance = useBookingAppearance(slug);
   const services = useServices(slug);
 
   // Show the salon name first in the browser tab once the portal loads.
@@ -132,22 +250,54 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     }
   }, [portal.data?.name]);
 
-  const [step, setStep] = useState<Step>('service');
-  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  // Ícone da aba = logo do salão. A aba mostrava o ícone do Salonpass para
+  // todos; com o logo, a cliente reconhece o salão entre 15 abas abertas.
+  // Ver estudo 67.
+  useEffect(() => {
+    const logo = portal.data?.logoUrl;
+    if (!logo) return;
+    const anterior = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const href = anterior?.href ?? null;
+    const link = anterior ?? document.createElement('link');
+    link.rel = 'icon';
+    link.href = logo;
+    if (!anterior) document.head.appendChild(link);
+    return () => {
+      if (href) link.href = href;
+    };
+  }, [portal.data?.logoUrl]);
+
+  // Rascunho lido UMA vez, na montagem: é o que devolve a pessoa ao ponto em
+  // que ela estava antes de sair para o Google. Ver estudo 118.
+  const rascunho = useRef<RascunhoAgendamento | null>(lerRascunho(slug)).current;
+
+  const [step, setStep] = useState<Step>(rascunho?.step ?? 'service');
+  const [selectedServices, setSelectedServices] = useState<Service[]>(rascunho?.services ?? []);
   // Convenience aliases for the primary (first) service — used by downstream
   // queries that still need a single serviceId, and backwards compat.
   const service = selectedServices.length > 0 ? selectedServices[0] : null;
-  const [professional, setProfessional] = useState<Professional | null>(null);
+  const [professional, setProfessional] = useState<Professional | null>(rascunho?.professional ?? null);
   const [date, setDate] = useState<Date>(() => {
-    const d = new Date();
+    const salva = rascunho?.date ? new Date(rascunho.date) : null;
+    const d = salva && !Number.isNaN(salva.getTime()) ? salva : new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  const [slot, setSlot] = useState<string | null>(null);
+  const [slot, setSlot] = useState<string | null>(rascunho?.slot ?? null);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   // Phone for a logged-in customer who has none on file yet (e.g. Google sign-up).
+  /**
+   * Começa VAZIO de propósito, mesmo quando a conta já tem telefone.
+   *
+   * A primeira versão vinha pré-preenchida, para a pessoa "conferir". Só que um
+   * campo já preenchido é confirmado no automático — e era justamente o número
+   * herdado (o mesmo aparecia em contas de pessoas diferentes na base) que
+   * mandava a confirmação do horário de alguém para o aparelho de outro. Em
+   * branco, quem agenda precisa DIGITAR o número em que quer ser avisado.
+   * Ver estudo 121.
+   */
   const [accountPhone, setAccountPhone] = useState('');
   const [done, setDone] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -156,6 +306,34 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   // "Favoritos" tab or the Favoritos filter chip).
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const favorites = useFavorites(slug);
+
+  /**
+   * Grava o rascunho a cada escolha, para que o desvio pelo login não custe o
+   * trabalho já feito.
+   *
+   * Grava a partir do momento em que HÁ algo escolhido — um rascunho vazio só
+   * ocuparia espaço e mascararia o "começar do zero" legítimo. Falha de
+   * `sessionStorage` (modo privado, cota) é engolida: perder o rascunho é ruim,
+   * derrubar a tela de agendamento é pior.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (selectedServices.length === 0 && !professional && !slot) return;
+    try {
+      const r: RascunhoAgendamento = {
+        slug,
+        step,
+        services: selectedServices,
+        professional,
+        date: date.toISOString(),
+        slot,
+        salvoEm: Date.now(),
+      };
+      window.sessionStorage.setItem(rascunhoKey(slug), JSON.stringify(r));
+    } catch {
+      // Sem rascunho o fluxo continua funcionando; só não sobrevive ao login.
+    }
+  }, [slug, step, selectedServices, professional, date, slot]);
 
   const serviceIds = selectedServices.map((s) => s.id);
   const professionals = useProfessionals(slug, service?.id ?? null, serviceIds.length > 1 ? serviceIds : undefined);
@@ -187,6 +365,29 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     return list;
   }, [services.data, categoryFilter, favoritesOnly, favorites.ids]);
 
+  // A lista já filtrada, quebrada em seções por categoria — o backend devolve
+  // na ordem de exibição, então basta preservar a ordem de aparição. Serviço
+  // sem categoria cai num "Outros" no fim, em vez de sumir da lista.
+  const secoesDeServico = useMemo(() => {
+    const secoes = new Map<string, { titulo: string; servicos: typeof visibleServices }>();
+    visibleServices.forEach((s) => {
+      const chave = s.categoryId ?? s.categoryName ?? '__sem-categoria';
+      const titulo = s.categoryName ?? 'Outros';
+      const secao = secoes.get(chave);
+      if (secao) secao.servicos.push(s);
+      else secoes.set(chave, { titulo, servicos: [s] });
+    });
+    const lista = Array.from(secoes, ([chave, secao]) => ({ chave, ...secao }));
+    // "Outros" por último: é o resto, não uma categoria de verdade.
+    return lista.sort((a, b) =>
+      a.chave === '__sem-categoria' ? 1 : b.chave === '__sem-categoria' ? -1 : 0,
+    );
+  }, [visibleServices]);
+
+  // Com uma seção só (salão pequeno, ou filtro de categoria ativo) o cabeçalho
+  // vira ruído: diria "Unhas" numa tela em que tudo é unhas.
+  const mostrarSecoes = secoesDeServico.length > 1;
+
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
   function resetFlow() {
@@ -199,6 +400,17 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
 
   function goBack() {
     setStep((s) => STEPS[Math.max(0, STEPS.findIndex((x) => x.id === s) - 1)].id);
+  }
+
+  function canOpenStep(target: Step) {
+    if (target === 'service') return true;
+    if (target === 'professional') return selectedServices.length > 0;
+    if (target === 'datetime') return selectedServices.length > 0 && !!professional;
+    return selectedServices.length > 0 && !!professional && !!slot;
+  }
+
+  function openStep(target: Step) {
+    if (canOpenStep(target)) setStep(target);
   }
 
   // Whether the current step has a valid selection to advance.
@@ -246,6 +458,9 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
       // Logged-in customers without a phone supply one here; it's persisted.
       phone: needsPhone ? accountPhone.trim() : undefined,
     });
+    // O rascunho cumpriu o papel: mantê-lo faria o PRÓXIMO agendamento abrir já
+    // preenchido com o horário que a pessoa acabou de marcar.
+    apagarRascunho(slug);
     setDone(true);
   }
 
@@ -264,69 +479,70 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
         : 'Continuar';
   const ctaDisabled = step === 'confirm' ? !canConfirm : !stepValid;
 
+  // Contextual summary shown left of the CTA (desktop) — mirrors the current
+  // selection so the primary action always has context without extra chrome.
+  const ctaSummary: { title: string; sub?: string } | null =
+    selectedServices.length === 0
+      ? null
+      : {
+          title:
+            selectedServices.length === 1
+              ? selectedServices[0].name
+              : `${selectedServices.length} serviços`,
+          sub:
+            step === 'datetime' && slot
+              ? `${formatDay(slot)} · ${formatTime(slot)}`
+              : totalPrice > 0
+                ? `${durationLabel(totalDuration)} · R$ ${totalPrice.toFixed(2).replace('.', ',')}`
+                : durationLabel(totalDuration),
+        };
+
   return (
     <div className="club-page flex flex-col">
-      <TopBar
-        slug={slug}
-        isLoggedIn={isLoggedIn}
-        onLogin={goToLogin}
-        onAccount={goToAccount}
-        onHome={goHome}
-        whatsapp={portal.data?.whatsapp ?? null}
-        salonName={portal.data?.name}
-      />
-
-      {!done && (
-        <>
-          {/* Dark backdrop: the full-width salon header below is pulled up to
-              overlap its lower edge, so this reads as a layered background. */}
-          <header
-            id="inicio"
-            className="w-full scroll-mt-24 text-white"
-            style={{
-              backgroundImage:
-                'radial-gradient(560px 240px at 100% 0%, rgba(242,179,61,0.20), transparent 70%), linear-gradient(180deg, #1a1a1a 0%, #111111 100%)',
-            }}
-          >
-            <div className="mx-auto w-full max-w-2xl px-4 pb-20 pt-5 sm:px-6 sm:pb-24 sm:pt-7">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f2b33d]">
-                Agendamento online
-              </p>
-              {firstName && (
-                <h2 className="mt-1 font-brand text-xl leading-tight text-white sm:text-2xl">
-                  Olá, {firstName} 👋
-                </h2>
-              )}
-              <p className="mt-1.5 max-w-sm text-sm text-white/60">
-                Escolha o serviço, o profissional e o melhor horário pra você.
-              </p>
-            </div>
-          </header>
-
-          {/* Salon header card — full viewport width (it's a direct child of the
-              page column, so it isn't capped by the max-w-2xl main). Its rounded
-              top rides up over the dark backdrop; the content stays centered. */}
-          <div
-            className="-mt-14 overflow-hidden rounded-t-[26px] border-b border-[var(--color-soft-border)] shadow-[var(--shadow-pop)] sm:-mt-16 sm:rounded-t-[32px]"
-            style={{
-              backgroundImage:
-                'radial-gradient(220px 120px at 12% 0%, rgba(242,179,61,0.12), transparent 70%), linear-gradient(180deg, #fffdf8 0%, #fbf3e3 100%)',
-            }}
-          >
-            <SalonHero
-              portal={portal.data}
-              isLoading={portal.isLoading}
-              agendaPath={`${basePath}/agenda`}
-            />
-          </div>
-        </>
+      {/* The salon can hide the black top bar (Setting booking.appearance
+          .hideNavbar). When hidden, we still surface a compact floating access
+          control so login / account / notifications are never lost. */}
+      {appearance.hideNavbar ? (
+        <MinimalAccess
+          slug={slug}
+          isLoggedIn={isLoggedIn}
+          onLogin={goToLogin}
+          onAccount={goToAccount}
+        />
+      ) : (
+        <TopBar
+          slug={slug}
+          isLoggedIn={isLoggedIn}
+          onLogin={goToLogin}
+          onAccount={goToAccount}
+          onHome={goHome}
+          whatsapp={portal.data?.whatsapp ?? null}
+          salonName={portal.data?.name}
+          logoUrl={portal.data?.logoUrl ?? null}
+        />
       )}
 
-      <main className="club-page-main mx-auto w-full max-w-2xl flex-1 pb-48 pt-5 sm:pt-7 md:pb-24">
+      {!done && (
+        <section
+          id="inicio"
+          className="scroll-mt-20 border-b border-[var(--color-soft-border)] bg-[var(--booking-surface)]/95 shadow-[var(--shadow-soft)] backdrop-blur-xl"
+        >
+          {/* Capa do salão (estudo 67): imagem do topo com véu ajustável, para o
+              nome e o status continuarem legíveis sobre qualquer foto. */}
+          <SalonCover url={appearance.coverUrl} overlay={appearance.coverOverlay} />
+          <SalonHero
+            portal={portal.data}
+            isLoading={portal.isLoading}
+            agendaPath={`${basePath}/agenda`}
+          />
+        </section>
+      )}
+
+      <main className="club-page-main mx-auto w-full max-w-2xl flex-1 pb-36 pt-2.5 sm:pt-3 md:pb-24">
         {done ? (
-          <Card className="mx-auto mt-6 max-w-md border border-[var(--color-soft-border)] bg-[#fffdf8] text-center shadow-[var(--shadow-card)]">
+          <Card className="mx-auto mt-6 max-w-md border border-[var(--color-soft-border)] bg-[var(--booking-surface)] text-center shadow-[var(--shadow-card)]">
             <Card.Content className="flex flex-col items-center gap-3 px-5 py-8 sm:px-8 sm:py-10">
-              <span className="grid h-16 w-16 place-items-center rounded-full bg-[#FCE4EA] text-[#F08CA5] shadow-[var(--shadow-soft)]">
+              <span className="grid h-16 w-16 place-items-center rounded-full bg-[var(--booking-accent-2-soft)] text-[var(--booking-accent-2-ink)] shadow-[var(--shadow-soft)]">
                 <CircleCheck width={36} height={36} />
               </span>
               <h2 className="font-brand text-xl text-foreground">Agendamento confirmado!</h2>
@@ -362,32 +578,37 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
             </Card.Content>
           </Card>
         ) : (
-          <div id="servicos" className="flex scroll-mt-24 flex-col gap-5">
+          <div id="servicos" className="flex scroll-mt-24 flex-col gap-2.5">
             <StepProgress current={stepIndex} />
 
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 {stepIndex > 0 && (
                   <button
                     type="button"
                     onClick={goBack}
                     aria-label="Voltar"
-                    className="club-touch grid shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]"
+                    className="club-touch grid shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--booking-accent)] hover:text-[var(--booking-accent)]"
                   >
                     <ArrowLeft width={18} height={18} />
                   </button>
                 )}
-                <h2 className="flex min-w-0 items-center gap-2 font-brand text-xl leading-tight text-foreground sm:text-2xl">
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--booking-accent)] md:hidden">
+                    Passo {stepIndex + 1} de {STEPS.length}
+                  </span>
+                  <h2 className="flex min-w-0 items-center gap-2 font-brand text-[17px] leading-tight text-foreground sm:text-lg">
                   {step === 'service' && (
                     <>
-                      Escolha os serviços
-                      <HeartFill width={20} height={20} className="shrink-0 text-[var(--color-pink)]" />
+                      Selecione os serviços
+                      <HeartFill width={16} height={16} className="shrink-0 text-[var(--booking-accent)]" />
                     </>
                   )}
-                  {step === 'professional' && 'Escolha o profissional'}
-                  {step === 'datetime' && 'Escolha o dia e horário'}
-                  {step === 'confirm' && 'Confirme seu agendamento'}
-                </h2>
+                  {step === 'professional' && 'Selecione o profissional'}
+                  {step === 'datetime' && 'Defina dia e horário'}
+                  {step === 'confirm' && 'Revise e confirme'}
+                  </h2>
+                </div>
               </div>
 
               {step === 'service' && (
@@ -397,8 +618,8 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                   aria-expanded={showFilters}
                   className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
                     showFilters || categoryFilter || favoritesOnly
-                      ? 'border-[var(--color-pink)] text-[var(--color-pink)]'
-                      : 'border-[var(--color-soft-border)] text-foreground hover:border-[var(--color-pink)] hover:text-[var(--color-pink)]'
+                      ? 'border-[var(--booking-accent)] text-[var(--booking-accent)]'
+                      : 'border-[var(--color-soft-border)] text-foreground hover:border-[var(--booking-accent)] hover:text-[var(--booking-accent)]'
                   }`}
                 >
                   <Sliders width={16} height={16} />
@@ -437,8 +658,8 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
 
             {/* Selection strip: shows count + total when >1 service selected */}
             {step === 'service' && selectedServices.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[#FCE4EA] px-3.5 py-3 text-sm">
-                <CircleCheck width={16} height={16} className="shrink-0 text-[var(--color-pink)]" />
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[var(--booking-accent-soft)] px-3 py-2 text-sm">
+                <CircleCheck width={15} height={15} className="shrink-0 text-[var(--booking-accent)]" />
                 <span className="font-semibold text-foreground">
                   {selectedServices.length} {selectedServices.length === 1 ? 'serviço selecionado' : 'serviços selecionados'}
                 </span>
@@ -454,12 +675,12 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
             )}
 
             {/* Step body — only one renders at a time. */}
-            <div key={step} className="animate-step flex flex-col gap-3">
+            <div key={step} className="animate-step flex flex-col gap-2.5">
               {step === 'service' &&
                 (services.isLoading ? (
                   <ServiceListSkeleton />
                 ) : (services.data?.data.length ?? 0) === 0 ? (
-                  <Empty>Nenhum serviço disponível para agendamento online.</Empty>
+                  <NoServices whatsapp={portal.data?.whatsapp ?? null} salonName={portal.data?.name} />
                 ) : visibleServices.length === 0 ? (
                   favoritesOnly ? (
                     <Empty>
@@ -470,29 +691,54 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                     <Empty>Nenhum serviço nesta categoria.</Empty>
                   )
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {visibleServices.map((s) => (
-                      <ServiceCard
-                        key={s.id}
-                        service={s}
-                        selected={selectedServices.some((sel) => sel.id === s.id)}
-                        isFavorite={favorites.ids.has(s.id)}
-                        onToggleFavorite={() => favorites.toggle(s.id)}
-                        onSelect={() => {
-                          setSelectedServices((prev) => {
-                            const exists = prev.some((sel) => sel.id === s.id);
-                            const next = exists
-                              ? prev.filter((sel) => sel.id !== s.id)
-                              : [...prev, s];
-                            setProfessional(null);
-                            setSlot(null);
-                            return next;
-                          });
-                        }}
-                      />
+                  <div className="flex flex-col gap-2.5">
+                    {secoesDeServico.map((secao) => (
+                      <section key={secao.chave} className="flex flex-col gap-2.5">
+                        {mostrarSecoes && (
+                          // Sticky: a cliente sabe em que seção está enquanto
+                          // desliza a lista — o "ao passar da lista" do pedido.
+                          <h3 className="sticky top-0 z-10 -mx-1 bg-[var(--club-bg,theme(colors.background))]/95 px-1 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted backdrop-blur-sm">
+                            {secao.titulo}
+                            <span className="ml-1.5 font-normal normal-case tracking-normal">
+                              ({secao.servicos.length})
+                            </span>
+                          </h3>
+                        )}
+                        {secao.servicos.map((s) => (
+                          <ServiceCard
+                            key={s.id}
+                            service={s}
+                            selected={selectedServices.some((sel) => sel.id === s.id)}
+                            ocultarCategoria={mostrarSecoes}
+                            isFavorite={favorites.ids.has(s.id)}
+                            onToggleFavorite={() => favorites.toggle(s.id)}
+                            onSelect={() => {
+                              setSelectedServices((prev) => {
+                                const exists = prev.some((sel) => sel.id === s.id);
+                                const next = exists
+                                  ? prev.filter((sel) => sel.id !== s.id)
+                                  : [...prev, s];
+                                setProfessional(null);
+                                setSlot(null);
+                                return next;
+                              });
+                            }}
+                          />
+                        ))}
+                      </section>
                     ))}
                   </div>
                 ))}
+
+              {/* Galeria e "sobre" só na primeira etapa: é onde a cliente decide
+                  se o salão tem a cara dela. Ambos vinham do painel e não
+                  apareciam para ninguém (estudo 67). */}
+              {step === 'service' && (
+                <>
+                  <SalonGallery fotos={portal.data?.gallery ?? []} />
+                  <SalonAbout about={portal.data?.about} />
+                </>
+              )}
 
               {step === 'professional' &&
                 (professionals.isLoading ? (
@@ -517,67 +763,87 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                 ))}
 
               {step === 'datetime' && (
-                <>
-                  <div className="club-scroll-row -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-                    {days.map((d) => {
-                      const active = toDateInput(d) === toDateInput(date);
-                      return (
-                        <button
-                          key={d.toISOString()}
-                          type="button"
-                          onClick={() => {
-                            setDate(d);
-                            setSlot(null);
-                          }}
-                          className={`flex min-h-16 min-w-16 shrink-0 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition-all ${
-                            active
-                              ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
-                              : 'border-[var(--color-soft-border)] bg-[#FFF1EE] text-foreground hover:border-[var(--color-pink)]'
-                          }`}
-                        >
-                          <span className="text-[11px] capitalize">
-                            {d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
-                          </span>
-                          <span className="text-base font-semibold leading-tight">
-                            {d.getDate()}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {availability.isLoading ? (
-                    <SlotGridSkeleton />
-                  ) : (availability.data?.slots.length ?? 0) === 0 ? (
-                    <Empty>Sem horários livres neste dia. Tente outra data.</Empty>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {availability.data?.slots.map((s) => {
-                        const active = slot === s.start;
+                <div className="flex flex-col gap-2.5">
+                  {/* Day picker: a horizontally scrollable row of compact chips
+                      (weekday over day number, with the short month when it
+                      changes). Keeps the grid of times high on the screen. */}
+                  <div>
+                    <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">
+                      Dia
+                    </span>
+                    <div className="club-scroll-row -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                      {days.map((d, i) => {
+                        const active = toDateInput(d) === toDateInput(date);
+                        const showMonth = i === 0 || d.getDate() === 1;
                         return (
                           <button
-                            key={s.start}
+                            key={d.toISOString()}
                             type="button"
-                            onClick={() => setSlot(s.start)}
-                            className={`flex min-h-11 items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm font-medium transition-all ${
+                            onClick={() => {
+                              setDate(d);
+                              setSlot(null);
+                            }}
+                            className={`flex min-h-14 w-[3.25rem] shrink-0 flex-col items-center justify-center rounded-xl border px-1 py-1.5 text-center leading-none transition-all ${
                               active
-                                ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
-                                : 'border-[var(--color-soft-border)] bg-[#FFF1EE] text-foreground hover:border-[var(--color-pink)]'
+                                ? 'border-transparent bg-[var(--booking-accent)] text-white shadow-[var(--shadow-pink)]'
+                                : 'border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] text-foreground hover:border-[var(--booking-accent)]'
                             }`}
                           >
-                            <Clock width={14} height={14} />
-                            {formatTime(s.start)}
+                            <span className="text-[10px] font-medium capitalize opacity-80">
+                              {d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                            </span>
+                            <span className="mt-0.5 text-base font-bold leading-none">
+                              {d.getDate()}
+                            </span>
+                            <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide opacity-70">
+                              {showMonth
+                                ? d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+                                : ' '}
+                            </span>
                           </button>
                         );
                       })}
                     </div>
-                  )}
-                </>
+                  </div>
+
+                  {/* Times: a dense pill grid — hour only, no icon — so more slots
+                      fit above the fold. */}
+                  <div>
+                    <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">
+                      Horário
+                    </span>
+                    {availability.isLoading ? (
+                      <SlotGridSkeleton />
+                    ) : (availability.data?.slots.length ?? 0) === 0 ? (
+                      <Empty>Sem horários livres neste dia. Tente outra data.</Empty>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                        {availability.data?.slots.map((s) => {
+                          const active = slot === s.start;
+                          return (
+                            <button
+                              key={s.start}
+                              type="button"
+                              onClick={() => setSlot(s.start)}
+                              className={`flex min-h-10 items-center justify-center rounded-lg border px-1 py-1.5 text-sm font-semibold tabular-nums transition-all ${
+                                active
+                                  ? 'border-transparent bg-[var(--booking-accent)] text-white shadow-[var(--shadow-pink)]'
+                                  : 'border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] text-foreground hover:border-[var(--booking-accent)]'
+                              }`}
+                            >
+                              {formatTime(s.start)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
               {step === 'confirm' && (
                 <div className="flex flex-col gap-4">
-                  <Card className="border border-[var(--color-soft-border)] bg-[#FFF1EE] shadow-[var(--shadow-card)]">
+                  <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
                     <Card.Content className="flex flex-col gap-3 p-4">
                       {selectedServices.map((svc) => (
                         <SummaryRow
@@ -597,25 +863,34 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                         </div>
                       )}
                       <p className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 text-xs text-muted">
-                        <Tag width={14} height={14} className="shrink-0 text-[var(--color-pink)]" />
+                        <Tag width={14} height={14} className="shrink-0 text-[var(--booking-accent)]" />
                         O pagamento é feito apenas no dia, presencialmente no salão.
                       </p>
                     </Card.Content>
                   </Card>
 
-                  {/* Logged-in customer with no phone on file (e.g. Google sign-up):
-                      collect a WhatsApp so the confirmation/reminders can reach them. */}
+                  {/* Quem agenda com conta CONFIRMA o WhatsApp aqui, sempre —
+                      inclusive quem já tem número gravado. É o destino da
+                      confirmação e dos lembretes; um número herdado de cadastro
+                      antigo manda a mensagem do horário para o aparelho de outra
+                      pessoa. Ver estudo 121. */}
                   {needsPhone && (
-                    <Card className="border border-[var(--color-soft-border)] bg-[#FFF1EE] shadow-[var(--shadow-card)]">
+                    <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
                       <Card.Content className="flex flex-col gap-3 p-4">
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                           <WhatsAppGlyph size={16} />
                           Seu WhatsApp
                         </h3>
                         <p className="text-xs text-muted">
-                          Para enviarmos a confirmação e os lembretes do seu horário.
+                          Informe o número em que quer receber a confirmação e os lembretes
+                          deste horário.
                         </p>
-                        <TextField value={accountPhone} onChange={setAccountPhone} type="tel" isRequired>
+                        <TextField
+                          value={accountPhone}
+                          onChange={setAccountPhone}
+                          type="tel"
+                          isRequired
+                        >
                           <Label>Telefone (WhatsApp)</Label>
                           <Input placeholder="(00) 00000-0000" />
                         </TextField>
@@ -623,9 +898,15 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                     </Card>
                   )}
 
+                  {/* O cartão "Esta conta é do salão, não de cliente" ficava aqui
+                      (estudo 119) e saiu com a trava que o motivava. O portal tem
+                      sessão própria desde o estudo 120, então conta de salão
+                      agenda normalmente — era esta mensagem que o dono via ao
+                      abrir o link de agendamento de QUALQUER salão. */}
+
                   {!isLoggedIn && (
                     <>
-                      <Card className="border border-[var(--color-soft-border)] bg-[#FFF1EE] shadow-[var(--shadow-card)]">
+                      <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
                         <Card.Content className="flex flex-col gap-3 p-4">
                           <h3 className="text-sm font-semibold text-foreground">
                             Crie sua conta
@@ -645,6 +926,11 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                                 void signIn.social({
                                   provider: 'google',
                                   callbackURL: window.location.origin + loginPath.replace(/\/login$/, ''),
+                                  // Sem isto, a falha do OAuth despeja o cliente
+                                  // na raiz do PAINEL (app.salonpass.com.br) —
+                                  // ver estudo 117. Aqui ela volta para a tela de
+                                  // login do portal, que mostra o motivo.
+                                  errorCallbackURL: window.location.origin + loginPath,
                                 })
                               }
                             >
@@ -675,7 +961,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                             className="text-center text-sm text-muted hover:text-foreground"
                           >
                             Já tem conta?{' '}
-                            <span className="font-semibold text-[var(--color-pink)]">Entrar</span>
+                            <span className="font-semibold text-[var(--booking-accent)]">Entrar</span>
                           </button>
                         </Card.Content>
                       </Card>
@@ -688,10 +974,10 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                         <span className="h-px flex-1 bg-[var(--color-soft-border)]" />
                       </div>
 
-                      <Card className="border border-[var(--color-soft-border)] bg-[#FFF1EE] shadow-[var(--shadow-card)]">
+                      <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
                         <Card.Content className="flex flex-col gap-3 p-4">
                           <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                            <Person width={16} height={16} className="text-[var(--color-pink)]" />
+                            <Person width={16} height={16} className="text-[var(--booking-accent)]" />
                             Seus dados
                           </h3>
                           <TextField value={guestName} onChange={setGuestName} isRequired>
@@ -723,22 +1009,30 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
         )}
       </main>
 
-      {/* Floating advance / confirm CTA — sits above the BottomNav on mobile.
-          "Continuar" hugs its label and aligns right; the final "Confirmar
-          agendamento" spans full width as the primary action. */}
+      {/* Floating advance / confirm CTA — always visible, sits above the
+          BottomNav on mobile. Compact: full-width pill with a per-step label and
+          a live summary (selected count · total) on the left when relevant. */}
       {!done && (
-        <div className="club-action-dock pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-3 pt-7 md:bottom-0 md:bg-transparent md:pb-4 md:pt-0">
-          <div
-            className="pointer-events-auto mx-auto flex max-w-2xl"
-          >
+        <div className="club-action-dock pointer-events-none fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2 pt-5 md:bottom-0 md:bg-transparent md:pb-4 md:pt-0">
+          <div className="pointer-events-auto mx-auto flex max-w-2xl items-center gap-3">
+            {ctaSummary && (
+              <div className="hidden min-w-0 flex-col leading-tight sm:flex">
+                <span className="truncate text-sm font-semibold text-foreground">
+                  {ctaSummary.title}
+                </span>
+                {ctaSummary.sub && (
+                  <span className="truncate text-xs text-muted">{ctaSummary.sub}</span>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={advance}
               disabled={ctaDisabled || book.isPending}
-              className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-base font-semibold transition-all sm:ml-auto sm:w-auto sm:min-w-52 ${
+              className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-6 py-3 text-base font-semibold transition-all sm:ml-auto sm:w-auto sm:min-w-52 ${
                 ctaDisabled || book.isPending
-                  ? 'cursor-not-allowed bg-[#f0c2ce] text-white/80'
-                  : 'bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)] hover:bg-[#e7799a] active:scale-[0.99]'
+                  ? 'cursor-not-allowed bg-[var(--booking-accent-disabled)] text-white/80'
+                  : 'bg-[var(--booking-accent)] text-white shadow-[var(--shadow-pink)] hover:bg-[var(--booking-accent-strong)] active:scale-[0.99]'
               }`}
             >
               {book.isPending ? <Spinner size="sm" /> : null}
@@ -748,36 +1042,48 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
         </div>
       )}
 
-      <BottomNav
-        isLoggedIn={isLoggedIn}
-        onLogin={goToLogin}
-        onAccount={goToAccount}
-        onHome={goHome}
-        onFavorites={showFavorites}
-      />
+      {!done && (
+        <BottomNav
+          step={step}
+          onStepChange={openStep}
+          canOpen={canOpenStep}
+        />
+      )}
     </div>
   );
 }
 
+// Compact stepper: a single dense line — "Passo 2 de 4 · Profissional" —
+// over a slim 4-segment progress bar. Minimal vertical footprint so the active
+// step's content sits high on the phone screen (Belasis-style).
 function StepProgress({ current }: { current: number }) {
   return (
-    <div aria-label={`Passo ${current + 1} de ${STEPS.length}`} className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-pink)]">
-          Passo {current + 1} de {STEPS.length}
-        </span>
-        <span className="text-xs font-medium text-muted">{STEPS[current]?.label}</span>
-      </div>
-      <div className="grid grid-cols-4 gap-1.5" aria-hidden="true">
-        {STEPS.map((item, index) => (
-          <span
+    <div
+      aria-label={`Passo ${current + 1} de ${STEPS.length}: ${STEPS[current]?.label ?? ''}`}
+      className="hidden grid-cols-4 gap-2 md:grid"
+    >
+      {STEPS.map((item, index) => {
+        const active = index === current;
+        const complete = index < current;
+        return (
+          <div
             key={item.id}
-            className={`h-1.5 rounded-full transition-colors ${
-              index <= current ? 'bg-[var(--color-pink)]' : 'bg-[#eadde0]'
-            }`}
-          />
-        ))}
-      </div>
+            className={[
+              'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+              active
+                ? 'border-[var(--booking-accent)] bg-[var(--booking-accent-soft)] text-[var(--booking-accent-ink)]'
+                : complete
+                  ? 'border-[#DCE9DF] bg-[#F0F8F2] text-[#378251]'
+                  : 'border-[var(--color-soft-border)] bg-white/70 text-muted',
+            ].join(' ')}
+          >
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white shadow-sm">
+              {complete ? <CircleCheck width={14} height={14} /> : item.icon}
+            </span>
+            <span className="truncate">{index + 1}. {item.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -837,43 +1143,46 @@ function SalonHero({
   // a "Carregando…" placeholder, so the salon identity fills in smoothly.
   if (isLoading && !portal) {
     return (
-      <div className="mx-auto flex w-full max-w-2xl items-start gap-3 px-4 py-5 sm:gap-3.5 sm:px-6">
-        <Skeleton className="h-14 w-14 shrink-0 rounded-2xl sm:h-16 sm:w-16" />
-        <div className="flex min-w-0 flex-1 flex-col gap-2.5 pt-1">
-          <Skeleton className="h-6 w-2/5 rounded-md" />
+      <div className="mx-auto flex w-full max-w-2xl items-start gap-3 px-4 py-3 sm:px-6 sm:py-3.5">
+        <Skeleton className="h-12 w-12 shrink-0 rounded-xl sm:h-14 sm:w-14" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
+          <Skeleton className="h-5 w-2/5 rounded-md" />
           <Skeleton className="h-4 w-3/5 rounded-md" />
-          <Skeleton className="h-9 w-44 rounded-full" />
+          <Skeleton className="h-8 w-36 rounded-full" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl items-start gap-3 px-4 py-5 sm:gap-3.5 sm:px-6">
+    <div className="mx-auto flex w-full max-w-2xl items-start gap-3 px-4 py-3 sm:px-6 sm:py-3.5">
       {portal?.logoUrl ? (
         <img
           src={portal.logoUrl}
           alt={name}
-          className="h-14 w-14 shrink-0 rounded-2xl object-cover shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)] sm:h-16 sm:w-16"
+          className="h-12 w-12 shrink-0 rounded-xl object-cover shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)] sm:h-14 sm:w-14"
         />
       ) : (
         <span
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl font-brand text-xl text-[#a67c1e] shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)] sm:h-16 sm:w-16 sm:text-2xl"
-          style={{ backgroundImage: 'linear-gradient(160deg, #fbf3e3 0%, #f1ddc2 100%)' }}
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-xl font-brand text-lg text-[var(--booking-accent-ink)] shadow-[var(--shadow-soft)] ring-1 ring-[var(--color-soft-border)] sm:h-14 sm:w-14 sm:text-xl"
+          style={{
+            backgroundImage:
+              'linear-gradient(160deg, var(--booking-accent-2-soft) 0%, var(--booking-accent-soft) 100%)',
+          }}
           aria-hidden
         >
           {initial}
         </span>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <h1 className="break-words font-brand text-lg leading-tight text-foreground sm:text-xl">
+            <h1 className="break-words font-brand text-[17px] leading-tight text-foreground sm:text-lg">
               {name}
             </h1>
             {plan && (
-              <span className="shrink-0 rounded-full bg-[#FCE4EA] px-2.5 py-0.5 text-xs font-semibold text-[#d76b88]">
+              <span className="shrink-0 rounded-full bg-[var(--booking-accent-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--booking-accent-ink)]">
                 {plan}
               </span>
             )}
@@ -884,18 +1193,18 @@ function SalonHero({
             to={agendaPath}
             aria-label="Ver disponibilidade"
             title="Ver disponibilidade"
-            className="club-touch grid shrink-0 place-items-center text-[var(--color-pink)] transition-opacity hover:opacity-70"
+            className="club-touch grid shrink-0 place-items-center text-[var(--booking-accent)] transition-opacity hover:opacity-70"
           >
             <span className="hidden whitespace-nowrap pt-1 text-sm font-semibold sm:inline">
               Ver disponibilidade
             </span>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#FCE4EA] sm:hidden">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--booking-accent-soft)] sm:hidden">
               <Calendar width={18} height={18} />
             </span>
           </Link>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted">
           <OpenStatus open={portal?.open} hours={portal?.todayHours ?? null} />
           <span className="flex items-center gap-1.5 font-medium text-foreground">
             <StarRating average={rating?.average ?? 0} />
@@ -919,7 +1228,7 @@ function SalonHero({
             )}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex min-h-11 w-fit items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-opacity hover:opacity-90"
+            className="mt-0.5 inline-flex min-h-9 w-fit items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white shadow-[var(--shadow-soft)] transition-opacity hover:opacity-90"
           >
             <WhatsAppGlyph size={16} />
             Falar no WhatsApp
@@ -932,6 +1241,102 @@ function SalonHero({
 
 // Compact open/closed indicator for the salon header meta line. Hours unknown
 // (no schedules) → renders nothing so the line omits the status.
+/** Capa do topo da página pública. Sem imagem, não ocupa espaço. Estudo 67. */
+function SalonCover({ url, overlay }: { url: string | null; overlay: number }) {
+  if (!url) return null;
+  const veu = Math.min(80, Math.max(0, overlay)) / 100;
+  return (
+    <div className="relative h-32 w-full overflow-hidden sm:h-44">
+      <img src={url} alt="" className="h-full w-full object-cover" aria-hidden />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, rgba(0,0,0,${veu * 0.4}) 0%, rgba(0,0,0,${veu}) 100%)`,
+        }}
+        aria-hidden
+      />
+    </div>
+  );
+}
+
+/**
+ * Galeria do salão — as fotos que o dono já subia no painel e que NUNCA
+ * apareciam para o cliente (estudo 67). Faixa rolável, sem cortar no celular.
+ */
+function SalonGallery({ fotos }: { fotos: { url: string; caption: string | null }[] }) {
+  if (!fotos.length) return null;
+  return (
+    <section className="mt-4">
+      <h2 className="px-1 font-brand text-[15px] text-foreground">O salão por dentro</h2>
+      <div className="hide-scrollbar mt-2 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+        {fotos.map((f) => (
+          <figure
+            key={f.url}
+            className="relative h-36 w-56 shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)] sm:h-44 sm:w-64"
+          >
+            <img
+              src={f.url}
+              alt={f.caption ?? ''}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+            {f.caption && (
+              <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-1.5 text-[11px] text-white">
+                {f.caption}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Descrição + redes do salão. Também só existiam no painel. Estudo 67. */
+function SalonAbout({
+  about,
+}: {
+  about?: {
+    description: string | null;
+    website: string | null;
+    instagram: string | null;
+    facebook: string | null;
+  };
+}) {
+  if (!about) return null;
+  const redes = [
+    { rotulo: 'Instagram', url: about.instagram },
+    { rotulo: 'Facebook', url: about.facebook },
+    { rotulo: 'Site', url: about.website },
+  ].filter((r): r is { rotulo: string; url: string } => Boolean(r.url));
+  if (!about.description && redes.length === 0) return null;
+  const comProtocolo = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+  return (
+    <section className="mt-4 rounded-2xl bg-white p-4 shadow-[var(--shadow-card)]">
+      {about.description && (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+          {about.description}
+        </p>
+      )}
+      {redes.length > 0 && (
+        <div className={about.description ? 'mt-3 flex flex-wrap gap-2' : 'flex flex-wrap gap-2'}>
+          {redes.map((r) => (
+            <a
+              key={r.rotulo}
+              href={comProtocolo(r.url)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border border-[var(--color-soft-border)] px-3 py-1.5 text-xs font-semibold text-[var(--booking-accent-ink)] transition-colors hover:bg-[var(--booking-accent-soft)]"
+            >
+              {r.rotulo}
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function OpenStatus({
   open,
   hours,
@@ -972,10 +1377,10 @@ function ChoiceRow({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-14 items-center justify-between rounded-xl border px-3.5 py-3 text-left transition-all ${
+      className={`flex min-h-12 items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-all ${
         selected
-          ? 'border-[var(--color-pink)] bg-[#FCE4EA] shadow-[var(--shadow-pink)]'
-          : 'border-[var(--color-soft-border)] bg-[#FFF1EE] hover:border-[var(--color-pink)]'
+          ? 'border-[var(--booking-accent)] bg-[var(--booking-accent-soft)] shadow-[var(--shadow-pink)]'
+          : 'border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] hover:border-[var(--booking-accent)]'
       }`}
     >
       <span className="min-w-0">
@@ -984,7 +1389,7 @@ function ChoiceRow({
       </span>
       <span
         className={`ml-3 grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
-          selected ? 'border-[var(--color-pink)] bg-[var(--color-pink)] text-white' : 'border-default-300'
+          selected ? 'border-[var(--booking-accent)] bg-[var(--booking-accent)] text-white' : 'border-default-300'
         }`}
       >
         {selected && <CircleCheck width={14} height={14} />}
@@ -999,17 +1404,20 @@ function ServiceCard({
   isFavorite,
   onToggleFavorite,
   onSelect,
+  ocultarCategoria = false,
 }: {
   service: Service;
   selected: boolean;
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onSelect: () => void;
+  /** Sob um cabeçalho de seção a etiqueta repetiria a categoria em cada cartão. */
+  ocultarCategoria?: boolean;
 }) {
   const badge = service.favorite
-    ? { label: 'Mais pedido', icon: <Star width={12} height={12} />, cls: 'bg-[#FCE4EA] text-[#d76b88]' }
+    ? { label: 'Mais pedido', icon: <Star width={12} height={12} />, cls: 'bg-[var(--booking-accent-soft)] text-[var(--booking-accent-ink)]' }
     : service.isNew
-      ? { label: 'Novidade', icon: <Sparkles width={12} height={12} />, cls: 'bg-[#FCE4EA] text-[#d76b88]' }
+      ? { label: 'Novidade', icon: <Sparkles width={12} height={12} />, cls: 'bg-[var(--booking-accent-soft)] text-[var(--booking-accent-ink)]' }
       : null;
 
   return (
@@ -1024,9 +1432,9 @@ function ServiceCard({
           onSelect();
         }
       }}
-      className={`club-no-touch-lift relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white text-left transition-all sm:flex-row ${
+      className={`club-no-touch-lift relative flex w-full cursor-pointer flex-row overflow-hidden rounded-xl border bg-white text-left transition-all ${
         selected
-          ? 'border-[var(--color-pink)] shadow-[var(--shadow-soft)]'
+          ? 'border-[var(--booking-accent)] shadow-[var(--shadow-soft)]'
           : 'border-[var(--color-soft-border)] shadow-[var(--shadow-card)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]'
       }`}
     >
@@ -1040,7 +1448,7 @@ function ServiceCard({
         }}
         aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
         aria-pressed={isFavorite}
-        className="absolute right-2.5 top-2.5 z-10 grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[var(--color-pink)] shadow-[var(--shadow-soft)] backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
+        className="absolute right-1.5 top-1.5 z-10 grid h-9 w-9 place-items-center rounded-lg bg-white/90 text-[var(--booking-accent)] shadow-[var(--shadow-soft)] backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
       >
         {isFavorite ? (
           <HeartFill width={18} height={18} />
@@ -1053,36 +1461,36 @@ function ServiceCard({
           a single cover when there's one, and a camera placeholder otherwise. */}
       <ServicePhoto service={service} />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-4 sm:p-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-3">
         {badge && (
           <span
-            className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.cls}`}
+            className={`mr-10 inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}
           >
             {badge.icon}
             {badge.label}
           </span>
         )}
 
-        <h3 className="font-brand text-base leading-tight text-foreground">{service.name}</h3>
+        <h3 className="pr-10 font-brand text-[15px] leading-tight text-foreground">{service.name}</h3>
 
         {service.description && (
-          <p className="line-clamp-2 text-sm text-muted">{service.description}</p>
+          <p className="line-clamp-2 text-xs leading-snug text-muted">{service.description}</p>
         )}
 
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted">
           <span className="flex items-center gap-1">
-            <Clock width={14} height={14} />
+            <Clock width={13} height={13} />
             {durationLabel(service.durationMin)}
           </span>
-          {service.categoryName && (
+          {service.categoryName && !ocultarCategoria && (
             <span className="flex items-center gap-1">
-              <Tag width={14} height={14} />
+              <Tag width={13} height={13} />
               {service.categoryName}
             </span>
           )}
         </div>
 
-        <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="mt-1 flex items-center justify-between gap-2">
           <Price value={service.price} />
           <button
             type="button"
@@ -1090,13 +1498,13 @@ function ServiceCard({
               e.stopPropagation();
               onSelect();
             }}
-            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+            className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
               selected
-                ? 'bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
-                : 'border border-[var(--color-pink)] text-[var(--color-pink)] hover:bg-[#FCE4EA]'
+                ? 'bg-[var(--booking-accent)] text-white shadow-[var(--shadow-pink)]'
+                : 'border border-[var(--booking-accent)] text-[var(--booking-accent)] hover:bg-[var(--booking-accent-soft)]'
             }`}
           >
-            {selected && <CircleCheck width={15} height={15} />}
+            {selected && <CircleCheck width={14} height={14} />}
             {selected ? 'Selecionado' : 'Selecionar'}
           </button>
         </div>
@@ -1120,14 +1528,20 @@ function ServicePhoto({ service }: { service: Service }) {
   if (images.length === 0) {
     return (
       <div
-        className="relative aspect-[16/7] w-full shrink-0 self-stretch sm:aspect-auto sm:w-40"
+        className="relative min-h-28 w-24 shrink-0 self-stretch sm:w-32"
+        // O fundo da foto era rosa cravado em três lugares; agora deriva da cor
+        // escolhida pelo salão (--booking-photo, padrão = o rosa da casa), com
+        // o ícone num tom mais forte da MESMA cor. Ver estudo 66.
         style={{
           backgroundImage:
-            'radial-gradient(120px 120px at 30% 20%, rgba(240,140,165,0.22), transparent 70%), linear-gradient(160deg, #fbe2e8 0%, #f4cdd6 100%)',
+            'radial-gradient(120px 120px at 30% 20%, color-mix(in oklab, var(--booking-photo, #f08ca5) 30%, transparent), transparent 70%), linear-gradient(160deg, color-mix(in oklab, var(--booking-photo, #f08ca5) 22%, #fff) 0%, color-mix(in oklab, var(--booking-photo, #f08ca5) 46%, #fff) 100%)',
         }}
         aria-hidden
       >
-        <span className="absolute inset-0 grid place-items-center text-[#d79bab]">
+        <span
+          className="absolute inset-0 grid place-items-center"
+          style={{ color: 'color-mix(in oklab, var(--booking-photo, #f08ca5) 72%, #000)' }}
+        >
           <Camera width={30} height={30} />
         </span>
       </div>
@@ -1142,7 +1556,7 @@ function ServicePhoto({ service }: { service: Service }) {
   };
 
   return (
-    <div className="relative aspect-[16/7] w-full shrink-0 self-stretch sm:aspect-auto sm:w-40">
+    <div className="relative min-h-28 w-24 shrink-0 self-stretch sm:w-32">
       {images.length === 1 ? (
         <img
           src={images[0]}
@@ -1190,7 +1604,7 @@ function ServicePhoto({ service }: { service: Service }) {
       <button
         type="button"
         onClick={openGallery}
-        className="absolute left-2 top-2 inline-flex min-h-10 items-center gap-1 rounded-full bg-black/60 px-3 py-2 text-[11px] font-semibold text-white backdrop-blur-sm transition-opacity hover:opacity-90"
+        className="absolute left-1.5 top-1.5 inline-flex min-h-8 items-center gap-1 rounded-lg bg-black/60 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-sm transition-opacity hover:opacity-90"
       >
         <Camera width={12} height={12} />
         {images.length > 1 ? `${images.length} fotos` : 'Ver foto'}
@@ -1349,8 +1763,8 @@ function FilterChip({
       onClick={onClick}
       className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
         active
-          ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-pink)]'
-          : 'border-[var(--color-soft-border)] bg-white text-foreground hover:border-[var(--color-pink)]'
+          ? 'border-transparent bg-[var(--booking-accent)] text-white shadow-[var(--shadow-pink)]'
+          : 'border-[var(--color-soft-border)] bg-white text-foreground hover:border-[var(--booking-accent)]'
       }`}
     >
       {icon}
@@ -1373,7 +1787,7 @@ function SummaryRow({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#FCE4EA] text-[var(--color-pink)]">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--booking-accent-soft)] text-[var(--booking-accent)]">
         {icon}
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -1405,4 +1819,38 @@ function Price({ value }: { value: string | number | null }) {
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="py-4 text-center text-sm text-muted">{children}</p>;
+}
+
+// Friendlier empty state for a salon that hasn't published any online-bookable
+// service yet (or a brand-new/demo tenant). Explains it clearly and offers the
+// WhatsApp shortcut when the salon has a number on file — so a visitor is never
+// left at a dead end.
+function NoServices({ whatsapp, salonName }: { whatsapp: string | null; salonName?: string }) {
+  return (
+    <div className="mx-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-[var(--color-soft-border)] bg-white/70 px-5 py-8 text-center shadow-[var(--shadow-card)]">
+      <span className="grid h-12 w-12 place-items-center rounded-full bg-[var(--booking-accent-soft)] text-[var(--booking-accent)]">
+        <Tag width={22} height={22} />
+      </span>
+      <div>
+        <p className="font-brand text-base text-foreground">Agendamento online em preparação</p>
+        <p className="mt-1 text-sm text-muted">
+          Este salão ainda não liberou serviços para agendar pela internet. Fale com a gente para
+          reservar seu horário.
+        </p>
+      </div>
+      {whatsapp && (
+        <a
+          href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(
+            `Olá! Vim pelo agendamento online${salonName ? ` da ${salonName}` : ''} e gostaria de agendar um horário.`,
+          )}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-opacity hover:opacity-90"
+        >
+          <WhatsAppGlyph size={16} />
+          Falar no WhatsApp
+        </a>
+      )}
+    </div>
+  );
 }

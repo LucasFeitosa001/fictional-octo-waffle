@@ -58,6 +58,14 @@ export const CALENDAR_REPORTS: ReportNavItem[] = [
   { key: 'care', label: 'Cuidados para Hoje', to: '/reports/calendars/care-messages-today', icon: IconCalendar },
 ];
 
+// ---- Submenu "Vendas" ------------------------------------------------------
+// A categoria Vendas tem um relatório só; a régua existe para voltar ao início
+// do módulo sem ter que caçar o "Voltar". Ver estudo 63.
+export const SALES_REPORTS: ReportNavItem[] = [
+  { key: 'home', label: 'Início', to: '/relatorios', icon: IconHome },
+  { key: 'vendas', label: 'Vendas', to: '/relatorios/vendas', icon: IconDollar },
+];
+
 // ---- Submenu "Estoque" -----------------------------------------------------
 export const INVENTORY_REPORTS: ReportNavItem[] = [
   { key: 'home', label: 'Início', to: '/relatorios', icon: IconHome },
@@ -84,6 +92,39 @@ const INVENTORY_CATEGORIES: { label: string; to: string }[] = [
 
 /* ---------------------------------------------------------------- pieces --- */
 
+/**
+ * Barra de categorias do módulo Relatórios.
+ *
+ * Estava duplicada dentro de um shell e, na página de Vendas, reimplementada
+ * como `<button>` SEM onClick — clicar não fazia nada, que é o "clico e não
+ * alterna" que o dono relatou. Aqui é `<NavLink>`: navega de verdade.
+ * Ver estudo 63.
+ */
+export function ReportCategoriesBar({ ativa }: { ativa: string }) {
+  return (
+    <div className="report-no-print mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      {INVENTORY_CATEGORIES.map((c) => {
+        const active = c.label === ativa;
+        return (
+          <NavLink
+            key={c.label}
+            to={c.to}
+            className={[
+              'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+              active
+                ? 'border-transparent bg-primary text-primary-foreground'
+                : 'border-line bg-card text-muted-ink hover:text-ink',
+            ].join(' ')}
+          >
+            {c.label}
+          </NavLink>
+        );
+      })}
+    </div>
+  );
+}
+
+
 /** Submenu vertical (Financeiro / Agendamentos) — clone do menu lateral Belasis. */
 export function ReportSubmenu({
   items,
@@ -93,7 +134,7 @@ export function ReportSubmenu({
   activeKey: string;
 }) {
   return (
-    <nav className="shrink-0 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-card)] lg:w-[320px]">
+    <nav className="report-no-print shrink-0 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-card)] lg:w-[320px]">
       <ul className="flex flex-col gap-0.5">
         {items.map((r) => {
           const active = r.key === activeKey;
@@ -182,7 +223,7 @@ export function CalendarReportShell({
 /** Aside do módulo Estoque (clone do menu lateral do Belasis). */
 function InventoryAside({ activeKey }: { activeKey: string }) {
   return (
-    <aside className="shrink-0 overflow-hidden rounded-xl border border-line bg-card p-1.5 shadow-[var(--shadow-card)] lg:w-72">
+    <aside className="report-no-print shrink-0 overflow-hidden rounded-xl border border-line bg-card p-1.5 shadow-[var(--shadow-card)] lg:w-72">
       <ul className="flex flex-col">
         {INVENTORY_REPORTS.map((r) => {
           const active = r.key === activeKey;
@@ -238,26 +279,7 @@ export function InventoryReportShell({
       <h1 className="text-xl font-semibold text-ink">{title ?? 'Relatórios'}</h1>
       {subtitle && <p className="mt-0.5 text-sm text-muted-ink">{subtitle}</p>}
 
-      {/* Barra de categorias (Estoque ativa) — agora navega de verdade. */}
-      <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {INVENTORY_CATEGORIES.map((c) => {
-          const active = c.label === 'Estoque';
-          return (
-            <NavLink
-              key={c.label}
-              to={c.to}
-              className={[
-                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
-                active
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-line bg-card text-muted-ink hover:text-ink',
-              ].join(' ')}
-            >
-              {c.label}
-            </NavLink>
-          );
-        })}
-      </div>
+      <ReportCategoriesBar ativa="Estoque" />
 
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
         <InventoryAside activeKey={activeKey} />

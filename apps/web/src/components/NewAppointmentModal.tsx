@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
   Input,
@@ -8,9 +8,15 @@ import {
   TextField,
 } from '@heroui/react';
 import { Drawer } from './Drawer';
+import { DatePicker } from './DatePicker';
+import { AppSwitch } from './SwitchRow';
+import { InlineToggle } from './InlineToggle';
 import { CustomerAvatar } from './CustomerPickerDrawer';
+import { ClienteBlocosLaterais } from './ClienteBlocosLaterais';
+import { useConfirm } from './ConfirmDialog';
+import { PhoneField } from './PhoneField';
 import { useNavigate } from 'react-router-dom';
-import { IconCalendar, IconChevron, IconInfo, IconSearch } from './icons';
+import { IconChevron, IconInfo, IconSearch } from './icons';
 import {
   ApiClientError,
   APPOINTMENT_STATUS_LABELS,
@@ -19,23 +25,61 @@ import {
 } from '@beautypass/shared';
 import {
   useAvailability,
-  useCreateAppointment,
+  useCreateAppointmentSeries,
   useCreateCustomer,
   useCreateOrder,
   useCustomers,
   useProfessionals,
   useServices,
-  useSetAppointmentStatus,
 } from '../lib/queries';
+import {
+  useProfessionalDetail,
+  useSetProfessionalServices,
+} from '../lib/queries/profissionais';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCan } from '../lib/queries/permissions';
+import { useProductCategories } from '../lib/queries/catalogo';
+import { ServiceDrawer } from '../pages/ServicosPage';
+// Repetição e conferência de expediente vivem em lib/ porque são lógica pura
+// com teste (tests/agendamento-datas.test.ts) — o jest não importa este
+// componente, HeroUI é ESM.
+import {
+  FMT_DATA_SERIE,
+  nextDate,
+  problemaDeExpediente,
+  type Freq,
+} from '../lib/agendamentoDatas';
+import { useNotificationSettings } from '../lib/queries/notificationSettings';
+import { AvisosDoCliente, type CampoDeAviso } from './AvisosDoCliente';
+import { variaveisDoAgendamento } from '../lib/queries/messageTemplates';
+import { useEmpresa } from '../lib/queries/empresa';
 import { formatDuration, formatMoney, formatSlotTime, isoDate } from '../lib/format';
-import type { AvailabilitySlot } from '../lib/types';
+import type { AppointmentFollowUpInput, AvailabilitySlot } from '../lib/types';
+import { FOLLOWUP_TEMPLATES } from '../lib/followupTemplates';
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;
+  /**
+   * Chamado após criar o agendamento + a comanda ("Criar comanda"), com o id da
+   * order recém-criada. Se fornecido, o pai assume a navegação para a comanda
+   * (fecha o drawer por conta própria); caso contrário o modal navega sozinho
+   * para /comandas/:id.
+   */
+  onCreatedOrder?: (orderId: string) => void;
   /** Pre-select this date (ISO yyyy-mm-dd) when the modal opens. */
   initialDate?: string;
+  /**
+   * Pre-select this customer when the modal opens (fluxo cliente→agendamento a
+   * partir do perfil). Evita re-buscar o cliente: usamos os dados já em mãos.
+   */
+  initialCustomer?: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+  } | null;
 }
 
 const NONE = '';
@@ -63,7 +107,6 @@ const STATUS_COLOR: Record<AppointmentStatus, string> = {
   canceled: '#ff6b68',
 };
 
-type Freq = 'none' | 'weekly' | 'biweekly' | 'monthly';
 const FREQ_OPTIONS: { id: Freq; label: string }[] = [
   { id: 'none', label: 'Não repete' },
   { id: 'weekly', label: 'Semanal' },
@@ -71,13 +114,42 @@ const FREQ_OPTIONS: { id: Freq; label: string }[] = [
   { id: 'monthly', label: 'Mensal' },
 ];
 
-function nextDate(base: Date, freq: Freq, times: number): Date {
-  const d = new Date(base);
-  if (freq === 'weekly') d.setDate(d.getDate() + 7 * times);
-  else if (freq === 'biweekly') d.setDate(d.getDate() + 14 * times);
-  else if (freq === 'monthly') d.setMonth(d.getMonth() + times);
-  return d;
-}
+// ── "Avisar o cliente" (aviso personalizado no drawer) ─────────────────────
+// Espelha a UX do FollowUpConfigCard (Configurações → Notificações): unidades de
+// tempo (segundos → dias), âncora do disparo e chips de variáveis do template.
+type WarnUnit = AppointmentFollowUpInput['delayUnit'];
+const WARN_UNIT_OPTIONS: { id: WarnUnit; label: string }[] = [
+  { id: 'seconds', label: 'segundos' },
+  { id: 'minutes', label: 'minutos' },
+  { id: 'hours', label: 'horas' },
+  { id: 'days', label: 'dias' },
+];
+const WARN_UNIT_LABEL: Record<WarnUnit, string> = {
+  seconds: 'segundos',
+  minutes: 'minutos',
+  hours: 'horas',
+  days: 'dias',
+};
+
+type WarnWhen = NonNullable<AppointmentFollowUpInput['when']>;
+const WARN_WHEN_OPTIONS: { id: WarnWhen; label: string }[] = [
+  { id: 'after', label: 'Depois do atendimento' },
+  { id: 'before', label: 'Antes do atendimento' },
+  { id: 'from_now', label: 'A partir de agora' },
+];
+const WARN_WHEN_LABEL: Record<WarnWhen, string> = {
+  after: 'Depois do atendimento',
+  before: 'Antes do atendimento',
+  from_now: 'A partir de agora',
+};
+
+// Variáveis suportadas na mensagem — clicar insere o token no textarea.
+const WARN_VARS: { token: string; label: string }[] = [
+  { token: '{cliente}', label: 'primeiro nome do cliente' },
+  { token: '{estabelecimento}', label: 'nome do salão' },
+  { token: '{servico}', label: 'serviços do agendamento' },
+  { token: '{link}', label: 'link de reagendamento' },
+];
 
 // Belasis usa formulário horizontal: label 13px 600 acima de cada controle.
 function Field({
@@ -97,43 +169,7 @@ function Field({
   );
 }
 
-// Switch inline (ant-switch): knob desliza 180ms; ligado = primário Belasis.
-function InlineToggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="inline-flex items-center gap-2.5"
-    >
-      <span
-        className={
-          'relative inline-flex h-[22px] w-11 shrink-0 items-center rounded-full transition-colors duration-[180ms] ' +
-          (checked ? 'bg-primary' : 'bg-default-300')
-        }
-      >
-        <span
-          className={
-            'inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition-transform duration-[180ms] ' +
-            (checked ? 'translate-x-[23px]' : 'translate-x-[3px]')
-          }
-        />
-      </span>
-      <span className={'text-sm ' + (checked ? 'font-medium text-foreground' : 'text-muted')}>
-        {label}
-      </span>
-    </button>
-  );
-}
+// Switch inline: HeroUI v3 Switch (AppSwitch) + rótulo clicável à direita.
 
 // Avatar padrão do cliente (rail esquerdo do drawer).
 function UserGlyph() {
@@ -155,17 +191,27 @@ function UserGlyph() {
   );
 }
 
-// dd/mm/yyyy a partir de um ISO yyyy-mm-dd (campo Data do Belasis).
-function shortDate(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso;
+/**
+ * Instante de início a partir do dia e do horário escolhido.
+ *
+ * `slotStart` chega em DOIS formatos: o ISO completo que a grade devolve
+ * (appointments.service.ts:1300 monta `new Date(slotStart).toISOString()`) ou o
+ * `HH:MM` do padrão. Concatenar cegamente `${date}T${slotStart}:00` produzia
+ * `2026-08-01T2026-08-01T12:00:00.000Z:00` — Invalid Date — e a formatação da
+ * prévia derrubava a tela inteira ao clicar num horário. Ver estudo 79.
+ */
+function instanteDoSlot(date: string, slotStart: string | null): Date {
+  if (slotStart && slotStart.includes('T')) return new Date(slotStart);
+  return new Date(`${date}T${slotStart || '09:00'}:00`);
 }
 
 export function NewAppointmentModal({
   isOpen,
   onOpenChange,
   onCreated,
+  onCreatedOrder,
   initialDate,
+  initialCustomer,
 }: NewAppointmentModalProps) {
   const nav = useNavigate();
   const [items, setItems] = useState<ApptItem[]>(() => [emptyItem()]);
@@ -174,20 +220,64 @@ export function NewAppointmentModal({
   const [slotStart, setSlotStart] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string; phone?: string | null } | null>(null);
+  // `avatarUrl` faz parte do estado, não é opcional por acaso: sem ele os
+  // setters abaixo descartavam a foto e o rail esquerdo caía nas iniciais mesmo
+  // com o cliente tendo foto — foi exatamente o defeito relatado.
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: string;
+    name: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+  } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [notes, setNotes] = useState('');
   // Ações
-  const [sendReminder, setSendReminder] = useState(true);
-  const [squeezeIn, setSqueezeIn] = useState(false);
+  // O DEFAULT do lembrete pré-atendimento vem da configuração do salão
+  // (Configurações → Notificações → automation.reminder). Opt-in: começa
+  // DESLIGADO quando o salão não ativou. A dona ainda pode ligar por agendamento.
+  const notificationSettings = useNotificationSettings();
+  const reminderDefault = notificationSettings.data?.reminder ?? false;
+  const confirmationDefault = notificationSettings.data?.confirmation ?? false;
+  const cancellationDefault = notificationSettings.data?.cancellation ?? false;
+  const [sendReminder, setSendReminder] = useState(reminderDefault);
+  const [sendConfirmation, setSendConfirmation] = useState(confirmationDefault);
+  const [sendCancellation, setSendCancellation] = useState(cancellationDefault);
+  // Marca se a dona já mexeu no toggle manualmente. Enquanto não mexeu, o toggle
+  // segue o default da config (útil quando a config chega depois do modal abrir).
+  const reminderTouched = useRef(false);
+  const confirmationTouched = useRef(false);
+  const cancellationTouched = useRef(false);
+  function handleSendReminderChange(v: boolean) {
+    reminderTouched.current = true;
+    setSendReminder(v);
+  }
+  function handleSendConfirmationChange(v: boolean) {
+    confirmationTouched.current = true;
+    setSendConfirmation(v);
+  }
+  function handleSendCancellationChange(v: boolean) {
+    cancellationTouched.current = true;
+    setSendCancellation(v);
+  }
+  // Avisar o cliente (aviso personalizado agendado)
+  const [warnEnabled, setWarnEnabled] = useState(false);
+  const [warnTemplateId, setWarnTemplateId] = useState<string>('');
+  const [warnMessage, setWarnMessage] = useState('');
+  const [warnDelayValue, setWarnDelayValue] = useState('1');
+  const [warnDelayUnit, setWarnDelayUnit] = useState<WarnUnit>('days');
+  const [warnWhen, setWarnWhen] = useState<WarnWhen>('after');
+  const [warnIncludeLink, setWarnIncludeLink] = useState(true);
   // Recorrência
   const [freq, setFreq] = useState<Freq>('none');
   const [repeatMore, setRepeatMore] = useState(1);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  // Id da comanda criada pelo botão "Criar comanda" — habilita o link de fallback
+  // na tela de sucesso caso a navegação automática não aconteça.
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   // O primeiro item define horário/disponibilidade — o agendamento tem um único
   // start; itens extras são serviços adicionais na mesma comanda.
@@ -196,20 +286,82 @@ export function NewAppointmentModal({
   const services = useServices();
   const professionals = useProfessionals();
   const customers = useCustomers(customerSearch);
+  // Duração REAL do agendamento: soma de TODOS os itens (cada um já com a
+  // duração que a pessoa escolheu no campo "Duração"), com o serviço do
+  // primeiro item como rede. É esta janela que o agendamento vai ocupar na
+  // agenda — e é ela que a busca de horários precisa usar para marcar
+  // "(ocupado)", senão a grade diz "livre" num horário que o segundo serviço
+  // vai engolir. O `end` enviado no submit sai daqui também, para os dois
+  // números nunca divergirem.
+  const duracaoTotalMin = useMemo(() => {
+    const soma = items
+      .filter((it) => it.serviceId)
+      .reduce((total, it) => total + (it.durationMin || 0), 0);
+    if (soma) return soma;
+    const svc = services.data?.data?.find((s) => s.id === primary.serviceId);
+    return svc?.durationMin || 60;
+  }, [items, services.data, primary.serviceId]);
   const availability = useAvailability(
     primary.serviceId || undefined,
     primary.professionalId || undefined,
     date || undefined,
+    duracaoTotalMin,
   );
-  const createAppointment = useCreateAppointment();
+  // Expediente da profissional do horário — usado só para AVISAR quais datas da
+  // repetição o backend vai recusar (e nada mais). Carrega apenas depois de
+  // escolher a profissional.
+  const profissionalDoHorario = useProfessionalDetail(primary.professionalId || null);
+  const expedientes = profissionalDoHorario.data?.schedules;
+  const createAppointmentSeries = useCreateAppointmentSeries();
+  const qc = useQueryClient();
+  const { can } = useCan();
+  const vincularServico = useSetProfessionalServices();
+  const [erroVinculo, setErroVinculo] = useState<string | null>(null);
+  const [serviceDrawerOpen, setServiceDrawerOpen] = useState(false);
+  const categoriasDeServicoQ = useProductCategories();
+  const categoriasDeServico = useMemo(
+    () => (categoriasDeServicoQ.data ?? []).map((c) => ({ id: c.id, name: c.name })),
+    [categoriasDeServicoQ.data],
+  );
   const createCustomer = useCreateCustomer();
-  const setAppointmentStatus = useSetAppointmentStatus();
   const createOrder = useCreateOrder();
+  const confirm = useConfirm();
 
   const serviceItems = services.data?.data ?? [];
   const professionalItems = professionals.data?.data ?? [];
   const customerItems = customers.data?.data ?? [];
   const slots = availability.data?.slots ?? [];
+
+  /**
+   * Vincula o serviço escolhido à profissional do horário, sem sair da tela.
+   *
+   * O endpoint SUBSTITUI a lista inteira de serviços dela — por isso manda a
+   * UNIÃO com os vínculos atuais. Mandar só o novo apagaria todos os outros, um
+   * estrago que só apareceria dias depois, com a agenda dela recusando serviços
+   * que ela sempre fez. Ver estudo 155.
+   */
+  async function vincularServicoAoProfissional() {
+    const atuais = profissionalDoHorario.data?.services;
+    if (!primary.professionalId || !primary.serviceId || atuais === undefined) return;
+    setErroVinculo(null);
+    try {
+      const ids = new Set(atuais.map((s) => s.serviceId));
+      ids.add(primary.serviceId);
+      await vincularServico.mutateAsync({
+        id: primary.professionalId,
+        serviceIds: Array.from(ids),
+      });
+      // A mutation invalida `professionals`, não a disponibilidade — sem isto a
+      // caixa amarela continuaria na tela, como se nada tivesse acontecido.
+      await qc.invalidateQueries({ queryKey: ['availability'] });
+    } catch (err) {
+      setErroVinculo(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Não foi possível vincular o serviço a esta profissional.',
+      );
+    }
+  }
 
   function updateItem(idx: number, patch: Partial<ApptItem>) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -236,26 +388,104 @@ export function NewAppointmentModal({
       setDate(initialDate || isoDate(new Date()));
       setSlotStart('');
       setCustomerSearch('');
-      setCustomerId('');
-      setSelectedCustomer(null);
+      // Pré-seleciona o cliente vindo do perfil (fluxo cliente→agendamento),
+      // usando os dados já em mãos — sem re-buscar pelo picker.
+      setCustomerId(initialCustomer?.id ?? '');
+      setSelectedCustomer(
+        initialCustomer
+          ? {
+              id: initialCustomer.id,
+              name: initialCustomer.name,
+              phone: initialCustomer.phone ?? null,
+              avatarUrl: initialCustomer.avatarUrl ?? null,
+            }
+          : null,
+      );
       setPickerOpen(false);
       setCreatingNew(false);
       setNewName('');
       setNewPhone('');
       setNotes('');
-      setSendReminder(true);
-      setSqueezeIn(false);
+      // Reflete o default da config do salão (opt-in): começa desligado quando
+      // automation.reminder está off. Sincronizado abaixo se a config chegar depois.
+      reminderTouched.current = false;
+      setSendReminder(reminderDefault);
+      confirmationTouched.current = false;
+      cancellationTouched.current = false;
+      setSendConfirmation(confirmationDefault);
+      setSendCancellation(cancellationDefault);
+      setWarnEnabled(false);
+      setWarnTemplateId('');
+      setWarnMessage('');
+      setWarnDelayValue('1');
+      setWarnDelayUnit('days');
+      setWarnWhen('after');
+      setWarnIncludeLink(true);
       setFreq('none');
       setRepeatMore(1);
       setFormError(null);
       setSuccess(false);
+      setCreatedOrderId(null);
     }
-  }, [isOpen, initialDate]);
+    // Dependemos do ID do cliente, NÃO do objeto: quem abre o agendamento pela
+    // ficha da cliente passa um literal recriado a cada render
+    // (ClientePerfilTabs.tsx:2848), e como o React compara por identidade este
+    // efeito voltava a rodar a cada render do perfil — três serviços montados,
+    // horário escolhido e observação digitada sumiam sozinhos, e a dona achava
+    // que "a tela bugou". Nome/telefone/foto são lidos do mesmo objeto dentro do
+    // efeito; se o id não mudou, é a mesma cliente e não há o que resetar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialDate, initialCustomer?.id]);
+
+  // Sincroniza o toggle com o default da config quando ela carrega DEPOIS de o
+  // modal já estar aberto — só enquanto a dona não mexeu manualmente (não trava a
+  // edição). Ao mexer, reminderTouched fica true e o default para de sobrescrever.
+  useEffect(() => {
+    if (isOpen && !reminderTouched.current) {
+      setSendReminder(reminderDefault);
+    }
+  }, [isOpen, reminderDefault]);
+
+  useEffect(() => {
+    if (isOpen && !confirmationTouched.current) {
+      setSendConfirmation(confirmationDefault);
+    }
+    if (isOpen && !cancellationTouched.current) {
+      setSendCancellation(cancellationDefault);
+    }
+  }, [isOpen, confirmationDefault, cancellationDefault]);
 
   // Clear the picked slot when the inputs that produced it change.
   useEffect(() => {
     setSlotStart('');
   }, [primary.serviceId, primary.professionalId, date]);
+
+  // Prévia das mensagens: mesmas variáveis que o backend usa para renderizar.
+  const empresa = useEmpresa();
+  const variaveisDaPrevia = useMemo(
+    () =>
+      variaveisDoAgendamento({
+        estabelecimento: empresa.data?.name ?? 'seu salão',
+        cliente: selectedCustomer?.name ?? customerSearch ?? newName,
+        profissional:
+          professionalItems.find((p) => p.id === items[0]?.professionalId)?.name ?? null,
+        servicos: items
+          .map((it) => services.data?.data?.find((s) => s.id === it.serviceId)?.name)
+          .filter((n): n is string => Boolean(n)),
+        inicio: instanteDoSlot(date, slotStart),
+      }),
+    [
+      empresa.data?.name,
+      selectedCustomer?.name,
+      customerSearch,
+      newName,
+      professionalItems,
+      services.data,
+      items,
+      date,
+      slotStart,
+    ],
+  );
 
   const primaryService = useMemo(
     () => serviceItems.find((s) => s.id === primary.serviceId),
@@ -269,16 +499,79 @@ export function NewAppointmentModal({
     return [...set].sort((a, b) => a - b);
   }, [serviceItems, items]);
 
+  /**
+   * TODAS as datas que o Salvar vai criar — a primeira mais as repetições.
+   *
+   * Sem esta lista a repetição é às cegas: a dona marca "Semanal, 11 vezes",
+   * vê a grade de UM dia e as outras onze nascem sem ninguém olhar. Pior, o
+   * backend valida ocorrência por ocorrência antes de gravar
+   * (appointments.service.ts:942-952): se UMA data não couber, ele recusa a
+   * SÉRIE inteira e a mensagem não diz qual data é. Aqui a pessoa vê as datas
+   * e, quando o expediente já está carregado, qual delas vai derrubar tudo.
+   *
+   * As datas são calculadas com o MESMO `nextDate` do envio (:503-508), então a
+   * lista é exatamente o que vai ser criado — não uma aproximação.
+   */
+  const datasDaSerie = useMemo(() => {
+    if (!slotStart) return [];
+    const base = instanteDoSlot(date, slotStart);
+    if (Number.isNaN(base.getTime())) return [];
+    const repeticoes =
+      freq !== 'none' && repeatMore > 0
+        ? Array.from({ length: repeatMore }, (_unused, index) =>
+            nextDate(base, freq, index + 1),
+          )
+        : [];
+    return [base, ...repeticoes].map((quando) => ({
+      rotulo: `${FMT_DATA_SERIE.format(quando)} ${formatSlotTime(quando.toISOString())}`,
+      problema: problemaDeExpediente(quando, duracaoTotalMin, expedientes),
+    }));
+  }, [slotStart, date, freq, repeatMore, duracaoTotalMin, expedientes]);
+  const datasComProblema = datasDaSerie.filter((d) => d.problema);
+
   const canPickSlot = Boolean(primary.serviceId && primary.professionalId && date);
   const isBusy =
-    createAppointment.isPending ||
+    createAppointmentSeries.isPending ||
     createCustomer.isPending ||
-    setAppointmentStatus.isPending ||
     createOrder.isPending;
-  const canConfirm = Boolean(primary.serviceId && primary.professionalId && slotStart) && !isBusy;
+  // `availability.isFetching` entra aqui porque a duração real agora faz parte
+  // da CHAVE da busca de horários: adicionar um segundo serviço (ou trocar a
+  // "Duração") troca a chave, e enquanto a nova lista não chega `slots` fica
+  // vazia — mas o horário JÁ escolhido continua marcado, porque quem limpa a
+  // escolha só olha serviço/profissional/data. Sem esta trava, um clique em
+  // Salvar nesse intervalo caía no `slots.find` vazio de submit() e cuspia
+  // "Selecione um horário disponível." com o horário selecionado na tela.
+  const canConfirm =
+    Boolean(primary.serviceId && primary.professionalId && slotStart) &&
+    !isBusy &&
+    !availability.isFetching;
 
   const selectedCustomerName =
     selectedCustomer?.name ?? customerItems.find((c) => c.id === customerId)?.name;
+  // Foto do escolhido, pelo MESMO caminho do nome. Sem cast: `selectedCustomer`
+  // agora carrega avatarUrl e o tipo `Customer` compartilhado também o declara.
+  // O fallback pela lista cobre o caso de o estado ainda não ter sido preenchido;
+  // se a busca mudou e o cliente saiu da lista, fica undefined e o CustomerAvatar
+  // cai nas iniciais sozinho.
+  const selectedCustomerAvatarUrl =
+    selectedCustomer?.avatarUrl ??
+    customerItems.find((c) => c.id === customerId)?.avatarUrl ??
+    undefined;
+
+  /**
+   * Texto que acompanha o erro de validação quando o Salvar era uma SÉRIE.
+   * Fora da série (uma data só) devolve string vazia — a mensagem do backend já
+   * basta e não há qual data apontar.
+   */
+  function detalheDaSerieNoErro(): string {
+    if (datasDaSerie.length <= 1) return '';
+    const culpadas = datasComProblema.map((d) => `${d.rotulo} (${d.problema})`);
+    return (
+      ` Nenhum dos ${datasDaSerie.length} agendamentos foi criado: a repetição é tudo ou nada.` +
+      ` Datas pedidas: ${datasDaSerie.map((d) => d.rotulo).join(' · ')}.` +
+      (culpadas.length ? ` Provável causa: ${culpadas.join(' · ')}.` : '')
+    );
+  }
 
   // Create the appointment(s) and apply the chosen status. Returns the primary
   // appointment (+ resolved customer) so callers can chain a comanda, or null on
@@ -307,17 +600,28 @@ export function NewAppointmentModal({
           phone: newPhone.trim() || undefined,
         });
         resolvedCustomerId = created.id;
+        // A cliente JÁ está no cadastro a partir daqui — o agendamento é que
+        // ainda pode falhar (o 400 de "fora do expediente" é comum). Promovendo
+        // a recém-criada a cliente ESCOLHIDA, a próxima tentativa de Salvar
+        // reusa o id em vez de cadastrar outra: era assim que nasciam três
+        // "Maria Silva", uma por clique em Salvar, com o histórico e o cashback
+        // repartidos entre elas.
+        setCustomerId(created.id);
+        setSelectedCustomer({
+          id: created.id,
+          name: created.name,
+          phone: created.phone ?? null,
+          avatarUrl: created.avatarUrl ?? null,
+        });
+        setCreatingNew(false);
       }
 
-      const reminderNote = sendReminder ? undefined : 'Sem lembrete automático.';
-      const combinedNotes = [notes.trim() || null, reminderNote].filter(Boolean).join(' ') || undefined;
-      // Duração total = soma das durações dos itens (o start é único).
-      const dur =
-        validItems.reduce((sum, it) => sum + (it.durationMin || 0), 0) ||
-        primaryService?.durationMin ||
-        60;
+      const combinedNotes = notes.trim() || undefined;
+      // Duração total = soma das durações dos itens (o start é único). É o mesmo
+      // número que a busca de horários usou para marcar "(ocupado)" — se as duas
+      // contas divergirem, a grade volta a dizer "livre" onde não está.
       const endFor = (startIso: string) =>
-        new Date(new Date(startIso).getTime() + dur * 60000).toISOString();
+        new Date(new Date(startIso).getTime() + duracaoTotalMin * 60000).toISOString();
 
       const apptProfessionalId = primary.professionalId || undefined;
       const itemsPayload = validItems.map((it) => ({
@@ -325,48 +629,54 @@ export function NewAppointmentModal({
         professionalId: it.professionalId || undefined,
       }));
 
-      const createdIds: string[] = [];
-      const main = await createAppointment.mutateAsync({
+      // Aviso personalizado ("Avisar o cliente"): só monta o objeto quando o
+      // toggle está ligado. Mensagem custom tem precedência; senão manda só o
+      // templateId (o backend resolve o texto do modelo). O backend calcula o
+      // atraso a partir de delayValue+delayUnit ancorado por `when`.
+      const followUpPayload: AppointmentFollowUpInput | undefined = warnEnabled
+        ? {
+            enabled: true,
+            message: warnMessage.trim() || undefined,
+            templateId: warnMessage.trim() ? undefined : warnTemplateId || undefined,
+            delayValue: Math.max(1, Number(warnDelayValue) || 1),
+            delayUnit: warnDelayUnit,
+            when: warnWhen,
+            includeLink: warnIncludeLink,
+          }
+        : undefined;
+
+      const additionalStarts =
+        freq !== 'none' && repeatMore > 0
+          ? Array.from({ length: repeatMore }, (_unused, index) =>
+              nextDate(new Date(slot.start), freq, index + 1).toISOString(),
+            )
+          : [];
+      const series = await createAppointmentSeries.mutateAsync({
         customerId: resolvedCustomerId,
         professionalId: apptProfessionalId,
         start: slot.start,
         end: endFor(slot.start),
         notes: combinedNotes,
+        // Só vai o toggle em que a pessoa REALMENTE mexeu. Mandar os três
+        // sempre gravava o padrão da conta dentro do agendamento, e aí desligar
+        // a conta depois não alcançava mais nada — e não dava para distinguir
+        // "eu autorizei este" de "o padrão era esse na hora". Omitido = NULL =
+        // decide o padrão da conta na entrega. O visualizador da agenda já faz
+        // assim (AgendaPage.tsx:853). Ver estudo 81.
+        ...(reminderTouched.current ? { remindClient: sendReminder } : {}),
+        ...(confirmationTouched.current
+          ? { notifyConfirmation: sendConfirmation }
+          : {}),
+        ...(cancellationTouched.current
+          ? { notifyCancellation: sendCancellation }
+          : {}),
         items: itemsPayload,
+        followUp: followUpPayload,
+        additionalStarts,
+        status,
       });
-      createdIds.push(main.id);
-
-      // Recurrence: create the extra occurrences client-side (best-effort).
-      if (freq !== 'none' && repeatMore > 0) {
-        const base = new Date(slot.start);
-        for (let i = 1; i <= repeatMore; i++) {
-          const start = nextDate(base, freq, i).toISOString();
-          try {
-            const extra = await createAppointment.mutateAsync({
-              customerId: resolvedCustomerId,
-              professionalId: apptProfessionalId,
-              start,
-              end: endFor(start),
-              notes: combinedNotes,
-              items: itemsPayload,
-            });
-            createdIds.push(extra.id);
-          } catch {
-            /* skip occurrences that fall outside working hours, etc. */
-          }
-        }
-      }
-
-      // Apply the chosen status when it differs from the created default.
-      if (status !== main.status) {
-        for (const id of createdIds) {
-          try {
-            await setAppointmentStatus.mutateAsync({ id, status });
-          } catch {
-            /* keep the created default if the transition is rejected */
-          }
-        }
-      }
+      const main = series.data[0];
+      if (!main) throw new Error('A série não retornou o agendamento criado.');
 
       onCreated?.();
       return { id: main.id, customerId: resolvedCustomerId };
@@ -379,7 +689,15 @@ export function NewAppointmentModal({
           return null;
         }
         if (err.statusCode === 400) {
-          setFormError(err.message || 'Horário fora do horário de trabalho do profissional.');
+          // A recusa é all-or-nothing: o backend valida cada ocorrência antes de
+          // gravar e, se uma não couber, NADA é criado — mas a mensagem dele não
+          // diz qual data. Anexamos as datas da série e, quando o expediente
+          // está em mãos, apontamos a culpada. Sem isso a dona refaz do zero sem
+          // saber o que mudar.
+          setFormError(
+            (err.message || 'Horário fora do horário de trabalho do profissional.') +
+              detalheDaSerieNoErro(),
+          );
           return null;
         }
         setFormError(err.message || 'Não foi possível criar o agendamento.');
@@ -390,24 +708,86 @@ export function NewAppointmentModal({
     }
   }
 
+  /**
+   * Salvar → pergunta se quer a comanda agora.
+   *
+   * O Belasis não pergunta: ele põe "Salvar" e "Criar comanda" lado a lado no
+   * rodapé (captura em `belasis-reference/_structure/drawers/calendar--drawer-1.txt`,
+   * linhas 237-246), e nós temos os dois. O dono pediu a pergunta mesmo assim —
+   * e ela resolve um buraco real: no CELULAR o botão "Criar comanda" fica
+   * escondido, então quem agenda pelo telefone não tinha caminho nenhum para a
+   * comanda. Ver estudo 56.
+   */
   async function handleConfirm() {
     const result = await submit();
-    if (result) setSuccess(true);
+    if (!result) return;
+    const querComanda = await confirm({
+      title: 'Criar comanda agora?',
+      message:
+        'O agendamento foi salvo. A comanda registra o atendimento e recebe os pagamentos — dá para criar agora ou depois, pelo próprio agendamento.',
+      confirmLabel: 'Criar comanda',
+      cancelLabel: 'Agora não',
+    });
+    if (!querComanda) {
+      setSuccess(true);
+      return;
+    }
+    await criarComandaPara(result);
   }
 
-  // Create the appointment, then open a comanda (order) for the same client.
+  /** Botão "Criar comanda": salva e vai direto, sem a pergunta. */
   async function handleComanda() {
     const result = await submit();
     if (!result) return;
+    await criarComandaPara(result);
+  }
+
+  /** Cria a comanda do agendamento recém-salvo (usada pelos dois caminhos). */
+  async function criarComandaPara(result: { id: string; customerId?: string }) {
+    let orderId: string | null = null;
     try {
-      await createOrder.mutateAsync({
+      const validItems = items.filter((item) => item.serviceId);
+      const order = await createOrder.mutateAsync({
+        // Amarra a comanda AO agendamento que acabou de nascer. Sem isto, criar
+        // "agendamento + comanda" de uma vez deixava os dois soltos: o drawer do
+        // agendamento voltava a oferecer "Abrir comanda" para algo que já tinha
+        // uma, e o próximo clique gerava a segunda. Ver estudo 52.
+        appointmentId: result.id,
         customerId: result.customerId,
         professionalId: primary.professionalId || undefined,
         notes: notes.trim() || undefined,
+        items: validItems.map((item) => {
+          const service = serviceItems.find(
+            (candidate) => candidate.id === item.serviceId,
+          );
+          return {
+            kind: 'service' as const,
+            refId: item.serviceId,
+            professionalId:
+              item.professionalId || primary.professionalId || undefined,
+            quantity: 1,
+            unitPrice: Number(service?.price ?? 0),
+          };
+        }),
       });
-      setSuccess(true);
+      orderId = order.id;
+      setCreatedOrderId(order.id);
+      // Se o pai quer controlar a navegação (ex.: AgendaPage), delega e deixa
+      // ele fechar o drawer; senão navega para a comanda e fecha aqui.
+      if (onCreatedOrder) {
+        onCreatedOrder(order.id);
+      } else {
+        onOpenChange(false);
+        nav(`/comandas/${order.id}`);
+      }
     } catch {
-      setFormError('Agendamento criado, mas não foi possível criar a comanda.');
+      // O agendamento já existe; a comanda, porém, é tudo-ou-nada.
+      setSuccess(true);
+      setFormError(
+        orderId
+          ? 'Agendamento criado. A comanda foi criada integralmente, mas não foi possível abrir sua tela.'
+          : 'Agendamento criado, mas não foi possível criar a comanda.',
+      );
     }
   }
 
@@ -417,10 +797,14 @@ export function NewAppointmentModal({
     </Button>
   ) : (
     <>
-      {/* Belasis: "Ajuda" à esquerda; ações à direita; "Criar comanda" verde.
-          Mobile: Ajuda oculto pra dar espaço; Cancelar/Salvar full-width empilhados;
-          Criar comanda esconde no mobile (user pode criar comanda a partir do
-          drawer do agendamento depois — evita layout quebrado com 4 botões). */}
+      {/* Rodapé da referência: Ajuda · Cancelar · Salvar · Criar comanda
+          (`belasis-reference/_structure/drawers/calendar--drawer-1.txt:237`-`:246`).
+
+          Os DOIS botões de ação, agora também no celular — antes o verde era
+          `hidden md:inline-flex` e quem agendava pelo telefone não tinha caminho
+          para a comanda. `flex-wrap` no contêiner do rodapé impede que os quatro
+          se atropelem em 390px. "Salvar" ainda pergunta se a comanda sai agora;
+          "Criar comanda" vai direto. Ver estudo 56. */}
       {/* Ajuda abre a Central de Ajuda numa nova aba — não fecha o drawer, pra
           não perder o agendamento em andamento. */}
       <Button
@@ -433,7 +817,7 @@ export function NewAppointmentModal({
       {/* Dica de validação mobile — só quando Salvar tá disabled */}
       {!canConfirm && !isBusy && (
         <span className="mr-auto w-full text-[11px] text-muted-ink md:hidden">
-          {!primary.serviceId ? 'Escolha um serviço' : !primary.professionalId ? 'Escolha um profissional' : !slotStart ? 'Escolha um horário' : ''}
+          {!primary.serviceId ? 'Escolha um serviço' : !primary.professionalId ? 'Escolha um profissional' : !slotStart ? 'Escolha um horário' : availability.isFetching ? 'Aguarde os horários recarregarem' : ''}
         </span>
       )}
       <Button variant="outline" className="flex-1 md:flex-none" onClick={() => onOpenChange(false)}>
@@ -444,7 +828,7 @@ export function NewAppointmentModal({
       </Button>
       <Button
         variant="primary"
-        className="hidden bg-success text-white hover:bg-success/90 md:inline-flex"
+        className="w-full bg-success text-white hover:bg-success/90 md:w-auto"
         isDisabled={!canConfirm}
         onClick={handleComanda}
       >
@@ -462,6 +846,7 @@ export function NewAppointmentModal({
       title="Novo agendamento"
       footer={footer}
       widthClass="sm:w-[min(1180px,94vw)]"
+      fullscreen
     >
       {/* Sub-drawer: seletor de cliente (bottom-sheet, funciona em mobile). */}
       <CustomerPickerDrawer
@@ -474,7 +859,12 @@ export function NewAppointmentModal({
         selectedId={customerId}
         onPick={(c) => {
           setCustomerId(c.id);
-          setSelectedCustomer({ id: c.id, name: c.name, phone: c.phone });
+          setSelectedCustomer({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            avatarUrl: c.avatarUrl ?? null,
+          });
           setPickerOpen(false);
         }}
       />
@@ -485,14 +875,47 @@ export function NewAppointmentModal({
           </div>
           <p className="text-base font-semibold text-foreground">Agendamento criado com sucesso!</p>
           <p className="text-sm text-muted">A agenda foi atualizada.</p>
+          {createdOrderId && (
+            <Button
+              variant="primary"
+              className="mt-3 bg-success text-white hover:bg-success/90"
+              onClick={() => {
+                const id = createdOrderId;
+                onOpenChange(false);
+                nav(`/comandas/${id}`);
+              }}
+            >
+              Abrir comanda
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
-          {/* ── Rail esquerdo: avatar + busca de cliente ─────────────────── */}
-          <aside className="flex shrink-0 flex-col items-center gap-4 lg:w-[190px] lg:pt-1">
-            <div className="grid h-[120px] w-[120px] place-items-center rounded-full bg-cream text-primary/70">
-              <UserGlyph />
-            </div>
+          {/* ── Rail esquerdo: avatar + busca de cliente ───────────────────
+              `order-2 … lg:order-1`: no MOBILE o rail vai para DEPOIS do formulário,
+              mesma inversão do ComandaDrawer.tsx:362 e do PacoteClienteAside.tsx:64.
+              O rail é ILUSTRATIVO aqui — o formulário já abre com o campo "Cliente"
+              (linha ~724), que é o mesmo picker do botão abaixo. Com o rail primeiro,
+              "Novo agendamento" no celular começava com 120px de avatar + um segundo
+              botão de busca + os blocos do cliente, e a data/serviço só apareciam
+              depois de rolar. O DOM mantém o rail antes (contexto para leitor de tela). */}
+          <aside className="order-2 flex shrink-0 flex-col items-center gap-4 lg:order-1 lg:w-[190px] lg:pt-1">
+            {/* Antes era um <UserGlyph /> FIXO: o boneco não mudava nem depois de
+                escolher o cliente. Agora reaproveita o mesmo CustomerAvatar do
+                picker (foto → iniciais → boneco), então o cliente com foto aparece
+                com ela aqui também. Sem cliente escolhido, o nome vazio faz o
+                próprio componente cair no boneco — mesmo visual de antes. */}
+            {selectedCustomerName ? (
+              <CustomerAvatar
+                name={selectedCustomerName}
+                avatarUrl={selectedCustomerAvatarUrl}
+                size={120}
+              />
+            ) : (
+              <div className="grid h-[120px] w-[120px] place-items-center rounded-full bg-cream text-primary/70">
+                <UserGlyph />
+              </div>
+            )}
             {/* Busca de cliente pelo rail: abre o mesmo bottom-sheet do campo
                 "Cliente" (useCustomers(customerSearch) já alimenta a lista). */}
             <button
@@ -512,10 +935,22 @@ export function NewAppointmentModal({
                 </>
               )}
             </button>
+
+            {/* Mesma coluna do cliente do drawer de visualização (f_0062). O vídeo
+                não tem nenhum quadro do "Novo agendamento" do Belasis — o que ele
+                mostra (f_0153, "Novo pacote" sem cliente) é a coluna vazia, que é
+                justamente o que o componente faz sem `customerId`. Sem cliente
+                escolhido (inclusive no modo "criar cliente novo", em que
+                `customerId` é '') ele não renderiza nem dispara request.
+                `w-full` porque a aside centraliza os filhos (`items-center`).
+                Sem "+ Adicionar": não há evidência de qual seria o fluxo aqui. */}
+            <ClienteBlocosLaterais customerId={customerId || null} className="w-full" />
           </aside>
 
-          {/* ── Formulário principal ─────────────────────────────────────── */}
-          <div className="flex min-w-0 flex-1 flex-col gap-6">
+          {/* ── Formulário principal ───────────────────────────────────────
+              `order-1 lg:order-2`: par da inversão do rail — no mobile o formulário
+              é o primeiro da tela; no desktop volta para a direita. */}
+          <div className="order-1 flex min-w-0 flex-1 flex-col gap-6 lg:order-2">
             {/* Linha 1: Cliente | Data | Status | Cor */}
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
               <Field label="Cliente" className="lg:col-span-5">
@@ -524,9 +959,9 @@ export function NewAppointmentModal({
                     <TextField value={newName} onChange={setNewName} aria-label="Nome do cliente">
                       <Input className={triggerCls} placeholder="Nome do cliente" />
                     </TextField>
-                    <TextField value={newPhone} onChange={setNewPhone} aria-label="Telefone">
-                      <Input className={triggerCls} placeholder="Telefone (WhatsApp)" />
-                    </TextField>
+                    {/* País + número: é o telefone que o WhatsApp vai usar, e o
+                        placeholder antigo sugeria +1. Ver estudo 57. */}
+                    <PhoneField value={newPhone} onChange={setNewPhone} ariaLabel="Telefone (WhatsApp)" />
                   </div>
                 ) : (
                   <button
@@ -566,19 +1001,7 @@ export function NewAppointmentModal({
               </Field>
 
               <Field label="Data" className="lg:col-span-2">
-                <div className="relative">
-                  <div className="flex h-11 items-center justify-between gap-2 rounded-lg border border-default-200 bg-white px-3 text-sm text-foreground">
-                    <span>{shortDate(date)}</span>
-                    <IconCalendar size={16} className="text-muted" />
-                  </div>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    aria-label="Data"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                  />
-                </div>
+                <DatePicker value={date} onChange={setDate} ariaLabel="Data" />
               </Field>
 
               <Field label="Status" className="lg:col-span-3">
@@ -587,12 +1010,10 @@ export function NewAppointmentModal({
                   selectedKey={status}
                   onSelectionChange={(k) => setStatus(String(k) as AppointmentStatus)}
                 >
-                  <Select.Trigger className={triggerCls}>
+                  <Select.Trigger className={`${triggerCls} min-h-[44px] touch-manipulation`}>
+                    {/* Select.Value já renderiza a bolinha + label do item
+                        selecionado (defaultChildren) — não duplicar a bolinha. */}
                     <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: STATUS_COLOR[status] }}
-                      />
                       <Select.Value />
                     </span>
                   </Select.Trigger>
@@ -656,6 +1077,20 @@ export function NewAppointmentModal({
                         </ListBox>
                       </Select.Popover>
                     </Select>
+                    {/* Serviço que ainda não existe no catálogo obrigava a sair
+                        da tela e recomeçar o agendamento. O ServiceDrawer já é
+                        reutilizável e sobe por cima (z-80 > z-70). Permissão
+                        SEPARADA da de vincular: quem cadastra serviço pode não
+                        poder mexer na equipe. Ver estudo 155. */}
+                    {idx === 0 && can('catalogo:manage') && (
+                      <button
+                        type="button"
+                        onClick={() => setServiceDrawerOpen(true)}
+                        className="mt-1 self-start text-xs font-medium text-gold-strong hover:underline"
+                      >
+                        + Novo serviço
+                      </button>
+                    )}
                   </Field>
 
                   <Field label="Profissional" className="lg:col-span-3">
@@ -687,29 +1122,121 @@ export function NewAppointmentModal({
                       demais mantêm alinhamento com um espaçador no desktop. */}
                   {idx === 0 ? (
                     <Field label="Horário" className="lg:col-span-2">
-                      <Select
-                        aria-label="Horário"
-                        selectedKey={slotStart || null}
-                        isDisabled={!canPickSlot || slots.length === 0}
-                        onSelectionChange={(k) => { setSlotStart(k ? String(k) : NONE); setFormError(null); }}
-                      >
-                        <Select.Trigger className={triggerCls}>
-                          <Select.Value>
-                            {({ isPlaceholder, selectedText }) =>
-                              isPlaceholder ? 'Horário' : selectedText
-                            }
-                          </Select.Value>
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {slots.map((slot: AvailabilitySlot) => (
-                              <ListBox.Item key={slot.start} id={slot.start} textValue={formatSlotTime(slot.start)}>
+                      {!canPickSlot ? (
+                        <div className="flex min-h-[44px] items-center rounded-lg border border-default-200 bg-white px-3 text-sm text-muted">
+                          Selecione serviço e profissional
+                        </div>
+                      ) : availability.isFetching ? (
+                        <span className="flex min-h-[44px] items-center gap-2 text-sm text-muted">
+                          <Spinner size="sm" /> Buscando horários…
+                        </span>
+                      ) : slots.length === 0 ? (
+                        /* O backend manda o MOTIVO pronto da lista vazia
+                           (motivoTexto — appointments.service.ts:69-75). A frase
+                           fixa que ficava aqui servia para os cinco casos: a
+                           dona trocava a data cinco vezes sem descobrir que a
+                           profissional simplesmente não executa aquele serviço,
+                           e nenhuma data ia funcionar. */
+                        <div className="flex min-h-[44px] flex-col justify-center gap-0.5 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
+                          <span>
+                            {availability.data?.motivoTexto ??
+                              'Nenhum horário disponível nesta data.'}
+                          </span>
+                          {/* A saída é DIFERENTE em cada motivo. Mandar quem caiu
+                              em `servico_desconhecido` "escolher outra
+                              profissional" é mandar procurar erro onde não tem: o
+                              serviço não existe mais no catálogo do salão
+                              (appointments.service.ts:71), nenhuma profissional
+                              vai executá-lo. */}
+                          {availability.data?.motivo === 'profissional_nao_vinculado' && (
+                            <>
+                              <span className="text-xs text-muted">
+                                Trocar a data não resolve — escolha outra profissional ou
+                                vincule este serviço a ela.
+                              </span>
+                              {/* A tela dizia "vincule" e não deixava vincular:
+                                  era preciso sair para Equipe e recomeçar o
+                                  agendamento. Ver estudo 155. */}
+                              {can('equipe:manage') && (
+                                <button
+                                  type="button"
+                                  // Desabilitado enquanto os vínculos atuais não
+                                  // chegaram: o PUT SUBSTITUI a lista inteira
+                                  // (professionals.service.ts:99-106), então
+                                  // enviar sem ela apagaria todos os serviços
+                                  // da profissional.
+                                  disabled={
+                                    vincularServico.isPending ||
+                                    profissionalDoHorario.isLoading ||
+                                    profissionalDoHorario.data?.services === undefined
+                                  }
+                                  onClick={() => void vincularServicoAoProfissional()}
+                                  className="mt-1.5 self-start rounded-lg border border-warning/50 bg-white px-2.5 py-1 text-xs font-medium text-foreground hover:bg-warning/10 disabled:opacity-50"
+                                >
+                                  {vincularServico.isPending
+                                    ? 'Vinculando…'
+                                    : `Vincular a ${
+                                        professionalItems.find(
+                                          (p) => p.id === primary.professionalId,
+                                        )?.name ?? 'esta profissional'
+                                      }`}
+                                </button>
+                              )}
+                              {erroVinculo && (
+                                <span className="text-xs text-danger">{erroVinculo}</span>
+                              )}
+                            </>
+                          )}
+                          {availability.data?.motivo === 'servico_desconhecido' && (
+                            <span className="text-xs text-muted">
+                              Trocar a data não resolve — escolha outro serviço na lista.
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div
+                          aria-label="Horários disponíveis"
+                          className="flex max-h-44 flex-wrap gap-2 overflow-y-auto overscroll-contain pr-1"
+                        >
+                          {slots.map((slot: AvailabilitySlot) => {
+                            const selectedSlot = slot.start === slotStart;
+                            return (
+                              <button
+                                key={slot.start}
+                                type="button"
+                                aria-pressed={selectedSlot}
+                                onClick={() => {
+                                  setSlotStart(slot.start);
+                                  setFormError(null);
+                                }}
+                                className={[
+                                  'min-h-[44px] rounded-lg border px-3 text-sm font-medium transition-colors touch-manipulation',
+                                  selectedSlot
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : slot.busy
+                                      ? // Ocupado e oferecido só porque o encaixe
+                                        // está ligado — precisa parecer diferente,
+                                        // ou alguém marca em cima sem perceber.
+                                        'border-warning/60 bg-warning/10 text-foreground hover:border-warning'
+                                      : 'border-default-200 bg-white text-foreground hover:border-primary/50 hover:bg-primary/5',
+                                ].join(' ')}
+                                title={
+                                  slot.busy
+                                    ? 'Horário já ocupado — será um encaixe'
+                                    : undefined
+                                }
+                              >
                                 {formatSlotTime(slot.start)}
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
+                                {slot.busy && (
+                                  <span className="ml-1 text-xs font-normal opacity-80">
+                                    (ocupado)
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </Field>
                   ) : (
                     <div className="hidden lg:col-span-2 lg:block" aria-hidden />
@@ -769,32 +1296,183 @@ export function NewAppointmentModal({
                   {primaryService.description}
                 </p>
               )}
-              {canPickSlot && availability.isFetching && (
-                <span className="flex items-center gap-2 text-xs text-muted">
-                  <Spinner size="sm" /> Buscando horários…
-                </span>
-              )}
-              {canPickSlot && !availability.isFetching && slots.length === 0 && (
-                <div className="flex flex-col gap-1 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-foreground">
-                  <span className="font-medium">Nenhum horário disponível nesta data.</span>
-                  <span className="text-muted-ink">
-                    Verifique se o profissional tem <strong>expediente</strong> e <strong>serviços vinculados</strong> cadastrados. Muitos profissionais importados não têm essa configuração.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => { onOpenChange(false); nav('/profissionais'); }}
-                    className="mt-1 self-start text-xs font-semibold text-primary hover:underline"
-                  >
-                    Configurar profissional →
-                  </button>
-                </div>
-              )}
             </div>
 
-            {/* ── Ações (switches inline) ──────────────────────────────── */}
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-              <InlineToggle checked={sendReminder} onChange={setSendReminder} label="Enviar lembrete" />
-              <InlineToggle checked={squeezeIn} onChange={setSqueezeIn} label="Encaixar agendamento" />
+            {/* ── Mensagens automáticas para o cliente ────────────────────
+                Antes eram três switches "Avisar…" soltos, e logo abaixo um bloco
+                TAMBÉM chamado "Avisar o cliente" (que é o acompanhamento) —
+                quatro rótulos parecidos para duas coisas diferentes. Agora cada
+                linha diz quando sai e, ligada, mostra o texto que vai sair.
+                Ver estudo 64. */}
+            <AvisosDoCliente
+              valores={{
+                notifyConfirmation: sendConfirmation,
+                notifyCancellation: sendCancellation,
+                remindClient: sendReminder,
+              }}
+              onChange={(campo: CampoDeAviso, valor: boolean) => {
+                if (campo === 'notifyConfirmation') handleSendConfirmationChange(valor);
+                else if (campo === 'notifyCancellation') handleSendCancellationChange(valor);
+                else handleSendReminderChange(valor);
+              }}
+              variaveis={variaveisDaPrevia}
+            />
+
+            {/* ── Avisar o cliente (aviso personalizado agendado) ──────────
+                Distinto do lembrete fixo acima: mensagem/template + tempo (até
+                segundos) + âncora + link, agendado como job atrasado no backend.
+                Espelha a UX do FollowUpConfigCard (Configurações → Notificações). */}
+            <div className="flex flex-col gap-4 rounded-xl border border-default-200 bg-cream/40 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    Acompanhamento <span className="font-normal text-muted">(depois do atendimento)</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    Uma mensagem sua por WhatsApp no tempo que você escolher DEPOIS
+                    do atendimento — com texto pronto ou seu, e o link de reagendamento.
+                    Não confunda com o lembrete, que é antes.
+                  </p>
+                </div>
+                <AppSwitch
+                  checked={warnEnabled}
+                  onChange={setWarnEnabled}
+                  aria-label="Acompanhamento depois do atendimento"
+                />
+              </div>
+
+              {warnEnabled && (
+                <div className="flex flex-col gap-5">
+                  {/* Modelos prontos: preenchem a mensagem (ainda editável). */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[13px] font-semibold text-foreground">Modelo</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {FOLLOWUP_TEMPLATES.map((tpl) => {
+                        const active = warnTemplateId === tpl.id && !warnMessage.trim();
+                        return (
+                          <button
+                            key={tpl.id}
+                            type="button"
+                            onClick={() => {
+                              setWarnTemplateId(tpl.id);
+                              setWarnMessage(tpl.message);
+                            }}
+                            title="Preencher a mensagem com este modelo (você ainda pode editar)"
+                            className={
+                              'rounded-full border px-3 py-1 text-xs transition-colors ' +
+                              (active
+                                ? 'border-primary bg-primary/10 text-foreground'
+                                : 'border-default-200 bg-white text-muted hover:border-primary/50 hover:text-foreground')
+                            }
+                          >
+                            {tpl.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Mensagem editável + chips de variáveis. */}
+                  <Field label="Mensagem">
+                    <textarea
+                      value={warnMessage}
+                      onChange={(e) => setWarnMessage(e.target.value)}
+                      rows={4}
+                      placeholder="Escreva a mensagem ou escolha um modelo acima. Deixe em branco para usar o texto padrão."
+                      className="resize-none rounded-lg border border-default-200 bg-white px-3.5 py-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-primary"
+                    />
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-muted">Variáveis:</span>
+                      {WARN_VARS.map((v) => (
+                        <button
+                          key={v.token}
+                          type="button"
+                          onClick={() => setWarnMessage((m) => `${m}${v.token}`)}
+                          title={v.label}
+                          className="rounded-md border border-default-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-foreground transition-colors hover:bg-cream"
+                        >
+                          {v.token}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+
+                  {/* Tempo (valor + unidade) e âncora do disparo. */}
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
+                    <Field label="Enviar" className="lg:col-span-3">
+                      <TextField
+                        value={warnDelayValue}
+                        onChange={setWarnDelayValue}
+                        aria-label="Quantidade de tempo do aviso"
+                      >
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          className={triggerCls}
+                        />
+                      </TextField>
+                    </Field>
+
+                    <Field label="Unidade" className="lg:col-span-3">
+                      <Select
+                        aria-label="Unidade de tempo do aviso"
+                        selectedKey={warnDelayUnit}
+                        onSelectionChange={(k) => setWarnDelayUnit(String(k) as WarnUnit)}
+                      >
+                        <Select.Trigger className={triggerCls}>
+                          <Select.Value>
+                            {({ selectedText }) => selectedText || WARN_UNIT_LABEL[warnDelayUnit]}
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {WARN_UNIT_OPTIONS.map((u) => (
+                              <ListBox.Item key={u.id} id={u.id} textValue={u.label}>
+                                {u.label}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </Field>
+
+                    <Field label="Quando" className="lg:col-span-6">
+                      <Select
+                        aria-label="Âncora do aviso"
+                        selectedKey={warnWhen}
+                        onSelectionChange={(k) => setWarnWhen(String(k) as WarnWhen)}
+                      >
+                        <Select.Trigger className={triggerCls}>
+                          <Select.Value>
+                            {({ selectedText }) => selectedText || WARN_WHEN_LABEL[warnWhen]}
+                          </Select.Value>
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {WARN_WHEN_OPTIONS.map((w) => (
+                              <ListBox.Item key={w.id} id={w.id} textValue={w.label}>
+                                {w.label}
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
+                    </Field>
+                  </div>
+                  <p className="-mt-2 text-xs text-muted">
+                    Ex.: <strong>1 dia · Depois do atendimento</strong>. Use{' '}
+                    <strong>segundos</strong> para testar o disparo rápido.
+                  </p>
+
+                  {/* Link de reagendamento. */}
+                  <InlineToggle
+                    checked={warnIncludeLink}
+                    onChange={setWarnIncludeLink}
+                    label="Incluir link de reagendamento"
+                  />
+                </div>
+              )}
             </div>
 
             {/* ── Além deste, repetir mais ─────────────────────────────── */}
@@ -848,6 +1526,59 @@ export function NewAppointmentModal({
               )}
             </div>
 
+            {/* ── Datas que serão criadas ────────────────────────────────
+                A repetição criava tudo às cegas: a pessoa vê a grade de UM dia e
+                as outras N datas nascem sem ninguém olhar — inclusive por cima
+                de quem já estava marcado, e inclusive em dia sem expediente, o
+                que faz o backend recusar a série INTEIRA sem dizer qual data
+                quebrou. Aqui as datas ficam à vista antes de salvar, com a
+                marca de qual não cabe. Aparece também sem repetição quando a
+                ÚNICA data já não cabe (o segundo serviço esticou o atendimento
+                para além do expediente) — que é justamente o erro que fazia a
+                recepção clicar em Salvar de novo e de novo. */}
+            {(datasDaSerie.length > 1 || datasComProblema.length > 0) && (
+              <div className="flex flex-col gap-2 rounded-xl border border-default-200 bg-cream/40 p-3">
+                <p className="text-[13px] font-semibold text-foreground">
+                  {datasDaSerie.length > 1
+                    ? `Serão criados ${datasDaSerie.length} agendamentos`
+                    : 'Data deste agendamento'}
+                </p>
+                <ul className="flex flex-wrap gap-1.5">
+                  {datasDaSerie.map((d) => (
+                    <li
+                      key={d.rotulo}
+                      title={d.problema ?? undefined}
+                      className={
+                        'rounded-md border px-2 py-1 text-xs ' +
+                        (d.problema
+                          ? 'border-warning/60 bg-warning/10 font-medium text-foreground'
+                          : 'border-default-200 bg-white text-muted')
+                      }
+                    >
+                      {d.rotulo}
+                      {/* Não basta a cor: quem não distingue o âmbar precisa ler
+                          que aquela data é a que derruba o salvamento. */}
+                      {d.problema ? ' · não cabe' : ''}
+                    </li>
+                  ))}
+                </ul>
+                {datasComProblema.length > 0 && (
+                  <div className="flex flex-col gap-0.5 text-xs text-foreground">
+                    {datasComProblema.map((d) => (
+                      <span key={`aviso-${d.rotulo}`}>
+                        <strong>{d.rotulo}</strong>: {d.problema}.
+                      </span>
+                    ))}
+                    <span className="text-muted">
+                      {datasDaSerie.length > 1
+                        ? 'O sistema recusa a repetição inteira quando uma data não cabe — nada é criado. Ajuste o horário, a duração ou o número de repetições.'
+                        : 'O sistema vai recusar este horário. Ajuste o horário ou a duração.'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── Observações ──────────────────────────────────────────── */}
             <Field label="Observações">
               <textarea
@@ -867,6 +1598,19 @@ export function NewAppointmentModal({
           </div>
         </div>
       )}
+
+      {/* Cadastro de serviço por cima do agendamento (FullDrawer z-80 sobre o
+          z-70 daqui). Ao fechar, a lista de serviços é recarregada para o
+          recém-criado já aparecer no seletor. Ver estudo 155. */}
+      <ServiceDrawer
+        mode="create"
+        isOpen={serviceDrawerOpen}
+        onClose={() => {
+          setServiceDrawerOpen(false);
+          void qc.invalidateQueries({ queryKey: ['services'] });
+        }}
+        categories={categoriasDeServico}
+      />
     </Drawer>
   );
 }
@@ -937,7 +1681,8 @@ function CustomerPickerDrawer({
           <ul className="flex flex-col divide-y divide-default-200 rounded-lg border border-default-200 bg-white">
             {items.map((c) => {
               const isSelected = c.id === selectedId;
-              const avatarUrl = (c as Customer & { avatarUrl?: string | null }).avatarUrl;
+              // Sem cast: `Customer` já declara avatarUrl no pacote compartilhado.
+              const avatarUrl = c.avatarUrl;
               return (
                 <li key={c.id}>
                   <button

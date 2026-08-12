@@ -2,17 +2,46 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json';
 
 export default defineConfig({
+  define: {
+    // Versão do app = fonte única em package.json. Bumpar lá atualiza tudo.
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      // Registra o service worker também no DEV server. Sem isto o PWA só é
+      // instalável no build de produção; com isto o app já fica instalável pelo
+      // dev/túnel — dá pra testar "Instalar app" no Android/Samsung via
+      // trycloudflare (HTTPS + SW + manifest = critérios de instalabilidade).
+      devOptions: { enabled: true, type: 'module' },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Fontes entram no runtime cache quando realmente usadas; pré-carregar
+        // todos os alfabetos/pesos tornava a instalação inicial do PWA vários
+        // megabytes maior sem benefício para a maioria dos usuários.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        /**
+         * `/api/*` NUNCA pode cair no index.html da SPA.
+         *
+         * O `generateSW` cria um `NavigationRoute` que responde TODA navegação
+         * com o app — inclusive as que precisam chegar ao servidor. O callback
+         * do Google (`/api/v1/auth/callback/google`) é uma navegação de
+         * verdade: o service worker a engolia e devolvia a SPA, a requisição
+         * não saía do navegador e o login com Google do portal do salão morria
+         * em silêncio, terminando no painel porque a sessão de staff já estava
+         * ali. Sem log no servidor, sem sessão nova, sem erro — nada.
+         *
+         * O portal (apps/web-club/vite.config.ts:47) já tinha esta trava desde
+         * sempre; o painel, que é onde o callback aterrissa, nunca teve.
+         * Ver estudo 117.
+         */
+        navigateFallbackDenylist: [/^\/api/],
         // Cache-first pra assets estáticos, network-first pra API
         runtimeCaching: [
           {
@@ -40,8 +69,8 @@ export default defineConfig({
       // (dois manifests conflitavam e a barra do browser ficava indefinida).
       manifest: {
         id: '/',
-        name: 'Salonpass Gestão',
-        short_name: 'Salonpass',
+        name: 'Salonpass Pro',
+        short_name: 'Salonpass Pro',
         description: 'Gestão completa do seu salão de beleza — agenda, comandas, financeiro e clientes.',
         lang: 'pt-BR',
         dir: 'ltr',
@@ -72,6 +101,22 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Mantém bibliotecas grandes e estáveis fora do chunk da aplicação.
+        // Isso melhora cache entre deploys e evita baixar novamente gráficos,
+        // editor markdown e kit visual quando só uma regra de negócio mudou.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query-auth': ['@tanstack/react-query', 'better-auth'],
+          'vendor-ui': ['@heroui/react', '@heroui/styles'],
+          'vendor-charts': ['recharts'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,

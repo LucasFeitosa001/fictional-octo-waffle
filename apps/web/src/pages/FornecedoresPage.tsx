@@ -1,20 +1,45 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, ListBox, Select, TextField } from '@heroui/react';
+import {
+  Button,
+  Checkbox,
+  Input,
+  ListBox,
+  Popover,
+  Select,
+  TextField,
+} from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { useConfirm } from '../components/ConfirmDialog';
+import { InlineSearch } from '../components/InlineSearch';
+import { IconTip } from '../components/IconTip';
+import { AnimatedCheckbox } from '../components/AnimatedCheckbox';
+import { AnimatedSelectionCell } from '../components/AnimatedSelectionCell';
+import { FilterCheckbox } from '../components/FilterCheckbox';
+import { FilterAside } from '../components/FilterAside';
 import { FullDrawer } from '../components/FullDrawer';
-import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { BulkActionsSheet } from '../components/BulkActionsSheet';
+import { SwitchRow } from '../components/SwitchRow';
+import {
+  buildSelectActions,
+  useSelectMode,
+  type BulkAction,
+} from '../hooks/useSelectMode';
+import { EmptyState, ErrorState } from '../components/States';
+import { TableSkeleton } from '../components/Skeletons';
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCircleCheck,
   IconFilter,
+  IconLayers,
   IconMail,
   IconPencil,
   IconPhone,
   IconPlus,
-  IconSearch,
+  IconSettings,
   IconTrash,
   IconTruck,
+  IconX,
 } from '../components/icons';
 import { formatNumber } from '../lib/format';
 import { useSetPageActions } from '../layout/PageActions';
@@ -29,6 +54,59 @@ import {
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 const PAGE_SIZE = 20;
+
+// ── Colunas ocultáveis (T7) ─────────────────────────────────────────
+// Colunas de dados que o usuário pode mostrar/ocultar pelo gear. A
+// coluna-título ("Nome") e a de ações NÃO entram aqui — são sempre fixas.
+const TOGGLE_COLS = [
+  { key: 'email', label: 'E-mail' },
+  { key: 'phone2', label: 'Telefone' },
+  { key: 'phone', label: 'Celular' },
+  { key: 'cnpj', label: 'CNPJ' },
+] as const;
+type ColKey = (typeof TOGGLE_COLS)[number]['key'];
+
+const COLS_STORAGE_KEY = 'sp-cols-fornecedores';
+
+function readHiddenCols(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLS_STORAGE_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr)
+      ? new Set(arr.filter((x): x is string => typeof x === 'string'))
+      : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Visibilidade de colunas persistida em localStorage (chave `sp-cols-fornecedores`).
+ * Guarda o conjunto de colunas OCULTAS; `isVisible` responde por coluna.
+ */
+function useColumnVisibility() {
+  const [hidden, setHidden] = useState<Set<string>>(() => readHiddenCols());
+
+  const toggle = (key: ColKey) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* localStorage indisponível — segue sem persistir. */
+      }
+      return next;
+    });
+  };
+
+  const isVisible = (key: ColKey) => !hidden.has(key);
+  const hiddenCount = TOGGLE_COLS.filter((c) => hidden.has(c.key)).length;
+
+  return { toggle, isVisible, hiddenCount };
+}
 
 // UFs para o select de Estado (o Belasis usa um <select> nativo aqui).
 const BR_STATES = [
@@ -109,6 +187,9 @@ export function FornecedoresPage() {
   const confirm = useConfirm();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  // Campo de busca desktop: revelado pelo botão "Buscar" do header. Expande
+  // INLINE na própria fileira de botões (largura 0 → ~240px) sem empurrar a
+  // tabela. No mobile o comportamento antigo (bloco abaixo do header) é mantido.
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -117,8 +198,10 @@ export function FornecedoresPage() {
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // Seleção (checkbox por linha — visual, igual à ant-table do Belasis)
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Visibilidade de colunas (gear — T7), persistida em localStorage.
+  const cols = useColumnVisibility();
+  // Estado da bottom-sheet de ações em lote.
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const suppliers = useSuppliers(search || undefined);
   const remove = useDeleteSupplier();
@@ -160,24 +243,42 @@ export function FornecedoresPage() {
     setStatus('all');
   }
 
-  function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  // Modo de seleção (Belasis): infra padrão (useSelectMode) sobre os ids
+  // VISÍVEIS na página atual — tabela desktop e cards mobile renderizam `paged`.
+  const ids = useMemo(() => paged.map((r) => r.id), [paged]);
+  const sel = useSelectMode(ids);
 
-  const allSelected = paged.length > 0 && paged.every((r) => selected.has(r.id));
-  function toggleSelectAll() {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allSelected) paged.forEach((r) => next.delete(r.id));
-      else paged.forEach((r) => next.add(r.id));
-      return next;
-    });
-  }
+  // Exclui de verdade os selecionados (mutateAsync em Promise.all no hook de
+  // delete existente), após confirmação. Depois fecha a sheet e sai do modo.
+  const bulkActions: BulkAction[] = [
+    {
+      key: 'delete',
+      label: 'Excluir selecionados',
+      danger: true,
+      icon: <IconTrash size={18} />,
+      disabled: remove.isPending,
+      onClick: async () => {
+        const ok = await confirm({
+          title: 'Excluir fornecedores?',
+          message: `Excluir ${sel.count} fornecedor(es) selecionado(s)? Essa ação não pode ser desfeita.`,
+          confirmLabel: 'Excluir',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await Promise.all([...sel.selected].map((id) => remove.mutateAsync(id)));
+          setActionsOpen(false);
+          sel.cancel();
+        } catch (err) {
+          setMessage(
+            err instanceof ApiClientError
+              ? err.message
+              : 'Não foi possível excluir os fornecedores.',
+          );
+        }
+      },
+    },
+  ];
 
   async function handleRemove(s: Supplier) {
     setMessage(null);
@@ -199,56 +300,125 @@ export function FornecedoresPage() {
     }
   }
 
-  // Mobile: as mesmas ações do header (Buscar / Filtrar / Novo) vão
-  // para a BottomNav inferior; cada onClick dispara o mesmo handler do desktop.
+  // Mobile: BottomNav = [Filtros, Selecionar, Novo]. Busca fica sempre no topo
+  // (input), padrão Belasis. Em selectMode a barra vira [Cancelar · Selecionar
+  // todos · Ações] via buildSelectActions.
   useSetPageActions(
-    [
-      {
-        key: 'buscar',
-        label: 'Buscar',
-        icon: <IconSearch size={22} />,
-        onClick: () => setSearchOpen((v) => !v),
-      },
-      {
-        key: 'filtros',
-        label: 'Filtros',
-        icon: <IconFilter size={22} />,
-        onClick: () => setFilterOpen((v) => !v),
-      },
-      {
-        key: 'novo',
-        label: 'Novo',
-        icon: <IconPlus size={22} />,
-        onClick: () => setCreateOpen(true),
-      },
-    ],
-    [rows],
+    sel.selectMode
+      ? buildSelectActions({
+          onCancel: sel.cancel,
+          onSelectAll: sel.selectAll,
+          allSelected: sel.allSelected,
+          bulkActions,
+          onOpenActions: () => setActionsOpen(true),
+          count: sel.count,
+        })
+      : [
+          {
+            key: 'filtros',
+            label: 'Filtros',
+            icon: <IconFilter size={22} />,
+            onClick: () => setFilterOpen((v) => !v),
+          },
+          {
+            key: 'selecionar',
+            label: 'Selecionar',
+            icon: <IconCircleCheck size={22} />,
+            onClick: sel.enter,
+            disabled: rows.length === 0,
+          },
+          {
+            key: 'novo',
+            label: 'Novo',
+            icon: <IconPlus size={22} />,
+            onClick: () => setCreateOpen(true),
+          },
+        ],
+    [sel.selectMode, sel.allSelected, sel.count, rows.length],
   );
 
   return (
     <div className="pb-10">
-      {/* Cabeçalho: título + Buscar / Filtrar / Novo (igual Belasis) */}
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Cabeçalho (T6): título + fileira compacta de botões (T2/T3). */}
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Fornecedores</h1>
         {/* Desktop: barra de ações inline. No mobile essas ações vivem na BottomNav. */}
-        <div className="hidden flex-wrap items-center gap-2 md:flex">
-          <ToolbarButton active={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
-            <IconSearch size={16} /> Buscar
-          </ToolbarButton>
-          <ToolbarButton
-            active={filterOpen || activeFilterCount > 0}
+        <div className="hidden flex-wrap items-center gap-1.5 md:flex">
+          {/* Busca inline (componente único de toolbar — ver InlineSearch). */}
+          <InlineSearch
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
+            value={searchInput}
+            onValueChange={setSearchInput}
+            onSubmit={applySearch}
+            onClose={() => {
+              setSearchInput('');
+              setSearch('');
+            }}
+            placeholder="Buscar fornecedor"
+          />
+          <button
+            type="button"
             onClick={() => setFilterOpen((v) => !v)}
+            className={`btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors md:inline-flex ${
+              filterOpen || activeFilterCount > 0
+                ? 'border-primary bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] text-primary'
+                : 'border-line bg-card text-ink hover:bg-canvas'
+            }`}
           >
-            <IconFilter size={16} /> Filtrar
+            <IconFilter size={16} />
+            <span className="hidden sm:inline">Filtrar</span>
             {activeFilterCount > 0 && (
               <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                 {activeFilterCount}
               </span>
             )}
-          </ToolbarButton>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <IconPlus size={16} /> Novo
-          </Button>
+          </button>
+          {/* Ações em massa (T3): SEMPRE visível no desktop, à esquerda de "Novo".
+              Fora do modo seleção → ativa o selectMode (checkboxes nas linhas).
+              Em seleção → mostra a contagem e abre a BulkActionsSheet; um X ao
+              lado sai do modo. NÃO existe barra "N selecionados" acima da tabela. */}
+          {sel.selectMode ? (
+            <div className="hidden items-center md:inline-flex">
+              <button
+                type="button"
+                onClick={() => (sel.count > 0 ? setActionsOpen(true) : sel.selectAll())}
+                className={`btn-ghost-hover inline-flex h-9 items-center gap-1.5 rounded-l-lg border px-3 text-sm font-medium transition-colors ${
+                  sel.count > 0
+                    ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'border-line bg-card text-ink hover:bg-canvas'
+                }`}
+              >
+                <IconLayers size={16} />
+                <span>{sel.count > 0 ? `Ações (${sel.count})` : 'Selecionar todos'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={sel.cancel}
+                aria-label="Sair do modo seleção"
+                className="btn-ghost-hover inline-flex h-9 items-center justify-center rounded-r-lg border border-l-0 border-line bg-card px-2 text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={sel.enter}
+              className="btn-ghost-hover hidden h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink transition-colors hover:bg-canvas md:inline-flex"
+            >
+              <IconLayers size={16} />
+              <span>Ações</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="btn-primary-hover hidden h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 md:inline-flex"
+          >
+            <IconPlus size={16} />
+            <span>Novo</span>
+          </button>
         </div>
       </header>
 
@@ -274,65 +444,42 @@ export function FornecedoresPage() {
         </TextField>
       </div>
 
-      {/* Barra de busca desktop (toggle) */}
-      {searchOpen && (
-        <div className="mb-4 hidden max-w-xl items-center gap-2 md:flex">
-          <TextField
-            value={searchInput}
-            onChange={setSearchInput}
-            className="min-w-0 flex-1"
-            aria-label="Buscar fornecedor"
-          >
-            <Input
-              placeholder="Buscar por nome, CNPJ, telefone…"
-              className="focus:border-primary focus:ring-2 focus:ring-primary/25"
-              onKeyDown={(e) => e.key === 'Enter' && applySearch()}
-            />
-          </TextField>
-          <Button variant="primary" onClick={applySearch}>
-            Buscar
-          </Button>
-        </div>
-      )}
-
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Painel de filtros lateral (Filtrar) */}
-        {filterOpen && (
-          <aside className="w-full shrink-0 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:w-72">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold text-ink">Filtros</span>
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Limpar
-                </button>
-              )}
-            </div>
-
-            <FilterGroup title="Status">
-              <CheckRow checked={status === 'all'} onClick={() => setStatus('all')}>
-                Todos
-              </CheckRow>
-              <CheckRow checked={status === 'active'} onClick={() => setStatus('active')}>
-                Ativos
-              </CheckRow>
-              <CheckRow
-                checked={status === 'inactive'}
-                onClick={() => setStatus('inactive')}
+        <FilterAside open={filterOpen} width="lg:w-72">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-ink">Filtros</span>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs font-medium text-primary hover:underline"
               >
-                Inativos
-              </CheckRow>
-            </FilterGroup>
-          </aside>
-        )}
+                Limpar
+              </button>
+            )}
+          </div>
+
+          <FilterGroup title="Status">
+            <CheckRow checked={status === 'all'} onClick={() => setStatus('all')}>
+              Todos
+            </CheckRow>
+            <CheckRow checked={status === 'active'} onClick={() => setStatus('active')}>
+              Ativos
+            </CheckRow>
+            <CheckRow
+              checked={status === 'inactive'}
+              onClick={() => setStatus('inactive')}
+            >
+              Inativos
+            </CheckRow>
+          </FilterGroup>
+        </FilterAside>
 
         {/* Conteúdo principal: tabela / cards */}
         <div className="min-w-0 flex-1">
           {suppliers.isLoading ? (
-            <LoadingState />
+            <TableSkeleton columns={5} />
           ) : suppliers.isError ? (
             <ErrorState onRetry={() => suppliers.refetch()} />
           ) : rows.length === 0 ? (
@@ -395,19 +542,26 @@ export function FornecedoresPage() {
           ) : (
             <>
               {/* ===== Desktop: tabela ===== */}
-              <div className="hidden overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
+              <div className="hidden overflow-clip rounded-xl border border-line bg-card shadow-[var(--shadow-card)] md:block">
                 <table className="w-full border-collapse text-sm">
-                  <thead>
+                  {/* T8: thead sticky no topo do scroll do <main>. Fundo sólido
+                      (bg-card) + z-20 pra cobrir as linhas ao rolar. */}
+                  <thead className="sticky top-0 z-20 bg-card">
                     <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted-ink">
-                      <th className="w-10 px-4 py-3">
-                        <input
-                          type="checkbox"
+                      <AnimatedSelectionCell active={sel.selectMode} header className="px-4 py-3">
+                        <Checkbox
+                          isSelected={sel.allSelected}
+                          onChange={() => sel.selectAll()}
                           aria-label="Selecionar todos"
-                          checked={allSelected}
-                          onChange={toggleSelectAll}
-                          className="h-4 w-4 accent-primary"
-                        />
-                      </th>
+                          className="shrink-0"
+                        >
+                          <Checkbox.Content>
+                            <Checkbox.Control>
+                              <Checkbox.Indicator />
+                            </Checkbox.Control>
+                          </Checkbox.Content>
+                        </Checkbox>
+                      </AnimatedSelectionCell>
                       <th className="px-4 py-3 font-semibold">
                         <button
                           type="button"
@@ -423,11 +577,62 @@ export function FornecedoresPage() {
                           )}
                         </button>
                       </th>
-                      <th className="px-4 py-3 font-semibold">E-mail</th>
-                      <th className="px-4 py-3 font-semibold">Telefone</th>
-                      <th className="px-4 py-3 font-semibold">Celular</th>
-                      <th className="px-4 py-3 font-semibold">CNPJ</th>
-                      <th className="px-4 py-3 text-center font-semibold">Ações</th>
+                      {cols.isVisible('email') && (
+                        <th className="px-4 py-3 font-semibold">E-mail</th>
+                      )}
+                      {cols.isVisible('phone2') && (
+                        <th className="px-4 py-3 font-semibold">Telefone</th>
+                      )}
+                      {cols.isVisible('phone') && (
+                        <th className="px-4 py-3 font-semibold">Celular</th>
+                      )}
+                      {cols.isVisible('cnpj') && (
+                        <th className="px-4 py-3 font-semibold">CNPJ</th>
+                      )}
+                      <th className="w-20 px-4 py-3 text-center">
+                        {/* T7: gear abre Popover pra mostrar/ocultar colunas. */}
+                        <Popover>
+                          <Popover.Trigger>
+                            <button
+                              type="button"
+                              aria-label="Configurar colunas"
+                              className="btn-ghost-hover relative inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-ink transition-colors hover:bg-canvas hover:text-ink"
+                            >
+                              <IconSettings size={16} />
+                              {cols.hiddenCount > 0 && (
+                                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />
+                              )}
+                            </button>
+                          </Popover.Trigger>
+                          <Popover.Content className="w-60">
+                            <Popover.Dialog className="flex flex-col gap-1 p-1">
+                              <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-ink">
+                                Colunas visíveis
+                              </div>
+                              <ul className="flex flex-col">
+                                {TOGGLE_COLS.map((col) => (
+                                  <li key={col.key}>
+                                    <Checkbox
+                                      isSelected={cols.isVisible(col.key)}
+                                      onChange={() => cols.toggle(col.key)}
+                                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink hover:bg-canvas"
+                                    >
+                                      <Checkbox.Content className="flex min-w-0 items-center gap-2">
+                                        <Checkbox.Control>
+                                          <Checkbox.Indicator />
+                                        </Checkbox.Control>
+                                        <span className="min-w-0 truncate">
+                                          {col.label}
+                                        </span>
+                                      </Checkbox.Content>
+                                    </Checkbox>
+                                  </li>
+                                ))}
+                              </ul>
+                            </Popover.Dialog>
+                          </Popover.Content>
+                        </Popover>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -438,15 +643,20 @@ export function FornecedoresPage() {
                           key={s.id}
                           className="border-b border-line/60 transition-colors last:border-0 hover:bg-[color-mix(in_oklab,var(--sp-primary)_5%,transparent)]"
                         >
-                          <td className="px-4 py-2.5">
-                            <input
-                              type="checkbox"
+                          <AnimatedSelectionCell active={sel.selectMode} className="px-4 py-2.5">
+                            <Checkbox
+                              isSelected={sel.isSelected(s.id)}
+                              onChange={() => sel.toggle(s.id)}
                               aria-label={`Selecionar ${s.name}`}
-                              checked={selected.has(s.id)}
-                              onChange={() => toggleSelect(s.id)}
-                              className="h-4 w-4 accent-primary"
-                            />
-                          </td>
+                              className="shrink-0"
+                            >
+                              <Checkbox.Content>
+                                <Checkbox.Control>
+                                  <Checkbox.Indicator />
+                                </Checkbox.Control>
+                              </Checkbox.Content>
+                            </Checkbox>
+                          </AnimatedSelectionCell>
                           <td className="px-4 py-2.5">
                             <button
                               type="button"
@@ -456,7 +666,7 @@ export function FornecedoresPage() {
                               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
                                 <IconTruck size={16} />
                               </span>
-                              <span className="min-w-0 truncate font-medium text-ink">
+                              <span className="min-w-0 truncate font-medium text-primary hover:underline">
                                 {s.name}
                               </span>
                               {!s.active && (
@@ -466,10 +676,18 @@ export function FornecedoresPage() {
                               )}
                             </button>
                           </td>
-                          <td className="px-4 py-2.5 text-muted-ink">{s.email || '—'}</td>
-                          <td className="px-4 py-2.5 text-muted-ink">{addr.phone2 || '—'}</td>
-                          <td className="px-4 py-2.5 text-muted-ink">{s.phone || '—'}</td>
-                          <td className="px-4 py-2.5 text-muted-ink">{s.cnpj || '—'}</td>
+                          {cols.isVisible('email') && (
+                            <td className="px-4 py-2.5 text-muted-ink">{s.email || '—'}</td>
+                          )}
+                          {cols.isVisible('phone2') && (
+                            <td className="px-4 py-2.5 text-muted-ink">{addr.phone2 || '—'}</td>
+                          )}
+                          {cols.isVisible('phone') && (
+                            <td className="px-4 py-2.5 text-muted-ink">{s.phone || '—'}</td>
+                          )}
+                          {cols.isVisible('cnpj') && (
+                            <td className="px-4 py-2.5 text-muted-ink">{s.cnpj || '—'}</td>
+                          )}
                           <td className="px-4 py-2.5">
                             <RowActions
                               onEdit={() => setEditing(s)}
@@ -491,19 +709,28 @@ export function FornecedoresPage() {
                   return (
                     <li
                       key={s.id}
-                      className="rounded-xl border border-line bg-card p-3 shadow-[var(--shadow-card)]"
+                      className={[
+                        'rounded-xl border bg-card p-3 shadow-[var(--shadow-card)] transition-colors',
+                        sel.selectMode && sel.isSelected(s.id)
+                          ? 'border-primary ring-1 ring-primary/40'
+                          : 'border-line',
+                      ].join(' ')}
                     >
                       <button
                         type="button"
-                        onClick={() => setEditing(s)}
+                        onClick={() => (sel.selectMode ? sel.toggle(s.id) : setEditing(s))}
+                        aria-pressed={sel.selectMode ? sel.isSelected(s.id) : undefined}
                         className="flex w-full items-center gap-3 text-left"
                       >
+                        {sel.selectMode && (
+                          <AnimatedCheckbox checked={sel.isSelected(s.id)} />
+                        )}
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] text-primary">
                           <IconTruck size={18} />
                         </span>
                         <div className="min-w-0 flex-1">
                           <span className="flex items-center gap-1.5">
-                            <span className="min-w-0 truncate font-medium text-ink">
+                            <span className="min-w-0 truncate font-medium text-primary hover:underline">
                               {s.name}
                             </span>
                             {!s.active && (
@@ -531,26 +758,28 @@ export function FornecedoresPage() {
                           )}
                         </div>
                       </button>
-                      <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-line/60 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Editar"
-                          onClick={() => setEditing(s)}
-                        >
-                          <IconPencil size={14} /> Editar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Remover"
-                          className="text-danger"
-                          isDisabled={remove.isPending}
-                          onClick={() => handleRemove(s)}
-                        >
-                          <IconTrash size={14} />
-                        </Button>
-                      </div>
+                      {!sel.selectMode && (
+                        <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-line/60 pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label="Editar"
+                            onClick={() => setEditing(s)}
+                          >
+                            <IconPencil size={14} /> Editar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label="Remover"
+                            className="text-danger"
+                            isDisabled={remove.isPending}
+                            onClick={() => handleRemove(s)}
+                          >
+                            <IconTrash size={14} />
+                          </Button>
+                        </div>
+                      )}
                     </li>
                   );
                 })}
@@ -604,6 +833,14 @@ export function FornecedoresPage() {
         isOpen={Boolean(editing)}
         onClose={() => setEditing(null)}
       />
+
+      {/* Ações em lote (Belasis): bottom-sheet aberto pelo "Ações" do selectMode. */}
+      <BulkActionsSheet
+        isOpen={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={bulkActions}
+        count={sel.count}
+      />
     </div>
   );
 }
@@ -623,55 +860,29 @@ function RowActions({
 }) {
   return (
     <div className="flex items-center justify-center gap-1 text-muted-ink">
-      <button
-        type="button"
-        aria-label="Editar"
-        title="Editar"
-        onClick={onEdit}
-        className="rounded p-1 hover:bg-canvas hover:text-primary"
-      >
-        <IconPencil size={16} />
-      </button>
+      <IconTip label="Editar">
+        <button
+          type="button"
+          aria-label="Editar"
+          onClick={onEdit}
+          className="rounded p-1 hover:bg-canvas hover:text-primary"
+        >
+          <IconPencil size={16} />
+        </button>
+      </IconTip>
       <span className="h-4 w-px bg-line" />
-      <button
-        type="button"
-        aria-label="Remover"
-        title="Remover"
-        onClick={onDelete}
-        disabled={deleting}
-        className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
-      >
-        <IconTrash size={16} />
-      </button>
+      <IconTip label="Excluir">
+        <button
+          type="button"
+          aria-label="Remover"
+          onClick={onDelete}
+          disabled={deleting}
+          className="rounded p-1 text-danger hover:bg-danger/10 disabled:opacity-50"
+        >
+          <IconTrash size={16} />
+        </button>
+      </IconTip>
     </div>
-  );
-}
-
-function ToolbarButton({
-  children,
-  onClick,
-  active,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        active
-          ? 'border-primary bg-[color-mix(in_oklab,var(--sp-primary)_10%,transparent)] text-primary'
-          : 'border-line bg-card text-ink hover:bg-canvas',
-      ].join(' ')}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -702,21 +913,9 @@ function CheckRow({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 rounded px-1 py-1 text-left text-sm text-ink hover:bg-canvas"
-    >
-      <span
-        className={[
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-          checked ? 'border-primary bg-primary text-primary-foreground' : 'border-line bg-card',
-        ].join(' ')}
-      >
-        {checked && <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
-      </span>
-      <span className="min-w-0 truncate">{children}</span>
-    </button>
+    <FilterCheckbox checked={checked} onToggle={onClick} className="px-1 py-1">
+      {children}
+    </FilterCheckbox>
   );
 }
 
@@ -847,6 +1046,9 @@ export function SupplierDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={title}
+      // Sem `widthClass` de propósito: no FullDrawer essa prop é o que transforma
+      // o painel numa faixa lateral no desktop (FullDrawer.tsx:195-196). Como este
+      // é um drawer de cadastro (4 abas + form em 2 colunas), ele abre em tela cheia.
       sections={[
         { key: 'cadastro', label: 'Cadastro' },
         { key: 'contatos', label: 'Contatos' },
@@ -1026,16 +1228,13 @@ export function SupplierDrawer({
 
         {/* ============ CONFIGURAÇÕES ============ */}
         {section === 'config' && (
-          <div className="flex items-center justify-between rounded-md border border-line bg-canvas p-3">
-            <div className="flex min-w-0 flex-col pr-3">
-              <span className="text-sm font-medium text-ink">Ativo</span>
-              <span className="text-xs text-muted-ink">
-                Se ativo, aparecerá na listagem do sistema para compras, movimentações
-                financeiras etc
-              </span>
-            </div>
-            <Switch checked={active} onChange={setActive} label="Ativo" />
-          </div>
+          <SwitchRow
+            className="rounded-md border border-line bg-canvas p-3"
+            label="Ativo"
+            description="Se ativo, aparecerá na listagem do sistema para compras, movimentações financeiras etc"
+            checked={active}
+            onChange={setActive}
+          />
         )}
 
         {error && (
@@ -1068,33 +1267,3 @@ function Field({
   );
 }
 
-function Switch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={[
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
-        checked ? 'bg-primary' : 'bg-[color-mix(in_oklab,var(--sp-ink)_20%,transparent)]',
-      ].join(' ')}
-    >
-      <span
-        className={[
-          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
-          checked ? 'translate-x-[22px]' : 'translate-x-0.5',
-        ].join(' ')}
-      />
-    </button>
-  );
-}

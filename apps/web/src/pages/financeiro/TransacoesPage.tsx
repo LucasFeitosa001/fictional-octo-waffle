@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSetPageActions } from '../../layout/PageActions';
 import {
   Button,
@@ -13,7 +14,8 @@ import {
 } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { DataTable, type Column } from '../../components/DataTable';
-import { EmptyState, ErrorState, LoadingState } from '../../components/States';
+import { EmptyState, ErrorState } from '../../components/States';
+import { TableSkeleton } from '../../components/Skeletons';
 import {
   IconArrowDown,
   IconArrowUp,
@@ -29,8 +31,10 @@ import {
   IconSearch,
   IconTrash,
   IconWallet,
+  IconX,
 } from '../../components/icons';
 import { DateFieldBR } from '../../components/DateRangeFilter';
+import { IconTip } from '../../components/IconTip';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Drawer } from '../../components/Drawer';
 import { FullDrawer } from '../../components/FullDrawer';
@@ -38,8 +42,12 @@ import { HelpTooltip } from '../../components/HelpTooltip';
 import { AnimatedCheckbox } from '../../components/AnimatedCheckbox';
 import { BulkActionsSheet } from '../../components/BulkActionsSheet';
 import { useSelectMode, buildSelectActions, type BulkAction } from '../../hooks/useSelectMode';
-import { formatDate, formatMoney, isoDate } from '../../lib/format';
+import { FilterAside } from '../../components/FilterAside';
+import { AppSwitch } from '../../components/SwitchRow';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { formatDate, formatMoney, isoDate, isoDateUtc } from '../../lib/format';
 import { useCustomers, useProfessionals } from '../../lib/queries';
+import { useSuppliers } from '../../lib/queries/catalogo';
 import {
   useCreateTransaction,
   useCreateTransfer,
@@ -61,7 +69,14 @@ const PAGE_SIZE = 30;
 const CARD_CLASS =
   'border border-[var(--color-soft-border)] bg-warm-white shadow-[var(--shadow-card)]';
 
-const ALL = '__all__';
+
+/**
+ * Status do filtro. 'overdue' (Atrasado) é DERIVADO — em aberto e já vencido —
+ * porque o enum do banco só tem pending/paid/reversed. Os chips "Bloqueado" e
+ * "Disponível" do Belasis descrevem liberação de dinheiro pelo gateway deles;
+ * sem gateway integrado não têm significado aqui e ficam de fora.
+ */
+type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
 
 /** Tipo de lançamento (UI). Vale = despesa p/ profissional; Transferência = par. */
 type LancamentoMode = 'recebimento' | 'despesa' | 'vale' | 'transferencia';
@@ -132,13 +147,31 @@ function origem(t: TransactionRow): string {
 
 export function TransacoesPage() {
   const confirm = useConfirm();
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>(
-    'all',
+  const [searchParams] = useSearchParams();
+  const initialStatus = searchParams.get('status');
+  const initialKind = searchParams.get('kind');
+  // MULTI-seleção, como no Belasis (03-transacoes-filtros.png): cada seção é uma
+  // lista de checkbox, não um botão de escolha única. Conjunto VAZIO = "todos" —
+  // é o que evita a tela nascer sem nenhum lançamento.
+  const [statuses, setStatuses] = useState<Set<StatusFilter>>(() =>
+    initialStatus === 'paid' || initialStatus === 'pending'
+      ? new Set<StatusFilter>([initialStatus])
+      : new Set<StatusFilter>(),
+  );
+  // Sobre qual data o período incide (Belasis: "Tipo de data"). Competência não
+  // entra: o model Transaction não tem essa coluna.
+  const [dateType, setDateType] = useState<'due' | 'paid' | 'competence'>('due');
+  const [accountIds, setAccountIds] = useState<Set<string>>(new Set());
+  const [categoryIds, setCategoryIds] = useState<Set<string>>(new Set());
+  const [kinds, setKinds] = useState<Set<TransactionKind>>(() =>
+    initialKind === 'income' || initialKind === 'expense'
+      ? new Set<TransactionKind>([initialKind])
+      : new Set<TransactionKind>(),
   );
   const [showReversed, setShowReversed] = useState(false);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [methodFilter, setMethodFilter] = useState(ALL);
+  const [from, setFrom] = useState(searchParams.get('from') ?? '');
+  const [to, setTo] = useState(searchParams.get('to') ?? '');
+  const [methodIds, setMethodIds] = useState<Set<string>>(new Set());
   const [formMode, setFormMode] = useState<LancamentoMode | null>(null);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [page, setPage] = useState(1);
@@ -149,6 +182,7 @@ export function TransacoesPage() {
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [showTotals, setShowTotals] = useState(false);
+  const isMobile = useIsMobile();
 
   // Modo de seleção (Belasis): habilitado via BottomNav "Selecionar". Enquanto
   // ativo, tocar num card alterna a seleção em vez de abrir edição. Sai do modo
@@ -156,19 +190,74 @@ export function TransacoesPage() {
   // ids/allSelected vêm de `visibleRows`, montado logo abaixo.
   const deleteTransaction = useDeleteTransaction();
   const [actionsOpen, setActionsOpen] = useState(false);
+  /** Transação tocada no "⋮" do cartão (celular) — abre o mesmo menu do desktop. */
+  const [acoesLinha, setAcoesLinha] = useState<TransactionRow | null>(null);
 
   // Qualquer mudança de filtro volta para a primeira página.
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, methodFilter, from, to, showReversed]);
+  }, [statuses, kinds, methodIds, accountIds, categoryIds, dateType, from, to, showReversed]);
+
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const kind = searchParams.get('kind');
+    setStatuses(
+      status === 'paid' || status === 'pending'
+        ? new Set<StatusFilter>([status])
+        : new Set<StatusFilter>(),
+    );
+    setKinds(
+      kind === 'income' || kind === 'expense'
+        ? new Set<TransactionKind>([kind])
+        : new Set<TransactionKind>(),
+    );
+    setFrom(searchParams.get('from') ?? '');
+    setTo(searchParams.get('to') ?? '');
+  }, [searchParams]);
 
   const paymentMethods = usePaymentMethods();
+  const accountsQuery = useFinancialAccounts();
+  const categoriesQuery = useFinancialCategories();
 
+  // Um único objeto de props alimenta o painel lateral (desktop) e o
+  // bottom-sheet (mobile) — antes as duas listas eram escritas à mão e
+  // divergiam a cada campo novo.
+  const filtrosProps: FiltrosProps = {
+    from,
+    to,
+    setFrom,
+    setTo,
+    kinds,
+    setKinds,
+    statuses,
+    setStatuses,
+    dateType,
+    setDateType,
+    methodIds,
+    setMethodIds,
+    paymentMethods: (paymentMethods.data ?? []).map((m) => ({ id: m.id, name: m.name })),
+    accountIds,
+    setAccountIds,
+    accounts: (accountsQuery.data ?? []).map((a) => ({ id: a.id, name: a.name })),
+    categoryIds,
+    setCategoryIds,
+    categories: (categoriesQuery.data ?? []).map((c) => ({ id: c.id, name: c.name })),
+    showReversed,
+    setShowReversed,
+  };
+
+  // Conjunto vazio = sem filtro. `statuses` inclui 'overdue', que o servidor
+  // resolve como ramo OR (em aberto + vencido) e sabe combinar com os outros.
+  const csv = (set: Set<string>) => (set.size ? [...set].join(',') : undefined);
   const transactions = useTransactions({
-    status: statusFilter === 'all' ? undefined : statusFilter,
-    paymentMethodId: methodFilter === ALL ? undefined : methodFilter,
+    types: csv(kinds),
+    statuses: csv(statuses),
+    paymentMethodIds: csv(methodIds),
+    accountIds: csv(accountIds),
+    categoryIds: csv(categoryIds),
     from: from || undefined,
     to: to || undefined,
+    dateType,
     includeReversed: showReversed,
     page,
     pageSize: PAGE_SIZE,
@@ -236,19 +325,28 @@ export function TransacoesPage() {
   };
 
   const activeFilterCount =
-    (statusFilter !== 'all' ? 1 : 0) +
+    (kinds.size ? 1 : 0) +
+    (statuses.size ? 1 : 0) +
     (showReversed ? 1 : 0) +
     (from ? 1 : 0) +
     (to ? 1 : 0) +
-    (methodFilter !== ALL ? 1 : 0);
+    (methodIds.size ? 1 : 0) +
+    (accountIds.size ? 1 : 0) +
+    (categoryIds.size ? 1 : 0) +
+    // 'due' é o padrão; só conta como filtro quando o usuário troca.
+    (dateType !== 'due' ? 1 : 0);
   const hasFilters = activeFilterCount > 0;
 
   function clearFilters() {
-    setStatusFilter('all');
+    setKinds(new Set());
+    setStatuses(new Set());
     setShowReversed(false);
     setFrom('');
     setTo('');
-    setMethodFilter(ALL);
+    setMethodIds(new Set());
+    setAccountIds(new Set());
+    setCategoryIds(new Set());
+    setDateType('due');
   }
 
   function openForm(mode: LancamentoMode) {
@@ -281,7 +379,7 @@ export function TransacoesPage() {
           count: sel.count,
         })
       : [
-          { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen(true) },
+          { key: 'filtros', label: 'Filtros', icon: <IconFilter size={22} />, onClick: () => setFilterOpen((v) => !v) },
           { key: 'totais', label: 'Calcular totais', icon: <IconCalculator size={22} />, onClick: () => setShowTotals((t) => !t) },
           {
             key: 'selecionar',
@@ -314,6 +412,25 @@ export function TransacoesPage() {
     }
   }
 
+  /** Excluir UMA transação (o lote já existia; a linha não tinha como). */
+  async function handleDeleteOne(t: TransactionRow) {
+    const ok = await confirm({
+      title: 'Excluir transação?',
+      message:
+        'O lançamento sai do Financeiro. Para manter o histórico e anular o valor, use Estornar.',
+      confirmLabel: 'Excluir',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteTransaction.mutateAsync(t.id);
+    } catch (err) {
+      window.alert(
+        err instanceof ApiClientError ? err.message : 'Não foi possível excluir a transação.',
+      );
+    }
+  }
+
   // Tabela (desktop) / cards (mobile) com paridade da tela de transações do Belasis.
   const columns: Column<TransactionRow>[] = [
     {
@@ -332,8 +449,10 @@ export function TransacoesPage() {
         return (
           <div className="min-w-0 max-w-[280px]">
             <div
-              className={`truncate font-medium text-foreground ${
-                t.status === 'reversed' ? 'line-through opacity-60' : ''
+              className={`truncate font-medium ${
+                t.status === 'reversed'
+                  ? 'text-foreground line-through opacity-60'
+                  : 'text-primary hover:underline'
               }`}
             >
               {name}
@@ -353,7 +472,7 @@ export function TransacoesPage() {
       render: (t) => {
         const o = origem(t);
         return o.startsWith('C#') ? (
-          <span className="font-medium text-primary hover:underline">{o}</span>
+          <span className="font-medium text-foreground">{o}</span>
         ) : (
           <span className="text-muted">{o}</span>
         );
@@ -442,32 +561,18 @@ export function TransacoesPage() {
     {
       key: 'actions',
       header: '',
+      // Menu por linha (padrão do produto e pedido do dono), no lugar dos dois
+      // ícones soltos de Editar/Estornar. "Excluir" existia só na ação em lote
+      // — por linha não havia como. Ver estudo 53.
       render: (t) =>
         t.status === 'reversed' ? null : (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              isIconOnly
-              aria-label="Editar"
-              onClick={() => openEdit(t)}
-            >
-              <span title="Editar">
-                <IconPencil size={16} />
-              </span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              isIconOnly
-              aria-label="Estornar"
-              isDisabled={reverse.isPending}
-              onClick={() => handleReverse(t)}
-            >
-              <span title="Estornar">
-                <IconRepeat size={16} />
-              </span>
-            </Button>
+          <div className="flex justify-end">
+            <LinhaMenu
+              onEdit={() => openEdit(t)}
+              onReverse={() => handleReverse(t)}
+              onDelete={() => handleDeleteOne(t)}
+              busy={reverse.isPending || deleteTransaction.isPending}
+            />
           </div>
         ),
     },
@@ -504,7 +609,7 @@ export function TransacoesPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setFilterOpen(true)}
+            onClick={() => setFilterOpen((v) => !v)}
             className="relative"
           >
             <IconFilter size={16} /> Filtrar
@@ -564,8 +669,18 @@ export function TransacoesPage() {
       </div>
 
       {/* Busca: sempre visível no mobile (Belasis "Digite para buscar");
-          revelada via "Buscar" no desktop. */}
-      <div className={searchOpen ? 'mb-4' : 'mb-4 md:hidden'}>
+          revelada com animação via "Buscar" no desktop. Fica SEMPRE montada;
+          largura/opacity animam 0 ↔ pleno. */}
+      <div
+        className={[
+          'mb-4 w-full max-w-xl',
+          'md:origin-left md:overflow-hidden',
+          'md:transition-[width,opacity,transform] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)]',
+          searchOpen
+            ? 'md:w-full md:translate-x-0 md:opacity-100'
+            : 'md:pointer-events-none md:w-0 md:-translate-x-3 md:opacity-0',
+        ].join(' ')}
+      >
         <TextField value={query} onChange={setQuery} aria-label="Buscar transações">
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
@@ -617,10 +732,39 @@ export function TransacoesPage() {
         </span>
       </div>
 
-      {/* DESKTOP: Card + DataTable + paginação — mantém wrapper cor creme */}
-      <div className="hidden md:block">
-        <Card className={CARD_CLASS}>
-          <Card.Content className="p-4">
+      {/* DESKTOP: filtro lateral (desliza da esquerda) + Card/DataTable + paginação.
+          Breakpoint `md` (não `lg`) para casar com o `useIsMobile` (<768px) que decide
+          montar o bottom-sheet: entre 768px e 1023px — celular deitado, tablet em pé —
+          o aside estava `hidden lg:block` e o sheet nem era montado, então o botão
+          "Filtros" da BottomNav (que é `lg:hidden`, logo existe nessa faixa) não abria
+          NADA. Container e prop mudam juntos: só a prop deixaria o painel empilhado em
+          cima da tabela. Mesmo par de NotasFiscaisPage.tsx:324 e ContasPage.tsx:845. */}
+      <div className="md:flex md:items-start md:gap-4">
+        <FilterAside open={filterOpen} desktopOnly breakpoint="md">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">Filtros</span>
+            <IconTip label="Fechar filtros">
+              <button
+                type="button"
+                onClick={() => setFilterOpen(false)}
+                aria-label="Fechar filtros"
+                className="rounded-md p-1 text-muted transition-colors hover:bg-cream hover:text-foreground"
+              >
+                <IconX size={16} />
+              </button>
+            </IconTip>
+          </div>
+          <FiltrosBody {...filtrosProps} />
+          <div className="mt-4 flex flex-col gap-2">
+            {filtrosFooter(hasFilters, clearFilters, () => setFilterOpen(false))}
+          </div>
+        </FilterAside>
+        <div className="hidden min-w-0 flex-1 md:block">
+        {/* Card = div sem padding próprio (padrão ClientesPage/ProdutosPage): a
+            paginação vira irmã da DataTable, no fluxo do scroll do <main>, e pode
+            grudar no rodapé (md:sticky) hugando o canto arredondado do card. */}
+        <div className={`overflow-clip rounded-2xl ${CARD_CLASS}`}>
+          <div className="p-4">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-xs text-muted">Ordenado por data</span>
               <span className="text-xs text-muted">
@@ -628,7 +772,13 @@ export function TransacoesPage() {
               </span>
             </div>
             {transactions.isLoading ? (
-              <LoadingState />
+              <TableSkeleton
+                columns={9}
+                withCheckbox={false}
+                firstColAvatar={false}
+                card={false}
+                variant="desktop"
+              />
             ) : transactions.isError ? (
               <ErrorState onRetry={() => transactions.refetch()} />
             ) : visibleRows.length === 0 ? (
@@ -638,45 +788,46 @@ export function TransacoesPage() {
                 description={q ? 'Ajuste a busca para ver mais lançamentos.' : hasFilters ? 'Ajuste os filtros para ver mais lançamentos.' : 'Lance recebimentos e despesas para acompanhar o caixa.'}
               />
             ) : (
-              <>
-                <DataTable
-                  columns={columns}
-                  rows={visibleRows}
-                  getKey={(t) => t.id}
-                  aria-label="Transações"
-                  rowClassName={(t) =>
-                    t.status === 'reversed'
-                      ? 'opacity-60'
-                      : t.kind === 'income'
-                        ? 'bg-success/5'
-                        : 'bg-danger/5'
-                  }
-                />
-                {total > 0 && (
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] pt-3">
-                    <span className="text-xs text-muted">{total} no total</span>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" aria-label="Página anterior" isDisabled={page <= 1 || transactions.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                        <IconChevron size={14} className="rotate-90" />
-                      </Button>
-                      <span className="px-1 text-xs text-muted">Página {page} de {pageCount}</span>
-                      <Button variant="outline" size="sm" aria-label="Próxima página" isDisabled={page >= pageCount || transactions.isFetching} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
-                        <IconChevron size={14} className="-rotate-90" />
-                      </Button>
-                      <span className="ml-1 hidden text-xs text-muted sm:inline">{PAGE_SIZE} / página</span>
-                    </div>
-                  </div>
-                )}
-              </>
+              <DataTable
+                columns={columns}
+                rows={visibleRows}
+                getKey={(t) => t.id}
+                aria-label="Transações"
+                rowClassName={(t) =>
+                  t.status === 'reversed'
+                    ? 'opacity-60'
+                    : t.kind === 'income'
+                      ? 'bg-success/5'
+                      : 'bg-danger/5'
+                }
+              />
             )}
-          </Card.Content>
-        </Card>
+          </div>
+          {/* Rodapé/paginação: fundo sólido (bg-warm-white = bg do card) pra cobrir
+              as linhas ao rolar; sticky no rodapé do scroll do <main>. */}
+          {total > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-soft-border)] bg-warm-white px-4 pt-3 pb-6 md:sticky md:bottom-0 md:z-20 md:rounded-b-2xl">
+              <span className="text-xs text-muted">{total} no total</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" aria-label="Página anterior" isDisabled={page <= 1 || transactions.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  <IconChevron size={14} className="rotate-90" />
+                </Button>
+                <span className="px-1 text-xs text-muted">Página {page} de {pageCount}</span>
+                <Button variant="outline" size="sm" aria-label="Próxima página" isDisabled={page >= pageCount || transactions.isFetching} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+                  <IconChevron size={14} className="-rotate-90" />
+                </Button>
+                <span className="ml-1 hidden text-xs text-muted sm:inline">{PAGE_SIZE} / página</span>
+              </div>
+            </div>
+          )}
+        </div>
+        </div>
       </div>
 
       {/* MOBILE: lista direto no fluxo, SEM Card wrapper (regra do projeto) */}
       <div className="md:hidden">
         {transactions.isLoading ? (
-          <LoadingState />
+          <TableSkeleton variant="mobile" />
         ) : transactions.isError ? (
           <ErrorState onRetry={() => transactions.refetch()} />
         ) : visibleRows.length === 0 ? (
@@ -713,7 +864,23 @@ export function TransacoesPage() {
                 // direita. Método/descrição vão pro drawer de edição.
                 // Toggle Pago/Pendente removido do card — mover pra menu/detalhe.
                 return (
-                  <li key={t.id}>
+                  <li key={t.id} className="relative">
+                    {/* Mesmas ações do desktop (Editar · Estornar · Excluir).
+                        Fora do cartão porque ele já é um role="button". */}
+                    {!reversed && !sel.selectMode && (
+                      <button
+                        type="button"
+                        aria-label={`Ações de ${holder || method}`}
+                        onClick={() => setAcoesLinha(t)}
+                        className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-lg p-2 text-muted-ink active:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)]"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                          <rect x="2" y="3.2" width="12" height="1.6" rx="0.8" />
+                          <rect x="2" y="7.2" width="12" height="1.6" rx="0.8" />
+                          <rect x="2" y="11.2" width="12" height="1.6" rx="0.8" />
+                        </svg>
+                      </button>
+                    )}
                     <div
                       role="button"
                       tabIndex={reversed ? -1 : 0}
@@ -729,6 +896,7 @@ export function TransacoesPage() {
                       }}
                       className={[
                         'flex w-full items-stretch gap-2 rounded-xl border px-2.5 py-2 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        !reversed && !sel.selectMode ? 'pr-10' : '',
                         tint,
                         reversed ? 'opacity-60' : 'cursor-pointer',
                         sel.selectMode && isChecked ? 'ring-2 ring-primary/60' : '',
@@ -792,27 +960,57 @@ export function TransacoesPage() {
         )}
       </div>
 
-      {/* Filtrar: drawer lateral (direita) com as seções do Belasis. */}
-      <FiltrosDrawer
-        isOpen={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        from={from}
-        to={to}
-        setFrom={setFrom}
-        setTo={setTo}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        methodFilter={methodFilter}
-        setMethodFilter={setMethodFilter}
-        paymentMethods={(paymentMethods.data ?? []).map((m) => ({
-          id: m.id,
-          name: m.name,
-        }))}
-        showReversed={showReversed}
-        setShowReversed={setShowReversed}
-        hasFilters={hasFilters}
-        onClear={clearFilters}
-      />
+      {/* Filtrar mobile: bottom-sheet com as seções do Belasis (no desktop é o FilterAside acima). */}
+      {isMobile && (
+        <FiltrosDrawer
+          isOpen={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          {...filtrosProps}
+          hasFilters={hasFilters}
+          onClear={clearFilters}
+        />
+      )}
+
+      {/* Ações da transação no celular — o mesmo trio do menu do desktop. */}
+      <Drawer
+        isOpen={acoesLinha !== null}
+        onClose={() => setAcoesLinha(null)}
+        title={acoesLinha ? titular(acoesLinha) || 'Transação' : 'Transação'}
+        placement="bottom"
+      >
+        <div className="flex flex-col">
+          <AcaoLinhaMobile
+            icon={<IconPencil size={18} />}
+            label="Editar"
+            onClick={() => {
+              const t = acoesLinha;
+              setAcoesLinha(null);
+              if (t) openEdit(t);
+            }}
+          />
+          <AcaoLinhaMobile
+            icon={<IconRepeat size={18} />}
+            label="Estornar"
+            disabled={reverse.isPending}
+            onClick={() => {
+              const t = acoesLinha;
+              setAcoesLinha(null);
+              if (t) void handleReverse(t);
+            }}
+          />
+          <AcaoLinhaMobile
+            danger
+            icon={<IconTrash size={18} />}
+            label="Excluir"
+            disabled={deleteTransaction.isPending}
+            onClick={() => {
+              const t = acoesLinha;
+              setAcoesLinha(null);
+              if (t) void handleDeleteOne(t);
+            }}
+          />
+        </div>
+      </Drawer>
 
       {/* Bottom-sheet das ações em lote do modo de seleção (mobile + desktop). */}
       <BulkActionsSheet
@@ -850,54 +1048,296 @@ export function TransacoesPage() {
   );
 }
 
-/**
- * Drawer de filtros (Belasis "Filtrar"): desliza da direita e agrupa as seções
- * Período, Status de pagamento, Formas de pagamento e Estornadas. Aplica ao vivo
- * (as queries reagem ao estado); "Aplicar" apenas fecha. As seções Contas/
- * Categorias do Belasis dependem de filtro no servidor.
- * TODO: expor filtro por conta/categoria na query de transações.
- */
-function FiltrosDrawer({
-  isOpen,
-  onClose,
-  from,
-  to,
-  setFrom,
-  setTo,
-  statusFilter,
-  setStatusFilter,
-  methodFilter,
-  setMethodFilter,
-  paymentMethods,
-  showReversed,
-  setShowReversed,
-  hasFilters,
-  onClear,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
+type NamedOption = { id: string; name: string };
+
+
+
+type FiltrosProps = {
   from: string;
   to: string;
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
-  statusFilter: 'all' | 'paid' | 'pending';
-  setStatusFilter: (v: 'all' | 'paid' | 'pending') => void;
-  methodFilter: string;
-  setMethodFilter: (v: string) => void;
-  paymentMethods: { id: string; name: string }[];
+  // Conjuntos, não valores únicos: o painel do Belasis é multi-seleção.
+  kinds: Set<TransactionKind>;
+  setKinds: (v: Set<TransactionKind>) => void;
+  statuses: Set<StatusFilter>;
+  setStatuses: (v: Set<StatusFilter>) => void;
+  dateType: 'due' | 'paid' | 'competence';
+  setDateType: (v: 'due' | 'paid' | 'competence') => void;
+  methodIds: Set<string>;
+  setMethodIds: (v: Set<string>) => void;
+  paymentMethods: NamedOption[];
+  accountIds: Set<string>;
+  setAccountIds: (v: Set<string>) => void;
+  accounts: NamedOption[];
+  categoryIds: Set<string>;
+  setCategoryIds: (v: Set<string>) => void;
+  categories: NamedOption[];
   showReversed: boolean;
   setShowReversed: (v: boolean) => void;
-  hasFilters: boolean;
-  onClear: () => void;
-}) {
-  const statusOptions: { id: 'all' | 'paid' | 'pending'; name: string }[] = [
-    { id: 'all', name: 'Todos' },
-    { id: 'paid', name: 'Pago' },
-    { id: 'pending', name: 'Em aberto' },
-  ];
-  const methodOptions = [{ id: ALL, name: 'Todas as formas' }, ...paymentMethods];
+};
 
-  const footer = (
+/**
+ * Corpo do filtro (Belasis "Filtrar") com as seções Período, Status de
+ * pagamento, Formas de pagamento e Estornadas. Compartilhado entre o painel
+ * lateral desktop (FilterAside) e o bottom-sheet mobile (Drawer).
+ */
+/** Liga/desliga um id num conjunto, devolvendo um NOVO Set (React precisa disso). */
+function alterna<T>(set: Set<T>, id: T): Set<T> {
+  const proximo = new Set(set);
+  if (proximo.has(id)) proximo.delete(id);
+  else proximo.add(id);
+  return proximo;
+}
+
+/**
+ * Chips de status do painel de filtros. Só os três que existem no nosso dado —
+ * "Bloqueado" e "Disponível" do Belasis descrevem liberação de dinheiro pelo
+ * gateway deles; sem gateway não teriam nenhum lançamento para mostrar.
+ * "Atrasado" é derivado (em aberto + vencido) e o servidor sabe combiná-lo com
+ * os outros num ramo OR.
+ */
+const STATUS_CHIPS: { id: StatusFilter; rotulo: string; classe: string }[] = [
+  { id: 'pending', rotulo: 'Em aberto', classe: 'border-[#ffd591] bg-[#fff7e6] text-[#d46b08]' },
+  { id: 'overdue', rotulo: 'Atrasado', classe: 'border-[#ffa39e] bg-[#fff1f0] text-[#cf1322]' },
+  { id: 'paid', rotulo: 'Pago', classe: 'border-[#b7eb8f] bg-[#f6ffed] text-[#389e0d]' },
+];
+
+/**
+ * Lista de CHECKBOX do painel (Contas, Categorias, Formas, Tipo de transação).
+ * Nenhum marcado significa "todos" — é o que impede a tela nascer vazia.
+ * `max-h` com rolagem própria: o FilterAside é overflow-hidden e CORTA, então
+ * um salão com 30 categorias empurraria as seções seguintes para fora.
+ */
+function ListaCheck({
+  opcoes,
+  marcados,
+  onToggle,
+  onLimpar,
+}: {
+  opcoes: NamedOption[];
+  marcados: Set<string>;
+  onToggle: (id: string) => void;
+  onLimpar?: () => void;
+}) {
+  if (!opcoes.length) {
+    return <p className="text-xs text-muted-ink">Nada cadastrado.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      {onLimpar && (
+        <button
+          type="button"
+          onClick={onLimpar}
+          className="self-start text-xs font-medium text-primary hover:underline"
+        >
+          Desmarcar tudo
+        </button>
+      )}
+      <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto overscroll-contain">
+        {opcoes.map((o) => (
+          <label
+            key={o.id}
+            className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+          >
+            <input
+              type="checkbox"
+              checked={marcados.has(o.id)}
+              onChange={() => onToggle(o.id)}
+              className="h-4 w-4 shrink-0 accent-[var(--sp-primary)]"
+            />
+            <span className="min-w-0 truncate">{o.name}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Toggle inline do formulário financeiro: switch + rótulo clicável à direita.
+ * Mesma forma do `InlineToggle` do drawer de agendamento — existe aqui porque
+ * aquele é local do NewAppointmentModal e importar entre telas acoplaria as duas.
+ */
+function InlineToggleFin({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <AppSwitch checked={checked} onChange={onChange} aria-label={label || 'Alternar'} />
+      {label && (
+        <button
+          type="button"
+          onClick={() => onChange(!checked)}
+          className={'text-sm ' + (checked ? 'font-medium text-foreground' : 'text-muted-ink')}
+        >
+          {label}
+        </button>
+      )}
+    </span>
+  );
+}
+
+function FiltrosBody({
+  from,
+  to,
+  setFrom,
+  setTo,
+  kinds,
+  setKinds,
+  statuses,
+  setStatuses,
+  dateType,
+  setDateType,
+  methodIds,
+  setMethodIds,
+  paymentMethods,
+  accountIds,
+  setAccountIds,
+  accounts,
+  categoryIds,
+  setCategoryIds,
+  categories,
+  showReversed,
+  setShowReversed,
+}: FiltrosProps) {
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Período EMPILHADO, como no Belasis: lado a lado cada campo ficava com
+          106px e um input de data com máscara não cabe — vazava do painel. */}
+      <FilterSection title="Período">
+        <div className="grid grid-cols-1 gap-3">
+          <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
+          <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
+        </div>
+      </FilterSection>
+
+      {/* Tipo de transação — checkbox, multi. Nenhum marcado = todos. */}
+      <FilterSection title="Tipo de transação">
+        <ListaCheck
+          opcoes={[
+            { id: 'income', name: 'Contas a receber' },
+            { id: 'expense', name: 'Contas a pagar' },
+          ]}
+          marcados={kinds as Set<string>}
+          onToggle={(id) => setKinds(alterna(kinds, id as TransactionKind))}
+        />
+      </FilterSection>
+
+      {/* Tipo de data — RADIO: são mutuamente exclusivos, ao contrário do resto.
+          "Competência" fica de fora até `Transaction` ter a coluna. */}
+      {/* As TRÊS opções da referência. Competência passou a existir na migração
+          20260727230000; lançamentos antigos não têm a data preenchida, então
+          filtrar por ela não traz o histórico — é o esperado, não defeito. */}
+      <FilterSection title="Tipo de data">
+        <div className="flex flex-col gap-1.5">
+          {[
+            { id: 'due' as const, name: 'Venc/Disponibilidade' },
+            { id: 'competence' as const, name: 'Competência' },
+            { id: 'paid' as const, name: 'Pagamento' },
+          ].map((o) => (
+            <label
+              key={o.id}
+              className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+            >
+              <input
+                type="radio"
+                name="tipo-de-data"
+                checked={dateType === o.id}
+                onChange={() => setDateType(o.id)}
+                className="h-4 w-4 accent-[var(--sp-primary)]"
+              />
+              {o.name}
+            </label>
+          ))}
+        </div>
+      </FilterSection>
+
+      {/* Contas — multi, com "Desmarcar tudo" como no Belasis. */}
+      <FilterSection title="Contas">
+        <ListaCheck
+          opcoes={accounts}
+          marcados={accountIds}
+          onToggle={(id) => setAccountIds(alterna(accountIds, id))}
+          onLimpar={accountIds.size ? () => setAccountIds(new Set()) : undefined}
+        />
+      </FilterSection>
+
+      {/* Status — chips COLORIDOS marcáveis. Só os 3 que têm significado no nosso
+          dado: "Bloqueado" e "Disponível" do Belasis descrevem liberação pelo
+          gateway de pagamento deles, que não temos. */}
+      <FilterSection title="Status">
+        <div className="flex flex-col gap-1.5">
+          {STATUS_CHIPS.map((c) => {
+            const marcado = statuses.has(c.id);
+            return (
+              <label
+                key={c.id}
+                className="flex cursor-pointer items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={marcado}
+                  onChange={() => setStatuses(alterna(statuses, c.id))}
+                  className="h-4 w-4 accent-[var(--sp-primary)]"
+                />
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${c.classe}`}
+                >
+                  {c.rotulo}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </FilterSection>
+
+      <FilterSection title="Formas de pagamento">
+        <ListaCheck
+          opcoes={paymentMethods}
+          marcados={methodIds}
+          onToggle={(id) => setMethodIds(alterna(methodIds, id))}
+          onLimpar={methodIds.size ? () => setMethodIds(new Set()) : undefined}
+        />
+      </FilterSection>
+
+      <FilterSection title="Categorias">
+        <ListaCheck
+          opcoes={categories}
+          marcados={categoryIds}
+          onToggle={(id) => setCategoryIds(alterna(categoryIds, id))}
+          onLimpar={categoryIds.size ? () => setCategoryIds(new Set()) : undefined}
+        />
+      </FilterSection>
+
+      {/* Estornadas — nosso, não existe no Belasis. */}
+      <FilterSection title="Estornadas">
+        <Switch
+          isSelected={showReversed}
+          onChange={setShowReversed}
+          className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
+        >
+          <span className="inline-flex items-center text-sm text-foreground">
+            Mostrar estornadas
+            <HelpTooltip>Incluir transações canceladas/estornadas na listagem</HelpTooltip>
+          </span>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch>
+      </FilterSection>
+    </div>
+  );
+}
+
+function filtrosFooter(hasFilters: boolean, onClear: () => void, onApply: () => void) {
+  return (
     <>
       <Button
         variant="outline"
@@ -907,91 +1347,39 @@ function FiltrosDrawer({
       >
         Limpar filtros
       </Button>
-      <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
+      <Button variant="primary" className="w-full sm:w-auto" onClick={onApply}>
         Aplicar
       </Button>
     </>
   );
+}
 
+/**
+ * Bottom-sheet "Filtrar" (mobile) com as seções do Belasis. No desktop o mesmo
+ * conteúdo vive no FilterAside lateral (desliza da esquerda da tabela).
+ */
+function FiltrosDrawer({
+  isOpen,
+  onClose,
+  hasFilters,
+  onClear,
+  ...body
+}: FiltrosProps & {
+  isOpen: boolean;
+  onClose: () => void;
+  hasFilters: boolean;
+  onClear: () => void;
+}) {
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
       title="Filtrar"
-      footer={footer}
+      footer={filtrosFooter(hasFilters, onClear, onClose)}
       widthClass="sm:w-[420px]"
+      placement="bottom"
     >
-      <div className="flex flex-col gap-6">
-        {/* Período */}
-        <FilterSection title="Período">
-          <div className="grid grid-cols-2 gap-3">
-            <DateFieldBR label="De" value={from} onChange={setFrom} className="min-w-0" />
-            <DateFieldBR label="Até" value={to} onChange={setTo} className="min-w-0" />
-          </div>
-        </FilterSection>
-
-        {/* Status de pagamento (segmentado) */}
-        <FilterSection title="Status de pagamento">
-          <div className="grid grid-cols-3 gap-2">
-            {statusOptions.map((o) => {
-              const active = statusFilter === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setStatusFilter(o.id)}
-                  className={`h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
-                    active
-                      ? 'border-transparent bg-gold text-[var(--color-on-gold,#3a2f16)]'
-                      : 'border-[var(--color-soft-border)] bg-white text-foreground hover:bg-cream'
-                  }`}
-                >
-                  {o.name}
-                </button>
-              );
-            })}
-          </div>
-        </FilterSection>
-
-        {/* Formas de pagamento (lista selecionável) */}
-        <FilterSection title="Formas de pagamento">
-          <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-soft-border)]">
-            {methodOptions.map((o, i) => {
-              const active = methodFilter === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setMethodFilter(o.id)}
-                  className={`flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
-                    i > 0 ? 'border-t border-[var(--color-soft-border)]' : ''
-                  } ${active ? 'bg-gold/12 font-medium text-foreground' : 'bg-white text-foreground hover:bg-cream'}`}
-                >
-                  <span className="truncate">{o.name}</span>
-                  {active && <IconCheck size={16} className="shrink-0 text-gold-strong" />}
-                </button>
-              );
-            })}
-          </div>
-        </FilterSection>
-
-        {/* Estornadas */}
-        <FilterSection title="Estornadas">
-          <Switch
-            isSelected={showReversed}
-            onChange={setShowReversed}
-            className="flex h-11 items-center justify-between gap-3 rounded-lg border border-[var(--color-soft-border)] bg-white px-3"
-          >
-            <span className="inline-flex items-center text-sm text-foreground">
-              Mostrar estornadas
-              <HelpTooltip>Incluir transações canceladas/estornadas na listagem</HelpTooltip>
-            </span>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-          </Switch>
-        </FilterSection>
-      </div>
+      <FiltrosBody {...body} />
     </Drawer>
   );
 }
@@ -1130,20 +1518,29 @@ export function LancamentoModal({
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [partyId, setPartyId] = useState('');
+  // Numa despesa o titular pode ser fornecedor (padrão) ou profissional.
+  const [despesaPartyKind, setDespesaPartyKind] = useState<'supplier' | 'professional'>(
+    'supplier',
+  );
   const [status, setStatus] = useState<PaymentStatus>('paid');
   const [dueDate, setDueDate] = useState(() => isoDate(new Date()));
+  // "Baixa" da referência (02-editando-recebimento.png) = a data em que o dinheiro
+  // efetivamente entrou. É `Transaction.paidAt`, que já existe no schema e no DTO;
+  // só não havia campo na tela, então quem lançava retroativo ficava com a baixa
+  // presa na data de criação.
+  const [paidAt, setPaidAt] = useState('');
+  // Os dois toggles da referência. As colunas entraram na migração 20260727230000.
+  const [isOrganizational, setIsOrganizational] = useState(false);
+  const [competenceDate, setCompetenceDate] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  // Menu vertical estilo Belasis: agrupa os campos por afinidade.
-  const [section, setSection] = useState<'dados' | 'classificacao' | 'observacoes'>(
-    'dados',
-  );
 
   const categories = useFinancialCategories();
   const paymentMethods = usePaymentMethods();
   const accounts = useFinancialAccounts();
   const customers = useCustomers('', 1, 50);
   const professionals = useProfessionals(1, 50);
+  const suppliers = useSuppliers();
   const createTransaction = useCreateTransaction();
   const updateTransaction = useUpdateTransaction();
 
@@ -1156,8 +1553,29 @@ export function LancamentoModal({
       setAccountId(editing.accountId ?? '');
       setPartyId(editing.partyId ?? '');
       setStatus(editing.status === 'reversed' ? 'paid' : editing.status);
+      // `isoDateUtc` (e não `isoDate`) ao RELER o que já está gravado. O que este
+      // modal manda é data pura: o backend faz `new Date('2026-08-09')`
+      // (financial.service.ts:761 e :784-787) e guarda meia-noite UTC. Lido em
+      // horário local (UTC−3) isso voltaria 08/08 — reabrir a despesa só para
+      // trocar o valor puxaria o vencimento um dia para trás e salvar gravaria o
+      // erro. O padrão de lançamento novo continua em `isoDate`, que é "hoje".
+      //
+      // Ressalva honesta (estudo 143): a coluna NÃO é homogênea. A transação
+      // nascida de comanda grava as três datas com carimbo real
+      // (orders.service.ts:1337-1339 e :2033-2035), e para essas o certo seria o
+      // dia local — uma comanda paga às 21:30 abre aqui mostrando amanhã. É o
+      // comportamento que já existia; unificar exige decidir no schema se
+      // data-only vira `@db.Date`. Não trocar por `isoDate` para "consertar" só
+      // esse caso: quebraria o vencimento digitado à mão, que é o caminho comum.
       setDueDate(
-        editing.dueDate ? isoDate(new Date(editing.dueDate)) : isoDate(new Date()),
+        editing.dueDate ? isoDateUtc(new Date(editing.dueDate)) : isoDate(new Date()),
+      );
+      // Sem semear a baixa, reabrir um lançamento já pago mostrava o campo vazio
+      // e salvar sobrescrevia a data real pela de hoje.
+      setPaidAt(editing.paidAt ? isoDateUtc(new Date(editing.paidAt)) : '');
+      setIsOrganizational(Boolean(editing.isOrganizational));
+      setCompetenceDate(
+        editing.competenceDate ? isoDateUtc(new Date(editing.competenceDate)) : '',
       );
     } else {
       setAmount('');
@@ -1168,14 +1586,26 @@ export function LancamentoModal({
       setPartyId('');
       setStatus('paid');
       setDueDate(isoDate(new Date()));
+      setPaidAt('');
+      setIsOrganizational(false);
+      setCompetenceDate('');
     }
     setFormError(null);
     setSuccess(false);
-    setSection('dados');
   }, [editing, mode]);
 
   const isPending = createTransaction.isPending || updateTransaction.isPending;
   const numericAmount = useMemo(() => Number(amount.replace(',', '.')), [amount]);
+  // Taxas da forma de pagamento escolhida: percentual + fixa, como o Financeiro
+  // já modela em PaymentMethod. Não é campo do Transaction — é derivado, e por
+  // isso aparece somente-leitura, igual à referência.
+  const { taxas, valorLiquido } = useMemo(() => {
+    const bruto = Number.isFinite(numericAmount) ? numericAmount : 0;
+    const forma = paymentMethods.data?.find((m) => m.id === paymentMethodId);
+    if (!forma || bruto <= 0) return { taxas: 0, valorLiquido: bruto };
+    const t = (bruto * Number(forma.feePercent ?? 0)) / 100 + Number(forma.feeFixed ?? 0);
+    return { taxas: t, valorLiquido: Math.max(0, bruto - t) };
+  }, [numericAmount, paymentMethodId, paymentMethods.data]);
   const canConfirm =
     Number.isFinite(numericAmount) &&
     numericAmount > 0 &&
@@ -1213,15 +1643,29 @@ export function LancamentoModal({
       grossAmount: numericAmount,
       status,
       dueDate,
-      ...(status === 'paid' ? { paidAt: new Date().toISOString() } : {}),
+      // Baixa: o que o usuário digitou vence a data de hoje. Sem isso um
+      // lançamento retroativo entrava com a baixa no dia da digitação, e a
+      // conferência de caixa do dia anterior nunca fechava.
+      ...(status === 'paid'
+        ? { paidAt: paidAt ? new Date(`${paidAt}T12:00:00`).toISOString() : new Date().toISOString() }
+        : {}),
       description: autoDescription(),
+      isOrganizational,
+      ...(competenceDate
+        ? { competenceDate: new Date(`${competenceDate}T12:00:00`).toISOString() }
+        : {}),
       categoryId: categoryId || undefined,
       paymentMethodId: paymentMethodId || undefined,
       accountId: accountId || undefined,
       ...(partyId
         ? {
             partyId,
-            partyType: mode === 'recebimento' ? 'customer' : 'professional',
+            partyType:
+              mode === 'recebimento'
+                ? 'customer'
+                : mode === 'despesa'
+                  ? despesaPartyKind
+                  : 'professional',
           }
         : {}),
     };
@@ -1242,9 +1686,16 @@ export function LancamentoModal({
     }
   }
 
+  // "Novo/Nova" concordando com o gênero — o título saía "Novo despesa".
+  const FEMININO: Record<LancamentoMode, boolean> = {
+    recebimento: false,
+    despesa: true,
+    vale: false,
+    transferencia: true,
+  };
   const title = editing
     ? `Editar ${mode === 'recebimento' ? 'recebimento' : 'despesa'}`
-    : `Novo ${MODE_LABEL[mode].toLowerCase()}`;
+    : `${FEMININO[mode] ? 'Nova' : 'Novo'} ${MODE_LABEL[mode].toLowerCase()}`;
 
   const footer = success ? (
     <Button variant="primary" className="w-full sm:w-auto" onClick={onClose}>
@@ -1283,13 +1734,11 @@ export function LancamentoModal({
       isOpen
       onClose={onClose}
       title={title}
-      sections={[
-        { key: 'dados', label: 'Dados do lançamento' },
-        { key: 'classificacao', label: 'Categoria & Conta' },
-        { key: 'observacoes', label: 'Observações' },
-      ]}
-      activeSection={section}
-      onSectionChange={(k) => setSection(k as 'dados' | 'classificacao' | 'observacoes')}
+      // Faixa lateral: `widthClass` é o que tira o FullDrawer da tela cheia
+      // (FullDrawer.tsx:195). 760px porque o formulário é uma página só, em
+      // linhas de 3 colunas — os 520px de antes é que espremiam o menu de
+      // seções, que nem existe mais aqui. Ver estudo 53.
+      widthClass="sm:w-[min(760px,94vw)]"
       footer={footer}
     >
       {success ? (
@@ -1302,25 +1751,66 @@ export function LancamentoModal({
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4 max-w-3xl">
-          {/* SEÇÃO 1: Dados do lançamento — Valor, Vencimento, Titular, Status. */}
-          {section === 'dados' && (
-            <>
-              {/* 1. Valor */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-foreground">Valor (R$)</label>
-                <TextField value={amount} onChange={setAmount} aria-label="Valor">
-                  <Input placeholder="0,00" inputMode="decimal" />
-                </TextField>
+        <div className="flex flex-col gap-4">
+          {/* Tudo numa página, na ordem da referência. */}
+          <>
+              {/* "É uma receita organizacional?" — abre o formulário, como no
+                  Belasis. Aqui tem efeito REAL: dispensa a exigência de caixa
+                  aberto para lançamento pago (assertTransactionPolicy), que é o
+                  que o subtexto promete. */}
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-foreground">
+                  {mode === 'despesa' ? 'É uma despesa organizacional?' : 'É uma receita organizacional?'}
+                </span>
+                <InlineToggleFin
+                  checked={isOrganizational}
+                  onChange={setIsOrganizational}
+                  label=""
+                />
+                <span className="text-xs text-muted-ink">Se ativo, não vincula a nenhum caixa</span>
               </div>
 
-              {/* 2. Vencimento (dd/mm/aaaa) */}
-              <DateFieldBR
-                label="Vencimento"
-                value={dueDate}
-                onChange={setDueDate}
-                className="min-w-0"
-              />
+              {/* 1. Valor bruto · Taxas · Valor líquido — os três da referência.
+                  Taxas e líquido são CALCULADOS da forma de pagamento escolhida
+                  (feePercent + feeFixed); não são campos digitáveis nem colunas
+                  do Transaction, por isso vêm somente-leitura. Sem isto o salão
+                  não enxergava quanto a maquininha come de cada recebimento. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-foreground">Valor bruto (R$)</label>
+                  <TextField value={amount} onChange={setAmount} aria-label="Valor bruto">
+                    <Input placeholder="0,00" inputMode="decimal" />
+                  </TextField>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-muted-ink">Taxas</label>
+                  <div className="flex h-11 items-center rounded-lg border border-default-200 bg-canvas px-3 text-sm text-muted-ink">
+                    {formatMoney(taxas)}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-muted-ink">Valor líquido</label>
+                  <div className="flex h-11 items-center rounded-lg border border-default-200 bg-canvas px-3 text-sm font-medium text-foreground">
+                    {formatMoney(valorLiquido)}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Vencimento · Baixa */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <DateFieldBR
+                  label="Vencimento"
+                  value={dueDate}
+                  onChange={setDueDate}
+                  className="min-w-0"
+                />
+                <DateFieldBR
+                  label="Baixa"
+                  value={paidAt}
+                  onChange={setPaidAt}
+                  className="min-w-0"
+                />
+              </div>
 
               {/* 3. Titular: cliente (recebimento) ou profissional (vale/despesa) */}
               {mode === 'recebimento' && (
@@ -1332,14 +1822,50 @@ export function LancamentoModal({
                   options={(customers.data?.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
                 />
               )}
-              {(mode === 'vale' || mode === 'despesa') && (
+              {isVale && (
                 <FieldSelect
-                  label={isVale ? 'Profissional (obrigatório)' : 'Pago para (profissional)'}
-                  placeholder={isVale ? 'Selecione' : 'Selecione (opcional)'}
+                  label="Profissional (obrigatório)"
+                  placeholder="Selecione"
                   value={partyId}
                   onChange={setPartyId}
                   options={(professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name }))}
                 />
+              )}
+              {/* Despesa: o titular natural é o FORNECEDOR (compra de produto,
+                  material, serviço de terceiro). Antes a tela só oferecia
+                  profissional, então não dava para registrar a quem se pagou.
+                  O backend já aceita partyType 'supplier'. */}
+              {mode === 'despesa' && (
+                <>
+                  <FieldSelect
+                    label="Pago para"
+                    placeholder="Selecione"
+                    value={despesaPartyKind}
+                    onChange={(v) => {
+                      setDespesaPartyKind(v as 'supplier' | 'professional');
+                      setPartyId('');
+                    }}
+                    options={[
+                      { id: 'supplier', name: 'Fornecedor' },
+                      { id: 'professional', name: 'Profissional' },
+                    ]}
+                  />
+                  <FieldSelect
+                    label={
+                      despesaPartyKind === 'supplier'
+                        ? 'Fornecedor / representante'
+                        : 'Profissional'
+                    }
+                    placeholder="Selecione (opcional)"
+                    value={partyId}
+                    onChange={setPartyId}
+                    options={
+                      despesaPartyKind === 'supplier'
+                        ? (suppliers.data?.data ?? []).map((s) => ({ id: s.id, name: s.name }))
+                        : (professionals.data?.data ?? []).map((p) => ({ id: p.id, name: p.name }))
+                    }
+                  />
+                </>
               )}
 
               {/* 4. Status */}
@@ -1365,12 +1891,11 @@ export function LancamentoModal({
                   </Select.Popover>
                 </Select>
               </div>
-            </>
-          )}
+          </>
 
-          {/* SEÇÃO 2: Categoria & Conta — Forma de pagamento, Conta, Categoria. */}
-          {section === 'classificacao' && (
-            <>
+          {/* Forma de pagamento · Conta · Categoria — a linha 4 da referência. */}
+          <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <FieldSelect
                 label="Forma de pagamento"
                 placeholder="Selecione (opcional)"
@@ -1397,22 +1922,39 @@ export function LancamentoModal({
                   options={(categories.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
                 />
               )}
-            </>
-          )}
+              </div>
+          </>
 
-          {/* SEÇÃO 3: Observações — Descrição do lançamento. */}
-          {section === 'observacoes' && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">Descrição</label>
-              <TextField value={description} onChange={setDescription} aria-label="Descrição">
-                <Input placeholder="Gerada automaticamente se vazio" />
-              </TextField>
-              <p className="text-xs text-muted">
-                Se em branco, será preenchida automaticamente com base no tipo de
-                lançamento e no titular selecionado.
-              </p>
-            </div>
-          )}
+          {/* "Ajustar data de competência" — fecha o formulário, como na
+              referência. Só mostra o campo quando ligado: competência é exceção,
+              não rotina. */}
+          <div className="flex flex-col gap-2">
+            <InlineToggleFin
+              checked={Boolean(competenceDate)}
+              onChange={(v) => setCompetenceDate(v ? (dueDate || isoDate(new Date())) : '')}
+              label="Ajustar data de competência"
+            />
+            {competenceDate && (
+              <DateFieldBR
+                label="Competência"
+                value={competenceDate}
+                onChange={setCompetenceDate}
+                className="min-w-0 sm:max-w-xs"
+              />
+            )}
+          </div>
+
+          {/* Descrição — textarea de largura inteira, como na referência. */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">Descrição</label>
+            <TextField value={description} onChange={setDescription} aria-label="Descrição">
+              <Input placeholder="Gerada automaticamente se vazio" />
+            </TextField>
+            <p className="text-xs text-muted">
+              Se em branco, será preenchida automaticamente com base no tipo de
+              lançamento e no titular selecionado.
+            </p>
+          </div>
 
           {formError && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -1512,7 +2054,8 @@ export function TransferenciaModal({
       onClose={onClose}
       title="Nova transferência"
       footer={footer}
-      widthClass="sm:w-[460px]"
+      // Lateral de 520px (ver estudo 53): `fullscreen` ignorava esta largura.
+      widthClass="sm:w-[520px]"
     >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -1564,5 +2107,151 @@ export function TransferenciaModal({
         </div>
       )}
     </Drawer>
+  );
+}
+
+/**
+ * Menu de ações da linha de Transações — Editar · Estornar · Excluir.
+ *
+ * Substitui os dois ícones soltos que ficavam na coluna. Mesmo comportamento do
+ * menu de Comandas (`pages/ComandasPage.tsx`): hambúrguer, dropdown com
+ * animação de entrada/saída e clique fora fechando. Ver estudo 53.
+ */
+function LinhaMenu({
+  onEdit,
+  onReverse,
+  onDelete,
+  busy,
+}: {
+  onEdit: () => void;
+  onReverse: () => void;
+  onDelete: () => void;
+  busy?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <IconTip label="Ações">
+        <button
+          type="button"
+          aria-label="Ações"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-ink transition-colors hover:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)] hover:text-foreground"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <rect x="2" y="3.2" width="12" height="1.6" rx="0.8" />
+            <rect x="2" y="7.2" width="12" height="1.6" rx="0.8" />
+            <rect x="2" y="11.2" width="12" height="1.6" rx="0.8" />
+          </svg>
+        </button>
+      </IconTip>
+      <div
+        role="menu"
+        aria-hidden={!open}
+        className={[
+          'absolute right-0 z-30 mt-1 w-44 origin-top overflow-hidden rounded-lg border border-line bg-warm-white py-1 shadow-[var(--shadow-pop)]',
+          'transition-all duration-200 ease-out',
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
+        ].join(' ')}
+      >
+        <ItemMenu icon={<IconPencil size={15} />} onClick={() => { setOpen(false); onEdit(); }}>
+          Editar
+        </ItemMenu>
+        <ItemMenu
+          icon={<IconRepeat size={15} />}
+          disabled={busy}
+          onClick={() => { setOpen(false); onReverse(); }}
+        >
+          Estornar
+        </ItemMenu>
+        <ItemMenu
+          danger
+          icon={<IconTrash size={15} />}
+          disabled={busy}
+          onClick={() => { setOpen(false); onDelete(); }}
+        >
+          Excluir
+        </ItemMenu>
+      </div>
+    </div>
+  );
+}
+
+function ItemMenu({
+  children,
+  onClick,
+  icon,
+  danger,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        danger
+          ? 'text-danger hover:bg-danger/10'
+          : 'text-foreground hover:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
+      ].join(' ')}
+    >
+      {icon && <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>}
+      {children}
+    </button>
+  );
+}
+
+/** Item do bottom-sheet de ações da transação (celular). */
+function AcaoLinhaMobile({
+  icon,
+  label,
+  onClick,
+  danger,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left text-[15px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        danger
+          ? 'text-danger active:bg-danger/10'
+          : 'text-foreground active:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
+      ].join(' ')}
+    >
+      <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>
+      {label}
+    </button>
   );
 }

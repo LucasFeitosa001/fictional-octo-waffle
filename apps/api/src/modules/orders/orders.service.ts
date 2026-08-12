@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
+import { QueuesService } from '../queues/queues.service';
 import {
   CreateOrderDto,
   AddItemDto,
@@ -15,13 +16,25 @@ import {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly queues: QueuesService,
+  ) {}
 
   async list(companyId: string, status?: string) {
     const where = { companyId, ...(status ? { status: status as never } : {}) };
     const data = await this.prisma.client.order.findMany({
       where,
-      include: { customer: true },
+      include: {
+        // A LISTA só usa id/name do cliente (ver ComandasPage) — o objeto
+        // completo tem 55 colunas e era devolvido para cada comanda, inflando a
+        // resposta em megabytes. Os dados ricos do cliente vêm do DETALHE.
+        customer: { select: { id: true, name: true } },
+        payments: {
+          where: { status: { not: 'reversed' } },
+          select: { paymentMethodId: true },
+        },
+      },
       orderBy: { date: 'desc' },
     });
     return { data, page: 1, pageSize: data.length, total: data.length };
@@ -35,6 +48,33 @@ export class OrdersService {
     const order = await this.prisma.client.order.findFirst({ where: { id, companyId } });
     if (!order) throw new NotFoundException('Comanda não encontrada');
     return order;
+  }
+
+  /**
+   * Garante que o profissional é DESTA empresa antes de vincular a um item.
+   * Sem isso, `connect: { id }` com id inexistente estoura P2025 (500) e um id de
+   * outra empresa era aceito — item de um tenant atribuído a profissional de outro
+   * (e a comissão indo para a pessoa errada). O create() já fazia essa checagem.
+   */
+  private async assertProfessionalOfCompany(
+    companyId: string,
+    professionalId: string | null | undefined,
+    // Recusa profissional DESATIVADO ao escolher um agora. `false` quando o
+    // valor não está mudando — editar preço de um item antigo cujo profissional
+    // foi desativado depois não pode quebrar.
+    requireActive = true,
+  ) {
+    if (!professionalId) return;
+    const found = await this.prisma.client.professional.findFirst({
+      where: { id: professionalId, companyId, deletedAt: null },
+      select: { id: true, active: true },
+    });
+    if (!found) throw new NotFoundException('Profissional não encontrado');
+    if (requireActive && !found.active) {
+      throw new BadRequestException(
+        'Profissional desativado — reative em Equipe > Profissionais para usá-lo.',
+      );
+    }
   }
 
   private assertEditable(order: { status: string }) {
@@ -105,6 +145,10 @@ export class OrdersService {
         customer: true,
         professional: true,
         statusHistory: { orderBy: { at: 'asc' }, include: { byUser: true } },
+        // Agendamento de origem: o vínculo só funcionava num sentido — da
+        // agenda dava para chegar na comanda, da comanda não se voltava.
+        // Ver estudo 56.
+        appointment: { select: { id: true, start: true, status: true } },
       },
     });
     if (!found) throw new NotFoundException('Comanda não encontrada');
@@ -173,28 +217,218 @@ export class OrdersService {
   }
 
   async create(companyId: string, dto: CreateOrderDto) {
-    const last = await this.prisma.client.order.findFirst({
-      where: { companyId },
-      orderBy: { number: 'desc' },
-      select: { number: true },
-    });
-    return this.prisma.client.order.create({
-      data: {
-        companyId,
-        number: (last?.number ?? 0) + 1,
-        customerId: dto.customerId,
-        professionalId: dto.professionalId,
-        notes: dto.notes,
-        date: dto.date ? new Date(dto.date) : new Date(),
-      },
+    const preparedItems = await Promise.all(
+      (dto.items ?? []).map(async (item) => {
+        const quantity = new Prisma.Decimal(item.quantity ?? 1);
+        const unitPrice = await this.resolveUnitPrice(companyId, item);
+        const grossValue = unitPrice.mul(quantity);
+        const discount = new Prisma.Decimal(item.discount ?? 0);
+        this.assertDescontoDoItem(discount, grossValue);
+        return { item, quantity, unitPrice, grossValue, discount };
+      }),
+    );
+    // MESMA definição do recalculate() (a canônica do resto do ciclo de vida):
+    // o bruto já entra com o desconto DO ITEM abatido, e discountTotal guarda só
+    // os descontos DA COMANDA (que na criação ainda não existem). Antes create()
+    // usava outra definição e os campos "Total bruto"/"Descontos" mudavam de
+    // significado sozinhos no primeiro recalculate.
+    // O clamp por ITEM (e não só no total) é a mesma defesa do recalculate:
+    // item com desconto maior que o próprio bruto não pode entrar negativo e
+    // comer o valor dos outros itens da comanda.
+    const grossTotal = preparedItems.reduce(
+      (sum, current) =>
+        sum.add(
+          Prisma.Decimal.max(
+            current.grossValue.sub(current.discount),
+            new Prisma.Decimal(0),
+          ),
+        ),
+      new Prisma.Decimal(0),
+    );
+    const discountTotal = new Prisma.Decimal(0);
+    const netTotal = Prisma.Decimal.max(
+      grossTotal.sub(discountTotal),
+      new Prisma.Decimal(0),
+    );
+
+    return this.prisma.client.$transaction(async (tx) => {
+      // $executeRaw (NÃO $queryRaw): pg_advisory_xact_lock() retorna `void` e o
+      // $queryRaw tenta desserializar a coluna → PrismaClientKnownRequestError
+      // P2010 ("Failed to deserialize column of type 'void'"), que derrubava
+      // TODA criação de comanda com 500. O $executeRaw não lê o resultado.
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:orders`}))
+      `;
+
+      // Agendamento de origem: se ele JÁ tem comanda, devolve a existente. É o
+      // que faz "Acessar comanda" acessar em vez de criar mais uma a cada
+      // clique. Fica dentro do mesmo advisory lock por empresa, então dois
+      // cliques simultâneos não passam os dois — e o índice único da coluna é a
+      // rede de segurança no banco. Ver estudo 52.
+      if (dto.appointmentId) {
+        const appointment = await tx.appointment.findFirst({
+          where: { id: dto.appointmentId, companyId },
+          select: { id: true },
+        });
+        if (!appointment) throw new NotFoundException('Agendamento não encontrado');
+
+        const existing = await tx.order.findFirst({
+          where: { companyId, appointmentId: dto.appointmentId },
+          // Mesmo formato do retorno normal do create (abaixo), senão a tela
+          // receberia uma comanda sem itens ao "acessar" a existente.
+          include: { items: true },
+        });
+        // Comanda cancelada não serve de "existente": o agendamento precisa
+        // poder gerar outra. Nesse caso soltamos o vínculo da cancelada para o
+        // índice único não barrar a nova.
+        //
+        // `reused` diz à tela que NADA foi criado — sem isso o front mostrava
+        // "Comanda aberta" toda vez e o dono lia como "criou outra". Ver estudo 52.
+        if (existing && existing.status !== 'canceled') {
+          // O agendamento pode ter mudado depois (trocou serviço/profissional).
+          // Enquanto a comanda está ABERTA e SEM PAGAMENTO, ela é só o reflexo
+          // do agendamento: os itens de agora substituem os dela. Com pagamento
+          // ou finalizada, não se toca — devolve marcando `divergente` para a
+          // tela avisar em vez de mostrar o serviço velho calada. Ver estudo 56.
+          const itensPedidos = preparedItems.map((c) => ({
+            kind: c.item.kind,
+            refId: c.item.refId,
+            professionalId: c.item.professionalId ?? null,
+            quantity: c.quantity.toString(),
+            unitPrice: c.unitPrice.toString(),
+          }));
+          const itensAtuais = existing.items.map((i) => ({
+            kind: i.kind,
+            refId: i.refId,
+            professionalId: i.professionalId ?? null,
+            quantity: i.quantity.toString(),
+            unitPrice: i.unitPrice.toString(),
+          }));
+          const mudou =
+            itensPedidos.length > 0 &&
+            JSON.stringify(itensPedidos) !== JSON.stringify(itensAtuais);
+          if (!mudou) return { ...existing, reused: true };
+
+          const pagamentos = await tx.orderPayment.count({
+            where: { orderId: existing.id, status: { not: 'reversed' } },
+          });
+          if (existing.status !== 'open' || pagamentos > 0) {
+            return { ...existing, reused: true, divergente: true };
+          }
+
+          await tx.orderItem.deleteMany({ where: { orderId: existing.id } });
+          await tx.orderItem.createMany({
+            data: preparedItems.map((c) => ({
+              orderId: existing.id,
+              kind: c.item.kind,
+              refId: c.item.refId,
+              professionalId: c.item.professionalId,
+              quantity: c.quantity,
+              unitPrice: c.unitPrice,
+              grossValue: c.grossValue,
+              discount: c.discount,
+            })),
+          });
+          const atualizada = await tx.order.update({
+            where: { id: existing.id },
+            data: {
+              grossTotal,
+              discountTotal,
+              netTotal,
+              notes: dto.notes ?? existing.notes,
+            },
+            include: { items: true },
+          });
+          return { ...atualizada, reused: true, sincronizada: true };
+        }
+        if (existing) {
+          await tx.order.update({
+            where: { id: existing.id },
+            data: { appointmentId: null },
+          });
+        }
+      }
+
+      if (dto.customerId) {
+        const customer = await tx.customer.findFirst({
+          where: { id: dto.customerId, companyId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!customer) throw new NotFoundException('Cliente não encontrado');
+      }
+
+      const professionalIds = [
+        dto.professionalId,
+        ...preparedItems.map((current) => current.item.professionalId),
+      ].filter((id): id is string => Boolean(id));
+      if (professionalIds.length) {
+        const uniqueIds = [...new Set(professionalIds)];
+        // Além da empresa, exige não-excluído E ativo: comanda nova não pode
+        // nascer atribuída a quem foi desativado.
+        const count = await tx.professional.count({
+          where: { companyId, id: { in: uniqueIds }, deletedAt: null, active: true },
+        });
+        if (count !== uniqueIds.length) {
+          throw new BadRequestException(
+            'Profissional não encontrado ou desativado — reative em Equipe > Profissionais.',
+          );
+        }
+      }
+
+      const last = await tx.order.findFirst({
+        where: { companyId },
+        orderBy: { number: 'desc' },
+        select: { number: true },
+      });
+      return tx.order.create({
+        data: {
+          companyId,
+          number: (last?.number ?? 0) + 1,
+          customerId: dto.customerId,
+          professionalId: dto.professionalId,
+          appointmentId: dto.appointmentId,
+          notes: dto.notes,
+          date: dto.date ? new Date(dto.date) : new Date(),
+          grossTotal,
+          discountTotal,
+          netTotal,
+          items: preparedItems.length
+            ? {
+                create: preparedItems.map((current) => ({
+                  kind: current.item.kind,
+                  refId: current.item.refId,
+                  professionalId: current.item.professionalId,
+                  quantity: current.quantity,
+                  unitPrice: current.unitPrice,
+                  grossValue: current.grossValue,
+                  discount: current.discount,
+                })),
+              }
+            : undefined,
+        },
+        include: { items: true },
+      });
     });
   }
 
   async addItem(companyId: string, id: string, dto: AddItemDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
+    await this.assertProfessionalOfCompany(companyId, dto.professionalId);
     const quantity = dto.quantity ?? 1;
-    const grossValue = new Prisma.Decimal(dto.unitPrice).mul(quantity);
+    // Preço unitário: usa o informado (inclusive 0, que é cortesia); só cai no
+    // catálogo quando o campo NÃO vem. O ref é validado pertencer à empresa.
+    const unitPrice = await this.resolveUnitPrice(companyId, dto);
+    const grossValue = unitPrice.mul(quantity);
+    this.assertDescontoDoItem(new Prisma.Decimal(dto.discount ?? 0), grossValue);
+    if (dto.kind === 'product') {
+      await this.assertEstoqueParaVenda(
+        companyId,
+        id,
+        dto.refId,
+        new Prisma.Decimal(quantity),
+      );
+    }
     await this.prisma.client.orderItem.create({
       data: {
         orderId: id,
@@ -202,12 +436,145 @@ export class OrdersService {
         refId: dto.refId,
         professionalId: dto.professionalId,
         quantity,
-        unitPrice: dto.unitPrice,
+        unitPrice,
         grossValue,
         discount: dto.discount ?? 0,
       },
     });
     return this.recalculate(id);
+  }
+
+  /**
+   * Resolve o preço unitário de um item da comanda. Prioriza o valor enviado pelo
+   * cliente; quando ausente ou 0, busca o preço no catálogo (Service.price para
+   * serviços, Product.salePrice para produtos), sempre com escopo da empresa.
+   * Garante que "adicionar serviço/produto" nunca crie item a R$0 só porque a
+   * superfície de UI não pré-preencheu o campo de preço.
+   */
+  private async resolveUnitPrice(
+    companyId: string,
+    dto: AddItemDto,
+  ): Promise<Prisma.Decimal> {
+    const provided =
+      dto.unitPrice != null ? new Prisma.Decimal(dto.unitPrice) : null;
+
+    if (dto.kind === 'service') {
+      const service = await this.prisma.client.service.findFirst({
+        where: { id: dto.refId, companyId },
+        select: { price: true },
+      });
+      if (!service) throw new NotFoundException('Serviço não encontrado');
+      // `!= null` (não `.gt(0)`): preço 0 é cortesia/brinde legítimo. Com o gt(0)
+      // o item voltava para o preço cheio do catálogo e a cortesia era cobrada.
+      return provided != null ? provided : service.price;
+    } else {
+      const product = await this.prisma.client.product.findFirst({
+        where: { id: dto.refId, companyId },
+        select: { salePrice: true },
+      });
+      if (!product) throw new NotFoundException('Produto não encontrado');
+      // idem serviço: 0 informado é cortesia, não "usar catálogo".
+      return provided != null ? provided : product.salePrice;
+    }
+  }
+
+  /**
+   * Teto do desconto DO ITEM — espelha o teto que o desconto DA COMANDA já tem
+   * em addDiscount().
+   *
+   * Sem isto, a recepção que digita "200" no lugar de "20" num item de R$ 100
+   * grava o item com valor NEGATIVO. O negativo não fica preso no item: no
+   * recalculate ele comia o preço dos outros (o Shampoo de R$ 50 sumia do
+   * total), a comanda inteira ia a líquido R$ 0 e o "Faturar" passava — porque
+   * `paidTotal.equals(netTotal)` é verdade com 0 == 0 e a exigência de caixa
+   * aberto só vale para `netTotal > 0`. Resultado: venda de R$ 0,00 no
+   * Financeiro, sem pagamento, sem caixa, e o estoque baixado assim mesmo.
+   *
+   * Fica no service (não no DTO) porque o bruto é `unitPrice × quantity` e o
+   * unitPrice pode vir do catálogo, que o DTO não consulta.
+   */
+  private assertDescontoDoItem(discount: Prisma.Decimal, grossValue: Prisma.Decimal) {
+    if (discount.lessThan(0)) {
+      throw new BadRequestException('Desconto do item não pode ser negativo.');
+    }
+    // O teto é o bruto ARREDONDADO em 2 casas — que é o valor que o banco de
+    // fato guarda (OrderItem.grossValue é Decimal(12,2), enquanto `quantity` é
+    // Decimal(12,3), então `unitPrice × quantity` pode ter até 5 casas).
+    // Comparar com o bruto exato recusava a cortesia de 100% em item com
+    // quantidade fracionada: produto de R$ 3,25 × 1,5 tem bruto exato 4,875 e
+    // gravado 4,88; o painel manda 4,88 de desconto e a trava respondia
+    // "Desconto de R$ 4,88 maior que o valor do item (R$ 4,88)" — contradição
+    // na cara do operador, sem nada para corrigir. Ver estudo 141.
+    const teto = grossValue.toDecimalPlaces(2);
+    if (discount.greaterThan(teto)) {
+      throw new BadRequestException(
+        `Desconto de R$ ${discount.toFixed(2)} maior que o valor do item (R$ ${teto.toFixed(2)}).`,
+      );
+    }
+  }
+
+  /**
+   * Estoque na VENDA de produto (item kind='product' da comanda).
+   *
+   * Antes disto, vender 3 de um produto com 1 em estoque passava liso e o
+   * `decrementSoldStock` do faturamento deixava o saldo em −2, sem aviso em
+   * momento nenhum — enquanto o MESMO produto lançado como "produto consumido"
+   * no serviço levava "Estoque insuficiente para este consumo"
+   * (addConsumedProduct) e a saída manual levava "Estoque insuficiente para
+   * esta saída" (products.service). Duas regras opostas para o mesmo saldo.
+   *
+   * A regra unificada é `trackStock`: só barra quando o salão DECLAROU que
+   * controla o estoque daquele produto. O default do campo é `false` e o
+   * catálogo importado do Belasis está quase todo com saldo 0 — barrar sem essa
+   * condição impediria o salão de vender qualquer coisa. Onde o saldo é
+   * palpite, ele não pode travar a operação; onde é verdade, não pode furar.
+   *
+   * Roda no ADICIONAR/EDITAR item, nunca no faturar: no faturamento o dinheiro
+   * já entrou e recusar ali deixaria a cliente paga com a comanda aberta.
+   */
+  private async assertEstoqueParaVenda(
+    companyId: string,
+    orderId: string,
+    productId: string,
+    quantity: Prisma.Decimal,
+    // Item que está sendo EDITADO: a quantidade atual dele não conta como
+    // reserva, senão editar 2 → 3 somaria os 2 antigos e recusaria sem motivo.
+    ignorarItemId?: string,
+  ) {
+    if (quantity.lessThanOrEqualTo(0)) return;
+    const product = await this.prisma.client.product.findFirst({
+      where: { id: productId, companyId, deletedAt: null },
+      select: { name: true, unit: true, stock: true, trackStock: true },
+    });
+    // Produto inexistente/de outra empresa é erro de resolveUnitPrice, não daqui.
+    if (!product || !product.trackStock) return;
+
+    // O que ESTA comanda já reservou do mesmo produto ainda não saiu do estoque
+    // (a baixa acontece no finish). Sem somar, dois itens de 1 un passavam um a
+    // um com saldo 1 e o faturamento deixava o produto em −1.
+    const jaNaComanda = await this.prisma.client.orderItem.findMany({
+      where: {
+        orderId,
+        kind: 'product',
+        refId: productId,
+        ...(ignorarItemId ? { id: { not: ignorarItemId } } : {}),
+      },
+      select: { quantity: true },
+    });
+    const reservado = jaNaComanda.reduce(
+      (acc, it) => acc.add(it.quantity),
+      new Prisma.Decimal(0),
+    );
+    const disponivel = Prisma.Decimal.max(
+      new Prisma.Decimal(product.stock).sub(reservado),
+      new Prisma.Decimal(0),
+    );
+    if (quantity.greaterThan(disponivel)) {
+      const unidade = product.unit ? ` ${product.unit}` : '';
+      throw new BadRequestException(
+        `Estoque insuficiente de ${product.name}: restam ${disponivel.toString()}${unidade} e esta comanda está pedindo ${quantity.toString()}${unidade}.`,
+      );
+    }
   }
 
   /**
@@ -218,6 +585,11 @@ export class OrdersService {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
     const item = await this.loadItem(id, itemId);
+    await this.assertProfessionalOfCompany(
+      companyId,
+      dto.professionalId,
+      dto.professionalId !== item.professionalId,
+    );
 
     const unitPrice =
       dto.unitPrice !== undefined ? new Prisma.Decimal(dto.unitPrice) : item.unitPrice;
@@ -235,10 +607,30 @@ export class OrdersService {
       }
     }
 
+    const grossValue = unitPrice.mul(quantity);
+    // Teto do desconto sobre o bruto RESULTANTE do partial update: quem baixa o
+    // preço de um item que já tinha desconto também pode deixá-lo negativo.
+    const discount =
+      dto.discount !== undefined
+        ? new Prisma.Decimal(dto.discount)
+        : new Prisma.Decimal(item.discount);
+    this.assertDescontoDoItem(discount, grossValue);
+
+    // Estoque só quando a quantidade AUMENTA: corrigir o preço de um item antigo
+    // não pode quebrar porque o saldo do produto mudou depois (mesmo critério do
+    // `requireActive` do profissional, acima).
+    if (
+      item.kind === 'product' &&
+      dto.quantity !== undefined &&
+      quantity.greaterThan(item.quantity)
+    ) {
+      await this.assertEstoqueParaVenda(companyId, id, item.refId, quantity, itemId);
+    }
+
     const data: Prisma.OrderItemUpdateInput = {
       unitPrice,
       quantity,
-      grossValue: unitPrice.mul(quantity),
+      grossValue,
     };
     if (dto.professionalId !== undefined) {
       data.professional = dto.professionalId
@@ -544,6 +936,21 @@ export class OrdersService {
   async addDiscount(companyId: string, id: string, dto: AddDiscountDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
+    // Teto do desconto. Sem isso, 500% zerava a comanda (recalculate aplica
+    // gross*value/100) e dava para faturar R$ 0 sem pagamento nenhum.
+    const value = new Prisma.Decimal(dto.value);
+    if (value.lessThan(0)) {
+      throw new BadRequestException('Desconto não pode ser negativo.');
+    }
+    if (dto.type === 'percent') {
+      if (value.greaterThan(100)) {
+        throw new BadRequestException('Desconto em porcentagem não pode passar de 100%.');
+      }
+    } else if (value.greaterThan(order.grossTotal)) {
+      throw new BadRequestException(
+        `Desconto de R$ ${value.toFixed(2)} maior que o valor da comanda (R$ ${new Prisma.Decimal(order.grossTotal).toFixed(2)}).`,
+      );
+    }
     await this.prisma.client.orderDiscount.create({
       data: { orderId: id, type: dto.type, value: dto.value, reason: dto.reason },
     });
@@ -553,6 +960,41 @@ export class OrdersService {
   async addPayment(companyId: string, id: string, dto: AddPaymentDto) {
     const order = await this.loadOrder(companyId, id);
     this.assertEditable(order);
+
+    // Uma comanda não pode receber mais que o saldo líquido ainda em aberto.
+    // No pagamento em dinheiro o front envia apenas o valor da venda (o valor
+    // entregue pelo cliente serve somente para calcular/exibir o troco).
+    const activePayments = await this.prisma.client.orderPayment.findMany({
+      where: { orderId: id, status: { not: 'reversed' } },
+      select: { amount: true },
+    });
+    const paidTotal = activePayments.reduce(
+      (sum, payment) => sum.add(payment.amount),
+      new Prisma.Decimal(0),
+    );
+    const remaining = new Prisma.Decimal(order.netTotal).sub(paidTotal);
+    const amount = new Prisma.Decimal(dto.amount);
+    if (amount.greaterThan(remaining.add(new Prisma.Decimal('0.009')))) {
+      throw new BadRequestException(
+        `O pagamento ultrapassa o restante da comanda (${remaining.toFixed(2)}).`,
+      );
+    }
+
+    if (dto.paymentMethodId) {
+      const method = await this.prisma.client.paymentMethod.findFirst({
+        where: { id: dto.paymentMethodId, companyId, active: true },
+        select: { id: true },
+      });
+      if (!method) throw new BadRequestException('Forma de pagamento inválida.');
+    }
+    if (dto.accountId) {
+      const account = await this.prisma.client.financialAccount.findFirst({
+        where: { id: dto.accountId, companyId },
+        select: { id: true },
+      });
+      if (!account) throw new BadRequestException('Conta financeira inválida.');
+    }
+
     return this.prisma.client.orderPayment.create({
       data: {
         orderId: id,
@@ -565,52 +1007,1221 @@ export class OrdersService {
     });
   }
 
-  /** Estorno permanece permitido mesmo com a comanda finalizada. */
+  /**
+   * Estorno de pagamento. EXIGE a comanda aberta: numa comanda finalizada os
+   * lançamentos do faturamento (receita, caixa e comissão) já existem, e marcar
+   * o pagamento como `reversed` sozinho deixaria o dinheiro no caixa e a comissão
+   * devida sobre uma venda estornada. O caminho correto reusa a reversão completa
+   * que já existe: Reabrir (reopen → reverseFinishReconciliation) → estornar →
+   * faturar de novo.
+   */
   async reversePayment(companyId: string, id: string, pid: string) {
-    await this.loadOrder(companyId, id);
+    const order = await this.loadOrder(companyId, id);
+    if (order.status === 'finished') {
+      throw new BadRequestException(
+        'Comanda finalizada: reabra a comanda antes de estornar o pagamento, senão o valor continua lançado no caixa e na comissão.',
+      );
+    }
+    const payment = await this.prisma.client.orderPayment.findFirst({
+      where: { id: pid, orderId: id },
+      select: { id: true },
+    });
+    if (!payment) throw new NotFoundException('Pagamento não encontrado.');
     return this.prisma.client.orderPayment.update({
-      where: { id: pid },
+      where: { id: payment.id },
       data: { status: 'reversed' },
     });
   }
 
   /**
-   * POST /orders/:id/finish — recompute totals + close.
-   * Estoque dos produtos consumidos já é baixado no "Salvar" do drawer
-   * (addConsumedProduct), então o finish NÃO regenera inventory_movements(out)
-   * para evitar dupla baixa.
-   * TODO Fase 1/2: generate transactions (income), commission_entries, cash_movements.
+   * POST /orders/:id/finish — recompute totals + close, reconciliando com
+   * Financeiro (Transaction), Caixa (CashMovement), Comissões (CommissionEntry)
+   * e Estoque (InventoryMovement) — tudo em UMA transação Prisma, atômica e
+   * idempotente.
+   *
+   * Estoque dos produtos CONSUMIDOS em serviço já é baixado no "Salvar" do drawer
+   * (addConsumedProduct); aqui só baixamos o produto VENDIDO direto (item de
+   * produto da comanda), sem duplicar.
+   *
+   * Idempotência: comanda já `finished` retorna sem reprocessar; cada gerador
+   * checa a existência dos seus registros (por orderId / refType+refId / legacyId)
+   * antes de criar, de modo que um retry parcial não duplica lançamentos.
    */
   async finish(companyId: string, id: string, byUserId?: string) {
     const current = await this.loadOrder(companyId, id);
+    if (current.status === 'canceled') {
+      throw new BadRequestException('Comanda cancelada — não pode ser finalizada.');
+    }
+    // Idempotente: já finalizada → apenas retorna (não reprocessa lançamentos).
+    if (current.status === 'finished') {
+      return this.prisma.client.order.findUniqueOrThrow({
+        where: { id },
+        include: { items: true, payments: true },
+      });
+    }
+
     await this.recalculate(id);
-    return this.prisma.client.order.update({
-      where: { id },
-      data: {
-        status: 'finished',
-        statusHistory: { create: { fromStatus: current.status, toStatus: 'finished', byUserId } },
+
+    const finished = await this.prisma.client.$transaction(async (tx) => {
+      // Trava a comanda durante toda a reconciliação. Evita que pagamento,
+      // fechamento e reabertura concorrentes deixem Financeiro/Caixa divergentes.
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "Order"
+        WHERE "id" = ${id} AND "companyId" = ${companyId}
+        FOR UPDATE
+      `;
+
+      const order = await tx.order.findFirstOrThrow({
+        where: { id, companyId },
+        include: {
+          // `auxiliaries` entra aqui porque o rateio da comissão é calculado no
+          // finish: sem este include o campo chega `undefined` em
+          // generateCommissionEntries e o auxiliar volta a não receber nada.
+          items: { include: { professional: true, auxiliaries: true } },
+          payments: true,
+        },
+      });
+      if (order.status === 'finished') return order;
+      if (order.status === 'canceled') {
+        throw new BadRequestException('Comanda cancelada — não pode ser finalizada.');
+      }
+
+      // Invariante: faturar significa que o valor líquido foi integralmente
+      // recebido. Antes esse ponto aceitava zero/parcelas incompletas e a
+      // comanda simplesmente desaparecia do caixa.
+      const activePayments = order.payments.filter((payment) => payment.status !== 'reversed');
+      const paidTotal = activePayments.reduce(
+        (sum, payment) => sum.add(payment.amount),
+        new Prisma.Decimal(0),
+      );
+      const netTotal = new Prisma.Decimal(order.netTotal);
+      if (!paidTotal.equals(netTotal)) {
+        // Pago A MAIS precisa de mensagem própria: netTotal - paidTotal fica
+        // negativo, o max(...,0) zerava e a tela dizia "Restante: R$ 0.00" —
+        // contraditório, e o operador não descobria que precisa estornar.
+        if (paidTotal.greaterThan(netTotal)) {
+          throw new BadRequestException(
+            `Pagamentos registrados (R$ ${paidTotal.toFixed(2)}) excedem o valor da comanda (R$ ${netTotal.toFixed(2)}). Estorne R$ ${paidTotal.sub(netTotal).toFixed(2)} antes de faturar.`,
+          );
+        }
+        const remaining = netTotal.sub(paidTotal);
+        throw new BadRequestException(
+          `Registre o pagamento completo antes de faturar. Restante: R$ ${remaining.toFixed(2)}.`,
+        );
+      }
+
+      // O caixa não é diário: usa o caixa ABERTO do operador mesmo que tenha
+      // sido aberto em data anterior. Quando existe só um caixa na empresa,
+      // ele é o fallback (compatibilidade com operação centralizada). Com mais
+      // de um caixa, nunca joga a venda silenciosamente no caixa de outra
+      // pessoa: exige que o operador tenha o próprio caixa.
+      //
+      // FOR UPDATE usa o mesmo lock do fechamento e serializa os dois fluxos.
+      const openCashes = await tx.$queryRaw<
+        { id: string; responsibleUserId: string | null }[]
+      >`
+        SELECT "id", "responsibleUserId"
+        FROM "CashRegister"
+        WHERE "companyId" = ${companyId} AND "status" = 'open'
+        ORDER BY
+          CASE WHEN "responsibleUserId" = ${byUserId} THEN 0 ELSE 1 END,
+          "openedAt" DESC
+        FOR UPDATE
+      `;
+      const ownCash = openCashes.find(
+        (cash) => cash.responsibleUserId === byUserId,
+      );
+      const openCash =
+        ownCash ?? (openCashes.length === 1 ? openCashes[0] : undefined);
+      if (netTotal.greaterThan(0) && !openCash) {
+        if (openCashes.length > 1) {
+          throw new BadRequestException(
+            'Há mais de um caixa aberto e nenhum pertence ao seu usuário. Abra o seu caixa ou peça a um gerente para faturar esta comanda.',
+          );
+        }
+        throw new BadRequestException(
+          'Nenhum caixa está aberto. Abra o caixa antes de faturar a comanda.',
+        );
+      }
+
+      const incomeCategory = await tx.financialCategory.findFirst({
+        where: { companyId, kind: 'credit', active: true },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+
+      const paidAt = new Date();
+      await tx.orderPayment.updateMany({
+        where: { orderId: id, status: { not: 'reversed' } },
+        data: { status: 'paid', paidAt },
+      });
+
+      await this.generateIncomeTransactions(tx, companyId, order, incomeCategory?.id ?? null);
+      if (openCash) {
+        await this.generateCashMovements(tx, order, openCash.id);
+      }
+      // A comissão libera quando o dinheiro entra. Usa o MAIOR prazo entre as
+      // formas de pagamento da comanda: se metade foi no crédito de 30 dias, a
+      // comissão inteira só está disponível quando aquela parcela cair.
+      const formasUsadas = await tx.paymentMethod.findMany({
+        where: {
+          companyId,
+          id: {
+            in: [
+              ...new Set(
+                order.payments
+                  .filter((pg) => pg.status !== 'reversed' && pg.paymentMethodId)
+                  .map((pg) => pg.paymentMethodId as string),
+              ),
+            ],
+          },
+        },
+        select: { settlementDays: true },
+      });
+      const maiorPrazo = formasUsadas.reduce(
+        (maior, f) => Math.max(maior, Number(f.settlementDays ?? 0)),
+        0,
+      );
+      const liberaEm =
+        maiorPrazo > 0 ? new Date(Date.now() + maiorPrazo * 24 * 60 * 60 * 1000) : undefined;
+
+      const comissoes = await this.generateCommissionEntries(tx, companyId, order, liberaEm);
+      await this.generateCashbackEarnings(tx, companyId, order);
+      await this.decrementSoldStock(tx, order);
+
+      const atualizada = await tx.order.update({
+        where: { id },
+        data: {
+          status: 'finished',
+          statusHistory: {
+            create: { fromStatus: current.status, toStatus: 'finished', byUserId },
+          },
+        },
+        include: { items: true, payments: true },
+      });
+
+      // Faturou a comanda = o atendimento aconteceu: o agendamento de origem
+      // sai de "Confirmado". Sem isto a grade acumulava agendamentos pagos como
+      // se ainda fossem acontecer — foi o que o estudo 55 teve de limpar em
+      // 1.266 registros. Escrita DIRETA de propósito: pelo `setStatus` da API
+      // dispararia `enqueueFollowUp` e o cliente receberia a mensagem de
+      // pós-atendimento duas vezes (o finish já agenda a dele). Ver estudo 56.
+      if (atualizada.appointmentId) {
+        await tx.appointment.updateMany({
+          where: {
+            id: atualizada.appointmentId,
+            companyId,
+            status: { notIn: ['canceled', 'finished'] },
+          },
+          data: { status: 'finished' },
+        });
+      }
+      // Vai junto na resposta para a tela AVISAR. Antes o item sem percentual
+      // era pulado em silêncio e o salão faturava esperando comissão.
+      // `commissionMissingProfessional` é o irmão do mesmo problema: item que
+      // nem profissional tem. São duas listas porque a saída é diferente —
+      // uma pede percentual, a outra pede atribuir alguém ao item.
+      return Object.assign(atualizada, {
+        commissionSkipped: comissoes.semPercentual,
+        commissionMissingProfessional: comissoes.semProfissional,
+      });
+    });
+
+    // Event-driven: closing the comanda schedules the post-service follow-up
+    // (delayed FOLLOWUP_DELAY_HOURS). Only when there's a customer to message.
+    // Idempotent per order via the follow-up job's deterministic jobId + marker.
+    if (finished.customerId) {
+      void this.queues.enqueueFollowUp(companyId, { orderId: id });
+    }
+    return finished;
+  }
+
+  // ===================== Reconciliação do fechamento =====================
+
+  /**
+   * Receita → uma Transaction (income/paid) por OrderPayment não estornado,
+   * preservando método/conta/valor de cada pagamento (o DRE agrupa por
+   * paymentMethodId/accountId). `legacyId = order:{id}:pay:{paymentId}` garante
+   * idempotência via @@unique([companyId, legacyId]).
+   */
+  private async generateIncomeTransactions(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    order: {
+      id: string;
+      customerId: string | null;
+      payments: {
+        id: string;
+        amount: Prisma.Decimal;
+        paymentMethodId: string | null;
+        accountId: string | null;
+        status: string;
+      }[];
+    },
+    categoryId: string | null,
+  ) {
+    // Resolve conta-default, TAXA e PRAZO das formas de pagamento usadas.
+    // `feePercent` e `settlementDays` eram cadastrados e nunca lidos: o salão
+    // configurava "Cartão 3,5%, liquida em 30 dias", vendia R$ 100 e o sistema
+    // registrava R$ 100 disponíveis HOJE.
+    const methodIds = [
+      ...new Set(
+        order.payments
+          .filter((p) => p.paymentMethodId)
+          .map((p) => p.paymentMethodId as string),
+      ),
+    ];
+    const methods = methodIds.length
+      ? await tx.paymentMethod.findMany({
+          where: { id: { in: methodIds }, companyId },
+          select: {
+            id: true,
+            defaultAccountId: true,
+            feePercent: true,
+            settlementDays: true,
+          },
+        })
+      : [];
+    const defaultAccountByMethod = new Map(
+      methods.map((m) => [m.id, m.defaultAccountId] as const),
+    );
+    const methodById = new Map(methods.map((m) => [m.id, m] as const));
+
+    for (const p of order.payments) {
+      if (p.status === 'reversed') continue; // pagamento estornado não vira receita
+      const legacyId = `order:${order.id}:pay:${p.id}`;
+      // Idempotência baseada em ESTADO ATIVO: pula só se já existe uma Transaction
+      // ATIVA (não estornada) para este pagamento. Transactions estornadas por um
+      // reopen/cancel anterior têm o legacyId zerado (ver reverseFinishReconciliation),
+      // liberando o slot único p/ um novo lançamento neste re-finish.
+      const active = await tx.transaction.findFirst({
+        where: { companyId, legacyId, status: { not: 'reversed' } },
+        select: { id: true },
+      });
+      if (active) continue;
+
+      const accountId =
+        p.accountId ??
+        (p.paymentMethodId ? defaultAccountByMethod.get(p.paymentMethodId) ?? null : null);
+      const now = new Date();
+
+      // TAXA e PRAZO da forma de pagamento. A taxa do cartão é custo da venda:
+      // o salão recebe o líquido. E recebe no dia da LIQUIDAÇÃO, não hoje —
+      // registrar como disponível na hora inflava o caixa do dia.
+      const forma = p.paymentMethodId ? methodById.get(p.paymentMethodId) : undefined;
+      const taxa = Number(forma?.feePercent ?? 0);
+      const prazo = Number(forma?.settlementDays ?? 0);
+      const bruto = new Prisma.Decimal(p.amount);
+      const liquido = taxa > 0 ? bruto.sub(bruto.mul(taxa).div(100)) : bruto;
+      const liquidacao =
+        prazo > 0 ? new Date(now.getTime() + prazo * 24 * 60 * 60 * 1000) : now;
+      // Só é "pago" quando o dinheiro entrou de fato. Com prazo, fica a receber.
+      const jaCaiu = prazo <= 0;
+
+      await tx.transaction.create({
+        data: {
+          companyId,
+          kind: 'income',
+          grossAmount: liquido,
+          accountId,
+          categoryId,
+          paymentMethodId: p.paymentMethodId,
+          partyType: order.customerId ? 'customer' : null,
+          partyId: order.customerId,
+          orderId: order.id,
+          description:
+            taxa > 0
+              ? `Recebimento de comanda (líquido de ${taxa}% de taxa)`
+              : 'Recebimento de comanda',
+          dueDate: liquidacao,
+          competenceDate: now,
+          ...(jaCaiu ? { paidAt: now } : {}),
+          status: jaCaiu ? 'paid' : 'pending',
+          legacyId,
+          legacySource: 'order_finish',
+        },
+      });
+    }
+  }
+
+  /**
+   * Caixa → CashMovement(in) para CADA pagamento ativo da comanda.
+   *
+   * O caixa do produto é também a conferência de recebimentos por forma
+   * (Dinheiro/Pix/Crédito/Outros), como no histórico importado do Belasis; por
+   * isso nenhuma forma pode fazer a comanda sumir do caixa aberto. A flag
+   * legada `goesToCash` nunca pode ocultar uma venda já recebida da conferência.
+   *
+   * Idempotência: pula se já há movimento líquido ativo para o paymentId
+   * (rastreado em `description`).
+   */
+  private async generateCashMovements(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      payments: {
+        id: string;
+        amount: Prisma.Decimal;
+        paymentMethodId: string | null;
+        status: string;
+      }[];
+    },
+    cashRegisterId: string,
+  ) {
+    // Idempotência por NET, por pagamento: um `in` (description=paymentId) só
+    // conta se ainda não foi compensado por um `out` (description=reversal:paymentId).
+    // Assim, um pagamento estornado por reopen anterior volta a entrar no caixa.
+    const existing = await tx.cashMovement.findMany({
+      where: { cashRegisterId, refType: 'order', refId: order.id },
+      select: { type: true, description: true },
+    });
+    const netInByPay = new Map<string, number>();
+    for (const m of existing) {
+      const payId = (m.description ?? '').replace(/^reversal:/, '');
+      if (!payId) continue;
+      netInByPay.set(payId, (netInByPay.get(payId) ?? 0) + (m.type === 'in' ? 1 : -1));
+    }
+
+    for (const p of order.payments) {
+      if (p.status === 'reversed') continue;
+      if ((netInByPay.get(p.id) ?? 0) > 0) continue; // entrada ativa → não duplica
+
+      await tx.cashMovement.create({
+        data: {
+          cashRegisterId,
+          type: 'in',
+          paymentMethodId: p.paymentMethodId,
+          amount: p.amount,
+          refType: 'order',
+          refId: order.id,
+          // `description` guarda o paymentId para idempotência por pagamento.
+          description: p.id,
+        },
+      });
+    }
+  }
+
+  /**
+   * Rateio do desconto DA COMANDA entre os itens, proporcional à base de cada um.
+   *
+   * O desconto do PDV (botão "Adicionar desconto" → OrderDiscount →
+   * Order.discountTotal) é do TOTAL: ele mora no cabeçalho e nunca voltava para
+   * os itens. Como a comissão é calculada item a item, ela nascia sobre o valor
+   * CHEIO — serviço de R$ 200 com 40% e 50% de desconto na comanda: a cliente
+   * pagava R$ 100 e o salão devia R$ 80 de comissão. O desconto do ITEM (aba
+   * "Dados") já era respeitado; os dois caminhos se contradiziam.
+   *
+   * Método acumulado: a cota de cada item é a diferença entre dois acumulados já
+   * arredondados. É isso que faz `soma(cotas) == desconto` fechar na unha — no
+   * último item o acumulado é o desconto inteiro. Ratear item a item e arredondar
+   * cada um perderia (ou duplicaria) centavo, e centavo perdido em comissão é
+   * reclamação de profissional no fim do mês.
+   */
+  private ratearDescontoDaComanda(
+    bases: Prisma.Decimal[],
+    descontoDaComanda: Prisma.Decimal,
+  ): Prisma.Decimal[] {
+    const zero = new Prisma.Decimal(0);
+    const total = bases.reduce((acc, b) => acc.add(b), zero);
+    if (total.lessThanOrEqualTo(0) || descontoDaComanda.lessThanOrEqualTo(0)) {
+      return bases.map(() => zero);
+    }
+    // Descontos somados podem passar do bruto (o teto do addDiscount é por
+    // desconto, não acumulado) e o recalculate trava o líquido em 0. O rateio
+    // segue a mesma regra: no máximo zera a base, nunca a deixa negativa.
+    const desconto = Prisma.Decimal.min(descontoDaComanda, total);
+
+    const cotas: Prisma.Decimal[] = [];
+    let baseAcumulada = zero;
+    let cotaAcumulada = zero;
+    for (const base of bases) {
+      baseAcumulada = baseAcumulada.add(base);
+      const ateAqui = desconto.mul(baseAcumulada).div(total).toDecimalPlaces(2);
+      cotas.push(ateAqui.sub(cotaAcumulada));
+      cotaAcumulada = ateAqui;
+    }
+    return cotas;
+  }
+
+  /** Nome do serviço/produto do item — usado nos avisos do faturamento. */
+  private async nomeDoItem(
+    tx: Prisma.TransactionClient,
+    item: { kind: string; refId: string },
+  ): Promise<string> {
+    const nome =
+      item.kind === 'service'
+        ? (await tx.service.findUnique({ where: { id: item.refId }, select: { name: true } }))
+            ?.name
+        : (await tx.product.findUnique({ where: { id: item.refId }, select: { name: true } }))
+            ?.name;
+    return nome ?? (item.kind === 'service' ? 'serviço' : 'produto');
+  }
+
+  /**
+   * Comissão → CommissionEntry por OrderItem com profissional que recebe comissão.
+   * baseAmount = grossValue − discount do item − cota do desconto DA COMANDA
+   * (rateada proporcionalmente; ver ratearDescontoDaComanda). Percentual
+   * resolvido pela regra aplicável (ProfessionalCommissionRule: item específico →
+   * categoria → all), com fallback em Product.defaultCommissionPercent para
+   * produtos. Idempotência: se a comanda já tem entries, não recria.
+   */
+  private async generateCommissionEntries(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    order: {
+      id: string;
+      date: Date;
+      // Desconto DA COMANDA (soma dos OrderDiscount, escrita pelo recalculate).
+      // O finish carrega a comanda inteira, então o campo já vem preenchido.
+      discountTotal: Prisma.Decimal;
+      items: {
+        kind: string;
+        refId: string;
+        professionalId: string | null;
+        grossValue: Prisma.Decimal;
+        discount: Prisma.Decimal;
+        professional: { id: string; name?: string; receivesCommission: boolean } | null;
+        auxiliaries?: {
+          professionalId: string;
+          discountFrom: string;
+          valueType: string;
+          value: Prisma.Decimal;
+        }[];
+      }[];
+    },
+    /**
+     * Quando o dinheiro da venda fica disponível (maior prazo de liquidação
+     * entre as formas usadas). A comissão libera junto: antes nascia sempre
+     * como "agora", e por isso o card "Comissões a liberar" era R$ 0,00 por
+     * construção.
+     */
+    disponivelEm?: Date,
+  ): Promise<{
+    semPercentual: { profissional: string; item: string }[];
+    semProfissional: { item: string }[];
+  }> {
+    // Idempotência por ESTADO ATIVO: só não recria se já houver lançamentos ativos
+    // (open/paid) para esta comanda. Entries `reversed` de um reopen anterior são
+    // ignoradas, permitindo gerar novas comissões neste re-finish.
+    const activeEntry = await tx.commissionEntry.findFirst({
+      where: { companyId, orderId: order.id, status: { not: 'reversed' } },
+      select: { id: true },
+    });
+    if (activeEntry) return { semPercentual: [], semProfissional: [] };
+
+    const now = new Date();
+    const liberaEm = disponivelEm ?? now;
+    // Itens que TINHAM profissional comissionado mas ficaram sem percentual.
+    // Sem isto o item era pulado em silêncio e o salão faturava esperando
+    // comissão que nunca apareceu.
+    const semPercentual: { profissional: string; item: string }[] = [];
+    // Itens SEM profissional nenhum: não há a quem pagar. Lista separada porque
+    // a causa é outra — ver o ramo `!professionalId` mais abaixo.
+    const semProfissional: { item: string }[] = [];
+
+    // Base de cada item (bruto − desconto DO ITEM), clampada em 0 pelo mesmo
+    // motivo do recalculate: comanda gravada antes do teto de desconto pode ter
+    // item negativo, e um negativo aqui distorceria o rateio dos outros.
+    const basesDosItens = order.items.map((item) =>
+      Prisma.Decimal.max(
+        new Prisma.Decimal(item.grossValue).sub(item.discount),
+        new Prisma.Decimal(0),
+      ),
+    );
+    // ...e o desconto DA COMANDA rateado por cima delas.
+    const cotasDoDesconto = this.ratearDescontoDaComanda(
+      basesDosItens,
+      new Prisma.Decimal(order.discountTotal ?? 0),
+    );
+
+    for (const [indice, item] of order.items.entries()) {
+      const baseAmount = basesDosItens[indice].sub(cotasDoDesconto[indice]);
+      if (baseAmount.lessThanOrEqualTo(0)) continue;
+
+      // ---------------------- Rateio de auxiliares ----------------------
+      // O auxiliar foi cadastrado À MÃO naquele item, com valor à mão — isso já
+      // É a decisão de pagar. Por isso não filtro por `receivesCommission` aqui:
+      // esse flag é a regra-padrão do profissional DO ITEM, e aplicá-lo ao
+      // auxiliar faria a tela aceitar um rateio que o cálculo depois descarta em
+      // silêncio (o pior tipo de erro: ninguém vê até o fim do mês).
+      let auxFromProfessional = new Prisma.Decimal(0);
+      let remaining = baseAmount;
+
+      for (const aux of item.auxiliaries ?? []) {
+        if (remaining.lessThanOrEqualTo(0)) break;
+        const raw =
+          aux.valueType === 'percent'
+            ? baseAmount.mul(aux.value).div(100)
+            : new Prisma.Decimal(aux.value);
+        if (raw.lessThanOrEqualTo(0)) continue;
+        // Teto acumulado: dois auxiliares de 80% não podem virar 160% do serviço.
+        const auxAmount = Prisma.Decimal.min(raw, remaining);
+        remaining = remaining.sub(auxAmount);
+
+        await tx.commissionEntry.create({
+          data: {
+            companyId,
+            professionalId: aux.professionalId,
+            orderId: order.id,
+            baseAmount,
+            commissionAmount: auxAmount,
+            status: 'open',
+            competenceDate: order.date,
+            availableDate: liberaEm,
+          },
+        });
+
+        // "Desconto do": establishment → o salão paga e o principal não é
+        // tocado; professional → sai da comissão do principal, logo abaixo.
+        if (aux.discountFrom === 'professional') {
+          auxFromProfessional = auxFromProfessional.add(auxAmount);
+        }
+      }
+
+      // ---------------------- Comissão do principal ----------------------
+      const professionalId = item.professionalId;
+      if (!professionalId) {
+        // Item órfão: venda de balcão numa comanda sem profissional no
+        // cabeçalho, ou herança que não aconteceu. Saía daqui em SILÊNCIO,
+        // enquanto o caso vizinho (com profissional e sem percentual) já
+        // avisava — a profissional esperava a comissão e só descobria abrindo
+        // item a item da comanda fechada. Lista separada de propósito: dizer
+        // "está sem percentual" para um item que nem profissional tem mandaria
+        // o dono configurar a coisa errada.
+        semProfissional.push({ item: await this.nomeDoItem(tx, item) });
+        continue;
+      }
+      if (!item.professional?.receivesCommission) continue;
+
+      const percent = await this.resolveCommissionPercent(
+        tx,
+        professionalId,
+        item,
+        baseAmount,
+      );
+      if (percent.lessThanOrEqualTo(0)) {
+        semPercentual.push({
+          profissional: item.professional?.name ?? 'profissional',
+          item: await this.nomeDoItem(tx, item),
+        });
+        continue;
+      }
+
+      const gross = baseAmount.mul(percent).div(100);
+      // Nunca negativo: grava-se o que DE FATO foi descontado, não o pretendido.
+      // Se o principal não tinha comissão suficiente, o salão acaba bancando a
+      // diferença — e a coluna "Desconto de Auxiliares" diz a verdade sobre isso.
+      const auxiliaryDiscount = Prisma.Decimal.min(auxFromProfessional, gross);
+      const commissionAmount = gross.sub(auxiliaryDiscount);
+
+      await tx.commissionEntry.create({
+        data: {
+          companyId,
+          professionalId,
+          orderId: order.id,
+          baseAmount,
+          commissionAmount,
+          auxiliaryDiscount,
+          status: 'open',
+          // Competência é a data da venda/comanda, não o instante em que alguém
+          // clicou em "Finalizar". Isso mantém os filtros e backfills corretos.
+          competenceDate: order.date,
+          availableDate: liberaEm,
+        },
+      });
+    }
+
+    return { semPercentual, semProfissional };
+  }
+
+
+  /**
+   * Resolve o percentual de cashback aplicável a um item.
+   *
+   * Gêmeo de `resolveCommissionPercent` de propósito: mesma precedência, mesma
+   * conversão de valor fixo em percentual. Se as duas divergirem, o salão passa a
+   * ter duas mentalidades diferentes para "regra por escopo" na mesma tela.
+   *
+   * Precedência (mais específico → mais genérico):
+   *   1. CashbackRule scope=service|product por scopeId (o item)
+   *   2. CashbackRule scope=category (categoria do item)
+   *   3. CashbackRule scope=all
+   *   4. Catálogo: Service.cashbackPercent | Product.cashback*
+   *   5. Padrão da empresa: Company.cashbackValueType + cashbackValue
+   *
+   * Devolve também a validade em dias da regra que venceu — cada lote de ganho
+   * carrega o próprio vencimento, que é como um ledger de fidelidade funciona.
+   */
+  private async resolveCashbackPercent(
+    tx: Prisma.TransactionClient,
+    company: {
+      cashbackValueType: string | null;
+      cashbackValue: Prisma.Decimal | null;
+    },
+    companyId: string,
+    item: { kind: string; refId: string; grossValue: Prisma.Decimal; discount: Prisma.Decimal },
+  ): Promise<{ percent: Prisma.Decimal; validityDays: number }> {
+    const base = new Prisma.Decimal(item.grossValue).sub(item.discount);
+    const zero = { percent: new Prisma.Decimal(0), validityDays: 0 };
+    if (base.lessThanOrEqualTo(0)) return zero;
+
+    const scopeType = item.kind === 'service' ? 'service' : 'product';
+
+    const rules = await tx.cashbackRule.findMany({
+      where: {
+        companyId,
+        active: true,
+        OR: [
+          { scopeType, scopeId: item.refId },
+          { scopeType: 'category' },
+          { scopeType: 'all' },
+        ],
       },
-      include: { items: true, payments: true },
+    });
+
+    // Categoria do item, para casar regras scope=category.
+    let categoryId: string | null = null;
+    if (item.kind === 'service') {
+      const svc = await tx.service.findUnique({
+        where: { id: item.refId },
+        select: { categoryId: true },
+      });
+      categoryId = svc?.categoryId ?? null;
+    } else {
+      const prod = await tx.product.findUnique({
+        where: { id: item.refId },
+        select: { categoryId: true },
+      });
+      categoryId = prod?.categoryId ?? null;
+    }
+
+    const daRegra = (r: { percent: Prisma.Decimal; validityDays: number }) => ({
+      percent: new Prisma.Decimal(r.percent),
+      validityDays: r.validityDays,
+    });
+
+    const especifica = rules.find((r) => r.scopeType === scopeType && r.scopeId === item.refId);
+    if (especifica) return daRegra(especifica);
+    if (categoryId) {
+      const porCategoria = rules.find(
+        (r) => r.scopeType === 'category' && r.scopeId === categoryId,
+      );
+      if (porCategoria) return daRegra(porCategoria);
+    }
+    const todas = rules.find((r) => r.scopeType === 'all');
+    if (todas) return daRegra(todas);
+
+    // 4. Catálogo. Serviço só tem percentual; produto tem percent|value próprio.
+    if (item.kind === 'service') {
+      const svc = await tx.service.findUnique({
+        where: { id: item.refId },
+        select: { cashbackPercent: true },
+      });
+      const p = new Prisma.Decimal(svc?.cashbackPercent ?? 0);
+      if (p.greaterThan(0)) return { percent: p, validityDays: 0 };
+    } else {
+      const prod = await tx.product.findUnique({
+        where: { id: item.refId },
+        select: { cashbackActive: true, cashbackType: true, cashbackValue: true },
+      });
+      if (prod?.cashbackActive && prod.cashbackValue) {
+        const v = new Prisma.Decimal(prod.cashbackValue);
+        const p = prod.cashbackType === 'value' ? v.div(base).mul(100) : v;
+        if (p.greaterThan(0)) return { percent: p, validityDays: 0 };
+      }
+    }
+
+    // 5. Padrão da empresa.
+    if (company.cashbackValue) {
+      const v = new Prisma.Decimal(company.cashbackValue);
+      // 'value' é um valor em reais POR ITEM; vira percentual efetivo sobre a
+      // base, como o `toPercent` da comissão faz — assim o ledger guarda sempre
+      // dinheiro e o "quanto rendeu" não distorce com desconto.
+      const p = company.cashbackValueType === 'value' ? v.div(base).mul(100) : v;
+      if (p.greaterThan(0)) return { percent: p, validityDays: 0 };
+    }
+
+    return zero;
+  }
+
+  /**
+   * Credita o cashback ganho na comanda faturada.
+   *
+   * Roda DENTRO da transação do `finish()`, ao lado de `generateCommissionEntries`:
+   * se algo falhar depois, o crédito volta atrás junto. Antes disto o programa de
+   * cashback era decorativo — havia configuração, regra, resgate e ajuste manual,
+   * mas nada que fizesse o cliente ganhar.
+   */
+  private async generateCashbackEarnings(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    order: {
+      id: string;
+      customerId: string | null;
+      netTotal: Prisma.Decimal;
+      items: { kind: string; refId: string; grossValue: Prisma.Decimal; discount: Prisma.Decimal }[];
+    },
+  ): Promise<void> {
+    if (!order.customerId) return;
+
+    const company = await tx.company.findUnique({
+      where: { id: companyId },
+      select: {
+        cashbackActive: true,
+        cashbackValueType: true,
+        cashbackValue: true,
+        cashbackMinimum: true,
+      },
+    });
+    if (!company?.cashbackActive) return;
+
+    // Piso do programa: é para isso que `cashbackMinimum` existe.
+    const netTotal = new Prisma.Decimal(order.netTotal);
+    if (netTotal.lessThan(new Prisma.Decimal(company.cashbackMinimum ?? 0))) return;
+
+    // Idempotência: reabrir e refaturar não pode creditar duas vezes.
+    // `sourceType` é 'order-earn', NUNCA 'order' — applyCashback apaga
+    // { sourceType: 'order', sourceId } antes de gravar o débito, e o ganho
+    // sumiria junto.
+    await tx.customerCashback.deleteMany({
+      where: { customerId: order.customerId, sourceType: 'order-earn', sourceId: order.id },
+    });
+
+    let total = new Prisma.Decimal(0);
+    let validityDays = 0;
+    for (const item of order.items) {
+      const { percent, validityDays: dias } = await this.resolveCashbackPercent(
+        tx,
+        company,
+        companyId,
+        item,
+      );
+      if (percent.lessThanOrEqualTo(0)) continue;
+      const base = new Prisma.Decimal(item.grossValue).sub(item.discount);
+      total = total.add(base.mul(percent).div(100));
+      // Um lote por comanda, com a MAIOR validade entre os itens: gravar uma
+      // linha por item encheria o extrato do cliente de centavos soltos.
+      if (dias > validityDays) validityDays = dias;
+    }
+
+    // Arredonda em 2 casas só no fim, para não perder centavo item a item.
+    total = total.toDecimalPlaces(2);
+    if (total.lessThanOrEqualTo(0)) return;
+
+    await tx.customerCashback.create({
+      data: {
+        customerId: order.customerId,
+        amount: total,
+        sourceType: 'order-earn',
+        sourceId: order.id,
+        expiresAt:
+          validityDays > 0
+            ? new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000)
+            : null,
+      },
     });
   }
 
   /**
-   * POST /orders/:id/reopen — finished → open, gravando histórico.
-   * Não estorna estoque de consumidos: a baixa ocorre no add e permanece válida
-   * enquanto a comanda estiver ativa (open/finished).
+   * Resolve o percentual de comissão aplicável a um item.
+   * Precedência (mais específico → mais genérico):
+   *   1. ProfessionalCommissionRule scope=service|product por scopeId (o item)
+   *   2. ProfessionalCommissionRule scope=category (categoria do serviço/produto)
+   *   3. ProfessionalCommissionRule scope=all
+   *   4. Fallback: Service/Product.defaultCommissionPercent.
+   * Regras `fixed` são convertidas para percentual efetivo sobre a base do item,
+   * pois CommissionEntry armazena base+valor (evita distorcer o "valorVendido").
    */
+  private async resolveCommissionPercent(
+    tx: Prisma.TransactionClient,
+    professionalId: string,
+    item: { kind: string; refId: string; grossValue: Prisma.Decimal; discount: Prisma.Decimal },
+    /**
+     * Base EFETIVA do item (bruto − desconto do item − cota do desconto da
+     * comanda). Vem de fora porque o rateio do desconto da comanda é calculado
+     * uma vez para a comanda inteira. Precisa ser a mesma base usada no cálculo
+     * final: uma regra `fixed` é convertida em percentual dividindo pela base, e
+     * converter com uma base para aplicar em outra faria a comissão FIXA de
+     * R$ 30 virar R$ 15 numa comanda com 50% de desconto.
+     */
+    baseEfetiva?: Prisma.Decimal,
+  ): Promise<Prisma.Decimal> {
+    const scopeType = item.kind === 'service' ? 'service' : 'product';
+    const base = baseEfetiva ?? new Prisma.Decimal(item.grossValue).sub(item.discount);
+
+    const rules = await tx.professionalCommissionRule.findMany({
+      where: {
+        professionalId,
+        OR: [
+          { scopeType, scopeId: item.refId },
+          { scopeType: 'category' },
+          { scopeType: 'all' },
+        ],
+      },
+    });
+
+    // Categoria do item (para casar regras scope=category).
+    let categoryId: string | null = null;
+    if (item.kind === 'service') {
+      const svc = await tx.service.findUnique({
+        where: { id: item.refId },
+        select: { categoryId: true },
+      });
+      categoryId = svc?.categoryId ?? null;
+    } else {
+      const prod = await tx.product.findUnique({
+        where: { id: item.refId },
+        select: { categoryId: true },
+      });
+      categoryId = prod?.categoryId ?? null;
+    }
+
+    const toPercent = (rule: { type: string; value: Prisma.Decimal }): Prisma.Decimal => {
+      const value = new Prisma.Decimal(rule.value);
+      if (rule.type === 'percent') return value;
+      // fixed → percentual efetivo sobre a base (0 quando base=0).
+      if (base.lessThanOrEqualTo(0)) return new Prisma.Decimal(0);
+      return value.div(base).mul(100);
+    };
+
+    // 1. item específico
+    const specific = rules.find((r) => r.scopeType === scopeType && r.scopeId === item.refId);
+    if (specific) return toPercent(specific);
+    // 2. categoria
+    if (categoryId) {
+      const byCat = rules.find((r) => r.scopeType === 'category' && r.scopeId === categoryId);
+      if (byCat) return toPercent(byCat);
+    }
+    // 3. all
+    const all = rules.find((r) => r.scopeType === 'all');
+    if (all) return toPercent(all);
+
+    // 4. fallback: comissão padrão do item no catálogo.
+    if (item.kind === 'service') {
+      const service = await tx.service.findUnique({
+        where: { id: item.refId },
+        select: { defaultCommissionPercent: true },
+      });
+      return new Prisma.Decimal(service?.defaultCommissionPercent ?? 0);
+    }
+    if (item.kind === 'product') {
+      const prod = await tx.product.findUnique({
+        where: { id: item.refId },
+        select: { defaultCommissionPercent: true },
+      });
+      return new Prisma.Decimal(prod?.defaultCommissionPercent ?? 0);
+    }
+    return new Prisma.Decimal(0);
+  }
+
+  /**
+   * Estoque → baixa dos produtos VENDIDOS direto na comanda (item kind=product).
+   * Produtos CONSUMIDOS em serviço já baixaram no addConsumedProduct — aqui é só
+   * o gap da venda. Cria InventoryMovement(out, refType='order') + decrementa
+   * Product.stock e, se houver batchId, ProductBatch.quantity.
+   * Idempotência: pula item cujo movimento (refType='order', refId=order.id,
+   * productId, e o próprio orderItem em `reason`) já exista.
+   */
+  private async decrementSoldStock(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      number: number;
+      items: {
+        id: string;
+        kind: string;
+        refId: string;
+        quantity: Prisma.Decimal;
+        batchId: string | null;
+      }[];
+    },
+  ) {
+    const productItems = order.items.filter((it) => it.kind === 'product');
+    if (!productItems.length) return;
+
+    // Idempotência por NET: um item só é considerado "já baixado" se ainda houver
+    // saída ativa (out) não compensada por um estorno (in) — ambos com o mesmo
+    // orderItemId no `reason`. Assim, um item cuja baixa foi revertida por um
+    // reopen anterior volta a ser baixado neste re-finish.
+    const moves = await tx.inventoryMovement.findMany({
+      where: { refType: 'order', refId: order.id },
+      select: { type: true, reason: true },
+    });
+    const netOutByItem = new Map<string, number>();
+    for (const m of moves) {
+      const itemId = m.reason?.split('item:')[1];
+      if (!itemId) continue;
+      const delta = m.type === 'out' ? 1 : -1;
+      netOutByItem.set(itemId, (netOutByItem.get(itemId) ?? 0) + delta);
+    }
+
+    for (const it of productItems) {
+      if ((netOutByItem.get(it.id) ?? 0) > 0) continue; // baixa ativa → não duplica
+      const qty = new Prisma.Decimal(it.quantity);
+      if (qty.lessThanOrEqualTo(0)) continue;
+
+      await tx.inventoryMovement.create({
+        data: {
+          productId: it.refId,
+          type: 'out',
+          quantity: qty,
+          reason: `Venda – Comanda #${order.number}|item:${it.id}`,
+          refType: 'order',
+          refId: order.id,
+        },
+      });
+      await tx.product.update({
+        where: { id: it.refId },
+        data: { stock: { decrement: qty } },
+      });
+      if (it.batchId) {
+        await tx.productBatch.update({
+          where: { id: it.batchId },
+          data: { quantity: { decrement: qty } },
+        });
+      }
+    }
+  }
+
+  /**
+   * Estorna TODA a reconciliação gerada pelo finish (usado no reopen e no remove):
+   * — Transactions da comanda: marca original como `reversed` + cria contrapartida
+   *   `reversed` (mesmo padrão de financial.reverseTransaction — some do DRE);
+   * — CommissionEntry `open` da comanda → `reversed` (some dos totais de comissão);
+   * — CashMovement(in, refType='order') da comanda → CashMovement(out) contrário;
+   * — Estoque vendido: InventoryMovement(in) + devolve Product.stock/ProductBatch.
+   * Idempotente: se já estornado, não duplica.
+   *
+   * Devolve as comissões que já estavam PAGAS e sobreviveram ao estorno — ver o
+   * bloco 2. Quem chama (reopen/remove) repassa isso na resposta para a tela
+   * poder avisar que já saiu dinheiro.
+   */
+  private async reverseFinishReconciliation(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    // `customerId` entrou para o estorno do cashback ganho: sem ele, reabrir uma
+    // comanda deixaria o cliente com saldo de uma venda que voltou a ficar aberta.
+    order: { id: string; number: number; customerId: string | null },
+  ): Promise<{ comissoesPagas: { profissional: string; valor: Prisma.Decimal }[] }> {
+    const now = new Date();
+
+    // 1. Transactions (income) — estorna as ativas (não estornadas) da comanda.
+    const txns = await tx.transaction.findMany({
+      where: { companyId, orderId: order.id, status: { not: 'reversed' }, reversalOfId: null },
+    });
+    for (const t of txns) {
+      await tx.transaction.update({
+        where: { id: t.id },
+        // Zera o legacyId ao estornar: preserva a linha (histórico/DRE), mas libera
+        // o slot @@unique([companyId, legacyId]) para um eventual re-finish.
+        data: { status: 'reversed', reversedAt: now, legacyId: null },
+      });
+      await tx.transaction.create({
+        data: {
+          companyId,
+          kind: t.kind === 'income' ? 'expense' : 'income',
+          grossAmount: t.grossAmount,
+          accountId: t.accountId,
+          categoryId: t.categoryId,
+          paymentMethodId: t.paymentMethodId,
+          partyType: t.partyType,
+          partyId: t.partyId,
+          orderId: order.id,
+          reversalOfId: t.id,
+          description: `Estorno: Recebimento de comanda #${order.number}`,
+          dueDate: now,
+          paidAt: now,
+          status: 'reversed',
+        },
+      });
+    }
+
+    // 1b. Cashback GANHO — apaga o lote desta comanda. Não vira "reversed" como
+    //     a comissão porque o ledger de cashback não tem status: a linha some e o
+    //     saldo do cliente volta ao que era. Se a comanda for faturada de novo,
+    //     `generateCashbackEarnings` recria com o valor recalculado.
+    if (order.customerId) {
+      await tx.customerCashback.deleteMany({
+        where: { customerId: order.customerId, sourceType: 'order-earn', sourceId: order.id },
+      });
+    }
+
+    // 2. Comissões — entries em aberto viram reversed (some dos totais).
+    //
+    // A entry `paid` NÃO é revertida de propósito: aquele dinheiro já saiu do
+    // bolso do salão na folha de comissões, e apagar o lançamento aqui criaria
+    // um passivo invisível (o salão pagou e o sistema passa a dizer que nunca
+    // pagou). O defeito era o SILÊNCIO: cancelar a venda estornava receita,
+    // caixa, estoque e cashback, e ninguém ficava sabendo que já tinha saído
+    // comissão sobre uma venda que deixou de existir. Devolvemos a lista para o
+    // reopen/remove avisarem quem cancelou. Virar vale/desconto na próxima
+    // folha é decisão do dono, não deste método.
+    const pagas = await tx.commissionEntry.findMany({
+      where: { companyId, orderId: order.id, status: 'paid' },
+      select: {
+        commissionAmount: true,
+        professional: { select: { name: true } },
+      },
+    });
+    await tx.commissionEntry.updateMany({
+      where: { companyId, orderId: order.id, status: 'open' },
+      data: { status: 'reversed' },
+    });
+
+    // 3. Caixa — neutraliza por NET, por pagamento: para cada `in` ainda ativo
+    //    (não compensado por um `out`), cria o movimento contrário (out). Assim
+    //    o saldo do caixa referente à comanda volta a zero e ciclos repetidos de
+    //    finish/reopen não geram estornos duplicados.
+    const cashMoves = await tx.cashMovement.findMany({
+      where: { cashRegister: { companyId }, refType: 'order', refId: order.id },
+    });
+    const netInByPay = new Map<string, number>();
+    for (const m of cashMoves) {
+      const payId = (m.description ?? m.id).replace(/^reversal:/, '');
+      netInByPay.set(payId, (netInByPay.get(payId) ?? 0) + (m.type === 'in' ? 1 : -1));
+    }
+    for (const m of cashMoves) {
+      if (m.type !== 'in') continue;
+      const payId = m.description ?? m.id;
+      if ((netInByPay.get(payId) ?? 0) <= 0) continue; // já compensado
+      // Consome uma unidade do net para não estornar o mesmo `in` duas vezes.
+      netInByPay.set(payId, (netInByPay.get(payId) ?? 0) - 1);
+      await tx.cashMovement.create({
+        data: {
+          cashRegisterId: m.cashRegisterId,
+          type: 'out',
+          paymentMethodId: m.paymentMethodId,
+          amount: m.amount,
+          refType: 'order',
+          refId: order.id,
+          description: `reversal:${payId}`,
+        },
+      });
+    }
+
+    // 4. Estoque vendido — devolve o que o finish baixou, por NET: para cada
+    //    orderItem, só estorna se ainda houver saída ativa (sum(out) > sum(in)).
+    //    Isso torna o estorno idempotente e correto mesmo após ciclos repetidos
+    //    de finish/reopen.
+    const invMoves = await tx.inventoryMovement.findMany({
+      where: { refType: 'order', refId: order.id },
+      select: { type: true, reason: true, productId: true },
+    });
+    const netOutByItem = new Map<string, number>();
+    const productByItem = new Map<string, string>();
+    for (const m of invMoves) {
+      const itemId = m.reason?.split('item:')[1];
+      if (!itemId) continue;
+      netOutByItem.set(itemId, (netOutByItem.get(itemId) ?? 0) + (m.type === 'out' ? 1 : -1));
+      if (m.type === 'out') productByItem.set(itemId, m.productId);
+    }
+    // Itens de produto vendidos (quantidade + lote) para dimensionar o estorno.
+    const soldItems = await tx.orderItem.findMany({
+      where: { orderId: order.id, kind: 'product' },
+      select: { id: true, refId: true, batchId: true, quantity: true },
+    });
+    const soldById = new Map(soldItems.map((it) => [it.id, it] as const));
+
+    for (const [itemId, net] of netOutByItem) {
+      if (net <= 0) continue; // sem saída ativa → nada a estornar
+      const sold = soldById.get(itemId);
+      const productId = sold?.refId ?? productByItem.get(itemId);
+      if (!productId) continue;
+      const qty = new Prisma.Decimal(sold?.quantity ?? 0);
+      if (qty.lessThanOrEqualTo(0)) continue;
+
+      await tx.inventoryMovement.create({
+        data: {
+          productId,
+          type: 'in',
+          quantity: qty,
+          reason: `Estorno venda – Comanda #${order.number}|item:${itemId}`,
+          refType: 'order',
+          refId: order.id,
+        },
+      });
+      await tx.product.update({
+        where: { id: productId },
+        data: { stock: { increment: qty } },
+      });
+      if (sold?.batchId) {
+        await tx.productBatch.update({
+          where: { id: sold.batchId },
+          data: { quantity: { increment: qty } },
+        });
+      }
+    }
+
+    return {
+      comissoesPagas: pagas.map((entry) => ({
+        profissional: entry.professional?.name ?? 'profissional',
+        valor: entry.commissionAmount,
+      })),
+    };
+  }
+
+  /**
+   * POST /orders/:id/reopen — finished → open, gravando histórico.
+   * ESTORNA a reconciliação do finish (receita, caixa, comissão e estoque
+   * VENDIDO) numa única transação, para que a comanda volte a ser editável sem
+   * deixar lançamentos financeiros/estoque órfãos. Não mexe no estoque de
+   * CONSUMIDOS: a baixa deles ocorre no add e permanece válida enquanto a comanda
+   * estiver ativa (open/finished).
+   */
+  private async assertClosedCashAllowsOrderEdit(
+    companyId: string,
+    orderId: string,
+  ): Promise<void> {
+    const setting = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: 'finance.settings' } },
+      select: { valueJson: true },
+    });
+    const value =
+      setting?.valueJson &&
+      typeof setting.valueJson === 'object' &&
+      !Array.isArray(setting.valueJson)
+        ? (setting.valueJson as Record<string, unknown>)
+        : {};
+    // Compatibilidade: empresas sem Setting mantêm o comportamento anterior.
+    if (value.allowEditAfterCashClose !== false) return;
+    const closedMovement = await this.prisma.client.cashMovement.findFirst({
+      where: {
+        refType: 'order',
+        refId: orderId,
+        cashRegister: { companyId, status: 'closed' },
+      },
+      select: { id: true },
+    });
+    if (closedMovement) {
+      throw new BadRequestException(
+        'Esta comanda já foi conferida em um caixa fechado.',
+      );
+    }
+  }
+
   async reopen(companyId: string, id: string, byUserId?: string) {
     const order = await this.loadOrder(companyId, id);
     if (order.status !== 'finished') {
       throw new BadRequestException('Somente comandas finalizadas podem ser reabertas.');
     }
-    return this.prisma.client.order.update({
-      where: { id },
-      data: {
-        status: 'open',
-        statusHistory: { create: { fromStatus: 'finished', toStatus: 'open', byUserId } },
-      },
-      include: { items: true, payments: true },
+    await this.assertClosedCashAllowsOrderEdit(companyId, id);
+    return this.prisma.client.$transaction(async (tx) => {
+      const estorno = await this.reverseFinishReconciliation(tx, companyId, order);
+      const reaberta = await tx.order.update({
+        where: { id },
+        data: {
+          status: 'open',
+          statusHistory: { create: { fromStatus: 'finished', toStatus: 'open', byUserId } },
+        },
+        include: { items: true, payments: true },
+      });
+      // Vai junto na resposta para a tela AVISAR: comissão já PAGA não é
+      // estornada (o dinheiro saiu), e quem reabre precisa saber disso antes de
+      // refaturar com outro valor.
+      return Object.assign(reaberta, {
+        commissionAlreadyPaid: estorno.comissoesPagas,
+      });
     });
   }
 
@@ -618,15 +2229,16 @@ export class OrdersService {
     const order = await this.loadOrder(companyId, id);
     const data: Prisma.OrderUpdateInput = {};
     if (dto.notes !== undefined) data.notes = dto.notes;
+    // Status NÃO muda por aqui. Este endpoint gravava o status direto, pulando a
+    // reconciliação inteira: open→finished marcava a comanda como faturada sem
+    // receita, caixa nem comissão; open→canceled não estornava crédito/cashback
+    // nem repunha estoque; e canceled→open ressuscitava comanda já estornada.
+    // Cada transição tem o seu método, que faz os lançamentos certos:
+    //   finalizar → finish()  ·  reabrir → reopen()  ·  cancelar → remove()
     if (dto.status && dto.status !== order.status) {
-      // Editing status of a finished order must go through reopen().
-      if (order.status === 'finished') {
-        throw new BadRequestException('Comanda finalizada — reabra para editar.');
-      }
-      data.status = dto.status as never;
-      data.statusHistory = {
-        create: { fromStatus: order.status, toStatus: dto.status as never },
-      };
+      throw new BadRequestException(
+        'Status da comanda não muda por aqui. Use faturar (/finish), reabrir (/reopen) ou cancelar (DELETE) — só esses caminhos lançam receita, caixa, comissão e estorno.',
+      );
     }
     return this.prisma.client.order.update({
       where: { id },
@@ -636,12 +2248,31 @@ export class OrdersService {
   }
 
   /**
-   * DELETE /orders/:id — cancela a comanda. Estorna estoque de todos os produtos
-   * consumidos e devolve crédito/cashback ao cliente (remove os ledgers negativos).
+   * DELETE /orders/:id — cancela a comanda. Se estava FINALIZADA, estorna a
+   * reconciliação do finish (receita, caixa, comissão e estoque VENDIDO) numa
+   * transação atômica. Além disso, estorna o estoque de todos os produtos
+   * CONSUMIDOS e devolve crédito/cashback ao cliente (remove os ledgers negativos).
    */
   async remove(companyId: string, id: string) {
     const order = await this.loadOrder(companyId, id);
-    if (order.status === 'canceled') return order; // idempotente
+
+    // Comissão já PAGA sobrevive ao estorno (ver reverseFinishReconciliation):
+    // quem cancela precisa saber que já saiu dinheiro para a profissional sobre
+    // uma venda que deixou de existir. Sai na resposta SEMPRE (inclusive no
+    // caminho idempotente), para a tela não ter dois formatos de retorno.
+    let comissoesPagas: { profissional: string; valor: Prisma.Decimal }[] = [];
+    if (order.status === 'canceled') {
+      return Object.assign(order, { commissionAlreadyPaid: comissoesPagas }); // idempotente
+    }
+
+    // Se estava finalizada, estorna primeiro os lançamentos do finish (atômico).
+    if (order.status === 'finished') {
+      await this.assertClosedCashAllowsOrderEdit(companyId, id);
+      await this.prisma.client.$transaction(async (tx) => {
+        const estorno = await this.reverseFinishReconciliation(tx, companyId, order);
+        comissoesPagas = estorno.comissoesPagas;
+      });
+    }
 
     // Estorna consumidos (todos os itens da comanda).
     const consumed = await this.prisma.client.orderItemConsumedProduct.findMany({
@@ -657,12 +2288,18 @@ export class OrdersService {
       await this.prisma.client.customerCashback.deleteMany({
         where: { customerId: order.customerId, sourceType: 'order', sourceId: id },
       });
+      // ...e retira o cashback GANHO nela. Cancelar uma comanda faturada sem
+      // isto deixaria o cliente com saldo de uma venda que não existe mais.
+      await this.prisma.client.customerCashback.deleteMany({
+        where: { customerId: order.customerId, sourceType: 'order-earn', sourceId: id },
+      });
     }
 
-    return this.prisma.client.order.update({
+    const cancelada = await this.prisma.client.order.update({
       where: { id },
       data: { status: 'canceled', creditUsed: 0, cashbackUsed: 0 },
     });
+    return Object.assign(cancelada, { commissionAlreadyPaid: comissoesPagas });
   }
 
   private async recalculate(id: string) {
@@ -670,8 +2307,20 @@ export class OrdersService {
       where: { id },
       include: { items: true, discounts: true },
     });
+    // Clamp por ITEM, não só no total. Comanda GRAVADA antes do teto de desconto
+    // do item (assertDescontoDoItem) pode ter desconto maior que o próprio
+    // bruto; sem o clamp esse valor negativo comia o preço dos OUTROS itens — a
+    // Escova com "200" de desconto fazia o Shampoo de R$ 50 sumir do total e a
+    // comanda inteira ia a R$ 0. O desconto gravado não é reescrito aqui:
+    // corrigir dado histórico é decisão do dono, isolar o estrago não é.
     const gross = order.items.reduce(
-      (acc, it) => acc.add(it.grossValue).sub(it.discount),
+      (acc, it) =>
+        acc.add(
+          Prisma.Decimal.max(
+            new Prisma.Decimal(it.grossValue).sub(it.discount),
+            new Prisma.Decimal(0),
+          ),
+        ),
       new Prisma.Decimal(0),
     );
     let discountTotal = new Prisma.Decimal(0);
@@ -681,14 +2330,65 @@ export class OrdersService {
           ? discountTotal.add(gross.mul(d.value).div(100))
           : discountTotal.add(d.value);
     }
-    const net = gross.sub(discountTotal).sub(order.creditUsed).sub(order.cashbackUsed);
-    return this.prisma.client.order.update({
-      where: { id },
-      data: {
-        grossTotal: gross,
-        discountTotal,
-        netTotal: net.lessThan(0) ? new Prisma.Decimal(0) : net,
-      },
+
+    // Valor a pagar ANTES de abater saldo do cliente.
+    const base = Prisma.Decimal.max(gross.sub(discountTotal), new Prisma.Decimal(0));
+    let creditUsed = new Prisma.Decimal(order.creditUsed);
+    let cashbackUsed = new Prisma.Decimal(order.cashbackUsed);
+    const applied = creditUsed.add(cashbackUsed);
+
+    // Se a comanda encolheu (item removido, desconto aplicado…) abaixo do que já
+    // foi abatido, o excedente PRECISA voltar para o cliente. Antes o netTotal era
+    // travado em 0 e creditUsed/cashbackUsed ficavam altos: o saldo já debitado no
+    // ledger virava dinheiro queimado, sem aviso.
+    const excedente = applied.greaterThan(base);
+    if (excedente) {
+      if (applied.isZero()) {
+        creditUsed = new Prisma.Decimal(0);
+        cashbackUsed = new Prisma.Decimal(0);
+      } else {
+        // Proporcional: não escolhe arbitrariamente de qual bolso o cliente perde.
+        creditUsed = base.mul(creditUsed).div(applied);
+        cashbackUsed = base.sub(creditUsed);
+      }
+    }
+
+    const net = Prisma.Decimal.max(
+      base.sub(creditUsed).sub(cashbackUsed),
+      new Prisma.Decimal(0),
+    );
+
+    // Order + ledgers numa transação só: não pode sobrar comanda ajustada com
+    // ledger antigo (ou vice-versa).
+    return this.prisma.client.$transaction(async (tx) => {
+      if (excedente && order.customerId) {
+        const customerId = order.customerId;
+        // O saldo do cliente é a SOMA das linhas do ledger, então reescrever a
+        // linha desta comanda já devolve a diferença.
+        await tx.customerCredit.deleteMany({ where: { customerId, reason: `order:${id}` } });
+        if (creditUsed.greaterThan(0)) {
+          await tx.customerCredit.create({
+            data: { customerId, amount: creditUsed.negated(), reason: `order:${id}` },
+          });
+        }
+        await tx.customerCashback.deleteMany({
+          where: { customerId, sourceType: 'order', sourceId: id },
+        });
+        if (cashbackUsed.greaterThan(0)) {
+          await tx.customerCashback.create({
+            data: {
+              customerId,
+              amount: cashbackUsed.negated(),
+              sourceType: 'order',
+              sourceId: id,
+            },
+          });
+        }
+      }
+      return tx.order.update({
+        where: { id },
+        data: { grossTotal: gross, discountTotal, netTotal: net, creditUsed, cashbackUsed },
+      });
     });
   }
 }

@@ -1,13 +1,27 @@
-// TODO(backend): billing_subscription — buscar plano atual do tenant (nome,
-// preço, ciclo, próximo vencimento), forma de pagamento vigente e histórico
-// de faturas em GET /billing/subscription e GET /billing/invoices. Integrar
-// troca de plano/forma de pagamento (bump/downgrade + prorata) e cancelamento
-// via POST /billing/subscription/cancel.
+// Billing real por empresa: GET /subscription/current lê a Subscription +
+// o Setting `billing.details` (plano, add-ons, ciclo/parcelas, status/datas de
+// pagamento). As faturas (parcelas) são derivadas de installments + totalMonthly
+// + startDate. Boleto/NF-e/troca de plano seguem como ações futuras.
 
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip } from '@heroui/react';
 import { PageHeader } from '../components/PageHeader';
-import { IconDownload, IconEye } from '../components/icons';
+import { MobileBackHeader } from '../components/MobileBackHeader';
+import { AppTabs } from '../components/AppTabs';
+import {
+  IconCheck,
+  IconCreditCard,
+  IconDownload,
+  IconEye,
+  IconSparkles,
+  IconStar,
+  IconX,
+} from '../components/icons';
+import { useFeatures } from '../lib/queries/features';
+import { usePlans, type Plan, type PlanName } from '../lib/queries/plans';
+import { useSubscriptionSummary } from '../lib/queries/assinaturas';
+import { formatMoney, formatDate } from '../lib/format';
 
 // ---------------------------------------------------------------------------
 // Style tokens
@@ -16,20 +30,12 @@ import { IconDownload, IconEye } from '../components/icons';
 const CARD =
   'rounded-2xl border border-[var(--color-soft-border)] bg-warm-white p-4 shadow-[var(--shadow-card)] sm:p-5';
 
-// ---------------------------------------------------------------------------
-// Mock data — remover ao plugar backend
-// ---------------------------------------------------------------------------
+/** The plan we nudge users toward (visually highlighted / "Recomendado"). */
+const RECOMMENDED_PLAN: PlanName = 'pro';
 
-const PLAN = {
-  name: 'Até 5 usuários - Anual',
-  seats: 'Até 5 usuários',
-  price: 2124.0,
-  addons: 0,
-  discount: 424.8,
-  total: 1699.2,
-  nextDue: '19 jul, 2026',
-  paymentMethod: 'Boleto' as const,
-};
+// ---------------------------------------------------------------------------
+// Invoices (parcelas) — DERIVADAS do billing real (installments/total/startDate)
+// ---------------------------------------------------------------------------
 
 type InvoiceStatus = 'Pago' | 'Pendente';
 interface Invoice {
@@ -45,36 +51,31 @@ interface Invoice {
   boletoUrl?: string;
 }
 
-const INVOICES: Invoice[] = [
-  {
-    createdAt: '05/07/2026',
-    dueAt: '12/07/2026',
-    plan: 'Até 5 usuários',
-    period: 'Anual',
-    amount: 1699.2,
-    method: 'Boleto',
-    status: 'Pendente',
-    boletoUrl: '#',
-  },
-  {
-    createdAt: '05/07/2024',
-    dueAt: '12/07/2024',
-    paidAt: '05/07/2024',
-    plan: 'Até 5 usuários',
-    period: 'Bianual',
-    amount: 1884.0,
-    method: 'Cartão',
-    status: 'Pago',
-    invoiceUrl: '#',
-  },
-];
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatMoney(v: number): string {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const CYCLE_LABEL: Record<string, string> = {
+  annual: 'Anual',
+  monthly: 'Mensal',
+};
+
+/** Mapeia o status de pagamento do billing.details em label + cor de chip. */
+function paymentChip(status: string | null): {
+  label: string;
+  color: 'success' | 'warning' | 'danger' | 'default';
+} {
+  switch (status) {
+    case 'paid':
+      return { label: 'Pagamento confirmado', color: 'success' };
+    case 'pending':
+      return { label: 'Pagamento pendente', color: 'warning' };
+    case 'overdue':
+    case 'past_due':
+      return { label: 'Pagamento atrasado', color: 'danger' };
+    default:
+      return { label: 'Aguardando pagamento', color: 'default' };
+  }
 }
 
 function StatusPill({ status }: { status: InvoiceStatus }) {
@@ -96,46 +97,152 @@ function StatusPill({ status }: { status: InvoiceStatus }) {
 // ---------------------------------------------------------------------------
 
 type MainTab = 'assinatura' | 'adicionais';
-const MAIN_TABS: { id: MainTab; label: string; to?: string }[] = [
-  { id: 'assinatura', label: 'Assinatura' },
-  { id: 'adicionais', label: 'Adicionais', to: '/perfil/adicionais' },
+const MAIN_TABS: { id: MainTab; label: string; icon: React.ReactNode; to?: string }[] = [
+  { id: 'assinatura', label: 'Assinatura', icon: <IconCreditCard size={16} /> },
+  { id: 'adicionais', label: 'Adicionais', icon: <IconSparkles size={16} />, to: '/perfil/adicionais' },
 ];
 
-function TabBar({
-  tab,
-  onTab,
+// ---------------------------------------------------------------------------
+// Plano atual (destacado) — lê o plano vigente da empresa via GET /feature-flags
+// ---------------------------------------------------------------------------
+
+function CurrentPlanBanner({
+  planLabel,
+  status,
+  tagline,
 }: {
-  tab: MainTab;
-  onTab: (t: MainTab) => void;
+  planLabel: string;
+  status: string | null;
+  tagline?: string;
 }) {
+  const statusLabel =
+    status === 'active'
+      ? 'Assinatura ativa'
+      : status === 'trialing'
+      ? 'Período de teste'
+      : status === 'past_due'
+      ? 'Pagamento pendente'
+      : status === 'canceled'
+      ? 'Cancelada'
+      : 'Sem assinatura';
+  const statusColor: 'success' | 'warning' | 'danger' | 'default' =
+    status === 'active'
+      ? 'success'
+      : status === 'trialing'
+      ? 'warning'
+      : status === 'past_due' || status === 'canceled'
+      ? 'danger'
+      : 'default';
+
   return (
-    <div className="mb-4 -mx-1 overflow-x-auto px-1">
-      <div className="inline-flex min-w-max gap-1 border-b border-[var(--color-soft-border)]">
-        {MAIN_TABS.map((t) => {
-          const active = t.id === tab;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onTab(t.id)}
-              className={[
-                'relative whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors',
-                active
-                  ? 'text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary'
-                  : 'text-muted-ink hover:text-foreground',
-              ].join(' ')}
-            >
-              {t.label}
-            </button>
-          );
-        })}
+    <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-warm-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary">
+            Seu plano
+          </div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-extrabold text-foreground">
+              {planLabel}
+            </span>
+          </div>
+          {tagline ? (
+            <p className="mt-1 max-w-md text-sm leading-snug text-muted-ink">
+              {tagline}
+            </p>
+          ) : null}
+        </div>
+        <Chip variant="soft" color={statusColor} size="sm" className="shrink-0">
+          {statusLabel}
+        </Chip>
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Sub components
+// Card de plano (comparação lado a lado)
+// ---------------------------------------------------------------------------
+
+function PlanCard({
+  plan,
+  isCurrent,
+  isRecommended,
+  onChoose,
+}: {
+  plan: Plan;
+  isCurrent: boolean;
+  isRecommended: boolean;
+  onChoose: (plan: Plan) => void;
+}) {
+  return (
+    <div
+      className={[
+        'relative flex flex-col rounded-2xl border bg-warm-white p-5 shadow-[var(--shadow-card)]',
+        isCurrent
+          ? 'border-primary ring-2 ring-primary/30'
+          : isRecommended
+          ? 'border-gold/60 ring-1 ring-gold/40'
+          : 'border-[var(--color-soft-border)]',
+      ].join(' ')}
+    >
+      {/* Badge topo direito */}
+      {isCurrent ? (
+        <span className="absolute -top-2.5 right-4 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
+          Seu plano
+        </span>
+      ) : isRecommended ? (
+        <span className="absolute -top-2.5 right-4 inline-flex items-center gap-1 rounded-full bg-gold px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink shadow-sm">
+          <IconStar size={11} /> Recomendado
+        </span>
+      ) : null}
+
+      <div className="text-lg font-extrabold text-foreground">{plan.label}</div>
+      <p className="mt-1 min-h-[2.5rem] text-sm leading-snug text-muted-ink">
+        {plan.tagline}
+      </p>
+
+      <div className="mt-3 flex items-baseline gap-1">
+        <span className="text-2xl font-extrabold text-ink tabular-nums">
+          {formatMoney(plan.priceMonthly)}
+        </span>
+        <span className="text-sm text-muted-ink">/mês</span>
+      </div>
+
+      <ul className="mt-4 flex flex-1 flex-col gap-2">
+        {plan.features.map((f) => (
+          <li key={f.key} className="flex items-start gap-2">
+            <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-600">
+              <IconCheck size={11} />
+            </span>
+            <span className="text-sm leading-snug text-foreground">
+              {f.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-5">
+        {isCurrent ? (
+          <Button variant="outline" className="w-full" isDisabled>
+            Plano atual
+          </Button>
+        ) : (
+          <Button
+            variant={isRecommended ? 'primary' : 'outline'}
+            className="w-full"
+            onPress={() => onChoose(plan)}
+          >
+            Escolher {plan.label}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub components (resumo/pagamentos)
 // ---------------------------------------------------------------------------
 
 function SummaryRow({
@@ -171,9 +278,8 @@ function PaymentActionCell({ inv }: { inv: Invoice }) {
       <Button
         variant="outline"
         size="sm"
-        onPress={() => {
-          // TODO(backend): abrir boleto (GET /billing/invoices/:id/boleto)
-        }}
+        isDisabled={!inv.boletoUrl || inv.boletoUrl === '#'}
+        onPress={() => window.open(inv.boletoUrl, '_blank', 'noopener')}
       >
         Visualizar boleto
       </Button>
@@ -188,6 +294,10 @@ function PaymentActionCell({ inv }: { inv: Invoice }) {
 
 export function PerfilAssinaturaPage() {
   const navigate = useNavigate();
+  const { data: features } = useFeatures();
+  const { data: plans } = usePlans();
+  const { data: billing } = useSubscriptionSummary();
+  const [notice, setNotice] = useState<string | null>(null);
 
   function handleTab(t: MainTab) {
     if (t === 'assinatura') return;
@@ -195,47 +305,167 @@ export function PerfilAssinaturaPage() {
     if (target) navigate(target);
   }
 
+  // Plano vigente: prioriza o billing consolidado; cai no feature-flags.
+  const currentPlanName = ((billing?.plan ?? features?.plan) ?? null) as
+    | PlanName
+    | null;
+  const currentPlan = plans?.find((p) => p.name === currentPlanName) ?? null;
+  const currentPlanLabel =
+    billing?.planLabel ?? currentPlan?.label ?? 'Sem plano';
+
+  // Cobrança real (fallback pro derivado do plano quando não há billing.details).
+  const baseMonthly = billing?.baseMonthly ?? currentPlan?.priceMonthly ?? 0;
+  const addons = billing?.addons ?? [];
+  const addonsTotal = addons.reduce((sum, a) => sum + a.monthly, 0);
+  const totalMonthly = billing?.totalMonthly ?? baseMonthly + addonsTotal;
+  const cycleLabel = billing ? CYCLE_LABEL[billing.cycle] ?? 'Mensal' : 'Mensal';
+  const isAnnual = billing?.cycle === 'annual';
+  const payment = paymentChip(billing?.payment.status ?? null);
+  const nextDue = billing?.payment.dueDate ?? billing?.currentPeriodEnd ?? null;
+
+  // O resumo de assinatura não expõe faturas individuais. Não inventamos
+  // parcelas a partir do valor mensal: a lista só será preenchida quando o
+  // provedor de cobrança disponibilizar um endpoint de invoices.
+  const invoices: Invoice[] = [];
+
+  function handleChoose(plan: Plan) {
+    // TODO(backend): iniciar troca de plano (POST /billing/subscription).
+    setNotice(
+      `Contratação do plano ${plan.label} estará disponível em breve. ` +
+        `Fale com nosso time para ativar agora.`,
+    );
+  }
+
+  function handleMobileBack() {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/configuracoes');
+  }
+
   return (
     <div className="pb-24">
+      <MobileBackHeader title="Minha assinatura" onBack={handleMobileBack} />
       <PageHeader title="Minha conta" subtitle="Assinatura, plano e cobrança" />
 
-      <TabBar tab="assinatura" onTab={handleTab} />
+      <AppTabs
+        items={MAIN_TABS}
+        selectedKey="assinatura"
+        onSelectionChange={handleTab}
+        ariaLabel="Minha assinatura"
+        className="mb-4"
+      />
 
       {/* ------------------------------------------------------------------ */}
-      {/* Plano atual                                                         */}
+      {/* Plano atual (destacado)                                            */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mb-4">
-        <div className={CARD}>
-          <div className="text-sm font-semibold uppercase tracking-wide text-muted-ink">
-            Plano atual
-          </div>
-          <div className="mt-2 text-lg font-bold text-foreground">{PLAN.name}</div>
-          <div className="mt-1 text-sm text-muted-ink">{PLAN.seats}</div>
-        </div>
+      <section className="mb-5">
+        <CurrentPlanBanner
+          planLabel={currentPlanLabel}
+          status={features?.status ?? null}
+          tagline={currentPlan?.tagline}
+        />
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Resumo do plano                                                    */}
+      {/* Comparação de planos                                               */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="mb-6">
+        <div className="mb-3">
+          <h2 className="text-base font-bold text-foreground">
+            Escolha o plano ideal
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-ink">
+            Compare o que cada plano oferece. Cada nível inclui tudo do anterior.
+          </p>
+        </div>
+
+        {notice ? (
+          <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
+            <p className="text-sm text-ink">{notice}</p>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              aria-label="Fechar aviso"
+              className="shrink-0 text-muted-ink hover:text-foreground"
+            >
+              <IconX size={16} />
+            </button>
+          </div>
+        ) : null}
+
+        {plans && plans.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {plans.map((plan) => (
+              <PlanCard
+                key={plan.name}
+                plan={plan}
+                isCurrent={plan.name === currentPlanName}
+                isRecommended={
+                  plan.name === RECOMMENDED_PLAN && plan.name !== currentPlanName
+                }
+                onChoose={handleChoose}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className={CARD + ' text-sm text-muted-ink'}>
+            Carregando planos…
+          </div>
+        )}
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Resumo do plano (billing real — GET /subscription/current)         */}
       {/* ------------------------------------------------------------------ */}
       <section className="mb-4">
         <div className={CARD}>
-          <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-ink">
-            Resumo do plano
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold uppercase tracking-wide text-muted-ink">
+              Resumo da cobrança
+            </span>
+            <Chip variant="soft" color={payment.color} size="sm" className="shrink-0">
+              {payment.label}
+            </Chip>
           </div>
           <div className="flex flex-col gap-2.5">
-            <SummaryRow label="Plano" value={formatMoney(PLAN.price)} />
-            <SummaryRow label="Adicionais" value={formatMoney(PLAN.addons)} />
             <SummaryRow
-              label="Descontos"
-              value={`- ${formatMoney(PLAN.discount)}`}
-              variant="discount"
+              label={`Plano ${currentPlanLabel}`}
+              value={`${formatMoney(baseMonthly)}/mês`}
             />
+            {addons.map((a, i) => (
+              <SummaryRow
+                key={`${a.label}-${i}`}
+                label={a.label}
+                value={`${formatMoney(a.monthly)}/mês`}
+              />
+            ))}
             <div className="my-1 h-px bg-[var(--color-soft-border)]" />
             <SummaryRow
-              label="Total"
-              value={formatMoney(PLAN.total)}
+              label="Total mensal"
+              value={`${formatMoney(totalMonthly)}/mês`}
               variant="total"
             />
+            <div className="mt-1 rounded-xl border border-[var(--color-soft-border)] bg-cream/40 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-foreground">
+                  Ciclo {cycleLabel}
+                </span>
+                {billing ? (
+                  <span className="text-sm font-semibold text-ink tabular-nums">
+                    {isAnnual
+                      ? `${billing.installments}× ${formatMoney(totalMonthly)} = ${formatMoney(billing.annualTotal)}`
+                      : `${formatMoney(totalMonthly)}/mês`}
+                  </span>
+                ) : null}
+              </div>
+              {payment.color === 'warning' && nextDue ? (
+                <p className="mt-1 text-xs text-muted-ink">
+                  Vencimento: {formatDate(nextDue)}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
@@ -248,14 +478,14 @@ export function PerfilAssinaturaPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold uppercase tracking-wide text-muted-ink">
-                Próxima renovação
+                {payment.color === 'warning' ? 'Próximo vencimento' : 'Próxima renovação'}
               </div>
               <div className="mt-1 text-base font-bold text-foreground">
-                {PLAN.nextDue}
+                {nextDue ? formatDate(nextDue) : '—'}
               </div>
             </div>
-            <Chip variant="soft" color="success" size="sm" className="shrink-0">
-              Assinatura Ativa
+            <Chip variant="soft" color={payment.color} size="sm" className="shrink-0">
+              {payment.label}
             </Chip>
           </div>
         </div>
@@ -272,34 +502,37 @@ export function PerfilAssinaturaPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-base font-bold text-foreground">
-                {PLAN.paymentMethod}
+                Não informada
               </div>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onPress={() => {
-                // TODO(backend): abrir modal de troca de forma de pagamento
-              }}
+              isDisabled
             >
-              Alterar
+              Alteração em breve
             </Button>
           </div>
-          <div className="mt-3 flex flex-col gap-1 text-xs text-muted-ink">
-            <div>*Boleto: até 3 dias úteis para a aprovação</div>
-            <div>*Cartão: aprovação instantânea</div>
-          </div>
+          <p className="mt-3 text-xs text-muted-ink">
+            O provedor de cobrança ainda não disponibiliza essa informação no SalonPass.
+          </p>
         </div>
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Últimos pagamentos                                                 */}
+      {/* Faturas / parcelas (derivadas do billing real)                     */}
       {/* ------------------------------------------------------------------ */}
       <section className="mb-6">
         <div className="mb-2 text-sm font-semibold text-foreground">
-          Últimos pagamentos
+          Faturas
         </div>
 
+        {invoices.length === 0 ? (
+          <div className={CARD + ' text-sm text-muted-ink'}>
+            O histórico de faturas ainda não está integrado ao provedor de cobrança.
+          </div>
+        ) : (
+          <>
         {/* Desktop: tabela */}
         <div
           className={
@@ -322,15 +555,15 @@ export function PerfilAssinaturaPage() {
                 </tr>
               </thead>
               <tbody>
-                {INVOICES.map((inv, i) => (
+                {invoices.map((inv, i) => (
                   <tr
                     key={i}
                     className="border-t border-[var(--color-soft-border)] text-foreground"
                   >
-                    <td className="px-4 py-3 tabular-nums">{inv.createdAt}</td>
-                    <td className="px-4 py-3 tabular-nums">{inv.dueAt}</td>
+                    <td className="px-4 py-3 tabular-nums">{formatDate(inv.createdAt)}</td>
+                    <td className="px-4 py-3 tabular-nums">{formatDate(inv.dueAt)}</td>
                     <td className="px-4 py-3 tabular-nums text-muted-ink">
-                      {inv.paidAt ?? '—'}
+                      {inv.paidAt ? formatDate(inv.paidAt) : '—'}
                     </td>
                     <td className="px-4 py-3">{inv.plan}</td>
                     <td className="px-4 py-3">{inv.period}</td>
@@ -349,9 +582,7 @@ export function PerfilAssinaturaPage() {
                           variant="ghost"
                           size="sm"
                           aria-label="Baixar NF-e"
-                          onPress={() => {
-                            // TODO(backend): download NF-e
-                          }}
+                          onPress={() => window.open(inv.invoiceUrl, '_blank', 'noopener')}
                         >
                           <IconDownload size={16} />
                         </Button>
@@ -368,7 +599,7 @@ export function PerfilAssinaturaPage() {
 
         {/* Mobile: lista sem card creme wrapper */}
         <ul className="flex flex-col divide-y divide-[var(--color-soft-border)] border-y border-[var(--color-soft-border)] sm:hidden">
-          {INVOICES.map((inv, i) => (
+          {invoices.map((inv, i) => (
             <li
               key={i}
               className="flex flex-col gap-2 bg-warm-white py-3"
@@ -376,7 +607,7 @@ export function PerfilAssinaturaPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-foreground tabular-nums">
-                    {inv.createdAt}
+                    {formatDate(inv.createdAt)}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-ink">
                     {inv.plan} · {inv.period}
@@ -393,16 +624,15 @@ export function PerfilAssinaturaPage() {
                 <div className="text-xs text-muted-ink">
                   Venc.{' '}
                   <span className="tabular-nums text-foreground">
-                    {inv.dueAt}
+                    {formatDate(inv.dueAt)}
                   </span>
                 </div>
                 {inv.method === 'Boleto' && inv.status === 'Pendente' ? (
                   <Button
                     variant="outline"
                     size="sm"
-                    onPress={() => {
-                      // TODO(backend): abrir boleto
-                    }}
+                    isDisabled={!inv.boletoUrl || inv.boletoUrl === '#'}
+                    onPress={() => window.open(inv.boletoUrl, '_blank', 'noopener')}
                   >
                     <IconEye size={14} /> Boleto
                   </Button>
@@ -410,9 +640,7 @@ export function PerfilAssinaturaPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onPress={() => {
-                      // TODO(backend): download NF-e
-                    }}
+                    onPress={() => window.open(inv.invoiceUrl, '_blank', 'noopener')}
                   >
                     <IconDownload size={14} /> NF-e
                   </Button>
@@ -423,6 +651,8 @@ export function PerfilAssinaturaPage() {
             </li>
           ))}
         </ul>
+          </>
+        )}
       </section>
 
       {/* ------------------------------------------------------------------ */}
@@ -442,17 +672,13 @@ export function PerfilAssinaturaPage() {
             <Button
               variant="ghost"
               className="!text-rose-600 hover:!bg-rose-50"
-              onPress={() => {
-                // TODO(backend): iniciar fluxo de cancelamento
-              }}
+              isDisabled
             >
-              Cancelar assinatura
+              Cancelamento em breve
             </Button>
             <Button
               variant="primary"
-              onPress={() => {
-                // TODO(backend): abrir base de conhecimento (link externo)
-              }}
+              onPress={() => navigate('/ajuda/base-conhecimento')}
             >
               Base de conhecimento
             </Button>

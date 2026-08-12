@@ -12,11 +12,27 @@ import {
   CreateTransferDto,
   ListTransactionsQueryDto,
   PaymentStatusDto,
+  TransactionKindDto,
   UpdateFinancialAccountDto,
   UpdateFinancialCategoryDto,
   UpdatePaymentMethodDto,
   UpdateTransactionDto,
+  UpdateFinanceSettingsDto,
 } from './dto';
+
+export interface FinanceSettings {
+  allowRetroactive: boolean;
+  allowEditAfterCashClose: boolean;
+  allowTransactionsWithClosedCash: boolean;
+  allowMultipleCash: boolean;
+}
+
+const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
+  allowRetroactive: true,
+  allowEditAfterCashClose: true,
+  allowTransactionsWithClosedCash: false,
+  allowMultipleCash: false,
+};
 
 /** "YYYY-MM-DD" (UTC) para agrupar lançamentos por dia. */
 function dayKey(d: Date): string {
@@ -43,6 +59,133 @@ function endOfDay(iso?: string): Date | undefined {
 @Injectable()
 export class FinancialService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getSettings(companyId: string): Promise<FinanceSettings> {
+    const row = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: 'finance.settings' } },
+      select: { valueJson: true },
+    });
+    const value =
+      row?.valueJson &&
+      typeof row.valueJson === 'object' &&
+      !Array.isArray(row.valueJson)
+        ? (row.valueJson as Record<string, unknown>)
+        : {};
+    return {
+      allowRetroactive:
+        typeof value.allowRetroactive === 'boolean'
+          ? value.allowRetroactive
+          : DEFAULT_FINANCE_SETTINGS.allowRetroactive,
+      allowEditAfterCashClose:
+        typeof value.allowEditAfterCashClose === 'boolean'
+          ? value.allowEditAfterCashClose
+          : DEFAULT_FINANCE_SETTINGS.allowEditAfterCashClose,
+      allowTransactionsWithClosedCash:
+        typeof value.allowTransactionsWithClosedCash === 'boolean'
+          ? value.allowTransactionsWithClosedCash
+          : DEFAULT_FINANCE_SETTINGS.allowTransactionsWithClosedCash,
+      allowMultipleCash:
+        typeof value.allowMultipleCash === 'boolean'
+          ? value.allowMultipleCash
+          : DEFAULT_FINANCE_SETTINGS.allowMultipleCash,
+    };
+  }
+
+  async updateSettings(
+    companyId: string,
+    dto: UpdateFinanceSettingsDto,
+  ): Promise<FinanceSettings> {
+    const current = await this.getSettings(companyId);
+    const next: FinanceSettings = { ...current, ...dto };
+    const valueJson = {
+      allowRetroactive: next.allowRetroactive,
+      allowEditAfterCashClose: next.allowEditAfterCashClose,
+      allowTransactionsWithClosedCash:
+        next.allowTransactionsWithClosedCash,
+      allowMultipleCash: next.allowMultipleCash,
+    };
+    await this.prisma.client.setting.upsert({
+      where: { companyId_key: { companyId, key: 'finance.settings' } },
+      create: {
+        companyId,
+        key: 'finance.settings',
+        valueJson,
+      },
+      update: { valueJson },
+    });
+    return next;
+  }
+
+  private isRetroactive(value?: string | Date | null): boolean {
+    if (!value) return false;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    return date < today;
+  }
+
+  private async assertTransactionPolicy(
+    companyId: string,
+    input: {
+      dueDate?: string | Date | null;
+      paidAt?: string | Date | null;
+      status?: string | null;
+      isOrganizational?: boolean | null;
+    },
+  ): Promise<FinanceSettings> {
+    const settings = await this.getSettings(companyId);
+    if (
+      !settings.allowRetroactive &&
+      (this.isRetroactive(input.dueDate) || this.isRetroactive(input.paidAt))
+    ) {
+      throw new BadRequestException(
+        'Lançamentos retroativos estão desativados nas configurações financeiras.',
+      );
+    }
+    // Receita/despesa ORGANIZACIONAL não passa pelo caixa da recepção (aluguel,
+    // imposto, aporte) — é o que o subtexto do toggle promete: "Se ativo, não
+    // vincula a nenhum caixa". Sem esta saída o lançamento seria recusado com
+    // "Abra o caixa antes de registrar uma movimentação paga".
+    if (
+      !settings.allowTransactionsWithClosedCash &&
+      !input.isOrganizational &&
+      (input.status === 'paid' || Boolean(input.paidAt))
+    ) {
+      const openCash = await this.prisma.client.cashRegister.findFirst({
+        where: { companyId, status: 'open' },
+        select: { id: true },
+      });
+      if (!openCash) {
+        throw new BadRequestException(
+          'Abra o caixa antes de registrar uma movimentação paga.',
+        );
+      }
+    }
+    return settings;
+  }
+
+  private async assertClosedCashEditable(
+    companyId: string,
+    transaction: { orderId?: string | null },
+  ): Promise<void> {
+    if (!transaction.orderId) return;
+    const settings = await this.getSettings(companyId);
+    if (settings.allowEditAfterCashClose) return;
+    const closedMovement = await this.prisma.client.cashMovement.findFirst({
+      where: {
+        refType: 'order',
+        refId: transaction.orderId,
+        cashRegister: { companyId, status: 'closed' },
+      },
+      select: { id: true },
+    });
+    if (closedMovement) {
+      throw new BadRequestException(
+        'Este lançamento já foi conferido em um caixa fechado.',
+      );
+    }
+  }
 
   // ===================== Summary =====================
   // Painel financeiro (equivalente ao /finance/dashboard do Belasis):
@@ -338,21 +481,85 @@ export class FinancialService {
       ...(toEnd ? { lte: toEnd } : {}),
     };
     const includeReversed = q.includeReversed === 'true';
+    // Sobre qual data o período incide: vencimento (padrão) ou pagamento.
+    const dateField =
+      q.dateType === 'paid'
+        ? 'paidAt'
+        : q.dateType === 'competence'
+          ? 'competenceDate'
+          : 'dueDate';
+    // "Atrasado" é derivado: em aberto E vencido. Não existe no enum do banco.
+    const onlyOverdue = q.overdue === 'true';
+    // "a,b,c" → ['a','b','c']. Lista vazia vira undefined para não virar um
+    // `in: []`, que casaria com NADA e esvaziaria a tela sem o usuário entender.
+    const lista = (v?: string): string[] | undefined => {
+      const arr = (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      return arr.length ? arr : undefined;
+    };
+    const accountIds = lista(q.accountIds);
+    const categoryIds = lista(q.categoryIds);
+    const paymentMethodIds = lista(q.paymentMethodIds);
+    // `kind` e `status` são ENUMS no Prisma: filtro por lista precisa do tipo do
+    // enum, não de string[]. Só aceito valores que existem no DTO — assim um
+    // '?types=lixo' vira lista vazia e é ignorado, em vez de estourar no banco.
+    const kinds = lista(q.types)?.filter(
+      (k): k is TransactionKindDto => k in TransactionKindDto,
+    );
+
     // Filtros comuns (sem status) — reaproveitados na lista e nos totais.
+    // A versão MULTI ganha do campo singular quando as duas vêm.
     const commonWhere = {
       companyId,
-      ...(q.type ? { kind: q.type } : {}),
-      ...(q.paymentMethodId ? { paymentMethodId: q.paymentMethodId } : {}),
-      ...(q.accountId ? { accountId: q.accountId } : {}),
-      ...(q.categoryId ? { categoryId: q.categoryId } : {}),
-      ...(hasRange ? { dueDate: range } : {}),
+      ...(kinds?.length ? { kind: { in: kinds } } : q.type ? { kind: q.type } : {}),
+      ...(paymentMethodIds
+        ? { paymentMethodId: { in: paymentMethodIds } }
+        : q.paymentMethodId
+          ? { paymentMethodId: q.paymentMethodId }
+          : {}),
+      ...(accountIds
+        ? { accountId: { in: accountIds } }
+        : q.accountId
+          ? { accountId: q.accountId }
+          : {}),
+      ...(categoryIds
+        ? { categoryId: { in: categoryIds } }
+        : q.categoryId
+          ? { categoryId: q.categoryId }
+          : {}),
+      ...(hasRange ? { [dateField]: range } : {}),
+      // Vencido: sobrepõe o recorte por dueDate quando o período já filtra por
+      // ele, então usa AND para os dois conviverem sem uma chave sobrescrever a
+      // outra.
+      // Flag legada `overdue=true`: mantida para links já existentes.
+      ...(onlyOverdue ? { AND: [{ dueDate: { lt: new Date() } }] } : {}),
     };
     // Lista: aplica o status escolhido; sem status, oculta estornadas por padrão.
-    const listStatus = q.status
-      ? { status: q.status }
-      : includeReversed
-        ? {}
-        : { status: { not: PaymentStatusDto.reversed } };
+    // `overdue` implica em aberto — atrasada que já foi paga não é atrasada.
+    // `overdue` implica em aberto e ganha de tudo. Depois vem a lista MULTI, e só
+    // então o campo singular (mantido para os links antigos).
+    // "Atrasado" é um status DERIVADO (em aberto + vencido) e o Belasis o mostra
+    // como mais um chip marcável junto de "Em aberto" e "Pago". Para combinar os
+    // três num filtro só, ele sai da lista de status do banco e vira um ramo OR.
+    const statusBruto = lista(q.statuses) ?? [];
+    const querAtrasado = statusBruto.includes('overdue');
+    const statuses = statusBruto.filter(
+      (v): v is PaymentStatusDto => v in PaymentStatusDto,
+    );
+    // Vencido = em aberto com vencimento no passado.
+    const ramoAtrasado = { status: PaymentStatusDto.pending, dueDate: { lt: new Date() } };
+    const listStatus = onlyOverdue
+      ? ramoAtrasado
+      : querAtrasado && statuses.length
+        ? { OR: [{ status: { in: statuses } }, ramoAtrasado] }
+        : querAtrasado
+          ? ramoAtrasado
+          : statuses.length
+            ? { status: { in: statuses } }
+            : q.status
+              ? { status: q.status }
+              : includeReversed
+                ? {}
+                : { status: { not: PaymentStatusDto.reversed } };
     const where = { ...commonWhere, ...listStatus };
 
     const page = q.page && q.page > 0 ? q.page : 1;
@@ -383,9 +590,14 @@ export class FinancialService {
       // Totais sobre TODO o conjunto filtrado (não só a página), sempre sem estornadas.
       this.prisma.client.transaction.groupBy({
         by: ['kind'],
+        // Mesmo recorte da lista, inclusive o "atrasado" derivado — senão a
+        // faixa de totais discorda do que está na tela. Continua SEMPRE sem
+        // estornadas quando nenhum status foi escolhido (mesmo com
+        // includeReversed): estorno não soma em total financeiro.
         where: {
           ...commonWhere,
-          ...(q.status ? { status: q.status } : { status: { not: PaymentStatusDto.reversed } }),
+          // Mesmo recorte da lista — senão a faixa de totais discorda da tela.
+          ...listStatus,
         },
         _sum: { grossAmount: true },
       }),
@@ -413,6 +625,7 @@ export class FinancialService {
    */
   async reverseTransaction(companyId: string, id: string, userId?: string) {
     const original = await this.findTransaction(companyId, id);
+    await this.assertClosedCashEditable(companyId, original);
     if (original.status === 'reversed') {
       throw new BadRequestException('Transação já estornada');
     }
@@ -420,18 +633,39 @@ export class FinancialService {
     const label =
       original.description?.trim() || `lançamento ${original.id.slice(0, 8)}`;
     const now = new Date();
-    const [reversed, counter] = await this.prisma.client.$transaction([
-      // Marca a original como estornada e registra quando/por quem.
-      this.prisma.client.transaction.update({
-        where: { id },
+    // (Estudo 126) INTERACTIVE TRANSACTION para proteger contra RACE.
+    //
+    // A guarda `status !== 'reversed'` acima é a primeira porta, mas duas
+    // requisições simultâneas (F5 duplo, retry do axios, dois operadores no
+    // mesmo balcão) passavam pela checagem ANTES do update — e cada uma criava
+    // sua contrapartida, ZERANDO O CAIXA A MAIS do que devia (dinheiro
+    // "sumia").
+    //
+    // Agora o update é `updateMany` com `where: { status: { not: 'reversed' } }`
+    // — se A já reverteu, o update de B afeta 0 linhas. Nesse caso rejeitamos
+    // a operação inteira (`throw` dentro do $transaction faz rollback do
+    // create também).
+    return this.prisma.client.$transaction(async (tx) => {
+      const marcada = await tx.transaction.updateMany({
+        where: { id, companyId, status: { not: 'reversed' } },
         data: {
           status: 'reversed',
           reversedAt: now,
+          // Libera o legacyId (`order:<id>:pay:<pid>`): a geração de receita do
+          // faturamento só procura transações NÃO estornadas, então um legacyId
+          // preso numa estornada fazia o create violar @@unique([companyId,
+          // legacyId]) → P2002 (500) e a comanda nunca mais podia ser faturada.
+          // reverseFinishReconciliation já faz o mesmo no caminho reopen/cancel.
+          legacyId: null,
           ...(userId ? { reversedByUserId: userId } : {}),
         },
-      }),
-      // Contrapartida referenciando a original via reversalOfId.
-      this.prisma.client.transaction.create({
+      });
+      if (marcada.count === 0) {
+        // Lado perdedor da race: alguém já estornou. Não criamos contrapartida.
+        throw new BadRequestException('Transação já estornada');
+      }
+      const reversed = await tx.transaction.findUnique({ where: { id } });
+      const counter = await tx.transaction.create({
         data: {
           companyId,
           kind: counterKind,
@@ -448,9 +682,9 @@ export class FinancialService {
           paidAt: now,
           status: 'reversed',
         },
-      }),
-    ]);
-    return { reversed, counter };
+      });
+      return { reversed, counter };
+    });
   }
 
   /**
@@ -473,6 +707,11 @@ export class FinancialService {
       throw new NotFoundException('Conta financeira não encontrada');
     }
     const when = dto.date ? new Date(dto.date) : new Date();
+    await this.assertTransactionPolicy(companyId, {
+      dueDate: when,
+      paidAt: when,
+      status: 'paid',
+    });
     const baseDesc =
       dto.description?.trim() ||
       `Transferência: ${fromAcc.name} → ${toAcc.name}`;
@@ -507,33 +746,102 @@ export class FinancialService {
     return { out, income };
   }
 
-  createTransaction(companyId: string, dto: CreateTransactionDto) {
-    const { dueDate, paidAt, ...rest } = dto;
+  async createTransaction(companyId: string, dto: CreateTransactionDto) {
+    await this.assertTransactionPolicy(companyId, dto);
+    // (Estudo 126) Antes ia direto para o create sem conferir se `accountId`,
+    // `categoryId` e `paymentMethodId` pertencem à empresa. `accountId` de
+    // outra empresa fazia a transação virar mistura: aparecia no relatório da
+    // empresa X, mas movia saldo da conta de Y. Vazamento cross-tenant clássico.
+    await this.assertRecursosDaEmpresa(companyId, dto);
+    const { dueDate, paidAt, competenceDate, ...rest } = dto;
     return this.prisma.client.transaction.create({
       data: {
         ...rest,
         companyId,
         ...(dueDate ? { dueDate: new Date(dueDate) } : {}),
         ...(paidAt ? { paidAt: new Date(paidAt) } : {}),
+        ...(competenceDate ? { competenceDate: new Date(competenceDate) } : {}),
       },
     });
   }
 
   async updateTransaction(companyId: string, id: string, dto: UpdateTransactionDto) {
-    await this.findTransaction(companyId, id);
-    const { dueDate, paidAt, ...rest } = dto;
+    const current = await this.findTransaction(companyId, id);
+    await this.assertClosedCashEditable(companyId, current);
+    await this.assertTransactionPolicy(companyId, {
+      dueDate: dto.dueDate ?? current.dueDate,
+      paidAt: dto.paidAt ?? current.paidAt,
+      status: dto.status ?? current.status,
+    });
+    // (Estudo 126) Também no update — trocar `accountId` para uma conta de
+    // outra empresa era possível.
+    await this.assertRecursosDaEmpresa(companyId, dto);
+    const { dueDate, paidAt, competenceDate, ...rest } = dto;
     return this.prisma.client.transaction.update({
       where: { id },
       data: {
         ...rest,
         ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
         ...(paidAt !== undefined ? { paidAt: paidAt ? new Date(paidAt) : null } : {}),
+        ...(competenceDate !== undefined
+          ? { competenceDate: competenceDate ? new Date(competenceDate) : null }
+          : {}),
       },
     });
   }
 
+  /**
+   * (Estudo 126) Confere que `accountId`, `categoryId` e `paymentMethodId`
+   * pertencem à empresa que está fazendo a operação. Sem isso, a rota
+   * autenticada como empresa X pode gravar uma transação apontando para uma
+   * conta/categoria/método de Y, e as duas empresas passam a ler um dado que
+   * não é delas.
+   *
+   * Fica junto do controller e roda ANTES do write — findFirst é O(1) por
+   * campo, e no caminho feliz (ids da própria empresa) três `SELECT id LIMIT 1`
+   * não têm impacto perceptível. No caminho de ataque, é o 400 que fecha o
+   * furo.
+   */
+  private async assertRecursosDaEmpresa(
+    companyId: string,
+    dto: {
+      accountId?: string | null;
+      categoryId?: string | null;
+      paymentMethodId?: string | null;
+    },
+  ): Promise<void> {
+    if (dto.accountId) {
+      const encontrada = await this.prisma.client.financialAccount.findFirst({
+        where: { id: dto.accountId, companyId },
+        select: { id: true },
+      });
+      if (!encontrada) {
+        throw new BadRequestException('Conta financeira não encontrada nesta empresa.');
+      }
+    }
+    if (dto.categoryId) {
+      const encontrada = await this.prisma.client.financialCategory.findFirst({
+        where: { id: dto.categoryId, companyId },
+        select: { id: true },
+      });
+      if (!encontrada) {
+        throw new BadRequestException('Categoria financeira não encontrada nesta empresa.');
+      }
+    }
+    if (dto.paymentMethodId) {
+      const encontrada = await this.prisma.client.paymentMethod.findFirst({
+        where: { id: dto.paymentMethodId, companyId },
+        select: { id: true },
+      });
+      if (!encontrada) {
+        throw new BadRequestException('Forma de pagamento não encontrada nesta empresa.');
+      }
+    }
+  }
+
   async removeTransaction(companyId: string, id: string) {
-    await this.findTransaction(companyId, id);
+    const current = await this.findTransaction(companyId, id);
+    await this.assertClosedCashEditable(companyId, current);
     return this.prisma.client.transaction.delete({ where: { id } });
   }
 

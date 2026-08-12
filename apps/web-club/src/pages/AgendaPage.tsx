@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight } from '@gravity-ui/icons';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
+import { SalonBrand } from '../components/SalonBrand';
 import { AgendaGridSkeleton } from '../components/Skeletons';
-import { useAgenda, usePortal } from '../lib/booking';
+import { useAgenda, useBookingAccent, usePortal } from '../lib/booking';
 
 // Start of the week (Sunday) containing `ref`, at local midnight.
 function startOfWeek(ref: Date): Date {
@@ -22,6 +23,7 @@ const rangeFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'shor
  */
 export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
   const navigate = useNavigate();
+  useBookingAccent(slug);
   const portal = usePortal(slug);
 
   useEffect(() => {
@@ -91,11 +93,7 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
           >
             <ArrowLeft width={22} height={22} />
           </button>
-          <img
-            src="/brand/salonpass-wordmark-white.svg"
-            alt="Salonpass"
-            className="h-6 w-auto sm:h-7"
-          />
+          <SalonBrand slug={slug} />
         </div>
       </header>
 
@@ -119,8 +117,8 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
                   onClick={() => setProId(p.id)}
                   className={`min-h-11 shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
                     active
-                      ? 'border-transparent bg-[var(--color-pink)] text-white shadow-[var(--shadow-soft)]'
-                      : 'border-[var(--color-soft-border)] bg-white text-foreground hover:border-[var(--color-pink)]'
+                      ? 'border-transparent bg-[var(--booking-accent)] text-white shadow-[var(--shadow-pink)]'
+                      : 'border-[var(--color-soft-border)] bg-white text-foreground hover:border-[var(--booking-accent)]'
                   }`}
                 >
                   {p.nickname || p.name}

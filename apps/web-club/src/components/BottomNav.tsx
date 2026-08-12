@@ -1,122 +1,53 @@
-import { useState } from 'react';
-import { Calendar, Heart, House, ListTimeline, Person } from '@gravity-ui/icons';
+import { Tabs } from '@heroui/react';
+import { Calendar, CircleCheck, Person, Tag } from '@gravity-ui/icons';
 
-function scrollToSection(id: string | null) {
-  if (!id || id === 'inicio') {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    return;
-  }
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+export type BookingNavStep = 'service' | 'professional' | 'datetime' | 'confirm';
 
-/**
- * Mobile bottom tab bar (salonpass feminino). A black bar with four flat tabs
- * (Início, Agendamentos, Favoritos, Perfil) and a raised gold "Agendar" FAB in
- * the middle — the primary call to action. Hidden on >=md, where the TopBar
- * links take over. Paints into the iOS home-indicator safe area.
- */
+const NAV_STEPS = [
+  { id: 'service', label: 'Serviços', icon: Tag },
+  { id: 'professional', label: 'Profissional', icon: Person },
+  { id: 'datetime', label: 'Horário', icon: Calendar },
+  { id: 'confirm', label: 'Confirmar', icon: CircleCheck },
+] as const;
+
 export function BottomNav({
-  isLoggedIn,
-  onLogin,
-  onAccount,
-  onHome,
-  onFavorites,
+  step,
+  onStepChange,
+  canOpen,
 }: {
-  isLoggedIn: boolean;
-  onLogin: () => void;
-  onAccount: () => void;
-  /** "Início": clears any active service filter and scrolls to the top. */
-  onHome: () => void;
-  /** "Favoritos": opens the service list filtered to hearted services. */
-  onFavorites: () => void;
-}) {
-  const [active, setActive] = useState('inicio');
-
-  const tabs = [
-    { id: 'inicio', label: 'Início', icon: House },
-    { id: 'agendamentos', label: 'Agenda', icon: ListTimeline },
-    { id: 'favoritos', label: 'Favoritos', icon: Heart },
-    { id: 'perfil', label: 'Perfil', icon: Person },
-  ] as const;
-
-  function handleTab(id: string) {
-    setActive(id);
-    // "Agendamentos" and "Perfil" both open the account page (which lists the
-    // customer's appointments); logged-out visitors are sent to login first.
-    if (id === 'agendamentos' || id === 'perfil') {
-      isLoggedIn ? onAccount() : onLogin();
-      return;
-    }
-    if (id === 'favoritos') {
-      onFavorites();
-      return;
-    }
-    if (id === 'inicio') {
-      onHome();
-      return;
-    }
-    scrollToSection(id);
-  }
-
-  function handleAgendar() {
-    setActive('servicos');
-    scrollToSection('servicos');
-  }
-
-  return (
-    <nav aria-label="Navegação principal" className="club-bottomnav fixed inset-x-0 bottom-0 z-40 border-t border-white/10 md:hidden">
-      <div className="relative mx-auto grid max-w-lg grid-cols-5 items-end px-1.5">
-        {/* Left pair */}
-        {tabs.slice(0, 2).map((t) => (
-          <TabButton key={t.id} {...t} active={active === t.id} onPress={() => handleTab(t.id)} />
-        ))}
-
-        {/* Center raised "Agendar" FAB */}
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={handleAgendar}
-            aria-label="Agendar"
-            className="-mt-7 flex min-w-0 flex-col items-center px-1"
-          >
-            <span className="grid h-14 w-14 place-items-center rounded-full bg-[#f2b33d] text-[#111111] shadow-[var(--shadow-gold)] ring-4 ring-[#111111] transition-transform active:scale-95">
-              <Calendar width={24} height={24} />
-            </span>
-            <span className="mt-1 text-[11px] font-semibold text-[#f2b33d]">Agendar</span>
-          </button>
-        </div>
-
-        {/* Right pair */}
-        {tabs.slice(2).map((t) => (
-          <TabButton key={t.id} {...t} active={active === t.id} onPress={() => handleTab(t.id)} />
-        ))}
-      </div>
-    </nav>
-  );
-}
-
-function TabButton({
-  label,
-  icon: Icon,
-  active,
-  onPress,
-}: {
-  label: string;
-  icon: typeof House;
-  active: boolean;
-  onPress: () => void;
+  step: BookingNavStep;
+  onStepChange: (step: BookingNavStep) => void;
+  canOpen: (step: BookingNavStep) => boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onPress}
-      aria-current={active ? 'page' : undefined}
-      className={`flex min-w-0 flex-col items-center justify-end gap-0.5 px-0.5 py-2 text-[10px] font-medium transition-colors min-[360px]:text-[11px] ${
-        active ? 'text-[#f2b33d]' : 'text-white/55 hover:text-white/80'
-      }`}
+    <nav
+      aria-label="Etapas do agendamento"
+      className="club-bottomnav fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-soft-border)] md:hidden"
     >
-      <Icon width={22} height={22} />
-      {label}
-    </button>
+      <Tabs
+        selectedKey={step}
+        onSelectionChange={(key) => onStepChange(String(key) as BookingNavStep)}
+        variant="secondary"
+        className="mx-auto w-full max-w-lg"
+      >
+        <Tabs.ListContainer className="w-full overflow-visible bg-transparent px-1.5 pt-1.5">
+          <Tabs.List aria-label="Etapas do agendamento" className="grid w-full grid-cols-4 gap-1">
+            {NAV_STEPS.map(({ id, label, icon: Icon }) => (
+              <Tabs.Tab
+                key={id}
+                id={id}
+                isDisabled={!canOpen(id)}
+                className="group flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-medium text-muted transition-[color,background-color,transform] duration-200 data-[selected]:bg-[var(--booking-accent-soft)] data-[selected]:text-[var(--booking-accent-ink)] active:scale-[0.97] disabled:opacity-35 min-[380px]:text-[11px]"
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-muted shadow-sm transition-colors group-data-[selected]:bg-[var(--booking-accent)] group-data-[selected]:text-white">
+                  <Icon width={16} height={16} />
+                </span>
+                <span className="max-w-full truncate">{label}</span>
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+      </Tabs>
+    </nav>
   );
 }
