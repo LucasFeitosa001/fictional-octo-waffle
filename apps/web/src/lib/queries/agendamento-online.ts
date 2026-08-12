@@ -155,6 +155,12 @@ export interface BookingAppearance {
   primaryColor: string | null;
   accentColor: string | null;
   backgroundColor: string | null;
+  /** Fundo do espaço da foto do serviço sem imagem (estudo 66). */
+  photoColor: string | null;
+  /** Capa (banner) do topo da página pública (estudo 67). */
+  coverUrl: string | null;
+  /** Véu escuro sobre a capa, 0–80 (%). */
+  coverOverlay: number;
 }
 
 // Payload do PUT: cores como string ("" limpa a cor → volta ao padrão; hex
@@ -164,6 +170,9 @@ export interface BookingAppearanceInput {
   primaryColor?: string;
   accentColor?: string;
   backgroundColor?: string;
+  photoColor?: string;
+  coverUrl?: string;
+  coverOverlay?: number;
 }
 
 const BOOKING_APPEARANCE_KEY = ['booking-appearance'] as const;

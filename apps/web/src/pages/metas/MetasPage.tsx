@@ -121,11 +121,14 @@ export function MetasPage() {
   // Seleção em lote das metas (ids).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const goals = useGoals(period || undefined);
-  const professionals = useProfessionals(1, 100);
+  // Lista COMPLETA só para resolver o nome de metas antigas de quem já foi
+  // desativado; os seletores abaixo usam `profOptions` (só ativos).
+  const professionals = useProfessionals(1, 100, { status: 'all' });
   const del = useDeleteGoal();
   const confirm = useConfirm();
 
   const profList = professionals.data?.data ?? [];
+  const profOptions = useMemo(() => profList.filter((p) => p.active), [profList]);
   const profName = useMemo(() => {
     const map = new Map<string, string>();
     for (const p of profList) map.set(p.id, p.name);
@@ -287,7 +290,7 @@ export function MetasPage() {
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-muted-ink">Profissionais</span>
               <ProfessionalMultiSelect
-                options={profList}
+                options={profOptions}
                 selected={profFilter}
                 onChange={setProfFilter}
                 loading={professionals.isLoading}
@@ -447,7 +450,7 @@ export function MetasPage() {
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         editing={editing}
-        professionals={profList}
+        professionals={profOptions}
       />
     </div>
   );

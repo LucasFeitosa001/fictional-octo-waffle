@@ -35,7 +35,14 @@ export default function PainelScreen() {
     to: range.to,
   });
   const customers = useFetch<Paginated<unknown>>('/customers', { pageSize: 1 });
-  const professionals = useFetch<Paginated<unknown>>('/professionals', { pageSize: 1 });
+  // `active: 'all'` porque o bloco se chama "Cadastros" e conta cadastros, não
+  // ativos. Desde que GET /professionals passou a filtrar só ativos por padrão,
+  // omitir o parâmetro mudava o significado do número em silêncio e o deixava
+  // divergente da tela de Profissionais, que lista todos.
+  const professionals = useFetch<Paginated<unknown>>('/professionals', {
+    pageSize: 1,
+    active: 'all',
+  });
   const services = useFetch<Paginated<unknown>>('/services');
 
   const loading = dash.loading && !dash.data;

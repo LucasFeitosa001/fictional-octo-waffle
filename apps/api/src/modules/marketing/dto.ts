@@ -117,6 +117,14 @@ export class UpdateBookingAppearanceDto {
   @IsString()
   @Matches(HEX_OR_EMPTY, { message: 'backgroundColor deve ser um hex "#RRGGBB" ou vazio' })
   backgroundColor?: string;
+  // Fundo da foto do serviço sem imagem (estudo 66).
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_OR_EMPTY, { message: 'photoColor deve ser um hex "#RRGGBB" ou vazio' })
+  photoColor?: string;
+  // Capa do topo da página pública (estudo 67). "" remove a capa.
+  @IsOptional() @IsString() coverUrl?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(80) coverOverlay?: number;
 }
 
 // ---- galeria de fotos do perfil público (GalleryPhoto, onda 7) ----

@@ -314,7 +314,15 @@ export class CampaignsService {
       kind: normalized.kind,
       inactiveDays: normalized.inactiveDays,
       count: customers.length,
-      withPhone: customers.filter((c) => !!c.phone).length,
+      // A prévia precisa contar quem é realmente elegível, não apenas quem
+      // possui dígitos cadastrados. Opt-out é uma trava adicional e nunca pode
+      // ser mascarado por um número presente no cadastro.
+      withPhone: customers.filter(
+        (c) =>
+          Boolean(c.phone) &&
+          c.notificationsEnabled !== false &&
+          c.whatsappOptIn !== false,
+      ).length,
     };
   }
 

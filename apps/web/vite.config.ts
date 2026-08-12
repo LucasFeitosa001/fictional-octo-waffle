@@ -26,6 +26,22 @@ export default defineConfig({
         // megabytes maior sem benefício para a maioria dos usuários.
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        /**
+         * `/api/*` NUNCA pode cair no index.html da SPA.
+         *
+         * O `generateSW` cria um `NavigationRoute` que responde TODA navegação
+         * com o app — inclusive as que precisam chegar ao servidor. O callback
+         * do Google (`/api/v1/auth/callback/google`) é uma navegação de
+         * verdade: o service worker a engolia e devolvia a SPA, a requisição
+         * não saía do navegador e o login com Google do portal do salão morria
+         * em silêncio, terminando no painel porque a sessão de staff já estava
+         * ali. Sem log no servidor, sem sessão nova, sem erro — nada.
+         *
+         * O portal (apps/web-club/vite.config.ts:47) já tinha esta trava desde
+         * sempre; o painel, que é onde o callback aterrissa, nunca teve.
+         * Ver estudo 117.
+         */
+        navigateFallbackDenylist: [/^\/api/],
         // Cache-first pra assets estáticos, network-first pra API
         runtimeCaching: [
           {

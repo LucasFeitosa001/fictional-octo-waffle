@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+const S = process.env.S;
+const b = await chromium.launch();
+const ctx = await b.newContext({ acceptDownloads: true, viewport:{width:1440,height:1000} });
+const p = await ctx.newPage();
+await p.goto('http://localhost:4173/login',{waitUntil:'domcontentloaded',timeout:60000});
+await p.fill('input[type="email"]','lucasfeitasa999@gmail.com');
+await p.fill('input[type="password"]','DesignModa#2026');
+await p.click('button[type="submit"]');
+await p.waitForLoadState('networkidle',{timeout:60000}).catch(()=>{});
+await p.goto('http://localhost:4173/reports/financial/dre',{waitUntil:'networkidle',timeout:60000});
+await p.waitForTimeout(9000);
+const nomes = await p.locator('button').allInnerTexts();
+console.log('BOTOES ' + JSON.stringify(nomes.filter(t=>t.trim()).slice(0,14)));
+console.log('URL ' + p.url());
+await p.screenshot({ path: S + '/dre-tela.png' });
+await b.close();

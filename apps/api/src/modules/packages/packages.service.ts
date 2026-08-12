@@ -19,7 +19,12 @@ const customerPackageDetailInclude = {
   items: {
     include: {
       service: { select: { id: true, name: true } },
-      usages: { orderBy: { usedAt: 'desc' as const } },
+      usages: {
+        orderBy: { usedAt: 'desc' as const },
+        // A coluna "Utilizados" do Belasis mostra "Comanda #2951" — sem o número
+        // da comanda só sobraria o id cru, que não diz nada. Ver estudo 50.
+        include: { order: { select: { id: true, number: true } } },
+      },
     },
   },
 } satisfies Prisma.CustomerPackageInclude;
@@ -334,6 +339,7 @@ export class PackagesService {
         id: u.id,
         usedAt: u.usedAt,
         orderId: u.orderId,
+        orderNumber: u.order?.number ?? null,
       })),
     }));
 

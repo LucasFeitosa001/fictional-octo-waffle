@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@beautypass/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -38,6 +38,16 @@ export interface BookingAppearance {
   primaryColor: string | null;
   accentColor: string | null;
   backgroundColor: string | null;
+  /**
+   * Fundo do espaço da FOTO do serviço quando ele não tem imagem. Era rosa
+   * fixo no web-club, sem passar por nenhuma variável — o dono pediu para
+   * poder trocar. `null` = o rosa da casa. Ver estudo 66.
+   */
+  photoColor: string | null;
+  /** Capa (banner) do topo da página pública. URL do upload ou null. Estudo 67. */
+  coverUrl: string | null;
+  /** Véu escuro sobre a capa, 0–80 (%), para o texto continuar legível. */
+  coverOverlay: number;
 }
 
 export const BOOKING_APPEARANCE_DEFAULTS: BookingAppearance = {
@@ -45,6 +55,9 @@ export const BOOKING_APPEARANCE_DEFAULTS: BookingAppearance = {
   primaryColor: null,
   accentColor: null,
   backgroundColor: null,
+  photoColor: null,
+  coverUrl: null,
+  coverOverlay: 35,
 };
 
 // Coerce whatever is stored in the Setting JSON into a well-formed appearance,
@@ -59,6 +72,13 @@ export function coerceBookingAppearance(raw: unknown): BookingAppearance {
     primaryColor: hex(v.primaryColor),
     accentColor: hex(v.accentColor),
     backgroundColor: hex(v.backgroundColor),
+    photoColor: hex(v.photoColor),
+    coverUrl:
+      typeof v.coverUrl === 'string' && v.coverUrl.trim() ? v.coverUrl.trim() : null,
+    coverOverlay:
+      typeof v.coverOverlay === 'number' && Number.isFinite(v.coverOverlay)
+        ? Math.min(80, Math.max(0, Math.round(v.coverOverlay)))
+        : 35,
   };
 }
 
@@ -276,7 +296,24 @@ export class MarketingService {
     });
   }
 
-  createPromotion(companyId: string, dto: CreatePromotionDto) {
+  private validatePromotionPeriod(
+    validFrom?: string | Date | null,
+    validTo?: string | Date | null,
+  ): void {
+    if (!validFrom || !validTo) return;
+    const from = validFrom instanceof Date ? validFrom : new Date(validFrom);
+    const to = validTo instanceof Date ? validTo : new Date(validTo);
+    if (
+      Number.isNaN(from.getTime()) ||
+      Number.isNaN(to.getTime()) ||
+      to.getTime() < from.getTime()
+    ) {
+      throw new BadRequestException('Período de validade da promoção inválido.');
+    }
+  }
+
+  async createPromotion(companyId: string, dto: CreatePromotionDto) {
+    this.validatePromotionPeriod(dto.validFrom, dto.validTo);
     return this.prisma.client.promotion.create({
       data: {
         companyId,
@@ -296,6 +333,10 @@ export class MarketingService {
   async updatePromotion(companyId: string, id: string, dto: UpdatePromotionDto) {
     const found = await this.prisma.client.promotion.findFirst({ where: { id, companyId } });
     if (!found) throw new NotFoundException('Promoção não encontrada');
+    this.validatePromotionPeriod(
+      dto.validFrom !== undefined ? dto.validFrom : found.validFrom,
+      dto.validTo !== undefined ? dto.validTo : found.validTo,
+    );
     return this.prisma.client.promotion.update({
       where: { id },
       data: {
@@ -508,6 +549,17 @@ export class MarketingService {
       primaryColor: hex(dto.primaryColor, current.primaryColor),
       accentColor: hex(dto.accentColor, current.accentColor),
       backgroundColor: hex(dto.backgroundColor, current.backgroundColor),
+      photoColor: hex(dto.photoColor, current.photoColor),
+      coverUrl:
+        dto.coverUrl === undefined
+          ? current.coverUrl
+          : dto.coverUrl.trim()
+            ? dto.coverUrl.trim()
+            : null,
+      coverOverlay:
+        dto.coverOverlay === undefined
+          ? current.coverOverlay
+          : Math.min(80, Math.max(0, Math.round(dto.coverOverlay))),
     };
     const valueJson = merged as unknown as Prisma.InputJsonValue;
     await this.prisma.client.setting.upsert({

@@ -51,8 +51,9 @@ export function ResultadoProdutosPage() {
     (d?.totalRevenue ?? 0) > 0 ? (totalNet / (d?.totalRevenue ?? 1)) * 100 : 0;
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {

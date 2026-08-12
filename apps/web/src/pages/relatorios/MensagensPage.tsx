@@ -31,11 +31,13 @@ import {
 } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -144,7 +146,7 @@ function StatusSegmented({
       {STATUS_OPTIONS.map((opt, i) => {
         const active = opt.value === value;
         return (
-          <button
+            <button
             key={opt.value}
             type="button"
             role="radio"
@@ -286,6 +288,9 @@ export function MensagensPage() {
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Mensagens" />
       <PageHeader
         title="Mensagens"
         subtitle="WhatsApp, SMS, lembretes e felicitações enviados"
@@ -356,6 +361,7 @@ export function MensagensPage() {
             </div>
 
             {/* Gerar relatório */}
+            <ReportPdfOption />
             <Button variant="primary" onClick={refetchAll} isDisabled={isFetching}>
               <IconSearch size={16} /> Gerar relatório
             </Button>

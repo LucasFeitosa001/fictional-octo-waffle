@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -12,7 +13,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
@@ -30,7 +31,13 @@ class CloseCashDto {
   @IsNumber() @Min(0) countedBalance: number;
   // Sem coluna própria no schema (ver camposFaltantes); aceito mas não persistido.
   @IsOptional() @IsString() note?: string;
+  // Data/hora do fechamento. O fechamento costuma ser feito no dia SEGUINTE, e
+  // gravar sempre `new Date()` registrava a data errada no relatório de caixa.
+  @IsOptional() @IsDateString() closedAt?: string;
 }
+
+/** Folga do fechamento: a tela manda meio-dia local, que pode passar do relógio. */
+const UM_DIA_MS = 24 * 60 * 60 * 1000;
 
 class MovementDto {
   @IsIn(['in', 'out']) type: 'in' | 'out';
@@ -135,7 +142,10 @@ export class CashRegistersService {
     return this.prisma.client.$transaction(async (tx) => {
       // Serializa abertura/numeração por empresa: evita dois operadores criarem
       // o mesmo `number` ou furarem a regra de caixa único simultaneamente.
-      await tx.$queryRaw`
+      // $executeRaw (NÃO $queryRaw): pg_advisory_xact_lock() retorna `void` e o
+      // $queryRaw falha ao desserializar (P2010), derrubando a abertura de caixa
+      // com 500 — mesmo defeito que quebrou a criação de comanda.
+      await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${`${companyId}:cash-register`}))
       `;
 
@@ -300,6 +310,36 @@ export class CashRegistersService {
         throw new ConflictException('Este caixa já está fechado.');
       }
 
+      // Data do fechamento: a informada (fechamento feito no dia seguinte) ou agora.
+      // Guardas: não pode ser no futuro nem antes da abertura — senão o caixa
+      // fecharia "antes de existir" e a conferência por período ficaria furada.
+      let closedAt = new Date();
+      if (dto.closedAt) {
+        const informada = new Date(dto.closedAt);
+        if (Number.isNaN(informada.getTime())) {
+          throw new BadRequestException('Data de fechamento inválida.');
+        }
+        // A tela carimba MEIO-DIA do dia escolhido, no fuso do navegador. Num
+        // salão em UTC−3 isso vira 15:00Z — então quem fechava o caixa de
+        // manhã levava "a data não pode estar no futuro" todo dia, sem ter
+        // feito nada de errado. Hora à frente do relógio, dentro de 24 h, é
+        // aparada para agora; data de OUTRO dia à frente continua recusada,
+        // que é o abuso que esta guarda existe para impedir. Ver estudo 74.
+        const agora = Date.now();
+        if (informada.getTime() > agora + UM_DIA_MS) {
+          throw new BadRequestException('A data de fechamento não pode estar no futuro.');
+        }
+        if (informada.getTime() > agora) {
+          informada.setTime(agora);
+        }
+        if (informada < reg.openedAt) {
+          throw new BadRequestException(
+            'A data de fechamento não pode ser anterior à abertura do caixa.',
+          );
+        }
+        closedAt = informada;
+      }
+
       const summary = this.summarize(reg);
       const expectedBalance = summary.saldoEmCaixa;
       const divergence = Number(dto.countedBalance) - expectedBalance;
@@ -311,7 +351,7 @@ export class CashRegistersService {
           expectedBalance,
           divergence,
           closedByUserId: userId,
-          closedAt: new Date(),
+          closedAt,
         },
       });
       return { ...updated, expectedBalance, divergence };
@@ -349,7 +389,13 @@ export class CashRegistersService {
           : {}),
       },
       orderBy: { number: 'desc' },
-      include: { responsibleUser: { select: USER_SELECT } },
+      // `closedByUser` também: sem ele a tela de Histórico não tinha como saber
+      // quem fechou e mostrava o responsável pela ABERTURA na coluna "Fechou o
+      // caixa" — errado sempre que quem abriu não foi quem fechou (ver estudo 48).
+      include: {
+        responsibleUser: { select: USER_SELECT },
+        closedByUser: { select: USER_SELECT },
+      },
     });
     return { data, page: 1, pageSize: data.length, total: data.length };
   }

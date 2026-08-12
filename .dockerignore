@@ -13,3 +13,9 @@ apps/web-e2e/playwright-report
 apps/web-e2e/test-results
 belasis-reference
 **/.env
+# Envs capturadas (producao inclusa). O Dockerfile faz COPY . . — sem esta
+# linha, a senha do RDS e as chaves AWS/Google iriam para dentro da imagem.
+# O padrao **/.env acima nao pega, porque os arquivos se chamam
+# apps_api_.env, beautypass-api.env etc.
+.envs-backup
+**/.envs-backup

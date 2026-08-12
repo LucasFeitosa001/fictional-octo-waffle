@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { IconChevron } from '../../components/icons';
 import { BUSINESS_COLORS } from '../../theme/dataColors';
+import { ReportPdfModalHost } from './ReportPdfButton';
 
 /** Card estilo Salonpass (borda suave + fundo creme). */
 export const CARD =
@@ -18,12 +19,15 @@ export function shortDay(d: string): string {
 /** Link "voltar para o hub de Relatórios", mostrado no topo de cada página. */
 export function BackToReports() {
   return (
-    <Link
-      to="/relatorios"
-      className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-gold-strong"
-    >
-      <IconChevron size={16} className="rotate-90" />
-      Voltar para Relatórios
-    </Link>
+    <div className="mb-3 flex items-center justify-between gap-3 report-no-print">
+      <Link
+        to="/relatorios"
+        className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-gold-strong"
+      >
+        <IconChevron size={16} className="rotate-90" />
+        Voltar para Relatórios
+      </Link>
+      <ReportPdfModalHost />
+    </div>
   );
 }

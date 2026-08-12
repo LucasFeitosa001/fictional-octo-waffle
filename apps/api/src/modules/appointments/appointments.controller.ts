@@ -17,6 +17,10 @@ import {
   StatusDto,
   SuggestDto,
   BlockTimeDto,
+  ResendAppointmentMessageDto,
+  SendAppointmentFollowUpDto,
+  SendAppointmentMessageDto,
+  SendAppointmentConfirmationDto,
 } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
@@ -84,11 +88,22 @@ export class AppointmentsController {
     @Query('date') date?: string,
   ) {
     const scope = await this.professionalScope(companyId, userId);
+    // PAINEL: a recepção vê a agenda INTEIRA — inclusive horário já ocupado
+    // (marcado com `busy`) e horário passado. Quem está atrás do balcão sabe o
+    // que está fazendo; esconder o horário só impedia o encaixe, que é o caso
+    // real do salão (a mesma profissional atende duas clientes no mesmo
+    // horário, uma com a tinta agindo).
+    //
+    // O agendamento ONLINE do cliente continua sem nada disso — ele chama este
+    // mesmo método sem `opts` (public-booking.service.ts:446) e por isso segue
+    // vendo só horário livre e futuro.
     return this.service.availability(
       companyId,
       serviceId,
       scope ?? professionalId,
       date,
+      undefined,
+      { includePast: true, includeBusy: true },
     );
   }
 
@@ -103,6 +118,87 @@ export class AppointmentsController {
     return this.service.findOne(companyId, id, scope);
   }
 
+  @Get('appointments/:id/confirmation')
+  @RequirePermission('agenda:view', 'agenda:view_all')
+  async confirmationSetup(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.confirmationSetup(companyId, id, scope);
+  }
+
+  @Post('appointments/:id/confirmation')
+  @RequirePermission('agenda:manage')
+  async sendConfirmation(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentConfirmationDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.sendConfirmation(companyId, id, dto, scope);
+  }
+
+  /** Reenvia um aviso que não saiu (ex.: recusado com o WhatsApp fora do ar). */
+  @Post('appointments/:id/messages/:messageId/resend')
+  @RequirePermission('agenda:manage')
+  async resendMessage(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: ResendAppointmentMessageDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.reenviarMensagem(
+      companyId,
+      id,
+      messageId,
+      dto.requestKey,
+      scope,
+    );
+  }
+
+  /** Envia o acompanhamento pós-atendimento agora, por decisão de uma pessoa. */
+  @Post('appointments/:id/followup')
+  @RequirePermission('agenda:manage')
+  async sendFollowUp(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentFollowUpDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.enviarAcompanhamento(
+      companyId,
+      id,
+      dto.requestKey,
+      { templateId: dto.templateId, message: dto.message },
+      scope,
+    );
+  }
+
+  /** Envia uma mensagem livre para a cliente deste agendamento. */
+  @Post('appointments/:id/message')
+  @RequirePermission('agenda:manage')
+  async sendFreeMessage(
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: SendAppointmentMessageDto,
+  ) {
+    const scope = await this.professionalScope(companyId, userId);
+    return this.service.enviarMensagemLivre(
+      companyId,
+      id,
+      dto.requestKey,
+      dto.message,
+      scope,
+    );
+  }
+
   @Post('appointments')
   @RequirePermission('agenda:manage')
   async create(
@@ -111,7 +207,10 @@ export class AppointmentsController {
     @Body() dto: CreateAppointmentDto,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    return this.service.create(companyId, dto, undefined, scope);
+    // PAINEL: a grade mostra os horários ocupados, então escolher um deles é
+    // decisão consciente da recepção — não pode voltar 409. É o pedido da
+    // Fátima: mesma profissional, mesmo horário, trocando só a cliente.
+    return this.service.create(companyId, dto, { allowOverlap: true }, scope);
   }
 
   @Post('appointments/series')
@@ -122,7 +221,7 @@ export class AppointmentsController {
     @Body() dto: CreateAppointmentSeriesDto,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    return this.service.createSeries(companyId, dto, scope);
+    return this.service.createSeries(companyId, dto, scope, { allowOverlap: true });
   }
 
   // "Ocupar horários": cria um bloqueio de agenda (indisponibilidade) que ocupa
@@ -147,7 +246,9 @@ export class AppointmentsController {
     @Body() dto: UpdateAppointmentDto,
   ) {
     const scope = await this.professionalScope(companyId, userId);
-    return this.service.update(companyId, id, dto, scope);
+    // Reagendar para um horário ocupado é o caso mais comum do encaixe: a
+    // cliente já está marcada e a recepção quer movê-la para cima de outra.
+    return this.service.update(companyId, id, dto, scope, { allowOverlap: true });
   }
 
   @Patch('appointments/:id/status')

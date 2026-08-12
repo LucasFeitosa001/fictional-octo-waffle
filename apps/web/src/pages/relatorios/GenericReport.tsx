@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { formatMoney, isoDate } from '../../lib/format';
 import { DateRangePicker } from '../../components/DatePicker';
 import { LoadingState } from '../../components/States';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Relatório genérico sobre um endpoint /reports/<x> que devolve             */
@@ -27,7 +28,8 @@ interface ReportPayload {
 
 function defaultRange() {
   const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1);
+  const from = new Date(to);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -81,9 +83,9 @@ export function GenericReport({
   const totals = query.data?.totals ?? {};
 
   function gerar() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    // refetch garante feedback (loading + dados) mesmo com filtro igual.
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   const gridCols = columns
@@ -112,6 +114,7 @@ export function GenericReport({
               />
             </div>
           )}
+          <ReportPdfOption />
           <button
             type="submit"
             className="h-10 shrink-0 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"

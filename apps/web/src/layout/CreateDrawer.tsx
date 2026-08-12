@@ -12,6 +12,8 @@ import type { CreateKind } from './PageActions';
 // (FAB "+") stay intact; this host is a SECOND instance used only by the global
 // "Novo" dropdown / mobile sheet. Only one create flow is open at a time.
 import { CustomerCreateModal } from '../pages/ClientePerfilTabs';
+import { PacoteDrawer } from '../pages/PacotesPage';
+import { NovaAssinaturaDrawer } from '../pages/AssinaturasPage';
 import { ProfessionalDrawer } from '../pages/ProfissionaisPage';
 import { ServiceDrawer } from '../pages/ServicosPage';
 import { ProductDrawer } from '../pages/ProdutosPage';
@@ -107,6 +109,10 @@ function CreateDrawerHostContent() {
     <>
       {/* Cadastros — all isOpen-driven, safe to keep mounted with isOpen toggled. */}
       <CustomerCreateModal isOpen={openKind === 'cliente'} onClose={closeCreate} />
+      {/* Pacote e Venda por assinatura: os drawers já existiam nas páginas, só
+          não eram alcançáveis pelo atalho "Novo". Ver estudo 63. */}
+      <PacoteDrawer isOpen={openKind === 'pacote'} onClose={closeCreate} />
+      <NovaAssinaturaDrawer isOpen={openKind === 'assinatura'} onClose={closeCreate} />
       <ProfessionalDrawer mode="create" isOpen={openKind === 'profissional'} onClose={closeCreate} />
       <ServiceDrawer
         mode="create"

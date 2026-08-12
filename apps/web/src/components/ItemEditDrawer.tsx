@@ -145,7 +145,10 @@ export function ItemEditDrawer({
       await update.mutateAsync({
         itemId: item.id,
         body: {
-          professionalId: professionalId || undefined,
+          // null (não undefined): "Sem profissional" precisa LIMPAR o vínculo.
+          // Com undefined o campo sumia do JSON e o backend nem entrava no if,
+          // então nunca dava para desatribuir o profissional de um item.
+          professionalId: professionalId || null,
           unitPrice: priceN,
           quantity: qtyN,
           discount: Math.round(effectiveDiscount * 100) / 100,

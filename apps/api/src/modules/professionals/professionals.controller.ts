@@ -38,8 +38,17 @@ export class ProfessionalsController {
     @CurrentUser('companyId') companyId: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('active') active?: string,
   ) {
-    return this.service.list(companyId, Number(page) || 1, Number(pageSize) || 20);
+    // Sem `active` → só ativos. 'all' traz inativos junto (tela de gestão);
+    // 'false'/'inactive' traz só os desativados.
+    const status =
+      active === 'all'
+        ? 'all'
+        : active === 'false' || active === 'inactive'
+          ? 'inactive'
+          : 'active';
+    return this.service.list(companyId, Number(page) || 1, Number(pageSize) || 20, status);
   }
 
   @Get(':id')

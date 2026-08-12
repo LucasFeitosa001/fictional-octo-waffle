@@ -12,20 +12,23 @@ export const authClient = createAuthClient({
 export const { useSession, signIn, signUp, signOut } = authClient;
 
 /**
- * The club is the CUSTOMER portal, so only `accountType === 'customer'` sessions
- * count as "logged in" here. Staff/owner accounts (accountType 'staff') share the
- * same `.salonpass.com.br` cookie as the admin (app.), so without this guard a
- * salon owner logged into the Gestão admin would also appear logged-in on the
- * booking club. The booking endpoints already reject non-customer sessions
- * server-side (resolveSessionUser), so the UI must match: treat staff as a
- * regular visitor here. Returns the same shape as useSession with data nulled
- * out for non-customer sessions.
+ * Sessão de quem está agendando.
+ *
+ * ANTES (estudos 117/119): o portal só aceitava `accountType === 'customer'`,
+ * porque dividia o cookie de `.salonpass.com.br` com o painel — um dono logado
+ * na Gestão aparecia logado aqui sem nunca ter entrado, então a tela precisava
+ * anular aquela sessão e explicar o motivo (`ehStaff`).
+ *
+ * AGORA (estudo 120): o portal tem instância de auth e cookie PRÓPRIOS. Estar
+ * logado aqui virou um ato explícito de quem entrou nesta tela, então não há
+ * mais o que filtrar — e filtrar atrapalhava de verdade, porque o e-mail é
+ * único no sistema: quem é staff de um salão não conseguia agendar em nenhum
+ * outro, nem abrir conta de cliente com o mesmo endereço.
+ *
+ * `ehStaff`/`emailDaConta` continuam no retorno, sempre neutros, para não
+ * quebrar quem os lê; podem sair quando os call sites forem limpos.
  */
 export function useCustomerSession() {
   const session = useSession();
-  const accountType = (session.data?.user as { accountType?: string } | undefined)?.accountType;
-  if (session.data && accountType !== 'customer') {
-    return { ...session, data: null };
-  }
-  return session;
+  return { ...session, ehStaff: false, emailDaConta: null };
 }

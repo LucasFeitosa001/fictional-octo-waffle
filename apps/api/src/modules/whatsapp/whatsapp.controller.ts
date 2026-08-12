@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -9,7 +10,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { PermissionGuard } from '../../common/permission.guard';
@@ -17,6 +18,40 @@ import { RequirePermission } from '../../common/require-permission.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { FeatureGuard, RequireFeature } from '../feature-flags';
 import { WhatsappService } from './whatsapp.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
+/** Corpo do envio de mídia — ver `WhatsappMediaController`. */
+export class EnviarMidiaDto {
+  @IsString()
+  customerId!: string;
+
+  /** Só o que o WhatsApp sabe mandar por este caminho. */
+  @IsIn(['image', 'document'])
+  type!: 'image' | 'document';
+
+  /** URL do arquivo já subido por `POST /uploads`. */
+  @IsUrl({ require_tld: false })
+  url!: string;
+
+  @IsString()
+  mimeType!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  fileName?: string;
+
+  /** Recado que vai junto do arquivo. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  caption?: string;
+
+  /** UUID da ação: reenviar o mesmo clique não duplica o envio. */
+  @IsOptional()
+  @IsString()
+  requestKey?: string;
+}
 
 /**
  * Admin/ops endpoints to link / inspect a salon's WhatsApp account. Gated by a
@@ -236,5 +271,72 @@ export class WhatsappConnectionController {
     await this.whatsapp.setManagerPhone(companyId, dto.phone ?? '');
     const phone = await this.whatsapp.getManagerPhone(companyId);
     return { phone };
+  }
+}
+
+/**
+ * MÓDULO "ENVIO DE IMAGENS E ARQUIVOS" (`media_messages`).
+ *
+ * Manda para a cliente, pelo WhatsApp do salão, uma foto de referência ou um
+ * documento — junto de um recado opcional. Pedido do dono em 05/08; o texto que
+ * ele publicou na tela de Adicionais é "mandar fotos de referência e documentos
+ * para a cliente junto das mensagens do salão", e é isso que este endpoint faz.
+ *
+ * O envio é sempre de UMA PESSOA, nunca automático: quem chama é alguém que
+ * clicou no painel, com o arquivo já escolhido. Por isso `authorized: true` —
+ * é a mesma isenção do botão "Enviar confirmação" (estudo 60), e continua
+ * respeitando a regra permanente do projeto: nada dispara sozinho.
+ *
+ * O gate é o do adicional (`media_messages`). O `whatsapp_api` não entra como
+ * segunda trava porque `RequireFeature` aceita uma chave só — e não faria falta:
+ * sem número conectado, `enqueueText` já recusa por conta própria (trava 1 do
+ * estudo 60) e a resposta diz isso.
+ */
+@UseGuards(JwtAuthGuard, PermissionGuard, FeatureGuard)
+@RequireFeature('media_messages')
+@Controller('whatsapp/media')
+export class WhatsappMediaController {
+  constructor(
+    private readonly whatsapp: WhatsappService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  @Post()
+  @RequirePermission('clientes:manage', 'marketing:manage', 'agenda:manage')
+  async enviar(
+    @CurrentUser('companyId') companyId: string,
+    @Body() dto: EnviarMidiaDto,
+  ) {
+    // O telefone vem do CADASTRO, nunca do corpo da requisição: aceitar número
+    // solto do front abriria envio para qualquer destinatário a partir de uma
+    // sessão válida — e o número da cliente já está no banco.
+    const cliente = await this.prisma.client.customer.findFirst({
+      where: { id: dto.customerId, companyId },
+      select: { id: true, phone: true, name: true },
+    });
+    if (!cliente) throw new BadRequestException('Cliente não encontrado nesta empresa.');
+    if (!cliente.phone?.trim()) {
+      throw new BadRequestException(`${cliente.name || 'A cliente'} não tem telefone no cadastro.`);
+    }
+
+    const enfileirado = await this.whatsapp.enqueueText(cliente.phone, dto.caption?.trim() || '', {
+      companyId,
+      customerId: cliente.id,
+      kind: 'media',
+      requestKey: dto.requestKey,
+      authorized: true,
+      media: {
+        type: dto.type,
+        url: dto.url,
+        mimeType: dto.mimeType,
+        ...(dto.fileName ? { fileName: dto.fileName } : {}),
+      },
+    });
+    if (!enfileirado) {
+      throw new BadRequestException('Não foi possível enfileirar o envio. Confira o número.');
+    }
+    // Status honesto: "na fila" não é "entregue". Quem chamou mostra isso na
+    // tela e o histórico do outbox conta o resto (regra permanente do projeto).
+    return enfileirado;
   }
 }

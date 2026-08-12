@@ -1046,7 +1046,9 @@ export function SupplierDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title={title}
-      widthClass="sm:w-[520px]"
+      // Sem `widthClass` de propósito: no FullDrawer essa prop é o que transforma
+      // o painel numa faixa lateral no desktop (FullDrawer.tsx:195-196). Como este
+      // é um drawer de cadastro (4 abas + form em 2 colunas), ele abre em tela cheia.
       sections={[
         { key: 'cadastro', label: 'Cadastro' },
         { key: 'contatos', label: 'Contatos' },

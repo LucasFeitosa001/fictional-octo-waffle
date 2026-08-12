@@ -20,6 +20,7 @@ import { downloadCsv } from '../../lib/csv';
 import { useReportsCriacaoAgendamento } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { CalendarReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 import { shortDay } from './reportShared';
 
 /* -------------------------------------------------------------------------- */
@@ -33,7 +34,7 @@ const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]'
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -78,8 +79,9 @@ export function CriacaoAgendamentoPage() {
   const hasData = !!d && (total > 0 || byDay.length > 0 || byAuthor.length > 0);
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {
@@ -125,6 +127,7 @@ export function CriacaoAgendamentoPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            <ReportPdfOption />
             <button
               type="submit"
               disabled={query.isFetching}

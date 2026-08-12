@@ -84,6 +84,10 @@ export interface CustomerPanel {
   creditosSaldo: number;
   cashbackSaldo: number;
   pacotesEmAberto: number;
+  /** Quantidade de comandas em aberto — bloco "Informações" da coluna do cliente. */
+  comandasEmAberto: number;
+  /** Quantidade de débitos em aberto. `debitosTotal` é a SOMA; este é a contagem. */
+  pagamentosEmAberto: number;
   ultimosServicos: PanelServiceItem[];
 }
 
@@ -176,6 +180,12 @@ export interface AppointmentRow {
   customerId?: string | null;
   professionalId?: string | null;
   status: AppointmentStatus;
+  /**
+   * Como o agendamento entrou. `online` é o pedido feito pela cliente na página
+   * pública — ele tem padrão de aviso PRÓPRIO (`onlineBooking`), diferente do
+   * marcado na recepção. Ver estudo 153.
+   */
+  source?: 'admin' | 'online' | null;
   start: string;
   end: string;
   notes?: string | null;
@@ -190,6 +200,11 @@ export interface AppointmentRow {
     professionalId?: string | null;
     price: string;
   }[];
+  /**
+   * Comanda já gerada por este agendamento (um por um). Quando existe, o botão
+   * do drawer ACESSA; quando não, ele ABRE. Ver estudo 52.
+   */
+  order?: { id: string; number: number; status: OrderStatus } | null;
 }
 
 /** Order as returned by the list endpoint (includes customer). */
@@ -368,6 +383,12 @@ export interface CompanyInfo {
 export interface AvailabilitySlot {
   start: string;
   end: string;
+  /**
+   * Horário já ocupado por outro agendamento. Só volta na lista quando a busca
+   * pediu `squeezeIn` ("Encaixar agendamento") — aí ele é oferecido, porém
+   * marcado, para quem escolhe saber que está marcando em cima de alguém.
+   */
+  busy?: boolean;
 }
 
 export interface AvailabilityResponse {
@@ -395,6 +416,8 @@ export interface AppointmentFollowUpInput {
 
 /** Body for POST /appointments. The backend computes end + pricing. */
 export interface CreateAppointmentBody {
+  /** Encaixe: permite marcar em cima de horário já ocupado do mesmo profissional. */
+  squeezeIn?: boolean;
   customerId?: string;
   professionalId?: string;
   start: string;
@@ -425,6 +448,8 @@ export interface PackageUsage {
   id: string;
   usedAt: string;
   orderId: string | null;
+  /** Número da comanda que consumiu a sessão — vira "Comanda #2951" na coluna "Utilizados". */
+  orderNumber?: number | null;
 }
 
 /** One item of the package detail, with computed saldo + usages. */

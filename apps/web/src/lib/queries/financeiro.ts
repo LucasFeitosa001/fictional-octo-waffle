@@ -61,6 +61,8 @@ export interface TransactionRow {
   grossAmount: string;
   dueDate?: string | null;
   paidAt?: string | null;
+  competenceDate?: string | null;
+  isOrganizational?: boolean;
   status: PaymentStatus;
   createdAt: string;
   account?: { id: string; name: string } | null;
@@ -124,6 +126,21 @@ export interface TransactionFilters {
   categoryId?: string;
   from?: string;
   to?: string;
+  /** Sobre qual data o período incide. Padrão do servidor: vencimento. */
+  dateType?: 'due' | 'paid' | 'competence';
+  /**
+   * Versões MULTI, separadas por vírgula. Quando vêm, ganham dos campos
+   * singulares acima (que continuam existindo para os links já espalhados pelo
+   * app, como o Painel que navega com ?status=paid).
+   * `statuses` aceita 'overdue' junto dos outros — o servidor resolve como ramo OR.
+   */
+  types?: string;
+  statuses?: string;
+  accountIds?: string;
+  categoryIds?: string;
+  paymentMethodIds?: string;
+  /** Só as atrasadas (em aberto e já vencidas) — status derivado no servidor. */
+  overdue?: boolean;
   page?: number;
   pageSize?: number;
   includeReversed?: boolean;
@@ -144,6 +161,10 @@ export interface CreateTransactionBody {
   description?: string;
   dueDate?: string;
   paidAt?: string;
+  /** Data de competência — coluna criada na migração 20260727230000. */
+  competenceDate?: string;
+  /** "É uma receita organizacional?": dispensa a exigência de caixa aberto. */
+  isOrganizational?: boolean;
   status?: PaymentStatus;
 }
 
@@ -244,6 +265,13 @@ export function useTransactions(filters: TransactionFilters = {}) {
         categoryId: filters.categoryId,
         from: filters.from,
         to: filters.to,
+        dateType: filters.dateType,
+        overdue: filters.overdue ? 'true' : undefined,
+        types: filters.types,
+        statuses: filters.statuses,
+        accountIds: filters.accountIds,
+        categoryIds: filters.categoryIds,
+        paymentMethodIds: filters.paymentMethodIds,
         page: filters.page,
         pageSize: filters.pageSize,
         includeReversed: filters.includeReversed ? 'true' : undefined,
@@ -266,6 +294,13 @@ export async function fetchAllTransactions(
     categoryId: filters.categoryId,
     from: filters.from,
     to: filters.to,
+    dateType: filters.dateType,
+    overdue: filters.overdue ? 'true' : undefined,
+    types: filters.types,
+    statuses: filters.statuses,
+    accountIds: filters.accountIds,
+    categoryIds: filters.categoryIds,
+    paymentMethodIds: filters.paymentMethodIds,
     includeReversed: filters.includeReversed ? 'true' : undefined,
     pageSize: 100000,
   });

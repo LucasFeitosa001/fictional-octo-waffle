@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Card, Input, TextField, Typography } from 'heroui-native';
+import { Card, Input, TextField, Typography } from 'heroui-native';
 import type { Customer } from '@beautypass/shared';
 import { useFetch } from '../../lib/use-fetch';
-import { initials } from '../../lib/format';
+import { PersonAvatar } from '../../components/PersonAvatar';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ScreenStates';
 
 interface Paginated<T> {
@@ -71,9 +71,9 @@ export default function ClientesScreen() {
             <Card>
               <Card.Body>
                 <View className="flex-row items-center gap-3">
-                  <Avatar size="md" color="accent">
-                    <Avatar.Fallback>{initials(item.name)}</Avatar.Fallback>
-                  </Avatar>
+                  {/* GET /customers usa `include`, então avatarUrl já vem no
+                      payload — mostrar a foto em vez da inicial, como no web. */}
+                  <PersonAvatar name={item.name} avatarUrl={item.avatarUrl} />
                   <View className="flex-1">
                     <Typography type="h5" className="text-foreground">
                       {item.name}

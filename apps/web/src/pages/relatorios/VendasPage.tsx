@@ -18,12 +18,14 @@ import { Drawer } from '../../components/Drawer';
 import {
   IconDollar,
   IconDownload,
-  IconHome,
-  IconInfo,
   IconReceipt,
-  IconStar,
   IconTrendUp,
 } from '../../components/icons';
+import {
+  ReportCategoriesBar,
+  ReportSubmenu,
+  SALES_REPORTS,
+} from './reportNav';
 import { formatMoney, formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsSales } from '../../lib/queries/relatorios';
@@ -31,6 +33,7 @@ import { useThemeColors } from '../../theme/useThemeColors';
 import { getCategoricalColor } from '../../theme/dataColors';
 import { BackToReports, shortDay } from './reportShared';
 import { ErrorState } from '../../components/States';
+import { requestReportPdf } from './ReportPdfButton';
 
 // ── card no estilo Belasis (branco + sombra suave), 100% themeable ────────────
 const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]';
@@ -38,40 +41,14 @@ const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]'
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
 // Categorias de relatório (topo do módulo Relatórios no Belasis). "Financeiro"
 // é a categoria ativa desta página.
-const CATEGORIES = [
-  'Favoritos',
-  'Financeiro',
-  'Agendamentos',
-  'Clientes',
-  'Vendas',
-  'Estoque',
-  'Notas Fiscais',
-  'Ranking',
-  'Mensagens',
-];
-
 // Submenu vertical de relatórios financeiros (coluna esquerda do Belasis).
 // "Resultado Líquido de Serviços" (rota service-revenue) é o item selecionado.
-const FIN_REPORTS: { label: string; home?: boolean; current?: boolean }[] = [
-  { label: 'Início', home: true },
-  { label: 'Resultados Financeiros' },
-  { label: 'Resultado Líquido de Serviços', current: true },
-  { label: 'Resultado Líquido de Produtos' },
-  { label: 'Projeção de Faturamento' },
-  { label: 'Fluxo de Caixa' },
-  { label: 'Recebimentos' },
-  { label: 'Despesas' },
-  { label: 'Extrato de Contas' },
-  { label: 'Extrato de Movimentações' },
-  { label: 'Histórico de caixa' },
-];
-
 function Kpi({
   icon,
   title,
@@ -121,14 +98,22 @@ export function VendasPage() {
   const byCategory = d?.byCategory ?? [];
   const byProfessional = d?.byProfessional ?? [];
   const ticketMedio = d && d.ordersCount > 0 ? d.salesTotal / d.ordersCount : 0;
-  const hasData = !!d && (byDay.length > 0 || byCategory.length > 0 || byProfessional.length > 0);
+  // Uma venda válida pode não ter itens vinculados (comanda importada ou
+  // serviço removido do cadastro). Nesse caso os agrupamentos ficam vazios,
+  // mas o total e a quantidade de comandas continuam sendo dados reais e não
+  // podem transformar a tela em "Nenhum item encontrado".
+  const hasData = !!d && (
+    d.salesTotal !== 0 || d.ordersCount > 0 ||
+    byDay.length > 0 || byCategory.length > 0 || byProfessional.length > 0
+  );
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    // refetch() garante feedback (loading + dados) mesmo quando o período não
-    // mudou — senão o React Query vê a mesma queryKey e não faz nada, dando a
-    // sensação de "botão morto".
-    void query.refetch();
+    // Quando o período muda, a queryKey nova dispara a busca automaticamente.
+    // Refetchar aqui também buscava a janela ANTIGA e podia deixar a tela em
+    // "Não há dados" mesmo havendo vendas no período escolhido.
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {
@@ -157,63 +142,15 @@ export function VendasPage() {
       {/* Cabeçalho do módulo Relatórios */}
       <h1 className="text-xl font-semibold text-ink">Relatórios</h1>
 
-      {/* Barra de categorias (Financeiro ativa) */}
-      <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {CATEGORIES.map((c) => {
-          const active = c === 'Financeiro';
-          return (
-            <button
-              key={c}
-              type="button"
-              className={[
-                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
-                active
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-line bg-card text-muted-ink hover:text-ink',
-              ].join(' ')}
-            >
-              {c}
-            </button>
-          );
-        })}
-      </div>
+      {/* Barra de categorias e submenu passam a NAVEGAR. Antes eram <button>
+          sem onClick e <div> — clicar não fazia nada, e o dono relatou como
+          "clico entre os itens e não alterna". Fonte única: reportNav.
+          Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Vendas" />
 
       {/* Conteúdo em 2 colunas: submenu de relatórios + card do relatório */}
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* Coluna esquerda: submenu de relatórios financeiros */}
-        <aside className={`${CARD} shrink-0 overflow-hidden p-1.5 lg:w-72`}>
-          <ul className="flex flex-col">
-            {FIN_REPORTS.map((r) => (
-              <li key={r.label}>
-                <div
-                  className={[
-                    'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors',
-                    r.current
-                      ? 'bg-primary/10 font-semibold text-primary'
-                      : 'text-ink hover:bg-primary/5',
-                  ].join(' ')}
-                >
-                  <span
-                    className={r.current ? 'text-primary' : 'text-muted-ink'}
-                    aria-hidden
-                  >
-                    {r.home ? <IconHome size={17} /> : <IconDollar size={17} />}
-                  </span>
-                  <span className="flex-1 truncate">{r.label}</span>
-                  {!r.home && (
-                    <span className="flex items-center gap-1.5 text-muted-ink">
-                      <IconInfo size={15} className="opacity-70" />
-                      <IconStar
-                        size={15}
-                        className={r.current ? 'text-primary' : 'opacity-70'}
-                      />
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <ReportSubmenu items={SALES_REPORTS} activeKey="vendas" />
 
         {/* Coluna direita: filtro + resultados */}
         <div className="min-w-0 flex-1">
@@ -505,18 +442,17 @@ export function VendasPage() {
               <span className="text-xs font-normal text-muted-ink">Planilha com o resumo do período</span>
             </span>
           </button>
-          {/* TODO: exportação em Excel/PDF depende de endpoint dedicado no backend */}
           <button
             type="button"
-            disabled
-            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-muted-ink opacity-60"
+            onClick={() => { setExportOpen(false); requestReportPdf(); }}
+            className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-ink transition-colors hover:bg-primary/5"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <IconDownload size={18} />
             </span>
             <span className="flex flex-col">
               <span>Exportar PDF</span>
-              <span className="text-xs font-normal text-muted-ink">Em breve</span>
+              <span className="text-xs font-normal text-muted-ink">Abre o PDF com campo de assinatura</span>
             </span>
           </button>
         </div>

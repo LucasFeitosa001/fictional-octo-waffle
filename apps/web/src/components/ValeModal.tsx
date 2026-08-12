@@ -77,6 +77,9 @@ export function ValeModal({
       isOpen={open}
       onClose={onClose}
       title="Novo vale"
+      // Faixa lateral de 440px, não tela cheia: são quatro campos. O
+      // `fullscreen` veio na varredura de 27/07 (110f268) e engolia o
+      // widthClass, que já estava escrito aqui. Ver estudo 53.
       widthClass="sm:w-[440px]"
       footer={
         <>

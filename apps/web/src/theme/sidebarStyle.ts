@@ -17,6 +17,8 @@ export const SIDEBAR_STYLES: { id: SidebarStyleId; label: string; description: s
 
 const KEY = 'sp-sidebar-style';
 const DEFAULT: SidebarStyleId = 'solid';
+/** Padrão exportado para o reset por-empresa (useThemeSync). */
+export const DEFAULT_SIDEBAR_STYLE: SidebarStyleId = DEFAULT;
 
 export function isSidebarStyle(v: unknown): v is SidebarStyleId {
   return v === 'solid' || v === 'floating';

@@ -3,6 +3,7 @@ import { DateRangePicker } from '../../components/DatePicker';
 import { Drawer } from '../../components/Drawer';
 import { IconDownload } from '../../components/icons';
 import { isoDate } from '../../lib/format';
+import { requestReportPdf, ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Kit compartilhado dos GERADORES de relatório do módulo Financeiro.         */
@@ -24,7 +25,11 @@ export interface DateRange {
 export function rangeLastDays(days: number): DateRange {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - days);
+  // O padrão de todos os relatórios é um mês corrido até hoje. Mantemos o
+  // parâmetro para chamadas específicas que realmente pedem outra quantidade
+  // de dias.
+  if (days === 30) from.setMonth(from.getMonth() - 1);
+  else from.setDate(from.getDate() - days);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -140,7 +145,8 @@ export function FinancialFilterCard({
         </div>
 
         {/* Botão split: Gerar relatório + "…" (opções de exportação) */}
-        <div className="flex w-full items-stretch sm:w-auto sm:self-end">
+        <div className="flex w-full items-stretch gap-2 sm:w-auto sm:self-end">
+          <ReportPdfOption />
           <button
             type="submit"
             disabled={isFetching}
@@ -192,7 +198,7 @@ export function ReportEmpty({
   );
 }
 
-/** Drawer de exportação (CSV agora; PDF marcado "Em breve"). */
+/** Drawer de exportação: CSV e PDF imprimível com assinatura. */
 export function ExportDrawer({
   open,
   onClose,
@@ -227,15 +233,15 @@ export function ExportDrawer({
         {/* TODO: exportação em Excel/PDF depende de endpoint dedicado no backend */}
         <button
           type="button"
-          disabled
-          className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-muted-ink opacity-60"
+          onClick={() => { onClose(); requestReportPdf(); }}
+          className="flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3 text-left text-sm font-medium text-ink transition-colors hover:bg-primary/5"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <IconDownload size={18} />
           </span>
           <span className="flex flex-col">
             <span>Exportar PDF</span>
-            <span className="text-xs font-normal text-muted-ink">Em breve</span>
+            <span className="text-xs font-normal text-muted-ink">Abre o PDF com campo de assinatura</span>
           </span>
         </button>
       </div>

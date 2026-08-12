@@ -706,7 +706,7 @@ export function IAAtendimentoPage() {
         />
         <MetricCard
           icon={<IconCalendarPlus size={20} className="text-data-appointments" />}
-          label="Agendamentos pela IA"
+          label="Agendamentos feitos pela IA"
           value={String(stats.data?.bookingsViaAi ?? 0)}
           accent="var(--sp-data-appointments-soft)"
         />
@@ -908,9 +908,7 @@ export function IAAtendimentoPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() =>
-                          patchConversation({ handledByAi: false })
-                        }
+                        onClick={() => patchConversation({ handledByAi: false })}
                         isDisabled={updateConversation.isPending}
                       >
                         Assumir

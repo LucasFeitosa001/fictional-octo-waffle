@@ -18,8 +18,11 @@ interface ProfessionalRow extends Professional {
 }
 
 export default function ProfissionaisScreen() {
+  // Tela de gestão: `active: 'all'` traz também os desativados. Os seletores
+  // (novo agendamento etc.) usam o padrão da API, que é só ativos.
   const professionals = useFetch<Paginated<ProfessionalRow>>('/professionals', {
     pageSize: 50,
+    active: 'all',
   });
 
   const list = useMemo(() => professionals.data?.data ?? [], [professionals.data]);

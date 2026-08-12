@@ -8,6 +8,8 @@ import { downloadCsv } from '../../lib/csv';
 import { useReportsOverview } from '../../lib/queries/relatorios';
 import { useSetPageActions } from '../../layout/PageActions';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clone fiel da página "RelatorioRanking" do Belasis (/reports/clients/rank).
@@ -31,7 +33,7 @@ interface Filters {
 function defaultFilters(): Filters {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { saleType: 'both', from: isoDate(from), to: isoDate(to), orderBy: 'total' };
 }
 
@@ -210,6 +212,9 @@ export function RankingPage() {
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Ranking" />
       <PageHeader
         title="Ranking"
         subtitle="Itens que mais venderam no período, por valor ou quantidade"
@@ -255,7 +260,8 @@ export function RankingPage() {
 
         {/* Ação: Gerar relatório + export (Belasis: botão primário + dropdown).
             Desktop-only: no mobile essas ações ficam na BottomNav (useSetPageActions). */}
-        <div className="mt-4 hidden justify-end md:flex">
+        <div className="mt-4 hidden justify-end gap-2 md:flex">
+          <ReportPdfOption />
           <div className="inline-flex overflow-hidden rounded-lg">
             <button
               type="button"

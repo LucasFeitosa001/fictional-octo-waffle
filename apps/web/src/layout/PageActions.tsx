@@ -45,6 +45,8 @@ export type CreateKind =
   | 'marca'
   | 'agendamento'
   | 'comanda'
+  | 'pacote'
+  | 'assinatura'
   | 'despesa'
   | 'receita'
   | 'transferencia'
@@ -69,6 +71,15 @@ export const CREATE_GROUPS: CreateGroup[] = [
     items: [
       { to: '/agenda?new=1', label: 'Agendamento', icon: IconCalendar, kind: 'agendamento' },
       { to: '/comandas?new=1', label: 'Comanda', icon: IconReceipt, kind: 'comanda' },
+      // Faltavam no atalho de criar, embora existam no menu lateral e tenham
+      // drawer pronto. O dono cobrou. Ver estudo 63.
+      { to: '/pacotes?new=1', label: 'Pacote', icon: IconLayers, kind: 'pacote' },
+      {
+        to: '/assinaturas?new=1',
+        label: 'Venda por assinatura',
+        icon: IconRepeat,
+        kind: 'assinatura',
+      },
     ],
   },
   {

@@ -870,6 +870,7 @@ export function BrandDrawer({
       onClose={onClose}
       title={mode === 'edit' ? 'Editar marca' : 'Nova marca'}
       widthClass="sm:w-[480px]"
+      fullscreen
       footer={
         <>
           <Button variant="outline" onClick={onClose}>

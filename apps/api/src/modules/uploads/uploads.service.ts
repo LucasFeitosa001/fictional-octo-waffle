@@ -157,9 +157,12 @@ export class UploadsService {
    * Absolute path on disk for a stored local file, or null when the name is
    * unsafe or the file does not exist. Only used by GET /uploads/file/:name.
    */
-  async resolveLocalFile(name: string): Promise<string | null> {
+  async resolveLocalFile(name: string, companyId: string): Promise<string | null> {
     // Path traversal guard: only allow basename characters we generated.
     if (!/^[A-Za-z0-9._-]+$/.test(name)) return null;
+    // O nome local incorpora o tenant. URL conhecida não autoriza uma sessão
+    // de outra empresa a ler foto, anamnese ou documento de cliente.
+    if (!name.startsWith(`${companyId}__`)) return null;
     const full = path.join(this.localRoot, name);
     // Extra safety: make sure the resolved path stays inside localRoot.
     if (!full.startsWith(this.localRoot + path.sep)) return null;

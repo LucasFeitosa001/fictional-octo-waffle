@@ -14,13 +14,18 @@ import type { PaymentStatus } from '@beautypass/shared';
 import { OrderStatusChip } from '../components/StatusChip';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { IconChevron, IconPlus, IconReceipt, IconTrash } from '../components/icons';
+import { ItemEditDrawer } from '../components/ItemEditDrawer';
 import {
   useAddOrderDiscount,
   useAddOrderItem,
   useAddOrderPayment,
+  useApplyOrderCashback,
+  useApplyOrderCredit,
   useFinishOrder,
   useOrder,
   useProfessionals,
+  useRemoveOrderCashback,
+  useRemoveOrderCredit,
   useRemoveOrderItem,
   useReopenOrder,
   useReverseOrderPayment,
@@ -203,7 +208,7 @@ function ComandaDetalhe({ order, onBack }: { order: OrderDetail; onBack: () => v
 
       <ItemsSection order={order} editable={editable} />
       <DiscountsSection order={order} editable={editable} />
-      <PaymentsSection order={order} editable={editable} />
+      <PaymentsSection order={order} editable={editable} remaining={remaining} />
 
       {/* Totais */}
       <Card className={`mb-4 ${CARD}`}>
@@ -226,8 +231,17 @@ function ComandaDetalhe({ order, onBack }: { order: OrderDetail; onBack: () => v
         </Card.Content>
       </Card>
 
-      {/* Sticky footer actions */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-soft-border)] bg-warm-white/95 p-3 backdrop-blur sm:left-auto sm:right-6">
+      {/* Rodapé fixo de ações.
+          `bar-above-nav` (index.css) reserva por dentro a altura da BottomNav
+          flutuante. Sem isso, no celular e no tablet (a nav é `lg:hidden`, não
+          `sm:`) a nav opaca de z-40 cobria estes botões de z-20: o toque em
+          "Finalizar comanda" abria Menu/Agenda/Criar e a mensagem de erro logo
+          abaixo — que é onde sai "Registre o pagamento completo antes de
+          faturar" — ficava escondida. Mantemos o z-20 de propósito: a convenção
+          do projeto é o conteúdo ficar ABAIXO da nav (z-40) e não competir com
+          ela. `px-3 pt-3` no lugar de `p-3` para não haver duas fontes
+          disputando o padding-bottom. */}
+      <div className="bar-above-nav fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-soft-border)] bg-warm-white/95 px-3 pt-3 backdrop-blur sm:left-auto sm:right-6">
         <div className="mx-auto flex max-w-3xl flex-col gap-2">
           {actionError && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -313,6 +327,16 @@ function ItemsSection({ order, editable }: { order: OrderDetail; editable: boole
   const [adding, setAdding] = useState(false);
   const remove = useRemoveOrderItem(order.id);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  // Clicar no item abre o mesmo drawer de edição usado nos outros fluxos
+  // (Dados | Auxiliares | Produtos consumidos). Guardamos só o id e derivamos o
+  // objeto do `order` para refletir mudanças sem re-seed.
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const professionals = useProfessionals();
+  const professionalItems = useMemo(
+    () => professionals.data?.data ?? [],
+    [professionals.data],
+  );
+  const editingItem = order.items.find((i) => i.id === editingItemId) ?? null;
 
   async function handleRemove(item: OrderItemDetail) {
     setRemoveError(null);
@@ -325,15 +349,37 @@ function ItemsSection({ order, editable }: { order: OrderDetail; editable: boole
 
   return (
     <SectionCard title="Itens">
+      {/* Drawer de edição do item (Dados | Auxiliares | Produtos consumidos).
+          Abre também com a comanda finalizada — aí em modo leitura. */}
+      <ItemEditDrawer
+        orderId={order.id}
+        item={editingItem}
+        professionals={professionalItems}
+        editable={editable}
+        onClose={() => setEditingItemId(null)}
+      />
       {order.items.length === 0 ? (
         <p className="text-sm text-muted">Nenhum item adicionado.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-[var(--color-soft-border)]">
           {order.items.map((item) => (
             <li key={item.id} className="flex items-start justify-between gap-3 py-2.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {item.itemName ?? (item.kind === 'service' ? 'Serviço' : 'Produto')}
+              {/* Nome do item é o gatilho do drawer. Destaque explícito
+                  (cor primária + sublinhado) para deixar claro que é clicável —
+                  antes era texto morto e ninguém descobria o editor. */}
+              <button
+                type="button"
+                onClick={() => setEditingItemId(item.id)}
+                className="group min-w-0 flex-1 text-left"
+              >
+                <p className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-primary underline decoration-primary/40 underline-offset-2 group-hover:decoration-primary">
+                    {item.itemName ?? (item.kind === 'service' ? 'Serviço' : 'Produto')}
+                  </span>
+                  <IconChevron
+                    size={14}
+                    className="shrink-0 -rotate-90 text-primary/70 transition-transform group-hover:translate-x-0.5"
+                  />
                 </p>
                 <p className="text-xs text-muted">
                   {Number(item.quantity)} × {formatMoney(item.unitPrice)}
@@ -342,7 +388,7 @@ function ItemsSection({ order, editable }: { order: OrderDetail; editable: boole
                 {item.professionalName && (
                   <p className="text-xs text-muted">{item.professionalName}</p>
                 )}
-              </div>
+              </button>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className="text-sm font-semibold text-foreground">
                   {formatMoney(Number(item.grossValue) - Number(item.discount))}
@@ -565,6 +611,20 @@ function AddItemForm({ order, onDone }: { order: OrderDetail; onDone: () => void
 
 function DiscountsSection({ order, editable }: { order: OrderDetail; editable: boolean }) {
   const [adding, setAdding] = useState(false);
+  // Crédito e cashback abatem saldo do cliente (ledger CustomerCredit /
+  // CustomerCashback) — mesmos endpoints do drawer, nada novo no backend.
+  const applyCredit = useApplyOrderCredit(order.id);
+  const removeCredit = useRemoveOrderCredit(order.id);
+  const applyCashback = useApplyOrderCashback(order.id);
+  const removeCashback = useRemoveOrderCashback(order.id);
+
+  const creditUsed = Number(order.creditUsed);
+  const cashbackUsed = Number(order.cashbackUsed);
+  const netTotal = Number(order.netTotal);
+  // Comanda avulsa não tem ledger; comanda fechada sem nada abatido não tem o
+  // que mostrar (as linhas se escondem sozinhas) — aí nem o divisor entra.
+  const mostraLedger =
+    Boolean(order.customerId) && (editable || creditUsed > 0 || cashbackUsed > 0);
 
   return (
     <SectionCard title="Descontos">
@@ -585,15 +645,43 @@ function DiscountsSection({ order, editable }: { order: OrderDetail; editable: b
         </ul>
       )}
 
-      {(Number(order.creditUsed) > 0 || Number(order.cashbackUsed) > 0) && (
-        <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
-          {Number(order.creditUsed) > 0 && (
-            <span>Crédito usado: {formatMoney(order.creditUsed)}</span>
-          )}
-          {Number(order.cashbackUsed) > 0 && (
-            <span>Cashback usado: {formatMoney(order.cashbackUsed)}</span>
-          )}
+      {/* Crédito / cashback do cliente.
+          Antes esta tela só EXIBIA "Crédito usado" quando o abatimento já tinha
+          sido feito no drawer — a cliente com R$ 80 de crédito pagava os R$ 80
+          em dinheiro por este caminho e o saldo ficava parado. Comanda avulsa
+          (sem cliente) não tem ledger: o backend recusa com "Comanda sem
+          cliente — não é possível usar crédito", então lá seguimos só exibindo
+          o que porventura exista. */}
+      {mostraLedger ? (
+        <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-soft-border)] pt-3">
+          <LedgerRow
+            label="Crédito"
+            applied={creditUsed}
+            balance={Number(order.customerBalance?.creditBalance ?? 0)}
+            maxApply={netTotal + creditUsed}
+            editable={editable}
+            apply={applyCredit}
+            remove={removeCredit}
+          />
+          <LedgerRow
+            label="Cashback"
+            applied={cashbackUsed}
+            balance={Number(order.customerBalance?.cashbackBalance ?? 0)}
+            maxApply={netTotal + cashbackUsed}
+            editable={editable}
+            apply={applyCashback}
+            remove={removeCashback}
+          />
         </div>
+      ) : (
+        (creditUsed > 0 || cashbackUsed > 0) && (
+          <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
+            {creditUsed > 0 && <span>Crédito usado: {formatMoney(order.creditUsed)}</span>}
+            {cashbackUsed > 0 && (
+              <span>Cashback usado: {formatMoney(order.cashbackUsed)}</span>
+            )}
+          </div>
+        )
       )}
 
       {editable && (
@@ -613,6 +701,147 @@ function DiscountsSection({ order, editable }: { order: OrderDetail; editable: b
 
 function formatDiscount(d: OrderDiscountDetail): string {
   return d.type === 'percent' ? `${Number(d.value)}%` : formatMoney(d.value);
+}
+
+/**
+ * Linha de Crédito / Cashback — o mesmo abatimento que o ComandaDrawer já
+ * oferecia (LedgerLine, ComandaDrawer.tsx:700) e que faltava aqui, apesar de
+ * esta ser a tela em que se cai pelo botão verde "Criar comanda" e pelo
+ * histórico da ficha do cliente.
+ *
+ * Teto (`cap`): o menor entre o saldo do cliente e o que a comanda ainda deve.
+ * `maxApply` já vem somado ao que está aplicado NESTA linha porque aplicar
+ * substitui a aplicação anterior (o backend apaga a linha `order:<id>` antes de
+ * gravar a nova, orders.service.ts:841) — sem isso o teto encolheria a cada
+ * troca de valor.
+ */
+function LedgerRow({
+  label,
+  applied,
+  balance,
+  maxApply,
+  editable,
+  apply,
+  remove,
+}: {
+  label: string;
+  applied: number;
+  balance: number;
+  maxApply: number;
+  editable: boolean;
+  apply: ReturnType<typeof useApplyOrderCredit>;
+  remove: ReturnType<typeof useRemoveOrderCredit>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const cap = Math.max(0, Math.min(balance, maxApply));
+  const canApply = editable && cap > 0;
+
+  // Comanda finalizada/cancelada e nada abatido: a linha não informa nem
+  // permite nada — sai da tela em vez de virar "Crédito R$ 0,00" morto.
+  if (!editable && applied === 0) return null;
+
+  async function handleApply() {
+    setError(null);
+    const v = parseAmount(value);
+    if (v === null || v <= 0) {
+      setError('Informe um valor válido.');
+      return;
+    }
+    // Avisar aqui em vez de deixar o backend responder "Saldo insuficiente":
+    // a pessoa vê o teto na hora e corrige sem perder o que digitou.
+    if (v > cap + 0.001) {
+      setError(`Máximo ${formatMoney(cap)}.`);
+      return;
+    }
+    try {
+      await apply.mutateAsync(v);
+      setValue('');
+      setOpen(false);
+    } catch (err) {
+      setError(errorMessage(err, `Não foi possível aplicar ${label.toLowerCase()}.`));
+    }
+  }
+
+  async function handleRemove() {
+    setError(null);
+    try {
+      await remove.mutateAsync();
+      setOpen(false);
+    } catch (err) {
+      setError(errorMessage(err, `Não foi possível remover ${label.toLowerCase()}.`));
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted">
+          {label}
+          {editable && balance > 0 && (
+            <span className="text-xs text-muted">(saldo {formatMoney(balance)})</span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="text-sm tabular-nums text-foreground">{formatMoney(applied)}</span>
+          {editable &&
+            (applied > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                isDisabled={remove.isPending}
+                onClick={handleRemove}
+              >
+                {remove.isPending ? '…' : 'Remover'}
+              </Button>
+            ) : canApply && !open ? (
+              <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+                <IconPlus size={14} /> Aplicar
+              </Button>
+            ) : null)}
+        </span>
+      </div>
+
+      {editable && open && applied === 0 && (
+        <div className="flex flex-col gap-2 rounded-md border border-[var(--color-soft-border)] p-2">
+          <TextField
+            value={value}
+            onChange={setValue}
+            aria-label={`Valor de ${label.toLowerCase()}`}
+          >
+            <Input inputMode="decimal" placeholder="0,00" />
+          </TextField>
+          <p className="text-xs text-muted">Máximo {formatMoney(cap)}.</p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => {
+                setOpen(false);
+                setError(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1"
+              isDisabled={apply.isPending}
+              onClick={handleApply}
+            >
+              {apply.isPending ? 'Aplicando…' : 'Aplicar'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {error && <FormError message={error} />}
+    </div>
+  );
 }
 
 function AddDiscountForm({ order, onDone }: { order: OrderDetail; onDone: () => void }) {
@@ -695,7 +924,16 @@ function AddDiscountForm({ order, onDone }: { order: OrderDetail; onDone: () => 
 
 /* ---------------- Pagamentos ---------------- */
 
-function PaymentsSection({ order, editable }: { order: OrderDetail; editable: boolean }) {
+function PaymentsSection({
+  order,
+  editable,
+  remaining,
+}: {
+  order: OrderDetail;
+  editable: boolean;
+  /** Quanto a comanda ainda deve (líquido − pago). Semeia o campo de valor. */
+  remaining: number;
+}) {
   const [adding, setAdding] = useState(false);
   const reverse = useReverseOrderPayment(order.id);
   const [reverseError, setReverseError] = useState<string | null>(null);
@@ -768,7 +1006,11 @@ function PaymentsSection({ order, editable }: { order: OrderDetail; editable: bo
       {editable && (
         <div className="mt-3">
           {adding ? (
-            <AddPaymentForm order={order} onDone={() => setAdding(false)} />
+            <AddPaymentForm
+              order={order}
+              remaining={remaining}
+              onDone={() => setAdding(false)}
+            />
           ) : (
             <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
               <IconPlus size={16} /> Adicionar pagamento
@@ -780,19 +1022,44 @@ function PaymentsSection({ order, editable }: { order: OrderDetail; editable: bo
   );
 }
 
-function AddPaymentForm({ order, onDone }: { order: OrderDetail; onDone: () => void }) {
+function AddPaymentForm({
+  order,
+  remaining,
+  onDone,
+}: {
+  order: OrderDetail;
+  remaining: number;
+  onDone: () => void;
+}) {
   const add = useAddOrderPayment(order.id);
   const methods = usePaymentMethods();
   const [paymentMethodId, setPaymentMethodId] = useState('');
-  const [amount, setAmount] = useState('');
+  // O campo NASCE com o restante da comanda, igual ao drawer
+  // (ComandaDrawer.tsx:872). Vazio, como era antes, obrigava a pessoa a somar
+  // de cabeça no balcão: digitar a menos deixa a comanda sem fechar
+  // ("Registre o pagamento completo antes de faturar") e digitar a mais toma
+  // 400 do backend ("O pagamento ultrapassa o restante da comanda").
+  // O formulário só monta quando o operador clica "Adicionar pagamento", então
+  // o valor do primeiro render já é o restante do momento — não precisa de
+  // efeito de re-seed.
+  const [amount, setAmount] = useState(remaining > 0 ? remaining.toFixed(2) : '');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const methodList = useMemo(() => methods.data ?? [], [methods.data]);
 
+  // Dinheiro: o cliente entrega mais do que deve. O excedente é TROCO, nunca
+  // pagamento — quem grava o valor entregue leva o 400 acima e a comanda trava.
+  const typed = parseAmount(amount) ?? 0;
+  const troco = Math.max(0, typed - remaining);
+
   async function handleAdd() {
     setError(null);
     const value = parseAmount(amount);
+    if (remaining <= 0.009) {
+      setError('O valor da comanda já está integralmente pago.');
+      return;
+    }
     if (value === null || value <= 0) {
       setError('Informe um valor válido.');
       return;
@@ -800,7 +1067,9 @@ function AddPaymentForm({ order, onDone }: { order: OrderDetail; onDone: () => v
     try {
       await add.mutateAsync({
         paymentMethodId: paymentMethodId || undefined,
-        amount: value,
+        // Persistimos só o restante real da venda; o que passar disso é troco
+        // (mesma regra do ComandaDrawer.tsx:922).
+        amount: Math.min(value, remaining),
         description: description.trim() || undefined,
       });
       onDone();
@@ -839,6 +1108,17 @@ function AddPaymentForm({ order, onDone }: { order: OrderDetail; onDone: () => v
         <TextField value={amount} onChange={setAmount} aria-label="Valor">
           <Input inputMode="decimal" placeholder="0,00" />
         </TextField>
+        {/* Restante sempre à vista (o valor pode ter sido editado à mão) e o
+            troco quando o cliente entrega mais — só o restante vira pagamento. */}
+        <p className="text-xs text-muted">
+          Restante da comanda: {formatMoney(remaining)}
+          {troco > 0 && (
+            <span className="font-semibold text-foreground">
+              {' '}
+              · Troco: {formatMoney(troco)}
+            </span>
+          )}
+        </p>
       </FieldLabel>
       <FieldLabel label="Descrição (opcional)">
         <TextField value={description} onChange={setDescription} aria-label="Descrição">

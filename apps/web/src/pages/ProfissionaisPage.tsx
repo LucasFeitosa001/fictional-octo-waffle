@@ -3,6 +3,7 @@ import { Avatar, Button, Checkbox, Chip, Input, ListBox, Select, Spinner, TextFi
 import { ApiClientError } from '@beautypass/shared';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { useConfirm } from '../components/ConfirmDialog';
+import { PhoneField } from '../components/PhoneField';
 import { DatePicker } from '../components/DatePicker';
 import { Drawer } from '../components/Drawer';
 import { TemporaryAccessCard } from '../components/TemporaryAccessCard';
@@ -93,7 +94,8 @@ const EMPTY_PROFESSIONALS: Professional[] = [];
 
 export function ProfissionaisPage() {
   const confirm = useConfirm();
-  const professionals = useProfessionals();
+  // Tela de gestão: precisa dos inativos, é ela quem tem a aba "Inativos".
+  const professionals = useProfessionals(1, 50, { status: 'all' });
   const remove = useDeleteProfessional();
   const allRows = professionals.data?.data ?? EMPTY_PROFESSIONALS;
 
@@ -948,6 +950,7 @@ export function ProfessionalDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={
         mode === 'edit'
           ? `Editar profissional${professional?.name ? ` — ${professional.name}` : ''}`
@@ -971,24 +974,63 @@ export function ProfessionalDrawer({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
-        <AppTabs
-          items={tabs.map((item) => ({
-            ...item,
-            badge:
-              item.id === 'acesso' ? (
-                <span
-                  aria-hidden
-                  className={`h-2 w-2 shrink-0 rounded-full ${
-                    hasAccess ? 'bg-success' : 'bg-muted-ink/40'
-                  }`}
-                />
-              ) : undefined,
-          }))}
-          selectedKey={tab}
-          onSelectionChange={setTab}
-          ariaLabel="Seções do profissional"
-        />
+      {/* Menu VERTICAL no desktop, como no drawer de Serviços e no do cliente —
+          o drawer é tela cheia e a coluna à esquerda deixa as 6 seções visíveis
+          de uma vez. No celular continua o carrossel do AppTabs. */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+        <nav
+          aria-label="Seções do profissional"
+          className="hidden shrink-0 flex-col gap-0.5 border-r border-line pr-3 md:flex md:w-[210px]"
+        >
+          {tabs.map((item) => {
+            const ativo = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                aria-current={ativo ? 'page' : undefined}
+                className={[
+                  'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                  ativo
+                    ? 'bg-[color-mix(in_oklab,var(--sp-primary)_12%,transparent)] font-medium text-primary'
+                    : 'text-muted-ink hover:bg-canvas hover:text-ink',
+                ].join(' ')}
+              >
+                <span className={ativo ? 'text-primary' : 'text-muted-ink'}>{item.icon}</span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.id === 'acesso' && (
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      hasAccess ? 'bg-success' : 'bg-muted-ink/40'
+                    }`}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="md:hidden">
+          <AppTabs
+            items={tabs.map((item) => ({
+              ...item,
+              badge:
+                item.id === 'acesso' ? (
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      hasAccess ? 'bg-success' : 'bg-muted-ink/40'
+                    }`}
+                  />
+                ) : undefined,
+            }))}
+            selectedKey={tab}
+            onSelectionChange={setTab}
+            ariaLabel="Seções do profissional"
+          />
+        </div>
 
         {/* Painel */}
         <div className="min-w-0 flex-1">
@@ -1030,9 +1072,9 @@ export function ProfessionalDrawer({
                   </TextField>
                 </Field>
                 <Field label="Celular" required>
-                  <TextField value={phone} onChange={setPhone} aria-label="Celular">
-                    <Input placeholder="(00) 00000-0000" />
-                  </TextField>
+                  {/* País + número: o DDI era digitado na unha e metade da base
+                      ficou sem ele — e o WhatsApp precisa. Ver estudo 57. */}
+                  <PhoneField value={phone} onChange={setPhone} ariaLabel="Celular" />
                 </Field>
                 <Field label="Profissão">
                   <TextField value={profession} onChange={setProfession} aria-label="Profissão">
@@ -1240,8 +1282,8 @@ export function ProfessionalDrawer({
                 </button>
               </div>
               <p className="text-xs text-muted-ink">
-                Marque os dias em que atende e defina o horário. É o que libera os encaixes no
-                agendamento online.
+                Marque os dias em que atende e defina o horário. O agendamento só libera
+                horários para os serviços também marcados em “Personalizar serviços”.
               </p>
               {detailLoading ? (
                 <p className="text-sm text-muted-ink">Carregando horários…</p>

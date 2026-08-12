@@ -425,6 +425,7 @@ function CreateUsuarioDrawer({
       onClose={onClose}
       title="Criar acesso de usuário"
       widthClass="sm:w-[480px]"
+      fullscreen
       footer={
         <>
           {createdAccess ? (

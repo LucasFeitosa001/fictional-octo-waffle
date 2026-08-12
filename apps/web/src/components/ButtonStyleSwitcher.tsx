@@ -7,7 +7,7 @@ import { saveButtonRadiusToCloud } from '../theme/useThemeSync';
  * --sp-btn-radius) e persiste a escolha (localStorage + conta), igual ao tema.
  * Cada card mostra um "botão de amostra" com o raio da opção como preview.
  */
-export function ButtonStyleSwitcher() {
+export function ButtonStyleSwitcher({ disabled = false }: { disabled?: boolean } = {}) {
   const [current, setRadius] = useButtonRadius();
 
   return (
@@ -18,13 +18,15 @@ export function ButtonStyleSwitcher() {
           <button
             key={r.id}
             type="button"
+            disabled={disabled}
             onClick={() => {
               setRadius(r.id); // instant local apply + localStorage cache
-              saveButtonRadiusToCloud(r.id); // mirror to the account (cross-device)
+              saveButtonRadiusToCloud(r.id); // publica no formato da EMPRESA
             }}
             aria-pressed={active}
             className={[
               'flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition',
+              'disabled:cursor-not-allowed disabled:opacity-60',
               active
                 ? 'border-primary ring-2 ring-primary/40 bg-primary/5'
                 : 'border-line hover:border-muted-ink/40',

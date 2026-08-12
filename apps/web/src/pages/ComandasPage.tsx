@@ -12,10 +12,11 @@ import { ComandaDrawer } from '../components/ComandaDrawer';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { IconTip } from '../components/IconTip';
 import { InlineSearch } from '../components/InlineSearch';
-import { ClientePerfilModal } from './ClientePerfilTabs';
+import { ClientePerfilModal, CustomerCreateModal } from './ClientePerfilTabs';
 import { useCustomer } from '../lib/queries/clientes';
 import { FilterCheckbox } from '../components/FilterCheckbox';
 import { useConfirm } from '../components/ConfirmDialog';
+import { useCan } from '../lib/queries/permissions';
 import {
   CustomerAvatar,
   CustomerPickerDrawer,
@@ -32,16 +33,20 @@ import {
   IconCalendar,
   IconCheck,
   IconChevron,
+  IconEye,
+  IconFileText,
   IconFilter,
   IconInfo,
   IconPencil,
   IconPlus,
+  IconPrinter,
   IconReceipt,
   IconScissors,
   IconTrash,
   IconUser,
   IconWhatsApp,
 } from '../components/icons';
+import { ComandaImpressao, type ModoImpressao } from '../components/ComandaImpressao';
 import {
   useAddOrderDiscount,
   useAddOrderItem,
@@ -61,7 +66,7 @@ import {
   useReverseOrderPayment,
 } from '../lib/queries';
 import { usePaymentMethods } from '../lib/queries/financeiro';
-import { formatDate, formatMoney, formatPhone, isoDate } from '../lib/format';
+import { formatDate, formatDateTime, formatMoney, formatPhone, isoDate } from '../lib/format';
 import type {
   OrderDetail,
   OrderItemDetail,
@@ -73,11 +78,16 @@ import { useSetPageActions } from '../layout/PageActions';
 
 const PAGE_SIZE = 20;
 
+/**
+ * Período inicial da tela de Comandas: NENHUM — mostra todas.
+ *
+ * Antes devolvia o mês atual, e o filtro escondia todo o histórico: a Fátima tem
+ * 3212 comandas desde jul/2024 e via só as do mês corrente, parecendo que a
+ * importação não tinha trazido o resto. Quem quiser recortar por período usa o
+ * filtro normalmente. Ver .claude/studies/15.
+ */
 function monthRange() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { from: isoDate(from), to: isoDate(to) };
+  return { from: '', to: '' };
 }
 
 type PayFilter = 'all' | 'paid' | 'pending';
@@ -96,6 +106,13 @@ const PAY_FILTERS: { id: PayFilter; label: string }[] = [
  * Finalizado = solid neutral gray (#777, white text); Em aberto = ant-tag-orange;
  * Cancelada = ant-tag-red. These are fixed semantic status colors.
  */
+/** Rótulos dos status usados no Histórico (mesma nomenclatura do StatusTag). */
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  open: 'Pendente',
+  finished: 'Finalizado',
+  canceled: 'Cancelado',
+};
+
 function StatusTag({ status }: { status: OrderRow['status'] }) {
   if (status === 'finished') {
     return (
@@ -164,15 +181,23 @@ function MenuIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-/** Per-row action dropdown (Belasis hamburger → Ver / Editar / Excluir). */
+/**
+ * Menu de ações da linha, igual ao do Belasis:
+ * Ver comanda · Imprimir · Impressão térmica · Excluir.
+ *
+ * "Editar" saiu porque era duplicata: chamava o MESMO `setViewing(o)` de "Ver
+ * comanda" e abria o mesmo drawer. Ver estudo 49.
+ */
 function RowMenu({
   onView,
-  onEdit,
+  onPrint,
+  onThermal,
   onRemove,
   disableRemove,
 }: {
   onView: () => void;
-  onEdit: () => void;
+  onPrint: () => void;
+  onThermal: () => void;
   onRemove: () => void;
   disableRemove: boolean;
 }) {
@@ -211,10 +236,18 @@ function RowMenu({
             : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
         ].join(' ')}
       >
-        <MenuItem onClick={() => { setOpen(false); onView(); }}>Ver comanda</MenuItem>
-        <MenuItem onClick={() => { setOpen(false); onEdit(); }}>Editar</MenuItem>
+        <MenuItem icon={<IconEye size={15} />} onClick={() => { setOpen(false); onView(); }}>
+          Ver comanda
+        </MenuItem>
+        <MenuItem icon={<IconFileText size={15} />} onClick={() => { setOpen(false); onPrint(); }}>
+          Imprimir
+        </MenuItem>
+        <MenuItem icon={<IconPrinter size={15} />} onClick={() => { setOpen(false); onThermal(); }}>
+          Impressão térmica
+        </MenuItem>
         <MenuItem
           danger
+          icon={<IconTrash size={15} />}
           disabled={disableRemove}
           onClick={() => { setOpen(false); onRemove(); }}
         >
@@ -225,13 +258,16 @@ function RowMenu({
   );
 }
 
-function MenuItem({
-  children,
+/** Item do bottom-sheet de ações do celular — mesma lista do menu do desktop. */
+function AcaoMobile({
+  icon,
+  label,
   onClick,
   danger,
   disabled,
 }: {
-  children: React.ReactNode;
+  icon: React.ReactNode;
+  label: string;
   onClick: () => void;
   danger?: boolean;
   disabled?: boolean;
@@ -242,13 +278,48 @@ function MenuItem({
       disabled={disabled}
       onClick={onClick}
       className={[
-        'block w-full px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        'flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left text-[15px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        danger
+          ? 'text-danger active:bg-danger/10'
+          : 'text-foreground active:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
+      ].join(' ')}
+    >
+      <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function MenuItem({
+  children,
+  onClick,
+  danger,
+  disabled,
+  icon,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  /** Ícone à esquerda, como na referência (olho · documento · impressora · lixeira). */
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
         danger
           ? 'text-danger hover:bg-danger/10'
           : 'text-foreground hover:bg-[color-mix(in_oklab,var(--sp-ink)_5%,transparent)]',
       ].join(' ')}
     >
-      {children}
+      {/* Ícone herda a cor do item: no "Excluir" ele tem que ficar vermelho
+          junto com o texto, e `text-muted-ink` fixo o deixava cinza. */}
+      {icon && <span className={danger ? 'shrink-0' : 'shrink-0 text-muted-ink'}>{icon}</span>}
+      <span className="min-w-0 flex-1">{children}</span>
     </button>
   );
 }
@@ -368,6 +439,14 @@ export function ComandasPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [viewing, setViewing] = useState<OrderRow | null>(null);
   const [openPaymentsOnView, setOpenPaymentsOnView] = useState(false);
+  /**
+   * Comanda a imprimir e em que papel. Guarda o ID (não a linha) porque o
+   * recibo precisa do pedido COMPLETO — a linha da lista não traz itens nem
+   * pagamentos. `ComandaImpressao` busca por `useOrder`.
+   */
+  const [imprimindo, setImprimindo] = useState<{ id: string; modo: ModoImpressao } | null>(null);
+  /** Ações do celular para a comanda tocada no "⋮" (bottom-sheet). */
+  const [acoesMobile, setAcoesMobile] = useState<OrderRow | null>(null);
   // Clique no NOME do cliente abre o drawer do cliente (não a comanda).
   const [clienteId, setClienteId] = useState<string | null>(null);
   const cliente = useCustomer(clienteId);
@@ -449,6 +528,26 @@ export function ComandasPage() {
   const ids = useMemo(() => pageRows.map((o) => o.id), [pageRows]);
   const sel = useSelectMode(ids);
 
+  /**
+   * Trocou o recorte (qualquer filtro OU a página) → sai do modo e limpa a
+   * seleção. Mesmo padrão do ContasPage.tsx:662-666 ao trocar de aba.
+   *
+   * Sem isto o `Set` do useSelectMode é acumulativo e sobrevive à troca de
+   * tela: marcar 20 comandas de julho, mudar o período para agosto e clicar
+   * "Excluir selecionadas" CANCELAVA as 20 de julho — que nem estavam na lista.
+   * E é irreversível: o backend grava status 'canceled' e só comanda
+   * 'finished' pode ser reaberta. Entre páginas era pior de perceber, porque
+   * `allSelected`/`selectAll` do hook só enxergam os ids VISÍVEIS: o checkbox
+   * do cabeçalho voltava DESMARCADO com 20 comandas ainda marcadas por baixo.
+   *
+   * A seleção agora vale só para o que está na tela — que é exatamente o que a
+   * barra "Ações (N)" e o "Selecionar todos" prometem.
+   */
+  useEffect(() => {
+    sel.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showExcluidas, range.from, range.to, customerId, payFilter, payMethods, search, page]);
+
   async function handleRemove(o: OrderRow) {
     const ok = await confirm({
       title: `Excluir comanda #${o.number}?`,
@@ -467,9 +566,49 @@ export function ComandasPage() {
   async function handleRemoveSelected() {
     const idsToDelete = [...sel.selected];
     if (idsToDelete.length === 0) return;
+    /**
+     * O diálogo LISTA o que vai ser cancelado (número, cliente, data e valor) e
+     * soma o total. Confirmar uma contagem — "Excluir 20 comanda(s)?" — não dá
+     * ao dono nenhuma chance de perceber que marcou a comanda errada, e aqui
+     * não há desfazer: excluir grava status 'canceled' e só comanda
+     * 'finished' pode ser reaberta. Ação destrutiva em dinheiro se confirma
+     * olhando o dinheiro.
+     */
+    const alvos = idsToDelete
+      .map((id) => allRows.find((o) => o.id === id))
+      .filter((o): o is OrderRow => Boolean(o));
+    const somaAlvos = alvos.reduce((soma, o) => soma + Number(o.netTotal ?? 0), 0);
     const ok = await confirm({
       title: `Excluir ${idsToDelete.length} comanda(s) selecionada(s)?`,
-      message: 'Essa ação não pode ser desfeita.',
+      message: (
+        <div className="flex flex-col gap-2">
+          <span>Essa ação não pode ser desfeita. Serão excluídas:</span>
+          <ul className="max-h-48 overflow-y-auto rounded-lg border border-line bg-canvas px-2 py-1.5">
+            {alvos.map((o) => (
+              <li key={o.id} className="flex items-baseline justify-between gap-3 py-0.5">
+                <span className="min-w-0 truncate">
+                  #{o.number} · {o.customer?.name ?? 'Avulso'} · {formatDate(o.date)}
+                </span>
+                <span className="shrink-0 tabular-nums">{formatMoney(o.netTotal)}</span>
+              </li>
+            ))}
+          </ul>
+          {/* Não deveria acontecer (a seleção é limpa a cada troca de recorte),
+              mas se algum id selecionado não estiver mais na lista carregada é
+              melhor dizer do que sumir com a linha e mostrar um total menor do
+              que o que será excluído. */}
+          {alvos.length < idsToDelete.length && (
+            <span>
+              E mais {idsToDelete.length - alvos.length} comanda(s) que não estão
+              na lista carregada.
+            </span>
+          )}
+          <span className="font-semibold text-ink">
+            {alvos.length < idsToDelete.length ? 'Total das listadas' : 'Total'}:{' '}
+            {formatMoney(somaAlvos)}
+          </span>
+        </div>
+      ),
       confirmLabel: 'Excluir',
       danger: true,
     });
@@ -858,7 +997,8 @@ export function ComandasPage() {
                         <td className={`${td} text-center`} onClick={(e) => e.stopPropagation()}>
                           <RowMenu
                             onView={() => setViewing(o)}
-                            onEdit={() => setViewing(o)}
+                            onPrint={() => setImprimindo({ id: o.id, modo: 'a4' })}
+                            onThermal={() => setImprimindo({ id: o.id, modo: 'termica' })}
                             onRemove={() => handleRemove(o)}
                             disableRemove={o.status === 'canceled' || del.isPending}
                           />
@@ -915,12 +1055,28 @@ export function ComandasPage() {
                   else setViewing(o);
                 };
                 return (
-                  <li key={o.id}>
+                  <li key={o.id} className="relative">
+                    {/* Mesmas ações do desktop no celular (Ver · Imprimir ·
+                        Impressão térmica · Excluir). O Belasis mobile esconde
+                        isso atrás de um swipe; aqui é um "⋮" visível, que não
+                        depende de descobrir o gesto. Fora do <button> do cartão
+                        porque botão dentro de botão é HTML inválido. */}
+                    {!sel.selectMode && (
+                      <button
+                        type="button"
+                        aria-label={`Ações da comanda #${o.number}`}
+                        onClick={() => setAcoesMobile(o)}
+                        className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-lg p-2 text-muted-ink active:bg-[color-mix(in_oklab,var(--sp-ink)_6%,transparent)]"
+                      >
+                        <MenuIcon />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={onCardClick}
                       className={[
                         'flex w-full items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[var(--shadow-soft)] transition-colors',
+                        sel.selectMode ? '' : 'pr-10',
                         isSelected
                           ? 'border-[var(--sp-primary)] bg-[color-mix(in_oklab,var(--sp-primary)_5%,white)]'
                           : 'border-[var(--color-soft-border)] active:bg-[color-mix(in_oklab,var(--sp-primary)_4%,white)]',
@@ -984,6 +1140,62 @@ export function ComandasPage() {
           setViewing(null);
           setOpenPaymentsOnView(false);
         }}
+      />
+
+      {/* Ações da comanda no celular — o mesmo menu do desktop, em bottom-sheet. */}
+      <Drawer
+        isOpen={acoesMobile !== null}
+        onClose={() => setAcoesMobile(null)}
+        title={acoesMobile ? `Comanda #${acoesMobile.number}` : 'Comanda'}
+        placement="bottom"
+      >
+        <div className="flex flex-col">
+          <AcaoMobile
+            icon={<IconEye size={18} />}
+            label="Ver comanda"
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) setViewing(o);
+            }}
+          />
+          <AcaoMobile
+            icon={<IconFileText size={18} />}
+            label="Imprimir"
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) setImprimindo({ id: o.id, modo: 'a4' });
+            }}
+          />
+          <AcaoMobile
+            icon={<IconPrinter size={18} />}
+            label="Impressão térmica"
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) setImprimindo({ id: o.id, modo: 'termica' });
+            }}
+          />
+          <AcaoMobile
+            danger
+            icon={<IconTrash size={18} />}
+            label="Excluir"
+            disabled={acoesMobile?.status === 'canceled' || del.isPending}
+            onClick={() => {
+              const o = acoesMobile;
+              setAcoesMobile(null);
+              if (o) handleRemove(o);
+            }}
+          />
+        </div>
+      </Drawer>
+
+      {/* Recibo da comanda (A4 ou bobina). Só existe na árvore enquanto imprime. */}
+      <ComandaImpressao
+        orderId={imprimindo?.id ?? null}
+        modo={imprimindo?.modo ?? 'a4'}
+        onDone={() => setImprimindo(null)}
       />
 
       {/* Perfil do cliente — aberto ao clicar no NOME do cliente numa linha. */}
@@ -1105,10 +1317,14 @@ export function NovoComandaDrawer({
     professionalItems.find((p) => p.id === id)?.name ?? '';
 
   const [selectedCustomer, setSelectedCustomer] = useState<PickedCustomer | null>(null);
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState('');
   const [date, setDate] = useState(() => isoDate(new Date()));
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<StagedItem[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Cadastro de cliente aberto por cima do picker, sem sair da comanda. Estudo 155.
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false);
+  const [novoClienteNome, setNovoClienteNome] = useState('');
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [editingUid, setEditingUid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1118,16 +1334,39 @@ export function NovoComandaDrawer({
   useEffect(() => {
     if (isOpen) {
       setSelectedCustomer(null);
+      setSelectedProfessionalId('');
       setDate(isoDate(new Date()));
       setNotes('');
       setItems([]);
       setPickerOpen(false);
+      setNovoClienteOpen(false);
+      setNovoClienteNome('');
       setItemPickerOpen(false);
       setEditingUid(null);
       setError(null);
       setSaving(false);
     }
   }, [isOpen]);
+
+  // Há trabalho para perder? O drawer "Nova comanda" é o único caminho em que a
+  // comanda vive só em memória até o Salvar — pela agenda ou pelo perfil da
+  // cliente ela já nasce persistida. Ver estudo 154.
+  const temRascunho =
+    Boolean(selectedCustomer) || items.length > 0 || notes.trim().length > 0;
+
+  // Fechar descartava tudo em silêncio: Cancelar, ESC e clique no fundo. Agora
+  // só o drawer VAZIO fecha direto — quem só abriu por engano não é atrapalhado.
+  function fecharComAviso() {
+    if (!temRascunho) {
+      onClose();
+      return;
+    }
+    const descartar = window.confirm(
+      'Esta comanda ainda não foi salva. Se sair agora, o que você preencheu será perdido.\n\n' +
+        'Cancele e use "Salvar rascunho" para terminar depois.\n\nDescartar mesmo assim?',
+    );
+    if (descartar) onClose();
+  }
 
   const editingItem = items.find((i) => i.uid === editingUid) ?? null;
 
@@ -1143,7 +1382,9 @@ export function NovoComandaDrawer({
         kind: picked.kind,
         refId: picked.refId,
         name: picked.name,
-        professionalId: '',
+        // Herda o profissional escolhido no cabeçalho da comanda (pode ser
+        // trocado item a item no editor). Sem profissional no cabeçalho → vazio.
+        professionalId: selectedProfessionalId || '',
         quantity: 1,
         unitPrice: picked.unitPrice,
         discount: 0,
@@ -1175,6 +1416,7 @@ export function NovoComandaDrawer({
       // Cabeçalho + itens são persistidos atomicamente pela API.
       const order = await create.mutateAsync({
         customerId: selectedCustomer?.id || undefined,
+        professionalId: selectedProfessionalId || undefined,
         date: new Date(`${date}T12:00:00`).toISOString(),
         notes: notes.trim() || undefined,
         items: items.map((it) => ({
@@ -1203,21 +1445,26 @@ export function NovoComandaDrawer({
   return (
     <Drawer
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={fecharComAviso}
       title="Nova comanda"
       // Belasis: content-wrapper renderiza 1650px (near-fullscreen), cap em 95vw.
       widthClass="sm:w-[1180px] lg:w-[1650px] sm:max-w-[95vw]"
       fullscreen
       footer={
         <>
-          <Button variant="ghost" className="mr-auto text-muted-ink" onClick={onClose}>
-            <IconInfo size={16} /> Ajuda
-          </Button>
-          <Button variant="outline" onClick={onClose}>
+          {/* Aqui havia um botão "Ajuda" que chamava onClose: clicar em Ajuda
+              DESCARTAVA a comanda inteira, e não existia ajuda nenhuma. No
+              lugar dele, a frase que responde o que o dono perguntou — que dá
+              para guardar e terminar depois. Ver estudo 154. */}
+          <span className="mr-auto hidden max-w-[26rem] text-xs leading-tight text-muted-ink sm:block">
+            <IconInfo size={14} className="mr-1 inline align-[-2px]" />
+            "Salvar rascunho" guarda a comanda aberta para você terminar depois.
+          </span>
+          <Button variant="outline" onClick={fecharComAviso}>
             Cancelar
           </Button>
           <Button variant="primary" isDisabled={saving} onClick={() => handleSave(false)}>
-            {saving ? 'Salvando…' : 'Salvar'}
+            {saving ? 'Salvando…' : 'Salvar rascunho'}
           </Button>
           <Button variant="primary" isDisabled={saving} onClick={() => handleSave(true)}>
             <IconCheck size={16} /> Faturar
@@ -1230,6 +1477,31 @@ export function NovoComandaDrawer({
         isOpen={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={(c) => setSelectedCustomer(c)}
+        // Cadastro rápido (nome + telefone) dentro do próprio picker, igual ao
+        // agendamento — o dono recusou o cadastro completo aqui. Estudo 155.
+        permitirCadastro
+        onCadastroCompleto={(nome) => {
+          setNovoClienteNome(nome);
+          setNovoClienteOpen(true);
+        }}
+      />
+      {/* Escape para quem precisa de CPF/endereço na hora: sobe acima do picker
+          (z-[90]) e, ao salvar, a cliente já entra escolhida. Estudo 155. */}
+      <CustomerCreateModal
+        isOpen={novoClienteOpen}
+        zClass="z-[95]"
+        initialName={novoClienteNome}
+        onClose={() => setNovoClienteOpen(false)}
+        onCreated={(c) => {
+          setSelectedCustomer({
+            id: c.id,
+            name: c.name,
+            phone: c.phone ?? undefined,
+            avatarUrl: c.avatarUrl ?? undefined,
+          });
+          setNovoClienteOpen(false);
+          setPickerOpen(false);
+        }}
       />
       <ItemPickerDrawer
         isOpen={itemPickerOpen}
@@ -1284,6 +1556,24 @@ export function NovoComandaDrawer({
                   <IconChevron size={16} className="shrink-0 text-muted" />
                 </button>
               )}
+            </Field>
+
+            {/* Profissional da comanda (Order.professionalId). Vira o padrão dos
+                itens adicionados; cada item ainda pode ser trocado no editor. */}
+            <Field label="Profissional" className="col-span-2">
+              <select
+                value={selectedProfessionalId}
+                onChange={(e) => setSelectedProfessionalId(e.target.value)}
+                aria-label="Profissional"
+                className={numInputCls}
+              >
+                <option value="">Sem profissional</option>
+                {professionalItems.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <Field label="Data">
@@ -1464,9 +1754,11 @@ function EditItemDrawer({
     }
   }, [item]);
 
-  const qtyN = Math.max(1, Math.floor(Number(quantity) || 1));
-  const priceN = Math.max(0, Number(unitPrice) || 0);
-  const discN = Math.max(0, Number(discount) || 0);
+  // parseNum (não Number): aceita "12,50" no formato brasileiro. Com Number(),
+  // "12,50" virava NaN → `|| 0` → o item entrava com preço zero.
+  const qtyN = Math.max(1, Math.floor(parseNum(quantity) || 1));
+  const priceN = Math.max(0, parseNum(unitPrice));
+  const discN = Math.max(0, parseNum(discount));
   const total = Math.max(0, qtyN * priceN - discN);
 
   return (
@@ -1635,6 +1927,14 @@ export function VerComandaDrawer({
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [addingDiscount, setAddingDiscount] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Rodapé "Outros ▲" (Belasis): menu com Histórico e Excluir.
+  const [outrosOpen, setOutrosOpen] = useState(false);
+  const [historicoOpen, setHistoricoOpen] = useState(false);
+  const del = useDeleteOrder();
+  const confirmDialog = useConfirm();
+  // DELETE /orders/:id exige 'comandas:delete' — esconder evita um 403 confuso.
+  const { can: canDo } = useCan();
+  const canDeleteOrder = canDo('comandas:delete');
 
   const editingItem = detail?.items.find((i) => i.id === editingItemId) ?? null;
 
@@ -1645,7 +1945,35 @@ export function VerComandaDrawer({
     setPaymentsOpen(false);
     setAddingDiscount(false);
     setError(null);
+    setOutrosOpen(false);
+    setHistoricoOpen(false);
   }, [order?.id]);
+
+  /** "Excluir" do menu Outros — confirma, apaga e fecha o drawer. */
+  async function handleDeleteOrder() {
+    if (!order) return;
+    // Texto honesto: o backend CANCELA com estorno (não apaga a linha) — a
+    // comanda continua no histórico como Cancelada, e pagamentos, crédito/
+    // cashback e baixa de estoque são revertidos.
+    const ok = await confirmDialog({
+      title: `Excluir a comanda #${order.number}?`,
+      message:
+        'A comanda será cancelada e os lançamentos serão estornados (pagamentos, crédito/cashback e baixa de estoque). Ela continua visível no histórico como Cancelada.',
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Voltar',
+      danger: true,
+    });
+    if (!ok) return;
+    setError(null);
+    try {
+      await del.mutateAsync(order.id);
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError ? err.message : 'Não foi possível excluir a comanda.',
+      );
+    }
+  }
 
   const editable = detail?.status === 'open';
 
@@ -1657,6 +1985,9 @@ export function VerComandaDrawer({
         refId: picked.refId,
         unitPrice: picked.unitPrice,
         quantity: 1,
+        // Herda o profissional do cabeçalho (senão o item entra sem profissional
+        // e não gera comissão). Continua editável item a item.
+        ...(detail?.professionalId ? { professionalId: detail.professionalId } : {}),
       });
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Não foi possível adicionar o item.');
@@ -1704,11 +2035,53 @@ export function VerComandaDrawer({
       onClose={onClose}
       title={order ? `Visualizando comanda #${order.number}` : 'Comanda'}
       widthClass="sm:w-[560px]"
+      fullscreen
       footer={
         <>
-          <Button variant="outline" className="mr-auto" onClick={onClose}>
-            Fechar
-          </Button>
+          {/* "Outros ▲" (Belasis): Histórico + Excluir. Abre PARA CIMA, pois o
+              rodapé fica colado na base do drawer/bottom-sheet. */}
+          <div className="relative mr-auto">
+            <Button variant="outline" onClick={() => setOutrosOpen((v) => !v)}>
+              Outros {outrosOpen ? '▾' : '▴'}
+            </Button>
+            <div
+              role="menu"
+              aria-hidden={!outrosOpen}
+              className={[
+                'absolute bottom-full left-0 z-20 mb-2 w-48 origin-bottom overflow-hidden rounded-lg border border-[var(--color-soft-border)] bg-warm-white py-1 shadow-[var(--shadow-pop)]',
+                'transition-all duration-200 ease-out',
+                outrosOpen
+                  ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+                  : 'pointer-events-none translate-y-1 scale-[0.98] opacity-0',
+              ].join(' ')}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOutrosOpen(false);
+                  setHistoricoOpen((v) => !v);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-canvas"
+              >
+                <IconCalendar size={15} className="text-muted" /> Histórico
+              </button>
+              {canDeleteOrder && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={del.isPending}
+                  onClick={() => {
+                    setOutrosOpen(false);
+                    void handleDeleteOrder();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
+                >
+                  <IconTrash size={15} /> {del.isPending ? 'Excluindo…' : 'Excluir'}
+                </button>
+              )}
+            </div>
+          </div>
           {detail?.status === 'open' && (
             <Button
               variant="primary"
@@ -1820,33 +2193,45 @@ export function VerComandaDrawer({
                     key={it.id}
                     className="flex items-center gap-2 border-b border-[var(--color-soft-border)] px-3 py-2.5 last:border-b-0"
                   >
+                    {/* O item SEMPRE abre o drawer — inclusive em comanda
+                        finalizada/cancelada, onde ele entra em modo leitura
+                        (ItemEditDrawer recebe `editable`). Antes o botão ficava
+                        disabled quando a comanda não estava aberta e o clique
+                        simplesmente não fazia nada. */}
                     <button
                       type="button"
-                      disabled={!editable}
                       onClick={() => setEditingItemId(it.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:cursor-default"
+                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                     >
+                      {/* Badge de quantidade (Belasis): pílula "1x" sempre
+                          visível, na cor primária, no lugar do ícone. */}
+                      <span className="grid h-7 min-w-7 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                        {Number(it.quantity)}x
+                      </span>
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cream text-primary/80">
                         <Icon size={17} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-medium text-foreground">{name}</span>
+                          {/* Destaque de clicável: cor primária + sublinhado. */}
+                          <span className="truncate text-sm font-semibold text-primary underline decoration-primary/40 underline-offset-2">
+                            {name}
+                          </span>
                           <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
                             {formatMoney(lineTotal(it))}
                           </span>
                         </span>
                         <span className="mt-0.5 flex items-center gap-1 text-xs text-muted">
                           <IconUser size={12} />
+                          {/* Quantidade já aparece no badge "Nx" à esquerda. */}
                           <span className="truncate">
                             {it.professionalName || 'Sem profissional'}
-                            {Number(it.quantity) !== 1 && ` · ${Number(it.quantity)}×`}
                           </span>
                         </span>
                       </span>
-                      {editable && (
-                        <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
-                      )}
+                      {/* Chevron sempre visível: sinaliza que o item abre, como
+                          na referência (mesmo em comanda já finalizada). */}
+                      <IconChevron size={16} className="shrink-0 -rotate-90 text-muted" />
                     </button>
                     {editable && (
                       <button
@@ -1922,6 +2307,45 @@ export function VerComandaDrawer({
             <TotalLine label="Total pago" value={formatMoney(paidTotal)} />
             <TotalLine label="Restante" value={formatMoney(remaining)} />
           </section>
+
+          {/* Histórico (menu "Outros" → Histórico). Usa o statusHistory que já
+              vem no detalhe da comanda — sem request extra. */}
+          {historicoOpen && (
+            <section className="flex flex-col gap-2 rounded-xl border border-[var(--color-soft-border)] bg-canvas p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">Histórico</span>
+                <button
+                  type="button"
+                  onClick={() => setHistoricoOpen(false)}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Ocultar
+                </button>
+              </div>
+              {detail.statusHistory.length === 0 ? (
+                <p className="text-sm text-muted">Nenhuma alteração registrada.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {detail.statusHistory.map((h) => (
+                    <li key={h.id} className="flex items-start gap-2 text-sm">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-foreground">
+                          {h.fromStatus
+                            ? `${ORDER_STATUS_LABEL[h.fromStatus] ?? h.fromStatus} → ${ORDER_STATUS_LABEL[h.toStatus] ?? h.toStatus}`
+                            : (ORDER_STATUS_LABEL[h.toStatus] ?? h.toStatus)}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          {formatDateTime(h.at)}
+                          {h.byUser?.name ? ` · ${h.byUser.name}` : ''}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
 
           {error && <FormError message={error} />}
         </div>

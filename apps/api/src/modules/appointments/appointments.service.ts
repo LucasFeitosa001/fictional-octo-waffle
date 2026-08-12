@@ -13,6 +13,7 @@ import {
   CreateAppointmentSeriesDto,
   UpdateAppointmentDto,
   StatusDto,
+  SendAppointmentConfirmationDto,
 } from './dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationSettingsService } from '../notifications/notification-settings.service';
@@ -20,9 +21,72 @@ import { AppointmentEvent } from '../notifications/notifications.templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
 import { QueuesService } from '../queues/queues.service';
+import {
+  FollowUpSenderService,
+  MODELOS_DE_ACOMPANHAMENTO,
+} from '../queues/follow-up-sender.service';
+import {
+  CONFIRMATION_TEMPLATE_VARIABLES,
+  confirmationTemplateVariables,
+  renderConfirmationTemplate,
+  unresolvedConfirmationVariables,
+} from '../notifications/confirmation.templates';
 
 // Slot generation granularity (minutes) for the availability grid.
 const SLOT_STEP_MIN = 15;
+
+/**
+ * Um horário da grade. `busy` só vem preenchido quando o chamador pediu
+ * `includeBusy` ("Encaixar agendamento"): aí o horário OCUPADO volta na lista,
+ * mas marcado — a recepção precisa ver que está marcando em cima de alguém.
+ */
+type Slot = { start: string; end: string; busy?: boolean };
+
+/**
+ * POR QUE a lista de horários voltou vazia. Ver estudo 99.
+ *
+ * `availability` devolvia `slots: []` com HTTP 200 em cinco situações bem
+ * diferentes e quem consumia não tinha como distinguir "id de serviço inválido"
+ * de "salão lotado". A IA da Voltr leu uma lista vazia por serviço desconhecido
+ * como "não há horário livre" e disse isso à cliente — num dia com 33 horários
+ * livres. O motivo viaja junto para a ponte poder dizer a verdade.
+ *
+ * O campo é ADITIVO e só aparece quando `slots` está vazio: quem já consome
+ * (painel, agendamento online) continua lendo só `slots`.
+ */
+export type AvailabilityEmptyReason =
+  /** Ninguém informou profissional — sem ele não há agenda concreta. */
+  | 'sem_profissional'
+  /** O serviço pedido não existe nesta empresa (ou foi apagado). */
+  | 'servico_desconhecido'
+  /** O serviço existe, mas este profissional não o executa. */
+  | 'profissional_nao_vinculado'
+  /** O profissional não tem expediente cadastrado neste dia da semana. */
+  | 'sem_expediente'
+  /** Havia expediente: acabou ocupado ou já passou. Este SIM é "dia cheio". */
+  | 'sem_vaga';
+
+export const AVAILABILITY_EMPTY_REASON_TEXT: Record<AvailabilityEmptyReason, string> = {
+  sem_profissional: 'Nenhum profissional foi informado.',
+  servico_desconhecido: 'Este serviço não existe neste salão.',
+  profissional_nao_vinculado: 'Este profissional não executa este serviço.',
+  sem_expediente: 'Este profissional não atende neste dia.',
+  sem_vaga: 'Não sobrou horário livre neste dia.',
+};
+
+/**
+ * O retorno de `availability`. `motivo`/`motivoTexto` só vêm quando `slots`
+ * está vazio — o formato antigo continua intacto para quem já consome.
+ */
+export type AvailabilityResult = {
+  date: string;
+  serviceId: string | null;
+  professionalId: string | null;
+  slots: Slot[];
+  motivo?: AvailabilityEmptyReason;
+  motivoTexto?: string;
+};
+
 // Default duration (minutes) when no service is provided.
 const DEFAULT_DURATION_MIN = 30;
 
@@ -58,6 +122,7 @@ export class AppointmentsService {
     private readonly email: EmailService,
     private readonly queues: QueuesService,
     private readonly settings: NotificationSettingsService,
+    private readonly followUpSender: FollowUpSenderService,
   ) {}
 
   async list(
@@ -106,7 +171,15 @@ export class AppointmentsService {
 
     const data = await this.prisma.client.appointment.findMany({
       where,
-      include: { customer: true, professional: true, items: true },
+      include: {
+        customer: true,
+        professional: true,
+        items: true,
+        // Comanda já gerada por este agendamento. É o que permite a tela
+        // dizer "Acessar comanda #N" em vez de oferecer "acessar" o que não
+        // existe. Ver estudo 52.
+        order: { select: { id: true, number: true, status: true } },
+      },
       orderBy: { start: 'asc' },
     });
     return { data, page: 1, pageSize: data.length, total: data.length };
@@ -152,16 +225,536 @@ export class AppointmentsService {
           ? { professionalId: scopeProfessionalId }
           : {}),
       },
-      include: { items: true, statusHistory: true },
+      include: {
+        items: true,
+        statusHistory: true,
+        order: { select: { id: true, number: true, status: true } },
+        // Cliente e profissional: sem eles o deep-link do sino
+        // (/agenda?appointmentId=…) abria o drawer com "Sem cliente" e "Sem
+        // telefone" num agendamento que TEM cliente. Ver estudo 59.
+        customer: true,
+        professional: true,
+      },
     });
     if (!found) throw new NotFoundException('Agendamento não encontrado');
     return found;
   }
 
+  /**
+   * Dados do drawer de confirmação: autorização efetiva, modelos, preview e
+   * histórico com ACK real do WhatsApp. Tudo escopado por company/profissional.
+   */
+  async confirmationSetup(
+    companyId: string,
+    id: string,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      id,
+      scopeProfessionalId,
+    );
+    const [automation, templateSettings, logs, followUpCfg, followUpPreview] =
+      await Promise.all([
+        this.settings.get(companyId),
+        this.settings.getConfirmationTemplates(companyId),
+        this.confirmationLogs(companyId, id),
+        this.settings.getFollowUp(companyId),
+        // Prévia do acompanhamento com o texto atual da empresa. A tela precisa
+        // MOSTRAR o que vai sair antes de mandar — o botão antigo disparava sem
+        // prévia nenhuma. Ver estudo 86.
+        this.followUpSender.previaManual(companyId, id),
+      ]);
+    const variables = confirmationTemplateVariables({
+      companyName: appointment.company.name,
+      timezone: appointment.company.timezone,
+      customerName: appointment.customer?.name ?? null,
+      professionalName: appointment.professional?.name ?? null,
+      serviceNames: appointment.items.map((item) => item.service.name),
+      start: appointment.start,
+    });
+    const selectedTemplate =
+      templateSettings.templates.find(
+        (template) => template.id === templateSettings.defaultTemplateId,
+      ) ?? templateSettings.templates[0];
+    return {
+      authorization: {
+        companyDefault: automation.confirmation,
+        appointment: appointment.notifyConfirmation,
+        allowed:
+          appointment.notifyConfirmation ?? automation.confirmation,
+      },
+      recipient: {
+        customerId: appointment.customerId,
+        name: appointment.customer?.name ?? null,
+        phone: appointment.customer?.phone ?? null,
+        notificationsEnabled:
+          appointment.customer?.notificationsEnabled ?? null,
+        whatsappOptIn: appointment.customer?.whatsappOptIn ?? null,
+      },
+      variables,
+      ...templateSettings,
+      preview: selectedTemplate
+        ? renderConfirmationTemplate(selectedTemplate.message, variables)
+        : '',
+      // Bloco do ACOMPANHAMENTO: modelos, texto atual, prévia e o que está
+      // configurado para o automático — o dono pediu ver o prazo sem precisar
+      // abrir Configurações. Ver estudo 86.
+      followUp: {
+        enabled: followUpCfg.enabled,
+        templates: MODELOS_DE_ACOMPANHAMENTO,
+        // A config guarda o TEXTO, não um id de modelo: os modelos da lista
+        // servem para preencher o campo na tela, não para ficar gravados.
+        message: followUpCfg.message,
+        includeBookingLink: followUpCfg.includeBookingLink,
+        preview: followUpPreview ?? '',
+        agendado: {
+          prazoValor: followUpCfg.delayValue,
+          prazoUnidade: followUpCfg.delayUnit,
+          repete: followUpCfg.recurring,
+          repeteValor: followUpCfg.recurringValue,
+          repeteUnidade: followUpCfg.recurringUnit,
+          maximo: followUpCfg.maxRecurrences,
+        },
+      },
+      logs,
+    };
+  }
+
+  /**
+   * Enfileira UMA confirmação explicitamente autorizada. O requestKey torna
+   * retries idempotentes; uma confirmação anterior exige confirmação adicional
+   * de reenvio e uma linha ainda pendente nunca é duplicada.
+   */
+  async sendConfirmation(
+    companyId: string,
+    id: string,
+    dto: SendAppointmentConfirmationDto,
+    scopeProfessionalId?: string,
+  ) {
+    // Valida tenant e escopo profissional antes até mesmo de responder a um
+    // retry idempotente. A requestKey é opaca, mas nunca deve contornar acesso.
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      id,
+      scopeProfessionalId,
+    );
+    const priorRequest =
+      await this.prisma.client.whatsappOutbox.findUnique({
+        where: {
+          companyId_requestKey: {
+            companyId,
+            requestKey: dto.requestKey,
+          },
+        },
+        select: { id: true, appointmentId: true, status: true },
+      });
+    if (priorRequest) {
+      if (priorRequest.appointmentId !== id) {
+        throw new ConflictException(
+          'Esta chave de envio já foi usada em outro agendamento.',
+        );
+      }
+      return {
+        id: priorRequest.id,
+        status: priorRequest.status,
+        deduplicated: true,
+      };
+    }
+
+    const customer = appointment.customer;
+    if (!customer?.phone?.trim()) {
+      throw new BadRequestException(
+        'Cadastre um telefone para a cliente antes de enviar a confirmação.',
+      );
+    }
+    if (
+      customer.notificationsEnabled === false ||
+      customer.whatsappOptIn === false
+    ) {
+      throw new BadRequestException(
+        'A cliente optou por não receber mensagens no WhatsApp.',
+      );
+    }
+
+    const templateSettings =
+      await this.settings.getConfirmationTemplates(companyId);
+    const templateId =
+      dto.templateId?.trim() || templateSettings.defaultTemplateId;
+    const selectedTemplate = templateSettings.templates.find(
+      (template) => template.id === templateId,
+    );
+    if (!selectedTemplate && !dto.message?.trim()) {
+      throw new BadRequestException('Selecione um modelo de confirmação válido.');
+    }
+    const source = dto.message?.trim() || selectedTemplate?.message || '';
+    if (!source) {
+      throw new BadRequestException('Escreva a mensagem de confirmação.');
+    }
+    const allowedVariables = new Set<string>(CONFIRMATION_TEMPLATE_VARIABLES);
+    const unknownVariables = unresolvedConfirmationVariables(source).filter(
+      (variable) => !allowedVariables.has(variable),
+    );
+    if (unknownVariables.length > 0) {
+      throw new BadRequestException(
+        `Variável não reconhecida na mensagem: {${unknownVariables[0]}}.`,
+      );
+    }
+    const variables = confirmationTemplateVariables({
+      companyName: appointment.company.name,
+      timezone: appointment.company.timezone,
+      customerName: customer.name,
+      professionalName: appointment.professional?.name ?? null,
+      serviceNames: appointment.items.map((item) => item.service.name),
+      start: appointment.start,
+    });
+    const message = renderConfirmationTemplate(source, variables);
+    if (!message || message.length > 2_000) {
+      throw new BadRequestException(
+        'A mensagem final deve ter entre 1 e 2000 caracteres.',
+      );
+    }
+
+    const previous =
+      await this.prisma.client.whatsappOutbox.findFirst({
+        where: {
+          companyId,
+          appointmentId: id,
+          kind: 'confirmation',
+          text: message,
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          inboxMessage: { select: { status: true } },
+        },
+      });
+    const previousStatus =
+      previous?.inboxMessage?.status ?? previous?.status ?? null;
+    if (previousStatus === 'pending') {
+      throw new ConflictException(
+        'Esta confirmação já está na fila. Aguarde o envio antes de tentar novamente.',
+      );
+    }
+    if (
+      previous &&
+      ['sent', 'delivered', 'read'].includes(previousStatus ?? '') &&
+      dto.allowResend !== true
+    ) {
+      throw new ConflictException(
+        'Esta confirmação já foi enviada. Confirme o reenvio somente se a cliente solicitar.',
+      );
+    }
+
+    // A ação autenticada + authorize=true fixa a autorização específica do
+    // agendamento. Isso não altera o default da empresa nem outras mensagens.
+    if (appointment.notifyConfirmation !== true) {
+      await this.prisma.client.appointment.update({
+        where: { id },
+        data: { notifyConfirmation: true },
+      });
+    }
+
+    const queued = await this.whatsapp.enqueueText(customer.phone, message, {
+      companyId,
+      customerId: appointment.customerId ?? undefined,
+      appointmentId: id,
+      kind: 'confirmation',
+      requestKey: dto.requestKey,
+      // Uma PESSOA clicou "Enviar confirmação" para ESTE agendamento: a linha
+      // nasce autorizada e não passa pela revalidação de automação na entrega
+      // (estudo 60).
+      authorized: true,
+    });
+    if (!queued) {
+      throw new BadRequestException(
+        'O telefone da cliente é inválido para envio no WhatsApp.',
+      );
+    }
+    return queued;
+  }
+
+  /**
+   * Reenvia, por decisão de uma PESSOA, um aviso que não saiu.
+   *
+   * Existe por causa do estudo 82: a trava 1 recusa automação com o WhatsApp
+   * desconectado (e faz bem — é o que impede a rajada no reconnect), mas até
+   * então a recusa sumia e não havia como recuperar o aviso depois que a
+   * conexão voltava. Reenviar é MANUAL de propósito: automático no reconnect é
+   * exatamente o incidente que a trava previne.
+   */
+  async reenviarMensagem(
+    companyId: string,
+    appointmentId: string,
+    messageId: string,
+    requestKey: string | undefined,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      appointmentId,
+      scopeProfessionalId,
+    );
+    const linha = await this.prisma.client.whatsappOutbox.findFirst({
+      // companyId e appointmentId no WHERE, não só o id: o id sozinho deixaria
+      // reenviar mensagem de outro salão passando o identificador certo.
+      where: { id: messageId, companyId, appointmentId },
+      select: { id: true, text: true, kind: true, toPhone: true, status: true },
+    });
+    if (!linha) {
+      throw new NotFoundException('Mensagem não encontrada neste agendamento.');
+    }
+    if (!['failed', 'expired'].includes(linha.status)) {
+      throw new ConflictException(
+        linha.status === 'pending'
+          ? 'Esta mensagem ainda está na fila. Aguarde o envio.'
+          : 'Esta mensagem já foi enviada.',
+      );
+    }
+    const customer = appointment.customer;
+    if (
+      customer?.notificationsEnabled === false ||
+      customer?.whatsappOptIn === false
+    ) {
+      throw new BadRequestException(
+        'A cliente optou por não receber mensagens no WhatsApp.',
+      );
+    }
+
+    const queued = await this.whatsapp.enqueueText(linha.toPhone, linha.text, {
+      companyId,
+      customerId: appointment.customerId ?? undefined,
+      appointmentId,
+      kind: linha.kind ?? undefined,
+      requestKey,
+      // Uma pessoa clicou "Reenviar": isenta da trava 1 e da revalidação de
+      // automação na entrega, igual ao "Enviar confirmação" (estudo 60).
+      authorized: true,
+    });
+    if (!queued) {
+      throw new BadRequestException(
+        'Não foi possível reenviar: o telefone da cliente é inválido para o WhatsApp.',
+      );
+    }
+    return queued;
+  }
+
+  /**
+   * "Enviar acompanhamento agora" no visualizador do agendamento. O dono pediu
+   * poder mandar mesmo depois de finalizado, sem esperar o prazo. Estudo 84.
+   *
+   * O escopo do profissional é checado ANTES de tocar no envio — sem isto,
+   * alguém com agenda restrita mandaria mensagem de agendamento alheio.
+   */
+  async enviarAcompanhamento(
+    companyId: string,
+    id: string,
+    requestKey: string | undefined,
+    escolha: { templateId?: string; message?: string } | undefined,
+    scopeProfessionalId?: string,
+  ) {
+    await this.loadConfirmationAppointment(companyId, id, scopeProfessionalId);
+    return this.followUpSender.enviarManual(companyId, id, requestKey, escolha);
+  }
+
+  /**
+   * Mensagem LIVRE para a cliente, escrita na hora pelo salão. Ver estudo 87.
+   *
+   * Sai como `kind: 'manual'` de propósito: não é automação, então não passa
+   * pela revalidação de autorização nem expira na fila — o texto é de uma
+   * pessoa, não de uma regra. Continuam valendo opt-out, telefone válido e o
+   * registro no histórico.
+   */
+  async enviarMensagemLivre(
+    companyId: string,
+    id: string,
+    requestKey: string | undefined,
+    texto: string,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment = await this.loadConfirmationAppointment(
+      companyId,
+      id,
+      scopeProfessionalId,
+    );
+    const customer = appointment.customer;
+    if (!customer?.phone?.trim()) {
+      throw new BadRequestException(
+        'Cadastre um telefone para a cliente antes de enviar.',
+      );
+    }
+    if (
+      customer.notificationsEnabled === false ||
+      customer.whatsappOptIn === false
+    ) {
+      throw new BadRequestException(
+        'A cliente optou por não receber mensagens no WhatsApp.',
+      );
+    }
+
+    const bruto = texto?.trim() ?? '';
+    if (!bruto) throw new BadRequestException('Escreva a mensagem.');
+
+    // Mesma checagem da confirmação: variável que não existe vira texto cru na
+    // mensagem da cliente, e isso não pode passar despercebido.
+    const conhecidas = new Set<string>(CONFIRMATION_TEMPLATE_VARIABLES);
+    const desconhecidas = unresolvedConfirmationVariables(bruto).filter(
+      (v) => !conhecidas.has(v),
+    );
+    if (desconhecidas.length > 0) {
+      throw new BadRequestException(
+        `Variável não reconhecida na mensagem: {${desconhecidas[0]}}.`,
+      );
+    }
+
+    const variables = confirmationTemplateVariables({
+      companyName: appointment.company.name,
+      timezone: appointment.company.timezone,
+      customerName: customer.name,
+      professionalName: appointment.professional?.name ?? null,
+      serviceNames: appointment.items.map((item) => item.service.name),
+      start: appointment.start,
+    });
+    const message = renderConfirmationTemplate(bruto, variables);
+    if (!message || message.length > 2_000) {
+      throw new BadRequestException(
+        'A mensagem final deve ter entre 1 e 2000 caracteres.',
+      );
+    }
+
+    const fila = await this.whatsapp.enqueueText(customer.phone, message, {
+      companyId,
+      customerId: appointment.customerId ?? undefined,
+      appointmentId: id,
+      kind: 'manual',
+      requestKey,
+      authorized: true,
+    });
+    if (!fila) {
+      throw new BadRequestException(
+        'O telefone da cliente é inválido para envio no WhatsApp.',
+      );
+    }
+    return fila;
+  }
+
+  private async loadConfirmationAppointment(
+    companyId: string,
+    id: string,
+    scopeProfessionalId?: string,
+  ) {
+    const appointment =
+      await this.prisma.client.appointment.findFirst({
+        where: {
+          id,
+          companyId,
+          ...(scopeProfessionalId
+            ? { professionalId: scopeProfessionalId }
+            : {}),
+        },
+        select: {
+          id: true,
+          companyId: true,
+          customerId: true,
+          professionalId: true,
+          start: true,
+          notifyConfirmation: true,
+          company: { select: { name: true, timezone: true } },
+          customer: {
+            select: {
+              name: true,
+              phone: true,
+              notificationsEnabled: true,
+              whatsappOptIn: true,
+            },
+          },
+          // {profissional} é variável de modelo desde o estudo 61.
+          professional: { select: { name: true } },
+          items: { select: { service: { select: { name: true } } } },
+        },
+      });
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado');
+    }
+    return appointment;
+  }
+
+  private async confirmationLogs(companyId: string, appointmentId: string) {
+    const rows = await this.prisma.client.whatsappOutbox.findMany({
+      // Os TRÊS avisos do agendamento, não só a confirmação. Filtrar por
+      // 'confirmation' escondia justamente o caso que o dono foi cobrar: o
+      // cancelamento recusado pela trava 1 não aparecia em lugar nenhum da
+      // tela. Ver estudo 82.
+      where: {
+        companyId,
+        appointmentId,
+        kind: { in: ['confirmation', 'cancellation', 'reminder'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        kind: true,
+        toPhone: true,
+        text: true,
+        status: true,
+        attempts: true,
+        lastError: true,
+        createdAt: true,
+        sentAt: true,
+        inboxMessage: {
+          select: {
+            status: true,
+            sentAt: true,
+            deliveredAt: true,
+            readAt: true,
+          },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      phone: row.toPhone,
+      text: row.text,
+      status: row.inboxMessage?.status ?? row.status,
+      attempts: row.attempts,
+      error: row.lastError,
+      // A tela decide se oferece "Reenviar": só faz sentido no que não saiu.
+      podeReenviar: row.status === 'failed' || row.status === 'expired',
+      createdAt: row.createdAt,
+      sentAt: row.inboxMessage?.sentAt ?? row.sentAt,
+      deliveredAt: row.inboxMessage?.deliveredAt ?? null,
+      readAt: row.inboxMessage?.readAt ?? null,
+    }));
+  }
+
   async create(
     companyId: string,
     dto: CreateAppointmentDto,
-    opts?: { source?: AppointmentSource; status?: AppointmentStatus },
+    opts?: {
+      source?: AppointmentSource;
+      status?: AppointmentStatus;
+      /**
+       * Painel: o operador escolheu o horário numa grade que MOSTRA os ocupados,
+       * então marcar em cima é decisão consciente e não pode ser recusada.
+       * O agendamento online do cliente não passa isto — lá a proteção contra
+       * dupla marcação continua valendo integralmente.
+       */
+      allowOverlap?: boolean;
+      /**
+       * Quem originou o agendamento, com mais precisão do que `source`.
+       *
+       * `AppointmentSource` só tem `admin` e `online`, então a IA da Voltr e o
+       * formulário público do site caem os dois em `online` e ninguém consegue
+       * separar um do outro no banco. Enquanto o enum não ganha um valor novo
+       * (é migração de schema, decisão do dono — ver estudo 99), gravamos a
+       * etiqueta em `legacySource`, que é `String?`, está NULL em tudo que não
+       * veio de importação e não é lido por nenhuma tela.
+       */
+      originTag?: string;
+    },
     scopeProfessionalId?: string,
   ) {
     this.assertProfessionalScope(scopeProfessionalId, dto, true);
@@ -214,16 +807,18 @@ export class AppointmentsService {
         }
       : undefined;
 
-    // Os três controles começam com o padrão do salão, mas ficam gravados no
-    // agendamento. Assim a recepção pode mudar um horário sem alterar todos os
-    // demais; linhas antigas (NULL) continuam caindo no padrão no momento do
-    // envio.
-    const notificationDefaults = await this.settings.get(companyId);
-    const remindClient = dto.remindClient ?? notificationDefaults.reminder;
-    const notifyConfirmation =
-      dto.notifyConfirmation ?? notificationDefaults.confirmation;
-    const notifyCancellation =
-      dto.notifyCancellation ?? notificationDefaults.cancellation;
+    // Os três controles guardam SÓ a decisão explícita de uma pessoa. Quem não
+    // mexeu no toggle fica NULL, e aí quem manda é o padrão do salão lido na
+    // hora da entrega.
+    //
+    // Antes daqui saía `dto.X ?? notificationDefaults.X`, que congelava o padrão
+    // dentro da linha. Consequência: o campo nunca nascia NULL, desligar a conta
+    // não alcançava nada já criado (o dono desligou 13:27, saiu lembrete 13:30)
+    // e não dava para distinguir "autorizei este agendamento" de "o padrão era
+    // esse quando criei". Estudo 81.
+    const remindClient = dto.remindClient ?? null;
+    const notifyConfirmation = dto.notifyConfirmation ?? null;
+    const notifyCancellation = dto.notifyCancellation ?? null;
 
     // Collision check + create run in a single transaction guarded by a Postgres
     // advisory lock keyed on (companyId, professionalId). Two concurrent creates
@@ -232,7 +827,13 @@ export class AppointmentsService {
     const created = await this.prisma.client.$transaction(async (tx) => {
       if (professionalId) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}), hashtext(${professionalId}))`;
-        await this.assertNoOverlap(companyId, professionalId, start, end, undefined, tx);
+        // Encaixe. `allowOverlap` vem do PAINEL (a recepção escolheu o horário
+        // vendo que estava ocupado); `dto.squeezeIn` é o pedido explícito de
+        // quem chama. Fora esses dois casos, a proteção contra dupla marcação
+        // acidental continua de pé — é ela que segura o agendamento online.
+        if (!dto.squeezeIn && !opts?.allowOverlap) {
+          await this.assertNoOverlap(companyId, professionalId, start, end, undefined, tx);
+        }
       }
       return tx.appointment.create({
         data: {
@@ -246,6 +847,7 @@ export class AppointmentsService {
           notifyConfirmation,
           notifyCancellation,
           source: opts?.source ?? AppointmentSource.admin,
+          ...(opts?.originTag ? { legacySource: opts.originTag } : {}),
           ...(opts?.status ? { status: opts.status } : {}),
           items: itemsData,
         },
@@ -279,6 +881,7 @@ export class AppointmentsService {
     companyId: string,
     dto: CreateAppointmentSeriesDto,
     scopeProfessionalId?: string,
+    opts?: { allowOverlap?: boolean },
   ) {
     this.assertProfessionalScope(scopeProfessionalId, dto, true);
     const firstStart = new Date(dto.start);
@@ -348,12 +951,11 @@ export class AppointmentsService {
       }
     }
 
-    const notificationDefaults = await this.settings.get(companyId);
-    const remindClient = dto.remindClient ?? notificationDefaults.reminder;
-    const notifyConfirmation =
-      dto.notifyConfirmation ?? notificationDefaults.confirmation;
-    const notifyCancellation =
-      dto.notifyCancellation ?? notificationDefaults.cancellation;
+    // Mesma regra do agendamento avulso: só a decisão explícita fica gravada;
+    // NULL deixa o padrão da conta decidir na entrega. Ver estudo 81.
+    const remindClient = dto.remindClient ?? null;
+    const notifyConfirmation = dto.notifyConfirmation ?? null;
+    const notifyCancellation = dto.notifyCancellation ?? null;
     const status = dto.status as AppointmentStatus | undefined;
 
     const created = await this.prisma.client.$transaction(async (tx) => {
@@ -370,7 +972,8 @@ export class AppointmentsService {
         include: { items: true };
       }>[] = [];
       for (const occurrence of occurrences) {
-        if (professionalId) {
+        // Encaixe: mesma regra do create simples — painel escolhe, painel manda.
+        if (professionalId && !dto.squeezeIn && !opts?.allowOverlap) {
           await this.assertNoOverlap(
             companyId,
             professionalId,
@@ -507,13 +1110,23 @@ export class AppointmentsService {
     id: string,
     dto: UpdateAppointmentDto,
     scopeProfessionalId?: string,
+    opts?: { allowOverlap?: boolean },
   ) {
     const current = await this.findOne(companyId, id, scopeProfessionalId);
     this.assertProfessionalScope(scopeProfessionalId, dto);
 
     // Validate FK references up-front (clean 404 instead of a raw FK-violation 500).
     if (dto.customerId) await this.assertCustomerExists(companyId, dto.customerId);
-    if (dto.professionalId) await this.assertProfessionalExists(companyId, dto.professionalId);
+    // Só exige profissional ATIVO quando ele está de fato mudando: reeditar um
+    // agendamento antigo (data, notas) cujo profissional foi desativado depois
+    // continua funcionando.
+    if (dto.professionalId) {
+      await this.assertProfessionalExists(
+        companyId,
+        dto.professionalId,
+        dto.professionalId !== current.professionalId,
+      );
+    }
 
     const professionalId = dto.professionalId ?? current.professionalId ?? undefined;
     const start = dto.start ? new Date(dto.start) : current.start;
@@ -535,8 +1148,12 @@ export class AppointmentsService {
     // Re-validate schedule + collision when time/professional changed.
     const timeChanged = Boolean(dto.start || dto.end || dto.professionalId);
     if (professionalId && timeChanged) {
+      // Expediente vale sempre; encaixe autoriza sobrepor OUTRO agendamento, não
+      // marcar fora do horário de trabalho.
       await this.assertWithinSchedule(companyId, professionalId, start, end);
-      await this.assertNoOverlap(companyId, professionalId, start, end, id);
+      if (!dto.squeezeIn && !opts?.allowOverlap) {
+        await this.assertNoOverlap(companyId, professionalId, start, end, id);
+      }
     }
 
     const saved = await this.prisma.client.appointment.update({
@@ -607,6 +1224,12 @@ export class AppointmentsService {
   ) {
     const current = await this.findOne(companyId, id, scopeProfessionalId);
     const statusChanged = dto.status !== current.status;
+
+    // Cancelar o agendamento com comanda viva deixaria receita presa num
+    // atendimento que "não aconteceu". Mesma recusa do excluir. Ver estudo 56.
+    if (statusChanged && dto.status === AppointmentStatus.canceled) {
+      await this.assertSemComandaViva(companyId, id, 'cancelar');
+    }
 
     // Re-entering an ACTIVE status (e.g. reactivating a canceled appointment) makes
     // it occupy the agenda again — re-check for overlaps to prevent double-booking
@@ -768,8 +1391,9 @@ export class AppointmentsService {
           ``,
           `Pode responder por aqui para combinar o melhor horário. 💖`,
         ].join('\n'),
-        // Interações: sugestão de novo horário ao cliente (parte do fluxo de confirmação).
-        { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation' });
+        // Interações: sugestão de novo horário ao cliente (parte do fluxo de
+        // confirmação). Ação humana explícita do painel → autorizada (estudo 60).
+        { companyId, customerId: v.customerId ?? undefined, kind: 'confirmation', authorized: true });
       }
       if (v.customerEmail && notificationsAllowed) {
         await this.email.send({
@@ -807,12 +1431,38 @@ export class AppointmentsService {
     }
   }
 
+  /**
+   * Recusa a operação quando o agendamento tem comanda NÃO cancelada.
+   * Usado por excluir e por cancelar — ver estudo 56.
+   */
+  private async assertSemComandaViva(
+    companyId: string,
+    id: string,
+    acao: 'excluir' | 'cancelar',
+  ) {
+    const comanda = await this.prisma.client.order.findFirst({
+      where: { companyId, appointmentId: id, status: { not: 'canceled' } },
+      select: { number: true, status: true },
+    });
+    if (!comanda) return;
+    const situacao = comanda.status === 'finished' ? 'já foi faturada' : 'está aberta';
+    throw new ConflictException(
+      `Este agendamento tem a comanda #${comanda.number}, que ${situacao}. ` +
+        `Cancele ou exclua a comanda antes de ${acao} o agendamento.`,
+    );
+  }
+
   async remove(
     companyId: string,
     id: string,
     scopeProfessionalId?: string,
   ) {
     await this.findOne(companyId, id, scopeProfessionalId);
+    // Comanda é documento com dinheiro: apagar o agendamento dela desligaria o
+    // vínculo em silêncio (FK onDelete: SetNull) e a comanda ficaria órfã — o
+    // histórico do cliente volta a duplicar a visita e ninguém fica sabendo.
+    // Quem quer apagar, cancela a comanda antes. Ver estudo 56.
+    await this.assertSemComandaViva(companyId, id, 'excluir');
     // Cancel any pending reminders + custom warning before the appt is gone.
     void this.queues.cancelAppointmentReminders(id);
     void this.queues.cancelAppointmentCustomFollowUp(id);
@@ -820,21 +1470,45 @@ export class AppointmentsService {
   }
 
   // GET /availability — real free slots honoring schedule + occupation + service duration.
-  async availability(companyId: string, serviceId: string, professionalId?: string, date?: string, serviceIds?: string[]) {
+  //
+  // `includePast` (default FALSE) controla se horários já passados entram. O
+  // agendamento online precisa do default: cliente não marca no passado. Já o
+  // PAINEL passa true — o salão lança atendimento retroativo direto (esqueceram
+  // de registrar, estão migrando dados), e sem isso qualquer data anterior a
+  // hoje devolvia zero slots e a tela dizia "Nenhum horário disponível nesta
+  // data.", como se a profissional estivesse sem agenda.
+  async availability(
+    companyId: string,
+    serviceId: string,
+    professionalId?: string,
+    date?: string,
+    serviceIds?: string[],
+    opts?: { includePast?: boolean; includeBusy?: boolean },
+  ): Promise<AvailabilityResult> {
     const day = date ?? this.todayInCompanyTz(await this.companyTimezone(companyId));
     const tz = await this.companyTimezone(companyId);
 
-    const empty = { date: day, serviceId: serviceId ?? null, professionalId: professionalId ?? null, slots: [] as { start: string; end: string }[] };
+    // Lista vazia SEMPRE sai com o porquê. Antes daqui saía o mesmo objeto mudo
+    // em cinco caminhos diferentes e a ponte da IA traduzia todos como "dia sem
+    // vaga" — inclusive id de serviço inválido. Ver estudo 99.
+    const vazio = (motivo: AvailabilityEmptyReason): AvailabilityResult => ({
+      date: day,
+      serviceId: serviceId ?? null,
+      professionalId: professionalId ?? null,
+      slots: [],
+      motivo,
+      motivoTexto: AVAILABILITY_EMPTY_REASON_TEXT[motivo],
+    });
 
     // A professional is required to compute a concrete agenda.
-    if (!professionalId) return empty;
+    if (!professionalId) return vazio('sem_profissional');
 
     // Determine required duration from the requested service(s).
     let durationMin = DEFAULT_DURATION_MIN;
     const allIds = serviceIds?.length ? serviceIds : serviceId ? [serviceId] : [];
     if (allIds.length) {
       const services = await this.loadServices(companyId, allIds).catch(() => []);
-      if (!services.length) return empty; // unknown service → no slots
+      if (!services.length) return vazio('servico_desconhecido');
       durationMin = services.reduce((sum, s) => sum + s.durationMin, 0);
 
       // Validate the professional actually performs ALL requested services.
@@ -842,7 +1516,7 @@ export class AppointmentsService {
         const performs = await this.prisma.client.professionalService.findUnique({
           where: { professionalId_serviceId: { professionalId, serviceId: sid } },
         });
-        if (!performs) return empty;
+        if (!performs) return vazio('profissional_nao_vinculado');
       }
     }
 
@@ -850,10 +1524,11 @@ export class AppointmentsService {
     const weekday = this.weekdayOf(day, tz);
 
     const schedules = await this.prisma.client.professionalSchedule.findMany({
-      where: { professionalId, weekday, professional: { deletedAt: null } },
+      // `active: true` — profissional desativado não oferece horário nenhum.
+      where: { professionalId, weekday, professional: { deletedAt: null, active: true } },
       orderBy: { startTime: 'asc' },
     });
-    if (!schedules.length) return empty;
+    if (!schedules.length) return vazio('sem_expediente');
 
     // Existing non-canceled appointments overlapping the requested day.
     const dayStart = this.zonedWallClockToUtc(day, '00:00', tz);
@@ -869,7 +1544,7 @@ export class AppointmentsService {
       select: { start: true, end: true },
     });
 
-    const slots: { start: string; end: string }[] = [];
+    const slots: Slot[] = [];
     const durationMs = durationMin * 60000;
     const stepMs = SLOT_STEP_MIN * 60000;
     const now = Date.now();
@@ -881,27 +1556,33 @@ export class AppointmentsService {
       for (let t = winStart.getTime(); t + durationMs <= winEnd.getTime(); t += stepMs) {
         const slotStart = t;
         const slotEnd = t + durationMs;
-        // Skip slots already in the past.
-        if (slotEnd <= now) continue;
+        // Skip slots already in the past — salvo lançamento retroativo do painel.
+        if (!opts?.includePast && slotEnd <= now) continue;
         // Um horário só está disponível quando não sobrepõe nenhum
         // agendamento ativo do profissional. Sem este filtro a API listava
         // janelas já ocupadas e a recepcionista virtual podia oferecer um
         // horário impossível.
-        if (
-          busy.some(
-            (appointment) =>
-              appointment.start.getTime() < slotEnd &&
-              appointment.end.getTime() > slotStart,
-          )
-        ) {
-          continue;
-        }
+        const ocupado = busy.some(
+          (appointment) =>
+            appointment.start.getTime() < slotEnd &&
+            appointment.end.getTime() > slotStart,
+        );
+        // `includeBusy` = "Encaixar agendamento" ligado. Sem esta saída o
+        // encaixe era inútil na prática: o horário ocupado nem aparecia na
+        // lista, então não havia o que encaixar. O slot volta MARCADO como
+        // ocupado — a recepção precisa ver que está marcando em cima.
+        if (ocupado && !opts?.includeBusy) continue;
         slots.push({
           start: new Date(slotStart).toISOString(),
           end: new Date(slotEnd).toISOString(),
+          ...(ocupado ? { busy: true } : {}),
         });
       }
     }
+
+    // Só AQUI a lista vazia significa de fato "não sobrou horário": havia
+    // serviço, vínculo e expediente, e mesmo assim nada coube.
+    if (!slots.length) return vazio('sem_vaga');
 
     return { date: day, serviceId: serviceId ?? null, professionalId, slots };
   }
@@ -915,8 +1596,12 @@ export class AppointmentsService {
       select: { id: true },
     });
     if (!professional) {
+      // Acontece de verdade: usuário criado com o papel "profissional" mas sem
+      // vínculo com um registro de Profissional. Como TODA rota da agenda passa
+      // por aqui, o usuário fica sem abrir a agenda e sem cancelar nada. A
+      // mensagem antiga só descrevia o sintoma; esta diz como sair.
       throw new ForbiddenException(
-        'Seu usuário não está vinculado a um profissional ativo.',
+        'Seu usuário não está vinculado a um profissional ativo. Peça a um administrador para abrir Cadastros → Profissionais, editar o seu cadastro e vincular este acesso — ou conceder a permissão "Ver agenda completa" (agenda:view_all) ao seu papel.',
       );
     }
     return professional.id;
@@ -1012,13 +1697,29 @@ export class AppointmentsService {
     if (!found) throw new NotFoundException('Cliente não encontrado');
   }
 
-  // Validate the referenced professional exists within the company.
-  private async assertProfessionalExists(companyId: string, professionalId: string) {
+  /**
+   * Valida que o profissional existe na empresa.
+   *
+   * `requireActive` (padrão true) recusa profissional DESATIVADO: esconder do
+   * `<select>` não impede uma chamada direta nem um formulário com estado velho.
+   * Passe `false` quando o profissional não está sendo escolhido agora — reeditar
+   * um agendamento antigo cujo profissional foi desativado DEPOIS não pode quebrar.
+   */
+  private async assertProfessionalExists(
+    companyId: string,
+    professionalId: string,
+    requireActive = true,
+  ) {
     const found = await this.prisma.client.professional.findFirst({
       where: { id: professionalId, companyId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, active: true },
     });
     if (!found) throw new NotFoundException('Profissional não encontrado');
+    if (requireActive && !found.active) {
+      throw new BadRequestException(
+        'Profissional desativado — reative em Equipe > Profissionais para usá-lo.',
+      );
+    }
   }
 
   private async assertNoOverlap(

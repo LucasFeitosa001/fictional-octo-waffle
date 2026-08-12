@@ -14,6 +14,11 @@ export interface NotificationAutomationSettings {
   followUp: boolean;
   /** Avisar o profissional/gerente de novos agendamentos (WhatsApp). Opt-in. */
   notifyProfessional: boolean;
+  /**
+   * Avisar o cliente que agendou pela página pública. LIGADO por padrão — é a
+   * única automação que nasce ligada (estudo 153).
+   */
+  onlineBooking: boolean;
 }
 
 const NOTIFICATION_SETTINGS_KEY = ['notification-settings'] as const;

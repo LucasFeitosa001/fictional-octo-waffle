@@ -17,10 +17,13 @@ import {
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async me(userId: string) {
+  async me(userId: string, activeCompanyId?: string | null) {
     const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
-    return this.toPublicUser(user);
+    return this.toPublicUser({
+      ...user,
+      companyId: activeCompanyId ?? user.companyId,
+    });
   }
 
   /**
@@ -140,6 +143,11 @@ export class AuthService {
    * Lança 403 se o usuário não for membro da empresa alvo.
    */
   async switchCompany(userId: string, sessionId: string | null, companyId: string) {
+    if (!sessionId) {
+      throw new UnauthorizedException(
+        'Sessão ativa não encontrada; entre novamente antes de trocar de empresa.',
+      );
+    }
     const membership = await this.prisma.client.userCompany.findUnique({
       where: { userId_companyId: { userId, companyId } },
       include: {
@@ -149,12 +157,10 @@ export class AuthService {
     });
     if (!membership) throw new ForbiddenException('Sem acesso a esta empresa');
 
-    if (sessionId) {
-      await this.prisma.client.session.update({
-        where: { id: sessionId },
-        data: { activeCompanyId: companyId },
-      });
-    }
+    await this.prisma.client.session.update({
+      where: { id: sessionId },
+      data: { activeCompanyId: companyId },
+    });
     // "Última usada" — assim um novo login já cai na empresa correta.
     await this.prisma.client.user.update({
       where: { id: userId },

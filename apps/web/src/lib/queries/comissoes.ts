@@ -51,7 +51,17 @@ export interface CommissionSummaryRow {
   valorVendido: number;
   comissao: number;
   bonus: number;
+  /** Vales (adiantamentos) em aberto do profissional — descontados no pagamento. */
+  vales: number;
   total: number;
+  /** Só o que está EM ABERTO — é o subconjunto que o botão "Pagar" registra. */
+  comissaoAberta: number;
+  bonusAberto: number;
+  totalAberto: number;
+  /** Em aberto + bônus − vales, nunca negativo. É o que o botão paga. */
+  liquido: number;
+  /** Líquido do PERÍODO inteiro (inclui o já pago) — só para leitura. */
+  liquidoPeriodo: number;
   entryCount: number;
   openCount: number;
   paidCount: number;
@@ -62,7 +72,17 @@ export interface CommissionSummaryRow {
 
 export interface CommissionSummary {
   data: CommissionSummaryRow[];
-  totals: { valorVendido: number; comissao: number; bonus: number; total: number };
+  totals: {
+    valorVendido: number;
+    comissao: number;
+    bonus: number;
+    vales: number;
+    total: number;
+    comissaoAberta: number;
+    bonusAberto: number;
+    totalAberto: number;
+    liquido: number;
+  };
 }
 
 export interface CommissionEntry {
@@ -124,6 +144,8 @@ export interface CommissionDetailItem {
   baseAmount: number;
   commissionAmount: number;
   bonusAmount: number;
+  /** Parcela desta comissão repassada a auxiliares do item (0 quando o desconto sai do salão). */
+  auxiliaryDiscount: number;
   status: CommissionEntryStatus;
   signed: boolean;
   availableDate: string | null;
@@ -133,7 +155,14 @@ export interface CommissionDetailItem {
 export interface CommissionDetail {
   professional: { id: string; name: string };
   period: { from: string | null; to: string | null };
-  totals: { base: number; comissao: number; bonus: number; total: number; pago: number };
+  totals: {
+    base: number;
+    comissao: number;
+    bonus: number;
+    auxiliares: number;
+    total: number;
+    pago: number;
+  };
   signed: boolean;
   count: number;
   items: CommissionDetailItem[];
@@ -212,6 +241,16 @@ export interface BulkPaymentItem {
 export interface BulkPaymentBody {
   items: BulkPaymentItem[];
   closingId?: string;
+  /** Obrigatórios na tela: sem eles o pagamento não vira despesa no Financeiro. */
+  paymentMethodId?: string;
+  accountId?: string;
+  /** Data do pagamento (ISO). Default do backend = agora. */
+  paidAt?: string;
+  /** Trilho usado: manual (padrão) ou SalonPay. */
+  rail?: 'manual' | 'salonpay';
+  /** Período da tela — o backend quita só os lançamentos desse recorte. */
+  from?: string;
+  to?: string;
 }
 
 export interface CommissionPaymentRecord {
@@ -232,7 +271,10 @@ export interface BulkPaymentResult {
 // ---- Histórico de pagamentos ----
 export interface CommissionPayment {
   id: string;
+  /** Data em que o dinheiro saiu (escolhida pelo operador). */
   paidAt: string;
+  /** Quando o pagamento foi registrado no sistema. */
+  createdAt: string;
   professional: { id: string; name: string };
   paidByUser: { id: string; name: string } | null;
   commissionTotal: number;
@@ -405,9 +447,10 @@ export function usePayCommissionsBulk() {
 // Histórico de pagamentos
 // =====================================================================
 
-export function useCommissionPayments(filters: PaymentFilters = {}) {
+export function useCommissionPayments(filters: PaymentFilters = {}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['commission-payments', filters],
+    enabled: options?.enabled ?? true,
     queryFn: () =>
       api.get<CommissionPayment[]>('/commission-payments', {
         professionalId: filters.professionalId || undefined,

@@ -11,7 +11,6 @@ import {
   IconCopy,
   IconExternalLink,
   IconEye,
-  IconHome,
   IconInfo,
   IconScissors,
   IconSettings,
@@ -20,8 +19,8 @@ import {
   IconWhatsApp,
 } from '../../components/icons';
 import { useBookingLink, useUpdateBookingLink } from '../../lib/queries/marketing';
-import { useServices } from '../../lib/queries';
-import { useEmpresa } from '../../lib/queries/empresa';
+import { useServices, useUpdateService } from '../../lib/queries';
+import { useEmpresa, useUpdateEmpresa } from '../../lib/queries/empresa';
 import {
   WEEKDAY_LABELS,
   useAddGalleryPhoto,
@@ -147,14 +146,37 @@ function ComingSoon({ description }: { description: string }) {
 }
 
 // Fixed phone mockup that previews the public booking page (à la Belasis).
+// Moldura do celular. A página pública é desenhada para telefone REAL (390px);
+// dentro de uma moldura de 300px o conteúdo não cabia e o lado direito era
+// cortado (botão "Selecionar" e filtro sumiam, com rolagem lateral) — foi o que
+// o dono mandou na captura. Agora o iframe é renderizado em 390×823, como um
+// telefone de verdade, e ESCALADO para caber. Ver estudo 65.
+const PREVIEW_LARGURA = 360; // moldura (px)
+const PREVIEW_INTERNO = PREVIEW_LARGURA - 22; // desconta a borda de 11px
+const PREVIEW_TELEFONE = 390; // largura lógica do telefone
+const PREVIEW_ESCALA = PREVIEW_INTERNO / PREVIEW_TELEFONE;
+const PREVIEW_ALTURA_INTERNA = (PREVIEW_INTERNO * 19) / 9; // aspect-[9/19]
+const PREVIEW_ALTURA_TELEFONE = PREVIEW_ALTURA_INTERNA / PREVIEW_ESCALA;
+
 function PhonePreview({ url, active }: { url: string; active: boolean }) {
   return (
-    <div className="mx-auto w-[300px]">
+    <div className="mx-auto" style={{ width: PREVIEW_LARGURA }}>
       <div className="relative aspect-[9/19] w-full rounded-[2.4rem] border-[11px] border-black bg-black shadow-[var(--shadow-card)]">
         <div className="absolute left-1/2 top-0 z-10 h-5 w-28 -translate-x-1/2 rounded-b-2xl bg-black" />
         <div className="h-full w-full overflow-hidden rounded-[1.6rem] bg-[#141118]">
           {url && active ? (
-            <iframe title="Prévia da página pública" src={url} loading="lazy" className="h-full w-full border-0" />
+            <iframe
+              title="Prévia da página pública"
+              src={url}
+              loading="lazy"
+              className="border-0"
+              style={{
+                width: PREVIEW_TELEFONE,
+                height: PREVIEW_ALTURA_TELEFONE,
+                transform: `scale(${PREVIEW_ESCALA})`,
+                transformOrigin: 'top left',
+              }}
+            />
           ) : (
             <div className="flex h-full flex-col gap-3 px-4 pb-4 pt-8 text-white/90">
               <div className="text-center text-sm font-semibold">Sua página de agendamento</div>
@@ -220,7 +242,24 @@ type AppearanceDraft = {
   primaryColor: string;
   accentColor: string;
   backgroundColor: string;
+  photoColor: string;
+  coverUrl: string;
+  coverOverlay: number;
 };
+
+// Sugestões para o fundo da FOTO do serviço. "" = o rosa da casa (o que existe
+// hoje). Ver estudo 66.
+const PHOTO_PRESETS: { value: string; label: string }[] = [
+  { value: '', label: 'Padrão (rosa)' },
+  { value: '#F08CA5', label: 'Rosa' },
+  { value: '#C084FC', label: 'Lilás' },
+  { value: '#4F9DDE', label: 'Azul' },
+  { value: '#2FAA6A', label: 'Verde' },
+  { value: '#F2B33D', label: 'Dourado' },
+  { value: '#E9D9C3', label: 'Bege' },
+  { value: '#C9CBD1', label: 'Cinza' },
+  { value: '#2B2733', label: 'Grafite' },
+];
 
 // Campo de cor reutilizável: paleta de sugestões + seletor nativo + hex livre
 // (com prévia). "" limpa a cor (volta ao padrão). `fallbackPreview` é a cor
@@ -317,6 +356,9 @@ export function AgendamentoOnlinePage() {
   const hours = useBusinessHours();
   const updateHours = useUpdateBusinessHours();
   const empresa = useEmpresa();
+  const updateEmpresa = useUpdateEmpresa();
+  // Grava a foto do serviço sem sair da tela — ver estudo 149.
+  const updateService = useUpdateService();
 
   const profile = useWebProfile();
   const updateProfile = useUpdateWebProfile();
@@ -373,6 +415,9 @@ export function AgendamentoOnlinePage() {
         primaryColor: appearance.data.primaryColor ?? '',
         accentColor: appearance.data.accentColor ?? '',
         backgroundColor: appearance.data.backgroundColor ?? '',
+        photoColor: appearance.data.photoColor ?? '',
+        coverUrl: appearance.data.coverUrl ?? '',
+        coverOverlay: appearance.data.coverOverlay ?? 35,
       });
     }
   }, [appearance.data]);
@@ -394,6 +439,12 @@ export function AgendamentoOnlinePage() {
     url.searchParams.set(
       'backgroundColor',
       appearanceDraft?.backgroundColor ?? '',
+    );
+    url.searchParams.set('photoColor', appearanceDraft?.photoColor ?? '');
+    url.searchParams.set('coverUrl', appearanceDraft?.coverUrl ?? '');
+    url.searchParams.set(
+      'coverOverlay',
+      String(appearanceDraft?.coverOverlay ?? 35),
     );
     return url.toString();
   }, [appearanceDraft, liveUrl]);
@@ -539,6 +590,9 @@ export function AgendamentoOnlinePage() {
       primaryColor: appearance.data.primaryColor ?? '',
       accentColor: appearance.data.accentColor ?? '',
       backgroundColor: appearance.data.backgroundColor ?? '',
+      photoColor: appearance.data.photoColor ?? '',
+      coverUrl: appearance.data.coverUrl ?? '',
+      coverOverlay: appearance.data.coverOverlay ?? 35,
     };
   }
   function setAppearanceField<K extends keyof AppearanceDraft>(key: K, value: AppearanceDraft[K]) {
@@ -590,6 +644,46 @@ export function AgendamentoOnlinePage() {
 
   const address = empresa.data?.addressJson ?? null;
 
+  // CONTATO DA EMPRESA (telefone/e-mail/endereço) — vive em Company.addressJson
+  // e aparece na página pública. Estava só como TEXTO nesta aba: o dono não
+  // conseguia digitar. Agora é rascunho local, salvo junto com o "Salvar" da
+  // seção. Ver estudo 65.
+  const [contatoDraft, setContatoDraft] = useState<{
+    phone: string;
+    email: string;
+    address: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!empresa.data) return;
+    const a = empresa.data.addressJson ?? {};
+    setContatoDraft((atual) =>
+      atual ?? {
+        phone: a.phone ?? '',
+        email: a.email ?? '',
+        address: a.address ?? '',
+      },
+    );
+  }, [empresa.data]);
+  const contatoSujo = Boolean(
+    contatoDraft &&
+      ((contatoDraft.phone ?? '') !== (address?.phone ?? '') ||
+        (contatoDraft.email ?? '') !== (address?.email ?? '') ||
+        (contatoDraft.address ?? '') !== (address?.address ?? '')),
+  );
+  async function salvarContato() {
+    if (!contatoDraft || !contatoSujo) return;
+    // Preserva o resto do addressJson (cep, cidade, estado…): o PATCH substitui
+    // o objeto inteiro, então mandar só três campos apagaria os outros.
+    await updateEmpresa.mutateAsync({
+      addressJson: {
+        ...(empresa.data?.addressJson ?? {}),
+        phone: contatoDraft.phone.trim() || null,
+        email: contatoDraft.email.trim() || null,
+        address: contatoDraft.address.trim() || null,
+      },
+    });
+  }
+
   const activeSection = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
 
   // ---- tab bodies ----
@@ -635,34 +729,70 @@ export function AgendamentoOnlinePage() {
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
-              {empresa.data?.logoUrl ? (
-                <img
-                  src={empresa.data.logoUrl}
-                  alt="Logo"
-                  className="h-16 w-16 rounded-xl object-cover"
-                />
-              ) : (
-                <span className="grid h-16 w-16 place-items-center rounded-xl bg-canvas text-muted-ink">
-                  <IconHome size={22} />
-                </span>
-              )}
+              {/* LOGO EDITÁVEL AQUI (estudo 149). Esta seção se apresenta como
+                  "Defina a logo, o endereço, a descrição..." mas só EXIBIA a
+                  imagem — o campo de verdade vivia em Configurações, noutra
+                  área do menu, e quem vinha montar a página pública não tinha
+                  como adivinhar. Pior: a capa logo abaixo TEM upload, então a
+                  tela parecia oferecer e não oferecia.
+
+                  Mesmo `Company.logoUrl` que Configurações grava: um dado só,
+                  editável nos dois lugares. Grava na hora, como lá — quem envia
+                  e sai sem salvar deixaria o arquivo órfão e perderia a logo. */}
+              <ImageUpload
+                value={empresa.data?.logoUrl ?? null}
+                onChange={(url) => updateEmpresa.mutate({ logoUrl: url })}
+                kind="logo"
+                shape="square"
+                size={64}
+                placeholder="Logo"
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">{empresa.data?.name ?? '—'}</p>
                 <p className="truncate text-xs text-muted-ink">
-                  {address?.address || 'Endereço não informado'}
+                  {contatoDraft?.address || address?.address || 'Endereço não informado'}
                 </p>
               </div>
             </div>
-            <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="rounded-xl border border-line bg-card px-3 py-2">
-                <dt className="text-xs text-muted-ink">Telefone</dt>
-                <dd className="text-sm text-ink">{address?.phone || '—'}</dd>
-              </div>
-              <div className="rounded-xl border border-line bg-card px-3 py-2">
-                <dt className="text-xs text-muted-ink">E-mail</dt>
-                <dd className="truncate text-sm text-ink">{address?.email || '—'}</dd>
-              </div>
-            </dl>
+
+            {/* Telefone, e-mail e endereço: são o que a cliente vê na página
+                pública. Eram texto fixo aqui — agora dá para digitar, e o
+                "Salvar" da seção grava junto. Ver estudo 65. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Telefone">
+                <TextField
+                  value={contatoDraft?.phone ?? ''}
+                  onChange={(v) =>
+                    setContatoDraft((c) => ({ ...(c ?? { phone: '', email: '', address: '' }), phone: v }))
+                  }
+                  aria-label="Telefone do estabelecimento"
+                >
+                  <Input placeholder="(00) 00000-0000" />
+                </TextField>
+              </Field>
+              <Field label="E-mail">
+                <TextField
+                  value={contatoDraft?.email ?? ''}
+                  onChange={(v) =>
+                    setContatoDraft((c) => ({ ...(c ?? { phone: '', email: '', address: '' }), email: v }))
+                  }
+                  aria-label="E-mail do estabelecimento"
+                >
+                  <Input placeholder="contato@seusalao.com.br" />
+                </TextField>
+              </Field>
+            </div>
+            <Field label="Endereço" hint="Aparece na página pública e no mapa do agendamento.">
+              <TextField
+                value={contatoDraft?.address ?? ''}
+                onChange={(v) =>
+                  setContatoDraft((c) => ({ ...(c ?? { phone: '', email: '', address: '' }), address: v }))
+                }
+                aria-label="Endereço do estabelecimento"
+              >
+                <Input placeholder="Rua, número, bairro, cidade" />
+              </TextField>
+            </Field>
 
             <Field label="Descrição do estabelecimento">
               <textarea
@@ -805,6 +935,43 @@ export function AgendamentoOnlinePage() {
               description="Remove a barra escura do topo da página pública. Um acesso compacto (entrar / conta) continua disponível."
               className="rounded-xl border border-line bg-card px-4 py-3"
             />
+            {/* CAPA — a página pública não tinha banner nenhum. O upload já
+                existia (módulo de uploads); faltava o campo e o lugar de
+                mostrar. Ver estudo 67. */}
+            <Field
+              label="Capa da página"
+              hint="Imagem do topo da página pública. Recomendado 1600×600. Sem capa, a página começa direto pelo nome do salão."
+            >
+              <div className="flex flex-col gap-3">
+                <ImageUpload
+                  value={appearanceDraft.coverUrl || null}
+                  onChange={(url) => setAppearanceField('coverUrl', url ?? '')}
+                  kind="logo"
+                  shape="square"
+                  size={132}
+                  placeholder="Enviar capa"
+                />
+                {appearanceDraft.coverUrl && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-ink">
+                      Escurecer a capa ({appearanceDraft.coverOverlay}%) — deixa o
+                      nome do salão legível sobre a foto
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={80}
+                      step={5}
+                      value={appearanceDraft.coverOverlay}
+                      onChange={(e) =>
+                        setAppearanceField('coverOverlay', Number(e.target.value))
+                      }
+                      className="w-full accent-[var(--sp-primary)]"
+                    />
+                  </label>
+                )}
+              </div>
+            </Field>
             <ColorField
               label="Cor principal"
               hint="Cor da marca aplicada nos botões, passos e destaques da página."
@@ -823,11 +990,19 @@ export function AgendamentoOnlinePage() {
             />
             <ColorField
               label="Cor de fundo"
-              hint="Cor de fundo da página pública de agendamento."
+              hint="Cor de fundo da página pública de agendamento. Com um fundo escuro, os textos e cartões da página se ajustam automaticamente."
               value={appearanceDraft.backgroundColor}
               onChange={(hex) => setAppearanceField('backgroundColor', hex)}
               presets={BG_PRESETS}
               fallbackPreview="#F7F3EA"
+            />
+            <ColorField
+              label="Cor de fundo das fotos"
+              hint="Fundo do espaço da foto quando o serviço ainda não tem imagem."
+              value={appearanceDraft.photoColor}
+              onChange={(hex) => setAppearanceField('photoColor', hex)}
+              presets={PHOTO_PRESETS}
+              fallbackPreview="#F4CDD6"
             />
             <Feedback error={personMsg.error} ok={personMsg.ok} />
           </div>
@@ -982,18 +1157,41 @@ export function AgendamentoOnlinePage() {
               {onlineCount} de {serviceRows.length} serviço{serviceRows.length === 1 ? '' : 's'} disponível
               {onlineCount === 1 ? '' : 'is'} online.
             </p>
+            {/* FOTO DO SERVIÇO AQUI (estudo 149). Esta aba se descreve como
+                "...com seus respectivos tempos, valores, descrições, FOTOS e
+                profissionais", mas só tinha o switch: para trocar a foto era
+                preciso sair da tela e ir em Cadastros → Serviços.
+
+                Mesmo `Service.imageUrl` do cadastro — um dado só, sem foto
+                duplicada. A Galeria ao lado continua sendo outra coisa: são as
+                fotos DO SALÃO, sem vínculo com serviço, que aparecem na
+                primeira etapa do agendamento. */}
             {serviceRows.map((s) => (
-              <Switch
+              <div
                 key={s.id}
-                isSelected={s.onlineBookable}
-                onChange={(v: boolean) => onToggleService(s.id, v)}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3"
+                className="flex w-full items-center gap-3 rounded-xl border border-line bg-card px-4 py-3"
               >
-                <span className="min-w-0 truncate text-sm text-ink">{s.name}</span>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch>
+                <ImageUpload
+                  value={s.imageUrl ?? null}
+                  onChange={(url) =>
+                    updateService.mutate({ id: s.id, body: { imageUrl: url } })
+                  }
+                  kind="service"
+                  shape="square"
+                  size={44}
+                  placeholder="Foto"
+                />
+                <Switch
+                  isSelected={s.onlineBookable}
+                  onChange={(v: boolean) => onToggleService(s.id, v)}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3"
+                >
+                  <span className="min-w-0 truncate text-sm text-ink">{s.name}</span>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
+              </div>
             ))}
             <div className="flex justify-end pt-1">
               <Button variant="ghost" onClick={() => navigate('/servicos')}>
@@ -1067,10 +1265,18 @@ export function AgendamentoOnlinePage() {
             <Button variant="ghost" onClick={() => navigate('/configuracoes')}>
               <IconSettings size={16} /> Editar dados
             </Button>
-            {sectionDirty(DETALHES_FIELDS) && (
+            {(sectionDirty(DETALHES_FIELDS) || contatoSujo) && (
               <Button
                 variant="ghost"
-                onClick={() => resetProfileSection(DETALHES_FIELDS)}
+                onClick={() => {
+                  resetProfileSection(DETALHES_FIELDS);
+                  const a = empresa.data?.addressJson ?? {};
+                  setContatoDraft({
+                    phone: a.phone ?? '',
+                    email: a.email ?? '',
+                    address: a.address ?? '',
+                  });
+                }}
                 isDisabled={updateProfile.isPending}
               >
                 Descartar
@@ -1078,10 +1284,29 @@ export function AgendamentoOnlinePage() {
             )}
             <Button
               variant="primary"
-              onClick={() => saveProfileSection(DETALHES_FIELDS, setRedesMsg)}
-              isDisabled={updateProfile.isPending || !sectionDirty(DETALHES_FIELDS)}
+              onClick={async () => {
+                // Duas gravações: o perfil da página pública (descrição/redes) e
+                // o contato da empresa (telefone/e-mail/endereço). Antes só a
+                // primeira existia nesta aba.
+                setRedesMsg({});
+                try {
+                  await salvarContato();
+                  await saveProfileSection(DETALHES_FIELDS, setRedesMsg);
+                  if (contatoSujo) setRedesMsg({ ok: 'Alterações salvas!' });
+                } catch (err) {
+                  setRedesMsg({
+                    error:
+                      err instanceof ApiClientError ? err.message : 'Não foi possível salvar.',
+                  });
+                }
+              }}
+              isDisabled={
+                updateProfile.isPending ||
+                updateEmpresa.isPending ||
+                (!sectionDirty(DETALHES_FIELDS) && !contatoSujo)
+              }
             >
-              {updateProfile.isPending ? 'Salvando…' : 'Salvar'}
+              {updateProfile.isPending || updateEmpresa.isPending ? 'Salvando…' : 'Salvar'}
             </Button>
           </>
         );

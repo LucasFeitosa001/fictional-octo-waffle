@@ -86,10 +86,15 @@ type TabKey = 'contas' | 'formas' | 'categorias';
 // Abas do Belasis (Contas · Formas de pagamento · Categorias). No mobile o
 // Belasis empilha ícone acima do rótulo (bank/dollar/profile → wallet/dollar/
 // layers); no desktop mantém underline de texto puro.
-const TABS: { id: TabKey; label: string; icon: React.ReactNode }[] = [
-  { id: 'contas', label: 'Contas', icon: <IconWallet size={16} /> },
-  { id: 'formas', label: 'Formas de pagamento', icon: <IconDollar size={16} /> },
-  { id: 'categorias', label: 'Categorias', icon: <IconLayers size={16} /> },
+//
+// Guarda o COMPONENTE do ícone, não o elemento pronto: o tamanho muda com a
+// plataforma (18 empilhado, 16 na régua do desktop — os mesmos de Comissões).
+// Manter duas listas, uma "mobile" e outra "desktop", foi como as abas de
+// Comissões acabaram divergindo (estudo 41). Ver estudo 47.
+const TABS: { id: TabKey; label: string; Icon: (p: { size?: number }) => React.ReactNode }[] = [
+  { id: 'contas', label: 'Contas', Icon: IconWallet },
+  { id: 'formas', label: 'Formas de pagamento', Icon: IconDollar },
+  { id: 'categorias', label: 'Categorias', Icon: IconLayers },
 ];
 
 function byName<T extends { name: string }>(a: T, b: T) {
@@ -310,6 +315,17 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
   const [filterOpen, setFilterOpen] = useState(false);
   const isMobile = useIsMobile();
 
+  // Ícone maior no modo empilhado do celular (o mesmo 18 das abas de Comissões).
+  const tabItems = useMemo(
+    () =>
+      TABS.map(({ id, label, Icon }) => ({
+        id,
+        label,
+        icon: <Icon size={isMobile ? 18 : 16} />,
+      })),
+    [isMobile],
+  );
+
   // Ordenação por nome — pílula "Ordenando por Nome" do mobile (Belasis).
   // Alterna asc/desc mantendo a ordenação por nome (só apresentação).
   const [sortAsc, setSortAsc] = useState(true);
@@ -354,8 +370,11 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
     return (active && showActive) || (!active && showInactive);
   }
 
-  // Status só se aplica onde o backend expõe `active` (contas e categorias).
-  const supportsStatus = tab !== 'formas';
+  // Status vale nas TRÊS abas: PaymentMethod também tem `active` no schema (e o
+  // front já filtra por ele em TransacoesPage). Antes a aba Formas era exceção e
+  // a ação "Filtrar" sumia da barra inferior, que encolhia de 4 para 2 botões e
+  // "pulava" ao trocar de aba. Ver .claude/studies/14.
+  const supportsStatus = true;
 
   const filteredAccounts = useMemo(() => {
     const r = allAccounts.filter((a) => matchActive(a.active) && matchSearch(a.name)).sort(byName);
@@ -704,9 +723,10 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
 
   // Mobile: BottomNav do Belasis = Filtros · Selecionar · Novo. A busca fica
   // sempre visível no topo (Belasis), então não há ação "Buscar". Selecionar
-  // só é oferecido na aba Contas — Formas mantém ações inline e Categorias
-  // hoje não usa selectMode nos cards (RowActions inline via tap no card).
-  const supportsSelectMode = tab === 'contas' || tab === 'categorias';
+  // Seleção vale nas três abas: selectableIds já devolve os ids das
+  // formas de pagamento (ver acima), então a infra de selectMode já cobre a aba.
+  // Manter as mesmas ações em todas evita a barra inferior mudar de tamanho.
+  const supportsSelectMode = true;
   useSetPageActions(
     sel.selectMode
       ? buildSelectActions({
@@ -797,8 +817,12 @@ export function ContasPage({ defaultTab }: { defaultTab?: TabKey } = {}) {
         </div>
       </div>
 
+      {/* No celular: ícone ACIMA do rótulo, três colunas iguais e sublinhado na
+          ativa — igual à referência e à régua de Comissões. Sem isso a terceira
+          aba ("Categorias") ficava cortada pela borda direita da régua rolante. */}
       <AppTabs
-        items={TABS}
+        items={tabItems}
+        stacked={isMobile}
         selectedKey={tab}
         onSelectionChange={changeTab}
         ariaLabel="Cadastros financeiros"
@@ -1403,6 +1427,7 @@ function ContaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={editing ? 'Editar conta' : 'Conta bancária'}
       footer={footer}
       widthClass="sm:w-[480px]"
@@ -1599,6 +1624,7 @@ function FormaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={editing ? 'Editar forma de pagamento' : 'Forma de pagamento'}
       footer={footer}
       widthClass="sm:w-[480px]"
@@ -1800,6 +1826,7 @@ function CategoriaDrawer({
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
+      fullscreen
       title={editing ? 'Editar categoria' : 'Categoria'}
       footer={footer}
       widthClass="sm:w-[480px]"

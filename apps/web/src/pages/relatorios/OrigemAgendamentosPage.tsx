@@ -12,6 +12,7 @@ import { useReportsOrigemAgendamentos } from '../../lib/queries/relatorios';
 import { DateRangePicker } from '../../components/DatePicker';
 import { getCategoricalColor } from '../../theme/dataColors';
 import { CalendarReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Relatório real "Origem dos Agendamentos" (/reports/calendars/origin).     */
@@ -24,7 +25,7 @@ const CARD = 'rounded-xl border border-line bg-card shadow-[var(--shadow-card)]'
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 30);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -68,8 +69,9 @@ export function OrigemAgendamentosPage() {
   const hasData = !!d && (total > 0 || byOrigin.length > 0);
 
   function gerarRelatorio() {
+    const sameRange = pending.from === range.from && pending.to === range.to;
     setRange(pending);
-    void query.refetch();
+    if (sameRange) void query.refetch();
   }
 
   function exportCsv() {
@@ -115,6 +117,7 @@ export function OrigemAgendamentosPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            <ReportPdfOption />
             <button
               type="submit"
               disabled={query.isFetching}

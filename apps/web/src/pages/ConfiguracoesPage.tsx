@@ -17,16 +17,13 @@ import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { ButtonStyleSwitcher } from '../components/ButtonStyleSwitcher';
 import { CloseStyleSwitcher } from '../components/CloseStyleSwitcher';
 import { SidebarStyleSwitcher } from '../components/SidebarStyleSwitcher';
-import { SwitchRow } from '../components/SwitchRow';
-import { useCrmShortcutEnabled, setCrmShortcutEnabled } from '../theme/crmShortcut';
-import {
-  saveAppearanceToCloud,
-  saveCurrentAppearanceToCloud,
-} from '../theme/useThemeSync';
+import { useCan } from '../lib/queries/permissions';
+import { saveCurrentAppearanceToCloud } from '../theme/useThemeSync';
 import { MobileBackHeader } from '../components/MobileBackHeader';
 import { MinhaContaDrawer } from '../components/MinhaContaDrawer';
 import { APP_VERSION } from '../lib/config';
 import { WhatsappConnectionCard } from '../components/WhatsappConnectionCard';
+import { MessageTemplatesCard } from '../components/MessageTemplatesCard';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   IconHome,
@@ -254,36 +251,53 @@ function getNotificationPreferences(): NotificationPreference {
 }
 
 /* --- Notificações automáticas (WhatsApp) ---
- * Switch por tipo de mensagem automática. Padrão do backend: TUDO DESLIGADO —
- * nenhuma mensagem automática (ao cliente OU ao profissional/gerente) sai até o
- * dono ativar aqui. Cada toggle é opt-in, começa desligado. */
+ * Switch por tipo de mensagem automática. Padrão do backend: tudo desligado,
+ * EXCETO o aviso do agendamento online, que vem ligado por decisão do dono
+ * (estudo 153). Nenhuma outra mensagem automática (ao cliente OU ao
+ * profissional/gerente) sai até que ele ative aqui. */
 const AUTOMATION_OPTIONS: {
   id: keyof NotificationAutomationSettings;
   label: string;
   description: string;
 }[] = [
+  // Os quatro avisos ao cliente saem TODOS por WhatsApp. Os rótulos antigos só
+  // diziam o canal no lembrete, e o dono concluiu que confirmação e cancelamento
+  // iam por outro meio. Também deixa explícito que LEMBRETE é antes e FOLLOW-UP é
+  // depois — são coisas diferentes pelo mesmo canal. Ver estudo 59.
+  // O agendamento ONLINE tem linha própria e vem LIGADO de fábrica (estudo
+  // 153): quem agendou pela internet não ouviu nenhuma confirmação no balcão, e
+  // o silêncio é sentido como "será que deu certo?". É a única automação que
+  // nasce ligada — e é segura porque decide sobre um agendamento que está sendo
+  // criado naquele instante, sem fila acumulada para drenar.
+  {
+    id: 'onlineBooking',
+    label: 'Agendamento feito pela internet · WhatsApp',
+    description:
+      'Mensagem ao cliente que agendou sozinho pela página de agendamento online. Vem ligado. Não afeta os agendamentos marcados na recepção — esses seguem a linha abaixo.',
+  },
   {
     id: 'confirmation',
-    label: 'Confirmação de agendamento',
+    label: 'Agendamento marcado/confirmado · WhatsApp',
     description:
-      'Padrão para novos agendamentos. Pode ser ligado ou desligado em cada agendamento.',
+      'Mensagem ao cliente quando o agendamento é criado na recepção e quando é confirmado. Padrão para novos agendamentos; pode ser ligado ou desligado em cada um.',
   },
   {
     id: 'cancellation',
-    label: 'Cancelamento',
+    label: 'Agendamento cancelado · WhatsApp',
     description:
-      'Padrão para novos agendamentos. Pode ser ligado ou desligado em cada agendamento.',
+      'Mensagem ao cliente quando o agendamento é cancelado. Padrão para novos agendamentos; pode ser ligado ou desligado em cada um.',
   },
   {
     id: 'reminder',
-    label: 'Lembrete (24h/2h antes)',
-    description: 'Lembrete automático ao cliente antes do atendimento.',
+    label: 'Lembrete ANTES do atendimento (24h/2h) · WhatsApp',
+    description:
+      'Avisa o cliente na véspera e duas horas antes. Não confundir com o follow-up, que é depois.',
   },
   {
     id: 'followUp',
-    label: 'Follow-up pós-atendimento',
+    label: 'Follow-up DEPOIS do atendimento · WhatsApp',
     description:
-      'Lembrete de retorno após o atendimento. Personalize a mensagem, o tempo e a recorrência na seção abaixo.',
+      'Convite de retorno enviado dias depois do atendimento. O prazo, a recorrência e o texto ficam na seção abaixo.',
   },
   {
     id: 'notifyProfessional',
@@ -310,10 +324,12 @@ function AutomaticNotificationsCard() {
           Notificações automáticas (WhatsApp)
         </h2>
         <p className="text-sm text-muted-ink">
-          Escolha o padrão das mensagens automáticas do Salonpass. <strong>Tudo é
-          opt-in</strong>: por padrão nada é enviado (nem ao cliente nem ao
-          profissional). Confirmação, cancelamento e lembrete ainda podem ser
-          alterados individualmente dentro de cada agendamento.
+          Escolha o padrão das mensagens automáticas do Salonpass. Só o aviso de{' '}
+          <strong>agendamento feito pela internet</strong> já vem ligado — quem
+          agenda sozinho não recebe confirmação de ninguém no balcão. Todo o
+          resto começa desligado e só sai depois que você ativar aqui.
+          Confirmação, cancelamento e lembrete ainda podem ser alterados
+          individualmente dentro de cada agendamento.
         </p>
       </div>
 
@@ -794,6 +810,11 @@ export function ConfiguracoesPage() {
   const updateProfessional = useUpdateProfessional();
   const profItems = (professionals.data as any)?.data ?? [];
   const confirm = useConfirm();
+  // A personalização visual agora é da EMPRESA (compartilhada). Só quem tem
+  // config:manage altera; os demais veem a aba em modo leitura. Fail-closed:
+  // enquanto as permissões carregam, `can()` retorna false (esconde o editar).
+  const { can } = useCan();
+  const canManageAppearance = can('config:manage');
 
   async function handleSignOut() {
     const ok = await confirm({
@@ -818,7 +839,6 @@ export function ConfiguracoesPage() {
 
   // Preferência do atalho flutuante do CRM (mostrar/esconder). Salvo neste
   // dispositivo; o DashboardLayout lê a mesma preferência para exibir o botão.
-  const crmShortcutEnabled = useCrmShortcutEnabled();
 
   // `active` null => mobile mostra a lista de seções; no desktop cai em 'detalhes'.
   const [active, setActive] = useState<TabId | null>(null);
@@ -943,10 +963,10 @@ export function ConfiguracoesPage() {
     setAppearanceMessage(null);
     try {
       await saveCurrentAppearanceToCloud();
-      setAppearanceMessage('Personalização salva na sua conta.');
+      setAppearanceMessage('Personalização salva para a empresa.');
     } catch {
       setAppearanceMessage(
-        'A aparência continua aplicada neste dispositivo, mas não foi possível sincronizar a conta.',
+        'A aparência continua aplicada neste dispositivo, mas não foi possível salvar para a empresa.',
       );
     } finally {
       setAppearanceSaving(false);
@@ -1382,6 +1402,9 @@ export function ConfiguracoesPage() {
         {current === 'notificacoes' && (
           <div className="flex flex-col gap-5">
           <AutomaticNotificationsCard />
+          {/* Texto de cada aviso (confirmação, cancelamento, lembretes). O dono
+              cobrou "tem que ter personalização" — estudo 61. */}
+          <MessageTemplatesCard />
           <FollowUpConfigCard />
           <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
             <div className="flex flex-col gap-1">
@@ -1507,15 +1530,30 @@ export function ConfiguracoesPage() {
 
         {current === 'personalizar' && (
           <div className="flex flex-col gap-5">
+            {!canManageAppearance && (
+              <div
+                className="rounded-2xl border border-line bg-canvas px-4 py-3 text-sm text-muted-ink"
+                role="note"
+              >
+                A personalização visual vale para <strong>toda a empresa</strong>.
+                Só administradores podem alterá-la — abaixo é somente leitura.
+              </div>
+            )}
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Identidade visual</h2>
               <p className="mt-1 text-sm text-muted-ink">
                 Logo exibido nos materiais e no agendamento online.
               </p>
-              <div className="mt-5">
+              <div
+                className={[
+                  'mt-5',
+                  canManageAppearance ? '' : 'pointer-events-none opacity-60',
+                ].join(' ')}
+              >
                 <ImageUpload
                   value={logoUrl}
                   onChange={(url) => {
+                    if (!canManageAppearance) return; // só admin altera a empresa
                     setLogoUrl(url);
                     markDirty();
                     // Persist the logo change right away — otherwise a user
@@ -1536,21 +1574,22 @@ export function ConfiguracoesPage() {
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Tema de cores</h2>
               <p className="mt-1 text-sm text-muted-ink">
-                Muda a paleta de todo o sistema e sincroniza a escolha com sua conta.
+                Muda a paleta de todo o sistema. A escolha vale para toda a
+                empresa, em qualquer dispositivo.
               </p>
               <div className="mt-4">
-                <ThemeSwitcher />
+                <ThemeSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
             <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
               <h2 className="text-base font-semibold text-ink">Estilo dos botões</h2>
               <p className="mt-1 text-sm text-muted-ink">
-                Define o arredondamento dos botões do sistema. A escolha fica salva
-                como o tema, inclusive ao trocar de página ou dispositivo.
+                Define o arredondamento dos botões do sistema. A escolha vale para
+                toda a empresa, em qualquer dispositivo.
               </p>
               <div className="mt-4">
-                <ButtonStyleSwitcher />
+                <ButtonStyleSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
@@ -1560,7 +1599,7 @@ export function ConfiguracoesPage() {
                 Como o botão de fechar aparece nos painéis e bottom-sheets do mobile.
               </p>
               <div className="mt-4">
-                <CloseStyleSwitcher />
+                <CloseStyleSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
@@ -1570,28 +1609,7 @@ export function ConfiguracoesPage() {
                 Deixe o menu lateral encostado (sólido) ou flutuante com margem.
               </p>
               <div className="mt-4">
-                <SidebarStyleSwitcher />
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
-              <h2 className="text-base font-semibold text-ink">Atalhos</h2>
-              <p className="mt-1 text-sm text-muted-ink">
-                Botões flutuantes que aparecem sobre as telas. A escolha fica salva
-                neste dispositivo.
-              </p>
-              <div className="mt-4">
-                <SwitchRow
-                  label="Mostrar atalho do CRM"
-                  description="Botão flutuante de acesso rápido ao CRM, no canto da tela."
-                  checked={crmShortcutEnabled}
-                  onChange={(enabled) => {
-                    setCrmShortcutEnabled(enabled);
-                    void saveAppearanceToCloud({ crmShortcut: enabled }).catch(() => {
-                      /* a escolha segue aplicada localmente */
-                    });
-                  }}
-                />
+                <SidebarStyleSwitcher disabled={!canManageAppearance} />
               </div>
             </section>
 
@@ -1617,14 +1635,16 @@ export function ConfiguracoesPage() {
                   {appearanceMessage}
                 </p>
               )}
-              <button
-                type="button"
-                onClick={handleAppearanceSave}
-                disabled={appearanceSaving}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {appearanceSaving ? 'Salvando…' : 'Salvar personalização'}
-              </button>
+              {canManageAppearance && (
+                <button
+                  type="button"
+                  onClick={handleAppearanceSave}
+                  disabled={appearanceSaving}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {appearanceSaving ? 'Salvando…' : 'Salvar personalização'}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1693,8 +1713,14 @@ export function ConfiguracoesPage() {
               >
                 Ativar integração via API
               </Link>
+              {/* Aqui apontava para belasis-api.readme.io — a doc do CONCORRENTE,
+                  que veio junto quando a tela foi replicada. Agora é a NOSSA:
+                  OpenAPI gerado dos próprios controllers pelo @nestjs/swagger, no
+                  mesmo domínio (o CloudFront roteia /api/* para a API). Como é
+                  gerada do código, não desatualiza sozinha. `target="_blank"`
+                  porque é o Swagger UI, fora do SPA. */}
               <a
-                href="https://belasis-api.readme.io"
+                href="/api/v1/docs"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-4 text-sm font-semibold text-ink transition-colors hover:border-primary/40 hover:text-primary"

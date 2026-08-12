@@ -28,6 +28,7 @@ import { useReportsDre, type DreLinha } from '../../lib/queries/relatorios';
 import { useThemeColors } from '../../theme/useThemeColors';
 import { COLOR_GREEN, COLOR_RED } from './reportShared';
 import { FinancialReportShell } from './reportNav';
+import { ReportPdfOption } from './ReportPdfButton';
 
 /* -------------------------------------------------------------------------- */
 /*  Clone 100% fiel da página "Resultados Financeiros" (DRE) do Belasis        */
@@ -41,7 +42,8 @@ import { FinancialReportShell } from './reportNav';
 
 function defaultRange() {
   const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1); // início do mês
+  const from = new Date(to);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -340,6 +342,7 @@ export function DrePage() {
 
             {/* Ação: Gerar relatório (botão primário + split de export) */}
             <div className="mt-6 flex justify-end gap-1.5">
+              <ReportPdfOption />
               <button
                 type="submit"
                 disabled={query.isFetching}
@@ -514,6 +517,7 @@ export function DrePage() {
       <Drawer
         isOpen={detail !== null}
         onClose={() => setDetail(null)}
+        fullscreen
         title={detail?.categoria ?? 'Detalhe da categoria'}
       >
         {detail && (

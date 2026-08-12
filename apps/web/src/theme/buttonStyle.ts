@@ -42,7 +42,7 @@ export const BUTTON_RADII: ButtonRadiusMeta[] = [
 ];
 
 const STORAGE_KEY = 'sp-btn-radius';
-const DEFAULT_RADIUS: ButtonRadiusId = 'medium';
+export const DEFAULT_RADIUS: ButtonRadiusId = 'medium';
 
 export function isButtonRadiusId(v: unknown): v is ButtonRadiusId {
   return typeof v === 'string' && BUTTON_RADII.some((r) => r.id === v);

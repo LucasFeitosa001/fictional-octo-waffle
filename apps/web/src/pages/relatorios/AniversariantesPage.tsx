@@ -7,7 +7,9 @@ import { formatNumber, isoDate } from '../../lib/format';
 import { downloadCsv } from '../../lib/csv';
 import { useReportsBirthdays, type BirthdayItem } from '../../lib/queries/relatorios';
 import { BackToReports, CARD } from './reportShared';
+import { ReportCategoriesBar } from './reportNav';
 import { DateRangePicker } from '../../components/DatePicker';
+import { ReportPdfOption } from './ReportPdfButton';
 
 const MONTHS = [
   'Janeiro',
@@ -35,8 +37,9 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
 /** Período inicial: primeiro → último dia do mês corrente. */
 function defaultRange() {
   const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const from = new Date(now);
+  from.setMonth(from.getMonth() - 1);
+  const to = now;
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -104,6 +107,9 @@ export function AniversariantesPage() {
   return (
     <div>
       <BackToReports />
+      {/* Barra de categorias do módulo — esta página não tinha, então dela
+          não dava para pular para outro relatório. Ver estudo 63. */}
+      <ReportCategoriesBar ativa="Clientes" />
 
       {/* ── Formulário de relatório (fiel ao Belasis) ─────────────────────── */}
       <Card className={`mb-4 ${CARD}`}>
@@ -152,6 +158,7 @@ export function AniversariantesPage() {
             </div>
 
             {/* Gerar relatório — botão primário block */}
+            <ReportPdfOption />
             <button
               type="button"
               onClick={gerar}

@@ -16,6 +16,7 @@ import {
   IconHelpCircle,
   IconHome,
   IconInfo,
+  IconFileText,
   IconLayers,
   IconLink,
   IconLogout,
@@ -45,8 +46,10 @@ import { useSession, signOut } from '../lib/auth';
 import { useFeatures, type FeatureKey } from '../lib/queries/features';
 import { useCan } from '../lib/queries/permissions';
 import { CompanySwitcher } from '../components/CompanySwitcher';
+import { urlDaAreaDeIa } from '../lib/aiHost';
 import { useMinhasContas } from '../lib/queries/contas';
 import { useBookingLink } from '../lib/queries/marketing';
+import { useEmpresa } from '../lib/queries/empresa';
 import { APP_VERSION, CLUB_ORIGIN } from '../lib/config';
 import { toast, TOAST_TIMEOUT } from '../lib/toast';
 import { useSidebarStyle } from '../theme/sidebarStyle';
@@ -74,11 +77,24 @@ type NavItem = {
    */
   feature?: FeatureKey;
   /**
+   * Item que só existe numa das plataformas. A tela de ENTRADA de um módulo
+   * pode diferir: no celular a tabela item a item de Comissões → Detalhadas é
+   * ruim de ler, e o resumo por profissional é o destino útil; no desktop vale
+   * o contrário. As abas dentro da página continuam levando às duas.
+   */
+  only?: 'desktop' | 'mobile';
+  /**
    * FASE RBAC: permissão (ou lista, OR) que o papel precisa ter para VER o item.
    * Sem `perm` → todo mundo vê. Com `perm` → some da navegação de quem não pode.
    * Diferente de `feature` (que só cadeia): sem permissão o item não aparece.
    */
   perm?: string | string[];
+  /**
+   * Item que sai do painel e abre em OUTRA janela (a área de IA vive em
+   * `ai.salonpass.com.br`). O login é o mesmo cookie do domínio-base, então a
+   * janela nova já abre logada. Ver estudo 62.
+   */
+  externo?: 'ia';
 };
 
 type NavGroup = {
@@ -103,12 +119,66 @@ const NAVIGATION: NavEntry[] = [
   {
     kind: 'link',
     key: 'ia',
+    // A área de IA agora é um produto separado (ai.salonpass.com.br) que abre em
+    // outra janela. `to` fica como destino de fallback para quem não tem o
+    // subdomínio disponível.
     to: '/ia-atendimento',
+    externo: 'ia',
     label: 'IA',
     icon: IconSparkles,
     badge: 'Beta',
-    feature: 'whatsapp_api',
-    perm: 'marketing:view',
+    perm: 'config:manage',
+  },
+  {
+    // O embed da Voltr é "bare" de propósito: o iframe entrega só o miolo, sem
+    // navegação por dentro. Quem oferece a troca Atendimento ↔ CRM somos nós —
+    // sem estes dois itens a rota /voltr-chat existe e ninguém alcança.
+    kind: 'group',
+    key: 'voltr',
+    title: 'CRM',
+    icon: IconMessage,
+    items: [
+      {
+        to: '/voltr-chat',
+        label: 'Atendimento',
+        icon: IconMessage,
+        badge: 'novo',
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+      {
+        to: '/voltr-crm',
+        label: 'Contatos',
+        icon: IconUsers,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+      {
+        to: '/voltr-boards',
+        label: 'Kanban',
+        icon: IconLayers,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+      {
+        // A agenda de follow-up do CRM: o "o que fazer hoje" que nasce do card
+        // do Kanban. Ficou fora do menu por algumas horas em 04/08/2026, entre
+        // o deploy deste lado e o do web da Voltr — enquanto /embed/tarefas
+        // respondia 404, o item levaria a um iframe vazio.
+        to: '/voltr-tarefas',
+        label: 'Tarefas',
+        icon: IconClock,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+      {
+        to: '/voltr-ia',
+        label: 'Inteligência artificial',
+        icon: IconSparkles,
+        feature: 'whatsapp_api',
+        perm: 'marketing:view',
+      },
+    ],
   },
   {
     kind: 'group',
@@ -120,6 +190,8 @@ const NAVIGATION: NavEntry[] = [
       { to: '/agenda', label: 'Agenda', icon: IconCalendar, perm: 'agenda:view' },
       { to: '/comandas', label: 'Comandas', icon: IconReceipt, perm: 'comandas:view' },
       { to: '/pacotes', label: 'Pacotes', icon: IconLayers, feature: 'packages', perm: 'catalogo:view' },
+      // Adicional avulso (estudo 124): só aparece para quem contratou o módulo.
+      { to: '/documentos', label: 'Documentos', icon: IconFileText, feature: 'documents', perm: 'clientes:view' },
       { to: '/assinaturas', label: 'Vendas por Assinatura', icon: IconRepeat, feature: 'memberships', perm: 'catalogo:view' },
     ],
   },
@@ -135,7 +207,10 @@ const NAVIGATION: NavEntry[] = [
       // Caixa: quem só opera o próprio caixa também acessa (caixa:operate OU view_all).
       { to: '/financeiro/caixas', label: 'Caixas abertos', icon: IconCash, end: true, perm: ['caixa:operate', 'caixa:view_all'] },
       { to: '/financeiro/caixas/historico', label: 'Histórico de caixa', icon: IconClock, perm: ['caixa:operate', 'caixa:view_all'] },
-      { to: '/financeiro/belasis-pay', label: 'SalonPay', icon: IconCreditCard, badge: 'em breve', perm: 'financeiro:view' },
+      // Deixou de ser "em breve": o cadastro de recebimento existe e abre aqui.
+      // A rota antiga (`belasis-pay`) segue viva redirecionando, para favorito
+      // não virar 404.
+      { to: '/financeiro/salonpay', label: 'SalonPay', icon: IconCreditCard, perm: 'financeiro:view' },
       { to: '/financeiro/notas-fiscais', label: 'Notas Fiscais', icon: IconReceipt, feature: 'nfe', perm: 'financeiro:view' },
       { to: '/financeiro/configuracoes', label: 'Configurações', icon: IconSettings, perm: 'financeiro:view' },
     ],
@@ -147,7 +222,16 @@ const NAVIGATION: NavEntry[] = [
     icon: IconPercent,
     items: [
       // Profissional vê as próprias (view_own); gestão vê todas (view_all).
-      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      // Desktop entra pelo detalhamento; celular entra pelo resumo. Quem quiser
+      // o outro alterna pelas abas do topo (quatro no desktop, três no celular).
+      //
+      // O rótulo do item do celular é "Resumo", não "Resumidas": é o mesmo nome
+      // que a aba correspondente usa lá (COMMISSION_TABS_MOBILE, em
+      // pages/comissoes/tabs.tsx). Menu e aba apontando pro mesmo destino com
+      // nomes diferentes foi reclamação do dono. A ROTA segue /comissoes/resumidas
+      // — só o texto muda, pra não quebrar favorito nem link antigo.
+      { to: '/comissoes', label: 'Detalhadas', icon: IconPercent, end: true, only: 'desktop', feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
+      { to: '/comissoes/resumidas', label: 'Resumo', icon: IconChart, only: 'mobile', feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/pagas', label: 'Pagas', icon: IconCash, feature: 'commissions', perm: ['comissoes:view_own', 'comissoes:view_all'] },
       { to: '/comissoes/config', label: 'Configurações', icon: IconSettings, feature: 'commissions', perm: 'comissoes:config' },
     ],
@@ -352,21 +436,26 @@ export function Sidebar({
   onNavigate,
   mobile = false,
   mobileOpen = false,
-  onOpenCrm,
 }: {
   onNavigate?: () => void;
   mobile?: boolean;
   /** Sinaliza (edge false→true) que o drawer mobile abriu — reseta collapsedGroups
    *  sem remontar (remount quebra a animação de saída do drawer parent). */
   mobileOpen?: boolean;
-  /** Desktop: abre o aviso do CRM. */
-  onOpenCrm?: () => void;
 }) {
   const location = useLocation();
   const sidebarStyle = useSidebarStyle();
   const { data: session } = useSession();
   const { openCreate } = useCreateDrawer();
   const bookingLink = useBookingLink();
+  const { data: empresa } = useEmpresa();
+  // Fátima não usa o produto CRM/Voltr. O gate é por empresa, não por usuário:
+  // enquanto o cadastro ainda carrega mantemos o menu (fail-open), e depois
+  // removemos o grupo inteiro, inclusive os atalhos internos.
+  const crmOculto = Boolean(
+    empresa?.name?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() ===
+      'fatima cabelos',
+  );
   // FASE 2: features ativas do plano. Fail-open: sem dados (loading/erro) nada é
   // travado — só mostramos cadeado quando SABEMOS que a feature não está no plano.
   const { data: featuresData } = useFeatures();
@@ -388,16 +477,23 @@ export function Sidebar({
     return perms.some((p) => can(p));
   }
 
-  // Filtra grupos/links pelo papel. Grupo cujos itens somem por completo também
-  // some. Links diretos são avaliados pelo próprio `perm`.
+  /** Item marcado para a OUTRA plataforma não entra neste menu. */
+  function daPlataforma(item: NavItem): boolean {
+    if (!item.only) return true;
+    return item.only === (mobile ? 'mobile' : 'desktop');
+  }
+
+  // Filtra grupos/links pelo papel e pela plataforma. Grupo cujos itens somem
+  // por completo também some. Links diretos são avaliados pelo próprio `perm`.
   function filterEntries(entries: NavEntry[]): NavEntry[] {
     const out: NavEntry[] = [];
     for (const entry of entries) {
+      if (entry.key === 'voltr' && crmOculto) continue;
       if (entry.kind === 'link') {
-        if (canSee(entry.perm)) out.push(entry);
+        if (canSee(entry.perm) && daPlataforma(entry)) out.push(entry);
         continue;
       }
-      const items = entry.items.filter((item) => canSee(item.perm));
+      const items = entry.items.filter((item) => canSee(item.perm) && daPlataforma(item));
       if (items.length > 0) out.push({ ...entry, items });
     }
     return out;
@@ -572,7 +668,18 @@ export function Sidebar({
       active ? 'db-nav-active' : 'text-white/70 hover:bg-white/[0.08] hover:text-white',
     ].join(' ');
 
-    const control = entry.kind === 'link' ? (
+    const control = entry.kind === 'link' && entry.externo === 'ia' ? (
+      <a
+        href={urlDaAreaDeIa('/')}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={onNavigate}
+        className={className}
+        aria-label={`${label} (abre em outra janela)`}
+      >
+        <EntryIcon size={19} />
+      </a>
+    ) : entry.kind === 'link' ? (
       <NavLink to={entry.to} onClick={onNavigate} className={className} aria-label={label}>
         <EntryIcon size={19} />
       </NavLink>
@@ -643,14 +750,34 @@ export function Sidebar({
   function renderExpandedEntry(entry: NavEntry) {
     const EntryIcon = entry.icon;
     if (entry.kind === 'link') {
-      return (
-        <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
+      const conteudo = (
+        <>
           <span className="grid h-9 w-9 shrink-0 place-items-center"><EntryIcon size={19} /></span>
           <span className="flex min-w-0 flex-1 items-center gap-1.5 pr-1">
             <span className="truncate">{entry.label}</span>
             {!isLocked(entry.feature) && entry.badge && <MenuBadge>{entry.badge}</MenuBadge>}
           </span>
           {isLocked(entry.feature) && <LockBadge />}
+        </>
+      );
+      if (entry.externo === 'ia') {
+        return (
+          <a
+            key={entry.key}
+            href={urlDaAreaDeIa('/')}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onNavigate}
+            className={navLinkClass({ isActive: false })}
+            title="Abre a área de IA em outra janela"
+          >
+            {conteudo}
+          </a>
+        );
+      }
+      return (
+        <NavLink key={entry.key} to={entry.to} onClick={onNavigate} className={navLinkClass}>
+          {conteudo}
         </NavLink>
       );
     }
@@ -746,18 +873,6 @@ export function Sidebar({
         )}
 
         <div className={isCollapsed ? 'flex flex-col items-center gap-2 text-white' : 'flex items-center gap-2 text-white'}>
-          {!mobile && (
-            <IconTip label="Abrir CRM" placement="bottom">
-              <button
-                type="button"
-                onClick={() => onOpenCrm?.()}
-                aria-label="Abrir CRM"
-                className="relative rounded-lg p-2 text-current transition-colors hover:bg-black/5"
-              >
-                <IconUsers size={22} />
-              </button>
-            </IconTip>
-          )}
           <NotificationBell />
           {mobile && (
             <>
@@ -1056,40 +1171,9 @@ export function Sidebar({
         <ZoomControls collapsed={isCollapsed} />
       </div>
 
-      {/* Atalho do CRM no rodapé do sidebar desktop. */}
-      {!mobile && onOpenCrm && (
-        <div className="mt-2 border-t border-white/[0.1] pt-3">
-          {isCollapsed ? (
-            <Tooltip delay={150}>
-              <Tooltip.Trigger className="contents">
-                <button
-                  type="button"
-                  onClick={onOpenCrm}
-                  aria-label="Abrir CRM"
-                  className="grid h-11 w-full place-items-center rounded-lg text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
-                >
-                  <IconUsers size={19} />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Content
-                placement="right"
-                className="rounded-lg bg-ink-soft px-2.5 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-pop)]"
-              >
-                CRM
-              </Tooltip.Content>
-            </Tooltip>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenCrm}
-              className="group flex min-h-10 w-full items-center rounded-lg text-sm font-normal text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center"><IconUsers size={19} /></span>
-              <span className="min-w-0 flex-1 truncate pr-1 text-left">CRM</span>
-            </button>
-          )}
-        </div>
-      )}
+      {/* Não existe atalho de CRM aqui: o grupo "CRM" do menu (Atendimento,
+          Contatos, Kanban, IA) aparece em TODO plano — com cadeado quando a
+          feature não está inclusa —, então um segundo caminho só duplicava. */}
 
       <MinhaContaDrawer isOpen={minhaContaOpen} onClose={() => setMinhaContaOpen(false)} />
     </aside>

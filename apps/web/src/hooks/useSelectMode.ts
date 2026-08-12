@@ -11,6 +11,16 @@ import type { PageAction } from '../layout/PageActions';
  * [Cancelar · Selecionar todos · Ações] via `buildSelectActions`.
  *
  * `cancel` sai do modo E limpa a seleção — padrão canônico das telas.
+ *
+ * ATENÇÃO (armadilha real, ver estudo 140): o `Set` de selecionados é
+ * ACUMULATIVO e não é podado quando `allIds` muda. `allSelected` e `selectAll`,
+ * ao contrário, só enxergam os ids VISÍVEIS. Se a tela troca o recorte (filtro,
+ * busca, página, aba) sem chamar `cancel`, sobram ids marcados FORA da lista: a
+ * ação em lote acerta registros que sumiram da tela e o checkbox do cabeçalho
+ * ainda aparece desmarcado. Foi assim que "Excluir selecionadas" em Comandas
+ * cancelava as 20 comandas de julho depois de o usuário trocar o filtro para
+ * agosto. A página é responsável por limpar — ver `ComandasPage.tsx` (troca de
+ * filtro/página) e `financeiro/ContasPage.tsx` (troca de aba).
  */
 export function useSelectMode(allIds: string[]) {
   const [selectMode, setSelectMode] = useState(false);

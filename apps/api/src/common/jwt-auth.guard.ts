@@ -8,6 +8,7 @@ import {
 import { fromNodeHeaders } from 'better-auth/node';
 import { prisma } from '@beautypass/db';
 import { auth } from '../auth/better-auth';
+import { PERSONIFICACAO_DURACAO_MS as IMPERSONACAO_MAX_MS } from '../modules/platform/platform.constants';
 
 /**
  * BetterAuthGuard — valida a sessão Better Auth (cookie no web ou
@@ -51,10 +52,33 @@ export class BetterAuthGuard implements CanActivate {
     let activeCompanyId: string | null | undefined = user.companyId;
     const sessionRow = await prisma.session.findUnique({
       where: { token: sessionToken },
-      select: { id: true, activeCompanyId: true },
+      select: {
+        id: true,
+        activeCompanyId: true,
+        impersonatedByStaffId: true,
+        createdAt: true,
+      },
     });
     if (sessionRow?.activeCompanyId) {
       activeCompanyId = sessionRow.activeCompanyId;
+    }
+
+    // Teto do "entrar como" do console de suporte. Ver estudo 135.6.1.
+    //
+    // A conta é feita sobre `createdAt`, NUNCA sobre `expiresAt`: o Better Auth
+    // reescreve a expiração ao ler a sessão, e medimos isso — uma sessão criada
+    // com 30 min de prazo virava 7 dias na primeira requisição. `createdAt` ele
+    // não toca, então é o único relógio confiável aqui.
+    //
+    // Inerte para login normal: só entra quando impersonatedByStaffId existe.
+    if (sessionRow?.impersonatedByStaffId) {
+      const idadeMs = Date.now() - sessionRow.createdAt.getTime();
+      if (idadeMs > IMPERSONACAO_MAX_MS) {
+        await prisma.session.delete({ where: { id: sessionRow.id } }).catch(() => undefined);
+        throw new UnauthorizedException(
+          'A sessão de suporte expirou. Abra outra pelo console.',
+        );
+      }
     }
 
     if (!activeCompanyId) {
@@ -85,6 +109,9 @@ export class BetterAuthGuard implements CanActivate {
       roleCode: membership.role?.code ?? null,
       professionalId: professional?.id ?? null,
     };
+    // Não-nulo ⇒ esta sessão nasceu de um "entrar como" do suporte. Exposto para
+    // o painel do salão poder avisar quem está do outro lado da tela.
+    request.impersonatedByStaffId = sessionRow?.impersonatedByStaffId ?? null;
     request.session = session.session;
     // Guardado para o endpoint de switch-company gravar Session.activeCompanyId.
     request.sessionId = sessionRow?.id ?? sessionId ?? null;

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ReportPdfOption } from './ReportPdfButton';
 import {
   Bar,
   BarChart,
@@ -32,7 +33,8 @@ import { COLOR_GREEN, COLOR_RED, shortDay } from './reportShared';
 
 function defaultRange() {
   const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1); // início do mês
+  const from = new Date(to);
+  from.setMonth(from.getMonth() - 1);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
@@ -89,14 +91,19 @@ export function FluxoCaixaPage() {
       title="Fluxo de Caixa"
       subtitle="Entradas, saídas e saldo acumulado por dia no período"
       actions={
-        <button
-          type="button"
-          onClick={exportCsv}
-          disabled={rows.length === 0}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
-        >
-          <IconDownload size={16} /> Exportar CSV
-        </button>
+        <>
+          {/* Mesma acao compartilhada dos demais relatorios: este era um dos
+              quatro que so ofereciam CSV. Ver estudo 97. */}
+          <ReportPdfOption />
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={rows.length === 0}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
+          >
+            <IconDownload size={16} /> Exportar CSV
+          </button>
+        </>
       }
     >
       {/* Período */}
@@ -154,6 +161,28 @@ export function FluxoCaixaPage() {
                 {formatMoney(d?.balance ?? 0)}
               </div>
             </div>
+          </div>
+
+          {/* Recebimentos separados por forma: o backend já agrupa pelas
+              transações pagas; aqui deixamos Pix, dinheiro e cartão visíveis
+              sem misturar com o saldo geral. */}
+          <div className="mt-4 rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="m-0 text-sm font-semibold text-ink">Recebimentos por forma de pagamento</h3>
+              <span className="text-xs text-muted-ink">Somente entradas pagas no período</span>
+            </div>
+            {(d?.byPaymentMethod ?? []).length === 0 ? (
+              <p className="m-0 text-sm text-muted-ink">Nenhum recebimento no período.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {(d?.byPaymentMethod ?? []).map((m) => (
+                  <div key={m.paymentMethodId ?? 'none'} className="rounded-xl border border-line/70 bg-canvas/40 px-4 py-3">
+                    <div className="truncate text-xs font-medium text-muted-ink">{m.paymentMethodName}</div>
+                    <div className="mt-1 text-xl font-bold text-success">{formatMoney(m.total)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Gráfico */}

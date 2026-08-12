@@ -1,3 +1,4 @@
+import { getSubdomainSlug, sharedBookingUrl } from '../lib/config';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -125,6 +126,62 @@ function nextDays(count = 14): Date[] {
 }
 
 type Step = BookingNavStep;
+
+/**
+ * RASCUNHO do agendamento — o que sobrevive ao desvio pelo login com Google.
+ *
+ * O login social é uma navegação de página inteira: o navegador sai para o
+ * Google e volta, e todo `useState` do BookingPage morre no caminho. O dono
+ * escolhia serviço, profissional, dia e horário, vinculava a conta e voltava
+ * para o passo 1, tendo que refazer tudo. O dado nunca foi "perdido por bug" —
+ * ele nunca era guardado. Ver estudo 118.
+ *
+ * `sessionStorage`, não `localStorage`: rascunho pertence à aba e àquela visita.
+ * Em `localStorage` ele sobreviveria dias e ressuscitaria, na visita seguinte,
+ * um horário provavelmente já ocupado.
+ */
+interface RascunhoAgendamento {
+  slug: string;
+  step: Step;
+  services: Service[];
+  professional: Professional | null;
+  /** ISO do dia escolhido (só a data importa). */
+  date: string;
+  slot: string | null;
+  salvoEm: number;
+}
+
+/** Rascunho mais velho que isto é descartado: horário velho é pior que nenhum. */
+const RASCUNHO_VALIDADE_MS = 30 * 60 * 1000;
+
+const rascunhoKey = (slug: string) => `sp-club:rascunho:${slug}`;
+
+function lerRascunho(slug: string): RascunhoAgendamento | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cru = window.sessionStorage.getItem(rascunhoKey(slug));
+    if (!cru) return null;
+    const r = JSON.parse(cru) as RascunhoAgendamento;
+    const fresco = Date.now() - (r?.salvoEm ?? 0) < RASCUNHO_VALIDADE_MS;
+    // Confere o salão: a mesma aba pode ter passado por outro portal.
+    if (!fresco || r?.slug !== slug || !Array.isArray(r.services)) {
+      window.sessionStorage.removeItem(rascunhoKey(slug));
+      return null;
+    }
+    return r;
+  } catch {
+    return null;
+  }
+}
+
+function apagarRascunho(slug: string): void {
+  try {
+    window.sessionStorage.removeItem(rascunhoKey(slug));
+  } catch {
+    // Modo privado/quota: seguir sem rascunho é degradação aceitável.
+  }
+}
+
 const STEPS: { id: Step; label: string; icon: React.ReactNode }[] = [
   { id: 'service', label: 'Serviços', icon: <Tag width={16} height={16} /> },
   { id: 'professional', label: 'Profissional', icon: <Person width={16} height={16} /> },
@@ -136,10 +193,19 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   const navigate = useNavigate();
   const { data: session } = useCustomerSession();
   const isLoggedIn = !!session;
-  // Phone already on the logged-in account (additional field on the auth user).
-  const userPhone = (session?.user as { phone?: string | null } | undefined)?.phone ?? null;
-  // Logged in but without a phone → we must collect one before booking.
-  const needsPhone = isLoggedIn && !userPhone;
+  /**
+   * SEMPRE pedir o telefone de quem agenda com conta — em branco, todas as vezes.
+   *
+   * Era `isLoggedIn && !userPhone`: havendo QUALQUER número na conta, ele entrava
+   * no agendamento sem sequer aparecer na tela. Esse número é o destino da
+   * confirmação e dos lembretes de WhatsApp; herdado de um cadastro antigo ou de
+   * outra pessoa que usou o mesmo aparelho, a mensagem do horário de alguém vai
+   * para o celular de outro — e na base havia o MESMO telefone em contas de
+   * pessoas diferentes. O campo também não vem preenchido: um valor já posto é
+   * confirmado no automático, que é o hábito que produziu o número errado.
+   * Ver estudo 121.
+   */
+  const needsPhone = isLoggedIn;
 
   // SPA navigation targets for the auth flows. `basePath` is "" on a tenant
   // subdomain (portal at "/") and "/:slug" under path-based routing.
@@ -158,6 +224,18 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const portal = usePortal(slug);
+
+  // Subdomínio próprio é exclusivo de pro/max. Se o salão for starter e alguém
+  // chegar por <slug>.salonpass.com.br, mandamos para o link compartilhado em
+  // vez de servir o portal — senão o recurso pago vazaria para o plano básico.
+  // Só age quando o portal já respondeu (customSubdomain === false explícito).
+  useEffect(() => {
+    if (!portal.data) return;
+    if (portal.data.customSubdomain !== false) return;
+    if (!getSubdomainSlug()) return; // chegou pelo link compartilhado: ok
+    window.location.replace(sharedBookingUrl(slug));
+  }, [portal.data, slug]);
+
   // Theme the whole flow with the salon's customized colors (primary/accent/
   // background), falling back to the house theme when the salon hasn't set them.
   useBookingAccent(slug);
@@ -172,22 +250,54 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
     }
   }, [portal.data?.name]);
 
-  const [step, setStep] = useState<Step>('service');
-  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  // Ícone da aba = logo do salão. A aba mostrava o ícone do Salonpass para
+  // todos; com o logo, a cliente reconhece o salão entre 15 abas abertas.
+  // Ver estudo 67.
+  useEffect(() => {
+    const logo = portal.data?.logoUrl;
+    if (!logo) return;
+    const anterior = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const href = anterior?.href ?? null;
+    const link = anterior ?? document.createElement('link');
+    link.rel = 'icon';
+    link.href = logo;
+    if (!anterior) document.head.appendChild(link);
+    return () => {
+      if (href) link.href = href;
+    };
+  }, [portal.data?.logoUrl]);
+
+  // Rascunho lido UMA vez, na montagem: é o que devolve a pessoa ao ponto em
+  // que ela estava antes de sair para o Google. Ver estudo 118.
+  const rascunho = useRef<RascunhoAgendamento | null>(lerRascunho(slug)).current;
+
+  const [step, setStep] = useState<Step>(rascunho?.step ?? 'service');
+  const [selectedServices, setSelectedServices] = useState<Service[]>(rascunho?.services ?? []);
   // Convenience aliases for the primary (first) service — used by downstream
   // queries that still need a single serviceId, and backwards compat.
   const service = selectedServices.length > 0 ? selectedServices[0] : null;
-  const [professional, setProfessional] = useState<Professional | null>(null);
+  const [professional, setProfessional] = useState<Professional | null>(rascunho?.professional ?? null);
   const [date, setDate] = useState<Date>(() => {
-    const d = new Date();
+    const salva = rascunho?.date ? new Date(rascunho.date) : null;
+    const d = salva && !Number.isNaN(salva.getTime()) ? salva : new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  const [slot, setSlot] = useState<string | null>(null);
+  const [slot, setSlot] = useState<string | null>(rascunho?.slot ?? null);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   // Phone for a logged-in customer who has none on file yet (e.g. Google sign-up).
+  /**
+   * Começa VAZIO de propósito, mesmo quando a conta já tem telefone.
+   *
+   * A primeira versão vinha pré-preenchida, para a pessoa "conferir". Só que um
+   * campo já preenchido é confirmado no automático — e era justamente o número
+   * herdado (o mesmo aparecia em contas de pessoas diferentes na base) que
+   * mandava a confirmação do horário de alguém para o aparelho de outro. Em
+   * branco, quem agenda precisa DIGITAR o número em que quer ser avisado.
+   * Ver estudo 121.
+   */
   const [accountPhone, setAccountPhone] = useState('');
   const [done, setDone] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -196,6 +306,34 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
   // "Favoritos" tab or the Favoritos filter chip).
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const favorites = useFavorites(slug);
+
+  /**
+   * Grava o rascunho a cada escolha, para que o desvio pelo login não custe o
+   * trabalho já feito.
+   *
+   * Grava a partir do momento em que HÁ algo escolhido — um rascunho vazio só
+   * ocuparia espaço e mascararia o "começar do zero" legítimo. Falha de
+   * `sessionStorage` (modo privado, cota) é engolida: perder o rascunho é ruim,
+   * derrubar a tela de agendamento é pior.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (selectedServices.length === 0 && !professional && !slot) return;
+    try {
+      const r: RascunhoAgendamento = {
+        slug,
+        step,
+        services: selectedServices,
+        professional,
+        date: date.toISOString(),
+        slot,
+        salvoEm: Date.now(),
+      };
+      window.sessionStorage.setItem(rascunhoKey(slug), JSON.stringify(r));
+    } catch {
+      // Sem rascunho o fluxo continua funcionando; só não sobrevive ao login.
+    }
+  }, [slug, step, selectedServices, professional, date, slot]);
 
   const serviceIds = selectedServices.map((s) => s.id);
   const professionals = useProfessionals(slug, service?.id ?? null, serviceIds.length > 1 ? serviceIds : undefined);
@@ -226,6 +364,29 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
       list = list.filter((s) => (s.categoryId ?? s.categoryName) === categoryFilter);
     return list;
   }, [services.data, categoryFilter, favoritesOnly, favorites.ids]);
+
+  // A lista já filtrada, quebrada em seções por categoria — o backend devolve
+  // na ordem de exibição, então basta preservar a ordem de aparição. Serviço
+  // sem categoria cai num "Outros" no fim, em vez de sumir da lista.
+  const secoesDeServico = useMemo(() => {
+    const secoes = new Map<string, { titulo: string; servicos: typeof visibleServices }>();
+    visibleServices.forEach((s) => {
+      const chave = s.categoryId ?? s.categoryName ?? '__sem-categoria';
+      const titulo = s.categoryName ?? 'Outros';
+      const secao = secoes.get(chave);
+      if (secao) secao.servicos.push(s);
+      else secoes.set(chave, { titulo, servicos: [s] });
+    });
+    const lista = Array.from(secoes, ([chave, secao]) => ({ chave, ...secao }));
+    // "Outros" por último: é o resto, não uma categoria de verdade.
+    return lista.sort((a, b) =>
+      a.chave === '__sem-categoria' ? 1 : b.chave === '__sem-categoria' ? -1 : 0,
+    );
+  }, [visibleServices]);
+
+  // Com uma seção só (salão pequeno, ou filtro de categoria ativo) o cabeçalho
+  // vira ruído: diria "Unhas" numa tela em que tudo é unhas.
+  const mostrarSecoes = secoesDeServico.length > 1;
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
@@ -297,6 +458,9 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
       // Logged-in customers without a phone supply one here; it's persisted.
       phone: needsPhone ? accountPhone.trim() : undefined,
     });
+    // O rascunho cumpriu o papel: mantê-lo faria o PRÓXIMO agendamento abrir já
+    // preenchido com o horário que a pessoa acabou de marcar.
+    apagarRascunho(slug);
     setDone(true);
   }
 
@@ -363,6 +527,9 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
           id="inicio"
           className="scroll-mt-20 border-b border-[var(--color-soft-border)] bg-[var(--booking-surface)]/95 shadow-[var(--shadow-soft)] backdrop-blur-xl"
         >
+          {/* Capa do salão (estudo 67): imagem do topo com véu ajustável, para o
+              nome e o status continuarem legíveis sobre qualquer foto. */}
+          <SalonCover url={appearance.coverUrl} overlay={appearance.coverOverlay} />
           <SalonHero
             portal={portal.data}
             isLoading={portal.isLoading}
@@ -525,28 +692,53 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                   )
                 ) : (
                   <div className="flex flex-col gap-2.5">
-                    {visibleServices.map((s) => (
-                      <ServiceCard
-                        key={s.id}
-                        service={s}
-                        selected={selectedServices.some((sel) => sel.id === s.id)}
-                        isFavorite={favorites.ids.has(s.id)}
-                        onToggleFavorite={() => favorites.toggle(s.id)}
-                        onSelect={() => {
-                          setSelectedServices((prev) => {
-                            const exists = prev.some((sel) => sel.id === s.id);
-                            const next = exists
-                              ? prev.filter((sel) => sel.id !== s.id)
-                              : [...prev, s];
-                            setProfessional(null);
-                            setSlot(null);
-                            return next;
-                          });
-                        }}
-                      />
+                    {secoesDeServico.map((secao) => (
+                      <section key={secao.chave} className="flex flex-col gap-2.5">
+                        {mostrarSecoes && (
+                          // Sticky: a cliente sabe em que seção está enquanto
+                          // desliza a lista — o "ao passar da lista" do pedido.
+                          <h3 className="sticky top-0 z-10 -mx-1 bg-[var(--club-bg,theme(colors.background))]/95 px-1 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted backdrop-blur-sm">
+                            {secao.titulo}
+                            <span className="ml-1.5 font-normal normal-case tracking-normal">
+                              ({secao.servicos.length})
+                            </span>
+                          </h3>
+                        )}
+                        {secao.servicos.map((s) => (
+                          <ServiceCard
+                            key={s.id}
+                            service={s}
+                            selected={selectedServices.some((sel) => sel.id === s.id)}
+                            ocultarCategoria={mostrarSecoes}
+                            isFavorite={favorites.ids.has(s.id)}
+                            onToggleFavorite={() => favorites.toggle(s.id)}
+                            onSelect={() => {
+                              setSelectedServices((prev) => {
+                                const exists = prev.some((sel) => sel.id === s.id);
+                                const next = exists
+                                  ? prev.filter((sel) => sel.id !== s.id)
+                                  : [...prev, s];
+                                setProfessional(null);
+                                setSlot(null);
+                                return next;
+                              });
+                            }}
+                          />
+                        ))}
+                      </section>
                     ))}
                   </div>
                 ))}
+
+              {/* Galeria e "sobre" só na primeira etapa: é onde a cliente decide
+                  se o salão tem a cara dela. Ambos vinham do painel e não
+                  apareciam para ninguém (estudo 67). */}
+              {step === 'service' && (
+                <>
+                  <SalonGallery fotos={portal.data?.gallery ?? []} />
+                  <SalonAbout about={portal.data?.about} />
+                </>
+              )}
 
               {step === 'professional' &&
                 (professionals.isLoading ? (
@@ -677,8 +869,11 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                     </Card.Content>
                   </Card>
 
-                  {/* Logged-in customer with no phone on file (e.g. Google sign-up):
-                      collect a WhatsApp so the confirmation/reminders can reach them. */}
+                  {/* Quem agenda com conta CONFIRMA o WhatsApp aqui, sempre —
+                      inclusive quem já tem número gravado. É o destino da
+                      confirmação e dos lembretes; um número herdado de cadastro
+                      antigo manda a mensagem do horário para o aparelho de outra
+                      pessoa. Ver estudo 121. */}
                   {needsPhone && (
                     <Card className="border border-[var(--color-soft-border)] bg-[var(--booking-accent-surface)] shadow-[var(--shadow-card)]">
                       <Card.Content className="flex flex-col gap-3 p-4">
@@ -687,15 +882,27 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                           Seu WhatsApp
                         </h3>
                         <p className="text-xs text-muted">
-                          Para enviarmos a confirmação e os lembretes do seu horário.
+                          Informe o número em que quer receber a confirmação e os lembretes
+                          deste horário.
                         </p>
-                        <TextField value={accountPhone} onChange={setAccountPhone} type="tel" isRequired>
+                        <TextField
+                          value={accountPhone}
+                          onChange={setAccountPhone}
+                          type="tel"
+                          isRequired
+                        >
                           <Label>Telefone (WhatsApp)</Label>
                           <Input placeholder="(00) 00000-0000" />
                         </TextField>
                       </Card.Content>
                     </Card>
                   )}
+
+                  {/* O cartão "Esta conta é do salão, não de cliente" ficava aqui
+                      (estudo 119) e saiu com a trava que o motivava. O portal tem
+                      sessão própria desde o estudo 120, então conta de salão
+                      agenda normalmente — era esta mensagem que o dono via ao
+                      abrir o link de agendamento de QUALQUER salão. */}
 
                   {!isLoggedIn && (
                     <>
@@ -719,6 +926,11 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                                 void signIn.social({
                                   provider: 'google',
                                   callbackURL: window.location.origin + loginPath.replace(/\/login$/, ''),
+                                  // Sem isto, a falha do OAuth despeja o cliente
+                                  // na raiz do PAINEL (app.salonpass.com.br) —
+                                  // ver estudo 117. Aqui ela volta para a tela de
+                                  // login do portal, que mostra o motivo.
+                                  errorCallbackURL: window.location.origin + loginPath,
                                 })
                               }
                             >
@@ -1029,6 +1241,102 @@ function SalonHero({
 
 // Compact open/closed indicator for the salon header meta line. Hours unknown
 // (no schedules) → renders nothing so the line omits the status.
+/** Capa do topo da página pública. Sem imagem, não ocupa espaço. Estudo 67. */
+function SalonCover({ url, overlay }: { url: string | null; overlay: number }) {
+  if (!url) return null;
+  const veu = Math.min(80, Math.max(0, overlay)) / 100;
+  return (
+    <div className="relative h-32 w-full overflow-hidden sm:h-44">
+      <img src={url} alt="" className="h-full w-full object-cover" aria-hidden />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, rgba(0,0,0,${veu * 0.4}) 0%, rgba(0,0,0,${veu}) 100%)`,
+        }}
+        aria-hidden
+      />
+    </div>
+  );
+}
+
+/**
+ * Galeria do salão — as fotos que o dono já subia no painel e que NUNCA
+ * apareciam para o cliente (estudo 67). Faixa rolável, sem cortar no celular.
+ */
+function SalonGallery({ fotos }: { fotos: { url: string; caption: string | null }[] }) {
+  if (!fotos.length) return null;
+  return (
+    <section className="mt-4">
+      <h2 className="px-1 font-brand text-[15px] text-foreground">O salão por dentro</h2>
+      <div className="hide-scrollbar mt-2 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+        {fotos.map((f) => (
+          <figure
+            key={f.url}
+            className="relative h-36 w-56 shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)] sm:h-44 sm:w-64"
+          >
+            <img
+              src={f.url}
+              alt={f.caption ?? ''}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+            {f.caption && (
+              <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-1.5 text-[11px] text-white">
+                {f.caption}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Descrição + redes do salão. Também só existiam no painel. Estudo 67. */
+function SalonAbout({
+  about,
+}: {
+  about?: {
+    description: string | null;
+    website: string | null;
+    instagram: string | null;
+    facebook: string | null;
+  };
+}) {
+  if (!about) return null;
+  const redes = [
+    { rotulo: 'Instagram', url: about.instagram },
+    { rotulo: 'Facebook', url: about.facebook },
+    { rotulo: 'Site', url: about.website },
+  ].filter((r): r is { rotulo: string; url: string } => Boolean(r.url));
+  if (!about.description && redes.length === 0) return null;
+  const comProtocolo = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+  return (
+    <section className="mt-4 rounded-2xl bg-white p-4 shadow-[var(--shadow-card)]">
+      {about.description && (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+          {about.description}
+        </p>
+      )}
+      {redes.length > 0 && (
+        <div className={about.description ? 'mt-3 flex flex-wrap gap-2' : 'flex flex-wrap gap-2'}>
+          {redes.map((r) => (
+            <a
+              key={r.rotulo}
+              href={comProtocolo(r.url)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border border-[var(--color-soft-border)] px-3 py-1.5 text-xs font-semibold text-[var(--booking-accent-ink)] transition-colors hover:bg-[var(--booking-accent-soft)]"
+            >
+              {r.rotulo}
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function OpenStatus({
   open,
   hours,
@@ -1096,12 +1404,15 @@ function ServiceCard({
   isFavorite,
   onToggleFavorite,
   onSelect,
+  ocultarCategoria = false,
 }: {
   service: Service;
   selected: boolean;
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onSelect: () => void;
+  /** Sob um cabeçalho de seção a etiqueta repetiria a categoria em cada cartão. */
+  ocultarCategoria?: boolean;
 }) {
   const badge = service.favorite
     ? { label: 'Mais pedido', icon: <Star width={12} height={12} />, cls: 'bg-[var(--booking-accent-soft)] text-[var(--booking-accent-ink)]' }
@@ -1171,7 +1482,7 @@ function ServiceCard({
             <Clock width={13} height={13} />
             {durationLabel(service.durationMin)}
           </span>
-          {service.categoryName && (
+          {service.categoryName && !ocultarCategoria && (
             <span className="flex items-center gap-1">
               <Tag width={13} height={13} />
               {service.categoryName}
@@ -1218,13 +1529,19 @@ function ServicePhoto({ service }: { service: Service }) {
     return (
       <div
         className="relative min-h-28 w-24 shrink-0 self-stretch sm:w-32"
+        // O fundo da foto era rosa cravado em três lugares; agora deriva da cor
+        // escolhida pelo salão (--booking-photo, padrão = o rosa da casa), com
+        // o ícone num tom mais forte da MESMA cor. Ver estudo 66.
         style={{
           backgroundImage:
-            'radial-gradient(120px 120px at 30% 20%, rgba(240,140,165,0.22), transparent 70%), linear-gradient(160deg, #fbe2e8 0%, #f4cdd6 100%)',
+            'radial-gradient(120px 120px at 30% 20%, color-mix(in oklab, var(--booking-photo, #f08ca5) 30%, transparent), transparent 70%), linear-gradient(160deg, color-mix(in oklab, var(--booking-photo, #f08ca5) 22%, #fff) 0%, color-mix(in oklab, var(--booking-photo, #f08ca5) 46%, #fff) 100%)',
         }}
         aria-hidden
       >
-        <span className="absolute inset-0 grid place-items-center text-[#d79bab]">
+        <span
+          className="absolute inset-0 grid place-items-center"
+          style={{ color: 'color-mix(in oklab, var(--booking-photo, #f08ca5) 72%, #000)' }}
+        >
           <Camera width={30} height={30} />
         </span>
       </div>

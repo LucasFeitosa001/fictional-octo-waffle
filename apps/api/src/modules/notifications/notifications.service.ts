@@ -4,9 +4,15 @@ import {
   AppointmentEvent,
   composeAppointmentMessages,
 } from './notifications.templates';
+import { confirmationTemplateVariables } from './confirmation.templates';
+import {
+  renderMessageTemplate,
+  type MessageTemplateKind,
+} from './message-templates';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { EmailService } from '../email/email.service';
 import { NotificationSettingsService } from './notification-settings.service';
+import { readMessagingMode } from '../queues/messaging.helpers';
 
 /**
  * Appointment notifications.
@@ -30,6 +36,21 @@ export interface NotificationRow {
   createdAt: Date;
 }
 
+/**
+ * O sino do PAINEL é só do salão — `userId: null`.
+ *
+ * A mesma tabela guarda dois destinatários muito diferentes: as linhas do salão
+ * (`userId` nulo) e as do CLIENTE logado no portal (`userId` preenchido, lidas
+ * por `PublicBookingService.getMyNotifications`). Sem esta cláusula bastava o
+ * `companyId` para as duas caírem no sino do painel, e o salão lia o recado
+ * pessoal da cliente — "Olá, Fulana! Seu Manicure com … está confirmado … 💕" —
+ * em vez do resumo curto de `composeAppointmentMessages().studio`
+ * ("Agendamento confirmado: Fulana" / "Manicure com Bruna em terça-feira,
+ * 04/08, 16:15 (até 16:30)."). Aparecia só no agendamento ONLINE porque só ali
+ * a cliente tem conta.
+ */
+const DO_SALAO = (companyId: string) => ({ companyId, userId: null });
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -44,6 +65,16 @@ export class NotificationsService {
 
   get isLive(): boolean {
     return this.mode === 'live';
+  }
+
+  /**
+   * WhatsApp exige as DUAS chaves de ambiente: modo live E o canal habilitado.
+   * Antes esse caminho usava só `isLive`, então com `WHATSAPP_ENABLED=false` a
+   * mensagem ainda era enfileirada e ficava pendente esperando um socket que
+   * nunca subiria — fila parada é bomba armada. Ver estudo 60.
+   */
+  private get canSendWhatsapp(): boolean {
+    return readMessagingMode().canSendWhatsapp;
   }
 
   /**
@@ -99,14 +130,39 @@ export class NotificationsService {
         event === 'created' &&
         appt.source === 'online' &&
         appt.status === 'unconfirmed';
+      // Padrão da conta que vale para ESTE evento. O agendamento ONLINE tem
+      // chave própria (`onlineBooking`, ligada por padrão): quem agendou pela
+      // internet não recebeu nenhuma confirmação verbal no balcão, e o silêncio
+      // vira "será que deu certo?". Cancelamento segue em `cancellation`, e o
+      // agendamento feito na recepção segue em `confirmation`. Estudo 153.
+      const padraoDaConta =
+        event === 'canceled'
+          ? auto.cancellation
+          : appt.source === 'online'
+            ? auto.onlineBooking
+            : auto.confirmation;
+      // O toggle DO AGENDAMENTO continua tendo a última palavra (trava adicional).
       const clientAllowed =
-        !pendingOnlineConfirmation &&
-        (appointmentOverride ??
-          (event === 'canceled' ? auto.cancellation : auto.confirmation));
+        !pendingOnlineConfirmation && (appointmentOverride ?? padraoDaConta);
+      // PERSONALIZAÇÃO (estudo 61): o texto do WhatsApp do cliente é o modelo
+      // padrão da empresa renderizado — confirmação para created/confirmed,
+      // cancelamento para canceled. Sem modelo utilizável, fica o texto fixo
+      // montado acima; personalizar nunca deixa a cliente sem mensagem.
+      if (clientAllowed && messages.clientWhatsapp) {
+        const personalizado = await this.textoDoModelo(event, appt, opts?.reason);
+        if (personalizado) {
+          messages.clientWhatsapp = {
+            ...messages.clientWhatsapp,
+            text: personalizado,
+          };
+        }
+      }
+
       if (clientAllowed) {
         await this.dispatchClient(
           event,
           companyId,
+          appointmentId,
           messages,
           appt.customer
             ? {
@@ -125,11 +181,26 @@ export class NotificationsService {
       // Studio channel — always an in-app notification (the panel bell).
       // `entityId = appointmentId` habilita o deep-link do sino → drawer do
       // agendamento (o clique navega para /agenda?appointmentId=<id>).
+      // Quem fez isso: a IA ou uma pessoa?
+      //
+      // O dono não conseguia distinguir no sino um agendamento que a Mariana
+      // fechou sozinha de um que a recepção digitou — e são coisas diferentes
+      // para conferir. `legacySource: 'voltr-ia'` é o carimbo que a ponte grava
+      // em tudo que a IA cria. Ver estudo 115.
+      //
+      // Limite honesto: o carimbo é do AGENDAMENTO, não do evento. Um horário
+      // marcado no balcão e cancelado pela IA não aparece como "IA" aqui —
+      // resolver isso exige marcar a origem de cada evento, não do registro.
+      const feitoPelaIa = appt.legacySource === 'voltr-ia';
+      const tituloEstudio = feitoPelaIa
+        ? `IA · ${messages.studio.title}`
+        : messages.studio.title;
+
       await this.prisma.client.notification.create({
         data: {
           companyId,
           type: `appointment.${event}`,
-          title: messages.studio.title,
+          title: tituloEstudio,
           body: messages.studio.body,
           entityId: appointmentId,
         },
@@ -139,7 +210,7 @@ export class NotificationsService {
       // Silent quando RESEND_API_KEY ausente (EmailService.send loga warning
       // e retorna sem falhar) — permite ativar depois só setando a chave.
       await this.dispatchStudioEmail(companyId, {
-        subject: messages.studio.title,
+        subject: tituloEstudio,
         body: messages.studio.body,
       });
 
@@ -182,11 +253,11 @@ export class NotificationsService {
     const typeFilter =
       opts.types && opts.types.length > 0 ? { type: { in: opts.types } } : {};
     const where = {
-      companyId,
+      ...DO_SALAO(companyId),
       ...typeFilter,
       ...(opts.unreadOnly ? { readAt: null } : {}),
     };
-    const countWhere = { companyId, ...typeFilter };
+    const countWhere = { ...DO_SALAO(companyId), ...typeFilter };
     const [data, total, unreadCount] = await Promise.all([
       this.prisma.client.notification.findMany({
         where,
@@ -211,12 +282,12 @@ export class NotificationsService {
     const [totals, unreads] = await Promise.all([
       this.prisma.client.notification.groupBy({
         by: ['type'],
-        where: { companyId },
+        where: DO_SALAO(companyId),
         _count: { _all: true },
       }),
       this.prisma.client.notification.groupBy({
         by: ['type'],
-        where: { companyId, readAt: null },
+        where: { ...DO_SALAO(companyId), readAt: null },
         _count: { _all: true },
       }),
     ]);
@@ -231,14 +302,14 @@ export class NotificationsService {
 
   async unreadCount(companyId: string): Promise<{ unreadCount: number }> {
     const unreadCount = await this.prisma.client.notification.count({
-      where: { companyId, readAt: null },
+      where: { ...DO_SALAO(companyId), readAt: null },
     });
     return { unreadCount };
   }
 
   async markRead(companyId: string, id: string): Promise<{ ok: true }> {
     await this.prisma.client.notification.updateMany({
-      where: { id, companyId, readAt: null },
+      where: { id, ...DO_SALAO(companyId), readAt: null },
       data: { readAt: new Date() },
     });
     return { ok: true };
@@ -252,10 +323,58 @@ export class NotificationsService {
   async markAllRead(companyId: string, types?: string[]): Promise<{ ok: true }> {
     const typeFilter = types && types.length > 0 ? { type: { in: types } } : {};
     await this.prisma.client.notification.updateMany({
-      where: { companyId, readAt: null, ...typeFilter },
+      where: { ...DO_SALAO(companyId), readAt: null, ...typeFilter },
       data: { readAt: new Date() },
     });
     return { ok: true };
+  }
+
+  /**
+   * Texto personalizado da empresa para o evento, ou `null` para manter o texto
+   * fixo. `{motivo}` só existe no cancelamento e, vazio, faz o renderizador
+   * apagar a linha inteira (em vez de mandar "Motivo:" solto). Ver estudo 61.
+   */
+  private async textoDoModelo(
+    event: AppointmentEvent,
+    appt: {
+      companyId: string;
+      start: Date;
+      company: { name: string; timezone: string };
+      customer: { name: string } | null;
+      professional: { name: string } | null;
+      items: { service: { name: string } | null }[];
+    },
+    reason?: string | null,
+  ): Promise<string | null> {
+    const kind: MessageTemplateKind =
+      event === 'canceled' ? 'cancellation' : 'confirmation';
+    try {
+      const template = await this.settings.activeTemplateMessage(
+        appt.companyId,
+        kind,
+      );
+      if (!template) return null;
+      const variables: Record<string, string> = {
+        ...confirmationTemplateVariables({
+          companyName: appt.company.name,
+          timezone: appt.company.timezone,
+          customerName: appt.customer?.name ?? null,
+          professionalName: appt.professional?.name ?? null,
+          serviceNames: appt.items
+            .map((item) => item.service?.name)
+            .filter((name): name is string => !!name),
+          start: appt.start,
+        }),
+        motivo: reason?.trim() ?? '',
+      };
+      const text = renderMessageTemplate(kind, template, variables);
+      return text.length > 0 && text.length <= 2_000 ? text : null;
+    } catch (err) {
+      this.logger.warn(
+        `textoDoModelo(${kind}, company=${appt.companyId}) falhou, usando o texto fixo: ${(err as Error).message}`,
+      );
+      return null;
+    }
   }
 
   /**
@@ -290,6 +409,7 @@ export class NotificationsService {
   private async dispatchClient(
     event: AppointmentEvent,
     companyId: string,
+    appointmentId: string,
     messages: ReturnType<typeof composeAppointmentMessages>,
     customer?: {
       id: string;
@@ -305,10 +425,11 @@ export class NotificationsService {
     const whatsappAllowed = notificationsAllowed && customer?.whatsappOptIn !== false;
     if (messages.clientWhatsapp && whatsappAllowed) {
       this.logger.log(`${tag} WhatsApp -> ${messages.clientWhatsapp.to}: ${messages.clientWhatsapp.text}`);
-      if (this.isLive) {
+      if (this.canSendWhatsapp) {
         await this.whatsapp.enqueueText(messages.clientWhatsapp.to, messages.clientWhatsapp.text, {
           companyId,
           customerId: customer?.id,
+          appointmentId,
           kind,
         });
       }

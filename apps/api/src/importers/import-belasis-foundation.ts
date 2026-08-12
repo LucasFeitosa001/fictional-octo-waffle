@@ -111,7 +111,16 @@ async function main() {
     };
     const ex = await prisma.customer.findFirst({ where: { companyId, deletedAt: null, OR: [{ legacyId }, { name: c.name }] } });
     if (ex) {
-      await prisma.customer.update({ where: { id: ex.id }, data: { ...data, legacyId: ex.legacyId ?? legacyId } });
+      // `active` NÃO entra no update: quem já está no sistema não pode ser
+      // desativado por uma planilha do sistema antigo. Foi assim que 49
+      // clientes reais da Fátima ficaram invisíveis no seletor da comanda,
+      // aparecendo só nas comandas antigas (que referenciam por id). Na
+      // CRIAÇÃO o valor da planilha continua valendo. Ver estudo 76.
+      const { active: _ignorado, ...semActive } = data;
+      await prisma.customer.update({
+        where: { id: ex.id },
+        data: { ...semActive, legacyId: ex.legacyId ?? legacyId },
+      });
       cliUpd++;
     } else { await prisma.customer.create({ data: { ...data, companyId } }); cliNew++; }
   }

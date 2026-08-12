@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  Equals,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -7,6 +8,8 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -69,6 +72,14 @@ export class CreateAppointmentDto {
   @IsDateString() start: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;
+  /**
+   * "Encaixar agendamento": permite marcar em cima de um horário JÁ ocupado do
+   * mesmo profissional. Pedido do salão — a mesma profissional atende duas
+   * clientes no mesmo horário (ex.: uma com a tinta agindo).
+   * O toggle já existia na tela mas nunca era enviado, então ligá-lo não fazia
+   * nada e a pessoa tomava "horário ocupado" mesmo assim.
+   */
+  @IsOptional() @IsBoolean() squeezeIn?: boolean;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -105,11 +116,105 @@ export class UpdateAppointmentDto {
   @IsOptional() @IsDateString() start?: string;
   @IsOptional() @IsDateString() end?: string;
   @IsOptional() @IsString() notes?: string;
+  /**
+   * "Encaixar agendamento" ao REAGENDAR. Mesma regra do create: permite mover o
+   * agendamento para um horário já ocupado do mesmo profissional. Sem isto o
+   * encaixe cobria só metade do fluxo — dava para criar em cima, mas não para
+   * mover para cima, que é o caso mais comum na recepção.
+   */
+  @IsOptional() @IsBoolean() squeezeIn?: boolean;
   // Reconfigura o aviso personalizado ao editar o agendamento.
   @IsOptional()
   @ValidateNested()
   @Type(() => AppointmentFollowUpDto)
   followUp?: AppointmentFollowUpDto;
+}
+
+/**
+ * Disparo manual e auditável da confirmação. `authorize=true` é deliberadamente
+ * obrigatório: autenticação/permissão identificam QUEM pode agir, mas este campo
+ * registra que aquela chamada autorizou especificamente este agendamento.
+ */
+/**
+ * Reenvio manual de um aviso que não saiu. Mesmo contrato do envio de
+ * confirmação: uma pessoa autoriza explicitamente, e a requestKey torna o retry
+ * HTTP idempotente (não cria uma segunda mensagem). Ver estudo 82.
+ */
+/**
+ * Envio manual do acompanhamento. Mesma exigência de autorização explícita da
+ * confirmação — o botão antigo disparava sem nada disso. Ver estudo 86.
+ */
+/** Mensagem livre para a cliente, a partir do agendamento. Ver estudo 87. */
+export class SendAppointmentMessageDto {
+  @Equals(true, { message: 'Confirme explicitamente o envio da mensagem.' })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+
+  @IsString() message: string;
+}
+
+export class SendAppointmentFollowUpDto {
+  @Equals(true, {
+    message: 'Confirme explicitamente o envio do acompanhamento.',
+  })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+
+  /** Modelo escolhido na tela; ignorado quando `message` vem preenchida. */
+  @IsOptional() @IsString() templateId?: string;
+
+  /** Texto editado só para este envio. */
+  @IsOptional() @IsString() message?: string;
+}
+
+export class ResendAppointmentMessageDto {
+  @Equals(true, {
+    message: 'Confirme explicitamente o reenvio desta mensagem.',
+  })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+}
+
+export class SendAppointmentConfirmationDto {
+  @Equals(true, {
+    message:
+      'Confirme explicitamente a autorização deste agendamento antes de enviar.',
+  })
+  authorize: true;
+
+  @IsUUID('4', {
+    message: 'A chave de segurança do envio é inválida. Tente novamente.',
+  })
+  requestKey: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  templateId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000, {
+    message: 'A mensagem deve ter no máximo 2000 caracteres.',
+  })
+  message?: string;
+
+  /** Reenvio intencional após o backend detectar uma confirmação anterior. */
+  @IsOptional()
+  @IsBoolean()
+  allowResend?: boolean;
 }
 
 /**

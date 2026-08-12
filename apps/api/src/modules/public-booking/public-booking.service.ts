@@ -184,16 +184,32 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       select: { name: true, logoUrl: true, timezone: true, addressJson: true },
     });
     const tz = company?.timezone ?? 'America/Sao_Paulo';
-    const [status, rating, plan, webProfile, appearanceRow] = await Promise.all([
+    const [status, rating, plan, customSubdomain, webProfile, appearanceRow, gallery] =
+      await Promise.all([
       this.openStatus(companyId, tz),
       this.ratingSummary(companyId),
       this.planLabel(companyId),
+      this.hasCustomSubdomain(companyId),
+      // O portal só devolvia a cor daqui. Descrição e redes eram preenchidas no
+      // painel e NUNCA apareciam para o cliente — estudo 67.
       this.prisma.client.salonWebProfile.findUnique({
         where: { companyId },
-        select: { accentColor: true },
+        select: {
+          accentColor: true,
+          description: true,
+          website: true,
+          instagram: true,
+          facebook: true,
+        },
       }),
       this.prisma.client.setting.findUnique({
         where: { companyId_key: { companyId, key: BOOKING_APPEARANCE_KEY } },
+      }),
+      this.prisma.client.galleryPhoto.findMany({
+        where: { companyId },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        select: { url: true, caption: true },
+        take: 24,
       }),
     ]);
     // Aparência da página pública. Defaults sensatos quando não há Setting, para
@@ -211,6 +227,9 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       rating,
       location: this.formatLocation(company?.addressJson ?? null),
       plan,
+      // pro/max: pode ser servido em <slug>.salonpass.com.br. Starter: o front
+      // redireciona para o link compartilhado agenda.salonpass.com.br/<slug>.
+      customSubdomain,
       whatsapp: this.formatWhatsApp(company?.addressJson ?? null),
       googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       // Cor de destaque (marca) do agendamento online, "#RRGGBB". Null → o
@@ -221,6 +240,17 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       // Aparência personalizável da página pública (por empresa). Sempre presente
       // com defaults, então o web-club nunca precisa lidar com ausência.
       appearance,
+      // "Sobre o salão": o que o dono escreve na aba Detalhes da empresa. Sem
+      // isto a página pública não tinha como mostrar (estudo 67).
+      about: {
+        description: webProfile?.description?.trim() || null,
+        website: webProfile?.website?.trim() || null,
+        instagram: webProfile?.instagram?.trim() || null,
+        facebook: webProfile?.facebook?.trim() || null,
+      },
+      // Galeria de fotos do salão — havia upload no painel e nenhuma saída
+      // pública. Ordem igual à do painel.
+      gallery: gallery.map((g) => ({ url: g.url, caption: g.caption ?? null })),
     };
   }
 
@@ -258,6 +288,24 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
 
   // Salon plan/subscription badge ("Profissional"/"Premium"). Null when the
   // salon has no active-ish subscription, so the badge is hidden.
+  /**
+   * O SUBDOMÍNIO PRÓPRIO (<slug>.salonpass.com.br) é exclusivo de pro/max — o
+   * starter usa o link compartilhado agenda.salonpass.com.br/<slug>. O portal é
+   * público (o app de agendamento não tem sessão nem sabe o plano), então esta
+   * resposta é a ÚNICA fonte para o front decidir entre servir o subdomínio ou
+   * redirecionar. Mesma regra do FeatureFlagsService: assinatura ATIVA mais
+   * recente; sem assinatura, sem subdomínio.
+   */
+  private async hasCustomSubdomain(companyId: string): Promise<boolean> {
+    const sub = await this.prisma.client.subscription.findFirst({
+      where: { companyId, status: { in: ['active', 'trialing'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { plan: { select: { name: true } } },
+    });
+    const plano = sub?.plan?.name;
+    return plano === 'pro' || plano === 'max';
+  }
+
   private async planLabel(companyId: string): Promise<string | null> {
     const sub = await this.prisma.client.subscription.findFirst({
       where: { companyId },
@@ -519,7 +567,15 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     // sent once WhatsApp reconnects. autoConfirmStaleBookings() catches any
     // booking that goes unanswered.
     const managerPhone = await this.whatsapp.getManagerPhone(companyId);
-    const salonConfirms = Boolean(managerPhone);
+    // O status precisa refletir o que REALMENTE vai acontecer. Antes bastava
+    // existir o número para o agendamento nascer `unconfirmed` — mas o pedido
+    // de confirmação ao salão depende também do toggle, e com ele desligado
+    // (que era o padrão) ninguém era avisado e o agendamento ficava esperando
+    // uma resposta que nunca viria: até 5 dias parado no auto-confirm, com a
+    // cliente sem notícia nenhuma no meio-tempo (ela é suprimida enquanto o
+    // pedido está pendente — notifications.service.ts:129-136). Estudo 153.
+    const auto = await this.settings.get(companyId);
+    const salonConfirms = Boolean(managerPhone) && auto.onlineBooking && auto.notifyProfessional;
 
     // Build items from the validated serviceIds list.
     const items = allServiceIds.map((sid) => ({
@@ -635,11 +691,12 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
     managerPhone: string,
   ): Promise<void> {
     try {
-      // OPT-IN: só manda o pedido de confirmação ao gerente se o salão ativou
-      // `notifyProfessional`. Sem o toggle, o agendamento fica pendente e o
-      // auto-confirm cuida dele — nenhuma mensagem sai ao gerente.
+      // OPT-IN: o pedido ao gerente exige o aviso do agendamento online ligado
+      // E o `notifyProfessional`. Quem chama aqui já checou os dois para decidir
+      // o status (ver `salonConfirms`); a checagem é repetida porque este método
+      // é a última porta antes da fila e não pode depender de quem chama.
       const auto = await this.settings.get(companyId);
-      if (!auto.notifyProfessional) return;
+      if (!auto.onlineBooking || !auto.notifyProfessional) return;
       const v = await this.loadApptView(companyId, appointmentId);
       if (!v) return;
       const code = this.apptCode(appointmentId);
@@ -831,10 +888,13 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
           `Pode responder por aqui para combinar o melhor horário. 💖`,
         ];
         // Interações: sugestão de novo horário ao cliente (fluxo de confirmação).
+        // O salão respondeu "3 <horário>" no WhatsApp — é ação humana explícita,
+        // então a linha nasce autorizada (estudo 60).
         await this.whatsapp.enqueueText(v.customerPhone, lines.join('\n'), {
           companyId,
           customerId: v.customerId ?? undefined,
           kind: 'confirmation',
+          authorized: true,
         });
         sent = true;
       }

@@ -37,9 +37,9 @@ export function BottomNav({
                 key={id}
                 id={id}
                 isDisabled={!canOpen(id)}
-                className="group flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-medium text-muted transition-[color,background-color,transform] duration-200 data-[selected]:bg-[#FCE4EA] data-[selected]:text-[#B84F70] active:scale-[0.97] disabled:opacity-35 min-[380px]:text-[11px]"
+                className="group flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-medium text-muted transition-[color,background-color,transform] duration-200 data-[selected]:bg-[var(--booking-accent-soft)] data-[selected]:text-[var(--booking-accent-ink)] active:scale-[0.97] disabled:opacity-35 min-[380px]:text-[11px]"
               >
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-muted shadow-sm transition-colors group-data-[selected]:bg-[var(--color-pink)] group-data-[selected]:text-white">
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-muted shadow-sm transition-colors group-data-[selected]:bg-[var(--booking-accent)] group-data-[selected]:text-white">
                   <Icon width={16} height={16} />
                 </span>
                 <span className="max-w-full truncate">{label}</span>

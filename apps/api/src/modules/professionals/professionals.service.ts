@@ -12,8 +12,25 @@ import {
 export class ProfessionalsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(companyId: string, page = 1, pageSize = 20) {
-    const where = { companyId, deletedAt: null };
+  /**
+   * Lista profissionais da empresa.
+   *
+   * `status` é 'active' POR PADRÃO (fail-closed): profissional desativado some de
+   * todo seletor sem precisar que cada tela lembre de filtrar. Quem realmente
+   * precisa dos inativos — a tela de gestão, com as abas Ativos/Inativos — pede
+   * explicitamente `status: 'all'`.
+   */
+  async list(
+    companyId: string,
+    page = 1,
+    pageSize = 20,
+    status: 'active' | 'inactive' | 'all' = 'active',
+  ) {
+    const where = {
+      companyId,
+      deletedAt: null,
+      ...(status === 'all' ? {} : { active: status === 'active' }),
+    };
     const [data, total] = await Promise.all([
       this.prisma.client.professional.findMany({
         where,

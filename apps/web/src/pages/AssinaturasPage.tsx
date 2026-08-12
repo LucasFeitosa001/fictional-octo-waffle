@@ -912,7 +912,7 @@ function TotalLine({
 
 type NovaSection = 'cliente' | 'data' | 'itens' | 'recorrencia';
 
-function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function NovaAssinaturaDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const create = useCreateCustomerMembership();
   const customers = useCustomers('');
   const plans = useMembershipPlans();

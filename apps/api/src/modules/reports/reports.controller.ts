@@ -76,6 +76,19 @@ export class ReportsController {
   }
 
   @RequirePermission('relatorios:operacional')
+  @RequirePermission('relatorios:operacional')
+  @Get('customers')
+  customers(
+    @CurrentUser('companyId') companyId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('status') status?: string,
+    @Query('balance') balance?: string,
+    @Query('tags') tags?: string,
+  ) {
+    return this.service.customers(companyId, { from, to, status, balance, tags });
+  }
+
   @Get('birthdays')
   birthdays(
     @CurrentUser('companyId') companyId: string,

@@ -1,5 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  type ConfirmationTemplate,
+  type ConfirmationTemplateSettings,
+} from './confirmation.templates';
+import { type CancellationTemplateSettings } from './cancellation.templates';
+import {
+  MESSAGE_TEMPLATE_SPECS,
+  type MessageTemplateKind,
+  type MessageTemplateSpec,
+} from './message-templates';
 
 /**
  * Per-company toggles for the AUTOMATIC client-facing WhatsApp/email messages.
@@ -30,14 +40,33 @@ export interface NotificationAutomationSettings {
    * online booking flow). OFF by default — the salon opts in.
    */
   notifyProfessional: boolean;
+  /**
+   * Avisar no WhatsApp quando o agendamento vem do AGENDAMENTO ONLINE.
+   *
+   * Chave própria, a pedido do dono, porque o pedido online é um caso distinto
+   * dos demais: quem agendou não estava no balcão e não recebeu nenhuma
+   * confirmação verbal — o silêncio é sentido como "será que deu certo?".
+   *
+   * LIGADO por padrão, também a pedido dele. É a ÚNICA automação que nasce
+   * ligada, e o motivo de ser segura é temporal: ela só decide sobre um
+   * agendamento que está sendo criado naquele instante. Não existe fila
+   * acumulada para drenar quando alguém liga o toggle, ao contrário de
+   * lembrete/follow-up, que varrem agendamentos já existentes.
+   *
+   * As demais travas continuam valendo por cima: transporte `live`
+   * (messaging.helpers.ts), número conectado, e o toggle do agendamento
+   * específico.
+   */
+  onlineBooking: boolean;
 }
 
 /**
- * DEFAULT when the company never touched the setting: EVERYTHING OFF.
- * No automatic WhatsApp/email leaves the salon (client OR professional/manager)
- * until the owner explicitly opts in. This is the hard "nothing goes out by
- * default" guarantee — confirmation, cancellation, reminder, follow-up and the
- * professional heads-up all start OFF.
+ * DEFAULT quando a empresa nunca tocou na configuração: TUDO DESLIGADO, exceto
+ * o aviso do agendamento online (ver `onlineBooking` acima — decisão do dono,
+ * e segura porque não drena fila acumulada).
+ *
+ * Nenhuma outra mensagem automática sai do salão (cliente OU profissional) até
+ * que o dono ligue explicitamente.
  */
 export const NOTIFICATION_AUTOMATION_DEFAULTS: NotificationAutomationSettings = {
   confirmation: false,
@@ -45,6 +74,7 @@ export const NOTIFICATION_AUTOMATION_DEFAULTS: NotificationAutomationSettings = 
   reminder: false,
   followUp: false,
   notifyProfessional: false,
+  onlineBooking: true,
 };
 
 /**
@@ -188,6 +218,7 @@ export class NotificationSettingsService {
       reminder: merged.reminder,
       followUp: merged.followUp,
       notifyProfessional: merged.notifyProfessional,
+      onlineBooking: merged.onlineBooking,
     };
     await this.prisma.client.setting.upsert({
       where: { companyId_key: { companyId, key: NOTIFICATION_AUTOMATION_KEY } },
@@ -286,6 +317,170 @@ export class NotificationSettingsService {
       create: { companyId, key: NOTIFICATION_FOLLOWUP_KEY, valueJson },
       update: { valueJson },
     });
+  }
+
+  // ------------------------------------------------------ modelos de mensagem
+  //
+  // UM mecanismo para os quatro tipos (confirmação, cancelamento, lembrete de
+  // véspera, lembrete de poucas horas). Os embutidos do código são mesclados POR
+  // CIMA dos customizados gravados, então JSON velho/corrompido nunca apaga o
+  // padrão seguro. Modelo de texto NÃO liga automação — a autorização de envio
+  // continua sendo o padrão da conta ou o toggle do agendamento. Ver estudo 61.
+
+  async getTemplates(
+    companyId: string,
+    kind: MessageTemplateKind,
+  ): Promise<ConfirmationTemplateSettings> {
+    const spec = MESSAGE_TEMPLATE_SPECS[kind];
+    const row = await this.prisma.client.setting.findUnique({
+      where: { companyId_key: { companyId, key: spec.settingKey } },
+    });
+    const stored =
+      (row?.valueJson as {
+        defaultTemplateId?: unknown;
+        templates?: unknown;
+      } | null) ?? {};
+    const custom = this.normalizeCustomTemplates(stored.templates, spec);
+    const templates = [
+      ...spec.builtIns.map((template) => ({ ...template })),
+      ...custom,
+    ];
+    const requested =
+      typeof stored.defaultTemplateId === 'string'
+        ? stored.defaultTemplateId
+        : spec.defaultTemplateId;
+    return {
+      defaultTemplateId: templates.some((template) => template.id === requested)
+        ? requested
+        : spec.defaultTemplateId,
+      templates,
+    };
+  }
+
+  /**
+   * Substitui a coleção de modelos customizados da empresa numa escrita
+   * idempotente. Os embutidos nunca são gravados/sobrescritos, e o limite de 20
+   * impede esse Setting de virar um depósito de mensagens.
+   */
+  async updateTemplates(
+    companyId: string,
+    kind: MessageTemplateKind,
+    input: { defaultTemplateId?: unknown; templates?: unknown },
+  ): Promise<ConfirmationTemplateSettings> {
+    const spec = MESSAGE_TEMPLATE_SPECS[kind];
+    const custom = this.normalizeCustomTemplates(input.templates, spec);
+    const ids = new Set([
+      ...spec.builtIns.map((template) => template.id),
+      ...custom.map((template) => template.id),
+    ]);
+    const defaultTemplateId =
+      typeof input.defaultTemplateId === 'string' &&
+      ids.has(input.defaultTemplateId)
+        ? input.defaultTemplateId
+        : spec.defaultTemplateId;
+    const valueJson = {
+      defaultTemplateId,
+      templates: custom.map(({ id, label, message }) => ({
+        id,
+        label,
+        message,
+      })),
+    };
+    await this.prisma.client.setting.upsert({
+      where: { companyId_key: { companyId, key: spec.settingKey } },
+      create: { companyId, key: spec.settingKey, valueJson },
+      update: { valueJson },
+    });
+    return {
+      defaultTemplateId,
+      templates: [
+        ...spec.builtIns.map((template) => ({ ...template })),
+        ...custom,
+      ],
+    };
+  }
+
+  /**
+   * Texto do modelo PADRÃO da empresa para aquele tipo, ou `null` quando não há
+   * nada utilizável. Quem envia usa isto e, no `null`, mantém o texto fixo do
+   * código — personalizar nunca pode deixar a cliente sem mensagem.
+   */
+  async activeTemplateMessage(
+    companyId: string,
+    kind: MessageTemplateKind,
+  ): Promise<string | null> {
+    try {
+      const settings = await this.getTemplates(companyId, kind);
+      const chosen =
+        settings.templates.find(
+          (template) => template.id === settings.defaultTemplateId,
+        ) ?? settings.templates[0];
+      const message = chosen?.message?.trim();
+      return message ? message : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Compat: rotas e telas que já falavam em "confirmação"/"cancelamento"
+  // continuam funcionando, agora só delegando.
+
+  getConfirmationTemplates(
+    companyId: string,
+  ): Promise<ConfirmationTemplateSettings> {
+    return this.getTemplates(companyId, 'confirmation');
+  }
+
+  updateConfirmationTemplates(
+    companyId: string,
+    input: { defaultTemplateId?: unknown; templates?: unknown },
+  ): Promise<ConfirmationTemplateSettings> {
+    return this.updateTemplates(companyId, 'confirmation', input);
+  }
+
+  getCancellationTemplates(
+    companyId: string,
+  ): Promise<CancellationTemplateSettings> {
+    return this.getTemplates(companyId, 'cancellation');
+  }
+
+  updateCancellationTemplates(
+    companyId: string,
+    input: { defaultTemplateId?: unknown; templates?: unknown },
+  ): Promise<CancellationTemplateSettings> {
+    return this.updateTemplates(companyId, 'cancellation', input);
+  }
+
+  private normalizeCustomTemplates(
+    value: unknown,
+    spec: MessageTemplateSpec,
+  ): ConfirmationTemplate[] {
+    if (!Array.isArray(value)) return [];
+    const custom: ConfirmationTemplate[] = [];
+    const seen = new Set<string>();
+    for (const raw of value.slice(0, 20)) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+      const record = raw as Record<string, unknown>;
+      const id = typeof record.id === 'string' ? record.id.trim() : '';
+      const label =
+        typeof record.label === 'string' ? record.label.trim().slice(0, 80) : '';
+      const message =
+        typeof record.message === 'string'
+          ? record.message.trim().slice(0, 2_000)
+          : '';
+      if (
+        !/^custom-[a-z0-9-]{1,80}$/i.test(id) ||
+        seen.has(id) ||
+        spec.builtIns.some((template) => template.id === id) ||
+        !label ||
+        !message
+      ) {
+        continue;
+      }
+      seen.add(id);
+      custom.push({ id, label, message, builtIn: false });
+    }
+    return custom;
   }
 
   /** Coerces an arbitrary partial into a full, typed follow-up config. */
@@ -412,6 +607,14 @@ export class NotificationSettingsService {
         typeof src.notifyProfessional === 'boolean'
           ? src.notifyProfessional
           : NOTIFICATION_AUTOMATION_DEFAULTS.notifyProfessional,
+      // Ausente = LIGADO (o default). Isso vale também para quem já tem a linha
+      // gravada sem esta chave: o salão que configurou notificações antes desta
+      // versão passa a ter o aviso do agendamento online ligado, que é o
+      // comportamento pedido. Só fica desligado para quem desligar de propósito.
+      onlineBooking:
+        typeof src.onlineBooking === 'boolean'
+          ? src.onlineBooking
+          : NOTIFICATION_AUTOMATION_DEFAULTS.onlineBooking,
     };
   }
 }

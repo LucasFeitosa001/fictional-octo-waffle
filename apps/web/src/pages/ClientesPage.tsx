@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Avatar, Checkbox, Popover } from '@heroui/react';
 import { ApiClientError } from '@beautypass/shared';
 import { DatePicker } from '../components/DatePicker';
@@ -28,6 +28,7 @@ import { FilterCheckbox } from '../components/FilterCheckbox';
 import { FilterAside } from '../components/FilterAside';
 import { BulkActionsSheet } from '../components/BulkActionsSheet';
 import { useSelectMode, buildSelectActions, type BulkAction } from '../hooks/useSelectMode';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCustomers } from '../lib/queries';
 import { useDeleteCustomer } from '../lib/queries/clientes';
 import { formatDate, formatPhone, initials } from '../lib/format';
@@ -139,6 +140,13 @@ export function ClientesPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [perfil, setPerfil] = useState<CustomerFull | null>(null);
+  // /clientes/:id abre o perfil direto, e ?tab= escolhe a seção. É o que faz o
+  // "Ver cliente" dos drawers funcionar (antes caía no catch-all e ia pro Painel)
+  // e o que as linhas de "Informações" usam para levar cada uma ao seu lugar.
+  const { id: routeCustomerId } = useParams();
+  const [routeSearch] = useSearchParams();
+  const routeTab = routeSearch.get('tab') ?? undefined;
+  const navigate = useNavigate();
   useAutoCreate(() => setCreateOpen(true));
   const confirm = useConfirm();
 
@@ -157,6 +165,14 @@ export function ClientesPage() {
   const remove = useDeleteCustomer();
   const data = customers.data;
   const allRows = (data?.data ?? []) as CustomerFull[];
+  // Abre o perfil quando a URL é /clientes/:id. Usa `allRows` (a página crua da
+  // API), não o `rows` filtrado client-side logo abaixo: o cliente pode estar
+  // fora do filtro ativo e ainda assim o link tem de abrir a ficha dele.
+  useEffect(() => {
+    if (!routeCustomerId || perfil?.id === routeCustomerId) return;
+    const found = allRows.find((c) => c.id === routeCustomerId);
+    if (found) setPerfil(found);
+  }, [routeCustomerId, allRows, perfil?.id]);
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -877,7 +893,13 @@ export function ClientesPage() {
       <ClientePerfilModal
         customer={perfil}
         isOpen={Boolean(perfil)}
-        onClose={() => setPerfil(null)}
+        initialTab={routeTab}
+        onClose={() => {
+          setPerfil(null);
+          // Sem isto a URL fica presa em /clientes/<id> e reabrir a lista
+          // reabriria o perfil sozinho no próximo render.
+          if (routeCustomerId) navigate('/clientes', { replace: true });
+        }}
       />
     </div>
   );

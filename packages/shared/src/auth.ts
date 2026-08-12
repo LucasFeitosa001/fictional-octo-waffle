@@ -11,12 +11,27 @@
  */
 export const AUTH_BASE_PATH = '/api/v1/auth';
 
+/**
+ * Caminho da auth do PORTAL DE AGENDAMENTO (web-club).
+ *
+ * O portal tem instância própria de Better Auth, com cookie próprio, para não
+ * dividir a sessão com o painel — antes os dois disputavam o mesmo cookie de
+ * `.salonpass.com.br` e entrar num trocava quem estava logado no outro. Ver
+ * estudo 120.
+ */
+export const CLUB_AUTH_BASE_PATH = '/api/v1/auth-club';
+
 /** Default dev API origin (host:port, no path). */
 export const DEFAULT_API_ORIGIN = 'http://localhost:3333';
 
 /** Build the Better Auth client baseURL from an API origin. */
 export function authBaseUrl(apiOrigin: string = DEFAULT_API_ORIGIN): string {
   return `${apiOrigin.replace(/\/$/, '')}${AUTH_BASE_PATH}`;
+}
+
+/** Mesma coisa, para o portal de agendamento. */
+export function clubAuthBaseUrl(apiOrigin: string = DEFAULT_API_ORIGIN): string {
+  return `${apiOrigin.replace(/\/$/, '')}${CLUB_AUTH_BASE_PATH}`;
 }
 
 /** Better Auth endpoints (relative to the auth base URL). */

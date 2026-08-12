@@ -49,6 +49,42 @@ export function LoginPage() {
     try { localStorage.setItem(EMAIL_KEY, email); } catch { /* ignore */ }
   }, [email]);
 
+  /**
+   * Conta de AGENDAMENTO tentando entrar na gestão.
+   *
+   * As contas criadas no portal do salão (`accountType: 'customer'`) usam a
+   * mesma tabela e o mesmo cookie de `.salonpass.com.br`. Elas nunca tiveram
+   * acesso a dado nenhum — a API responde 401 em todas as rotas do salão —, mas
+   * conseguiam ATRAVESSAR a porta e montar o painel vazio. Pior: a sessão delas
+   * substituía a do dono, que era despejado num "Acesso restrito" mandando
+   * falar com o responsável pela conta, sendo ele o responsável.
+   *
+   * Quem barra e encerra a sessão é o `ContaDeAgendamento` (App.tsx) — ele
+   * deixa o motivo em `sessionStorage` antes de sair. Aqui só EXIBIMOS o
+   * recado, porque a tela de lá vive apenas o tempo do `signOut` e a pessoa
+   * chegaria neste login sem entender por que foi expulsa.
+   *
+   * O motivo não vai na URL (`?conta=…`): a rota `/login` devolve quem tem
+   * sessão para `/` (App.tsx:642-643), e como o `signOut` é assíncrono isso
+   * produzia um pingue-pongue infinito `/ ↔ /login`, medido no navegador.
+   * Ver estudo 120.
+   */
+  useEffect(() => {
+    let motivo: string | null = null;
+    try {
+      motivo = sessionStorage.getItem('sp:motivo-saida');
+      if (motivo) sessionStorage.removeItem('sp:motivo-saida');
+    } catch {
+      return;
+    }
+    if (!motivo?.startsWith('agendamento')) return;
+    const email = motivo.includes(':') ? motivo.slice(motivo.indexOf(':') + 1) : '';
+    setError(
+      `${email ? `${email} é uma conta` : 'Esta é uma conta'} de agendamento, usada para marcar ` +
+        'horário como cliente. Ela não abre a gestão do salão — entre com a conta do salão.',
+    );
+  }, []);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitted(true);

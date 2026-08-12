@@ -1,0 +1,2047 @@
+{
+ "resumo": {
+  "comandasSemItem": 103,
+  "comLinhasNoRelatorio": 79,
+  "semLinhas": 24,
+  "somasQueBatem": 79,
+  "comNomeForaDoCatalogo": 0,
+  "religaveis100": 79,
+  "itensAInserir": 79
+ },
+ "ordens": [
+  {
+   "numero": 21,
+   "legacyId": "cmd:21",
+   "orderId": "cmrr4tfbe06ie0hqlgumbv3t6",
+   "cliente": "ANE CRISTINA",
+   "data": "2024-07-20",
+   "netTotal": 70,
+   "soma": 70,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "VIRLENE LEANDRA",
+     "quantidade": 1,
+     "total": 70,
+     "unitario": 70,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 86,
+   "legacyId": "cmd:86",
+   "orderId": "cmrr4urda06on0hqlpzg6ud8r",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 101,
+   "legacyId": "cmd:101",
+   "orderId": "cmrr4v0lk06q30hql5g5g9i4e",
+   "cliente": "VIRLENE",
+   "data": "2024-07-29",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 131,
+   "legacyId": "cmd:131",
+   "orderId": "cmrr4vq5h06to0hqlcaar13g8",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 158,
+   "legacyId": "cmd:158",
+   "orderId": "cmrr4wdr106xf0hqlrnqkasix",
+   "cliente": "VALDENIA SALAO",
+   "data": "2024-08-07",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "BANOFFEE",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kz1q00050h38rylc17m9"
+    }
+   ]
+  },
+  {
+   "numero": 161,
+   "legacyId": "cmd:161",
+   "orderId": "cmrr4wfp106xq0hqlnwtoqlf9",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 168,
+   "legacyId": "cmd:168",
+   "orderId": "cmrr4wn2h06yn0hql2u5h9gkj",
+   "cliente": "ROSANE COSTA",
+   "data": "2024-08-08",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "CHOKITO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzbz00070h389edvwb5h"
+    }
+   ]
+  },
+  {
+   "numero": 190,
+   "legacyId": "cmd:190",
+   "orderId": "cmrr4x1r107110hqlq0zw9o0j",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 223,
+   "legacyId": "cmd:223",
+   "orderId": "cmrr4xwyt07500hqlvga3mdo3",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 235,
+   "legacyId": "cmd:235",
+   "orderId": "cmrr4y8db076i0hqlzw05q4e1",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 244,
+   "legacyId": "cmd:244",
+   "orderId": "cmrr4yewf077j0hqlcrbyrq82",
+   "cliente": "VIRLENE",
+   "data": "2024-08-30",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 265,
+   "legacyId": "cmd:265",
+   "orderId": "cmrr4yxsb07af0hqlvco38wzn",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 278,
+   "legacyId": "cmd:278",
+   "orderId": "cmrr4z7kn07bv0hqlye8rxtwb",
+   "cliente": "MICHELLE MENESES",
+   "data": "2024-09-04",
+   "netTotal": 347.42,
+   "soma": 347.42,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "KIT REPOSICAO DE CARBONO",
+     "categoria": "PROUTOS NATYLLA",
+     "profissional": "VALDENIA CARVALHO",
+     "quantidade": 1,
+     "total": 347.42,
+     "unitario": 347.42,
+     "kind": "product",
+     "refId": "cms68kzm800090h38zaib7yuz"
+    }
+   ]
+  },
+  {
+   "numero": 289,
+   "legacyId": "cmd:289",
+   "orderId": "cmrr4zfvv07d60hqllrhgqlj7",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 315,
+   "legacyId": "cmd:315",
+   "orderId": "cmrr4zztp07g80hqlyiiiu66q",
+   "cliente": "VIRLENE",
+   "data": "2024-09-12",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 317,
+   "legacyId": "cmd:317",
+   "orderId": "cmrr500zy07ge0hqlo7bbtmp6",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 348,
+   "legacyId": "cmd:352",
+   "orderId": "cmrt3bosh003j0hyfwwi7han1",
+   "cliente": "VALDENIA SALAO",
+   "data": "2024-09-17",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "BANOFFEE",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kz1q00050h38rylc17m9"
+    }
+   ]
+  },
+  {
+   "numero": 365,
+   "legacyId": "cmd:371",
+   "orderId": "cmrt3c18j005l0hyf8mmzunbf",
+   "cliente": "VIRLENE",
+   "data": "2024-09-20",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 382,
+   "legacyId": "cmd:388",
+   "orderId": "cmrt3cdrf00800hyfh0byz9jk",
+   "cliente": "EDYLSON VALERIO",
+   "data": "2024-09-21",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ABSOLUTO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzwg000b0h38815tqgit"
+    }
+   ]
+  },
+  {
+   "numero": 388,
+   "legacyId": "cmd:394",
+   "orderId": "cmrt3chye008m0hyfva2efgax",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 389,
+   "legacyId": "cmd:395",
+   "orderId": "cmrt3cij8008o0hyfuf4pgyza",
+   "cliente": "VIRLENE",
+   "data": "2024-09-24",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 411,
+   "legacyId": "cmd:417",
+   "orderId": "cmrt3cyg100b90hyfnb3l0qdm",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 450,
+   "legacyId": "cmd:457",
+   "orderId": "cmrt3dr5c00g60hyfujlpfzrh",
+   "cliente": "VIRLENE SALAO",
+   "data": "2024-10-04",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 451,
+   "legacyId": "cmd:458",
+   "orderId": "cmrt3drq600g80hyfv1d6bicm",
+   "cliente": "JESSICA MARTINS",
+   "data": "2024-10-04",
+   "netTotal": 100,
+   "soma": 100,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 100,
+     "unitario": 100,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 469,
+   "legacyId": "cmd:477",
+   "orderId": "cmrt3e4rk00ih0hyf86ioxbh4",
+   "cliente": "MARCIANA DE AZEVEDO",
+   "data": "2024-10-05",
+   "netTotal": 359,
+   "soma": 359,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "KIT REPOSICAO DE CARBONO",
+     "categoria": "PROUTOS NATYLLA",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 359,
+     "unitario": 359,
+     "kind": "product",
+     "refId": "cms68kzm800090h38zaib7yuz"
+    }
+   ]
+  },
+  {
+   "numero": 488,
+   "legacyId": "cmd:498",
+   "orderId": "cmrt3eijk00kn0hyf8r76h5vz",
+   "cliente": "VIRLENE",
+   "data": "2024-10-09",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 490,
+   "legacyId": "cmd:500",
+   "orderId": "cmrt3ejug00kt0hyfaxdfloq3",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 498,
+   "legacyId": "cmd:508",
+   "orderId": "cmrt3epmq00lv0hyfd4soeovw",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 523,
+   "legacyId": "cmd:533",
+   "orderId": "cmrt3f7rs00os0hyfxv9242y2",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 532,
+   "legacyId": "cmd:542",
+   "orderId": "cmrt3fec500pu0hyfwallvkcw",
+   "cliente": "REGINA MARIA DA SILVA",
+   "data": "2024-10-16",
+   "netTotal": 100,
+   "soma": 100,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "VIRLENE LEANDRA",
+     "quantidade": 1,
+     "total": 100,
+     "unitario": 100,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 583,
+   "legacyId": "cmd:594",
+   "orderId": "cmrt3gg8400wh0hyfv845pnwu",
+   "cliente": "LUANA VIEIRA",
+   "data": "2024-10-24",
+   "netTotal": 50,
+   "soma": 50,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MASSAGEM",
+     "categoria": "MASSAGEM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 50,
+     "unitario": 50,
+     "kind": "service",
+     "refId": "cms68l0ha000f0h38essn7hsi"
+    }
+   ]
+  },
+  {
+   "numero": 595,
+   "legacyId": "cmd:606",
+   "orderId": "cmrt3gotz00y00hyfz2unupjw",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 623,
+   "legacyId": "cmd:635",
+   "orderId": "cmrt3h9b7011t0hyf6m6go84n",
+   "cliente": "JESSICA MARTINS",
+   "data": "2024-10-28",
+   "netTotal": 70,
+   "soma": 70,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "VIRLENE LEANDRA",
+     "quantidade": 1,
+     "total": 70,
+     "unitario": 70,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 641,
+   "legacyId": "cmd:654",
+   "orderId": "cmrt3ho9q01420hyf9eoootv6",
+   "cliente": "VALDENIA SALAO",
+   "data": "2024-10-31",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "CHOKITO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzbz00070h389edvwb5h"
+    }
+   ]
+  },
+  {
+   "numero": 648,
+   "legacyId": "cmd:662",
+   "orderId": "cmrt3htd2014s0hyftngeoq52",
+   "cliente": "LEONARDA DE ALENCAR",
+   "data": "2024-11-05",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "VIRLENE LEANDRA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 656,
+   "legacyId": "cmd:678",
+   "orderId": "cmrt3hz1g015s0hyfs0epi9xt",
+   "cliente": "DANIELA LOPES",
+   "data": "2024-11-01",
+   "netTotal": 130,
+   "soma": 130,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO FIBRA {140$ A 150$}",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 130,
+     "unitario": 130,
+     "kind": "service",
+     "refId": "cms68l0ri000h0h38hggj0zxe"
+    }
+   ]
+  },
+  {
+   "numero": 677,
+   "legacyId": "cmd:700",
+   "orderId": "cmrt3ieiw018i0hyfy0o6b2oj",
+   "cliente": "KARINNE LIMA",
+   "data": "2024-11-04",
+   "netTotal": 130,
+   "soma": 130,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO FIBRA {140$ A 150$}",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 130,
+     "unitario": 130,
+     "kind": "service",
+     "refId": "cms68l0ri000h0h38hggj0zxe"
+    }
+   ]
+  },
+  {
+   "numero": 742,
+   "legacyId": "cmd:779",
+   "orderId": "cmrt3jqy201go0hyf4ssainjk",
+   "cliente": "ELIZIANE",
+   "data": "2024-11-14",
+   "netTotal": 130,
+   "soma": 130,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO FIBRA {140$ A 150$}",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 130,
+     "unitario": 130,
+     "kind": "service",
+     "refId": "cms68l0ri000h0h38hggj0zxe"
+    }
+   ]
+  },
+  {
+   "numero": 747,
+   "legacyId": "cmd:784",
+   "orderId": "cmrt3jub501h90hyf5afsz13a",
+   "cliente": "JAMILE LACERDA",
+   "data": "2024-11-14",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "CHOKITO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzbz00070h389edvwb5h"
+    }
+   ]
+  },
+  {
+   "numero": 761,
+   "legacyId": "cmd:804",
+   "orderId": "cmrt3k44l01ix0hyf8zpdh6vu",
+   "cliente": "JAMILE LACERDA",
+   "data": "2024-11-16",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 772,
+   "legacyId": "cmd:816",
+   "orderId": "cmrt3kbq701k70hyflh5q1tu3",
+   "cliente": "JAMILE LACERDA",
+   "data": "2024-11-16",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 804,
+   "legacyId": "cmd:849",
+   "orderId": "cmrt3kybw01ny0hyf3vi5t4no",
+   "cliente": "MARILENE DA SILVA",
+   "data": "2024-11-21",
+   "netTotal": 95,
+   "soma": 95,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO FIBRA {140$ A 150$}",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 95,
+     "unitario": 95,
+     "kind": "service",
+     "refId": "cms68l0ri000h0h38hggj0zxe"
+    }
+   ]
+  },
+  {
+   "numero": 819,
+   "legacyId": "cmd:864",
+   "orderId": "cmrt3l8zc01py0hyf8l8xzhc4",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 851,
+   "legacyId": "cmd:897",
+   "orderId": "cmrt3lvo801u90hyf62v8mvtl",
+   "cliente": "KARINNE LIMA",
+   "data": "2024-11-28",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENCAO FIBRA",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68l11p000j0h38uusy904f"
+    }
+   ]
+  },
+  {
+   "numero": 856,
+   "legacyId": "cmd:904",
+   "orderId": "cmrt3lz1p01uu0hyf6dvowfm3",
+   "cliente": "VALDENIA SALAO",
+   "data": "2024-11-28",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ABSOLUTO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzwg000b0h38815tqgit"
+    }
+   ]
+  },
+  {
+   "numero": 861,
+   "legacyId": "cmd:909",
+   "orderId": "cmrt3m2jq01vg0hyf45oosfyh",
+   "cliente": "HAUREA",
+   "data": "2024-11-29",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "CHOKITO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzbz00070h389edvwb5h"
+    }
+   ]
+  },
+  {
+   "numero": 907,
+   "legacyId": "cmd:961",
+   "orderId": "cmrt3mz5m021j0hyffteul1s8",
+   "cliente": "ERIKA SOPHIA",
+   "data": "2024-12-06",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "CHOKITO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzbz00070h389edvwb5h"
+    }
+   ]
+  },
+  {
+   "numero": 928,
+   "legacyId": "cmd:982",
+   "orderId": "cmrt3ndvj02490hyfhi3ufn67",
+   "cliente": "MARIANA SILVA",
+   "data": "2024-12-09",
+   "netTotal": 85,
+   "soma": 85,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENCAO FIBRA",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 85,
+     "unitario": 85,
+     "kind": "service",
+     "refId": "cms68l11p000j0h38uusy904f"
+    }
+   ]
+  },
+  {
+   "numero": 962,
+   "legacyId": "cmd:1020",
+   "orderId": "cmrt3o1vs028x0hyfwi9ozgvv",
+   "cliente": "LARISSA SALÃO",
+   "data": "2024-12-11",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "CHOKITO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzbz00070h389edvwb5h"
+    }
+   ]
+  },
+  {
+   "numero": 1068,
+   "legacyId": "cmd:1130",
+   "orderId": "cmrt3q70h02lr0hyfmmr8lmkr",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 1120,
+   "legacyId": "cmd:1182",
+   "orderId": "cmrt3r83202sn0hyfbjrplfsw",
+   "cliente": "FATIMA LACERDA",
+   "data": "2024-12-30",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "CHOKITO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kzbz00070h389edvwb5h"
+    }
+   ]
+  },
+  {
+   "numero": 1128,
+   "legacyId": "cmd:1190",
+   "orderId": "cmrt3rdkh02tn0hyflb86rivh",
+   "cliente": "ANA MARY DOS SANTOS",
+   "data": "2024-12-31",
+   "netTotal": 130,
+   "soma": 130,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO FIBRA {140$ A 150$}",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 130,
+     "unitario": 130,
+     "kind": "service",
+     "refId": "cms68l0ri000h0h38hggj0zxe"
+    }
+   ]
+  },
+  {
+   "numero": 1180,
+   "legacyId": "cmd:1242",
+   "orderId": "cmrt3sebw02zy0hyfksypnf4a",
+   "cliente": "ANE CRISTINA",
+   "data": "2025-01-17",
+   "netTotal": 110,
+   "soma": 110,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 110,
+     "unitario": 110,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1249,
+   "legacyId": "cmd:1311",
+   "orderId": "cmrt3tr77038o0hyfjam5sfqz",
+   "cliente": "JAMILE LACERDA",
+   "data": "2025-01-31",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 1273,
+   "legacyId": "cmd:1335",
+   "orderId": "cmrt3u88303br0hyfra0spgy1",
+   "cliente": "TELMA RODRIGUES",
+   "data": "2025-02-13",
+   "netTotal": 70,
+   "soma": 70,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 70,
+     "unitario": 70,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 1274,
+   "legacyId": "cmd:1336",
+   "orderId": "cmrt3u8s803bt0hyfn6rs8x8u",
+   "cliente": "TAMIRES RODRIGUES",
+   "data": "2025-02-13",
+   "netTotal": 70,
+   "soma": 70,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 70,
+     "unitario": 70,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 1277,
+   "legacyId": "cmd:1339",
+   "orderId": "cmrt3uaqt03c40hyfcsrma8wo",
+   "cliente": "DARLENE CARVALHO",
+   "data": "2025-02-06",
+   "netTotal": 70,
+   "soma": 70,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 70,
+     "unitario": 70,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 1291,
+   "legacyId": "cmd:1354",
+   "orderId": "cmrt3ukjx03do0hyfdu3ry5z9",
+   "cliente": "VALDENIA SALAO",
+   "data": "2025-02-07",
+   "netTotal": 70,
+   "soma": 70,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 70,
+     "unitario": 70,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 1298,
+   "legacyId": "cmd:1361",
+   "orderId": "cmrt3upcd03ej0hyf7utfxm90",
+   "cliente": "NEYDE GOMES",
+   "data": "2025-02-08",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1317,
+   "legacyId": "cmd:1380",
+   "orderId": "cmrt3v2ot03go0hyfljppei73",
+   "cliente": "JAMILE LACERDA",
+   "data": "2025-02-12",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 1318,
+   "legacyId": "cmd:1381",
+   "orderId": "cmrt3v38z03gq0hyfa0i5chde",
+   "cliente": "WENDNY KLAIANY",
+   "data": "2025-02-12",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 1342,
+   "legacyId": "cmd:1405",
+   "orderId": "cmrt3vk8h03jp0hyf6w4ke122",
+   "cliente": "JAMILE LACERDA",
+   "data": "2025-02-15",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "LAKA OREO",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68kymc00030h38epgbnoc9"
+    }
+   ]
+  },
+  {
+   "numero": 1361,
+   "legacyId": "cmd:1424",
+   "orderId": "cmrt3vzdo03m60hyfezzg8dlf",
+   "cliente": "TAMIRES RODRIGUES",
+   "data": "2025-02-21",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1419,
+   "legacyId": "cmd:1483",
+   "orderId": "cmrt3x4ha03tc0hyf77vr23xz",
+   "cliente": "YASMIN BUENOS",
+   "data": "2025-03-06",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1459,
+   "legacyId": "cmd:1524",
+   "orderId": "cmrt3xwo003y30hyfhnamcodw",
+   "cliente": "CLEICIANY HOLANDA",
+   "data": "2025-03-13",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 1469,
+   "legacyId": "cmd:1534",
+   "orderId": "cmrt3y3tc03zg0hyfg1g2ec7s",
+   "cliente": "SHIRLEI CONCEIÇAO",
+   "data": "2025-03-15",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1489,
+   "legacyId": "cmd:1554",
+   "orderId": "cmrt3yhtv041t0hyfoiy5w0g2",
+   "cliente": "DARLENE CARVALHO",
+   "data": "2025-03-20",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1499,
+   "legacyId": "cmd:1564",
+   "orderId": "cmrt3yoty04310hyfv32aw5tt",
+   "cliente": "SIMONE SOUZA",
+   "data": "2025-03-21",
+   "netTotal": 110,
+   "soma": 110,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 110,
+     "unitario": 110,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 1544,
+   "legacyId": "cmd:1610",
+   "orderId": "cmrt3zkp0048u0hyfkcd1x7s4",
+   "cliente": "LARISSA SALÃO",
+   "data": "2025-03-29",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "BOMBOM",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68l1bx000l0h383dwj5zl8"
+    }
+   ]
+  },
+  {
+   "numero": 1604,
+   "legacyId": "cmd:1671",
+   "orderId": "cmrt42pph000m0hhsphs1rmze",
+   "cliente": "YASMIN BUENOS",
+   "data": "2025-04-12",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1633,
+   "legacyId": "cmd:1700",
+   "orderId": "cmrt43ahm004d0hhs5byjkjq8",
+   "cliente": "VALDENIA SALAO",
+   "data": "2025-04-16",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "BOMBOM",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68l1bx000l0h383dwj5zl8"
+    }
+   ]
+  },
+  {
+   "numero": 1716,
+   "legacyId": "cmd:1787",
+   "orderId": "cmrt44xc000eu0hhsftm6jcsj",
+   "cliente": "THAIANE VITORIA ALVES",
+   "data": "2025-05-05",
+   "netTotal": 110,
+   "soma": 110,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO FIBRA {140$ A 150$}",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 110,
+     "unitario": 110,
+     "kind": "service",
+     "refId": "cms68l0ri000h0h38hggj0zxe"
+    }
+   ]
+  },
+  {
+   "numero": 1741,
+   "legacyId": "cmd:1812",
+   "orderId": "cmrt45eu100i30hhsyewsxv64",
+   "cliente": "DAIANE ALVES",
+   "data": "2025-05-09",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1760,
+   "legacyId": "cmd:1833",
+   "orderId": "cmrt45s6h00kr0hhsxx3avosr",
+   "cliente": "MICHELLE MENESES",
+   "data": "2025-05-13",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 1887,
+   "legacyId": "cmd:1963",
+   "orderId": "cmrt48aiu010w0hhs3hyba14l",
+   "cliente": "ANE CRISTINA",
+   "data": "2025-06-03",
+   "netTotal": 110,
+   "soma": 110,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 110,
+     "unitario": 110,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 1975,
+   "legacyId": "cmd:2052",
+   "orderId": "cmrt4a2yp01c20hhsg12w45gx",
+   "cliente": "VALQUIRIA BORGES",
+   "data": "2025-06-28",
+   "netTotal": 7,
+   "soma": 7,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "BOMBOM",
+     "categoria": "DIDIM",
+     "profissional": "FATIMA LACERDA",
+     "quantidade": 1,
+     "total": 7,
+     "unitario": 7,
+     "kind": "product",
+     "refId": "cms68l1bx000l0h383dwj5zl8"
+    }
+   ]
+  },
+  {
+   "numero": 1988,
+   "legacyId": "cmd:2065",
+   "orderId": "cmrt4ac2y01dk0hhsx0hn6mii",
+   "cliente": "DARLENE CARVALHO",
+   "data": "2025-07-02",
+   "netTotal": 100,
+   "soma": 100,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENCAO FIBRA",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 100,
+     "unitario": 100,
+     "kind": "service",
+     "refId": "cms68l11p000j0h38uusy904f"
+    }
+   ]
+  },
+  {
+   "numero": 2002,
+   "legacyId": "cmd:2079",
+   "orderId": "cmrt4alr801fd0hhsow50ehru",
+   "cliente": "NEYDE GOMES",
+   "data": "2025-07-05",
+   "netTotal": 100,
+   "soma": 100,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENCAO FIBRA",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 100,
+     "unitario": 100,
+     "kind": "service",
+     "refId": "cms68l11p000j0h38uusy904f"
+    }
+   ]
+  },
+  {
+   "numero": 2011,
+   "legacyId": "cmd:2088",
+   "orderId": "cmrt4asd901gd0hhsdcxvdzjh",
+   "cliente": "LAIANE ROCHA",
+   "data": "2025-07-05",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENCAO FIBRA",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68l11p000j0h38uusy904f"
+    }
+   ]
+  },
+  {
+   "numero": 2018,
+   "legacyId": "cmd:2095",
+   "orderId": "cmrt4ax4m01h40hhsm9508yjx",
+   "cliente": "ANE CRISTINA",
+   "data": "2025-07-08",
+   "netTotal": 100,
+   "soma": 100,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENCAO FIBRA",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 100,
+     "unitario": 100,
+     "kind": "service",
+     "refId": "cms68l11p000j0h38uusy904f"
+    }
+   ]
+  },
+  {
+   "numero": 2024,
+   "legacyId": "cmd:2101",
+   "orderId": "cmrt4b1bu01hv0hhs8kkj4pnw",
+   "cliente": "MARIA BRITO",
+   "data": "2025-07-09",
+   "netTotal": 130,
+   "soma": 130,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 130,
+     "unitario": 130,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 2027,
+   "legacyId": "cmd:2104",
+   "orderId": "cmrt4b3a301i50hhsspxgovym",
+   "cliente": "AMANDA MARIA",
+   "data": "2025-07-10",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2080,
+   "legacyId": "cmd:2157",
+   "orderId": "cmrt4c50v01p50hhsmgl165et",
+   "cliente": "FRANCISCA ADELINA",
+   "data": "2025-07-22",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2083,
+   "legacyId": "cmd:2160",
+   "orderId": "cmrt4c6zc01pg0hhslgauo3yw",
+   "cliente": "CLEICIANY HOLANDA",
+   "data": "2025-07-22",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2124,
+   "legacyId": "cmd:2201",
+   "orderId": "cmrt4czwy01ui0hhst11zjjuo",
+   "cliente": "NEYDE GOMES",
+   "data": "2025-08-06",
+   "netTotal": 85,
+   "soma": 85,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 85,
+     "unitario": 85,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2127,
+   "legacyId": "cmd:2204",
+   "orderId": "cmrt4d1v701uu0hhskoe05v72",
+   "cliente": "DARLENE CARVALHO",
+   "data": "2025-08-06",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2166,
+   "legacyId": "cmd:2243",
+   "orderId": "cmrt4dtc101zz0hhsbu7hz5ey",
+   "cliente": "RENATA RAYLA",
+   "data": "2025-08-16",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 2170,
+   "legacyId": "cmd:2247",
+   "orderId": "cmrt4dvzg020e0hhs3lbgfgnt",
+   "cliente": "AMANDA RAYLA",
+   "data": "2025-08-19",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 2182,
+   "legacyId": "cmd:2260",
+   "orderId": "cmrt4e4cp021v0hhsz82mn92w",
+   "cliente": "MILENA MAGNORIA",
+   "data": "2025-08-23",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 2187,
+   "legacyId": "cmd:2265",
+   "orderId": "cmrt4e7pa022f0hhsia0wx7hu",
+   "cliente": "SABRINA DE MOURA",
+   "data": "2025-08-26",
+   "netTotal": 80,
+   "soma": 80,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 80,
+     "unitario": 80,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 2192,
+   "legacyId": "cmd:2270",
+   "orderId": "cmrt4eb6w022y0hhsmmppyyu4",
+   "cliente": "CLEICIANY HOLANDA",
+   "data": "2025-08-27",
+   "netTotal": 100,
+   "soma": 100,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 100,
+     "unitario": 100,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2194,
+   "legacyId": "cmd:2272",
+   "orderId": "cmrt4ecg402340hhsv2iv9r3v",
+   "cliente": "SAMARE DANTAS",
+   "data": "2025-08-27",
+   "netTotal": 100,
+   "soma": 100,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 100,
+     "unitario": 100,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2335,
+   "legacyId": "cmd:2414",
+   "orderId": "cmrt4h7k002kh0hhsgsajweum",
+   "cliente": "MILENA MENESES",
+   "data": "2025-10-07",
+   "netTotal": 110,
+   "soma": 110,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 110,
+     "unitario": 110,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 2385,
+   "legacyId": "cmd:2464",
+   "orderId": "cmrt4i7dq02qj0hhs5gbryykf",
+   "cliente": "FRANCISCA ADELINA",
+   "data": "2025-10-20",
+   "netTotal": 120,
+   "soma": 120,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "ALONGAMENTO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 120,
+     "unitario": 120,
+     "kind": "service",
+     "refId": "cms68l073000d0h38b1qpwk0s"
+    }
+   ]
+  },
+  {
+   "numero": 2404,
+   "legacyId": "cmd:2483",
+   "orderId": "cmrt4ikw102sy0hhswwgvg7n0",
+   "cliente": "LAIANE ROCHA",
+   "data": "2025-10-22",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2414,
+   "legacyId": "cmd:2493",
+   "orderId": "cmrt4irxn02u10hhsc4ashqjg",
+   "cliente": "MICHELLE MENESES",
+   "data": "2025-10-30",
+   "netTotal": 90,
+   "soma": 90,
+   "bate": true,
+   "completo": true,
+   "itens": [
+    {
+     "nome": "MANUTENÇÃO EM GEL",
+     "categoria": "UNHAS",
+     "profissional": "LARISSA SOUZA",
+     "quantidade": 1,
+     "total": 90,
+     "unitario": 90,
+     "kind": "service",
+     "refId": "cms68ky1y00010h38ijcct0s0"
+    }
+   ]
+  },
+  {
+   "numero": 2464,
+   "legacyId": "cmd:2543",
+   "orderId": "cmrt4jrmv03070hhsdth5yrle",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 2477,
+   "legacyId": "cmd:2556",
+   "orderId": "cmrt4k0sp031t0hhs8v16xy31",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 2515,
+   "legacyId": "cmd:2594",
+   "orderId": "cmrt4kros03660hhstxwme7g4",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 2548,
+   "legacyId": "cmd:2628",
+   "orderId": "cmrt4lf3103a50hhsts0q16zc",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 2860,
+   "legacyId": "cmd:2951",
+   "orderId": "cmrt4rtgb04c00hhs06lohads",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 2872,
+   "legacyId": "cmd:2963",
+   "orderId": "cmrt4s1rm04dh0hhs6q7ct7fo",
+   "netTotal": 0,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  },
+  {
+   "numero": 3333,
+   "legacyId": "cmd:3333",
+   "orderId": "cmrzdx01a001bw593ys15269i",
+   "netTotal": 50,
+   "itens": [],
+   "bate": false,
+   "motivo": "sem linhas no relatório"
+  }
+ ],
+ "faltamNoCatalogo": []
+}

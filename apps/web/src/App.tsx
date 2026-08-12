@@ -1,7 +1,10 @@
 import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSession } from './lib/auth';
+import { signOut, useSession } from './lib/auth';
+import { CLUB_ORIGIN } from './lib/config';
+import { isAiHost } from './lib/aiHost';
+import { AiApp } from './ai/AiApp';
 import { useCan } from './lib/queries/permissions';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardLayout } from './layout/DashboardLayout';
@@ -20,9 +23,11 @@ import { AssinaturasPage } from './pages/AssinaturasPage';
 import { FinanceiroPainelPage } from './pages/financeiro/FinanceiroPainelPage';
 import { TransacoesPage } from './pages/financeiro/TransacoesPage';
 import { ContasPage } from './pages/financeiro/ContasPage';
+import { SalonPayPage } from './pages/financeiro/SalonPayPage';
 import { CaixasAbertosPage } from './pages/financeiro/CaixasAbertosPage';
 import { CaixaHistoricoPage } from './pages/financeiro/CaixaHistoricoPage';
 import { FinanceiroConfiguracoesPage } from './pages/financeiro/FinanceiroConfiguracoesPage';
+import { NotasFiscaisBloqueioPage } from './pages/financeiro/NotasFiscaisBloqueioPage';
 import { AnamnesesPage } from './pages/cadastros/AnamnesesPage';
 // "Convidar profissionais" e "Usuários" foram ABSORVIDOS pela página
 // consolidada Profissionais (/profissionais). As rotas antigas redirecionam
@@ -76,15 +81,26 @@ import { PromocoesPage } from './pages/marketing/PromocoesPage';
 import { AvaliacoesPage } from './pages/marketing/AvaliacoesPage';
 import { CashbackPage } from './pages/marketing/CashbackPage';
 import { IAAtendimentoPage } from './pages/ia/IAAtendimentoPage';
+import { VoltrCrmPage } from './pages/VoltrCrmPage';
 import { PerfilPage } from './pages/PerfilPage';
 import { NotificacoesCategoriasPage } from './pages/NotificacoesCategoriasPage';
 import { NotificacoesDetalhePage } from './pages/NotificacoesDetalhePage';
 import { PerfilAssinaturaPage } from './pages/PerfilAssinaturaPage';
+import { PerfilAdicionaisPage } from './pages/PerfilAdicionaisPage';
+import { DocumentosPage } from './pages/DocumentosPage';
 import { FeatureGate } from './components/FeatureGate';
 import { IconLock } from './components/icons';
 
 type RouteErrorBoundaryProps = {
   children: ReactNode;
+  /**
+   * Rota atual. Serve só para o boundary se RECUPERAR ao navegar. Antes isso era
+   * feito com `key={location.pathname}`, que remontava a árvore INTEIRA a cada
+   * clique no menu — zerando os refs do useThemeSync (o guard "sincroniza uma vez
+   * por empresa") e fazendo o tema da empresa ser reaplicado por cima da escolha
+   * do usuário a cada navegação. Ver .claude/studies/13.
+   */
+  routeKey: string;
 };
 
 type RouteErrorBoundaryState = {
@@ -96,6 +112,14 @@ class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBo
 
   static getDerivedStateFromError(): RouteErrorBoundaryState {
     return { hasError: true };
+  }
+
+  componentDidUpdate(prev: RouteErrorBoundaryProps) {
+    // Trocou de rota depois de um erro? Limpa só o estado do boundary — sem
+    // destruir o shell (sessão, tema, caches) junto.
+    if (this.state.hasError && prev.routeKey !== this.props.routeKey) {
+      this.setState({ hasError: false });
+    }
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -169,22 +193,61 @@ function useHideSplashWhenReady(ready: boolean) {
  * usuário dentro do app (não estoura pra /login) e oferece voltar ao painel.
  */
 function ForbiddenRoute() {
+  const { data: session } = useSession();
+  /**
+   * CONTA DE CLIENTE no painel — o dono caía aqui sem entender por quê.
+   *
+   * O cookie de sessão é compartilhado entre os subdomínios
+   * (`crossSubDomainCookies`, para o login de `app.` valer em `agenda.`), então
+   * entrar no portal de agendamento como CLIENTE substitui a sessão do painel.
+   * O painel passa a rodar com uma conta `customer`, que não tem empresa nem
+   * papel: menu reduzido e 403 em tudo.
+   *
+   * O RBAC está certo em negar. Errado era o texto: mandava "falar com o
+   * responsável pela conta" para quem É o responsável, e o único botão levava
+   * de volta ao mesmo lugar bloqueado. Ver estudo 120.
+   */
+  const usuario = session?.user as { accountType?: string; email?: string } | undefined;
+  const ehContaDeCliente = usuario?.accountType === 'customer';
+
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
       <span className="grid h-14 w-14 place-items-center rounded-2xl bg-pink/12 text-pink ring-1 ring-inset ring-pink/20">
         <IconLock size={26} />
       </span>
-      <h1 className="font-brand text-xl font-bold text-foreground">Acesso restrito</h1>
-      <p className="text-sm text-muted">
-        Seu perfil não tem permissão para acessar esta área. Fale com o
-        responsável pela conta se precisar de acesso.
-      </p>
-      <Link
-        to="/painel"
-        className="mt-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-      >
-        Voltar ao painel
-      </Link>
+      {ehContaDeCliente ? (
+        <>
+          <h1 className="font-brand text-xl font-bold text-foreground">
+            Você está na conta de agendamento
+          </h1>
+          <p className="text-sm text-muted">
+            {usuario?.email ? <><strong>{usuario.email}</strong> é a conta</> : 'Esta é a conta'}{' '}
+            que você usa para marcar horário como cliente — ela não abre a gestão do salão.
+            Entrar por ela troca a sessão aqui do painel.
+          </p>
+          <button
+            type="button"
+            onClick={() => void signOut().then(() => window.location.assign('/login'))}
+            className="mt-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Entrar com a conta do salão
+          </button>
+        </>
+      ) : (
+        <>
+          <h1 className="font-brand text-xl font-bold text-foreground">Acesso restrito</h1>
+          <p className="text-sm text-muted">
+            Seu perfil não tem permissão para acessar esta área. Fale com o
+            responsável pela conta se precisar de acesso.
+          </p>
+          <Link
+            to="/painel"
+            className="mt-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Voltar ao painel
+          </Link>
+        </>
+      )}
     </div>
   );
 }
@@ -278,6 +341,78 @@ function RoutedFeatureGate({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Barreira para conta de AGENDAMENTO no painel de gestão.
+ *
+ * NÃO navega para `/login`: a rota de login redireciona quem tem sessão de volta
+ * para `/` (App.tsx:642-643), e como o `signOut()` é assíncrono a sessão ainda
+ * existe no instante do redirect — dava um pingue-pongue infinito
+ * `/ ↔ /login?conta=agendamento`, medido no navegador.
+ *
+ * Em vez disso a sessão é encerrada AQUI, com a explicação na tela. Quando o
+ * `signOut` conclui, `useSession` deixa de ter sessão e o roteador manda para o
+ * login naturalmente — uma transição, sem ciclo. Ver estudo 120.
+ */
+function ContaDeAgendamento({ email }: { email?: string }) {
+  /**
+   * NÃO faz `signOut()` sozinho — e isso é o ponto principal desta tela.
+   *
+   * A primeira versão encerrava a sessão automaticamente ao detectar a conta de
+   * cliente. Como o cookie é o MESMO em `.salonpass.com.br`, isso derrubava
+   * junto a sessão que a pessoa acabara de criar no portal de agendamento:
+   * quem entrasse com o Google no salão e tivesse o painel aberto em outra aba
+   * era deslogado dos DOIS, e ainda ia parar no login de profissionais. Foi
+   * relatado como crítico, e com razão — a barreira do painel estava sabotando
+   * o login do portal.
+   *
+   * Agora ela só INFORMA. Encerrar a sessão passa a ser uma escolha explícita
+   * de quem está na frente da tela. Ver estudo 120.
+   */
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-canvas p-6">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-card p-6 text-center shadow-[var(--shadow-card)]">
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-pink/12 text-pink ring-1 ring-inset ring-pink/20">
+          <IconLock size={26} />
+        </span>
+        <h1 className="mt-3 font-brand text-xl font-bold text-foreground">
+          Esta é uma conta de agendamento
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          {email ? <><strong>{email}</strong> serve</> : 'Esta conta serve'} para marcar horário
+          como cliente e não abre a gestão do salão.
+        </p>
+        <div className="mt-5 flex flex-col gap-2">
+          <a
+            href={CLUB_ORIGIN}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Ir para os meus agendamentos
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              // O recado sobrevive ao signOut para a tela de login explicar por
+              // que a pessoa chegou lá.
+              try {
+                sessionStorage.setItem(
+                  'sp:motivo-saida',
+                  email ? `agendamento:${email}` : 'agendamento',
+                );
+              } catch {
+                // Sem storage o aviso se perde; a barreira continua valendo.
+              }
+              void signOut().then(() => window.location.assign('/login'));
+            }}
+            className="rounded-xl border border-line px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-canvas"
+          >
+            Sair e entrar com a conta do salão
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function ProtectedRoutes() {
   const { data: session, isPending } = useSession();
   // Render null SOMENTE no primeiro load (sem session em cache). Better Auth
@@ -287,6 +422,25 @@ function ProtectedRoutes() {
   // refetching preserva o UX. Splash HTML só cobre no primeiro paint.
   if (isPending && !session) return null;
   if (!session) return <Navigate to="/login" replace />;
+  /**
+   * CONTA DE AGENDAMENTO NÃO ENTRA NA GESTÃO.
+   *
+   * As contas criadas no portal (`accountType: 'customer'`) vivem na mesma
+   * tabela e compartilham o cookie de `.salonpass.com.br`. Elas nunca tiveram
+   * acesso a dado nenhum — a API devolve 401 em TODAS as rotas do salão
+   * (medido: /companies/current, /appointments, /customers, /orders,
+   * /professionals, /reports/sales) —, mas conseguiam ATRAVESSAR esta porta e
+   * montar o painel vazio, com "Acesso restrito" e um formulário de perfil que
+   * ainda por cima exibia "Proprietário(a)" (valor padrão do campo, nunca o
+   * papel real). Para o dono, isso parecia um cliente dentro da gestão.
+   *
+   * Aqui a porta fecha antes de montar qualquer coisa: quem é cliente vai para
+   * o login com o aviso, e não vê nada do salão. Ver estudo 120.
+   */
+  const tipoDeConta = (session.user as { accountType?: string } | undefined)?.accountType;
+  if (tipoDeConta === 'customer') {
+    return <ContaDeAgendamento email={(session.user as { email?: string }).email} />;
+  }
   return (
     <DashboardLayout>
       <RoutedFeatureGate>
@@ -298,6 +452,12 @@ function ProtectedRoutes() {
         <Route path="/comandas" element={<ComandasPage />} />
         <Route path="/comandas/:id" element={<ComandaDetalhePage />} />
         <Route path="/clientes" element={<ClientesPage />} />
+        {/* Três telas já navegavam para /clientes/<id> (ComandaDrawer.tsx:371,
+            ComandasPage.tsx:1909, AgendaPage.tsx:1713), mas a rota NÃO existia:
+            caía no catch-all lá embaixo e o "Ver cliente" jogava a pessoa no
+            Painel, sem erro nenhum na tela. O `?tab=` escolhe a seção inicial —
+            é o que faz as linhas de "Informações" levarem cada uma ao seu lugar. */}
+        <Route path="/clientes/:id" element={<ClientesPage />} />
         <Route path="/profissionais" element={<ProfissionaisPage />} />
         <Route path="/cadastros/anamneses" element={<AnamnesesPage />} />
         {/* Rotas antigas de equipe → redirecionam para a página consolidada
@@ -336,11 +496,7 @@ function ProtectedRoutes() {
           path="/financeiro/notas-fiscais"
           element={
             <ProtectedRoute perm="financeiro:view">
-              <IntegrationUnavailablePage
-                title="Emissão fiscal ainda não configurada"
-                description="É necessário integrar um provedor fiscal antes de emitir, editar ou baixar notas. A tela não simula mais emissões locais."
-                backTo="/financeiro"
-              />
+              <NotasFiscaisBloqueioPage />
             </ProtectedRoute>
           }
         />
@@ -348,24 +504,31 @@ function ProtectedRoutes() {
         <Route path="/financeiro/cadastros/categorias" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="categorias" /></ProtectedRoute>} />
         <Route path="/financeiro/cadastros/formas-pagamento" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="formas" /></ProtectedRoute>} />
         <Route path="/financeiro/cadastros/contas" element={<ProtectedRoute perm="financeiro:view"><ContasPage defaultTab="contas" /></ProtectedRoute>} />
+        {/* SalonPay — cadastro de recebimento. Antes esta rota mostrava
+            "ainda não integrado", o que deixou de ser verdade quando o
+            formulário passou a existir (e passou a contradizer a tela de
+            Comissões, que abre o cadastro). `belasis-pay` continua respondendo:
+            é URL antiga que pode estar em favorito. */}
         <Route
-          path="/financeiro/belasis-pay"
+          path="/financeiro/salonpay"
           element={
             <ProtectedRoute perm="financeiro:view">
-              <IntegrationUnavailablePage
-                title="SalonPay ainda não integrado"
-                description="O cadastro do gateway será liberado quando houver uma API de onboarding. Nenhuma solicitação é marcada como enviada sem chegar ao provedor."
-                backTo="/financeiro/contas"
-              />
+              <SalonPayPage />
             </ProtectedRoute>
           }
         />
+        <Route path="/financeiro/belasis-pay" element={<Navigate to="/financeiro/salonpay" replace />} />
         <Route path="/financeiro/historico-caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaHistoricoPage /></ProtectedRoute>} />
         <Route path="/financeiro/caixas-abertos/:id" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixasAbertosPage /></ProtectedRoute>} />
         <Route path="/caixa" element={<ProtectedRoute perm={['caixa:operate', 'caixa:view_all']}><CaixaPage /></ProtectedRoute>} />
         {/* Comissões — profissional vê as próprias (view_own); config é gestão. */}
         <Route path="/comissoes" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        {/* `resumo` e `em-aberto` seguem valendo: a aba "Comissões em aberto" foi
+            removida (não existe no Belasis), mas link antigo não pode virar 404 —
+            os dois caem em "Resumidas". */}
         <Route path="/comissoes/resumo" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/resumidas" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
+        <Route path="/comissoes/detalhadas" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
         <Route path="/comissoes/em-aberto" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
         <Route path="/comissoes/pagas" element={<PaidProtectedRoute perm={['comissoes:view_own', 'comissoes:view_all']} feature="commissions"><ComissoesResumoPage /></PaidProtectedRoute>} />
         <Route path="/comissoes/config" element={<PaidProtectedRoute perm="comissoes:config" feature="commissions"><ComissoesConfigPage /></PaidProtectedRoute>} />
@@ -441,6 +604,13 @@ function ProtectedRoutes() {
         <Route path="/marketing/cashback" element={<PaidProtectedRoute perm="marketing:view" feature="cashback"><CashbackPage /></PaidProtectedRoute>} />
         <Route path="/whatsapp" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><IAAtendimentoPage /></PaidProtectedRoute>} />
         <Route path="/ia-atendimento" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><IAAtendimentoPage /></PaidProtectedRoute>} />
+        {/* Chat/CRM da Voltr embarcados (estudo 68). Mesmo gate do WhatsApp:
+            quem não tem o módulo vê o upsell da própria rota. */}
+        <Route path="/voltr-crm" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="crm" /></PaidProtectedRoute>} />
+        <Route path="/voltr-chat" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="chat" /></PaidProtectedRoute>} />
+        <Route path="/voltr-boards" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="boards" /></PaidProtectedRoute>} />
+        <Route path="/voltr-tarefas" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="tarefas" /></PaidProtectedRoute>} />
+        <Route path="/voltr-ia" element={<PaidProtectedRoute perm="marketing:view" feature="whatsapp_api"><VoltrCrmPage scope="ia" /></PaidProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute perm="config:view"><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/ajuda" element={<AjudaPage />} />
         <Route path="/ajuda/suporte" element={<AjudaPage />} />
@@ -450,16 +620,15 @@ function ProtectedRoutes() {
         <Route path="/ajuda/artigo/:slug" element={<HelpArticlePage />} />
         <Route path="/indique" element={<IndiquePage />} />
         <Route path="/perfil/assinatura" element={<PerfilAssinaturaPage />} />
-        <Route
-          path="/perfil/adicionais"
-          element={
-            <IntegrationUnavailablePage
-              title="Contratação de adicionais ainda não habilitada"
-              description="A cobrança e a ativação de adicionais ainda não possuem integração com o provedor de assinatura. Nenhum recurso será marcado como contratado sem uma cobrança real."
-              backTo="/perfil/assinatura"
-            />
-          }
-        />
+        {/* A rota mostrava "Contratação de adicionais ainda não habilitada"
+            porque a tela que existia era uma MAQUETE: 22 adicionais escritos à
+            mão, carrinho e checkout que não chamavam o servidor e anunciavam
+            "ativados com sucesso" sem cobrar nem ativar nada. Agora ela lista os
+            módulos REAIS (GET /plans × GET /feature-flags) e a contratação passa
+            pelo suporte — nada é ativado sem cobrança. Ver estudo 122. */}
+        <Route path="/perfil/adicionais" element={<PerfilAdicionaisPage />} />
+        {/* Módulo "Gerador de documentos" — adicional avulso (estudo 124). */}
+        <Route path="/documentos" element={<PaidProtectedRoute perm="clientes:view" feature="documents"><DocumentosPage /></PaidProtectedRoute>} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/notificacoes" element={<NotificacoesCategoriasPage />} />
         <Route path="/notificacoes/:tipo" element={<NotificacoesDetalhePage />} />
@@ -517,8 +686,19 @@ export function App() {
     }
   }, [session?.user?.id, queryClient]);
 
+  // ÁREA DE IA (ai.salonpass.com.br): mesmo bundle, produto separado. Decidido
+  // pelo hostname, então o painel e a IA não dividem casca nem sidebar. O login
+  // é o mesmo cookie (domínio-base), não há segundo login. Ver estudo 62.
+  if (isAiHost()) {
+    return (
+      <RouteErrorBoundary routeKey={location.pathname}>
+        <AiApp />
+      </RouteErrorBoundary>
+    );
+  }
+
   return (
-    <RouteErrorBoundary key={location.pathname}>
+    <RouteErrorBoundary routeKey={location.pathname}>
       <Routes>
       {/* The customer-facing booking portal now lives in the dedicated club app
           (apps/web-club), served at its own origin. */}
