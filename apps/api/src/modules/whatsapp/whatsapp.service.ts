@@ -68,6 +68,13 @@ const RUNTIME_CATEGORY = 'runtime';
 const CONNECTION_LEASE_ITEM_ID = 'connection-lease';
 const CONNECTION_LEASE_TTL_MS = 45_000;
 const CONNECTION_LEASE_HEARTBEAT_MS = 15_000;
+/**
+ * Quantos QRs seguidos sem ninguém parear antes de PARAR de tentar. Cada ciclo
+ * dura ~45s, então 10 dá cerca de 8 minutos com o QR na tela — muito mais que o
+ * tempo de pegar o celular e ler o código. Sem este teto, uma sessão deslogada
+ * fica reconectando para sempre (estudo 157).
+ */
+const MAX_QR_SEM_LEITURA = 10;
 
 // O antigo socket global usava este sessionId. Multi-tenant NÃO o usa mais (cada
 // empresa vira seu próprio sessionId = companyId). Mantido só para o boot ignorar
@@ -236,6 +243,13 @@ interface SessionState {
   connecting: boolean;
   reconnectAttempts: number;
   connectTimeout: ReturnType<typeof setTimeout> | null;
+  /**
+   * Quantas vezes seguidas subimos um QR que ninguém leu. Sem credencial o
+   * ciclo `connect → QR → timeout 45s → connect` roda PARA SEMPRE: a La Belle
+   * passou meia tarde assim, centenas de WebSockets abertos à toa (estudo 157).
+   * Zera em toda conexão bem-sucedida.
+   */
+  qrSemLeitura: number;
   // Últimos 8 dígitos do próprio número conectado (capturado no 'open'). Usado
   // para reconhecer o chat "conversar consigo mesmo": salões que usam UM número
   // para bot + gerente respondem 1/2/3 no self-chat como fromMe.
@@ -520,6 +534,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         connecting: false,
         reconnectAttempts: 0,
         connectTimeout: null,
+        qrSemLeitura: 0,
         selfDigitsTail: null,
         sentCache: new Map(),
         nextSendAt: 0,
@@ -1988,12 +2003,26 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     if (session.connectTimeout) clearTimeout(session.connectTimeout);
     session.connectTimeout = setTimeout(() => {
       if (session.connecting && session.status !== 'open') {
-        this.logger.warn(
-          `WhatsApp (company=${companyId}): timeout de conexão (45s) — forçando reconexão.`,
-        );
         session.connecting = false;
         session.status = 'closed';
         this.teardownSocket(session);
+        // Se o que estava na tela era um QR, ninguém o leu neste ciclo. Depois
+        // de MAX_QR_SEM_LEITURA tentativas o ciclo PARA — sem isso ele roda
+        // indefinidamente, abrindo um WebSocket novo a cada 45s para sempre
+        // (estudo 157). Quem retoma é o painel: abrir a tela de conexão chama
+        // `ensureConnecting`, e o QR volta na hora.
+        if (session.currentQr) session.qrSemLeitura += 1;
+        if (session.qrSemLeitura >= MAX_QR_SEM_LEITURA) {
+          this.logger.warn(
+            `WhatsApp (company=${companyId}): ${session.qrSemLeitura} QRs seguidos sem ninguém parear — ` +
+              'pausando as tentativas. Abrir a tela de conexão no painel retoma.',
+          );
+          session.currentQr = null;
+          return;
+        }
+        this.logger.warn(
+          `WhatsApp (company=${companyId}): timeout de conexão (45s) — forçando reconexão.`,
+        );
         void this.connect(companyId);
       }
     }, 45_000);
@@ -2241,6 +2270,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           // Lembra o próprio número para reconhecer o self-chat (salões de um
           // número só respondem ao prompt como fromMe nele).
           session.selfDigitsTail = this.digitsTail(this.jidUserDigits(sock.user?.id ?? ''));
+          // Pareou: o contador de QRs ignorados volta a zero.
+          session.qrSemLeitura = 0;
           this.logger.log(`WhatsApp conectado (company=${companyId}).`);
           // Esvazia o que ficou na fila enquanto estávamos offline.
           void this.drainOutbox();
@@ -2300,6 +2331,28 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       await clear();
     } catch {
       // ignore
+    }
+    // AVISA O SALÃO. Antes isto acontecia em silêncio: a La Belle ficou das
+    // 12:47 até a noite com o WhatsApp caído achando que estava no ar, e quem
+    // percebeu foi o dono olhando a tela. Uma sessão que só volta com alguém
+    // lendo um QR precisa pedir esse alguém. Ver estudo 157.
+    try {
+      await this.prisma.client.notification.create({
+        data: {
+          companyId,
+          type: 'whatsapp.desconectado',
+          title: 'WhatsApp desconectado',
+          body:
+            'A sessão do WhatsApp do salão foi encerrada e nenhuma mensagem sai até reconectar. ' +
+            'Abra "WhatsApp integrado" e leia o QR code com o celular do salão.',
+        },
+      });
+    } catch (err) {
+      // Não pode derrubar a reconexão: o aviso é importante, mas voltar a expor
+      // o QR é mais.
+      this.logger.error(
+        `Falha ao avisar sobre o WhatsApp desconectado (company=${companyId}): ${(err as Error).message}`,
+      );
     }
     this.teardownSocket(session);
     session.currentQr = null;
