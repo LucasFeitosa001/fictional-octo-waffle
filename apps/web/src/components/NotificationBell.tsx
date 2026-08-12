@@ -56,6 +56,9 @@ function hrefForNotification(n: NotificationItem): string | null {
       ? `/voltr-chat?conversa=${encodeURIComponent(n.entityId)}`
       : '/voltr-chat';
   }
+  // Sessão do WhatsApp encerrada: só volta com alguém lendo o QR, então o aviso
+  // leva direto à tela onde o QR está. Ver estudo 157.
+  if (n.type.startsWith('whatsapp.')) return '/whatsapp';
   return null;
 }
 
