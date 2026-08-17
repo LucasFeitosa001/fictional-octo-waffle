@@ -123,6 +123,10 @@ export function ComissoesResumoPage() {
   // "Mostrar comissões anteriores": solta o limite INICIAL do período, para a
   // comissão antiga ainda em aberto não sumir da tela e ser esquecida.
   const [mostrarAnteriores, setMostrarAnteriores] = useState(false);
+  // "Só quem tem a receber": esconde da tabela quem já foi pago ou não tem
+  // comissão no período. Nasce desligado, para a tela abrir como sempre abriu.
+  // Ver estudo 159.
+  const [soAReceber, setSoAReceber] = useState(false);
   const isMobile = useIsMobile();
 
   // Mantém as URLs diretas/abas sincronizadas. Antes, abrir
@@ -263,6 +267,13 @@ export function ComissoesResumoPage() {
    * lista e o salão não entende para onde foi a comissão daquela pessoa.
    */
   const linhasEmAberto = useMemo(() => rows.filter((r) => r.openCount > 0), [rows]);
+  /**
+   * O que a TABELA mostra. Mesmo recorte que o celular já usava na aba
+   * "Comissões em aberto" — o desktop é que tinha ficado com a lista inteira,
+   * obrigando quem vai pagar a garimpar quem ainda tem saldo. Ver estudo 159.
+   */
+  const linhasVisiveis = soAReceber ? linhasEmAberto : rows;
+  const escondidas = rows.length - linhasVisiveis.length;
   // Mantém só seleções ainda pagáveis (evita "fantasmas" após refetch).
   const selectedPayable = useMemo(
     () => payableRows.filter((r) => selected.has(r.professionalId)),
@@ -685,6 +696,7 @@ export function ComissoesResumoPage() {
             </Select.Popover>
           </Select>
         </Field>
+
       </div>
     </>
   );
@@ -1015,7 +1027,23 @@ export function ComissoesResumoPage() {
                   Toque em uma profissional para ver cada lançamento
                 </span>
               </div>
-              <span className="text-xs text-muted">{rows.length} resultado(s)</span>
+              {/* O controle fica AQUI, à vista, e não no painel de filtros: nesta
+                  tela aquele painel só abre por um botão, e quem paga comissão
+                  não ia descobrir que a opção existe. Ver estudo 159. */}
+              <div className="flex items-center gap-3">
+                <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-muted-ink">
+                  <input
+                    type="checkbox"
+                    checked={soAReceber}
+                    onChange={(e) => setSoAReceber(e.target.checked)}
+                    className="h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+                  />
+                  Só quem tem a receber
+                </label>
+                <span className="shrink-0 text-xs text-muted">
+                  {linhasVisiveis.length} resultado(s)
+                </span>
+              </div>
             </div>
 
             {summary.isLoading ? (
@@ -1030,10 +1058,29 @@ export function ComissoesResumoPage() {
               />
             ) : (
               <>
+                {soAReceber && escondidas > 0 && (
+                  // Quem não vê o número não sabe que ele existe: sem esta
+                  // linha, o filtro faria parecer que o salão tem menos
+                  // profissionais do que tem. Ver estudo 159.
+                  <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--color-soft-border)] bg-cream/50 px-3 py-2 text-xs text-muted-ink">
+                    <span>
+                      Mostrando só quem tem comissão a receber —{' '}
+                      <strong>{escondidas}</strong>{' '}
+                      {escondidas === 1 ? 'profissional oculto' : 'profissionais ocultos'}.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSoAReceber(false)}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Mostrar todos
+                    </button>
+                  </div>
+                )}
                 <DataTable
                   aria-label="Resumo de comissões"
                   columns={columns}
-                  rows={rows}
+                  rows={linhasVisiveis}
                   getKey={(r) => r.professionalId}
                   onRowClick={setDetailFor}
                 />
