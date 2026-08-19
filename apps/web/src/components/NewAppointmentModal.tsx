@@ -245,6 +245,13 @@ export function NewAppointmentModal({
   const [sendReminder, setSendReminder] = useState(reminderDefault);
   const [sendConfirmation, setSendConfirmation] = useState(confirmationDefault);
   const [sendCancellation, setSendCancellation] = useState(cancellationDefault);
+  /**
+   * "Agendamento avulso": ignora o expediente da profissional. Começa desligado
+   * — quem clica em "Novo" espera o fluxo normal, e sair fora da grade tem que
+   * ser escolha consciente. Ligar libera o "Profissional não atende neste dia
+   * da semana" tanto na disponibilidade quanto no create. Ver estudo 163.
+   */
+  const [avulso, setAvulso] = useState(false);
   // Marca se a dona já mexeu no toggle manualmente. Enquanto não mexeu, o toggle
   // segue o default da config (útil quando a config chega depois do modal abrir).
   const reminderTouched = useRef(false);
@@ -578,9 +585,19 @@ export function NewAppointmentModal({
   // validation/creation failure.
   async function submit(): Promise<{ id: string; customerId?: string } | null> {
     setFormError(null);
-    const slot = slots.find((s: AvailabilitySlot) => s.start === slotStart);
+    let slot = slots.find((s: AvailabilitySlot) => s.start === slotStart);
+    // Modo AVULSO: não há slots gerados pela disponibilidade — usa o horário
+    // que a dona escolheu direto no seletor. O backend pula o expediente porque
+    // recebe `avulso: true`. Ver estudo 163.
+    if (!slot && avulso && slotStart) {
+      slot = { start: slotStart } as AvailabilitySlot;
+    }
     if (!slot) {
-      setFormError('Selecione um horário disponível.');
+      setFormError(
+        avulso
+          ? 'Informe o horário do agendamento avulso.'
+          : 'Selecione um horário disponível.',
+      );
       return null;
     }
     const validItems = items.filter((it) => it.serviceId);
@@ -674,6 +691,8 @@ export function NewAppointmentModal({
         followUp: followUpPayload,
         additionalStarts,
         status,
+        // Só vai quando LIGADO — o backend valida `!dto.avulso`. Ver estudo 163.
+        ...(avulso ? { avulso: true } : {}),
       });
       const main = series.data[0];
       if (!main) throw new Error('A série não retornou o agendamento criado.');
@@ -1191,6 +1210,73 @@ export function NewAppointmentModal({
                             <span className="text-xs text-muted">
                               Trocar a data não resolve — escolha outro serviço na lista.
                             </span>
+                          )}
+                          {/* Fora do expediente: aparece o atalho para marcar
+                              AVULSO em vez de mandar o dono trocar de data.
+                              Ver estudo 163. */}
+                          {(availability.data?.motivo === 'sem_expediente' ||
+                            availability.data?.motivo === 'fora_do_expediente') && (
+                            <>
+                              <span className="text-xs text-muted">
+                                Marque como <strong>avulso</strong> para agendar mesmo assim
+                                — a grade do dia da profissional é ignorada só nesse
+                                agendamento.
+                              </span>
+                              {!avulso ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setAvulso(true)}
+                                  className="mt-1.5 self-start rounded-lg border border-warning/50 bg-white px-2.5 py-1 text-xs font-medium text-foreground hover:bg-warning/10"
+                                >
+                                  Marcar como avulso
+                                </button>
+                              ) : (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                  <span className="rounded-lg border border-warning/60 bg-warning/10 px-2.5 py-1 text-xs font-medium text-foreground">
+                                    Modo avulso ligado
+                                  </span>
+                                  {/* Sem slots gerados: a dona digita o horário
+                                      do avulso. O backend recebe `avulso: true`
+                                      e pula a validação de expediente. */}
+                                  <label className="flex items-center gap-1 text-xs text-muted-ink">
+                                    Horário:
+                                    <input
+                                      type="time"
+                                      value={
+                                        slotStart
+                                          ? new Date(slotStart).toLocaleTimeString('pt-BR', {
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              hour12: false,
+                                              timeZone: 'America/Fortaleza',
+                                            })
+                                          : ''
+                                      }
+                                      onChange={(e) => {
+                                        const [h, m] = e.target.value.split(':');
+                                        if (!h || !m) return;
+                                        // Data local do salão + hora escolhida.
+                                        setSlotStart(
+                                          new Date(`${date}T${h}:${m}:00-03:00`).toISOString(),
+                                        );
+                                        setFormError(null);
+                                      }}
+                                      className="h-8 rounded border border-black/15 bg-white px-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAvulso(false);
+                                      setSlotStart('');
+                                    }}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    desligar
+                                  </button>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       ) : (

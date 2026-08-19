@@ -788,8 +788,10 @@ export class AppointmentsService {
     }
 
     // Schedule validation (read-only, safe outside the transaction).
+    // Agendamento AVULSO (estudo 163) ignora o expediente. Overlap segue
+    // valendo — só o `squeezeIn` libera sobreposição com outro agendamento.
     const professionalId = dto.professionalId;
-    if (professionalId) {
+    if (professionalId && !dto.avulso) {
       await this.assertWithinSchedule(companyId, professionalId, start, end);
     }
 
@@ -940,7 +942,9 @@ export class AppointmentsService {
     }));
 
     const professionalId = dto.professionalId;
-    if (professionalId) {
+    if (professionalId && !dto.avulso) {
+      // Série AVULSA ignora expediente em TODAS as ocorrências — se o dono
+      // pediu série avulsa, marcar metade e recusar metade seria pior.
       for (const occurrence of occurrences) {
         await this.assertWithinSchedule(
           companyId,
@@ -1148,9 +1152,13 @@ export class AppointmentsService {
     // Re-validate schedule + collision when time/professional changed.
     const timeChanged = Boolean(dto.start || dto.end || dto.professionalId);
     if (professionalId && timeChanged) {
-      // Expediente vale sempre; encaixe autoriza sobrepor OUTRO agendamento, não
-      // marcar fora do horário de trabalho.
-      await this.assertWithinSchedule(companyId, professionalId, start, end);
+      // Expediente vale sempre — encaixe autoriza sobrepor OUTRO agendamento,
+      // não marcar fora do horário de trabalho. `avulso` é o toggle que libera
+      // FORA DO EXPEDIENTE (estudo 163). São coisas diferentes: uma libera
+      // colisão, a outra libera "dia que ela não trabalharia".
+      if (!dto.avulso) {
+        await this.assertWithinSchedule(companyId, professionalId, start, end);
+      }
       if (!dto.squeezeIn && !opts?.allowOverlap) {
         await this.assertNoOverlap(companyId, professionalId, start, end, id);
       }
