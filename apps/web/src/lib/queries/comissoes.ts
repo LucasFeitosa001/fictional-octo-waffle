@@ -68,6 +68,12 @@ export interface CommissionSummaryRow {
   signedCount: number;
   status: 'paid' | 'open';
   signed: boolean;
+  /**
+   * Lançamentos ESCOLHIDOS para quitar. Ausente/vazio = o backend quita todos
+   * os `open` do profissional no período, que é o comportamento de sempre.
+   * Preenchido quando a pessoa marca linhas na tela Detalhadas. Estudo 164.
+   */
+  entryIds?: string[];
 }
 
 export interface CommissionSummary {
