@@ -418,6 +418,8 @@ export interface AppointmentFollowUpInput {
 export interface CreateAppointmentBody {
   /** Encaixe: permite marcar em cima de horário já ocupado do mesmo profissional. */
   squeezeIn?: boolean;
+  /** Avulso: ignora o expediente cadastrado da profissional (estudo 163). */
+  avulso?: boolean;
   customerId?: string;
   professionalId?: string;
   start: string;

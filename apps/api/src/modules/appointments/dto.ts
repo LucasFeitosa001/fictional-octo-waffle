@@ -80,6 +80,13 @@ export class CreateAppointmentDto {
    * nada e a pessoa tomava "horário ocupado" mesmo assim.
    */
   @IsOptional() @IsBoolean() squeezeIn?: boolean;
+  /**
+   * "Agendamento avulso": ignora o expediente cadastrado da profissional. Usado
+   * quando ela combinou de atender fora da grade normal (ex.: domingo, dia de
+   * folga). NÃO libera sobreposição — para dois agendamentos no mesmo horário,
+   * é preciso o `squeezeIn` junto. Ver estudo 163.
+   */
+  @IsOptional() @IsBoolean() avulso?: boolean;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -123,6 +130,8 @@ export class UpdateAppointmentDto {
    * mover para cima, que é o caso mais comum na recepção.
    */
   @IsOptional() @IsBoolean() squeezeIn?: boolean;
+  /** Ver `avulso` no CreateAppointmentDto (estudo 163). Mesma semântica ao reagendar. */
+  @IsOptional() @IsBoolean() avulso?: boolean;
   // Reconfigura o aviso personalizado ao editar o agendamento.
   @IsOptional()
   @ValidateNested()
