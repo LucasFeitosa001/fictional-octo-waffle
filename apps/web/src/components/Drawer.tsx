@@ -106,11 +106,52 @@ export function Drawer({
   useEffect(() => {
     if (!mounted) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') fecharPeloUsuario();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, onClose]);
+
+  /**
+   * O BOTÃO VOLTAR fecha o drawer, em vez de sair da página inteira.
+   *
+   * Antes, abrir um produto/comanda não criava entrada no histórico: para o
+   * navegador nada tinha acontecido, e o "voltar" saía de /produtos e caía na
+   * página anterior — que variava conforme o caminho do dia, por isso parecia
+   * aleatório ("ora comandas, ora agenda"). Ver estudo 166.
+   *
+   * Enquanto aberto, o drawer ocupa UMA entrada. O popstate fecha o drawer e o
+   * navegador permanece na mesma página.
+   */
+  const entradaEmpilhada = useRef(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    window.history.pushState({ spDrawer: true }, '');
+    entradaEmpilhada.current = true;
+    const onPop = () => {
+      // O navegador já consumiu a entrada ao voltar — só fecha, sem tentar
+      // desempilhar de novo (senão sairia da página, o bug original).
+      entradaEmpilhada.current = false;
+      onClose();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  /**
+   * Fechar pelo X, ESC ou clique no fundo precisa CONSUMIR a entrada empilhada;
+   * sem isso ela ficaria sobrando e o próximo "voltar" não faria nada visível.
+   */
+  function fecharPeloUsuario() {
+    if (entradaEmpilhada.current) {
+      entradaEmpilhada.current = false;
+      window.history.back(); // o popstate acima chama o onClose
+      return;
+    }
+    onClose();
+  }
 
   // Move focus into the panel when it opens.
   useEffect(() => {
@@ -124,7 +165,7 @@ export function Drawer({
       {/* Backdrop */}
       <div
         aria-hidden
-        onClick={onClose}
+        onClick={fecharPeloUsuario}
         className={[
           'absolute inset-0 cursor-pointer bg-black/40 backdrop-blur-[1px] transition-opacity duration-[380ms] ease-out',
           show ? 'opacity-100' : 'opacity-0',
@@ -170,7 +211,7 @@ export function Drawer({
             <>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={fecharPeloUsuario}
                 aria-label={mobileBackLabel}
                 className="inline-flex min-h-11 items-center gap-1 rounded-lg text-sm font-semibold text-primary"
               >
@@ -190,7 +231,7 @@ export function Drawer({
               <IconTip label="Fechar" placement="bottom" className="shrink-0">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={fecharPeloUsuario}
                   aria-label="Fechar"
                   className={
                     closeStyle === 'label'
