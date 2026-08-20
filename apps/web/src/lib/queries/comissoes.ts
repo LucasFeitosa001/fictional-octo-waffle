@@ -289,6 +289,12 @@ export interface CommissionPayment {
   amount: number;
   closingId: string | null;
   note: string | null;
+  /**
+   * Forma usada no pagamento. Null nos registros anteriores ao campo existir —
+   * a tela mostra "—" em vez de inventar. Ver estudo 165.
+   */
+  paymentMethodId?: string | null;
+  paymentMethodName?: string | null;
   entriesCount: number;
 }
 

@@ -558,6 +558,23 @@ export function ComissoesResumoPage() {
       render: (p) => p.paidByUser?.name ?? '—',
     },
     {
+      // COMO o dinheiro saiu. Fica ao lado de "Usuário" porque as duas
+      // respondem a mesma pergunta na conferência: quem pagou e por qual meio.
+      // Ver estudo 165.
+      key: 'forma',
+      header: 'Forma',
+      render: (p) =>
+        p.paymentMethodName ? (
+          <span className="inline-flex items-center rounded-[4px] border border-[var(--color-soft-border)] bg-canvas px-2 py-0.5 text-xs font-medium text-foreground">
+            {p.paymentMethodName}
+          </span>
+        ) : (
+          // Pagamento antigo, de antes deste campo existir. Inventar uma forma
+          // aqui falsearia o histórico de quem já recebeu.
+          <span className="text-muted">—</span>
+        ),
+    },
+    {
       key: 'commission',
       header: 'Comissões',
       render: (p) => formatMoney(p.commissionTotal),
