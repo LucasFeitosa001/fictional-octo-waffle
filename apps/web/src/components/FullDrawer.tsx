@@ -165,10 +165,41 @@ export function FullDrawer({
 
   useEffect(() => {
     if (!isOpen) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') fecharPeloUsuario(); };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, onClose]);
+
+  /**
+   * BOTÃO VOLTAR fecha este drawer em vez de sair da página. Mesma correção do
+   * Drawer.tsx — ver estudo 166. Sem isto, abrir um produto/cliente não criava
+   * entrada no histórico e o voltar saía da tela inteira, caindo numa página
+   * que dependia do caminho percorrido antes (parecia aleatório).
+   */
+  const entradaEmpilhada = useRef(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    window.history.pushState({ spDrawer: true }, '');
+    entradaEmpilhada.current = true;
+    const onPop = () => {
+      entradaEmpilhada.current = false;
+      onClose();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  /** X, ESC e clique no fundo consomem a entrada empilhada. */
+  function fecharPeloUsuario() {
+    if (entradaEmpilhada.current) {
+      entradaEmpilhada.current = false;
+      window.history.back();
+      return;
+    }
+    onClose();
+  }
 
   if (!mounted) return null;
 
@@ -180,7 +211,7 @@ export function FullDrawer({
           'absolute inset-0 cursor-pointer bg-black/40 backdrop-blur-[1px] transition-opacity duration-[380ms] ease-out',
           show ? 'opacity-100' : 'opacity-0',
         ].join(' ')}
-        onClick={onClose}
+        onClick={fecharPeloUsuario}
       />
       {/* panel — mobile: bottom-sheet sobe (translate-y). desktop: tela cheia
           (inset-0); só vira faixa lateral deslizante quando `widthClass` é
@@ -222,7 +253,7 @@ export function FullDrawer({
             <>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={fecharPeloUsuario}
                 aria-label={mobileBackLabel}
                 className="inline-flex min-h-11 items-center gap-1 rounded-lg text-sm font-semibold text-primary"
               >
@@ -242,7 +273,7 @@ export function FullDrawer({
               <IconTip label="Fechar" placement="bottom">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={fecharPeloUsuario}
                   aria-label="Fechar"
                   className="rounded-md p-1.5 text-muted-ink hover:bg-canvas hover:text-ink"
                 >

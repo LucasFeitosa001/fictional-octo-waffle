@@ -39,6 +39,13 @@ export interface Product {
   costPrice: string;
   stock: string;
   minStock: string;
+  /**
+   * O salão declarou que controla o estoque DESTE produto. É o mesmo campo que o
+   * backend usa para recusar venda sem saldo (`assertEstoqueParaVenda`) — sem
+   * ele, saldo 0 é palpite de catálogo importado e não pode esconder o produto.
+   * Ver estudo 167.
+   */
+  trackStock?: boolean;
   cashbackPercent: string;
   favorite: boolean;
   active: boolean;
