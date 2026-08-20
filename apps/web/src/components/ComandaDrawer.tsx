@@ -73,12 +73,54 @@ function StatusTag({ status }: { status: OrderRow['status'] }) {
   );
 }
 
-function PaymentTag({ status }: { status: OrderRow['status'] }) {
+function PaymentTag({
+  status,
+  payments,
+}: {
+  status: OrderRow['status'];
+  /**
+   * Pagamentos da comanda, com o nome da forma já resolvido pelo backend
+   * (`paymentMethodName`). Sem isto o selo dizia "Pago" e escondia COMO —
+   * a informação que o salão procura ao conferir o caixa ficava a três cliques,
+   * dentro do sub-drawer "Pagamentos". Ver estudo 165.
+   */
+  payments?: OrderPaymentDetail[];
+}) {
   if (status === 'canceled') return <span className="text-xs text-muted">—</span>;
   const paid = status === 'finished';
+  // Só as formas que existem de fato: importação antiga tem paymentMethodId
+  // nulo, e inventar um nome ali seria pior que não mostrar nada.
+  const formas = (payments ?? []).filter((p) => p.paymentMethodName);
   return paid ? (
-    <span className="inline-flex items-center rounded-[4px] border border-[#b7eb8f] bg-[#f6ffed] px-2 py-0.5 text-xs font-medium text-[#389e0d]">
-      Pago
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center rounded-[4px] border border-[#b7eb8f] bg-[#f6ffed] px-2 py-0.5 text-xs font-medium text-[#389e0d]">
+        Pago
+      </span>
+      {/* Uma forma: só o nome. Mais de uma (pagamento dividido, que o sistema
+          permite): cada uma com seu valor — "Pago · Pix" mentiria sobre a
+          metade que saiu em dinheiro. */}
+      {/* Nenhuma forma registrada: 17 pagamentos antigos em produção estão
+          assim, de antes do campo passar a ser preenchido. O dado não existe em
+          lugar nenhum — dizer "não informada" é honesto; chutar "Dinheiro"
+          gravaria um palpite como se fosse fato. Ver estudo 165. */}
+      {formas.length === 0 ? (
+        <span className="inline-flex items-center rounded-[4px] border border-dashed border-[var(--color-soft-border)] px-2 py-0.5 text-xs text-muted">
+          Forma não informada
+        </span>
+      ) : formas.length === 1 ? (
+        <span className="inline-flex items-center rounded-[4px] border border-[var(--color-soft-border)] bg-canvas px-2 py-0.5 text-xs font-medium text-foreground">
+          {formas[0]?.paymentMethodName}
+        </span>
+      ) : (
+        formas.map((p) => (
+          <span
+            key={p.id}
+            className="inline-flex items-center rounded-[4px] border border-[var(--color-soft-border)] bg-canvas px-2 py-0.5 text-xs font-medium text-foreground"
+          >
+            {p.paymentMethodName} · {formatMoney(Number(p.amount))}
+          </span>
+        ))
+      )}
     </span>
   ) : (
     <span
@@ -429,7 +471,7 @@ export function ComandaDrawer({
             {/* Status + Pagamento. */}
             <div className="flex items-center gap-2">
               <StatusTag status={detail.status} />
-              <PaymentTag status={detail.status} />
+              <PaymentTag status={detail.status} payments={detail.payments} />
             </div>
 
             {/* (3) Itens. */}
