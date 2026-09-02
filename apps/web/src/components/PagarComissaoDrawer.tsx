@@ -202,6 +202,10 @@ export function PagarComissaoDrawer({
         items: rows.map((row) => ({
           professionalId: row.professionalId,
           advanceIds: [...(checkedByProf[row.professionalId] ?? [])],
+          // Lançamentos escolhidos na tela Detalhadas. Omitido quando não houve
+          // escolha — o backend então quita todos os `open` do período, que é o
+          // comportamento de sempre. Ver estudo 164.
+          ...(row.entryIds?.length ? { entryIds: row.entryIds } : {}),
         })),
       });
       const total = res.payments.reduce((s, p) => s + Number(p.amount), 0);

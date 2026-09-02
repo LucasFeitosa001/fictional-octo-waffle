@@ -16,7 +16,7 @@
  * exatamente a mesma tabela de "Resumidas", e o detalhamento item a item vivia
  * escondido num drawer lateral que só abria pelo botão "Detalhes" da linha.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Chip, ListBox, Select } from '@heroui/react';
 import { DataTable, type Column } from '../../components/DataTable';
 import { EmptyState, ErrorState, LoadingState } from '../../components/States';
@@ -43,6 +43,34 @@ const CARD_CLASS =
  * Colunas do Belasis, nesta ordem:
  *   Data · Item · Valor · Taxa acumulada ⓘ · Comissão · Desconto de Auxiliares · Disponível
  */
+/**
+ * Coluna de seleção — só existe quando a tela passa o handler. Marcar é o que
+ * diz ao backend QUAIS lançamentos quitar (`entryIds`); sem nada marcado, ele
+ * quita todos os abertos do período, como sempre fez. Ver estudo 164.
+ *
+ * Linha `paid`/`reversed` não ganha caixa: oferecer marcação no que não pode
+ * ser pago é promessa falsa.
+ */
+function colunaSelecao(
+  selecionados: Set<string>,
+  alternar: (id: string) => void,
+): Column<CommissionDetailItem> {
+  return {
+    key: '__sel',
+    header: '',
+    render: (it) =>
+      it.status === 'open' ? (
+        <input
+          type="checkbox"
+          checked={selecionados.has(it.id)}
+          onChange={() => alternar(it.id)}
+          aria-label={`Selecionar lançamento de ${formatDate(it.date)}`}
+          className="h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+        />
+      ) : null,
+  };
+}
+
 const COLUMNS: Column<CommissionDetailItem>[] = [
   {
     key: 'date',
@@ -206,13 +234,44 @@ export function ComissoesDetalhadasView({
   // já tinha sido pago: depois de pagar, a tela continuava mostrando o mesmo
   // "Líquido" com o botão ativo, e clicar de novo criava pagamento de R$ 0,00.
   const emAberto = (d?.items ?? []).filter((it) => it.status === 'open');
-  const comissoes = emAberto.reduce((s, it) => s + it.commissionAmount, 0);
-  const bonificacoes = emAberto.reduce((s, it) => s + it.bonusAmount, 0);
+
+  /**
+   * Lançamentos MARCADOS para pagar. Vazio = paga tudo em aberto, que é como
+   * a tela sempre funcionou. Ver estudo 164.
+   */
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  // Some da seleção o que deixou de estar em aberto (depois de pagar, por
+  // exemplo) — senão o botão tentaria quitar um lançamento que já foi.
+  useEffect(() => {
+    setSelecionados((prev) => {
+      if (prev.size === 0) return prev;
+      const validos = new Set(emAberto.map((it) => it.id));
+      const proximo = new Set([...prev].filter((id) => validos.has(id)));
+      return proximo.size === prev.size ? prev : proximo;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d?.items]);
+
+  const temSelecao = selecionados.size > 0;
+  // Quando há seleção, TUDO abaixo passa a falar dela: o rodapé, o líquido e o
+  // botão. É o oposto do filtro de tipos (estudo 156), e de propósito — lá o
+  // filtro era só de exibição; aqui a seleção É o que vai ser pago.
+  const aPagar = temSelecao ? emAberto.filter((it) => selecionados.has(it.id)) : emAberto;
+  const comissoes = aPagar.reduce((s, it) => s + it.commissionAmount, 0);
+  const bonificacoes = aPagar.reduce((s, it) => s + it.bonusAmount, 0);
   const jaPago = (d?.items ?? [])
     .filter((it) => it.status === 'paid')
     .reduce((s, it) => s + it.commissionAmount + it.bonusAmount, 0);
   const liquido = Math.max(0, comissoes + bonificacoes - vales);
-  const podePagar = emAberto.length > 0 && liquido > 0;
+  const podePagar = aPagar.length > 0 && liquido > 0;
+  /**
+   * Vale é descontado por PROFISSIONAL, não por lançamento. Selecionar R$ 5 de
+   * comissão com R$ 50 de vale em aberto zera o líquido — o backend já trata,
+   * mas a tela precisa dizer ANTES em vez de deixar clicar e gerar um
+   * pagamento de R$ 0,00. Ver estudo 164.
+   */
+  const valeMaiorQueSelecao =
+    temSelecao && vales > 0 && comissoes + bonificacoes - vales <= 0;
 
   // A tabela mostra o recorte escolhido; os totais acima e o pagamento seguem
   // sobre o PERÍODO INTEIRO de propósito — se o filtro mexesse neles, o botão
@@ -251,7 +310,7 @@ export function ComissoesDetalhadasView({
     return {
       professionalId: id,
       professionalName: nome,
-      valorVendido: emAberto.reduce((s, it) => s + it.baseAmount, 0),
+      valorVendido: aPagar.reduce((s, it) => s + it.baseAmount, 0),
       comissao: comissoes,
       bonus: bonificacoes,
       vales,
@@ -263,12 +322,15 @@ export function ComissoesDetalhadasView({
       totalAberto: comissoes + bonificacoes,
       liquido,
       liquidoPeriodo: liquido,
-      entryCount: emAberto.length,
-      openCount: emAberto.length,
+      entryCount: aPagar.length,
+      openCount: aPagar.length,
       paidCount: 0,
       signedCount: 0,
       status: 'open',
       signed: d?.signed ?? false,
+      // Só vai quando a pessoa escolheu: vazio = backend quita todos os `open`
+      // do período, que é o comportamento de sempre. Estudo 164.
+      ...(temSelecao ? { entryIds: aPagar.map((it) => it.id) } : {}),
     };
   }
 
@@ -511,9 +573,45 @@ export function ComissoesDetalhadasView({
                   </button>
                 </div>
               )}
+              {/* Barra da seleção: sem ela, marcar linhas mudaria o rodapé sem
+                  a pessoa entender por quê. Ver estudo 164. */}
+              {temSelecao && (
+                <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground">
+                  <span>
+                    <strong>{selecionados.size}</strong>{' '}
+                    {selecionados.size === 1
+                      ? 'lançamento selecionado'
+                      : 'lançamentos selecionados'}{' '}
+                    — o pagamento vai quitar só {selecionados.size === 1 ? 'ele' : 'eles'}.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelecionados(new Set())}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Limpar seleção
+                  </button>
+                </div>
+              )}
+              {!temSelecao && emAberto.length > 1 && (
+                <div className="mb-3 text-xs text-muted">
+                  Marque as caixas para pagar só alguns lançamentos. Sem marcar nada, o
+                  botão paga todos os {emAberto.length} em aberto do período.
+                </div>
+              )}
               <DataTable
                 aria-label={`Comissões detalhadas de ${escolhido?.name ?? ''}`}
-                columns={COLUMNS}
+                columns={[
+                  colunaSelecao(selecionados, (id) =>
+                    setSelecionados((prev) => {
+                      const proximo = new Set(prev);
+                      if (proximo.has(id)) proximo.delete(id);
+                      else proximo.add(id);
+                      return proximo;
+                    }),
+                  ),
+                  ...COLUMNS,
+                ]}
                 rows={itensVisiveis}
                 getKey={(it) => it.id}
               />
@@ -586,12 +684,23 @@ export function ComissoesDetalhadasView({
               />
             )}
           </div>
+          <div className="flex flex-col items-stretch gap-1 sm:items-end">
+            {/* Vale é por PROFISSIONAL, não por lançamento: selecionar pouco e
+                ter vale grande zera o líquido. Dizer antes evita o clique que
+                geraria pagamento de R$ 0,00. Ver estudo 164. */}
+            {valeMaiorQueSelecao && (
+              <span className="max-w-[22rem] text-right text-[11px] leading-tight text-warning-fg">
+                Os vales em aberto ({formatMoney(vales)}) são maiores que a seleção — o
+                líquido ficaria zero. Selecione mais lançamentos ou pague tudo.
+              </span>
+            )}
           <PagarComissoesMenu
             disabled={!podePagar}
-            label="Pagar comissões"
+            label={temSelecao ? `Pagar ${selecionados.size} selecionado(s)` : 'Pagar comissões'}
             onPagar={() => escolhido && onPay(linhaParaPagar(escolhido.id, escolhido.name), 'manual')}
             onSalonPay={() => escolhido && onPay(linhaParaPagar(escolhido.id, escolhido.name), 'salonpay')}
           />
+          </div>
         </div>
       </div>
     </div>

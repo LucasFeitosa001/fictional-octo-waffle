@@ -915,6 +915,11 @@ export class CommissionsService {
       include: {
         professional: { select: { id: true, name: true } },
         paidByUser: { select: { id: true, name: true } },
+        // COMO o dinheiro saiu. O campo já existia no banco (schema.prisma:1828,
+        // criado quando o pagamento passou a virar despesa no Financeiro), mas
+        // não era devolvido — a tela dizia que pagou e escondia por qual meio.
+        // Ver estudo 165.
+        paymentMethod: { select: { id: true, name: true } },
         _count: { select: { entries: true } },
       },
     });
@@ -935,6 +940,10 @@ export class CommissionsService {
       amount: Number(p.amount),
       closingId: p.closingId,
       note: p.note,
+      // Null nos pagamentos anteriores a este campo existir — a tela mostra "—"
+      // em vez de chutar uma forma que ninguém registrou.
+      paymentMethodId: p.paymentMethodId,
+      paymentMethodName: p.paymentMethod?.name ?? null,
       entriesCount: p._count.entries,
     }));
   }

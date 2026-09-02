@@ -68,6 +68,12 @@ export interface CommissionSummaryRow {
   signedCount: number;
   status: 'paid' | 'open';
   signed: boolean;
+  /**
+   * Lançamentos ESCOLHIDOS para quitar. Ausente/vazio = o backend quita todos
+   * os `open` do profissional no período, que é o comportamento de sempre.
+   * Preenchido quando a pessoa marca linhas na tela Detalhadas. Estudo 164.
+   */
+  entryIds?: string[];
 }
 
 export interface CommissionSummary {
@@ -283,6 +289,12 @@ export interface CommissionPayment {
   amount: number;
   closingId: string | null;
   note: string | null;
+  /**
+   * Forma usada no pagamento. Null nos registros anteriores ao campo existir —
+   * a tela mostra "—" em vez de inventar. Ver estudo 165.
+   */
+  paymentMethodId?: string | null;
+  paymentMethodName?: string | null;
   entriesCount: number;
 }
 
