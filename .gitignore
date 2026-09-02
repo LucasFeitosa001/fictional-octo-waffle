@@ -61,3 +61,4 @@ apps/api/uploads/
 # `_out/agenda-belasis-scrape/belasis-auth.json` guarda cookies de sessão do
 # belasis.app, e credencial em git é permanente mesmo depois de apagada.
 belasis-reference/_out/
+tools/mcp-salonpass/.env

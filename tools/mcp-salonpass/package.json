@@ -1,0 +1,13 @@
+{
+  "name": "@beautypass/mcp-salonpass",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor MCP que expõe os dados reais do SalonPass (somente leitura) via a API oficial.",
+  "bin": { "mcp-salonpass": "./servidor.mjs" },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "^3.24.0"
+  }
+}
