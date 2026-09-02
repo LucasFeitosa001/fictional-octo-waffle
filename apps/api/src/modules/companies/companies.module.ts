@@ -10,11 +10,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
+  Matches,
+  Max,
+  Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -44,6 +49,16 @@ class CompanyAddressDto {
   @IsOptional() @IsString() personType?: string;
 }
 
+// Uma linha do horário semanal. Mesmo formato de marketing/dto.ts (o horário é
+// o MESMO Company.businessHoursJson editado lá) — ver estudo 169.
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+class BusinessHoursDayDto {
+  @IsInt() @Min(0) @Max(6) weekday: number;
+  @IsBoolean() open: boolean;
+  @IsString() @Matches(HHMM, { message: 'start deve estar no formato HH:MM' }) start: string;
+  @IsString() @Matches(HHMM, { message: 'end deve estar no formato HH:MM' }) end: string;
+}
+
 class UpdateCompanyDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() legalName?: string;
@@ -56,6 +71,14 @@ class UpdateCompanyDto {
   @ValidateNested()
   @Type(() => CompanyAddressDto)
   addressJson?: CompanyAddressDto;
+  // Liga/desliga o atendimento por horário da IA (estudo 169).
+  @IsOptional() @IsBoolean() businessHoursActive?: boolean;
+  // Horário semanal. Mesmo dado que Marketing edita — editar aqui é editar lá.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BusinessHoursDayDto)
+  businessHours?: BusinessHoursDayDto[];
 }
 
 // IDs de personalização visual oferecidos em Configurações → Personalizar.
@@ -103,6 +126,29 @@ type AppearancePreferences = {
   crmShortcut?: boolean;
 };
 
+// Coage qualquer valor guardado/recebido em 7 linhas (weekday 0..6). Espelha
+// marketing.service.ts.normalizeBusinessHours — o mesmo JSON é escrito pelos
+// dois lados. Ver estudo 169.
+function normalizeBusinessHours(
+  raw: unknown,
+): { weekday: number; open: boolean; start: string; end: string }[] {
+  const list = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [];
+  const byWeekday = new Map<number, Record<string, unknown>>();
+  for (const row of list) {
+    const wd = Number(row?.weekday);
+    if (Number.isInteger(wd) && wd >= 0 && wd <= 6) byWeekday.set(wd, row);
+  }
+  return Array.from({ length: 7 }, (_v, weekday) => {
+    const r = byWeekday.get(weekday);
+    return {
+      weekday,
+      open: typeof r?.open === 'boolean' ? r.open : false,
+      start: typeof r?.start === 'string' ? r.start : '09:00',
+      end: typeof r?.end === 'string' ? r.end : '18:00',
+    };
+  });
+}
+
 @Injectable()
 export class CompaniesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -112,10 +158,15 @@ export class CompaniesService {
   }
 
   update(companyId: string, dto: UpdateCompanyDto) {
-    const { addressJson, ...rest } = dto;
+    const { addressJson, businessHours, ...rest } = dto;
     const data: Prisma.CompanyUpdateInput = { ...rest };
     if (addressJson !== undefined) {
       data.addressJson = addressJson as unknown as Prisma.InputJsonValue;
+    }
+    if (businessHours !== undefined) {
+      // Normaliza para 7 linhas (weekday 0..6), como Marketing faz — leitura e
+      // escrita ficam consistentes independentemente de quantas linhas vieram.
+      data.businessHoursJson = normalizeBusinessHours(businessHours) as unknown as Prisma.InputJsonValue;
     }
     return this.prisma.client.company.update({ where: { id: companyId }, data });
   }

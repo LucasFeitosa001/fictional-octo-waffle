@@ -41,6 +41,10 @@ import {
   useUpdateEmpresa,
   type UpdateEmpresaBody,
 } from '../lib/queries/empresa';
+import {
+  WEEKDAY_LABELS,
+  type BusinessHoursDay,
+} from '../lib/queries/agendamento-online';
 import { useProfessionals } from '../lib/queries';
 import { useUpdateProfessional } from '../lib/queries/profissionais';
 import {
@@ -87,6 +91,29 @@ const PERSON_TYPES = [
   { id: 'PJ', label: 'Pessoa Jurídica' },
   { id: 'PF', label: 'Pessoa Física' },
 ];
+
+// Horário semanal exibido no editor. Sempre 7 linhas (0=Domingo … 6=Sábado):
+// se a empresa já tem horário salvo (Marketing ou aqui), respeita-o; se nunca
+// configurou, cai no padrão que o dono pediu — aberto todo dia 07:00–20:00,
+// pronto pra salvar. Ver estudo 169.
+function normalizeHours(raw: BusinessHoursDay[] | null | undefined): BusinessHoursDay[] {
+  const byWeekday = new Map<number, BusinessHoursDay>();
+  for (const d of raw ?? []) {
+    if (Number.isInteger(d?.weekday) && d.weekday >= 0 && d.weekday <= 6) {
+      byWeekday.set(d.weekday, d);
+    }
+  }
+  const configured = byWeekday.size > 0;
+  return Array.from({ length: 7 }, (_v, weekday) => {
+    const d = byWeekday.get(weekday);
+    return {
+      weekday,
+      open: d ? Boolean(d.open) : !configured,
+      start: d?.start ?? '07:00',
+      end: d?.end ?? '20:00',
+    };
+  });
+}
 
 const UFS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
@@ -907,6 +934,12 @@ export function ConfiguracoesPage() {
   const [stateUf, setStateUf] = useState('');
   const [city, setCity] = useState('');
 
+  // Horário de funcionamento + atendimento por horário da IA (estudo 169).
+  const [businessHoursActive, setBusinessHoursActive] = useState(false);
+  const [businessHours, setBusinessHours] = useState<BusinessHoursDay[]>(() =>
+    normalizeHours(null),
+  );
+
   const data = empresa.data;
   useEffect(() => {
     if (!data) return;
@@ -927,7 +960,16 @@ export function ConfiguracoesPage() {
     setNumber(data.addressJson?.number ?? '');
     setStateUf(data.addressJson?.state ?? '');
     setCity(data.addressJson?.city ?? '');
+    setBusinessHoursActive(Boolean(data.businessHoursActive));
+    setBusinessHours(normalizeHours(data.businessHoursJson));
   }, [data]);
+
+  function updateHourRow(weekday: number, patch: Partial<BusinessHoursDay>) {
+    setBusinessHours((prev) =>
+      prev.map((d) => (d.weekday === weekday ? { ...d, ...patch } : d)),
+    );
+    markDirty();
+  }
 
   function markDirty() {
     if (saved) setSaved(false);
@@ -954,6 +996,8 @@ export function ConfiguracoesPage() {
         city: city.trim() || null,
         personType: personType || null,
       },
+      businessHours,
+      businessHoursActive,
     };
     update.mutate(body, { onSuccess: () => setSaved(true) });
   }
@@ -1366,6 +1410,102 @@ export function ConfiguracoesPage() {
                   ))}
                 </SelectInput>
               </Field>
+            </div>
+
+            {/* ── Horário de funcionamento + atendimento por horário da IA ──
+                O mesmo Company.businessHoursJson editado em Marketing; muda aqui,
+                muda lá. A IA lê ao vivo (estudo 169). */}
+            <div className="mt-8 border-t border-line pt-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-ink">
+                    Horário de funcionamento
+                  </h3>
+                  <p className="mt-0.5 max-w-xl text-sm text-muted-ink">
+                    Quando o atendimento por horário está ligado, a assistente do
+                    WhatsApp abre a conversa com o nome do salão, o horário e o
+                    link de agendamento. Fora do horário, ela avisa que está
+                    fechado e informa os dias e horas — uma vez por dia.
+                  </p>
+                </div>
+                <label className="flex shrink-0 items-center gap-3">
+                  <span className="text-sm font-medium text-ink">
+                    Atendimento por horário
+                  </span>
+                  <Switch
+                    isSelected={businessHoursActive}
+                    onChange={(v) => {
+                      setBusinessHoursActive(v);
+                      markDirty();
+                    }}
+                    aria-label={
+                      businessHoursActive
+                        ? 'Desligar atendimento por horário da IA'
+                        : 'Ligar atendimento por horário da IA'
+                    }
+                  >
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch>
+                </label>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border border-line bg-canvas">
+                {businessHours.map((day, index) => (
+                  <div
+                    key={day.weekday}
+                    className={`flex flex-wrap items-center gap-3 px-4 py-3 ${
+                      index > 0 ? 'border-t border-line' : ''
+                    }`}
+                  >
+                    <span className="w-24 shrink-0 text-sm font-medium text-ink">
+                      {WEEKDAY_LABELS[day.weekday]}
+                    </span>
+                    <label className="flex items-center gap-2">
+                      <Switch
+                        isSelected={day.open}
+                        onChange={(v) => updateHourRow(day.weekday, { open: v })}
+                        aria-label={
+                          day.open
+                            ? `Fechar ${WEEKDAY_LABELS[day.weekday]}`
+                            : `Abrir ${WEEKDAY_LABELS[day.weekday]}`
+                        }
+                      >
+                        <Switch.Control>
+                          <Switch.Thumb />
+                        </Switch.Control>
+                      </Switch>
+                      <span className="text-xs text-muted-ink">
+                        {day.open ? 'Aberto' : 'Fechado'}
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={day.start}
+                        disabled={!day.open}
+                        onChange={(e) =>
+                          updateHourRow(day.weekday, { start: e.target.value })
+                        }
+                        aria-label={`Abre ${WEEKDAY_LABELS[day.weekday]}`}
+                        className={`${inputCls} h-9 w-28`}
+                      />
+                      <span className="text-muted-ink">até</span>
+                      <input
+                        type="time"
+                        value={day.end}
+                        disabled={!day.open}
+                        onChange={(e) =>
+                          updateHourRow(day.weekday, { end: e.target.value })
+                        }
+                        aria-label={`Fecha ${WEEKDAY_LABELS[day.weekday]}`}
+                        className={`${inputCls} h-9 w-28`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {update.isError && (

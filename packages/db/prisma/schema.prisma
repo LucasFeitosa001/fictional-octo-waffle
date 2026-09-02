@@ -220,6 +220,11 @@ model Company {
   currency              String   @default("BRL")
   addressJson           Json?
   businessHoursJson     Json?
+  // Quando ligado, a IA (Voltr) atende com base no horário: fora dele, avisa que
+  // está fechada; dentro, abre com nome+horário+link. Separado de
+  // businessHoursJson de propósito — ter horário salvo não implica operar por
+  // ele (o dono quer a opção desligada nas outras empresas). Ver estudo 169.
+  businessHoursActive   Boolean  @default(false)
   active                Boolean  @default(true)
   // Cashback — programa global do estabelecimento (Belasis "Programa de Cashback").
   // Config única por empresa; o saldo por cliente vive no ledger CustomerCashback.
