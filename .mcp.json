@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "salonpass": {
+      "command": "node",
+      "args": ["tools/mcp-salonpass/servidor.mjs"]
+    }
+  }
+}
