@@ -29,6 +29,17 @@ export class VoltrAgendaController {
   }
 
   /**
+   * Identidade + horário do salão para a IA abrir a conversa (estudo 169).
+   * Mesma guarda e isolamento das demais: companyId vem do guard, nunca do
+   * corpo. Só leitura.
+   */
+  @Post('info')
+  @EscopoVoltr('agenda')
+  async info(@Req() req: ReqVoltr) {
+    return this.service.info(req.voltrCompanyId!);
+  }
+
+  /**
    * O que o salão VENDE (estudo 101). Mesma guarda, mesmo escopo e mesmo
    * isolamento da rota `servicos`: leitura da própria empresa, nada mais.
    *

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import type { BusinessHoursDay } from './agendamento-online';
 
 /** Contact + address details persisted inside Company.addressJson. */
 export interface CompanyAddress {
@@ -26,6 +27,12 @@ export interface Empresa {
   timezone: string;
   currency: string;
   addressJson?: CompanyAddress | null;
+  // Horário semanal do salão (mesmo dado editado em Marketing → Agendamento
+  // Online). 7 linhas quando preenchido; null/ausente quando nunca configurado.
+  businessHoursJson?: BusinessHoursDay[] | null;
+  // Liga o atendimento por horário da IA (estudo 169). Ter horário salvo é uma
+  // coisa; a IA operar por ele é outra — por isso é flag separada.
+  businessHoursActive?: boolean;
   active: boolean;
 }
 
@@ -38,6 +45,9 @@ export interface UpdateEmpresaBody {
   timezone?: string;
   currency?: string;
   addressJson?: CompanyAddress;
+  // Horário semanal (o backend normaliza para 7 linhas) e o liga/desliga da IA.
+  businessHours?: BusinessHoursDay[];
+  businessHoursActive?: boolean;
 }
 
 const COMPANY_KEY = ['company'] as const;

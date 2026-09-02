@@ -6,6 +6,7 @@ import {
   AppointmentsService,
 } from '../appointments/appointments.service';
 import { readVoltrConfig, resolveConnectorSecretBySlug } from './voltr.config';
+import { resolveBookingLink } from '../queues/booking-link.helper';
 
 /** Quanto tempo uma oferta de horários continua válida. */
 const OFERTA_MS = 30 * 60 * 1000;
@@ -139,6 +140,40 @@ export class VoltrAgendaService {
     private readonly prisma: PrismaService,
     private readonly appointments: AppointmentsService,
   ) {}
+
+  /**
+   * Identidade e horário do salão para a IA montar a abertura (estudo 169):
+   * nome, link público de agendamento, se o atendimento-por-horário está ligado
+   * e o horário semanal. A IA lê ao vivo — mudar em Detalhes reflete na próxima
+   * mensagem, sem cópia guardada do lado dela.
+   */
+  async info(companyId: string) {
+    const company = await this.prisma.client.company.findUnique({
+      where: { id: companyId },
+      select: {
+        name: true,
+        timezone: true,
+        businessHoursActive: true,
+        businessHoursJson: true,
+      },
+    });
+    const dias = Array.isArray(company?.businessHoursJson)
+      ? (company!.businessHoursJson as { weekday: number; open: boolean; start: string; end: string }[])
+      : [];
+    return {
+      nome: company?.name ?? null,
+      timezone: company?.timezone ?? 'America/Sao_Paulo',
+      // Só a IA decide operar por horário quando o dono ligou E há horário.
+      atendimentoPorHorario: Boolean(company?.businessHoursActive),
+      linkAgendamento: await resolveBookingLink(this.prisma, companyId),
+      dias: dias.map((d) => ({
+        weekday: d.weekday,
+        aberto: Boolean(d.open),
+        inicio: d.start,
+        fim: d.end,
+      })),
+    };
+  }
 
   /** Serviços que o salão publicou como agendáveis. */
   async servicos(companyId: string) {
