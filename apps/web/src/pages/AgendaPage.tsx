@@ -1807,7 +1807,29 @@ export function AgendaPage() {
         widthClass="sm:w-[min(1180px,94vw)]"
         fullscreen
         footer={selected ? (
-          <div className="relative flex w-full items-center justify-between gap-2">
+          <div className="relative flex w-full flex-wrap items-center justify-between gap-2">
+            {/* A recusa da ação (ex.: "tem a comanda #123 aberta") aparece AQUI,
+                no rodapé fixo, junto do botão que a disparou. Ela também existe
+                no corpo do drawer, mas o corpo ROLA: no celular a mensagem
+                nascia no fim do conteúdo, fora da tela, e o dono clicava em
+                "Excluir" sem ver por que nada acontecia. No rodapé ela é
+                impossível de perder, no celular e no desktop. */}
+            {erroAcao && (
+              <div
+                role="alert"
+                className="flex w-full items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger"
+              >
+                <span className="flex-1">{erroAcao}</span>
+                <button
+                  type="button"
+                  onClick={() => setErroAcao(null)}
+                  aria-label="Fechar aviso"
+                  className="shrink-0 rounded px-1 leading-none opacity-70 hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <div className="relative">
               <Button variant="ghost" size="sm" onClick={() => setMoreMenuOpen((v) => !v)}>
                 Outros {moreMenuOpen ? '▾' : '▴'}
@@ -2202,25 +2224,11 @@ export function AgendaPage() {
               </div>
             )}
 
-            {/* Recusa da última ação — FIXA. Ver estudo 138: o toast do HeroUI
-                sumia em ~0,3s nesta tela, e esta mensagem é instrução (diz qual
-                comanda resolver antes), não um aviso de passagem. */}
-            {erroAcao && (
-              <div
-                role="alert"
-                className="flex items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger"
-              >
-                <span className="flex-1">{erroAcao}</span>
-                <button
-                  type="button"
-                  onClick={() => setErroAcao(null)}
-                  aria-label="Fechar aviso"
-                  className="shrink-0 rounded px-1 leading-none opacity-70 hover:opacity-100"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
+            {/* A recusa da última ação (estudo 138) MUDOU DE LUGAR: agora vive no
+                rodapé fixo do drawer, junto do botão que a dispara. Aqui, no
+                corpo — que rola —, ela nascia fora da tela no celular e o dono
+                não via por que a exclusão não acontecia. Mantida uma só cópia
+                para não duplicar a mensagem no desktop. */}
 
             {showCancel && (
               <div className="flex flex-col gap-2 rounded-lg border border-danger/30 bg-white p-3">
