@@ -40,6 +40,16 @@ const AUTO_CONFIRM_AFTER_MS = 5 * 24 * 60 * 60 * 1000; // 5 days unanswered
 const AUTO_CONFIRM_IMMINENT_MS = 24 * 60 * 60 * 1000; // …or the appointment is <24h away
 const AUTO_CONFIRM_SWEEP_MS = 60 * 60 * 1000; // sweep hourly (+ once at boot)
 const AUTO_CONFIRM_BATCH = 50; // cap per sweep so a backlog drains gradually
+/**
+ * Até quando um pedido de confirmação ainda "conta" para o roteador 1/2/3.
+ *
+ * Um agendamento `unconfirmed` só sai desse estado se alguém confirmar ou
+ * cancelar — quem nunca foi respondido fica pendente para sempre. Sem esta
+ * janela, um pedido esquecido de semanas atrás fazia todo "Oi" do gestor voltar
+ * como "Não entendi. Responda 1/2/3", e um "1" solto podia confirmar o
+ * agendamento errado. A tolerância de 24h cobre quem responde no dia seguinte.
+ */
+const MANAGER_PENDING_GRACE_MS = 24 * 60 * 60 * 1000;
 
 // Identity of the logged-in customer, when the public request carried a valid
 // Better Auth customer session. Guest bookings pass `null`.
@@ -756,11 +766,21 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         // existe agendamento esperando confirmação. Sem pendência, este
         // roteador não tem nada a resolver e fica em silêncio, em vez de
         // responder "Não entendi. Responda 1, 2 ou 3" a um simples "Oi".
+        //
+        // A pendência precisa estar VIVA. Só "existe algum unconfirmed" não
+        // basta: um pedido que ninguém confirmou nem cancelou nunca sai desse
+        // estado, e um agendamento cuja data já passou há um mês prendia o
+        // gestor no menu para sempre — foi exatamente o que aconteceu na
+        // DesignModa (pendente de 04/08 fazendo todo "Oi" virar 1/2/3 em
+        // setembro). Confirmar horário que já passou não faz nada de útil;
+        // a janela de tolerância cobre o gestor que responde no dia seguinte.
+        const limite = new Date(Date.now() - MANAGER_PENDING_GRACE_MS);
         const temPendente = await this.prisma.client.appointment.findFirst({
           where: {
             companyId,
             status: AppointmentStatus.unconfirmed,
             source: AppointmentSource.online,
+            start: { gte: limite },
           },
           select: { id: true },
         });
@@ -800,13 +820,19 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      // Strategy 3: most recent pending
+      // Strategy 3: most recent pending — e só entre os que ainda estão VIVOS.
+      // Sem o corte por data, um "1" digitado hoje podia confirmar, calado, um
+      // pedido cuja data passou semanas atrás (o único pendente da conta). Se a
+      // pessoa quer mesmo agir num antigo, as estratégias 1 e 2 (código citado
+      // ou digitado) continuam alcançando qualquer um — ali a intenção é
+      // explícita; aqui é palpite nosso.
       if (!pending) {
         pending = await this.prisma.client.appointment.findFirst({
           where: {
             companyId,
             status: AppointmentStatus.unconfirmed,
             source: AppointmentSource.online,
+            start: { gte: new Date(Date.now() - MANAGER_PENDING_GRACE_MS) },
           },
           orderBy: { createdAt: 'desc' },
           select: { id: true },
