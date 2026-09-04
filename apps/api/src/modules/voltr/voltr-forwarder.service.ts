@@ -238,6 +238,8 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
           externalId: msg.messageId,
           nomeCliente: msg.pushName,
           doSalao: msg.fromMe,
+          // Número do salão que está conectado AGORA neste socket.
+          numeroEmpresa: this.whatsapp.getStatus(msg.companyId).phone,
           ...(midia ? { midia } : {}),
         });
       }

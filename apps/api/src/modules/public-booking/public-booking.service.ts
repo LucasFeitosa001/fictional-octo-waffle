@@ -751,6 +751,20 @@ export class PublicBookingService implements OnModuleInit, OnModuleDestroy {
       const trimmed = msg.text.trim();
       const action = trimmed[0];
       if (action !== '1' && action !== '2' && action !== '3') {
+        // O gestor mandou algo que não é comando ("oi", "bom dia", uma dúvida).
+        // Só faz sentido cobrar 1/2/3 se ele ESTIVER nesse fluxo — ou seja, se
+        // existe agendamento esperando confirmação. Sem pendência, este
+        // roteador não tem nada a resolver e fica em silêncio, em vez de
+        // responder "Não entendi. Responda 1, 2 ou 3" a um simples "Oi".
+        const temPendente = await this.prisma.client.appointment.findFirst({
+          where: {
+            companyId,
+            status: AppointmentStatus.unconfirmed,
+            source: AppointmentSource.online,
+          },
+          select: { id: true },
+        });
+        if (!temPendente) return;
         await this.whatsapp.enqueueText(
           msg.fromDigits,
           'Não entendi. Responda *1* para confirmar, *2* para cancelar ou *3* para sugerir outro horário.',

@@ -675,6 +675,8 @@ export class VoltrService {
     doSalao?: boolean;
     /** Mídia recebida, para o chat da Voltr tocar/exibir em vez de só o rótulo. */
     midia?: { tipo: 'imagem' | 'audio'; dataUrl: string; nome: string };
+    /** NOSSO número conectado (só dígitos) — recorta o CRM por número em uso. */
+    numeroEmpresa?: string | null;
   }): Promise<void> {
     const token = resolveIngestToken(msg.companyId, this.config);
     const schema = resolveTenantSchema(msg.companyId, this.config);
@@ -691,6 +693,11 @@ export class VoltrService {
       body: JSON.stringify({
         canal: 'whatsapp',
         externalUserId: msg.contatoJid,
+        // NOSSO número (o que está conectado agora). A Voltr carimba a conversa
+        // com ele para o CRM listar só o número em uso: quando o salão troca de
+        // WhatsApp, as conversas do número antigo saem da lista sem serem
+        // apagadas, e as do novo aparecem.
+        ...(msg.numeroEmpresa ? { numeroEmpresa: msg.numeroEmpresa } : {}),
         texto: msg.text,
         // Os DOIS sentidos. Descartar o que o salão manda deixava o inbox da
         // Voltr com meia conversa — só a fala do cliente. Copiar para lá uma
