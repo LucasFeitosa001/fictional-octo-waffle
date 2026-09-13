@@ -659,7 +659,7 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
     };
     const s = new VoltrAgendaService(prisma as never, appointments as never);
     (s as unknown as { config: VoltrConfig }).config = CFG3;
-    return { s, consultas, criados, criadosAppt };
+    return { s, consultas, criados, criadosAppt, prisma };
   }
 
   /** Oferta viva, com um horário sempre no futuro. */
@@ -710,6 +710,30 @@ describe('Oferta assinada da agenda (estudo 88)', () => {
     });
 
     assert.deepEqual(criados, [], 'o caminho que já funcionava não pode quebrar');
+  });
+
+  it('P2) uazapi aceita a conversa da Voltr sem linha nativa do Baileys', async () => {
+    // Na produção, a mensagem chega pelo webhook/conector da Voltr e a tabela
+    // whatsappConversation (do Baileys) fica vazia. A rota continua protegida
+    // pela assinatura HMAC e pela oferta; só não repete uma guarda do transporte
+    // errado e deixa a cliente receber o agendamento confirmado.
+    const fixture = bancoCom('558981217434');
+    const client = fixture.prisma.client as any;
+    client.setting = {
+      findUnique: async () => ({ valueJson: { provider: 'uazapi' } }),
+    };
+    client.whatsappConversation = { findFirst: async () => null };
+    const { token, inicio } = ofertaFutura(fixture.s);
+
+    const r = await fixture.s.criar('company-1', 'emp_salaozinho', {
+      oferta: token,
+      inicio,
+      telefone: '558981217434',
+      nomeCliente: 'Paulo',
+    });
+
+    assert.equal(r.ok, true);
+    assert.equal(fixture.criadosAppt.length, 1);
   });
 
   it('Q) telefone de OUTRA pessoa com os mesmos 4 dígitos finais não casa', async () => {
