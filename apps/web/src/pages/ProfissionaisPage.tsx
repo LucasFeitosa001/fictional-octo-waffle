@@ -55,6 +55,7 @@ import {
   type InviteResult,
   type ProfessionalBody,
   type ProfessionalCommissionRuleRow,
+  type ProfessionalScheduleRow,
 } from '../lib/queries/profissionais';
 import {
   useCreateProfessionalAccess,
@@ -681,10 +682,14 @@ function ProfessionalMobileCard({
 // 0=domingo … 6=sábado, matching ProfessionalSchedule.weekday.
 const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
-type DayState = { enabled: boolean; start: string; end: string };
+type TimeWindow = { start: string; end: string };
+type DayState = { enabled: boolean; windows: TimeWindow[] };
 
 function emptyWeek(): DayState[] {
-  return Array.from({ length: 7 }, () => ({ enabled: false, start: '09:00', end: '18:00' }));
+  return Array.from({ length: 7 }, () => ({
+    enabled: false,
+    windows: [{ start: '09:00', end: '18:00' }],
+  }));
 }
 
 // CEP display mask (00000-000) — presentation only; the value is persisted as digits.
@@ -813,10 +818,24 @@ export function ProfessionalDrawer({
   useEffect(() => {
     if (!isOpen) return;
     const next = emptyWeek();
-    for (const s of detail.data?.schedules ?? []) {
-      if (s.weekday >= 0 && s.weekday <= 6) {
-        next[s.weekday] = { enabled: true, start: s.startTime, end: s.endTime };
-      }
+    for (const [weekday, schedules] of Object.entries(
+      (detail.data?.schedules ?? []).reduce<Record<string, ProfessionalScheduleRow[]>>(
+        (groups, schedule) => {
+          if (schedule.weekday >= 0 && schedule.weekday <= 6) {
+            (groups[String(schedule.weekday)] ??= []).push(schedule);
+          }
+          return groups;
+        },
+        {},
+      ),
+    )) {
+      const idx = Number(weekday);
+      next[idx] = {
+        enabled: true,
+        windows: schedules
+          .sort((a, b) => a.startTime.localeCompare(b.startTime))
+          .map((s) => ({ start: s.startTime, end: s.endTime })),
+      };
     }
     setDays(next);
     setServiceIds(new Set((detail.data?.services ?? []).map((s) => s.serviceId)));
@@ -843,6 +862,33 @@ export function ProfessionalDrawer({
     setDays((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)));
   }
 
+  function updateWindow(dayIdx: number, windowIdx: number, patch: Partial<TimeWindow>) {
+    setDays((prev) => prev.map((day, idx) => {
+      if (idx !== dayIdx) return day;
+      return {
+        ...day,
+        windows: day.windows.map((window, wIdx) =>
+          wIdx === windowIdx ? { ...window, ...patch } : window,
+        ),
+      };
+    }));
+  }
+
+  function addWindow(dayIdx: number) {
+    setDays((prev) => prev.map((day, idx) => (
+      idx === dayIdx && day.windows.length < 2
+        ? { ...day, windows: [...day.windows, { start: '14:00', end: '20:00' }] }
+        : day
+    )));
+  }
+
+  function removeWindow(dayIdx: number, windowIdx: number) {
+    setDays((prev) => prev.map((day, idx) => {
+      if (idx !== dayIdx || day.windows.length <= 1) return day;
+      return { ...day, windows: day.windows.filter((_, wIdx) => wIdx !== windowIdx) };
+    }));
+  }
+
   function toggleService(id: string) {
     setServiceIds((prev) => {
       const next = new Set(prev);
@@ -857,7 +903,11 @@ export function ProfessionalDrawer({
   function applyToAll() {
     const first = days.find((d) => d.enabled);
     if (!first) return;
-    setDays((prev) => prev.map((d) => (d.enabled ? { ...d, start: first.start, end: first.end } : d)));
+    setDays((prev) => prev.map((d) => (
+      d.enabled
+        ? { ...d, windows: first.windows.map((window) => ({ ...window })) }
+        : d
+    )));
   }
 
   const pending =
@@ -874,10 +924,21 @@ export function ProfessionalDrawer({
     // Validate enabled days before touching the API.
     for (let i = 0; i < days.length; i++) {
       const d = days[i];
-      if (d.enabled && d.start >= d.end) {
-        setError(`${WEEKDAY_LABELS[i]}: o horário de início deve ser antes do término.`);
-        setTab('expediente');
-        return;
+      if (d.enabled) {
+        for (let w = 0; w < d.windows.length; w++) {
+          const window = d.windows[w];
+          if (window.start >= window.end) {
+            setError(`${WEEKDAY_LABELS[i]}: o início da faixa ${w + 1} deve ser antes do término.`);
+            setTab('expediente');
+            return;
+          }
+          const anterior = d.windows[w - 1];
+          if (anterior && window.start < anterior.end) {
+            setError(`${WEEKDAY_LABELS[i]}: as faixas de horário não podem se sobrepor.`);
+            setTab('expediente');
+            return;
+          }
+        }
       }
     }
     // Validate the individual commission value when enabled.
@@ -895,8 +956,9 @@ export function ProfessionalDrawer({
       }
     }
     const schedules = days
-      .map((d, i) => (d.enabled ? { weekday: i, startTime: d.start, endTime: d.end } : null))
-      .filter((s): s is { weekday: number; startTime: string; endTime: string } => s !== null);
+      .flatMap((d, i) => d.enabled
+        ? d.windows.map((window) => ({ weekday: i, startTime: window.start, endTime: window.end }))
+        : []);
     const commissionRules: ProfessionalCommissionRuleRow[] = commission.enabled
       ? [{ scopeType: 'all', type: commission.type, value: commissionValue }]
       : [];
@@ -1307,22 +1369,47 @@ export function ProfessionalDrawer({
                         </Checkbox.Content>
                       </Checkbox>
                       {day.enabled ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <input
-                            type="time"
-                            value={day.start}
-                            onChange={(e) => updateDay(idx, { start: e.target.value })}
-                            aria-label={`Início ${WEEKDAY_LABELS[idx]}`}
-                            className="rounded-lg border border-line bg-card px-2 py-1.5 text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
-                          />
-                          <span className="text-muted-ink">às</span>
-                          <input
-                            type="time"
-                            value={day.end}
-                            onChange={(e) => updateDay(idx, { end: e.target.value })}
-                            aria-label={`Término ${WEEKDAY_LABELS[idx]}`}
-                            className="rounded-lg border border-line bg-card px-2 py-1.5 text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
-                          />
+                        <div className="flex flex-col items-start gap-2 text-sm">
+                          {day.windows.map((window, windowIdx) => (
+                            <div key={windowIdx} className="flex flex-wrap items-center gap-2">
+                              <span className="w-14 text-xs text-muted-ink">
+                                Faixa {windowIdx + 1}
+                              </span>
+                              <input
+                                type="time"
+                                value={window.start}
+                                onChange={(e) => updateWindow(idx, windowIdx, { start: e.target.value })}
+                                aria-label={`Início ${WEEKDAY_LABELS[idx]} faixa ${windowIdx + 1}`}
+                                className="rounded-lg border border-line bg-card px-2 py-1.5 text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
+                              />
+                              <span className="text-muted-ink">às</span>
+                              <input
+                                type="time"
+                                value={window.end}
+                                onChange={(e) => updateWindow(idx, windowIdx, { end: e.target.value })}
+                                aria-label={`Término ${WEEKDAY_LABELS[idx]} faixa ${windowIdx + 1}`}
+                                className="rounded-lg border border-line bg-card px-2 py-1.5 text-ink focus:border-primary focus:ring-2 focus:ring-primary/25"
+                              />
+                              {windowIdx > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeWindow(idx, windowIdx)}
+                                  className="text-xs text-muted-ink hover:text-danger"
+                                >
+                                  Remover
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {day.windows.length < 2 && (
+                            <button
+                              type="button"
+                              onClick={() => addWindow(idx)}
+                              className="ml-14 text-xs font-medium text-primary hover:underline"
+                            >
+                              + Adicionar faixa
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <span className="text-sm text-muted-ink">Fechado</span>
