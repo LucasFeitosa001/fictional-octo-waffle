@@ -39,7 +39,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     <CreateSheetProvider>
     <CreateDrawerProvider>
     <ConfirmProvider>
-    <div className="flex h-dvh w-full overflow-hidden">
+    <div className="sp-app-shell flex w-full overflow-hidden">
       {/* Desktop static sidebar (sólida encostada, ou flutuante com margem) */}
       <div className={`hidden lg:block ${sidebarStyle === 'floating' ? 'p-2.5' : ''}`}>
         <Sidebar />

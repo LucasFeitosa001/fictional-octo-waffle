@@ -27,6 +27,24 @@ initButtonRadius();
 initZoom();
 
 /**
+ * O Safari/iOS pode calcular `100dvh` com a URL bar ainda aberta e só corrigir
+ * a altura depois de um reload. Isso deixa o conteúdo preso no primeiro viewport
+ * e a BottomNav flutuando muito acima do rodapé. A visual viewport é a medida
+ * que o usuário realmente enxerga; mantemos uma variável CSS atualizada quando
+ * a barra do navegador/teclado muda, sem precisar recarregar a página.
+ */
+function sincronizarViewportVisivel() {
+  const altura = window.visualViewport?.height ?? window.innerHeight;
+  if (altura > 0) {
+    document.documentElement.style.setProperty('--sp-app-height', `${altura}px`);
+  }
+}
+sincronizarViewportVisivel();
+window.addEventListener('resize', sincronizarViewportVisivel, { passive: true });
+window.visualViewport?.addEventListener('resize', sincronizarViewportVisivel, { passive: true });
+window.visualViewport?.addEventListener('scroll', sincronizarViewportVisivel, { passive: true });
+
+/**
  * Recarrega quando o service worker novo assume o controle.
  *
  * O `sw.js` é gerado com `skipWaiting` + `clientsClaim` (VitePWA `autoUpdate`),

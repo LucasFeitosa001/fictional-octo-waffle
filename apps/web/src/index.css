@@ -514,7 +514,7 @@ html,
 body,
 #root {
   height: 100%;
-  height: 100dvh;
+  height: var(--sp-app-height, 100dvh);
   margin: 0;
 }
 
@@ -535,6 +535,13 @@ body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: none;
+}
+
+/* A casca do painel acompanha a mesma altura que main.tsx mediu na tela real.
+   Manter esta regra fora do Tailwind também cobre Safari antigo, que conhece a
+   variável mesmo quando ainda não implementa a unidade `dvh`. */
+.sp-app-shell {
+  height: var(--sp-app-height, 100dvh);
 }
 
 body {
