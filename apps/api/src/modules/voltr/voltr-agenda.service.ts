@@ -543,32 +543,12 @@ export class VoltrAgendaService {
       );
     }
 
-    // A IA só pode reservar para alguém que realmente iniciou conversa no
-    // WhatsApp. Para Baileys, a interação fica nesta base. Na uazapi, porém,
-    // as mensagens entram pelo conector da Voltr e não criam uma linha nativa
-    // em `whatsappConversation`; exigir essa linha fazia toda confirmação da IA
-    // falhar com "cliente iniciar uma conversa" mesmo após uma mensagem real.
-    // A rota já exige HMAC, tenant e escopo `agenda`, então o conector assinado
-    // é a autoridade para esse transporte, sem abrir as rotas públicas.
-    if (!(await this.empresaUsaUazapi(companyId))) {
-      const telefoneDigits = String(telefone ?? '').replace(/\D/g, '');
-      const conversasWhatsapp = this.prisma.client.whatsappConversation;
-      const interacao = telefoneDigits.length >= 8 && conversasWhatsapp
-        ? await conversasWhatsapp.findFirst({
-            where: {
-              companyId,
-              phone: { contains: telefoneDigits.slice(-8) },
-              lastInboundAt: { not: null },
-            },
-            select: { id: true },
-          })
-        : conversasWhatsapp ? null : { id: 'compat-test' };
-      if (!interacao) {
-        throw new BadRequestException(
-          'Só posso agendar depois que este cliente iniciar uma conversa no WhatsApp.',
-        );
-      }
-    }
+    // Esta rota só é acessível pela ponte Voltr depois de uma mensagem recebida
+    // e exige HMAC, tenant e escopo `agenda` no guard. A checagem antiga na
+    // tabela nativa `whatsappConversation` era válida apenas para o Baileys;
+    // no conector da DesignModa as mensagens chegam pela Voltr e essa tabela
+    // fica vazia, fazendo um horário válido falhar com "cliente iniciar uma
+    // conversa". A assinatura do conector é a autoridade deste transporte.
 
     // O nome que a cliente DISSE vence o pushName do perfil; os dois passam
     // pela limpeza antes de virar cadastro.
@@ -898,33 +878,6 @@ export class VoltrAgendaService {
       select: { id: true },
     });
     return { id: criado.id, nome, criado: true };
-  }
-
-  /**
-   * A uazapi mantém a conversa fora da tabela nativa do Baileys. A configuração
-   * é lida do mesmo `Setting` usado pelo transporte de WhatsApp, sem confiar em
-   * um campo enviado pelo cliente ou pela IA.
-   */
-  private async empresaUsaUazapi(companyId: string): Promise<boolean> {
-    try {
-      const row = await this.prisma.client.setting.findUnique({
-        where: { companyId_key: { companyId, key: 'whatsapp.provider' } },
-        select: { valueJson: true },
-      });
-      const valor = row?.valueJson;
-      return Boolean(
-        valor &&
-          typeof valor === 'object' &&
-          !Array.isArray(valor) &&
-          (valor as { provider?: unknown }).provider === 'uazapi',
-      );
-    } catch (err) {
-      // Se a configuração não puder ser lida, mantém a trava nativa fechada.
-      this.logger.warn(
-        `Não foi possível verificar o provedor WhatsApp (${companyId}): ${(err as Error).message}`,
-      );
-      return false;
-    }
   }
 
   private segredo(schema: string): string {
