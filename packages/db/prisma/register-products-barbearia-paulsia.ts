@@ -46,9 +46,11 @@ const products: ProductDefinition[] = [
 
 async function main() {
   const prisma = new PrismaClient();
-  const repoRoot = path.resolve(__dirname, '../..');
-  const sourceDir = '/mnt/c/Users/Usuario/Downloads';
-  const uploadDir = path.join(repoRoot, 'apps/api/uploads');
+  const repoRoot = path.resolve(__dirname, '../../..');
+  const sourceDir = process.env.PRODUCT_IMAGE_SOURCE_DIR?.trim()
+    || '/mnt/c/Users/Usuario/Downloads';
+  const uploadDir = process.env.PRODUCT_UPLOAD_DIR?.trim()
+    || path.join(repoRoot, 'apps/api/uploads');
 
   try {
     const requestedCompanyId = process.env.COMPANY_ID?.trim();
