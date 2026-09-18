@@ -658,17 +658,17 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
 
             {/* Selection strip: shows count + total when >1 service selected */}
             {step === 'service' && selectedServices.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[var(--booking-accent-soft)] px-3 py-2 text-sm">
+              <div className="booking-selection-summary flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[var(--booking-accent-soft)] px-3 py-2 text-sm text-[#171717]">
                 <CircleCheck width={15} height={15} className="shrink-0 text-[var(--booking-accent)]" />
-                <span className="font-semibold text-foreground">
+                <span className="font-semibold text-[#171717]">
                   {selectedServices.length} {selectedServices.length === 1 ? 'serviço selecionado' : 'serviços selecionados'}
                 </span>
-                <span className="text-muted">·</span>
-                <span className="text-muted">{durationLabel(totalDuration)}</span>
+                <span className="text-[#5f5a54]">·</span>
+                <span className="text-[#5f5a54]">{durationLabel(totalDuration)}</span>
                 {totalPrice > 0 && (
                   <>
-                    <span className="text-muted">·</span>
-                    <span className="font-semibold text-foreground">R$ {totalPrice.toFixed(2).replace('.', ',')}</span>
+                    <span className="text-[#5f5a54]">·</span>
+                    <span className="font-semibold text-[#171717]">R$ {totalPrice.toFixed(2).replace('.', ',')}</span>
                   </>
                 )}
               </div>

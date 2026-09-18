@@ -70,6 +70,11 @@
   [data-theme="default"] {
     --accent: oklch(0.8 0.143 82); /* ~ #F2B33D gold */
     --accent-foreground: oklch(0.1776 0 89.88); /* ~ #111111 ink */
+    /* Explicit light-surface ink. HeroUI's inherited foreground can resolve
+       to a light value when the salon chooses a dark page background, which
+       made summaries and metadata disappear on cream/white cards. */
+    --foreground: #171717;
+    --muted: #5f5a54;
     --focus: var(--accent);
     --background: oklch(0.9568 0.0123 84); /* ~ #F7F3EA cream */
   }
@@ -233,6 +238,18 @@ h1, h2, h3, h4, h5, h6,
     color-mix(in srgb, var(--booking-page-bg) 0%, transparent),
     color-mix(in srgb, var(--booking-page-bg) 96%, transparent) 26%
   );
+}
+
+/* The page may use a dark salon background while this selection summary keeps
+   a pale accent surface. Keep every text node readable on that light surface;
+   the dark-theme foreground must not leak into it. */
+.booking-selection-summary,
+.booking-selection-summary span {
+  color: #171717 !important;
+}
+
+.booking-selection-summary span.text-\[\#5f5a54\] {
+  color: #5f5a54 !important;
 }
 
 /* Swipeable photo carousel track: keep the native scroll-snap behavior but hide

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import {
   WhatsappService,
   type WhatsappDeliveryUpdate,
+  type WhatsappConnectionUpdate,
 } from '../whatsapp/whatsapp.service';
 import { VoltrService, type VoltrStatusEntrega } from './voltr.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -109,6 +110,7 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(VoltrForwarderService.name);
   private cancelarInbound: (() => void) | null = null;
   private cancelarAck: (() => void) | null = null;
+  private cancelarConexao: (() => void) | null = null;
 
   /** `companyId|whatsappMessageId` → o que a Voltr já sabe daquela mensagem.
    *  A chave carrega o companyId de propósito: recibo de um salão não pode
@@ -129,6 +131,24 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
+    this.cancelarConexao = this.whatsapp.addConnectionHandler(
+      (update: WhatsappConnectionUpdate) => {
+        if (update.status !== 'open' || !update.phone) return;
+        void this.voltr
+          .registrarNumeroConectado(update.companyId, update.phone)
+          .then(() =>
+            this.logger.log(
+              `Número do WhatsApp sincronizado na Voltr (company=${update.companyId}, final=${update.phone?.slice(-4)}).`,
+            ),
+          )
+          .catch((err) =>
+            this.logger.warn(
+              `Não deu para sincronizar o número conectado na Voltr: ${(err as Error).message}`,
+            ),
+          );
+      },
+    );
+
     this.cancelarInbound = this.whatsapp.addInboundHandler((msg) => {
       // Os dois sentidos vão. Antes o que o salão mandava era descartado aqui, e
       // o inbox da Voltr ficava com meia conversa — só a fala do cliente, que foi
@@ -288,6 +308,8 @@ export class VoltrForwarderService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy(): void {
     this.parado = true;
+    this.cancelarConexao?.();
+    this.cancelarConexao = null;
     this.cancelarInbound?.();
     this.cancelarInbound = null;
     this.cancelarAck?.();

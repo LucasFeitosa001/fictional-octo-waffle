@@ -29,12 +29,14 @@ async function main() {
   const estMin = new Map<string, number>((load('estoque-min.json') as any[]).map((e) => [norm(e.name), e.minStock]));
   const profs = load('profissionais.json') as string[];
 
-  // ---- Categorias de Produto compartilhadas por serviços/produtos e Marcas ----
+  // ---- Categorias de serviço/produto e Marcas ----
   const svcCatNames = [...new Set(itens.filter((i) => i.kind === 'service' && i.category).map((i) => i.category as string))];
   const prodCatNames = [...new Set(itens.filter((i) => i.kind === 'product' && i.category).map((i) => i.category as string))];
   const brandNames = [...new Set(itens.filter((i) => i.brand).map((i) => i.brand as string))];
   const svcCat = new Map<string, string>();
   for (const name of svcCatNames) {
+    // O schema atual relaciona Service.categoryId a ProductCategory (a tabela
+    // ServiceCategory ficou legada nas primeiras migrations).
     const found = await prisma.productCategory.findFirst({ where: { companyId, name } });
     const row = found ?? (await prisma.productCategory.create({ data: { companyId, name } }));
     svcCat.set(norm(name), row.id);
@@ -131,7 +133,7 @@ async function main() {
     servicos: await prisma.service.count({ where: { companyId } }),
     produtos: await prisma.product.count({ where: { companyId } }),
     profissionais: await prisma.professional.count({ where: { companyId } }),
-    categoriasServico: await prisma.serviceCategory.count({ where: { companyId } }),
+    categoriasServico: await prisma.productCategory.count({ where: { companyId, services: { some: {} } } }),
     categoriasProduto: await prisma.productCategory.count({ where: { companyId } }),
     marcas: await prisma.brand.count({ where: { companyId } }),
   };

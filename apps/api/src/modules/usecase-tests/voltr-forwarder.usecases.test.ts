@@ -135,6 +135,9 @@ describe('Recibo da Voltr casa pela chave que a Voltr conhece (estudo 100)', () 
     let entrega: ((ack: WhatsappDeliveryUpdate) => void) | null = null;
 
     const whatsapp = {
+      addConnectionHandler() {
+        return () => undefined;
+      },
       addInboundHandler(fn: (msg: WhatsappInbound) => void) {
         inbound = fn;
         return () => undefined;
@@ -142,6 +145,9 @@ describe('Recibo da Voltr casa pela chave que a Voltr conhece (estudo 100)', () 
       addDeliveryHandler(fn: (ack: WhatsappDeliveryUpdate) => void) {
         entrega = fn;
         return () => undefined;
+      },
+      getStatus() {
+        return { status: 'open', hasQr: false, phone: '5511999990000' };
       },
       nasceuNaVoltr: (id: string) =>
         Object.prototype.hasOwnProperty.call(nascidasNaVoltr, id),

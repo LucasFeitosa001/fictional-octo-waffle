@@ -1507,6 +1507,7 @@ export function NovoComandaDrawer({
         isOpen={itemPickerOpen}
         onClose={() => setItemPickerOpen(false)}
         onSelect={addItem}
+        permitirScanner
       />
       <EditItemDrawer
         item={editingItem}

@@ -8,6 +8,8 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "seed:admin": "tsx src/auth/seed-admin.ts",
+    "seed:company-owner": "tsx src/auth/seed-company-owner.ts",
+    "grant:company-full-access": "tsx src/auth/grant-company-full-access.ts",
     "seed:platform-staff": "tsx src/auth/seed-platform-staff.ts",
     "backfill:belasis-commissions": "tsx src/importers/backfill-belasis-commissions.ts",
     "test": "nest build && node --test --experimental-test-isolation=none dist/modules/usecase-tests/run-usecases.js",

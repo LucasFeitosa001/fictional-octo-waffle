@@ -144,6 +144,15 @@ export type WhatsappDeliveryHandler = (
   update: WhatsappDeliveryUpdate,
 ) => void | Promise<void>;
 
+export interface WhatsappConnectionUpdate {
+  companyId: string;
+  status: 'open' | 'close';
+  phone: string | null;
+}
+export type WhatsappConnectionHandler = (
+  update: WhatsappConnectionUpdate,
+) => void | Promise<void>;
+
 function envInt(name: string, fallback: number, min: number, max: number): number {
   const parsed = Number.parseInt(process.env[name] ?? '', 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -297,6 +306,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly inboundHandlers = new Set<WhatsappInboundHandler>();
   private readonly outboundHandlers = new Set<WhatsappOutboundHandler>();
   private readonly deliveryHandlers = new Set<WhatsappDeliveryHandler>();
+  private readonly connectionHandlers = new Set<WhatsappConnectionHandler>();
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
   private limpezaTimer: ReturnType<typeof setInterval> | null = null;
   private uazapiTimer: ReturnType<typeof setInterval> | null = null;
@@ -468,6 +478,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return () => this.deliveryHandlers.delete(fn);
   }
 
+  /** Observa a troca do número conectado sem enviar mensagem alguma. */
+  addConnectionHandler(fn: WhatsappConnectionHandler): () => void {
+    this.connectionHandlers.add(fn);
+    return () => this.connectionHandlers.delete(fn);
+  }
+
   private async emitOutboundQueued(message: WhatsappOutboundQueued) {
     for (const handler of this.outboundHandlers) {
       try {
@@ -487,6 +503,18 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       } catch (err) {
         this.logger.error(
           `Erro no handler de recibo do WhatsApp: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
+
+  private async emitConnectionUpdate(update: WhatsappConnectionUpdate) {
+    for (const handler of this.connectionHandlers) {
+      try {
+        await handler(update);
+      } catch (err) {
+        this.logger.error(
+          `Erro ao sincronizar número conectado: ${(err as Error).message}`,
         );
       }
     }
@@ -2441,6 +2469,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           // Pareou: o contador de QRs ignorados volta a zero.
           session.qrSemLeitura = 0;
           this.logger.log(`WhatsApp conectado (company=${companyId}).`);
+          void this.emitConnectionUpdate({
+            companyId,
+            status: 'open',
+            phone: this.jidUserDigits(sock.user?.id ?? '') || null,
+          });
           // Esvazia o que ficou na fila enquanto estávamos offline.
           void this.drainOutbox();
         }

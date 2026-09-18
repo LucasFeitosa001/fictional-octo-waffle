@@ -412,12 +412,23 @@ export class VoltrService {
       throw new BadGatewayException('A Voltr não respondeu. Tente de novo.');
     }
 
-    const corpo = (await res.json().catch(() => null)) as {
+    const respostaTexto = await res.text();
+    let corpo: {
       accessToken?: string;
       expiresIn?: number;
       embedUrl?: string;
       message?: string | string[];
     } | null;
+    try {
+      corpo = (respostaTexto ? JSON.parse(respostaTexto) : null) as typeof corpo;
+    } catch {
+      corpo = null;
+    }
+    if (!res.ok) {
+      this.logger.error(
+        `Resposta bruta do Voltr (${res.status}, tenant=${tenantSlug}): ${respostaTexto.slice(0, 500)}`,
+      );
+    }
 
     return {
       status: res.status,
@@ -721,6 +732,31 @@ export class VoltrService {
       }),
       signal: AbortSignal.timeout(15_000),
     });
+  }
+
+  /** Sincroniza imediatamente o número pareado, sem criar mensagem nem alterar
+   * a fila de saída. A troca deixa o inbox filtrado pelo WhatsApp atual assim
+   * que a conexão abre, mesmo antes do primeiro cliente escrever. */
+  async registrarNumeroConectado(companyId: string, numero: string): Promise<void> {
+    const token = resolveIngestToken(companyId, this.config);
+    const schema = resolveTenantSchema(companyId, this.config);
+    const digitos = (numero ?? '').replace(/\D/g, '');
+    if (!this.config.apiUrl || !token || !schema || digitos.length < 10) return;
+
+    const res = await fetch(`${this.config.apiUrl}/api/ingest/whatsapp-status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'x-ingest-token': token,
+        'x-tenant-schema': schema,
+      },
+      body: JSON.stringify({ numeroEmpresa: digitos }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      throw new Error(`Voltr recusou sincronização do número (HTTP ${res.status})`);
+    }
   }
 
   /**
