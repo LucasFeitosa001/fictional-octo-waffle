@@ -43,6 +43,7 @@ const PERMISSAO_POR_KIND: Record<string, string[]> = {
   professional: ['equipe:manage'],
   product: ['catalogo:manage'],
   service: ['catalogo:manage'],
+  gallery: ['marketing:manage'],
   logo: ['config:manage'],
   whatsapp: ['marketing:manage'],
   misc: [
@@ -183,6 +184,23 @@ export class UploadsController {
     @Res() res: Response,
   ) {
     const full = await this.service.resolveLocalFile(name, companyId);
+    if (!full) throw new NotFoundException('Arquivo não encontrado.');
+
+    const ext = path.extname(full).slice(1).toLowerCase();
+    const mime = MIME_BY_EXT[ext] ?? 'application/octet-stream';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.sendFile(full);
+  }
+
+  /**
+   * Mídia de vitrine (logo, produto, serviço e galeria) é pública por natureza:
+   * aparece no agendamento sem login e precisa carregar diretamente em <img>.
+   * O service valida a categoria embutida no nome; anexos privados não passam.
+   */
+  @Get('public/:name')
+  async servePublic(@Param('name') name: string, @Res() res: Response) {
+    const full = await this.service.resolvePublicLocalFile(name);
     if (!full) throw new NotFoundException('Arquivo não encontrado.');
 
     const ext = path.extname(full).slice(1).toLowerCase();

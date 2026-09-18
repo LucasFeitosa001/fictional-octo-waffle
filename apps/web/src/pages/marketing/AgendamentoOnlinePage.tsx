@@ -1107,7 +1107,7 @@ export function AgendamentoOnlinePage() {
               <ImageUpload
                 value={null}
                 onChange={(url) => onAddPhoto(url)}
-                kind="misc"
+                kind="gallery"
                 shape="square"
                 size={88}
                 placeholder="Foto"

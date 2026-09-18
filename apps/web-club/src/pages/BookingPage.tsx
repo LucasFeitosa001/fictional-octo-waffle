@@ -862,7 +862,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                           <Price value={selectedServices.reduce((sum, s) => sum + (Number(s.price) || 0), 0)} />
                         </div>
                       )}
-                      <p className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 text-xs text-muted">
+                      <p className="flex items-center gap-2 rounded-xl bg-[var(--booking-surface)] px-3 py-2 text-xs text-muted">
                         <Tag width={14} height={14} className="shrink-0 text-[var(--booking-accent)]" />
                         O pagamento é feito apenas no dia, presencialmente no salão.
                       </p>
@@ -1074,7 +1074,7 @@ function StepProgress({ current }: { current: number }) {
                 ? 'border-[var(--booking-accent)] bg-[var(--booking-accent-soft)] text-[var(--booking-accent-ink)]'
                 : complete
                   ? 'border-[#DCE9DF] bg-[#F0F8F2] text-[#378251]'
-                  : 'border-[var(--color-soft-border)] bg-white/70 text-muted',
+                  : 'border-[var(--color-soft-border)] bg-[var(--booking-surface)] text-muted',
             ].join(' ')}
           >
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white shadow-sm">
@@ -1827,7 +1827,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 // left at a dead end.
 function NoServices({ whatsapp, salonName }: { whatsapp: string | null; salonName?: string }) {
   return (
-    <div className="mx-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-[var(--color-soft-border)] bg-white/70 px-5 py-8 text-center shadow-[var(--shadow-card)]">
+    <div className="mx-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-[var(--color-soft-border)] bg-[var(--booking-surface)] px-5 py-8 text-center shadow-[var(--shadow-card)]">
       <span className="grid h-12 w-12 place-items-center rounded-full bg-[var(--booking-accent-soft)] text-[var(--booking-accent)]">
         <Tag width={22} height={22} />
       </span>

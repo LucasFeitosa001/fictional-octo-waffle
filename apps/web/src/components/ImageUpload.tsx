@@ -4,7 +4,14 @@ import { ApiClientError } from '@beautypass/shared';
 import { API_BASE_URL } from '../lib/config';
 import { IconPlus, IconX } from './icons';
 
-type UploadKind = 'logo' | 'professional' | 'product' | 'service' | 'customer' | 'misc';
+type UploadKind =
+  | 'logo'
+  | 'professional'
+  | 'product'
+  | 'service'
+  | 'gallery'
+  | 'customer'
+  | 'misc';
 
 interface DirectUploadResponse {
   url: string;

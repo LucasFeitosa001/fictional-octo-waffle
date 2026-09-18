@@ -23,6 +23,25 @@ const ALLOWED = new Set([
   'audio/x-wav',
 ]);
 
+/**
+ * Imagens exibidas em vitrines públicas precisam funcionar em uma tag <img>,
+ * que não consegue anexar o token Bearer usado pelo painel. Somente categorias
+ * deliberadamente públicas entram aqui; fotos de cliente, WhatsApp e anexos
+ * genéricos continuam atrás da sessão/tenant em GET /uploads/file/:name.
+ */
+const PUBLIC_LOCAL_KINDS = new Set(['logo', 'product', 'service', 'gallery']);
+
+export function isPublicLocalUploadName(name: string): boolean {
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) return false;
+  const parts = name.split('__');
+  return (
+    parts.length === 3 &&
+    Boolean(parts[0]) &&
+    PUBLIC_LOCAL_KINDS.has(parts[1]) &&
+    Boolean(parts[2])
+  );
+}
+
 export interface StoredUpload {
   url: string;
   key: string;
@@ -57,7 +76,7 @@ export class UploadsService {
    * conteúdo de rede controlado pelo usuário (SSRF).
    */
   isTrustedUploadUrl(value: string): boolean {
-    if (/^\/api\/v1\/uploads\/file\/[A-Za-z0-9._-]+$/.test(value)) return true;
+    if (/^\/api\/v1\/uploads\/(?:file|public)\/[A-Za-z0-9._-]+$/.test(value)) return true;
     const base = this.publicBase.replace(/\/$/, '');
     return Boolean(base) && value.startsWith(`${base}/uploads/`);
   }
@@ -148,9 +167,18 @@ export class UploadsService {
     // serves the SPA (tunnel-agnostic, cross-device safe). Do NOT prefix with
     // baseUrl. S3 mode above keeps its absolute (already durable) url.
     return {
-      url: `/api/v1/uploads/file/${name}`,
+      url: `/api/v1/uploads/${PUBLIC_LOCAL_KINDS.has(folder) ? 'public' : 'file'}/${name}`,
       key: name,
     };
+  }
+
+  /**
+   * Resolve apenas mídia de vitrine. A categoria faz parte do nome gerado pelo
+   * servidor, portanto uma URL conhecida nunca torna públicos anexos privados.
+   */
+  async resolvePublicLocalFile(name: string): Promise<string | null> {
+    if (!isPublicLocalUploadName(name)) return null;
+    return this.resolveExistingLocalFile(name);
   }
 
   /**
@@ -163,6 +191,10 @@ export class UploadsService {
     // O nome local incorpora o tenant. URL conhecida não autoriza uma sessão
     // de outra empresa a ler foto, anamnese ou documento de cliente.
     if (!name.startsWith(`${companyId}__`)) return null;
+    return this.resolveExistingLocalFile(name);
+  }
+
+  private async resolveExistingLocalFile(name: string): Promise<string | null> {
     const full = path.join(this.localRoot, name);
     // Extra safety: make sure the resolved path stays inside localRoot.
     if (!full.startsWith(this.localRoot + path.sep)) return null;
@@ -182,6 +214,7 @@ function normalizeKind(kind: string | undefined): string {
     'professional',
     'product',
     'service',
+    'gallery',
     'customer',
     'whatsapp',
     'misc',

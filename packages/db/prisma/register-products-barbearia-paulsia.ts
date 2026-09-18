@@ -103,7 +103,7 @@ async function main() {
       const targetName = `${company.id}__product__${item.key}.jpeg`;
       await fs.copyFile(path.join(sourceDir, sourceName), path.join(uploadDir, targetName));
 
-      const imageUrl = `/api/v1/uploads/file/${targetName}`;
+      const imageUrl = `/api/v1/uploads/public/${targetName}`;
       const row = await prisma.product.upsert({
         where: {
           companyId_legacyId: {

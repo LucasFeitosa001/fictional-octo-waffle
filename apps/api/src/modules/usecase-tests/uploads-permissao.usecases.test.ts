@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ForbiddenException } from '@nestjs/common';
 import { UploadsController } from '../uploads/uploads.controller';
+import { isPublicLocalUploadName } from '../uploads/uploads.service';
 
 function controllerCom(keysDoUsuario: string[]) {
   const auth = {
@@ -73,6 +74,12 @@ describe('UploadsController — permissão por kind (estudo 131)', () => {
     await assert.rejects(() => assertar('u', 'X', 'customer'), ForbiddenException);
   });
 
+  it('7.1) marketing:manage sobe galeria pública sem ganhar acesso ao catálogo', async () => {
+    const assertar = controllerCom(['marketing:manage']);
+    await assertar('u', 'X', 'gallery');
+    await assert.rejects(() => assertar('u', 'X', 'product'), ForbiddenException);
+  });
+
   it('8) kind=misc mantém OR das 5 (comportamento antigo, fallback)', async () => {
     // Qualquer uma das 5 keys passa em misc.
     for (const k of [
@@ -103,5 +110,27 @@ describe('UploadsController — permissão por kind (estudo 131)', () => {
     for (const k of ['customer', 'professional', 'product', 'logo', 'whatsapp', 'misc']) {
       await assert.rejects(() => assertar('u', 'X', k), ForbiddenException);
     }
+  });
+});
+
+describe('UploadsService — fronteira de mídia pública', () => {
+  it('libera somente categorias de vitrine com nome gerado pelo servidor', () => {
+    for (const kind of ['logo', 'product', 'service', 'gallery']) {
+      assert.equal(isPublicLocalUploadName(`empresa_1__${kind}__arquivo.jpg`), true);
+    }
+  });
+
+  it('mantém cliente, profissional, WhatsApp e misc privados', () => {
+    for (const kind of ['customer', 'professional', 'whatsapp', 'misc']) {
+      assert.equal(isPublicLocalUploadName(`empresa_1__${kind}__arquivo.jpg`), false);
+    }
+  });
+
+  it('rejeita traversal e nomes que tentam esconder uma categoria pública', () => {
+    assert.equal(isPublicLocalUploadName('../empresa__product__arquivo.jpg'), false);
+    assert.equal(
+      isPublicLocalUploadName('empresa__customer__segredo__product__arquivo.jpg'),
+      false,
+    );
   });
 });

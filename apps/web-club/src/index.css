@@ -307,6 +307,32 @@ h1, h2, h3, h4, h5, h6,
   --color-cream: color-mix(in oklab, var(--booking-page-bg) 88%, #fff);
   --color-warm-white: color-mix(in oklab, var(--booking-page-bg) 82%, #fff);
   --booking-surface: color-mix(in oklab, var(--booking-page-bg) 86%, #fff);
+  /* No tema escuro, TODAS as superfícies derivadas do destaque também precisam
+     permanecer escuras. Antes elas continuavam misturadas com branco enquanto
+     o texto já havia sido invertido, causando branco sobre quase branco nos
+     profissionais, horários, confirmação e cartões de serviço. */
+  --booking-accent-soft: color-mix(
+    in oklab,
+    var(--booking-accent) 20%,
+    var(--booking-page-bg)
+  );
+  --booking-accent-surface: color-mix(
+    in oklab,
+    var(--booking-accent) 7%,
+    var(--booking-page-bg)
+  );
+  --booking-accent-ink: color-mix(in oklab, var(--booking-accent) 64%, #fff);
+  --booking-accent-disabled: color-mix(
+    in oklab,
+    var(--booking-accent) 28%,
+    var(--booking-page-bg)
+  );
+  --booking-accent-2-soft: color-mix(
+    in oklab,
+    var(--booking-accent-2) 18%,
+    var(--booking-page-bg)
+  );
+  --booking-accent-2-ink: color-mix(in oklab, var(--booking-accent-2) 68%, #fff);
   --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
   --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.55);
@@ -320,4 +346,15 @@ h1, h2, h3, h4, h5, h6,
 
 :root[data-club-dark] .text-muted {
   color: rgba(246, 242, 236, 0.68);
+}
+
+/* O resumo usa tinta fixa no tema claro para se proteger de herança. Quando a
+   superfície passa a ser escura, a tinta precisa acompanhar explicitamente. */
+:root[data-club-dark] .booking-selection-summary,
+:root[data-club-dark] .booking-selection-summary span {
+  color: #f6f2ec !important;
+}
+
+:root[data-club-dark] .booking-selection-summary span.text-\[\#5f5a54\] {
+  color: rgba(246, 242, 236, 0.68) !important;
 }
