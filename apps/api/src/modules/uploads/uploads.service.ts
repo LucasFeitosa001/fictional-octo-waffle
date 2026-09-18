@@ -57,9 +57,11 @@ export class UploadsService {
     (this.bucket ? `https://${this.bucket}.s3.${this.region}.amazonaws.com` : '');
   private readonly s3 = this.bucket ? new S3Client({ region: this.region }) : null;
 
-  // Local storage root — apps/api/uploads/. Resolved from cwd since the
-  // compiled main.js runs from apps/api/dist and process.cwd() stays apps/api.
-  private readonly localRoot = path.resolve(process.cwd(), 'uploads');
+  // Local storage root — apps/api/uploads/. Resolve from this module instead of
+  // process.cwd(): the production image starts Node in /app, while local pnpm
+  // starts it in /app/apps/api. Depending on cwd made the API look in
+  // /app/uploads although the persistent volume lives in /app/apps/api/uploads.
+  private readonly localRoot = path.resolve(__dirname, '../../../uploads');
 
   /** True when the S3 provider is fully configured (bucket set). */
   get s3Enabled(): boolean {
