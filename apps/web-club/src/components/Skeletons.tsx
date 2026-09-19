@@ -9,7 +9,7 @@ import { Skeleton } from '@heroui/react';
 // Mirrors a ServiceCard: photo column + title/desc/meta/price block.
 export function ServiceCardSkeleton() {
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-white shadow-[var(--shadow-card)] sm:flex-row">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--color-soft-border)] bg-[var(--booking-surface)] shadow-[var(--shadow-card)] sm:flex-row">
       <Skeleton className="aspect-[16/7] w-full shrink-0 rounded-none sm:aspect-auto sm:w-40" />
       <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
         <Skeleton className="h-5 w-2/3 rounded-md" />
@@ -71,7 +71,7 @@ export function SlotGridSkeleton({ count = 9 }: { count?: number }) {
 // Mirrors an AppointmentRow in the account page.
 export function AppointmentRowSkeleton() {
   return (
-    <div className="rounded-xl border border-default-200 bg-white px-3 py-3">
+    <div className="rounded-xl border border-default-200 bg-[var(--booking-surface)] px-3 py-3">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-4 w-2/3 rounded-md" />
         <Skeleton className="h-3 w-1/2 rounded-md" />
@@ -94,7 +94,7 @@ export function AppointmentListSkeleton({ count = 3 }: { count?: number }) {
 // Week availability grid placeholder (7 day columns of slots).
 export function AgendaGridSkeleton() {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[var(--color-soft-border)] bg-white p-3">
+    <div className="overflow-x-auto rounded-2xl border border-[var(--color-soft-border)] bg-[var(--booking-surface)] p-3">
       <div className="grid min-w-[42rem] grid-cols-7 gap-2">
         {Array.from({ length: 7 }, (_, col) => (
           <div key={col} className="flex flex-col gap-2">

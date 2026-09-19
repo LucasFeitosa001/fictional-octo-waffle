@@ -596,7 +596,7 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                     type="button"
                     onClick={goBack}
                     aria-label="Voltar"
-                    className="club-touch grid shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-white text-foreground transition-colors hover:border-[var(--booking-accent)] hover:text-[var(--booking-accent)]"
+                    className="club-touch grid shrink-0 place-items-center rounded-full border border-[var(--color-soft-border)] bg-[var(--booking-surface)] text-foreground transition-colors hover:border-[var(--booking-accent)] hover:text-[var(--booking-accent)]"
                   >
                     <ArrowLeft width={18} height={18} />
                   </button>
@@ -1085,7 +1085,7 @@ function StepProgress({ current }: { current: number }) {
                   : 'border-[var(--color-soft-border)] bg-[var(--booking-surface)] text-muted',
             ].join(' ')}
           >
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white shadow-sm">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[var(--booking-surface)] shadow-sm">
               {complete ? <CircleCheck width={14} height={14} /> : item.icon}
             </span>
             <span className="truncate">{index + 1}. {item.label}</span>
@@ -1280,7 +1280,7 @@ function SalonGallery({ fotos }: { fotos: { url: string; caption: string | null 
         {fotos.map((f) => (
           <figure
             key={f.url}
-            className="relative h-36 w-56 shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)] sm:h-44 sm:w-64"
+            className="relative h-36 w-56 shrink-0 snap-start overflow-hidden rounded-2xl bg-[var(--booking-surface)] shadow-[var(--shadow-card)] sm:h-44 sm:w-64"
           >
             <img
               src={f.url}
@@ -1320,7 +1320,7 @@ function SalonAbout({
   if (!about.description && redes.length === 0) return null;
   const comProtocolo = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
   return (
-    <section className="mt-4 rounded-2xl bg-white p-4 shadow-[var(--shadow-card)]">
+    <section className="mt-4 rounded-2xl bg-[var(--booking-surface)] p-4 shadow-[var(--shadow-card)]">
       {about.description && (
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
           {about.description}
@@ -1440,7 +1440,7 @@ function ServiceCard({
           onSelect();
         }
       }}
-      className={`club-no-touch-lift relative flex w-full cursor-pointer flex-row overflow-hidden rounded-xl border bg-white text-left transition-all ${
+      className={`club-no-touch-lift relative flex w-full cursor-pointer flex-row overflow-hidden rounded-xl border bg-[var(--booking-surface)] text-left transition-all ${
         selected
           ? 'border-[var(--booking-accent)] shadow-[var(--shadow-soft)]'
           : 'border-[var(--color-soft-border)] shadow-[var(--shadow-card)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]'
@@ -1456,7 +1456,7 @@ function ServiceCard({
         }}
         aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
         aria-pressed={isFavorite}
-        className="absolute right-1.5 top-1.5 z-10 grid h-9 w-9 place-items-center rounded-lg bg-white/90 text-[var(--booking-accent)] shadow-[var(--shadow-soft)] backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
+        className="absolute right-1.5 top-1.5 z-10 grid h-9 w-9 place-items-center rounded-lg bg-[var(--booking-surface)] text-[var(--booking-accent)] shadow-[var(--shadow-soft)] backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
       >
         {isFavorite ? (
           <HeartFill width={18} height={18} />
@@ -1772,7 +1772,7 @@ function FilterChip({
       className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
         active
           ? 'border-transparent bg-[var(--booking-accent)] text-white shadow-[var(--shadow-pink)]'
-          : 'border-[var(--color-soft-border)] bg-white text-foreground hover:border-[var(--booking-accent)]'
+          : 'border-[var(--color-soft-border)] bg-[var(--booking-surface)] text-foreground hover:border-[var(--booking-accent)]'
       }`}
     >
       {icon}
