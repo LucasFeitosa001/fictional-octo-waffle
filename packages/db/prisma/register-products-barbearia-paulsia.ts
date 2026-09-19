@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 
-const COMPANY_NAME = 'Barbearia Paulsia';
+const COMPANY_NAME = 'Barbearia Paulista';
 const SOURCE = 'catalogo-produtos-paulsia-2026-09-18';
 
 type ProductDefinition = {

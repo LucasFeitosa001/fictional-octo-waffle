@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Prisma, PrismaClient } from '@prisma/client';
 
-const NOME = 'Barbearia Paulsia';
+const NOME = 'Barbearia Paulista';
 const SOURCE = 'bootstrap-barbearia-paulsia';
 
 const servicos = [
