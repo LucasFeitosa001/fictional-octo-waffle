@@ -172,6 +172,13 @@ h1, h2, h3, h4, h5, h6,
   padding-inline: max(1rem, env(safe-area-inset-left));
 }
 
+/* HeroUI's outline button keeps dark default ink even when the salon page is
+   dark. Follow the portal text token so the Google label remains legible. */
+.club-google-button {
+  color: var(--foreground);
+  border-color: var(--color-soft-border);
+}
+
 .club-touch {
   min-width: 44px;
   min-height: 44px;

@@ -21,8 +21,8 @@ const FEATURES: { icon: typeof Calendar; title: string; body: string }[] = [
   },
   {
     icon: Person,
-    title: 'Entre com o Google',
-    body: 'Crie sua conta em um toque com "Continuar com Google" e acompanhe seus agendamentos.',
+    title: 'Acompanhe seus horários',
+    body: 'Crie sua conta com e-mail e senha para acompanhar seus agendamentos.',
   },
   {
     icon: Scissors,

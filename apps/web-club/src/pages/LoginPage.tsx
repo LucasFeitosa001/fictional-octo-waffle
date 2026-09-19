@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Input, Label, Spinner, TextField } from '@heroui/react';
 import { ArrowLeft } from '@gravity-ui/icons';
 import { signIn, signUp, useCustomerSession } from '../lib/auth';
-import { useBookingAccent } from '../lib/booking';
+import { useBookingAccent, usePortal } from '../lib/booking';
 import { SalonBrand } from '../components/SalonBrand';
 
 /**
@@ -104,6 +104,8 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
   // Theme the login page with the salon's brand color too (no-op when there's no
   // slug, e.g. the shared-host login).
   useBookingAccent(slug ?? '');
+  const portal = usePortal(slug ?? '');
+  const googleEnabled = portal.data?.googleEnabled === true;
 
   const isSignup = mode === 'signup';
 
@@ -111,10 +113,12 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
   // cookie is set. New Google users are mapped to accountType 'customer' on the
   // server (no Company), so they're just bookers — same as e-mail sign-up here.
   async function onGoogle() {
+    if (!googleEnabled) return;
     setGoogleLoading(true);
     setError(null);
+    setErroCru(null);
     try {
-      await signIn.social({
+      const res = await signIn.social({
         provider: 'google',
         callbackURL: window.location.origin + backTo,
         // SEM isto, QUALQUER falha do OAuth despeja o cliente na raiz de
@@ -125,6 +129,15 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
         // ainda por cima era mudo: ninguém lá lê o `?error=`. Ver estudo 117.
         errorCallbackURL: `${window.location.origin}${backTo}/login`,
       });
+      if (res.error) {
+        setErroCru(res.error.code ?? null);
+        setError(
+          res.error.code === 'PROVIDER_NOT_FOUND'
+            ? 'Entrar com Google está indisponível no momento. Use e-mail e senha.'
+            : res.error.message ?? 'Não foi possível conectar com o Google. Tente novamente.',
+        );
+        setGoogleLoading(false);
+      }
     } catch {
       setError('Não foi possível conectar com o Google.');
       setGoogleLoading(false);
@@ -280,22 +293,31 @@ export function LoginPage({ backTo, slug }: { backTo: string; slug?: string }) {
             </Button>
           </form>
 
-          <div className="my-4 flex items-center gap-3">
-            <span aria-hidden className="h-px flex-1 bg-[var(--color-soft-border)]" />
-            <span className="text-xs uppercase tracking-wide text-muted">ou</span>
-            <span aria-hidden className="h-px flex-1 bg-[var(--color-soft-border)]" />
-          </div>
+          {googleEnabled && (
+            <>
+              <div className="my-4 flex items-center gap-3">
+                <span aria-hidden className="h-px flex-1 bg-[var(--color-soft-border)]" />
+                <span className="text-xs uppercase tracking-wide text-muted">ou</span>
+                <span aria-hidden className="h-px flex-1 bg-[var(--color-soft-border)]" />
+              </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onPress={onGoogle}
-            isPending={googleLoading}
-            className="min-h-12 w-full gap-2.5 rounded-full"
-          >
-            {googleLoading ? <Spinner size="sm" /> : <GoogleGlyph />}
-            Continuar com Google
-          </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onPress={onGoogle}
+                isPending={googleLoading}
+                className="club-google-button min-h-12 w-full gap-2.5 rounded-full"
+              >
+                {googleLoading ? <Spinner size="sm" /> : <GoogleGlyph />}
+                Continuar com Google
+              </Button>
+            </>
+          )}
+          {portal.isSuccess && !googleEnabled && (
+            <p role="status" className="mt-4 text-center text-sm text-muted">
+              Entrar com Google não está disponível no momento. Use e-mail e senha.
+            </p>
+          )}
 
           <button
             type="button"
