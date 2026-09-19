@@ -48,6 +48,23 @@ function agendamento(over: Record<string, unknown> = {}) {
 }
 
 describe('Travas de envio do WhatsApp (estudo 60)', () => {
+  it('aviso central à empresa nasce desligado e é revalidado na entrega', () => {
+    assert.equal(isAutomationKind('booking_alert'), true);
+    assert.equal(autorizacaoAindaVale({
+      kind: 'booking_alert', agendamento: agendamento(), automacao: DESLIGADO, agora: AGORA,
+    }).ok, false);
+    const ligada = { ...DESLIGADO, businessBookingAlerts: true };
+    assert.equal(autorizacaoAindaVale({
+      kind: 'booking_alert', agendamento: agendamento(), automacao: ligada, agora: AGORA,
+    }).ok, true);
+    assert.equal(autorizacaoAindaVale({
+      kind: 'booking_alert', agendamento: null, automacao: ligada, agora: AGORA,
+    }).ok, false);
+    assert.equal(autorizacaoAindaVale({
+      kind: 'booking_alert', agendamento: agendamento({ status: 'canceled' }), automacao: ligada, agora: AGORA,
+    }).ok, false);
+    assert.equal(expirouNaFila('booking_alert', new Date(AGORA.getTime() - 3 * 3_600_000), AGORA).ok, false);
+  });
   // ───────────────────────── trava 1: não enfileirar desconectado
 
   it('1) automação com o canal FECHADO ADIA, não é mais recusada (estudo 85)', () => {

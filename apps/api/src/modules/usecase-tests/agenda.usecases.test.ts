@@ -337,7 +337,7 @@ describe('UC-AGD-WA — confirmação manual com opt-in e idempotência', () => 
     return { service, enqueued, updates, calls };
   }
 
-  it('mantém a automação desligada, salvo o aviso do agendamento online', async () => {
+  it('mantém toda automação desligada até autorização da empresa', async () => {
     const settings = new NotificationSettingsService({
       client: {
         setting: {
@@ -346,19 +346,15 @@ describe('UC-AGD-WA — confirmação manual com opt-in e idempotência', () => 
       },
     } as any);
 
-    // `onlineBooking` é a ÚNICA exceção ao "tudo desligado", por decisão do
-    // dono (estudo 153): quem agenda pela internet não ouve nenhuma confirmação
-    // no balcão, e o silêncio vira "será que deu certo?". É seguro porque
-    // decide sobre um agendamento sendo criado NAQUELE instante — não existe
-    // fila acumulada para drenar quando o toggle é ligado, ao contrário de
-    // lembrete e follow-up. Todo o resto continua exigindo opt-in explícito.
+    // Inclusive a confirmação online: opt-in do cliente sozinho não autoriza.
     assert.deepEqual(await settings.get('company-a'), {
       confirmation: false,
       cancellation: false,
       reminder: false,
       followUp: false,
       notifyProfessional: false,
-      onlineBooking: true,
+      businessBookingAlerts: false,
+      onlineBooking: false,
     });
   });
 

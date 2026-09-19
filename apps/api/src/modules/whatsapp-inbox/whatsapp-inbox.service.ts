@@ -2313,6 +2313,7 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
         {
           source: AppointmentSource.online,
           status: AppointmentStatus.confirmed,
+          originTag: 'voltr-ia',
         },
       );
       const dateLabel = new Intl.DateTimeFormat('pt-BR', {

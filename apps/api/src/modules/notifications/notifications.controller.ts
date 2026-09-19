@@ -134,6 +134,8 @@ export class NotificationSettingsController {
     if (typeof body?.followUp === 'boolean') patch.followUp = body.followUp;
     if (typeof body?.notifyProfessional === 'boolean')
       patch.notifyProfessional = body.notifyProfessional;
+    if (typeof body?.businessBookingAlerts === 'boolean')
+      patch.businessBookingAlerts = body.businessBookingAlerts;
     if (typeof body?.onlineBooking === 'boolean') patch.onlineBooking = body.onlineBooking;
     return this.settings.update(companyId, patch);
   }

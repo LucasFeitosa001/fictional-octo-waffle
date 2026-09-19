@@ -27,6 +27,7 @@ export const OUTBOX_AUTOMATION_KINDS = [
   'reminder',
   'followup',
   'campaign',
+  'booking_alert',
 ] as const;
 
 export type OutboxAutomationKind = (typeof OUTBOX_AUTOMATION_KINDS)[number];
@@ -52,6 +53,7 @@ const TTL_MS: Record<OutboxAutomationKind, number> = {
   cancellation: 6 * 60 * 60 * 1000, // 6h
   campaign: 6 * 60 * 60 * 1000, // 6h
   followup: 24 * 60 * 60 * 1000, // 24h
+  booking_alert: 2 * 60 * 60 * 1000, // aviso operacional recente
 };
 
 /**
@@ -152,6 +154,7 @@ export interface AutomacaoDaConta {
   cancellation: boolean;
   reminder: boolean;
   followUp: boolean;
+  businessBookingAlerts?: boolean;
 }
 
 export interface ClienteParaRevalidar {
@@ -177,6 +180,17 @@ export function autorizacaoAindaVale(input: {
   const { kind, agendamento, automacao, cliente } = input;
   const agora = input.agora ?? new Date();
   if (!isAutomationKind(kind)) return { ok: true };
+
+  // O destinatário é a EMPRESA, não o cliente. A autorização é exclusiva desta
+  // empresa e precisa continuar ligada até a entrega; o destino é revalidado
+  // pelo WhatsappService antes de enviar.
+  if (kind === 'booking_alert') {
+    if (!automacao.businessBookingAlerts) return { ok: false, motivo: 'Aviso à empresa desligado' };
+    if (!agendamento) return { ok: false, motivo: 'Agendamento não encontrado' };
+    if (agendamento.status === 'canceled') return { ok: false, motivo: 'Agendamento cancelado' };
+    if (agendamento.start.getTime() <= agora.getTime()) return { ok: false, motivo: 'Horário já passou' };
+    return { ok: true };
+  }
 
   // Trava adicional do cliente — vale para qualquer tipo.
   if (cliente && (cliente.notificationsEnabled === false || cliente.whatsappOptIn === false)) {

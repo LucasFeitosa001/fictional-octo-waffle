@@ -40,6 +40,8 @@ export interface NotificationAutomationSettings {
    * online booking flow). OFF by default — the salon opts in.
    */
   notifyProfessional: boolean;
+  /** Aviso de novo agendamento ao número da empresa, enviado pelo canal central. */
+  businessBookingAlerts: boolean;
   /**
    * Avisar no WhatsApp quando o agendamento vem do AGENDAMENTO ONLINE.
    *
@@ -47,11 +49,8 @@ export interface NotificationAutomationSettings {
    * dos demais: quem agendou não estava no balcão e não recebeu nenhuma
    * confirmação verbal — o silêncio é sentido como "será que deu certo?".
    *
-   * LIGADO por padrão, também a pedido dele. É a ÚNICA automação que nasce
-   * ligada, e o motivo de ser segura é temporal: ela só decide sobre um
-   * agendamento que está sendo criado naquele instante. Não existe fila
-   * acumulada para drenar quando alguém liga o toggle, ao contrário de
-   * lembrete/follow-up, que varrem agendamentos já existentes.
+   * Desligado por padrão, como as demais automações. A empresa precisa
+   * ativar esta preferência explicitamente.
    *
    * As demais travas continuam valendo por cima: transporte `live`
    * (messaging.helpers.ts), número conectado, e o toggle do agendamento
@@ -61,9 +60,7 @@ export interface NotificationAutomationSettings {
 }
 
 /**
- * DEFAULT quando a empresa nunca tocou na configuração: TUDO DESLIGADO, exceto
- * o aviso do agendamento online (ver `onlineBooking` acima — decisão do dono,
- * e segura porque não drena fila acumulada).
+ * DEFAULT quando a empresa nunca tocou na configuração: TUDO DESLIGADO.
  *
  * Nenhuma outra mensagem automática sai do salão (cliente OU profissional) até
  * que o dono ligue explicitamente.
@@ -74,7 +71,8 @@ export const NOTIFICATION_AUTOMATION_DEFAULTS: NotificationAutomationSettings = 
   reminder: false,
   followUp: false,
   notifyProfessional: false,
-  onlineBooking: true,
+  businessBookingAlerts: false,
+  onlineBooking: false,
 };
 
 /**
@@ -218,6 +216,7 @@ export class NotificationSettingsService {
       reminder: merged.reminder,
       followUp: merged.followUp,
       notifyProfessional: merged.notifyProfessional,
+      businessBookingAlerts: merged.businessBookingAlerts,
       onlineBooking: merged.onlineBooking,
     };
     await this.prisma.client.setting.upsert({
@@ -607,10 +606,11 @@ export class NotificationSettingsService {
         typeof src.notifyProfessional === 'boolean'
           ? src.notifyProfessional
           : NOTIFICATION_AUTOMATION_DEFAULTS.notifyProfessional,
-      // Ausente = LIGADO (o default). Isso vale também para quem já tem a linha
-      // gravada sem esta chave: o salão que configurou notificações antes desta
-      // versão passa a ter o aviso do agendamento online ligado, que é o
-      // comportamento pedido. Só fica desligado para quem desligar de propósito.
+      businessBookingAlerts:
+        typeof src.businessBookingAlerts === 'boolean'
+          ? src.businessBookingAlerts
+          : NOTIFICATION_AUTOMATION_DEFAULTS.businessBookingAlerts,
+      // Ausente = DESLIGADO, inclusive em linhas antigas sem esta chave.
       onlineBooking:
         typeof src.onlineBooking === 'boolean'
           ? src.onlineBooking

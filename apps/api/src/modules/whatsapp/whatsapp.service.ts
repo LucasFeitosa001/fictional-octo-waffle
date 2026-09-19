@@ -83,6 +83,10 @@ const MAX_QR_SEM_LEITURA = 10;
 // empresa vira seu próprio sessionId = companyId). Mantido só para o boot ignorar
 // essa linha ao varrer credenciais e para documentar a migração (re-link único).
 const LEGACY_GLOBAL_SESSION_ID = 'default';
+const BOOKING_ALERT_KIND = 'booking_alert';
+// Sessão técnica separada: o número da plataforma envia, mas o companyId da
+// outbox continua sendo o da empresa destinatária para autorização/histórico.
+const BOOKING_ALERT_SENDER_SESSION_ID = 'salonpass-booking-alerts';
 
 // A plain-text reply that arrived at the salon's WhatsApp from the manager.
 export interface WhatsappInbound {
@@ -312,6 +316,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private uazapiTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly enabled = process.env.WHATSAPP_ENABLED === 'true';
+  private readonly bookingAlertsEnabled = process.env.WHATSAPP_BOOKING_ALERTS_ENABLED === 'true';
+  private readonly bookingAlertSenderPhone = (process.env.WHATSAPP_BOOKING_ALERT_SENDER_PHONE ?? '').replace(/\D/g, '');
   private readonly instanceId = randomUUID();
   // Fence monotônico do lease. No blue-green, o App Runner pode conservar o
   // container antigo indefinidamente por causa do WebSocket aberto. O processo
@@ -497,6 +503,18 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async emitDeliveryUpdate(update: WhatsappDeliveryUpdate) {
+    if (update.companyId === BOOKING_ALERT_SENDER_SESSION_ID) {
+      const status = update.status;
+      await this.prisma.client.whatsappOutbox.updateMany({
+        where: {
+          kind: BOOKING_ALERT_KIND,
+          whatsappMessageId: update.whatsappMessageId,
+          status: status === 'read' ? { in: ['sent', 'delivered'] } : 'sent',
+        },
+        data: { status: status === 'sent' ? 'sent' : status },
+      });
+      return;
+    }
     for (const handler of this.deliveryHandlers) {
       try {
         await handler(update);
@@ -509,6 +527,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async emitConnectionUpdate(update: WhatsappConnectionUpdate) {
+    if (update.companyId === BOOKING_ALERT_SENDER_SESSION_ID) return;
     for (const handler of this.connectionHandlers) {
       try {
         await handler(update);
@@ -526,6 +545,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     sock: WASocket,
     session: SessionState,
   ): Promise<void> {
+    // A sessão central não representa uma empresa: nunca roteie respostas do
+    // destinatário para inbox/IA/agendamento de outra empresa.
+    if (session.companyId === BOOKING_ALERT_SENDER_SESSION_ID) return;
     const sentByThisWorker =
       inbound.fromMe &&
       Boolean(inbound.messageId && session.sentCache.has(inbound.messageId));
@@ -739,6 +761,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     });
     const data = row?.data as { managerPhone?: unknown } | null;
     return typeof data?.managerPhone === 'string' ? data.managerPhone : null;
+  }
+
+  /** Uma linha por agendamento, sempre vinculada à empresa que autorizou. */
+  async enqueueBookingAlert(companyId: string, appointmentId: string, toPhone: string, message: string) {
+    if (!this.enabled || !this.bookingAlertsEnabled || !this.normalizeBrDigits(this.bookingAlertSenderPhone)) return null;
+    const manager = await this.getManagerPhone(companyId);
+    if (!manager || manager !== this.normalizeBrDigits(toPhone)) return null;
+    return this.enqueueText(manager, message, {
+      companyId,
+      appointmentId,
+      kind: BOOKING_ALERT_KIND,
+      requestKey: `booking-alert:${appointmentId}`,
+    });
   }
 
   /**
@@ -1189,7 +1224,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       // Mensagens já criadas dentro do inbox (IA/atendente) só precisam que a
       // outbox atualize o status. As demais — confirmação, cancelamento,
       // lembrete, follow-up e campanha — ganham o balão por este evento.
-      if (queued.companyId && !queued.inboxMessageId) {
+      if (queued.companyId && !queued.inboxMessageId && queued.kind !== BOOKING_ALERT_KIND) {
         await this.emitOutboundQueued({
           outboxId: queued.id,
           companyId: queued.companyId,
@@ -1416,11 +1451,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         // Recalcula a cada volta (uma company pode cair no meio do drain).
         const openNow = this.openCompanyIds(Date.now());
         if (openNow.length === 0) break;
-        const where = {
+        const where: Prisma.WhatsappOutboxWhereInput = {
           status: 'pending',
           nextAttemptAt: { lte: new Date() },
-          companyId: { in: openNow },
-        } as const;
+          OR: [
+            {
+              companyId: { in: openNow.filter((id) => id !== BOOKING_ALERT_SENDER_SESSION_ID) },
+              OR: [{ kind: null }, { kind: { not: BOOKING_ALERT_KIND } }],
+            },
+            ...(openNow.includes(BOOKING_ALERT_SENDER_SESSION_ID)
+              ? [{ kind: BOOKING_ALERT_KIND, companyId: { not: null } }]
+              : []),
+          ],
+        };
         // Transacionais (marcado/cancelado/lembrete/gestor) passam na frente de
         // campanhas antigas para uma rajada de marketing não atrasar a operação.
         const msg =
@@ -1471,16 +1514,31 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     authorizedAt: Date | null;
   }): Promise<void> {
     const db = this.prisma.client;
-    const session = msg.companyId ? this.sessions.get(msg.companyId) : undefined;
+    const centralAlert = msg.kind === BOOKING_ALERT_KIND;
+    const sessionId = centralAlert ? BOOKING_ALERT_SENDER_SESSION_ID : msg.companyId;
+    const session = sessionId ? this.sessions.get(sessionId) : undefined;
     // Empresa na uazapi não tem socket: a sessão vive no provedor, e exigir
     // `status === 'open'` deixaria a fila dela parada para sempre. O envio dela
     // é tratado mais abaixo, antes de qualquer uso de `session.sock`.
-    const viaUazapi = msg.companyId
+    const viaUazapi = !centralAlert && msg.companyId
       ? (await this.provedorDaEmpresa(msg.companyId)) === 'uazapi'
       : false;
     // Sem company ou sem socket aberto → não há por onde enviar; deixa pendente.
     if (!viaUazapi && (!session || session.status !== 'open' || !session.sock)) return;
     try {
+      if (centralAlert) {
+        // Nunca deixar a sessão de outra empresa fingir ser o remetente fixo.
+        const connectedPhone = this.normalizeBrDigits(this.jidUserDigits(session?.sock?.user?.id ?? ''));
+        if (!this.bookingAlertsEnabled || !this.bookingAlertSenderPhone || connectedPhone !== this.bookingAlertSenderPhone) {
+          await this.descartarOutbox(msg, 'Remetente central não corresponde ao número autorizado');
+          return;
+        }
+        const currentManager = msg.companyId ? await this.getManagerPhone(msg.companyId) : null;
+        if (!currentManager || currentManager !== this.normalizeBrDigits(msg.toPhone)) {
+          await this.descartarOutbox(msg, 'Número da empresa alterado ou removido');
+          return;
+        }
+      }
       // TRAVA 2 (estudo 60): o que envelheceu na fila não sai. Lembrete de 1h
       // atrás ainda faz sentido; de ontem, não — e foi exatamente isso que
       // chegou ao cliente quando a fila drenou.
@@ -1587,7 +1645,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       // mensagem" até o retry. Ver estudo 83.
       const jid =
         this.normalizeRecipientJid(msg.toJid ?? undefined) ??
-        (await this.jidConhecidoDoTelefone(msg.companyId, msg.toPhone)) ??
+        (await this.jidConhecidoDoTelefone(centralAlert ? BOOKING_ALERT_SENDER_SESSION_ID : msg.companyId, msg.toPhone)) ??
         (await this.resolveJid(session, msg.toPhone));
       if (!jid) {
         await db.whatsappOutbox.update({
@@ -1766,6 +1824,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       cancellation: false,
       reminder: false,
       followUp: false,
+      businessBookingAlerts: false,
     };
     try {
       const row = await this.prisma.client.setting.findUnique({
@@ -1782,6 +1841,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         cancellation: ler('cancellation'),
         reminder: ler('reminder'),
         followUp: ler('followUp'),
+        businessBookingAlerts: ler('businessBookingAlerts'),
       };
     } catch (err) {
       this.logger.warn(
@@ -2035,7 +2095,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     // campanha, resposta do atendente) e sobrevive a deploy. Guarda o proto
     // inteiro, então mídia também é reenviável. Ver estudo 69.
     const daFila = await this.prisma.client.whatsappOutbox.findFirst({
-      where: { companyId: session.companyId, whatsappMessageId: messageId },
+      where: session.companyId === BOOKING_ALERT_SENDER_SESSION_ID
+        ? { kind: BOOKING_ALERT_KIND, whatsappMessageId: messageId }
+        : { companyId: session.companyId, whatsappMessageId: messageId },
       select: { sentMessageJson: true, text: true },
     });
     if (daFila?.sentMessageJson) {

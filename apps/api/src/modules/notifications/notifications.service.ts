@@ -131,7 +131,7 @@ export class NotificationsService {
         appt.source === 'online' &&
         appt.status === 'unconfirmed';
       // Padrão da conta que vale para ESTE evento. O agendamento ONLINE tem
-      // chave própria (`onlineBooking`, ligada por padrão): quem agendou pela
+      // chave própria (`onlineBooking`, desligada por padrão): quem agendou pela
       // internet não recebeu nenhuma confirmação verbal no balcão, e o silêncio
       // vira "será que deu certo?". Cancelamento segue em `cancellation`, e o
       // agendamento feito na recepção segue em `confirmation`. Estudo 153.
@@ -227,6 +227,35 @@ export class NotificationsService {
             entityId: appointmentId,
           },
         });
+      }
+
+      // Todos os caminhos (painel, IA e agenda online) passam pela criação do
+      // agendamento. Só o evento "created" gera o aviso central, uma vez por ID.
+      if (event === 'created' && auto.businessBookingAlerts) {
+        const managerPhone = await this.whatsapp.getManagerPhone(companyId);
+        if (managerPhone) {
+          const when = new Intl.DateTimeFormat('pt-BR', {
+            timeZone: appt.company.timezone,
+            dateStyle: 'full',
+            timeStyle: 'short',
+          }).format(appt.start);
+          const until = new Intl.DateTimeFormat('pt-BR', {
+            timeZone: appt.company.timezone,
+            timeStyle: 'short',
+          }).format(appt.end);
+          const origin = feitoPelaIa ? 'IA' : appt.source === 'online' ? 'Agenda online' : 'Painel';
+          const lines = [
+            `🔔 *Novo agendamento · ${appt.company.name}*`,
+            `🔖 *Código:* ${appt.id}`,
+            `📍 *Origem:* ${origin}`,
+            `👤 *Cliente:* ${appt.customer?.name ?? 'Não informado'}`,
+            `📱 *Telefone:* ${appt.customer?.phone ?? 'Não informado'}`,
+            `💈 *Serviço:* ${appt.items.map((it) => it.service?.name).filter(Boolean).join(', ') || 'Não informado'}`,
+            `✂️ *Profissional:* ${appt.professional?.name ?? 'Não informado'}`,
+            `📅 *Quando:* ${when} até ${until}`,
+          ];
+          await this.whatsapp.enqueueBookingAlert(companyId, appointmentId, managerPhone, lines.join('\n'));
+        }
       }
     } catch (err) {
       this.logger.error(
