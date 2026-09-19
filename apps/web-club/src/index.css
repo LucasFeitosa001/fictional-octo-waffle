@@ -168,6 +168,14 @@ h1, h2, h3, h4, h5, h6,
   min-height: 100dvh;
 }
 
+/* Shell neutro enquanto o portal carrega sua aparência. Sem ele, os
+   skeletons HeroUI exibem o rosa padrão por um frame durante o refresh. */
+.club-bootstrap-shell {
+  min-height: 100dvh;
+  background-color: var(--booking-page-bg);
+  background-image: none;
+}
+
 .club-page-main {
   padding-inline: max(1rem, env(safe-area-inset-left));
 }

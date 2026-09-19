@@ -497,6 +497,14 @@ export function BookingPage({ slug, basePath = '' }: { slug: string; basePath?: 
                 : durationLabel(totalDuration),
         };
 
+  // Sem a aparência do salão, qualquer skeleton usa os tokens padrão (rosa).
+  // Segurar somente este primeiro frame evita o flash de outro tema durante o
+  // refresh; assim que o portal responde, o layout effect já pintou as cores
+  // corretas antes de o conteúdo aparecer.
+  if (portal.isLoading && !portal.data) {
+    return <div className="club-bootstrap-shell" aria-busy="true" />;
+  }
+
   return (
     <div className="club-page flex flex-col">
       {/* The salon can hide the black top bar (Setting booking.appearance

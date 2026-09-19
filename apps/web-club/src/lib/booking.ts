@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import {
   useMutation,
   useQuery,
@@ -79,6 +79,61 @@ export const DEFAULT_APPEARANCE: BookingAppearance = {
   coverUrl: null,
   coverOverlay: 35,
 };
+
+// A aparência chega junto do portal por HTTP. Guardá-la por salão permite
+// pintar o tema correto já no primeiro frame de uma atualização, antes de a
+// nova consulta terminar (evita o flash dos skeletons rosas do tema padrão).
+const APPEARANCE_CACHE_PREFIX = 'sp-club:appearance:';
+
+function appearanceFromPortal(portal: Portal | undefined): BookingAppearance {
+  const a = portal?.appearance;
+  return {
+    hideNavbar: a?.hideNavbar ?? DEFAULT_APPEARANCE.hideNavbar,
+    primaryColor:
+      validHex(a?.primaryColor) ?? validHex(portal?.accentColor) ?? null,
+    accentColor: validHex(a?.accentColor),
+    backgroundColor: validHex(a?.backgroundColor),
+    photoColor: validHex(a?.photoColor),
+    coverUrl: a?.coverUrl ?? null,
+    coverOverlay:
+      typeof a?.coverOverlay === 'number' ? a.coverOverlay : DEFAULT_APPEARANCE.coverOverlay,
+  };
+}
+
+export function readCachedBookingAppearance(slug: string): BookingAppearance | null {
+  if (typeof window === 'undefined' || !slug) return null;
+  try {
+    const raw = window.localStorage.getItem(`${APPEARANCE_CACHE_PREFIX}${slug}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<BookingAppearance>;
+    return {
+      hideNavbar: parsed.hideNavbar === true,
+      primaryColor: validHex(parsed.primaryColor),
+      accentColor: validHex(parsed.accentColor),
+      backgroundColor: validHex(parsed.backgroundColor),
+      photoColor: validHex(parsed.photoColor),
+      coverUrl: typeof parsed.coverUrl === 'string' ? parsed.coverUrl : null,
+      coverOverlay:
+        typeof parsed.coverOverlay === 'number'
+          ? parsed.coverOverlay
+          : DEFAULT_APPEARANCE.coverOverlay,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function cacheBookingAppearance(slug: string, appearance: BookingAppearance): void {
+  if (typeof window === 'undefined' || !slug) return;
+  try {
+    window.localStorage.setItem(
+      `${APPEARANCE_CACHE_PREFIX}${slug}`,
+      JSON.stringify(appearance),
+    );
+  } catch {
+    // Privacidade/cota do navegador não pode impedir o agendamento.
+  }
+}
 export type Service = BookingService;
 export type Professional = BookingProfessional;
 export type AvailabilitySlot = BookingAvailability['slots'][number];
@@ -138,20 +193,14 @@ function bookingPreviewAppearance(): BookingAppearance | null {
 export function useBookingAppearance(slug: string): BookingAppearance {
   const portal = usePortal(slug);
   const preview = bookingPreviewAppearance();
+  // Atualiza o cache somente com uma resposta confirmada do servidor.
+  useEffect(() => {
+    if (portal.data) cacheBookingAppearance(slug, appearanceFromPortal(portal.data));
+  }, [portal.data, slug]);
   if (preview) return preview;
-  const a = portal.data?.appearance;
-  const primary =
-    validHex(a?.primaryColor) ?? validHex(portal.data?.accentColor) ?? null;
-  return {
-    hideNavbar: a?.hideNavbar ?? DEFAULT_APPEARANCE.hideNavbar,
-    primaryColor: primary,
-    accentColor: validHex(a?.accentColor),
-    backgroundColor: validHex(a?.backgroundColor),
-    photoColor: validHex(a?.photoColor),
-    coverUrl: a?.coverUrl ?? null,
-    coverOverlay:
-      typeof a?.coverOverlay === 'number' ? a.coverOverlay : DEFAULT_APPEARANCE.coverOverlay,
-  };
+  return portal.data
+    ? appearanceFromPortal(portal.data)
+    : readCachedBookingAppearance(slug) ?? DEFAULT_APPEARANCE;
 }
 
 /**
@@ -187,24 +236,39 @@ function ehEscuro(hex: string | null): boolean {
   return lum < 0.45;
 }
 
+/** Aplica a aparência sem esperar um novo ciclo de renderização do React. */
+export function applyBookingAppearanceToDocument(appearance: BookingAppearance): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const setOrClear = (name: string, value: string | null) => {
+    if (value) root.style.setProperty(name, value);
+    else root.style.removeProperty(name);
+  };
+  setOrClear('--booking-accent', appearance.primaryColor);
+  setOrClear('--booking-accent-2', appearance.accentColor);
+  setOrClear('--club-bg', appearance.backgroundColor);
+  setOrClear('--booking-photo', appearance.photoColor);
+  if (ehEscuro(appearance.backgroundColor)) root.dataset.clubDark = '1';
+  else delete root.dataset.clubDark;
+}
+
 export function useBookingAccent(slug: string) {
   const { primaryColor, accentColor, backgroundColor, photoColor } =
     useBookingAppearance(slug);
-  useEffect(() => {
-    const root = document.documentElement;
-    const setOrClear = (name: string, value: string | null) => {
-      if (value) root.style.setProperty(name, value);
-      else root.style.removeProperty(name);
-    };
-    setOrClear('--booking-accent', primaryColor);
-    setOrClear('--booking-accent-2', accentColor);
-    setOrClear('--club-bg', backgroundColor);
-    setOrClear('--booking-photo', photoColor);
-    // Fundo escuro → o CSS inverte texto e superfícies (bloco
-    // `:root[data-club-dark]` em index.css).
-    if (ehEscuro(backgroundColor)) root.dataset.clubDark = '1';
-    else delete root.dataset.clubDark;
+  // Layout effect aplica as variáveis antes do navegador pintar a tela. Com o
+  // cache acima, a atualização não expõe por um frame o rosa/creme padrão.
+  useLayoutEffect(() => {
+    applyBookingAppearanceToDocument({
+      hideNavbar: false,
+      primaryColor,
+      accentColor,
+      backgroundColor,
+      photoColor,
+      coverUrl: null,
+      coverOverlay: DEFAULT_APPEARANCE.coverOverlay,
+    });
     return () => {
+      const root = document.documentElement;
       root.style.removeProperty('--booking-accent');
       root.style.removeProperty('--booking-accent-2');
       root.style.removeProperty('--club-bg');
