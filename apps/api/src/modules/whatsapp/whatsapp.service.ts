@@ -2255,9 +2255,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     this.startLeaseHeartbeat(session);
     // Descarta qualquer socket anterior antes de abrir um novo (ver teardownSocket).
     this.teardownSocket(session);
-    // Baileys pode travar no handshake do WebSocket sem emitir 'open'/'close',
-    // deixando connecting=true para sempre. Um timeout de 45s pega isso e força
-    // um retry.
+    // Baileys pode travar no handshake sem emitir 'open'/'close'. O remetente
+    // central precisa de mais tempo: um código de pareamento gerado perto do fim
+    // do ciclo de 45s era invalidado antes de a pessoa conseguir digitá-lo.
+    const connectionTimeoutMs = companyId === BOOKING_ALERT_SENDER_SESSION_ID
+      ? 5 * 60_000
+      : 45_000;
     if (session.connectTimeout) clearTimeout(session.connectTimeout);
     session.connectTimeout = setTimeout(() => {
       if (session.connecting && session.status !== 'open') {
@@ -2279,11 +2282,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           return;
         }
         this.logger.warn(
-          `WhatsApp (company=${companyId}): timeout de conexão (45s) — forçando reconexão.`,
+          `WhatsApp (company=${companyId}): timeout de conexão (${Math.round(connectionTimeoutMs / 1000)}s) — forçando reconexão.`,
         );
         void this.connect(companyId);
       }
-    }, 45_000);
+    }, connectionTimeoutMs);
     try {
       // Credenciais keyed pela empresa: sessionId = companyId.
       const { state, saveCreds } = await useDbAuthState(
@@ -2600,16 +2603,18 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     // percebeu foi o dono olhando a tela. Uma sessão que só volta com alguém
     // lendo um QR precisa pedir esse alguém. Ver estudo 157.
     try {
-      await this.prisma.client.notification.create({
-        data: {
-          companyId,
-          type: 'whatsapp.desconectado',
-          title: 'WhatsApp desconectado',
-          body:
-            'A sessão do WhatsApp do salão foi encerrada e nenhuma mensagem sai até reconectar. ' +
-            'Abra "WhatsApp integrado" e leia o QR code com o celular do salão.',
-        },
-      });
+      if (companyId !== BOOKING_ALERT_SENDER_SESSION_ID) {
+        await this.prisma.client.notification.create({
+          data: {
+            companyId,
+            type: 'whatsapp.desconectado',
+            title: 'WhatsApp desconectado',
+            body:
+              'A sessão do WhatsApp do salão foi encerrada e nenhuma mensagem sai até reconectar. ' +
+              'Abra "WhatsApp integrado" e leia o QR code com o celular do salão.',
+          },
+        });
+      }
     } catch (err) {
       // Não pode derrubar a reconexão: o aviso é importante, mas voltar a expor
       // o QR é mais.
