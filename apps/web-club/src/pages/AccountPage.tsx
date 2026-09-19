@@ -42,6 +42,7 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
   useBookingAccent(slug);
   const { data: session, isPending } = useCustomerSession();
   const isLoggedIn = !!session;
+  const profile = useMyProfile(slug, isLoggedIn);
 
   const appointments = useMyAppointments(slug, isLoggedIn);
   const cancel = useCancelAppointment(slug);
@@ -111,8 +112,8 @@ export function AccountPage({ slug, backTo }: { slug: string; backTo: string }) 
       <main className="club-page-main mx-auto w-full max-w-xl flex-1 py-6 sm:py-8">
         <div className="flex flex-col gap-0.5">
           <h1 className="font-brand text-2xl text-foreground">Minha conta</h1>
-          {session?.user?.name && (
-            <p className="text-sm text-muted">Olá, {session.user.name} 👋</p>
+          {profile.data?.name && (
+            <p className="text-sm text-muted">Olá, {profile.data.name} 👋</p>
           )}
         </div>
 

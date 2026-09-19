@@ -145,6 +145,34 @@ function resolveAuthSecret(): string {
 /** Log das falhas de autenticação — ver `onAPIError` abaixo. */
 const logAuth = new Logger('BetterAuth');
 
+/** Name supplied by Google's verified ID token, never by a browser field. */
+function googleDisplayName(idToken: string | null | undefined, email: string): string | null {
+  if (!idToken) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as {
+      aud?: unknown;
+      iss?: unknown;
+      email?: unknown;
+      email_verified?: unknown;
+      name?: unknown;
+    };
+    if (
+      payload.aud !== process.env.GOOGLE_CLIENT_ID ||
+      !['accounts.google.com', 'https://accounts.google.com'].includes(String(payload.iss)) ||
+      payload.email_verified !== true ||
+      typeof payload.email !== 'string' ||
+      payload.email.toLowerCase() !== email.toLowerCase() ||
+      typeof payload.name !== 'string'
+    ) return null;
+    const name = payload.name.trim().replace(/\s+/g, ' ');
+    return name && name.length <= 120 ? name : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Onde o portal de agendamento monta a própria auth. Precisa ser DIFERENTE de
  * `/api/v1/auth` (o painel) — é o que dá a cada um a sua sessão. O `web-club`
@@ -303,6 +331,42 @@ function configDeAuth(opcoes: {
     },
   },
   databaseHooks: {
+    account: {
+      create: {
+        after: async (account) => {
+          if (account.providerId !== 'google') return;
+          try {
+            const user = await prisma.user.findUnique({
+              where: { id: account.userId },
+              select: { id: true, name: true, email: true, companyId: true },
+            });
+            if (!user) return;
+            const googleName = googleDisplayName(account.idToken, user.email);
+            if (!googleName || googleName === user.name) return;
+
+            // Existing staff can have the salon name stored as their personal
+            // name. Replace only that default on first Google link; preserve
+            // deliberately edited personal names and the Company name itself.
+            const company = user.companyId
+              ? await prisma.company.findUnique({
+                  where: { id: user.companyId },
+                  select: { name: true },
+                })
+              : null;
+            const currentName = user.name.trim().toLocaleLowerCase('pt-BR');
+            const isDefaultName =
+              currentName === company?.name.trim().toLocaleLowerCase('pt-BR') ||
+              currentName === user.email.toLowerCase() ||
+              currentName === 'cliente';
+            if (!isDefaultName) return;
+            await prisma.user.update({ where: { id: user.id }, data: { name: googleName } });
+          } catch {
+            // Profile sync is cosmetic; it must never interrupt OAuth login.
+            logAuth.warn('Não foi possível sincronizar o nome da Conta Google.');
+          }
+        },
+      },
+    },
     user: {
       create: {
         after: async (user) => {
