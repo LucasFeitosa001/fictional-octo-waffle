@@ -82,19 +82,19 @@ export function AvailabilityGrid({
 
   return (
     <div
-      className="club-scroll-row flex overflow-x-auto overscroll-x-contain rounded-2xl border border-[var(--color-soft-border)] bg-white shadow-[var(--shadow-card)]"
+      className="club-scroll-row flex overflow-x-auto overscroll-x-contain rounded-2xl border border-[var(--color-soft-border)] bg-[var(--availability-grid-bg)] shadow-[var(--shadow-card)]"
       role="region"
       aria-label="Grade semanal de disponibilidade"
       tabIndex={0}
     >
       {/* Time gutter */}
-      <div className="sticky left-0 z-10 w-12 shrink-0 bg-white">
+      <div className="sticky left-0 z-10 w-12 shrink-0 bg-[var(--availability-grid-bg)]">
         <div style={{ height: HEADER_H }} />
         {hours.map((h) => (
           <div
             key={h}
             style={{ height: hourHeight }}
-            className="relative pr-1.5 text-right text-[10px] font-medium text-[#9AA0A6]"
+            className="relative pr-1.5 text-right text-[10px] font-medium text-[var(--availability-muted)]"
           >
             <span className="absolute right-1.5 -top-1.5">{String(h).padStart(2, '0')}h</span>
           </div>
@@ -112,13 +112,13 @@ export function AvailabilityGrid({
           const dayBusy = parsedBusy.filter((b) => isSameDay(b.start, day));
 
           return (
-            <div key={day.toISOString()} className="border-l border-black/5">
+            <div key={day.toISOString()} className="border-l border-[var(--availability-divider)]">
               {/* Column header */}
               <div
                 style={{ height: HEADER_H }}
-                className="sticky top-0 z-10 flex flex-col items-center justify-center border-b border-black/5 bg-white"
+                className="sticky top-0 z-10 flex flex-col items-center justify-center border-b border-[var(--availability-divider)] bg-[var(--availability-grid-bg)]"
               >
-                <span className="text-[10px] font-medium uppercase tracking-wide text-[#9AA0A6]">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--availability-muted)]">
                   {weekdayFmt.format(day).replace('.', '')}
                 </span>
                 <span
@@ -138,7 +138,7 @@ export function AvailabilityGrid({
                   <div
                     key={h}
                     style={{ top: i * hourHeight, height: hourHeight }}
-                    className="absolute inset-x-0 border-b border-black/5"
+                    className="absolute inset-x-0 border-b border-[var(--availability-divider)]"
                   />
                 ))}
 
@@ -151,7 +151,7 @@ export function AvailabilityGrid({
                     <div
                       key={`w-${i}`}
                       style={{ top, height }}
-                      className="absolute inset-x-0.5 rounded-lg bg-[#FFF1EE]"
+                      className="absolute inset-x-0.5 rounded-lg bg-[var(--availability-free-bg)]"
                     />
                   );
                 })}
@@ -183,7 +183,7 @@ export function AvailabilityGrid({
                     <div
                       key={`b-${i}`}
                       style={{ top, height }}
-                      className="absolute inset-x-0.5 z-10 flex flex-col overflow-hidden rounded-lg border border-black/5 bg-[#ECECEC] px-1.5 py-1 text-left text-[10px] leading-tight text-[#6f6a63]"
+                      className="absolute inset-x-0.5 z-10 flex flex-col overflow-hidden rounded-lg border border-[var(--availability-divider)] bg-[var(--availability-busy-bg)] px-1.5 py-1 text-left text-[10px] leading-tight text-[var(--availability-muted)]"
                     >
                       <span className="font-semibold">{timeFmt.format(b.start)}</span>
                       {height > 28 && <span className="opacity-80">Ocupado</span>}

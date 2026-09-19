@@ -153,11 +153,11 @@ export function AgendaPage({ slug, backTo }: { slug: string; backTo: string }) {
           </div>
           <div className="flex items-center gap-3 text-xs text-muted">
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded bg-[#FFF1EE] ring-1 ring-[var(--color-soft-border)]" />
+              <span className="h-3 w-3 rounded bg-[var(--availability-free-bg)] ring-1 ring-[var(--color-soft-border)]" />
               Disponível
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded bg-[#ECECEC] ring-1 ring-black/5" />
+              <span className="h-3 w-3 rounded bg-[var(--availability-busy-bg)] ring-1 ring-[var(--color-soft-border)]" />
               Ocupado
             </span>
           </div>

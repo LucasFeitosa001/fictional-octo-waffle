@@ -56,6 +56,12 @@
   --booking-accent-shadow: color-mix(in oklab, var(--booking-accent) 32%, transparent);
   --booking-accent-2-soft: color-mix(in oklab, var(--booking-accent-2) 18%, #fff);
   --booking-accent-2-ink: color-mix(in oklab, var(--booking-accent-2) 66%, #000);
+  /* Shared colors for the public weekly availability grid and its legend. */
+  --availability-grid-bg: #fff;
+  --availability-free-bg: #fff1ee;
+  --availability-busy-bg: #ececec;
+  --availability-divider: rgba(26, 26, 26, 0.08);
+  --availability-muted: #6f6a63;
   /* The house "pink" shadow now tracks the salon accent so glow/elevation on
      accented controls matches the brand color everywhere it's referenced. */
   --shadow-pink: 0 8px 24px var(--booking-accent-shadow);
@@ -333,6 +339,15 @@ h1, h2, h3, h4, h5, h6,
     var(--booking-page-bg)
   );
   --booking-accent-2-ink: color-mix(in oklab, var(--booking-accent-2) 68%, #fff);
+  --availability-grid-bg: color-mix(in oklab, var(--booking-page-bg) 84%, #fff);
+  --availability-free-bg: color-mix(
+    in oklab,
+    var(--booking-accent) 28%,
+    var(--booking-page-bg)
+  );
+  --availability-busy-bg: color-mix(in oklab, var(--booking-page-bg) 65%, #777);
+  --availability-divider: rgba(255, 255, 255, 0.1);
+  --availability-muted: rgba(246, 242, 236, 0.72);
   --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
   --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.55);
