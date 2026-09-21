@@ -1517,10 +1517,11 @@ export class AppointmentsService {
     if (allIds.length) {
       const services = await this.loadServices(companyId, allIds).catch(() => []);
       if (!services.length) return vazio('servico_desconhecido');
-      durationMin = services.reduce((sum, s) => sum + s.durationMin, 0);
+      const porId = new Map(services.map((s) => [s.id, s] as const));
+      durationMin = allIds.reduce((sum, sid) => sum + (porId.get(sid)?.durationMin ?? 0), 0);
 
       // Validate the professional actually performs ALL requested services.
-      for (const sid of allIds) {
+      for (const sid of [...new Set(allIds)]) {
         const performs = await this.prisma.client.professionalService.findUnique({
           where: { professionalId_serviceId: { professionalId, serviceId: sid } },
         });

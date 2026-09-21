@@ -78,6 +78,8 @@ interface ClienteBruto {
 interface OfertaAberta {
   companyId: string;
   serviceId: string;
+  /** Serviços cobertos pela mesma reserva; preserva repetidos (ex.: 2 cortes infantis). */
+  serviceIds?: string[];
   professionalId: string;
   date: string;
   slots: string[];
@@ -413,9 +415,12 @@ export class VoltrAgendaService {
   async horarios(
     companyId: string,
     schema: string,
-    entrada: { serviceId: string; professionalId: string; date: string },
+    entrada: { serviceId: string; serviceIds?: string[]; professionalId: string; date: string },
   ) {
     const { serviceId, professionalId, date } = entrada;
+    const serviceIds = (entrada.serviceIds?.length ? entrada.serviceIds : [serviceId])
+      .map((id) => String(id ?? '').trim())
+      .filter(Boolean);
     if (!serviceId?.trim() || !professionalId?.trim() || !date?.trim()) {
       throw new BadRequestException('Informe serviço, profissional e data.');
     }
@@ -428,6 +433,7 @@ export class VoltrAgendaService {
       serviceId,
       professionalId,
       date,
+      serviceIds,
     );
     const slots = (r.slots ?? []).map((s) => s.start);
     if (slots.length === 0) {
@@ -450,6 +456,7 @@ export class VoltrAgendaService {
     const oferta: OfertaAberta = {
       companyId,
       serviceId,
+      ...(serviceIds.length > 1 ? { serviceIds } : {}),
       professionalId,
       date,
       slots,
@@ -594,7 +601,10 @@ export class VoltrAgendaService {
           customerId,
           professionalId: oferta.professionalId,
           start: inicio,
-          items: [{ serviceId: oferta.serviceId, professionalId: oferta.professionalId }],
+          items: this.serviceIdsDaOferta(oferta).map((serviceId) => ({
+            serviceId,
+            professionalId: oferta.professionalId,
+          })),
           // Veto explícito: a IA já avisou na conversa.
           notifyConfirmation: false,
         } as Parameters<AppointmentsService['create']>[1],
@@ -643,10 +653,17 @@ export class VoltrAgendaService {
         professionalId: oferta.professionalId,
         start: new Date(inicio),
         status: { not: 'canceled' },
-        items: { some: { serviceId: oferta.serviceId } },
+        AND: this.serviceIdsDaOferta(oferta).map((serviceId) => ({
+          items: { some: { serviceId } },
+        })),
       },
       select: { id: true },
     });
+  }
+
+  private serviceIdsDaOferta(oferta: OfertaAberta): string[] {
+    const ids = oferta.serviceIds?.length ? oferta.serviceIds : [oferta.serviceId];
+    return ids.map((id) => String(id ?? '').trim()).filter(Boolean);
   }
 
   /**

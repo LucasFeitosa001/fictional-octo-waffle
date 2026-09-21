@@ -217,9 +217,9 @@ export class WhatsappConnectionController {
 
   @Get('status')
   @RequirePermission('config:view', 'config:manage', 'marketing:view', 'marketing:manage')
-  status(@CurrentUser('companyId') companyId: string) {
+  async status(@CurrentUser('companyId') companyId: string) {
     // Abrir a tela de status já sobe a conexão desta empresa sob demanda.
-    this.whatsapp.ensureConnecting(companyId);
+    await this.whatsapp.ensureConnecting(companyId);
     return this.whatsapp.getStatus(companyId);
   }
 

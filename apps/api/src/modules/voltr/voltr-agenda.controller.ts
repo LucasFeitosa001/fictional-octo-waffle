@@ -86,13 +86,14 @@ export class VoltrAgendaController {
   @EscopoVoltr('agenda')
   async horarios(
     @Req() req: ReqVoltr,
-    @Body() body: { serviceId?: string; professionalId?: string; date?: string },
+    @Body() body: { serviceId?: string; serviceIds?: string[]; professionalId?: string; date?: string },
   ) {
     return this.service.horarios(
       req.voltrCompanyId!,
       String(req.headers['x-tenant-schema'] ?? ''),
       {
         serviceId: body?.serviceId ?? '',
+        serviceIds: Array.isArray(body?.serviceIds) ? body.serviceIds : undefined,
         professionalId: body?.professionalId ?? '',
         date: body?.date ?? '',
       },

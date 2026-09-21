@@ -881,8 +881,16 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
    * Garante que a sessão de uma empresa esteja conectando/conectada. Chamado pelo
    * controller quando o painel abre a tela de conexão (pede status/QR).
    */
-  ensureConnecting(companyId: string): void {
+  async ensureConnecting(companyId: string): Promise<void> {
     if (!this.enabled) return;
+    // Uazapi mantém a sessão fora do Baileys. O painel consulta este método ao
+    // abrir a tela de conexão; nunca devemos iniciar um QR local para o mesmo
+    // número, pois isso pode derrubar a sessão já conectada no provedor.
+    if ((await this.provedorDaEmpresa(companyId)) === 'uazapi') {
+      this.empresasUazapi.add(companyId);
+      if (!this.statusUazapi) this.statusUazapi = await this.uazapi.status();
+      return;
+    }
     const session = this.sessions.get(companyId);
     if (!session || (session.status !== 'open' && !session.connecting)) {
       void this.connect(companyId);
@@ -898,7 +906,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   async requestPairingCode(companyId: string, phone: string): Promise<string | null> {
     if (!this.enabled) return null;
     // Garante uma sessão viva para essa empresa antes de pedir o código.
-    this.ensureConnecting(companyId);
+    await this.ensureConnecting(companyId);
     const session = this.sessions.get(companyId);
     if (!session || !session.sock) return null;
     if (session.status === 'open') return null;
@@ -1224,7 +1232,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       // Mensagens já criadas dentro do inbox (IA/atendente) só precisam que a
       // outbox atualize o status. As demais — confirmação, cancelamento,
       // lembrete, follow-up e campanha — ganham o balão por este evento.
-      if (queued.companyId && !queued.inboxMessageId && queued.kind !== BOOKING_ALERT_KIND) {
+      if (queued.companyId && !queued.inboxMessageId) {
         await this.emitOutboundQueued({
           outboxId: queued.id,
           companyId: queued.companyId,

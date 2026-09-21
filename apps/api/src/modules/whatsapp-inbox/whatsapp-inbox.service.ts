@@ -104,6 +104,7 @@ const CUSTOMER_OUTBOUND_KINDS = [
   'reminder',
   'followup',
   'campaign',
+  'booking_alert',
 ] as const;
 const NON_CUSTOMER_OUTBOUND_KINDS = ['manager', 'invite'] as const;
 const OUTBOX_ALREADY_LINKED = 'WHATSAPP_OUTBOX_ALREADY_LINKED';
@@ -215,7 +216,28 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * A Mariana da empresa pode rodar no Voltr/Groq, enquanto este serviço do
+   * SalonPass também suporta a IA nativa do inbox. O aviso antigo só olhava
+   * GROQ_API_KEY/ANTHROPIC_API_KEY deste container e, por isso, marcava como
+   * "sem modelo" empresas cuja IA generativa estava configurada no Voltr.
+   */
+  private iaGenerativaDaEmpresa(companyId: string): 'groq' | 'anthropic' | 'voltr' | null {
+    if (process.env.GROQ_API_KEY) return 'groq';
+    if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+    if (!process.env.VOLTR_API_URL || !process.env.VOLTR_EMBED_CLIENT_ID || !process.env.VOLTR_EMBED_CLIENT_SECRET) {
+      return null;
+    }
+    try {
+      const mapa = JSON.parse(process.env.VOLTR_TENANT_MAP ?? '{}') as Record<string, string>;
+      return mapa[companyId] ? 'voltr' : null;
+    } catch {
+      return null;
+    }
+  }
+
   async getConfig(companyId: string) {
+    const aiProvider = this.iaGenerativaDaEmpresa(companyId);
     const [config, channel] = await Promise.all([
       this.ensureConfig(companyId),
       Promise.resolve(this.whatsapp.getStatus(companyId)),
@@ -225,14 +247,8 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
       tone: config.tone as Tone,
       faq: this.faq(config.faqJson),
       channel,
-      aiAvailable: Boolean(
-        process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY,
-      ),
-      aiProvider: process.env.GROQ_API_KEY
-        ? 'groq'
-        : process.env.ANTHROPIC_API_KEY
-          ? 'anthropic'
-          : null,
+      aiAvailable: Boolean(aiProvider),
+      aiProvider,
     };
   }
 
@@ -271,19 +287,14 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
           : {}),
       },
     });
+    const aiProvider = this.iaGenerativaDaEmpresa(companyId);
     return {
       ...saved,
       tone: saved.tone as Tone,
       faq: this.faq(saved.faqJson),
       channel: this.whatsapp.getStatus(companyId),
-      aiAvailable: Boolean(
-        process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY,
-      ),
-      aiProvider: process.env.GROQ_API_KEY
-        ? 'groq'
-        : process.env.ANTHROPIC_API_KEY
-          ? 'anthropic'
-          : null,
+      aiAvailable: Boolean(aiProvider),
+      aiProvider,
     };
   }
 
@@ -347,6 +358,9 @@ export class WhatsappInboxService implements OnModuleInit, OnModuleDestroy {
     const data = await this.prisma.client.whatsappConversation.findMany({
       where: {
         companyId,
+        ...(status === 'archived'
+          ? { archivedAt: { not: null } }
+          : { archivedAt: null }),
         ...(status === 'unread' ? { unreadCount: { gt: 0 } } : {}),
         ...(status === 'resolved' ? { resolved: true } : {}),
         ...(status === 'open' ? { resolved: false } : {}),
